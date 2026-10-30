@@ -625,6 +625,28 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     raise ValueError(msg)
 
 
+def largest_ssq_column(values: np.ndarray) -> np.ndarray:
+    """Return a copy of the column of ``values`` with the largest sum of squares, as an ``(N, 1)`` array.
+
+    NIPALS seeds its iteration from this column (#195). Any non-degenerate seed converges to
+    the same component, but the first column can be constant (all zero after preprocessing),
+    and then the iteration has nothing to follow. The highest-variance column also needs
+    fewer iterations. Missing cells are skipped in the sum and set to 0 in the returned column.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        An ``(N, K)`` array, possibly with NaN.
+
+    Returns
+    -------
+    np.ndarray
+        The chosen column, ``(N, 1)``, float, NaN replaced by 0.
+    """
+    start_col = int(np.argmax(np.nansum(values**2, axis=0)))
+    return np.nan_to_num(values[:, [start_col]].astype(float))
+
+
 def _cross_size(x_blocks: list[np.ndarray], y: np.ndarray) -> float:
     """Return ``sqrt(sum_b ||X_b' Y||^2)``, missing cells counted as zero: how much of Y the blocks can still reach."""
     y0 = np.nan_to_num(y)

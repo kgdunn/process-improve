@@ -41,6 +41,7 @@ from ._common import (
     _select_n_components,
     _vandervoet_randomization,
     epsqrt,
+    largest_ssq_column,
     resolve_loop_settings,
     y_is_exhausted,
     y_reach,
@@ -590,16 +591,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             exhausted = exhausted or y_is_exhausted("PLS", a, [Xd], Yd, reach)
             target = Xd if exhausted else Yd
 
-            # Seed u_a from the column of Y with the greatest sum-of-squares
-            # (variance, for mean-centred data) rather than the arbitrary first
-            # column (#195): NIPALS converges to the same component for any
-            # non-degenerate seed, but the highest-variance column needs fewer
-            # iterations and is more robust. The deterministic sign convention
-            # applied below makes the fitted sign independent of this seed.
-            # (Replace NaN with 0 for the missing-data path.)
-            start_col = int(np.argmax(ssq(target, axis=0)))
-            u_a_guess = target[:, [start_col]].copy()
-            u_a_guess[np.isnan(u_a_guess)] = 0
+            # Seed u_a from the column with the greatest sum of squares (#195). The deterministic
+            # sign convention applied below makes the fitted sign independent of this seed.
+            u_a_guess = largest_ssq_column(target)
             u_a = u_a_guess + 1.0
 
             # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
