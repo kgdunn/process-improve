@@ -638,6 +638,36 @@ def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
     return np.where(score_sd > epsqrt * max(1.0, float(np.max(score_sd))), score_sd, np.inf)
 
 
+def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:
+    """Return the cumulative Hotelling's T² of each row of a multiblock model's block scores (#513).
+
+    Each component is scaled by the scores' second moment about zero,
+    ``sum(t**2) / (n - 1)`` over the ``n`` rows that have a score, which is how
+    ``explained_variance_`` scales the super scores, so a block's T² and the super T²
+    follow one convention. T² measures the distance from the model's centre, the
+    origin of the score space, so the spread it is scaled by is the spread about that
+    origin too. The block scores used to be scaled by their variance about their own
+    mean instead, which differs as soon as missing data leaves them off-centre, and
+    which a single row without a score turned into NaN, so that every row's T² in the
+    block went unscaled. A component with no spread in the block is left out by
+    :func:`_t2_score_sd`, as from every other T² (#1028).
+
+    Parameters
+    ----------
+    scores : np.ndarray of shape (n_samples, n_components)
+        One block's scores, NaN for a row with nothing observed in the block.
+
+    Returns
+    -------
+    np.ndarray of shape (n_samples, n_components)
+        Column ``a`` holds the T² over the first ``a`` components; NaN for a row with
+        no score. A component with no spread adds nothing.
+    """
+    present = np.isfinite(scores)
+    second_moment = np.nansum(scores**2, axis=0) / np.maximum(1, present.sum(axis=0) - 1)
+    return np.cumsum((scores**2) / _t2_score_sd(np.sqrt(second_moment)) ** 2, axis=1)
+
+
 def t2_contributions(
     model: BaseEstimator,
     X: DataMatrix,

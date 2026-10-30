@@ -43,6 +43,7 @@ from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _nz
 from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
+from process_improve.multivariate._diagnostics import cumulative_block_t2
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
@@ -2246,6 +2247,16 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     )
 
 
+def _multiblock_on_a_plane(estimator: type, flat: pd.DataFrame) -> MBPCA | MBPLS:
+    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d."""
+    blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
+    model = estimator(n_components=3)
+    if estimator is MBPLS:
+        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
+    return model.fit(blocks)
+
+
 @pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
 def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: type) -> None:
     """MBPCA's and MBPLS's super T², fitted and of a new row, count only the components with spread (#1026).
@@ -2255,13 +2266,7 @@ def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: 
     Each T² is now ``sum_a t_a^2 / var_a`` over the first two components, by hand.
     """
     flat, new = _rows_on_a_plane()
-    blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
-    model = estimator(n_components=3)
-    if estimator is MBPLS:
-        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
-            model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
-    else:
-        model.fit(blocks)
+    model = _multiblock_on_a_plane(estimator, flat)
     variance = model.explained_variance_
     assert variance[2] < 1e-24
     fitted = model.super_scores_.to_numpy()
@@ -2272,6 +2277,51 @@ def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: 
     scores = result.super_scores.to_numpy()
     assert scores[0, 2] ** 2 / variance[2] > 1e20  # the new row is well off the plane
     np.testing.assert_allclose(result.hotellings_t2, [np.sum(scores[0, :2] ** 2 / variance[:2])], rtol=1e-10)
+
+
+@pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
+def test_multiblock_block_t2_leaves_out_a_block_score_with_no_spread(estimator: type) -> None:
+    """A block's T² counts only the block components with spread, as the super T² does (#1028).
+
+    Each block of rows on a plane holds two directions, so its third block score has a second
+    moment near 1e-32. Divided by it, that score added noise over noise, of order 1, to every
+    row's block T². Each block T² is now ``sum_a t_a^2 / m_a`` over the first two components,
+    ``m_a = sum_i t_ia^2 / (N - 1)``, by hand.
+    """
+    flat, _ = _rows_on_a_plane()
+    model = _multiblock_on_a_plane(estimator, flat)
+    for name in ("A", "B"):
+        scores = model.block_scores_[name].to_numpy()
+        second_moment = np.sum(scores**2, axis=0) / 29
+        assert second_moment[2] < 1e-24 * second_moment[0]
+        by_hand = np.cumsum(np.column_stack([scores[:, :2] ** 2 / second_moment[:2], np.zeros(30)]), axis=1)
+        np.testing.assert_allclose(model.block_hotellings_t2_[name].to_numpy(), by_hand, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("scores", "expected"),
+    [
+        # Three rows with a score: each column's second moment divides by 3 - 1. The third
+        # column, of sd near 1e-17 against about 2, is left out.
+        (
+            [[1.0, 2.0, 1e-17], [np.nan] * 3, [2.0, -1.0, 0.0], [-2.0, 1.0, -1e-17]],
+            [[1 / 4.5, 1 / 4.5 + 4 / 3], [np.nan] * 2, [4 / 4.5, 4 / 4.5 + 1 / 3], [4 / 4.5, 4 / 4.5 + 1 / 3]],
+        ),
+        # Two rows with a score divide by 1.
+        (
+            [[1.0, 3.0], [np.nan] * 2, [2.0, -1.0], [np.nan] * 2],
+            [[1 / 5, 1 / 5 + 9 / 10], [np.nan] * 2, [4 / 5, 4 / 5 + 1 / 10], [np.nan] * 2],
+        ),
+        # One row with a score divides by 1 too, not by 0.
+        ([[np.nan] * 2, [3.0, -0.5]], [[np.nan] * 2, [1.0, 2.0]]),
+    ],
+)
+def test_cumulative_block_t2_by_hand(scores: list, expected: list) -> None:
+    """Each block score over its second moment about zero, ``sum t^2 / max(1, n - 1)`` over its n scores (#1028)."""
+    expected = np.array(expected)
+    t2 = cumulative_block_t2(np.array(scores))
+    np.testing.assert_allclose(t2[:, : expected.shape[1]], expected, rtol=1e-14)
+    np.testing.assert_array_equal(t2[:, -1], t2[:, expected.shape[1] - 1])
 
 
 def test_pca_detect_outliers() -> None:

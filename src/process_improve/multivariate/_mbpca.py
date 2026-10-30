@@ -24,12 +24,11 @@ from ._common import (
     SpecificationWarning,
     _nz,
     _scale_block_contributions,
-    cumulative_block_t2,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
 )
-from ._diagnostics import _select_rows, _t2_score_sd
+from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
