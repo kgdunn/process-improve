@@ -1099,7 +1099,7 @@ def _lack_of_fit(study: _Study, model: _Model, alpha: float) -> dict[str, Any]:
     own: dict[str, Any] = {"tested": False}
     if model.error_df > 0:
         result = _run_lack_of_fit(model.fit, study.data, "y", _repeats(study), alpha)["lack_of_fit"]
-        if "error" not in result:
+        if result.get("p_value") is not None:  # no p-value: no replicates, no lack-of-fit df, or zero pure error
             own = {"tested": True, "significant": bool(result["significant"]), "p_value": result["p_value"]}
     return model.misses if model.misses and not own.get("significant") else own
 
