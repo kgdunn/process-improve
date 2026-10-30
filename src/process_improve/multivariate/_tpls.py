@@ -254,7 +254,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     - ``F``: Formula matrices (rows = blends, columns = materials).
       ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
-    - ``Z``: Process conditions - one row per blend, one column per condition.
+    - ``Z``: Process conditions - one row per blend, one column per condition, in one or more
+      groups. Each Z group has its own weights and block score, as a block of a multi-block PLS.
     - ``Y``: Product quality indicators - one row per blend, one column per indicator.
 
     The ``D`` matrix (database of material properties) is supplied once at
@@ -306,7 +307,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         Z-block weights per Z-block.
     w_loadings_super : pd.DataFrame
         Super-block weights, rows ``["Z", "F"]`` (or just ``["F"]`` when
-        there are no process conditions).
+        there are no process conditions). Each Z group is a block of its own
+        in the super-level, so several Z groups give one row each, labelled
+        ``Z["<group>"]``, before the ``"F"`` row.
     s_loadings_d, v_loadings_d : dict[str, pd.DataFrame]
         D-block scores and loadings per group.
     p_loadings_f : dict[str, pd.DataFrame]
@@ -602,7 +605,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.w_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
-        self.w_loadings_super = pd.DataFrame(index=["Z", "F"] if self.n_conditions > 0 else ["F"])
+        self.w_loadings_super = pd.DataFrame(index=self._super_block_names())
         # Capture the correlation of the properties in D; for the last component.
         self.s_loadings_d: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
@@ -646,7 +649,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
+    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
         """
         Model inference on new data.
 
@@ -760,27 +763,27 @@ class TPLS(RegressorMixin, BaseEstimator):
             denominators[denominators == 0] = np.nan
             score_f_a /= denominators
 
-            # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
-            # t-score for that pc_a. It seems redundant to divide by w'w, since w is already normalized, but if there
-            # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
+            # Repeat for the Z-space: regress the row of each new Z group on its own w-loadings, to get one
+            # t-score per group for that pc_a, as fit() does (#981). The regression divides by the squared
+            # weights of the cells each row has (#513), and a row with no value in a group scores 0 there.
+            # The groups follow the training order, the order of the rows of w_loadings_super; Z is optional
+            # here, so a group left out of X scores 0, as a row with no value in it does. The deflation below
+            # leaves a value in a missing cell, which the mask takes out again before the regression.
             if self.n_conditions > 0:
-                score_z_a = np.zeros(num_obs)
-                denominators = np.zeros(num_obs)
-                z_observed = np.zeros(num_obs, dtype=bool)
-                for key, df_x_z in x_z.items():
-                    b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
-                    denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
-                    score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
-                    denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
-                    z_observed |= not_na_z[key].any(axis=1)
-                # The correction the comment above describes was computed and never applied, so a row with a
-                # missing Z cell scored closer to 0 here than in fit() (#513). A row with no Z value scores 0,
-                # as in fit().
-                score_z_a = np.where(z_observed, score_z_a / np.where(z_observed, denominators, 1.0), 0.0)
+                scores_z_a = [
+                    regress_a_space_on_b_row(
+                        x_z[key].to_numpy() * not_na_z[key],
+                        self.w_loadings_z[key].iloc[:, pc_a].to_numpy(),
+                        not_na_z[key],
+                    ).ravel()
+                    if key in x_z
+                    else np.zeros(num_obs)
+                    for key in self.z_mats
+                ]
 
                 # Multiply the individual block scores by the super-weights, to get the super-scores.
-                # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-                super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+                # After transposing below, rows are the observations, and columns are the blocks: [Z groups..., F]
+                super_score_a = np.vstack([*scores_z_a, score_f_a]).T @ np.asarray(
                     self.w_loadings_super.iloc[:, pc_a].values
                 ).reshape(-1, 1)
             else:
@@ -1145,6 +1148,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         raise ValueError(msg)
 
+    def _super_block_names(self) -> list[str]:
+        """Row labels of ``w_loadings_super``: one per Z group, as the fit scores each on its own, then F."""
+        if self.n_conditions == 0:
+            return ["F"]
+        # A single Z group keeps the plain "Z" label it always had.
+        return ["Z", "F"] if len(self.z_mats) == 1 else [*(f'Z["{key}"]' for key in self.z_mats), "F"]
+
     def _store_model_coefficients(  # noqa: PLR0913
         self,
         pc_a_column: int,  # one-based index for the component
@@ -1177,7 +1187,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
 
         self.w_loadings_super = self.w_loadings_super.join(
-            pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a_column])
+            pd.DataFrame(w_super_i, index=self._super_block_names(), columns=[pc_a_column])
         )
 
         self.s_loadings_d = {

@@ -103,13 +103,15 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
+    # 27: #981 scored each Z group of `TPLS.diagnose` with the shared regression
+    # helper, which took that function under PLR0915.
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 28,
+    "PLR0915": 27,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.
