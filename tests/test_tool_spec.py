@@ -744,6 +744,18 @@ class TestPcaPredict:
         assert abs(t[0, 2]) > 0.1  # the new row is well off the plane
         assert pred_result["hotellings_t2"] == pytest.approx([np.sum(t[0, :2] ** 2 / s[:2] ** 2)], rel=1e-12)
 
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, not read as a component with no spread.
+
+        Read that way it would drop out of T², and the corrupt model would give a T² that looks right.
+        """
+        data = np.random.default_rng(7).standard_normal((20, 3)).tolist()
+        model_params = execute_tool_call("fit_pca", {"data": data, "n_components": 2})["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pca_predict", {"new_data": data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
+
 
 class TestPlsPredict:
     """Tests for the pls_predict tool wrapper."""
@@ -784,6 +796,18 @@ class TestPlsPredict:
         t = np.array(pred_result["scores"])
         assert abs(t[0, 1]) > 0.1
         assert pred_result["hotellings_t2"] == pytest.approx([(t[0, 0] / s) ** 2], rel=1e-12)
+
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, as ``pca_predict`` refuses it."""
+        rng = np.random.default_rng(7)
+        x_data = rng.standard_normal((20, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call("fit_pls", {"x_data": x_data, "y_data": y_data, "n_components": 2})
+        model_params = fit_result["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pls_predict", {"new_data": x_data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
 
 
 # ---------------------------------------------------------------------------
