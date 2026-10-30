@@ -8058,10 +8058,11 @@ def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
     spe = np.linalg.norm(X.to_numpy() - X.to_numpy() @ P @ P.T, axis=1)
     assert np.isnan(diagnosed.spe.iloc[1])
     assert np.isnan(diagnosed.hotellings_t2.iloc[1]).all()
-    np.testing.assert_allclose(diagnosed.spe.drop("r1"), np.delete(spe, 1), rtol=1e-12)
+    spe_complete = np.delete(spe, 1)
+    np.testing.assert_allclose(diagnosed.spe.drop("r1"), spe_complete, rtol=1e-12)
     assert np.isnan(pca.score(nullable))
     complete = nullable.drop(index="r1")
-    assert pca.score(complete) == pytest.approx(-np.mean(np.delete(spe, 1) ** 2) / 3, rel=1e-12)
+    assert pca.score(complete) == pytest.approx(-np.mean(spe_complete**2) / 3, rel=1e-12)
 
 
 def test_pca_refuses_new_rows_that_do_not_fit_the_model() -> None:
