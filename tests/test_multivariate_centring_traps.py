@@ -240,7 +240,12 @@ class TestPreScaledInsideFoldsWarning:
             PLS.select_n_components(raw, y, cv=cv, max_components=4, scale_inside_folds=True)
 
     def test_two_deliberate_scalings_are_indistinguishable_inside_folds(self) -> None:
-        """The behaviour the warning is about: identical RMSECV from different scalings."""
+        """The behaviour the warning is about: identical RMSECV from different scalings.
+
+        Without in-fold scaling the two stay apart only for a model that does not scale
+        itself: a ``PLS(scale=True)`` autoscales each training fold on its own, and its
+        held-out predictions are now read in its own space (#1027).
+        """
         _raw, autoscale, pareto, y = self._blocks()
         cv = KFold(n_splits=5, shuffle=True, random_state=0)
         with _numbers_only():
@@ -255,7 +260,9 @@ class TestPreScaledInsideFoldsWarning:
             unscaled = {
                 name: float(
                     np.asarray(
-                        PLS.select_n_components(block, y, cv=cv, max_components=4, scale_inside_folds=False)["rmsecv"]
+                        PLS.select_n_components(
+                            block, y, cv=cv, max_components=4, scale_inside_folds=False, scale=False
+                        )["rmsecv"]
                     ).ravel()[0]
                 )
                 for name, block in (("autoscale", autoscale), ("pareto", pareto))
