@@ -376,7 +376,8 @@ def _stand_in_factors(
     names keeps its name. Returns the data, the model and the factor columns under the stand-ins,
     and each real name mapped to its stand-in, through which the results are read back.
     """
-    stand_ins = stand_ins_for(build_formula(response_col, factor_cols, model), df.columns)  # not the response's name
+    hidden = stand_ins_for(build_formula(response_col, factor_cols, model), df.columns)  # clear of every column
+    stand_ins = {name: stand_in for name, stand_in in hidden.items() if name in factor_cols}
     if not stand_ins:
         return df, model, factor_cols, stand_ins
     model = model if model in _NAMED_MODELS else with_stand_ins(model, stand_ins)
