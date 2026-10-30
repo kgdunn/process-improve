@@ -40,7 +40,7 @@ from ._common import (
     y_is_exhausted,
     y_reach,
 )
-from ._diagnostics import _select_rows
+from ._diagnostics import _select_rows, _t2_score_sd
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
@@ -929,7 +929,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             )
             for name in self.block_names_
         }
-        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
+        super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
         super_t2 = np.cumsum((work.super_scores**2) / super_score_var, axis=1)
         self.super_hotellings_t2_ = pd.DataFrame(super_t2, index=self._sample_index, columns=component_names)
 
@@ -1560,7 +1561,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
             for name in self.block_names_
         }
-        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
+        super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
         hotellings_t2 = pd.Series(
             np.sum((super_scores**2) / super_score_var, axis=1), index=sample_index, name="Hotelling's T²"
         )

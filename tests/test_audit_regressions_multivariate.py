@@ -189,7 +189,16 @@ class TestSelectNComponentsScales:
         # reference the folds measured rather than one recomputed out here.
         from process_improve.multivariate._pca import _pca_ekf_press
 
-        ekf = _pca_ekf_press(np.asarray(x, dtype=float), 3, n_folds=4, random_state=0)
+        ekf = _pca_ekf_press(
+            np.asarray(x, dtype=float),
+            3,
+            n_folds=4,
+            random_state=0,
+            n_repeats=1,
+            ekf_max_iter=50,
+            ekf_tol=1e-6,
+            scale_inside_folds=True,
+        )
         expected_q2 = 1.0 - result.press.to_numpy() / ekf.null_model_ss
         np.testing.assert_allclose(result.q2.to_numpy(), expected_q2)
 
@@ -482,7 +491,16 @@ class TestStatisticalCorrectnessTriage:
         """
         from process_improve.multivariate._pca import _pca_ekf_press
 
-        result_ekf = _pca_ekf_press(np.array([[1.0, 2], [3, 4]]), 1, n_folds=5, random_state=0)
+        result_ekf = _pca_ekf_press(
+            np.array([[1.0, 2], [3, 4]]),
+            1,
+            n_folds=5,
+            random_state=0,
+            n_repeats=1,
+            ekf_max_iter=50,
+            ekf_tol=1e-6,
+            scale_inside_folds=True,
+        )
         press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert np.isnan(per_fold[0, :4]).all(), "empty folds must be NaN, not zero"
         assert np.isfinite(per_fold[0, 4])
@@ -498,7 +516,9 @@ class TestStatisticalCorrectnessTriage:
 
         rng = np.random.default_rng(0)
         X = rng.normal(size=(20, 4))
-        result_ekf = _pca_ekf_press(X, 3, n_folds=5, random_state=42)
+        result_ekf = _pca_ekf_press(
+            X, 3, n_folds=5, random_state=42, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=True
+        )
         press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert not np.isnan(per_fold).any()
         assert np.all(np.isfinite(press))
