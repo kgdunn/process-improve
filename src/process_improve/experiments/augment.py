@@ -39,7 +39,8 @@ from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _roman,
-    _word_to_str,
+    _signed_defining_relation,
+    _signed_word_str,
     evaluate_design,
 )
 from process_improve.experiments.factor import FactorType
@@ -262,22 +263,23 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
     generators_after = None
     resolution_after: int | str | None = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
         # Negating every factor flips the sign of every odd-length word in the second
         # half, so the odd words no longer hold in the combined design (each is now
-        # confounded with the contrast between the two halves). Even-length words hold
-        # in both halves and survive: the 2FI chains they create are still aliased.
-        surviving = [w for w in words if len(w) % 2 == 0]
+        # confounded with the contrast between the two halves). Even-length words hold,
+        # with the same sign, in both halves and survive: the 2FI chains they create are
+        # still aliased.
+        surviving = [(w, s) for w, s in words if len(w) % 2 == 0]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
             notes.append(f"New defining relation: {', '.join(generators_after)}.")
-            resolution_after = min(len(w) for w in surviving)
+            resolution_after = min(len(w) for w, _ in surviving)
         else:
             resolution_after = "full"
 
-        eliminated = [w for w in words if len(w) % 2 != 0]
+        eliminated = [(w, s) for w, s in words if len(w) % 2 != 0]
         if eliminated:
-            eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
+            eliminated_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in eliminated]
             notes.append(f"Eliminated defining words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
@@ -320,20 +322,20 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
     notes: list[str] = [f"Folded on factor: {fold_factor}."]
     generators_after = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
         # The added half repeats half of the runs with the fold factor's sign switched.
-        # A word without it holds in every run and survives. A word containing it holds
-        # in the original runs and is reversed in the added ones, so it no longer holds
-        # anywhere: effects aliased through it become partially aliased (Mee and Peralta,
-        # 2000), correlated rather than independent, and the combined design is not a
-        # regular fraction.
-        surviving = [w for w in words if fold_idx not in w]
-        broken = [w for w in words if fold_idx in w]
+        # A word without it holds, with its sign, in every run and survives. A word
+        # containing it holds in the original runs and is reversed in the added ones, so
+        # it no longer holds anywhere: effects aliased through it become partially aliased
+        # (Mee and Peralta, 2000), correlated rather than independent, and the combined
+        # design is not a regular fraction.
+        surviving = [(w, s) for w, s in words if fold_idx not in w]
+        broken = [(w, s) for w, s in words if fold_idx in w]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
             notes.append(f"Defining words that still hold in every run: {', '.join(generators_after)}.")
         if broken:
-            broken_strs = [_word_to_str(w, ctx.factor_names) for w in broken]
+            broken_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in broken]
             notes.append(
                 f"Words containing {fold_factor} ({', '.join(broken_strs)}) now hold in only part of the runs: "
                 "effects aliased through them are partially de-aliased, not independent. The combined design is "
