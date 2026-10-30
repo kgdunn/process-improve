@@ -5650,6 +5650,50 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     assert np.isfinite(model.z_mats["Z1"]).all()
 
 
+def test_tpls_and_mbpls_start_from_the_y_column_with_the_most_variation() -> None:
+    """#954: a constant first Y column does not stop the fit, and its position does not change the model.
+
+    TPLS seeded its iteration, and its inner one-component PLS, from the first Y column. A
+    constant column is a column of zeros after preprocessing, so the scores came out NaN and
+    the fit was refused although the other Y columns vary. Both now start from the column with
+    the largest sum of squares, as PLS and MBPLS do (#195, #503).
+    """
+    rng = np.random.default_rng(954)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    f_block = pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)
+    z_block = pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])
+    y_block = pd.DataFrame(
+        {"stuck": np.ones(n_blends), "y1": rng.normal(size=n_blends), "y2": rng.normal(size=n_blends)}, index=index
+    )
+
+    def fit_tpls(columns: list[str]) -> tuple[TPLS, pd.DataFrame]:
+        blocks = DataFrameDict({"F": {"G": f_block}, "Z": {"Z1": z_block}, "Y": {"Y1": y_block[columns]}})
+        with pytest.warns(UserWarning, match="no variance"):
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+        return model, model.diagnose(blocks).hat["Y1"][["y1", "y2"]]
+
+    first, predicted_first = fit_tpls(["stuck", "y1", "y2"])
+    last, predicted_last = fit_tpls(["y1", "y2", "stuck"])
+    # The same model up to the sign of each component, so the same predictions.
+    scores_first, scores_last = first.t_scores_super.to_numpy(), last.t_scores_super.to_numpy()
+    signs = np.sign(np.sum(scores_first * scores_last, axis=0))
+    assert np.all(signs != 0)
+    np.testing.assert_allclose(scores_first, scores_last * signs, atol=1e-6)
+    np.testing.assert_allclose(predicted_first.to_numpy(), predicted_last.to_numpy(), atol=1e-6)
+
+    # MBPLS, checked for the same case (CONTRIBUTING.md, API consistency).
+    x_blocks = {"F": f_block, "Z": z_block}
+
+    def fit_mbpls(columns: list[str]) -> MBPLS:
+        return MBPLS(n_components=2).fit(x_blocks, y_block[columns])
+
+    mb_first, mb_last = fit_mbpls(["stuck", "y1", "y2"]), fit_mbpls(["y1", "y2", "stuck"])
+    np.testing.assert_allclose(mb_first.super_scores_.to_numpy(), mb_last.super_scores_.to_numpy(), atol=1e-6)
+
+
 def test_tpls_preprocessing_invariant_names_what_failed() -> None:
     """#513: the invariant check raises with a message, and survives `python -O`.
 

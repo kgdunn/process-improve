@@ -28,7 +28,7 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _nz, epsqrt
+from ._common import _nz, epsqrt, largest_ssq_column
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -1133,14 +1133,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
         row or a material with nothing observed no longer causes one: it gets a zero score or
         loading and no weight (#513). What is left is a direction the iteration cannot take,
-        because the vector it regresses on is zero: the first Y column it starts from, or
+        because the vector it regresses on is zero: every column of the first Y block, or
         every column of D or F, has no variation.
         """
         if np.isfinite(t_super_i).all():
             return
         msg = (
             f"TPLS cannot fit component {component}: its scores are not finite, because a block has "
-            "no variation for the iteration to follow. Check that the first column of the first Y "
+            "no variation for the iteration to follow. Check that at least one column of the first Y "
             "block, and at least one column of each D and F group, varies and is observed."
         )
         raise ValueError(msg)
@@ -1676,8 +1676,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_iter = 0
             milliseconds_start = time.time()
 
-            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway, so it doesn't matter)
-            u_super_i = next(iter(self.y_mats.values()))[:, [0]]
+            # Step 1: Start from the Y column with the largest sum of squares, as PLS does (#195). The first
+            # column can be constant, all zero after preprocessing, and then the iteration has nothing to follow (#954).
+            u_super_i = largest_ssq_column(next(iter(self.y_mats.values())))
             u_prior = u_super_i + 1
 
             while not self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
