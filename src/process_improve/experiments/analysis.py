@@ -20,7 +20,7 @@ import re
 import warnings
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -75,7 +75,13 @@ from process_improve.experiments._analyses.split_plot import (
     sum_coding_env,
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
-from process_improve.experiments._lm import suggest_identifier, validate_identifiers_are_safe
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    suggest_identifier,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.designs_mixture_process import ReducedRankFormula
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
@@ -358,6 +364,35 @@ def _resolve_model(
             )
         model = f"{response_col} ~ {rhs}"
     return model, [c for c in factor_cols if _references(rhs, c)]
+
+
+def _stand_in_factors(
+    df: pd.DataFrame, model: str, response_col: str, factor_cols: list[str]
+) -> tuple[pd.DataFrame, str, list[str], dict[str, str]]:
+    """Put each factor whose name the model calls under a stand-in name, as the response is (#986).
+
+    A factor named ``I`` hides patsy's ``I()`` in every square term, and one named ``C`` hides
+    ``C()`` (see :func:`~process_improve.experiments._lm.stand_ins_for`); a factor the model only
+    names keeps its name. Returns the data, the model and the factor columns under the stand-ins,
+    and each real name mapped to its stand-in, through which the results are read back.
+    """
+    stand_ins = stand_ins_for(build_formula(response_col, factor_cols, model), factor_cols)
+    if not stand_ins:
+        return df, model, factor_cols, stand_ins
+    model = model if model in _NAMED_MODELS else with_stand_ins(model, stand_ins)
+    return df.rename(columns=stand_ins), model, [stand_ins.get(c, c) for c in factor_cols], stand_ins
+
+
+_Named = TypeVar("_Named")
+
+
+def _under_stand_ins(value: _Named, stand_ins: Mapping[str, str]) -> _Named:
+    """Return the caller's ranges per factor, or new points, keyed by the factors' stand-in names."""
+    if isinstance(value, pd.DataFrame):
+        return cast("_Named", value.rename(columns=stand_ins))
+    if isinstance(value, Mapping):
+        return cast("_Named", {stand_ins.get(name, name): entry for name, entry in value.items()})
+    return value
 
 
 def _estimable_default(
@@ -1070,6 +1105,8 @@ def analyze_experiment(  # noqa: PLR0913
         labels each run's whole plot: it is used by ``analysis_type="split_plot"``,
         and any other analysis warns that it treats the runs as independent.
         Runs with a missing response or factor setting are left out, with a warning.
+        A factor named like a function the model calls, as ``I`` in a model with squares,
+        is fitted under a stand-in name and reported under its own.
     responses : DataFrame, Series, or None
         Response column(s).  If *None*, ``response_column`` must name a
         column already present in *design_matrix*. When a DataFrame with
@@ -1399,6 +1436,8 @@ def analyze_experiment(  # noqa: PLR0913
 
     requested_model = model
     model, factor_cols = _resolve_model(df, model, response_col, reported_response, factor_cols)
+    df, model, factor_cols, stand_ins = _stand_in_factors(df, model, response_col, factor_cols)
+    coding, new_points = _under_stand_ins(coding, stand_ins), _under_stand_ins(new_points, stand_ins)
     used = [
         response_col,
         *factor_cols,
@@ -1478,7 +1517,7 @@ def analyze_experiment(  # noqa: PLR0913
         chosen["selected_formula"] = chosen["selected_formula"].replace(
             f"{response_col} ~", f"{reported_response} ~", 1
         )
-    return results
+    return real_names(results, stand_ins)
 
 
 def _side_columns(

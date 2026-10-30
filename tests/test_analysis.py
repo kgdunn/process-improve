@@ -1332,24 +1332,83 @@ def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
         analyze_experiment(data, response_column="y", model="main_effects")
 
 
-def test_a_factor_named_i_in_a_quadratic_model_comes_with_a_rename_that_fits() -> None:
-    """A factor named I hides patsy's I() in every square term; a main-effects model, which calls no I(), fits."""
+def _named(value: object, old: str, new: str) -> object:
+    """Rename the factor ``old`` to ``new`` wherever it stands as a name of its own in a result."""
+    if isinstance(value, str):
+        return re.sub(rf"(?<![\w.]){re.escape(old)}(?!\w)", new, value)
+    if isinstance(value, dict):
+        return {_named(key, old, new): _named(entry, old, new) for key, entry in value.items()}
+    if isinstance(value, list):
+        return [_named(entry, old, new) for entry in value]
+    return value
+
+
+#: Every analysis that a design without whole plots or a count response can run.
+_EVERY_LEAST_SQUARES_ANALYSIS = [
+    "anova",
+    "effects",
+    "coefficients",
+    "significance",
+    "residual_diagnostics",
+    "lack_of_fit",
+    "curvature_test",
+    "model_selection",
+    "box_cox",
+    "lenth_method",
+    "confidence_intervals",
+    "prediction",
+    "confirmation_test",
+]
+
+
+def _box_behnken_analysis(names: list[str], model: str, coding: object = "auto") -> dict:
+    """Analyse one Box-Behnken design, its first factor curved, under the factor names given."""
     from process_improve.experiments import analyze_experiment
 
-    axial = 2**0.5
-    x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
-    z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
-    noise = np.random.default_rng(0).normal(0, 0.1, len(x))
-    data = pd.DataFrame({"I": x, "P": z, "y": 5 + x - x**2 + z + noise})
-    main = analyze_experiment(data, response_column="y", model="main_effects", analysis_type="coefficients")
-    assert [row["term"] for row in main["coefficients"]] == ["Intercept", "I", "P"]
-    with pytest.raises(ValueError, match=r"calls I\(\)") as refusal:
-        analyze_experiment(data, response_column="y", model="quadratic")
-    renames = ast.literal_eval(re.search(r"columns=(\{.*\})\)\.$", str(refusal.value)).group(1))
-    fitted = analyze_experiment(
-        data.rename(columns=renames), response_column="y", model="quadratic", analysis_type="coefficients"
-    )
-    assert "I(I_ ** 2)" in [row["term"] for row in fitted["coefficients"]]
+    factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
+    runs = generate_design(factors, design_type="box_behnken", n_center_points=3, random_state=1).design
+    runs = runs[["A", "B", "C"]].reset_index(drop=True)
+    noise = np.random.default_rng(1).normal(0, 0.3, len(runs))
+    y = 15 + 2 * runs["A"] - runs["B"] + 0.5 * runs["A"] * runs["B"] - 1.5 * runs["A"] ** 2 + noise
+    data = runs.set_axis(names, axis=1).assign(y=y)
+    new_points = pd.DataFrame([[0.1, 0.2, 0.0]], columns=names)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the same warnings come from both namings
+        return analyze_experiment(
+            data,
+            response_column="y",
+            model=model.format(*names),
+            analysis_type=_EVERY_LEAST_SQUARES_ANALYSIS,
+            coding=coding,
+            new_points=new_points,
+            observed_at_new=[15.0],
+        )
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param("quadratic", id="quadratic"),
+        pytest.param("y ~ {0} * {1} + {2} + I({0} ** 2)", id="formula"),
+        pytest.param("{0} + {1} + {2} + {0}:{1} + I({0} ** 2) + I({1} ** 2)", id="right-hand-side"),
+    ],
+)
+def test_a_factor_named_i_is_analysed_as_the_same_factor_named_otherwise(model: str) -> None:
+    """A factor named I hides patsy's I() in every square term; it is fitted under a stand-in, reported as I (#986)."""
+    named_i = _box_behnken_analysis(["I", "B", "C"], model)
+    named_x = _box_behnken_analysis(["X", "B", "C"], model)
+    assert named_i == _named(named_x, "X", "I")
+    assert "I(I ** 2)" in [row["term"] for row in named_i["coefficients"]]
+    assert named_i["factor_names"] == ["I", "B", "C"]
+
+
+def test_a_factor_named_i_beside_one_named_i_underscore_keeps_each_name() -> None:
+    """The stand-in for I is I_2 when a factor is named I_, which keeps its own name; ranges are given by real name."""
+    coding = {"I": {"low": -2.0, "high": 2.0}, "I_": {"low": -1.0, "high": 1.0}}
+    named_i = _box_behnken_analysis(["I", "I_", "C"], "quadratic", coding=coding)
+    named_x = _box_behnken_analysis(["X", "W", "C"], "quadratic", coding={"X": coding["I"], "W": coding["I_"]})
+    assert named_i == _named(_named(named_x, "W", "I_"), "X", "I")
+    assert {"I", "I_", "I:I_", "I(I ** 2)", "I(I_ ** 2)"} <= {row["term"] for row in named_i["coefficients"]}
 
 
 def test_refused_column_names_come_with_a_rename_that_fits() -> None:
