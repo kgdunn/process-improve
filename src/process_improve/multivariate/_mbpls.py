@@ -537,6 +537,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The number of components fitted. Everything after ``fit`` reads it, not the
+        ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
     block_names_ : list[str]
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
@@ -997,7 +1000,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         missing = set(self.block_names_) - set(X)
         if missing:
             raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= int(component) <= a_max):
             msg = f"component must be a 1-based index within 1..{a_max}, got {component}."
             raise ValueError(msg)
@@ -1123,7 +1126,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
         """Scatter plot of super-scores for two components."""
         check_is_fitted(self, "super_scores_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
         x = self.super_scores_[pc_horiz].to_numpy()
@@ -1151,7 +1154,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     def super_weights_bar_plot(self, component: int = 1) -> go.Figure:
         """Bar plot of super-weights ``w_super`` for a single component."""
         check_is_fitted(self, "super_weights_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         weights = self.super_weights_[component]
@@ -1213,11 +1216,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """Format a short text summary of per-block R²X, overall R²Y, iterations and timing."""
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
-        rows.append(f"MBPLS model: {self.n_components} component(s), {len(self.block_names_)} X-block(s)")
+        rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
         header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
         rows.append(header)
         rows.append("-" * len(header))
-        for a in range(self.n_components):
+        for a in range(self.n_components_):
             cells = [f"{i:>3d}" for i in [a + 1]]
             for name in self.block_names_:
                 src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
@@ -1513,7 +1516,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             if sample_index is None:
                 sample_index = block.index
 
-        n_components = int(self.n_components)
+        n_components = self.n_components_
         n_new = next(iter(x_pp.values())).shape[0]
         sqrt_kb = self._block_scale()
 
@@ -1631,7 +1634,7 @@ def randomization_test_mbpls(
     """
     check_is_fitted(model, "super_scores_")
     rng = np.random.default_rng(seed)
-    a_components = int(model.n_components)
+    a_components = model.n_components_
 
     def _objective(mod: MBPLS) -> np.ndarray:
         t = mod.super_scores_.values

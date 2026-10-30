@@ -358,3 +358,32 @@ def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
     blocks["Z"]["Z1"].loc["blend3", "z1"] = np.nan
     model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
     np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)
+
+
+@pytest.mark.parametrize("n_components", [1, 3])
+def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_says(n_components: int) -> None:
+    """``set_params(n_components=...)`` without a refit leaves a fitted TPLS as it was (#1028).
+
+    scikit-learn's convention: what a fitted model does depends on its fitted attributes only.
+    diagnose, the summary, the T² limit and the ellipse read the constructor's ``n_components``
+    instead, so on a two-component fit 3 indexed past the fitted loadings, and 1 failed in
+    diagnose and moved the T² limit and the ellipse to a one-component model's.
+    """
+    d_matrix, blocks = _synthetic()
+    data = DataFrameDict(blocks)
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(data)
+    result, summary = model.diagnose(data), model.display_results()
+    limit, ellipse = model.hotellings_t2_limit(0.99), model.ellipse_coordinates(1, 2)
+
+    model.set_params(n_components=n_components)
+    assert model.n_components_ == 2
+    again = model.diagnose(data)
+    pd.testing.assert_frame_equal(again.t_scores_super, result.t_scores_super)
+    pd.testing.assert_frame_equal(again.hotellings_t2, result.hotellings_t2)
+    pd.testing.assert_frame_equal(again.hat["Y1"], result.hat["Y1"])
+    for block, group in (("F", "G"), ("Z", "Z1")):
+        pd.testing.assert_frame_equal(again.spe[block][group], result.spe[block][group])
+    assert model.display_results() == summary
+    assert model.hotellings_t2_limit(0.99) == limit
+    for coordinates, expected in zip(model.ellipse_coordinates(1, 2), ellipse, strict=True):
+        np.testing.assert_array_equal(coordinates, expected)

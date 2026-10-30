@@ -262,6 +262,9 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     Attributes
     ----------
+    n_components_ : int
+        The number of components fitted. Everything after ``fit`` reads it, not the
+        ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
     n_samples : int
         Number of samples (rows) in the training data.
     n_substances : int
@@ -428,7 +431,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
         return _hotellings_t2_limit(
             conf_level=conf_level,
-            n_components=self.n_components,
+            n_components=self.n_components_,
             n_rows=self.hotellings_t2.shape[0],
         )
 
@@ -445,7 +448,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             score_vert=score_vert,
             conf_level=conf_level,
             n_points=n_points,
-            n_components=self.n_components,
+            n_components=self.n_components_,
             scaling_factor_for_scores=self.scaling_factor_for_scores,
             n_rows=self.t_scores_super.shape[0],
         )
@@ -642,6 +645,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
         self.scaling_factor_for_scores = pd.Series()
 
+        self.n_components_ = int(self.n_components)
         self._fit_iterative_regressions()
         self.is_fitted_ = True
         return self
@@ -716,16 +720,16 @@ class TPLS(RegressorMixin, BaseEstimator):
         names_observations = X["F"][next(iter(X["F"]))].index
         num_obs = names_observations.shape[0]
         spe_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=x_f[key].index, columns=range(1, self.n_components + 1)) for key in x_f
+            key: pd.DataFrame(index=x_f[key].index, columns=range(1, self.n_components_ + 1)) for key in x_f
         }
         spe_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
+            key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components_ + 1)) for key in x_z
         }
 
-        t_scores_super = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        t_scores_super = pd.DataFrame(index=names_observations, columns=range(1, self.n_components_ + 1), dtype=float)
         # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
         # computed with 3 components.
-        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components_ + 1), dtype=float)
         # Predictions are returned in un-scaled form, so they are in the same units as the training data.
         hat: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
@@ -744,7 +748,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             if set(df_z.columns) != set(self.condition_names[key]):
                 raise ValueError(f"Column names in block Z, group [{key}] must match training data column names.")
 
-        for pc_a in range(self.n_components):
+        for pc_a in range(self.n_components_):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
             # Add up the t-score as you go block by block.
             score_f_a = np.zeros(num_obs)
@@ -809,7 +813,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             t_scores_super.iloc[:, pc_a] = super_score_a.flatten()
             hotellings_t2.iloc[:, pc_a] = np.sum(super_score_a**2, axis=1)
 
-        # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
+        # After the loop has repeated `self.n_components_` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
             hat[key].iloc[:, :] = (t_scores_super.to_numpy() @ self.q_loadings_y[key].to_numpy().T) * self.preproc_[
@@ -851,7 +855,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["F"].values()])
         r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["Y"].values()])
-        for a in range(1, self.n_components + 1):
+        for a in range(1, self.n_components_ + 1):
             r2_d_a = np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["D"].values()])
             r2_z_a = (
                 np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["Z"].values()]) if self.n_conditions > 0 else 0
@@ -890,7 +894,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         output += f"Total time: {sum(self.fitting_statistics['milliseconds']) / 1000:.2f} seconds\n"
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
         output += "Settings\n---------\n"
-        output += f"n_components: {self.n_components}\n"
+        output += f"n_components: {self.n_components_}\n"
         output += f"max_iter: {self.max_iter}\n"
         output += f"skip_f_matrix_preprocessing: {self.skip_f_matrix_preprocessing}\n"
 
@@ -1512,19 +1516,19 @@ class TPLS(RegressorMixin, BaseEstimator):
         n_obs = scores_np.shape[0]
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(np.diag(scores_np.T @ scores_np) / max(1, n_obs - 1)),
-            index=[a + 1 for a in range(self.n_components)],
+            index=[a + 1 for a in range(self.n_components_)],
             name="Standard deviation per score",
         )
         self.hotellings_t2 = pd.DataFrame(
             self._cumulative_hotellings_t2(scores_np),
             index=self.observation_names,
-            columns=list(range(1, self.n_components + 1)),
+            columns=list(range(1, self.n_components_ + 1)),
         )
 
         # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
         # and predicted values. Since the matrices are deflated by the predictive part of the model already, the
         # data in these matrices is already the prediction error. Calculate the **squared** portion, and store it.
-        column_name = [f"SPE with A={self.n_components}"]
+        column_name = [f"SPE with A={self.n_components_}"]
         self.spe["Y"] = {
             key: pd.DataFrame(
                 np.sqrt(np.sum(np.square(self.y_mats[key]), axis=1, keepdims=True)),
@@ -1672,7 +1676,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         pmap_f = np.concatenate(list(self.not_na_f.values()), axis=1)
 
         # Follow the steps in the paper on page 54
-        for pc_a in range(self.n_components):
+        for pc_a in range(self.n_components_):
             n_iter = 0
             milliseconds_start = time.time()
 
