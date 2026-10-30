@@ -358,3 +358,43 @@ def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
     blocks["Z"]["Z1"].loc["blend3", "z1"] = np.nan
     model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
     np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)
+
+
+def _with_a_second_z_group() -> tuple[dict[str, pd.DataFrame], dict[str, dict[str, pd.DataFrame]]]:
+    """Return the synthetic blocks with a second Z group, "Z2", of three conditions."""
+    d_matrix, blocks = _synthetic()
+    index = blocks["F"]["G"].index
+    values = np.random.default_rng(5).normal(size=(len(index), 3))
+    blocks["Z"]["Z2"] = pd.DataFrame(values, index=index, columns=["a", "b", "c"])
+    return d_matrix, blocks
+
+
+def test_several_z_groups_fit_and_diagnose_alike() -> None:
+    """#981: each Z group is its own block in the super-level, in the fit and in diagnose alike.
+
+    The fit gives each Z group its own weights and its own block score, so the super weights
+    have one row per Z group, then one for F. They were labelled for a single Z group, so a
+    second one raised a shape error, and diagnose pooled every Z group into one score.
+    """
+    d_matrix, blocks = _with_a_second_z_group()
+    blocks["Z"]["Z2"].loc["blend4", "a"] = np.nan
+    blocks["Z"]["Z2"].loc["blend7"] = np.nan
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+
+    assert model.w_loadings_super.index.to_list() == ['Z["Z1"]', 'Z["Z2"]', "F"]
+    result = model.diagnose(DataFrameDict(blocks))
+    np.testing.assert_allclose(result.t_scores_super, model.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(result.hat["Y1"], model.hat["Y1"], atol=1e-10)
+
+
+def test_the_order_of_the_z_groups_does_not_change_the_fit() -> None:
+    """#981: the Z groups enter the super-level as a set, so listing them in another order changes nothing."""
+    d_matrix, blocks = _with_a_second_z_group()
+    swapped = copy.deepcopy(blocks)
+    swapped["Z"] = {"Z2": swapped["Z"]["Z2"], "Z1": swapped["Z"]["Z1"]}
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    other = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(swapped))
+
+    np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(other.hat["Y1"], model.hat["Y1"], atol=1e-10)
+    np.testing.assert_allclose(other.w_loadings_super.loc[model.w_loadings_super.index], model.w_loadings_super)
