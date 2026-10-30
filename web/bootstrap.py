@@ -62,7 +62,9 @@ from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 from process_improve.univariate import (
+    bartlett_test,
     dunnett_value,
+    kruskal_wallis_test,
     least_favourable_means,
     one_way_power,
     one_way_sample_size,
@@ -2851,8 +2853,8 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
     each pair of levels, hold every difference between pairs together 95% of the time, from the
     studentized range of the k averages (Tukey and Kramer's, for levels of unequal runs). Dunnett's
     intervals (``versus``) compare each level with the control alone, so there are fewer of them and
-    each is narrower; the control is the level named, the first unless another is. None when the
-    runs leave no degree of freedom for the error.
+    each is narrower; the control is the level named, the first unless another is. ``checks`` test what
+    they assume (:func:`_level_checks`). None when the runs leave no degree of freedom for the error.
     """
     groups = [np.array([r["value"] for r in level["runs"]]) for level in levels]
     names = [level["level"] for level in levels]
@@ -2906,7 +2908,25 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
                 "differs": bool(abs(difference) > d * se),
             }
         )
-    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d}
+    checks = _level_checks(groups)
+    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d, "checks": checks}
+
+
+def _level_checks(groups: list[np.ndarray]) -> list[dict[str, Any]]:
+    """Check what the one-way analysis of variance assumes: Bartlett's test, then the Kruskal-Wallis test.
+
+    Bartlett's test asks whether the runs at every level spread alike, as the noise pooled from them all
+    takes them to; a level with one run, or with every result alike, has no spread to test, and leaves it
+    out. The Kruskal-Wallis test is the analysis of variance of the results' ranks, which does not assume
+    normal noise; results all alike leave it out too.
+    """
+    checks = []
+    if all(len(np.unique(g)) > 1 for g in groups):
+        checks.append({"test": "bartlett", **bartlett_test(*groups)})
+    with contextlib.suppress(ValueError):  # every result alike: the ranks do not vary
+        checks.append({"test": "kruskal_wallis", **kruskal_wallis_test(*groups)})
+    keep = ("test", "statistic", "df", "p_value")
+    return [{k: check[k] for k in keep} for check in checks]
 
 
 def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:

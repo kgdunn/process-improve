@@ -118,6 +118,12 @@ export const GLOSSARY = {
     "Dunnett's intervals: one for each level's difference from a single level, the control, made wider so that " +
     "together they hold their true differences 95% of the time. There are fewer of them than pairs, so each is " +
     "narrower than Tukey's.",
+  bartlett:
+    "Bartlett's test of whether the runs at every level spread alike, as the one-way analysis of variance takes " +
+    "them to. Noise that is not normal can look like unequal spread to it.",
+  "kruskal-wallis":
+    "The one-way analysis of variance of the results' ranks, all the runs ranked together. One wild result moves " +
+    "it little; its p-value is approximate with few runs at each level.",
   "rank-sum":
     "Wilcoxon's test: the runs are ranked together, and one level's sum of ranks is compared with every way the " +
     "ranks could be split. It reads the order of the results, so one wild result moves it little.",
@@ -262,4 +268,6 @@ export const MARKED = {
   "one-way analysis of variance": "one-way-anova",
   "Tukey's intervals": "tukey",
   "Dunnett's intervals": "dunnett",
+  "Bartlett's test": "bartlett",
+  "Kruskal-Wallis test": "kruskal-wallis",
 };
