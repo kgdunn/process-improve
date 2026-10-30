@@ -7,13 +7,16 @@ the guards are pinned without loading the pyphi example data.
 from __future__ import annotations
 
 import copy
+import re
+import warnings
 from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.exceptions import NotFittedError
 
-from process_improve.multivariate.methods import TPLS, DataFrameDict, MCUVScaler, make_tpls_scorer
+from process_improve.multivariate.methods import TPLS, DataFrameDict, MCUVScaler, epsqrt, make_tpls_scorer
 
 
 def _synthetic(seed: int = 0) -> tuple[dict[str, pd.DataFrame], dict[str, dict[str, pd.DataFrame]]]:
@@ -51,6 +54,11 @@ def _score(model: TPLS, data: object) -> object:
     return make_tpls_scorer()(model, data)
 
 
+def _score_given_y(model: TPLS, data: object, y: object) -> object:
+    # The scorer is built inside the test, so the mutation run counts the test as one that reaches it.
+    return make_tpls_scorer()(model, data, y)
+
+
 @pytest.mark.parametrize(
     ("arguments", "error", "message"),
     [
@@ -79,6 +87,24 @@ def test_the_constructor_refuses_an_invalid_argument(arguments: dict, error: typ
             r"^The keys in F must match the keys in D\.$",
         ),
         (
+            _fit,
+            DataFrameDict({**_synthetic()[1], "Y": {**_synthetic()[1]["Y"], "Y2": _synthetic(1)[1]["Y"]["Y1"]}}),
+            ValueError,
+            r"^TPLS fits one Y block and at most one Z block; got Y \['Y1', 'Y2'\] and Z \['Z1'\]\.$",
+        ),
+        (
+            _fit,
+            DataFrameDict({**_synthetic()[1], "Y": {}}),
+            ValueError,
+            r"^TPLS fits one Y block and at most one Z block; got Y \[\] and Z \['Z1'\]\.$",
+        ),
+        (
+            _fit,
+            DataFrameDict({**_synthetic()[1], "Z": {**_synthetic()[1]["Z"], "Z2": _synthetic(1)[1]["Z"]["Z1"]}}),
+            ValueError,
+            r"^TPLS fits one Y block and at most one Z block; got Y \['Y1'\] and Z \['Z1', 'Z2'\]\.$",
+        ),
+        (
             _diagnose,
             _with_first_column_renamed("F", "G"),
             ValueError,
@@ -101,6 +127,9 @@ def test_the_constructor_refuses_an_invalid_argument(arguments: dict, error: typ
         "fit-a-plain-dict",
         "diagnose-a-plain-dict",
         "fit-an-F-group-that-D-lacks",
+        "fit-two-Y-blocks",
+        "fit-no-Y-block",
+        "fit-two-Z-blocks",
         "diagnose-a-renamed-F-column",
         "diagnose-a-renamed-Z-column",
         "score-without-a-Y-block",
@@ -319,7 +348,11 @@ def test_a_block_with_no_variation_still_stops_the_fit_at_once() -> None:
         pytest.warns(UserWarning, match="no variance"),
         pytest.raises(
             ValueError,
-            match=r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation",
+            match=(
+                r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation for "
+                r"the iteration to follow\. Check that the first column of the first Y block, and at least one "
+                r"column of each D and F group, varies and is observed\.$"
+            ),
         ),
     ):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
@@ -411,3 +444,132 @@ def test_a_fitted_model_keeps_the_settings_it_was_fitted_with() -> None:
     pd.testing.assert_frame_equal(again.t_scores_super, result.t_scores_super)
     pd.testing.assert_frame_equal(again.hat["Y1"], result.hat["Y1"])
     pd.testing.assert_frame_equal(again.spe["F"]["G"], result.spe["F"]["G"])
+
+
+def test_the_defaults_are_those_of_the_other_iterative_estimators() -> None:
+    """max_iter is 500 and tol epsqrt, as on PCA, PLS, MBPCA and MBPLS; F is centred and scaled by default."""
+    d_matrix, _ = _synthetic()
+    assert TPLS(2, d_matrix).get_params() == {
+        "n_components": 2,
+        "d_matrix": d_matrix,
+        "max_iter": 500,
+        "skip_f_matrix_preprocessing": False,
+        "tol": epsqrt,
+    }
+
+
+def test_a_model_never_fitted_says_so() -> None:
+    """Every method that needs a fit raises NotFittedError before one, as PCA's and PLS's do.
+
+    ``__init__`` sets attributes that end in an underscore, so scikit-learn's check_is_fitted
+    passed on a model never fitted, and diagnose failed later with an AttributeError.
+    """
+    d_matrix, blocks = _synthetic()
+    model = TPLS(n_components=2, d_matrix=d_matrix)
+    assert model.is_fitted_ is False
+    data = DataFrameDict(blocks)
+    for call in (model.diagnose, model.score, lambda x: make_tpls_scorer()(model, x), lambda _: model.vip()):
+        with pytest.raises(NotFittedError):
+            call(data)
+    with pytest.raises(NotFittedError):
+        _ = model.d_block_scaling_
+    with pytest.raises(RuntimeError, match=r"^The model is not fitted yet\. Please call `fit` first\.$"):
+        model.display_results()
+
+
+def test_a_fit_that_fails_leaves_the_model_unfitted() -> None:
+    """A refit that fails part way does not leave the previous fit standing with some of its parts replaced."""
+    d_matrix, blocks = _synthetic()
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    blocks["Y"]["Y1"]["y"] = 3.0
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(ValueError, match="cannot fit component 1"):
+        model.fit(DataFrameDict(blocks))
+    for call in (model.diagnose, model.score, lambda _: model.vip(), lambda _: model.d_block_scaling_):
+        with pytest.raises(NotFittedError):
+            call(DataFrameDict(blocks))
+
+
+def test_an_infinite_value_is_refused() -> None:
+    """A missing value is allowed in any block, an infinite one in none."""
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"].iloc[2, 0] = np.inf
+    with pytest.raises(ValueError, match="Input contains infinity"):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_column_is_left_out_only_when_its_sd_is_below_epsqrt() -> None:
+    """Each column is centred on its mean and scaled by its sd (ddof=1); one with an sd below epsqrt is left out.
+
+    [-epsqrt, 0, epsqrt] has a mean of exactly 0 and an sd of exactly epsqrt (2**-26), so it stays.
+    A block of one row has no sd: its scale is 1.
+    """
+    model = TPLS(n_components=1, d_matrix=_synthetic()[0])
+    block = pd.DataFrame(
+        {"kept": [-epsqrt, 0.0, epsqrt], "a": [2.0, 2.0, 2.0], "b": [1.0, 4.0, 7.0], "c": [5.0, 5.0, 5.0 + 1e-9]},
+        index=["r0", "r1", "r2"],
+    )
+    message = (
+        r'^Block Z\["Z1"\] has columns with no variance, which carry no information and are excluded from the '
+        r"model: 'a', 'c'\. Drop them, or check the data for a stuck sensor\.$"
+    )
+    with pytest.warns(UserWarning, match=message):
+        centre, scale = model._learn_center_and_scaling_parameters(block, 'Z["Z1"]')
+    pd.testing.assert_series_equal(centre, pd.Series([0.0, 2.0, 4.0, 5.0 + 1e-9 / 3], index=block.columns))
+    pd.testing.assert_series_equal(scale, pd.Series([epsqrt, np.nan, 3.0, np.nan], index=block.columns))
+
+    one_row = block.iloc[[1]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        centre, scale = model._learn_center_and_scaling_parameters(one_row, "Y")
+    pd.testing.assert_series_equal(centre, one_row.iloc[0].rename(None))
+    pd.testing.assert_series_equal(scale, pd.Series(1.0, index=block.columns))
+
+    two_rows = block.iloc[[0, 2]]
+    _, scale = model._learn_center_and_scaling_parameters(two_rows.drop(columns=["a", "c"]), "Y")
+    pd.testing.assert_series_equal(scale, pd.Series([np.sqrt(2) * epsqrt, np.sqrt(18.0)], index=["kept", "b"]))
+
+
+@pytest.mark.parametrize(
+    ("action", "where"),
+    [
+        (lambda model, data, y: model.fit(data, y), "TPLS.fit"),
+        (lambda model, data, y: model.score(data, y), "TPLS.score"),
+        (_score_given_y, "A TPLS scorer"),
+    ],
+    ids=["fit", "score", "scorer"],
+)
+def test_a_separate_y_is_refused_in_full(action: Callable, where: str) -> None:
+    """The response travels in X["Y"]; a separate y is refused, and the message says what to do instead."""
+    d_matrix, blocks = _synthetic()
+    data = DataFrameDict(blocks)
+    model = TPLS(n_components=1, d_matrix=d_matrix).fit(data)
+    message = (
+        f'{where} does not take a separate `y`: a T-shaped model carries its response inside X["Y"]. Put the '
+        'response in the "Y" block of the DataFrameDict and leave `y` as None. For cross-validation with a named '
+        "metric, pass scoring=make_tpls_scorer('r2') rather than scoring='r2'."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        action(model, data, blocks["Y"]["Y1"])
+
+
+def test_one_blend_is_refused() -> None:
+    """Its Y column centres to 0, so the first regression on it is 0 / 0: no component can be fitted."""
+    d_matrix, blocks = _synthetic()
+    one = {name: {key: frame.iloc[:1] for key, frame in block.items()} for name, block in blocks.items()}
+    with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: its scores are not finite"):
+        TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(one))
+
+
+def test_an_unknown_metric_and_an_empty_y_are_refused_in_full() -> None:
+    """make_tpls_scorer names the metrics it knows; score names what it needs."""
+    message = (
+        "Unknown metric 'accuracy' for make_tpls_scorer. Choose one of ['neg_mean_absolute_error', "
+        "'neg_mean_squared_error', 'neg_root_mean_squared_error', 'r2'], or pass a callable metric(y_true, y_pred)."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        make_tpls_scorer("accuracy")
+    d_matrix, blocks = _synthetic()
+    model = TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    message = "y_actual is empty: X['Y'] must contain at least one block to compute a score."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        model.score(DataFrameDict({**blocks, "Y": {}}))

@@ -78,7 +78,7 @@ class TestTPLSFeatureImportance:
         assert fitted_tpls.vip("F") is fitted_tpls.feature_importance["F"]
 
     def test_vip_rejects_unknown_block(self, fitted_tpls: TPLS) -> None:
-        with pytest.raises(ValueError, match="block must be"):
+        with pytest.raises(ValueError, match=r"^block must be 'D', 'F', or None; got 'Z'\.$"):
             fitted_tpls.vip("Z")
 
     def test_vip_before_fit_raises(self, tpls_pyphi_data: dict) -> None:
@@ -125,7 +125,7 @@ class TestTPLSFeatureImportance:
         assert fitted_tpls.vip("D") is fitted_tpls.feature_importance["D"]
 
     def test_vip_rejects_unknown_method(self, fitted_tpls: TPLS) -> None:
-        with pytest.raises(ValueError, match="method must be"):
+        with pytest.raises(ValueError, match=r"^method must be 'vip' or 'deflated'; got 'bogus'\.$"):
             fitted_tpls.vip(method="bogus")
 
 

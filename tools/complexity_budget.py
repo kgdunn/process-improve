@@ -109,6 +109,8 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
+    # 26: #1028 wrote TPLS.diagnose's scores and deflation over arrays, taking it under
+    # PLR0915.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper
     # select_n_components uses, taking it under PLR0915.
     # 28: #513 (see C901). 29 before that.
@@ -117,7 +119,7 @@ BUDGET: dict[str, int] = {
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 27,
+    "PLR0915": 26,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.

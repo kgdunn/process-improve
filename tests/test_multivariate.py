@@ -1,6 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
 import copy
+import functools
 import inspect
 import io
 import itertools
@@ -5843,22 +5844,25 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     assert np.isfinite(model.z_mats["Z1"]).all()
 
 
-def test_tpls_preprocessing_invariant_names_what_failed() -> None:
-    """#513: the invariant check raises with a message, and survives `python -O`.
+def test_tpls_fits_a_column_far_from_zero() -> None:
+    """A column of 1e11 plus noise of sd 1 fits as the same column near 0 does (#1028).
 
-    It was a bare `assert`, so a violation gave `AssertionError()` with nothing in it,
-    and `-O` removed the check altogether. The repo runs a `-O` CI job precisely to catch
-    that, so this is a `RuntimeError` now.
+    After centring and scaling, fit checked that each column's mean was within 1e-6 of 0 and
+    raised "This is a bug" otherwise. Such a column's mean is known to about 1e-5 of its sd
+    (1e11 has a resolution of 1.5e-5), so the check refused data that fits.
     """
-    # Columns 0 and 2 are fine; column 1 is off-centre by 0.5, and must be the one named.
-    observed = np.array([0.0, 0.5, 1e-9])
-    with pytest.raises(RuntimeError, match=r"block 'Z' group 'Z1' is not centred.*Column 1 has 0.5"):
-        TPLS._check_preprocessed(observed, 0.0, "Z", "Z1", "centre")
-
-    # A NaN entry is an excluded column, and a zero standard deviation is the same case
-    # seen after scaling; neither is a failure.
-    TPLS._check_preprocessed(np.array([0.0, np.nan]), 0.0, "Z", "Z1", "centre")
-    TPLS._check_preprocessed(np.array([1.0, np.nan, 0.0]), 1.0, "Y", "Y1", "scale")
+    rng = np.random.default_rng(0)
+    index, materials = [f"blend{i}" for i in range(20)], [f"mat{j}" for j in range(4)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(4, 3)), index=materials, columns=list("pqr"))}
+    blocks = {
+        "F": {"G": pd.DataFrame(rng.random((20, 4)), index=index, columns=materials)},
+        "Z": {"Z1": pd.DataFrame({"z": rng.normal(size=20)}, index=index)},
+        "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=20)}, index=index)},
+    }
+    near_zero = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    blocks["Z"]["Z1"]["z"] += 1e11
+    far = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(far.t_scores_super, near_zero.t_scores_super, atol=1e-3)
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
@@ -5917,6 +5921,719 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
         scores.append(score)
 
     return np.array(scores)
+
+
+# ---- TPLS written out by hand ----
+#
+# Garcia-Munoz (2014), https://doi.org/10.1016/j.chemolab.2014.02.006, the steps on page 54, in
+# plain numpy. Every fitted attribute of TPLS is checked against it, labels included.
+
+_TINY = float(np.finfo(float).tiny)
+
+
+def _tpls_slopes(a: np.ndarray, b: np.ndarray, present: np.ndarray) -> np.ndarray:
+    """One least-squares slope per row of ``a`` on ``b``, over the cells of that row that are observed.
+
+    ``sum_j a_ij b_j / sum_j b_j^2``, both sums over the observed cells of row ``i`` (``a`` holds 0
+    in the others). A row with no observed cell has slope 0.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        slopes = (a @ b) / (present.astype(float) @ b**2)
+    return np.where(present.any(axis=1), slopes, 0.0)
+
+
+def _tpls_autoscaled(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Centre and scale each column by its mean and sd (ddof=1) over its observed cells.
+
+    A column whose sd is below epsqrt carries nothing, and is left out: every cell of it reads
+    as missing. Returns the scaled values (NaN where missing), the centres and the scales.
+    """
+    values = frame.to_numpy(dtype=float)
+    centre = np.nanmean(values, axis=0)
+    spread = np.nanstd(values, axis=0, ddof=1) if len(values) > 1 else np.ones(values.shape[1])
+    spread = np.where(spread < epsqrt, np.nan, spread)
+    return (values - centre) / spread, centre, spread
+
+
+def _tpls_inner_pls(t_blocks: np.ndarray, y: np.ndarray, y_present: np.ndarray) -> tuple[np.ndarray, ...]:
+    """One PLS component of Y on the block scores, by NIPALS from Y's first column.
+
+    It stops once u moves by less than epsqrt of its length, or after 500 passes, and the
+    component is flipped whole when its negative scores spread more than the others.
+    """
+    u = y[:, 0]
+    for _ in range(500):
+        w = t_blocks.T @ u / (u @ u)
+        w = w / max(_TINY, float(np.linalg.norm(w)))
+        t = t_blocks @ w / (w @ w)
+        q = _tpls_slopes(y.T, t, y_present.T)
+        u_new = _tpls_slopes(y, q, y_present)
+        change = np.linalg.norm(u - u_new) / max(_TINY, float(np.linalg.norm(u)))
+        u = u_new
+        if change < epsqrt:
+            break
+    negative, other = t[t < 0], t[t >= 0]
+    if negative.size and other.size and np.var(negative) > np.var(other):
+        return -t, -u, -w, -q
+    return t, u, w, q
+
+
+def _tpls_prepared(d_matrix: dict[str, pd.DataFrame], blocks: dict, skip_f: bool) -> tuple[dict, dict, dict]:
+    """Each block autoscaled over its observed cells, D also divided by ``sqrt(lots x properties)``.
+
+    F is left as given with ``skip_f``, though its scaling is still learned. Returns the
+    centres and scales, which cells are observed, and the blocks with a missing cell as 0.
+    """
+    frames = {
+        "D": d_matrix,
+        "F": blocks["F"],
+        "Z": blocks["Z"],
+        "Y": blocks["Y"],
+    }
+    scaling, scaled = {}, {block: {} for block in frames}
+    for block, by_key in frames.items():
+        for key, frame in by_key.items():
+            scaled[block][key], *scaling[block, key] = _tpls_autoscaled(frame)
+    for group, frame in d_matrix.items():
+        scaled["D"][group] = scaled["D"][group] / np.sqrt(frame.size)
+        if skip_f:
+            scaled["F"][group] = blocks["F"][group].to_numpy(dtype=float)
+    seen = {block: {key: ~np.isnan(v) for key, v in by_key.items()} for block, by_key in scaled.items()}
+    left = {block: {key: np.nan_to_num(v) for key, v in by_key.items()} for block, by_key in scaled.items()}
+    return scaling, seen, left
+
+
+def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
+    """One component: from Y's first column ``u``, the passes of the paper's steps 2 to 11.
+
+    ``h = F'u / u'u``, ``s = D'h / h'h`` scaled to length 1 over all groups, ``r = Ds / s's``,
+    ``t_F = F r / r'r`` over all groups at once, ``w_Z = Z'u / u'u`` scaled to length 1,
+    ``t_Z = Z w_Z / w_Z'w_Z``, and one PLS component of Y on ``[t_Z, t_F]``, whose u is the next
+    ``u``; every regression is over the observed cells. It stops once ``u`` moves by less than
+    ``tol`` of its previous length, or after ``max_iter`` passes (``stop = (max_iter, tol)``).
+    """
+    groups, ((y_name, y),) = list(left["D"]), left["Y"].items()
+    f_all, f_seen = np.hstack(list(left["F"].values())), np.hstack(list(seen["F"].values()))
+    u = y[:, 0]
+    for passes in itertools.count(1):
+        previous = u
+        h = {group: _tpls_slopes(left["F"][group].T, u, seen["F"][group].T) for group in groups}
+        s = {group: _tpls_slopes(left["D"][group].T, h[group], seen["D"][group].T) for group in groups}
+        length = np.linalg.norm(np.concatenate(list(s.values())))
+        s = {group: s[group] / length for group in groups}
+        r = {group: _tpls_slopes(left["D"][group], s[group], seen["D"][group]) for group in groups}
+        t_f = _tpls_slopes(f_all, np.concatenate(list(r.values())), f_seen)
+        w_z = {name: _tpls_slopes(z.T, u, seen["Z"][name].T) for name, z in left["Z"].items()}
+        w_z = {name: w / max(_TINY, float(np.linalg.norm(w))) for name, w in w_z.items()}
+        t_z = [_tpls_slopes(z, w_z[name], seen["Z"][name]) for name, z in left["Z"].items()]
+        t, u, w_super, q = _tpls_inner_pls(np.column_stack([*t_z, t_f]), y, seen["Y"][y_name])
+        gap = np.linalg.norm(previous - u) / max(_TINY, float(np.linalg.norm(previous)))
+        if gap < stop[1] or passes >= stop[0]:
+            return {"t": t, "w_super": w_super, "q": q, "r": r, "s": s, "w_z": w_z, "passes": passes, "gap": gap}
+    return {}  # never reached: itertools.count does not end
+
+
+def _tpls_deflated(left: dict, seen: dict, component: dict) -> dict:
+    """``p_Z = Z't / t't``, ``p_F = F't / t't`` and ``v = D'r / r'r``; each block loses ``t p'`` (D ``r v'``).
+
+    Only the observed cells lose anything. ``left`` is changed in place; the loadings are returned.
+    """
+    t, r = component["t"], component["r"]
+    loadings = {"p_z": {}, "p_f": {}, "v": {}}
+    for block, key_of, by_key in (("Z", "p_z", t), ("F", "p_f", t)):
+        for key, values in left[block].items():
+            loadings[key_of][key] = _tpls_slopes(values.T, by_key, seen[block][key].T)
+            left[block][key] = values - np.outer(t, loadings[key_of][key]) * seen[block][key]
+    for group, values in left["D"].items():
+        loadings["v"][group] = _tpls_slopes(values.T, r[group], seen["D"][group].T)
+        left["D"][group] = values - np.outer(r[group], loadings["v"][group]) * seen["D"][group]
+    ((y_name, y),) = left["Y"].items()
+    left["Y"][y_name] = y - np.outer(t, component["q"]) * seen["Y"][y_name]
+    return loadings
+
+
+def _tpls_written_out(
+    d_matrix: dict[str, pd.DataFrame],
+    blocks: dict[str, dict[str, pd.DataFrame]],
+    n_components: int,
+    skip_f: bool = False,
+    stop: tuple[int, float] = (500, epsqrt),
+) -> dict:
+    """TPLS written out, for one Z block or none and one Y block: each component, and what it explains.
+
+    ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
+    block before the first component. The VIP of a block weights each component by the mean,
+    over the groups, of the mean R2 of each group's columns.
+    """
+    scaling, seen, left = _tpls_prepared(d_matrix, blocks, skip_f)
+
+    def sums_of_squares() -> dict:
+        return {block: {key: np.sum(v**2, axis=0) for key, v in by_key.items()} for block, by_key in left.items()}
+
+    found: dict = {"scaling": scaling, "seen": seen, "left": left, "sums_of_squares": [sums_of_squares()]}
+    found["columns"] = {block: {key: frame.columns for key, frame in blocks[block].items()} for block in ("F", "Z")}
+    components = []
+    for _ in range(n_components):
+        component = _tpls_component(left, seen, stop)
+        components.append(component | _tpls_deflated(left, seen, component))
+        found["sums_of_squares"].append(sums_of_squares())
+    before = found["sums_of_squares"]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        found["r2"] = [
+            {block: {key: (b[block][key] - a[block][key]) / before[0][block][key] for key in a[block]} for block in a}
+            for b, a in itertools.pairwise(before)
+        ]
+    for key in ("t", "w_super", "q"):
+        found[key] = np.column_stack([component[key] for component in components])
+    for key in ("r", "s", "v", "p_f", "w_z", "p_z"):
+        found[key] = {name: np.column_stack([c[key][name] for c in components]) for name in components[0][key]}
+    found["iterations"] = [component["passes"] for component in components]
+    found["gap"] = [component["gap"] for component in components]
+    t, ((y_name, _),) = found["t"], left["Y"].items()
+    found["sd"] = sd = np.sqrt(np.sum(t**2, axis=0) / (len(t) - 1))
+    usable = sd > epsqrt * max(1.0, float(sd.max()))
+    found["t2"] = np.cumsum(np.where(usable, t**2 / np.where(usable, sd, 1.0) ** 2, 0.0), axis=1)
+    found["hat_"] = t @ found["q"].T
+    found["hat"] = found["hat_"] * scaling["Y", y_name][1] + scaling["Y", y_name][0]
+    found["spe"] = {
+        block: {key: np.sqrt(np.sum(v**2, axis=1)) for key, v in by_key.items()} for block, by_key in left.items()
+    }
+    for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
+        weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
+        stacked = np.vstack(list(loadings.values()))
+        vip = np.sqrt(len(stacked) * (stacked**2 @ weights) / weights.sum())
+        ends = np.cumsum([len(values) for values in loadings.values()])
+        found["vip", block] = dict(zip(loadings, np.split(vip, ends[:-1]), strict=True))
+    return found
+
+
+def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
+    """Score new rows on a model written out by ``_tpls_written_out``, deflating as the fit did.
+
+    Each block is scaled with the training centres and scales. Component by component, the F
+    score is ``sum F r / sum r^2`` over a row's observed cells in every group, NaN for a row
+    with none; the Z score is ``Z w_Z / w_Z'w_Z`` over the observed cells, 0 for a row with
+    none; the super score is ``[t_Z, t_F]`` times the super weights. Each block then loses
+    ``t p'`` in its observed cells, and its SPE is the length of what is left of each row.
+    """
+    groups, z_names = list(fitted["r"]), list(new.get("Z", {}))
+    x = {"F": {}, "Z": {}}
+    for group in groups:
+        centre, spread = fitted["scaling"]["F", group]
+        values = new["F"][group][fitted["columns"]["F"][group]].to_numpy(dtype=float)
+        x["F"][group] = values if skip_f else (values - centre) / spread
+    for name in z_names:
+        centre, spread = fitted["scaling"]["Z", name]
+        x["Z"][name] = (new["Z"][name][fitted["columns"]["Z"][name]].to_numpy(dtype=float) - centre) / spread
+    seen = {block: {key: ~np.isnan(v) for key, v in x[block].items()} for block in x}
+    x = {block: {key: np.nan_to_num(v) for key, v in x[block].items()} for block in x}
+    n_components = fitted["t"].shape[1]
+    t_all, spe = [], {block: {key: [] for key in x[block]} for block in x}
+    for a in range(n_components):
+        numerator = sum(x["F"][g] @ fitted["r"][g][:, a] for g in groups)
+        denominator = sum(seen["F"][g] @ fitted["r"][g][:, a] ** 2 for g in groups)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            columns = [np.where(denominator > 0, numerator / denominator, np.nan)]
+            for name in z_names:
+                w_z = fitted["w_z"][name][:, a]
+                t_z = (x["Z"][name] @ w_z) / (seen["Z"][name] @ w_z**2)
+                columns.insert(0, np.where(seen["Z"][name].any(axis=1), t_z, 0.0))
+        t = np.column_stack(columns) @ fitted["w_super"][:, a]
+        for block, loadings in (("F", fitted["p_f"]), ("Z", fitted["p_z"])):
+            for key in x[block]:
+                x[block][key] = x[block][key] - np.outer(t, loadings[key][:, a]) * seen[block][key]
+                spe[block][key].append(np.sqrt(np.sum(x[block][key] ** 2, axis=1)))
+        t_all.append(t)
+    t = np.column_stack(t_all)
+    centre, spread = next(value for key, value in fitted["scaling"].items() if key[0] == "Y")
+    usable = fitted["sd"] > epsqrt * max(1.0, float(fitted["sd"].max()))
+    return {
+        "t": t,
+        "t2": np.cumsum(np.where(usable, t**2 / np.where(usable, fitted["sd"], 1.0) ** 2, 0.0), axis=1),
+        "hat": t @ fitted["q"].T * spread + centre,
+        "spe": {block: {key: np.column_stack(v) for key, v in spe[block].items()} for block in spe},
+    }
+
+
+def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0) -> tuple[dict, dict]:
+    """Two groups of materials and ten labelled blends: D, and F, Z and Y blocks.
+
+    Group A has five materials of three properties; group B four of four, so its D is square
+    and each masked regression on it must be told which way it runs. Y follows the blends'
+    properties through F, with noise, in three columns, so the inner PLS iterates. With
+    ``gaps``, one cell is missing in each D group, in A's F, in Y's second column and in Z.
+    """
+    rng = np.random.default_rng(seed)
+    blends = [f"b{i}" for i in range(10)]
+    d_matrix = {
+        "A": pd.DataFrame(rng.normal(size=(5, 3)), index=[f"a{i}" for i in range(5)], columns=["p", "q", "r"]),
+        "B": pd.DataFrame(rng.normal(size=(4, 4)), index=[f"m{i}" for i in range(4)], columns=["s", "t", "u", "v"]),
+    }
+    f = {g: pd.DataFrame(rng.random((10, len(d))), index=blends, columns=d.index) for g, d in d_matrix.items()}
+    latent = np.hstack([f[g].to_numpy() @ d.to_numpy() for g, d in d_matrix.items()])[:, :3]
+    y = latent @ rng.normal(size=(3, 3)) + 0.3 * rng.normal(size=(10, 3))
+    blocks = {
+        "F": f,
+        "Z": {"C": pd.DataFrame(rng.normal(size=(10, 2)), index=blends, columns=["z1", "z2"])} if with_z else {},
+        "Y": {"Q": pd.DataFrame(y, index=blends, columns=["y1", "y2", "y3"])},
+    }
+    if gaps:
+        d_matrix["A"].iloc[1, 2] = d_matrix["B"].iloc[2, 0] = np.nan
+        blocks["F"]["A"].iloc[3, 1] = blocks["Y"]["Q"].iloc[4, 1] = np.nan
+        if with_z:
+            blocks["Z"]["C"].iloc[5, 0] = np.nan
+    return d_matrix, blocks
+
+
+def _tpls_near(actual: pd.DataFrame | pd.Series, expected: pd.DataFrame | pd.Series, rtol: float) -> None:
+    """Assert equal labels, and values equal to ``rtol`` with a floor of ``rtol`` times the largest."""
+    atol = rtol * max(1.0, float(np.nanmax(np.abs(expected.to_numpy(dtype=float)))))
+    if isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(actual, expected, rtol=rtol, atol=atol)
+    else:
+        pd.testing.assert_frame_equal(actual, expected, rtol=rtol, atol=atol)
+
+
+def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict, rtol: float) -> None:
+    """Every fitted attribute of ``model`` against ``_tpls_written_out``, labels included."""
+    groups, z_names, (y_name,) = list(d_matrix), list(blocks["Z"]), list(blocks["Y"])
+    blends = blocks["F"][groups[0]].index
+    components = list(range(1, expected["t"].shape[1] + 1))
+
+    def near(actual: pd.DataFrame | pd.Series, values: np.ndarray, index: object, **labels: object) -> None:
+        if np.ndim(values) == 1:
+            _tpls_near(actual, pd.Series(values, index=index, **labels), rtol)
+        else:
+            _tpls_near(actual, pd.DataFrame(values, index=index, **({"columns": components} | labels)), rtol)
+
+    assert model.n_components_ == len(components)
+    assert model.is_fitted_ is True
+    near(model.t_scores_super, expected["t"], blends)
+    near(model.w_loadings_super, expected["w_super"], ["Z", "F"] if z_names else ["F"])
+    # The loadings' labels are lists of names, so they keep no index name.
+    qualities = blocks["Y"][y_name].columns.to_list()
+    near(model.q_loadings_y[y_name], expected["q"], qualities)
+    near(model.hat_[y_name], expected["hat_"], blends, columns=qualities)
+    near(model.hat[y_name], expected["hat"], blends, columns=qualities)
+    near(model.scaling_factor_for_scores, expected["sd"], components, name="Standard deviation per score")
+    near(model.hotellings_t2, expected["t2"], blends)
+    spe_column = [f"SPE with A={len(components)}"]
+    for block, names in (("Y", [y_name]), ("Z", z_names), ("F", groups)):
+        for key in names:
+            near(model.spe[block][key], expected["spe"][block][key][:, np.newaxis], blends, columns=spe_column)
+    for group in groups:
+        materials, properties = d_matrix[group].index.to_list(), d_matrix[group].columns.to_list()
+        near(model.r_loadings_f[group], expected["r"][group], materials)
+        near(model.p_loadings_f[group], expected["p_f"][group], materials)
+        near(model.s_loadings_d[group], expected["s"][group], properties)
+        near(model.v_loadings_d[group], expected["v"][group], properties)
+        near(model.spe["D"][group], expected["spe"]["D"][group], materials)
+        near(model.feature_importance["D"][group], expected["vip", "D"][group], properties)
+        near(model.feature_importance["F"][group], expected["vip", "F"][group], materials)
+    for name in z_names:
+        conditions = blocks["Z"][name].columns.to_list()
+        near(model.w_loadings_z[name], expected["w_z"][name], conditions)
+        near(model.p_loadings_z[name], expected["p_z"][name], conditions)
+    assert model.feature_importance["Z"] == model.feature_importance["Y"] == {}
+    for block in ("D", "F", "Y", "Z"):
+        assert sorted(model.spe_limit[block]) == sorted(expected["spe"][block])
+        for key, spe in expected["spe"][block].items():
+            assert model.spe_limit[block][key](0.9) == pytest.approx(spe_calculation(spe, 0.9), rel=rtol, abs=rtol)
+            assert model.spe_limit[block][key]() == pytest.approx(spe_calculation(spe, 0.95), rel=rtol, abs=rtol)
+    _check_tpls_bookkeeping(model, d_matrix, blocks, expected, rtol)
+
+
+def _check_tpls_bookkeeping(model: TPLS, d_matrix: dict, blocks: dict, expected: dict, rtol: float) -> None:
+    """Check what is left of each block, the scaling, sums of squares, counts, names and loop statistics."""
+    groups, z_names, (y_name,) = list(d_matrix), list(blocks["Z"]), list(blocks["Y"])
+    blends = blocks["F"][groups[0]].index
+    n_components = model.n_components_
+    residuals = {"D": model.d_mats, "F": model.f_mats, "Z": model.z_mats, "Y": model.y_mats}
+    observed = {"D": model.not_na_d, "F": model.not_na_f, "Z": model.not_na_z, "Y": model.not_na_y}
+    for block, by_key in expected["left"].items():
+        assert list(residuals[block]) == list(observed[block]) == list(by_key)
+        for key, values in by_key.items():
+            assert isinstance(residuals[block][key], np.ndarray)
+            np.testing.assert_allclose(residuals[block][key], values, rtol=rtol, atol=rtol)
+            np.testing.assert_array_equal(observed[block][key], expected["seen"][block][key])
+    for (block, key), (centre, spread) in expected["scaling"].items():
+        columns = (d_matrix[key] if block == "D" else blocks[block][key]).columns
+        _tpls_near(model.preproc_[block][key]["center"], pd.Series(centre, index=columns), rtol)
+        _tpls_near(model.preproc_[block][key]["scale"], pd.Series(spread, index=columns), rtol)
+    assert sorted(model.preproc_["D"]) == groups
+    for group in groups:
+        assert model.preproc_["D"][group]["block"] == np.sqrt(d_matrix[group].size)
+    assert model.d_block_scaling_ == {group: np.sqrt(d_matrix[group].size) for group in groups}
+
+    # Sums of squares and R2, per column, before any component and after each.
+    assert len(model.sums_of_squares_) == len(model.r2_frac) == n_components + 1
+    for a, sums in enumerate(expected["sums_of_squares"]):
+        for block, by_key in sums.items():
+            assert list(model.sums_of_squares_[a][block]) == list(by_key)
+            for key, values in by_key.items():
+                np.testing.assert_allclose(model.sums_of_squares_[a][block][key], values, rtol=rtol, atol=rtol)
+                r2 = np.zeros_like(values) if a == 0 else expected["r2"][a - 1][block][key]
+                np.testing.assert_allclose(model.r2_frac[a][block][key], r2, rtol=rtol, atol=rtol)
+
+    # Counts and names.
+    assert model.n_samples == len(blends)
+    assert model.n_substances == sum(len(d_matrix[group]) for group in groups)
+    assert model.n_conditions == sum(blocks["Z"][name].shape[1] for name in z_names)
+    assert model.n_outputs == blocks["Y"][y_name].shape[1]
+    pd.testing.assert_index_equal(model.observation_names, blends)
+    assert model.material_names == {group: d_matrix[group].index.to_list() for group in groups}
+    assert model.property_names == {group: d_matrix[group].columns.to_list() for group in groups}
+    assert model.condition_names == {name: blocks["Z"][name].columns.to_list() for name in z_names}
+    assert model.quality_names == {y_name: blocks["Y"][y_name].columns.to_list()}
+
+    # How each component's loop went.
+    statistics = model.fitting_statistics
+    assert statistics["iterations"] == expected["iterations"]
+    np.testing.assert_allclose(statistics["convergance_tolerance"], expected["gap"], rtol=1e-6, atol=1e-15)
+    assert len(statistics["milliseconds"]) == n_components
+    assert all(0 <= ms < 60_000 for ms in statistics["milliseconds"])
+
+
+def _tpls_t2_limit(conf_level: float, n_components: int, n_rows: int) -> float:
+    """Hotelling's T2 limit of ``n_components`` scores over ``n_rows`` rows, from the F distribution."""
+    a, n = n_components, n_rows
+    return a * (n - 1) * (n + 1) / (n * (n - a)) * f_dist.ppf(conf_level, a, n - a)
+
+
+def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative: bool, ms: float) -> str:
+    """Write the text of ``display_results`` for a model written out, each component taking ``ms``.
+
+    Each block's R2 is the mean, over its groups, of the mean R2 of a group's columns, summed
+    over the components so far when ``cumulative``. ``settings`` is ``(max_iter, skip_f)``.
+    """
+    iterations, n_rows = expected["iterations"], len(expected["t"])
+    n_components, with_z = len(iterations), bool(expected["r2"][0]["Z"])
+    r2 = {
+        block: np.array([np.mean([np.nanmean(v) for v in entry[block].values()] or [0.0]) for entry in expected["r2"]])
+        for block in "DZFY"
+    }
+    if cumulative:
+        r2 = {block: np.cumsum(values) for block, values in r2.items()}
+        header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y)|    ms [iter]"
+    else:
+        header = "LV #        R2: D      R2: Z      R2: F      R2: Y|    ms [iter]"
+    rule = "------ ---------- ---------- ---------- ---------- -------------"
+    lines = [
+        f"Hotelling's T2 limit [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
+        f"                     [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
+        rule,
+        header,
+        rule,
+    ]
+    for a, passes in enumerate(iterations):
+        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "        -"
+        line = f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}|"
+        line += f"{ms:>5.0f} [{passes:>4d}]".rjust(13)
+        lines.append(line + ("** (max iter reached)" if passes == settings[0] else ""))
+    lines += [
+        rule,
+        f"Timing: {round(ms * n_components / sum(iterations), 2)} ms/iter; {sum(iterations)} iterations required",
+        f"Total time: {ms * n_components / 1000:.2f} seconds",
+        f"Average tolerance: {np.mean(expected['gap']):.4g}",
+        "Settings",
+        "---------",
+        f"n_components: {n_components}",
+        f"max_iter: {settings[0]}",
+        f"skip_f_matrix_preprocessing: {settings[1]}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _t_shaped_new_rows(blocks: dict) -> dict:
+    """Five new blends, n0 to n4, for the F and Z blocks of ``_t_shaped``.
+
+    n0 is complete; n1 misses a cell of F; n2 a cell of Z; n3 has nothing in Z, and n4
+    nothing in F. Each block's columns come in reverse order.
+    """
+    rng = np.random.default_rng(1)
+    index = [f"n{i}" for i in range(5)]
+    new = {
+        block: {
+            key: pd.DataFrame(rng.random((5, frame.shape[1])), index=index, columns=frame.columns)
+            for key, frame in blocks[block].items()
+        }
+        for block in ("F", "Z")
+    }
+    new["F"]["A"].iloc[1, 0] = np.nan
+    for frame in new["F"].values():
+        frame.iloc[4] = np.nan
+    for frame in new["Z"].values():
+        frame.iloc[2, 1] = np.nan
+        frame.iloc[3] = np.nan
+    return {block: {key: frame.iloc[:, ::-1] for key, frame in by_key.items()} for block, by_key in new.items()}
+
+
+class TestTPLSWrittenOut:
+    """TPLS against its algorithm written out by hand, every attribute, label and step."""
+
+    @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
+    @pytest.mark.parametrize("gaps", [True, False], ids=["gappy", "complete"])
+    def test_a_fit_follows_the_algorithm_pass_for_pass(self, gaps: bool, with_z: bool) -> None:
+        """Three components, converged and stopped after one pass, with and without Z and gaps."""
+        d_matrix, blocks = _t_shaped(gaps=gaps, with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 3), rtol=1e-10)
+
+        one_pass = TPLS(n_components=3, d_matrix=d_matrix, max_iter=1).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3, stop=(1, epsqrt))
+        assert expected["iterations"] == [1, 1, 1]
+        _check_tpls_fitted(one_pass, d_matrix, blocks, expected, rtol=1e-10)
+
+    def test_the_pyphi_fit_follows_the_algorithm(self, fixture_tpls_example: dict) -> None:
+        """Garcia-Munoz's example: five groups of materials, some properties missing."""
+        d_matrix = fixture_tpls_example.pop("D")
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(fixture_tpls_example)))
+        expected = _tpls_written_out(d_matrix, fixture_tpls_example, 3)
+        assert expected["iterations"] == [11, 9, 27]
+        _check_tpls_fitted(model, d_matrix, fixture_tpls_example, expected, rtol=1e-9)
+
+    def test_a_looser_tolerance_stops_where_the_algorithm_does(self) -> None:
+        """The tolerance is the change of u between passes, relative to its length, that counts as converged."""
+        d_matrix, blocks = _t_shaped()
+        loose = TPLS(n_components=2, d_matrix=d_matrix, tol=1e-3).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 2, stop=(500, 1e-3))
+        assert expected["iterations"] < _tpls_written_out(d_matrix, blocks, 2)["iterations"]
+        _check_tpls_fitted(loose, d_matrix, blocks, expected, rtol=1e-10)
+
+    def test_f_as_given_follows_the_algorithm(self) -> None:
+        """With skip_f_matrix_preprocessing F is used as given, though its scaling is still learned."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 2, skip_f=True), rtol=1e-10)
+        new = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2, skip_f=True), blocks, skip_f=True)
+        _tpls_near(
+            model.diagnose(DataFrameDict(blocks)).t_scores_super,
+            pd.DataFrame(new["t"], index=blocks["F"]["A"].index, columns=[1, 2]),
+            1e-10,
+        )
+
+    @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+    @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
+    def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:
+        """Diagnose deflates new rows as the fit did, over their observed cells, in the training column order.
+
+        A row with nothing in Z has a Z score of 0, and one with nothing in F no score at all.
+        """
+        d_matrix, blocks = _t_shaped(with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix, skip_f_matrix_preprocessing=skip_f)
+        model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        new = _t_shaped_new_rows(blocks)
+        by_hand = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 3, skip_f=skip_f), new, skip_f=skip_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # n4's F score is 0 / 0, and NaN without a word
+            result = model.diagnose(DataFrameDict(copy.deepcopy(new)))
+
+        assert sorted(result) == ["hat", "hotellings_t2", "spe", "t_scores_super"]
+        index, components = new["F"]["A"].index, [1, 2, 3]
+        assert np.isnan(by_hand["t"][4]).all()
+        assert np.isfinite(by_hand["t"][:4]).all()
+        _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+        _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+        assert list(result.hat) == ["Q"]
+        _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
+        assert list(result.spe) == ["Z", "F"]
+        for block in ("F", "Z"):
+            assert list(result.spe[block]) == list(new[block])
+            for key, spe in by_hand["spe"][block].items():
+                _tpls_near(result.spe[block][key], pd.DataFrame(spe, index=index, columns=components), 1e-10)
+
+    def test_one_condition_fits_and_scores_as_written_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A Z block of one column still has its own block score beside F's, and its R2 in the summary."""
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped()
+        blocks["Z"]["C"] = blocks["Z"]["C"][["z1"]]
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 2)
+        _check_tpls_fitted(model, d_matrix, blocks, expected, rtol=1e-10)
+        assert model.display_results() == _tpls_summary_by_hand(expected, (500, False), cumulative=True, ms=125.0)
+        new = _t_shaped_new_rows({"F": blocks["F"], "Z": {}})
+        new["Z"] = {"C": blocks["Z"]["C"].iloc[:5].set_axis(new["F"]["A"].index)}
+        by_hand = _tpls_diagnose_by_hand(expected, new)
+        result = model.diagnose(DataFrameDict(new))
+        _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=new["F"]["A"].index, columns=[1, 2]), 1e-10)
+
+    def test_a_nullable_column_of_new_rows_reads_its_na_as_missing(self) -> None:
+        """New rows in pandas' nullable Float64 and Int64 score as the same values in float64, NA as NaN."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        new = _t_shaped_new_rows(blocks)
+        nullable = copy.deepcopy(new)
+        nullable["F"] = {key: frame.astype("Float64") for key, frame in new["F"].items()}
+        nullable["Z"]["C"] = (new["Z"]["C"] * 1000).round().astype("Int64")
+        new["Z"]["C"] = (new["Z"]["C"] * 1000).round()
+        expected = model.diagnose(DataFrameDict(new))
+        result = model.diagnose(DataFrameDict(nullable))
+        pd.testing.assert_frame_equal(result.t_scores_super, expected.t_scores_super)
+        pd.testing.assert_frame_equal(result.spe["Z"]["C"], expected.spe["Z"]["C"])
+
+    def test_the_training_rows_diagnosed_again_are_the_fitted_rows(self) -> None:
+        """Scores, T2, predictions and SPE of the training rows, gaps and all, are those of the fit.
+
+        diagnose deflated the missing cells of a new row too, so its SPE counted a residual for
+        each, where the fit's has none; and it returned the SPE frames with object columns.
+        """
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        result = model.diagnose(DataFrameDict(blocks))
+        _tpls_near(result.t_scores_super, model.t_scores_super, 1e-12)
+        _tpls_near(result.hotellings_t2, model.hotellings_t2, 1e-12)
+        _tpls_near(result.hat["Q"], model.hat["Q"], 1e-12)
+        for block, key in (("F", "A"), ("F", "B"), ("Z", "C")):
+            assert set(result.spe[block][key].dtypes) == {np.dtype(float)}
+            np.testing.assert_allclose(result.spe[block][key].iloc[:, -1], model.spe[block][key].iloc[:, 0], rtol=1e-12)
+
+    def test_the_limits_and_the_ellipse_are_those_of_the_fitted_scores(self) -> None:
+        """T2 limit: A (N-1)(N+1) / (N (N-A)) F(A, N-A); the ellipse uses 2 for A and the scores' sds."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        sd = _tpls_written_out(d_matrix, blocks, 3)["sd"]
+        assert model.hotellings_t2_limit() == pytest.approx(_tpls_t2_limit(0.95, 3, 10), rel=1e-12)
+        assert model.hotellings_t2_limit(0.99) == pytest.approx(_tpls_t2_limit(0.99, 3, 10), rel=1e-12)
+        horizontal, vertical = model.ellipse_coordinates(1, 3)
+        angles, radius = np.linspace(0, 2 * np.pi, 100), np.sqrt(_tpls_t2_limit(0.95, 2, 10))
+        np.testing.assert_allclose(horizontal, radius * sd[0] * np.cos(angles), rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(vertical, radius * sd[2] * np.sin(angles), rtol=1e-10, atol=1e-12)
+        horizontal, vertical = model.ellipse_coordinates(2, 1, conf_level=0.9, n_points=7)
+        angles, radius = np.linspace(0, 2 * np.pi, 7), np.sqrt(_tpls_t2_limit(0.9, 2, 10))
+        np.testing.assert_allclose(horizontal, radius * sd[1] * np.cos(angles), rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(vertical, radius * sd[0] * np.sin(angles), rtol=1e-10, atol=1e-12)
+
+    @pytest.mark.parametrize("cumulative", [True, False], ids=["cumulative", "per-component"])
+    @pytest.mark.parametrize(
+        ("with_z", "max_iter"), [(True, 500), (True, 10), (False, 7)], ids=["Z", "Z-capped", "no-Z"]
+    )
+    def test_the_summary_in_full(
+        self, monkeypatch: pytest.MonkeyPatch, with_z: bool, max_iter: int, cumulative: bool
+    ) -> None:
+        """display_results, every line, with a clock that moves 250 ms per component.
+
+        A component flagged as having reached max_iter is one whose passes are max_iter, whether
+        or not its last pass converged.
+        """
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped(gaps=False, with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix, max_iter=max_iter).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3, stop=(max_iter, epsqrt))
+        assert model.fitting_statistics["milliseconds"] == [125.0, 125.0, 125.0]
+        summary = _tpls_summary_by_hand(expected, (max_iter, False), cumulative=cumulative, ms=125.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert model.display_results(show_cumulative_stats=cumulative) == summary
+        if cumulative:
+            assert model.display_results() == summary
+        assert ("** (max iter reached)" in summary) == (max_iter < 500)
+
+    def test_the_deflated_vip_follows_the_direct_weights(self) -> None:
+        """VIP on S (V'S)^-1 for D and P (P'P)^-1 for F, each component weighted by the block's R2."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        s, v, p = (np.vstack(list(expected[key].values())) for key in ("s", "v", "p_f"))
+        direct = {"D": np.linalg.solve((v.T @ s).T, s.T).T, "F": np.linalg.solve(p.T @ p, p.T).T}
+        found = model.vip(method="deflated")
+        assert list(found) == ["D", "F", "Z", "Y"]
+        assert found["Z"] == found["Y"] == {}
+        for block, names in (("D", "columns"), ("F", "index")):
+            weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in expected["r2"]])
+            vip = np.sqrt(len(direct[block]) * (direct[block] ** 2 @ weights) / weights.sum())
+            ends = np.cumsum([d.shape[1 if block == "D" else 0] for d in d_matrix.values()])
+            assert list(found[block]) == list(d_matrix)
+            for group, values in zip(d_matrix, np.split(vip, ends[:-1]), strict=True):
+                labels = getattr(d_matrix[group], names).to_list()
+                _tpls_near(found[block][group], pd.Series(values, index=labels), 1e-10)
+            assert model.vip(block, method="deflated").keys() == found[block].keys()
+            assert model.vip(block) is model.feature_importance[block]
+        assert model.vip() is model.feature_importance
+
+    def test_the_score_and_the_scorers_are_those_of_the_predictions(self) -> None:
+        """R2, MSE, MAE and RMSE of the predictions written out, per column then averaged, weighted or not."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        data = DataFrameDict(blocks)
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        y = blocks["Y"]["Q"].to_numpy()
+        hat = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2), blocks)["hat"]
+        weight = np.arange(1.0, 11.0)
+        for w in (np.ones(10), weight):
+            mean = w @ y / w.sum()
+            r2 = np.mean(1 - w @ (y - hat) ** 2 / (w @ (y - mean) ** 2))
+            mse = w @ (y - hat) ** 2 / w.sum()
+            mae = w @ np.abs(y - hat) / w.sum()
+            weights = None if w is not weight else w
+            assert model.score(data, sample_weight=weights) == pytest.approx(r2, rel=1e-10)
+            assert make_tpls_scorer()(model, data, sample_weight=weights) == pytest.approx(r2, rel=1e-10)
+            for metric, value in (
+                ("neg_mean_squared_error", np.mean(mse)),
+                ("neg_mean_absolute_error", np.mean(mae)),
+                ("neg_root_mean_squared_error", np.mean(np.sqrt(mse))),
+            ):
+                assert make_tpls_scorer(metric)(model, data, sample_weight=weights) == pytest.approx(-value, rel=1e-10)
+        assert isinstance(model.score(data), float)
+
+    def test_a_scorer_of_a_callable_metric(self) -> None:
+        """A callable metric gets the keyword arguments given, its sign flipped when greater is not better."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        data = DataFrameDict(blocks)
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        y = blocks["Y"]["Q"].to_numpy()
+        hat = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2), blocks)["hat"]
+
+        def largest_error(y_true: pd.DataFrame, y_pred: pd.DataFrame, sample_weight: object, power: int = 1) -> float:
+            assert sample_weight is None
+            return float(np.max(np.abs(y_true.to_numpy() - y_pred.to_numpy())) ** power)
+
+        scorer = make_tpls_scorer(largest_error, greater_is_better=False, power=2)
+        assert scorer(model, data) == pytest.approx(-(np.max(np.abs(y - hat)) ** 2), rel=1e-10)
+        assert scorer.__name__ == scorer.__qualname__ == "tpls_scorer(largest_error)"
+        assert make_tpls_scorer(largest_error)(model, data) == pytest.approx(np.max(np.abs(y - hat)), rel=1e-10)
+        unnamed = make_tpls_scorer(functools.partial(largest_error, power=3))
+        assert unnamed.__name__ == unnamed.__qualname__ == "tpls_scorer(metric)"
+        named = make_tpls_scorer("neg_mean_absolute_error")
+        assert named.__name__ == named.__qualname__ == "tpls_scorer(neg_mean_absolute_error)"
+
+    def test_a_column_with_no_variance_has_no_r2_and_raises_no_other_warning(self) -> None:
+        """A constant F column is left out with a warning; its R2 is NaN, with no division warning."""
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["B"]["m2"] = 0.5
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r'Block F\["B"\] has columns with no variance')
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 2), rtol=1e-10)
+        assert np.isnan(model.r2_frac[1]["F"]["B"][2])
+        others = np.delete(model.r2_frac[1]["F"]["B"], 2)
+        assert np.isfinite(others).all()
+
+    def test_each_component_logs_its_passes(self, caplog: pytest.LogCaptureFixture) -> None:
+        """One debug line per component, numbered from 1, with the passes its loop took."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._tpls"):
+            TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+        passes = _tpls_written_out(d_matrix, blocks, 3)["iterations"]
+        assert [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._tpls"] == [
+            f"TPLS: super-component {a} converged in {n} iterations" for a, n in enumerate(passes, start=1)
+        ]
+
+    def test_a_change_of_exactly_tol_has_not_converged(self) -> None:
+        """The loop stops once u moves by less than tol, relative to its length: a change equal to tol goes on.
+
+        The tolerance here is the change the fit's third pass of component 1 made, so that
+        pass is not the last.
+        """
+        d_matrix, blocks = _t_shaped()
+        third = TPLS(n_components=1, d_matrix=d_matrix, max_iter=3).fit(DataFrameDict(copy.deepcopy(blocks)))
+        tol = third.fitting_statistics["convergance_tolerance"][0]
+        assert tol == pytest.approx(_tpls_written_out(d_matrix, blocks, 1, stop=(3, epsqrt))["gap"][0], rel=1e-6)
+        exact = TPLS(n_components=1, d_matrix=d_matrix, tol=tol).fit(DataFrameDict(copy.deepcopy(blocks)))
+        assert exact.fitting_statistics["iterations"] == [4]
+        assert exact.fitting_statistics["convergance_tolerance"][0] < tol
 
 
 # ---- Additional coverage tests for multivariate/methods.py ----

@@ -85,5 +85,7 @@ DataFrames, optionally grouped:
   D group - this is how TPLS knows which material properties correspond to
   which formulation amounts.
 - All F, Z, and Y DataFrames must have the same number of rows.
+- Y holds one DataFrame and Z at most one (Z may be left out); D and F may hold
+  several groups.
 - The ``d_matrix`` parameter passed to the constructor should be the D block
   (material properties).
