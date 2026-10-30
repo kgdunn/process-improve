@@ -100,17 +100,22 @@ The contract
        )
 
    The ``seed_param`` field is the name of the kwarg the
-   reproducibility-check harness will exercise. Deterministic
+   reproducibility test in (6) exercises. Deterministic
    tools declare ``{"uses_rng": False}``.
 
-6. **``@tool_spec`` checks the declaration in (5), not the
-   behaviour.** At decoration it rejects an ``rng=`` dict without
+6. **``@tool_spec`` checks the declaration in (5); a test checks
+   the behaviour.** At decoration it rejects an ``rng=`` dict without
    a boolean ``uses_rng`` key, with an unknown key, with a
    ``seed_param`` or ``default_seed`` on a tool that declares
    ``{"uses_rng": False}``, or with a ``default_seed`` but no
-   ``seed_param``. No test yet runs a tool to confirm that its
-   declared seed reproduces its output; that harness is
-   :ref:`open work <rng_open_work>`.
+   ``seed_param``. ``tests/test_tool_reproducibility.py`` runs
+   every registered tool twice through ``execute_tool_call`` and
+   compares the JSON of the two outputs byte for byte: a tool that
+   declares ``{"uses_rng": True}`` gets its ``default_seed`` through
+   its ``seed_param``, and must also give another output for another
+   seed; any other tool gets no seed. The test holds one sample
+   input per tool, and fails when a tool is registered without one,
+   or without a reason it cannot give the same output twice.
 
 How to migrate an existing function
 -----------------------------------
@@ -167,12 +172,6 @@ Open work
 
 Aspects of the contract that are not yet implemented:
 
-- A harness that runs every ``@tool_spec(rng={"uses_rng": True})``
-  tool twice with its declared ``default_seed`` and asserts
-  byte-equal outputs, and runs every tool declaring
-  ``{"uses_rng": False}`` twice without a seed to the same end.
-  It needs a valid sample input for each tool, which the registry
-  does not hold yet.
 - Migration of the existing offenders is tracked in
   `SEC-21 sub-item 9 <https://github.com/kgdunn/process-improve/issues/270>`_
   (Resampler), the relevant SEC-33 sub-item
