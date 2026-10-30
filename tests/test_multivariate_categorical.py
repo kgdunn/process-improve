@@ -9,15 +9,20 @@ but not an identity.
 
 from __future__ import annotations
 
+import re
 import warnings
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 from scipy.stats import chi2_contingency
+from sklearn.exceptions import NotFittedError
 
+from process_improve.multivariate._categorical import _flip_signs
 from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate.methods import CA, FAMD, MBPCA, MCA, MFA
+from process_improve.visualization.themes import DEFAULT_THEME
 
 
 @pytest.fixture
@@ -194,6 +199,308 @@ class TestApi:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             np.testing.assert_allclose(CA().fit_transform(smoke), CA().fit(smoke).row_coordinates_)
+
+
+# ---------------------------------------------------------------------------
+# Checked by hand: each number against a calculation that does not use CA
+# ---------------------------------------------------------------------------
+
+
+def _ca_by_hand(table: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Greenacre's formulas: the standardised residuals, their SVD, and the principal coordinates.
+
+    Every axis with inertia is kept (``min(I, J) - 1`` of them on a table of full rank). Each
+    axis is signed so that the largest-magnitude entry of its left singular vector is positive.
+    """
+    counts = table.to_numpy(dtype=float)
+    proportions = counts / counts.sum()
+    rows, columns = proportions.sum(axis=1), proportions.sum(axis=0)
+    expected = np.outer(rows, columns)
+    u, singular, vt = np.linalg.svd((proportions - expected) / np.sqrt(expected))
+    axes = min(counts.shape) - 1
+    u, singular, v = u[:, :axes], singular[:axes], vt[:axes].T
+    signs = np.sign(u[np.abs(u).argmax(axis=0), np.arange(axes)])
+    u, v = u * signs, v * signs
+    return {
+        "rows": rows,
+        "columns": columns,
+        "eigenvalues": singular**2,
+        "row_standard": u / np.sqrt(rows)[:, np.newaxis],
+        "column_standard": v / np.sqrt(columns)[:, np.newaxis],
+        "F": u / np.sqrt(rows)[:, np.newaxis] * singular,
+        "G": v / np.sqrt(columns)[:, np.newaxis] * singular,
+    }
+
+
+def _axes_frame(values: np.ndarray, index: pd.Index) -> pd.DataFrame:
+    return pd.DataFrame(values, index=index, columns=list(range(1, values.shape[1] + 1)))
+
+
+class TestCAByHand:
+    def test_every_attribute_of_a_fit_that_keeps_two_of_three_axes(self, smoke: pd.DataFrame) -> None:
+        """Masses, inertias, coordinates, contributions and cos2, labels included.
+
+        cos2 divides by a category's squared distance over *every* axis, here three, not the two kept.
+        """
+        ca = CA().fit(smoke)
+        hand = _ca_by_hand(smoke)
+        F, G, eigenvalues = hand["F"], hand["G"], hand["eigenvalues"]
+
+        assert ca.n_components_ == 2
+        np.testing.assert_allclose(ca.eigenvalues_, eigenvalues[:2], rtol=1e-12)
+        assert ca.total_inertia_ == pytest.approx(eigenvalues.sum(), rel=1e-12)
+        np.testing.assert_allclose(ca.explained_inertia_, eigenvalues[:2] / eigenvalues.sum(), rtol=1e-12)
+        pd.testing.assert_series_equal(ca.row_masses_, pd.Series(hand["rows"], index=smoke.index, name="mass"))
+        pd.testing.assert_series_equal(ca.column_masses_, pd.Series(hand["columns"], index=smoke.columns, name="mass"))
+        expected = {
+            "row_coordinates_": _axes_frame(F[:, :2], smoke.index),
+            "column_coordinates_": _axes_frame(G[:, :2], smoke.columns),
+            "row_contributions_": _axes_frame(hand["rows"][:, None] * F[:, :2] ** 2 / eigenvalues[:2], smoke.index),
+            "column_contributions_": _axes_frame(
+                hand["columns"][:, None] * G[:, :2] ** 2 / eigenvalues[:2], smoke.columns
+            ),
+            "row_cos2_": _axes_frame(F[:, :2] ** 2 / (F**2).sum(axis=1, keepdims=True), smoke.index),
+            "column_cos2_": _axes_frame(G[:, :2] ** 2 / (G**2).sum(axis=1, keepdims=True), smoke.columns),
+        }
+        for name, frame in expected.items():
+            pd.testing.assert_frame_equal(getattr(ca, name), frame, rtol=0, atol=1e-12, obj=name)
+
+    def test_the_signs_follow_the_largest_entry_of_each_left_singular_vector(self) -> None:
+        """Each axis is flipped, left and right together, when its largest-magnitude left entry is negative."""
+        left = np.array([[0.6, 0.8], [-0.8, 0.6]])
+        right = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        flipped_left, flipped_right = _flip_signs(left, right)
+        np.testing.assert_array_equal(flipped_left, [[-0.6, 0.8], [0.8, 0.6]])
+        np.testing.assert_array_equal(flipped_right, [[-1.0, 2.0], [-3.0, 4.0], [-5.0, 6.0]])
+
+    def test_an_array_is_read_as_a_table_numbered_from_zero(self, smoke: pd.DataFrame) -> None:
+        ca = CA(n_components=3).fit(smoke.to_numpy())
+        hand = _ca_by_hand(smoke)
+        pd.testing.assert_frame_equal(ca.row_coordinates_, _axes_frame(hand["F"], pd.RangeIndex(5)), rtol=0, atol=1e-12)
+        pd.testing.assert_frame_equal(
+            ca.column_coordinates_, _axes_frame(hand["G"], pd.RangeIndex(4)), rtol=0, atol=1e-12
+        )
+
+    def test_supplementary_rows_and_columns_by_the_transition_formula(self, smoke: pd.DataFrame) -> None:
+        """A row's profile times the column standard coordinates; a column's profile times the row ones."""
+        ca = CA().fit(smoke)
+        hand = _ca_by_hand(smoke)
+        rows = pd.DataFrame([[40, 10, 5, 1], [1, 2, 3, 30]], columns=smoke.columns, index=["new", "other"])
+        profiles = rows.to_numpy() / rows.to_numpy().sum(axis=1, keepdims=True)
+        pd.testing.assert_frame_equal(
+            ca.transform(rows),
+            _axes_frame(profiles @ hand["column_standard"][:, :2], rows.index),
+            rtol=0,
+            atol=1e-12,
+        )
+        columns = pd.DataFrame({"pass": [3, 9, 40, 70, 20], "fail": [8, 9, 11, 18, 5]}, index=smoke.index)
+        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0)
+        pd.testing.assert_frame_equal(
+            ca.transform_columns(columns),
+            _axes_frame(profiles.T @ hand["row_standard"][:, :2], columns.columns),
+            rtol=0,
+            atol=1e-12,
+        )
+        placed = ca.transform(rows.to_numpy())
+        pd.testing.assert_index_equal(placed.index, pd.RangeIndex(2))
+        np.testing.assert_allclose(placed.to_numpy(), ca.transform(rows).to_numpy(), rtol=0, atol=0)
+
+    def test_a_supplementary_point_with_an_empty_cell_is_placed(self, smoke: pd.DataFrame) -> None:
+        """A zero count is a profile like any other; only a row (or column) that sums to zero has none.
+
+        The check summed along the other axis: one new row with no heavy smokers was refused because
+        its "heavy" column summed to zero, and a row of zeros among others came back as NaN.
+        """
+        ca = CA().fit(smoke)
+        hand = _ca_by_hand(smoke)
+        row = pd.DataFrame([[40, 10, 5, 0]], columns=smoke.columns, index=["new"])
+        pd.testing.assert_frame_equal(
+            ca.transform(row),
+            _axes_frame(row.to_numpy() / 55 @ hand["column_standard"][:, :2], row.index),
+            rtol=0,
+            atol=1e-12,
+        )
+        columns = pd.DataFrame({"pass": [3, 0, 40, 70, 20], "fail": [8, 0, 11, 18, 5]}, index=smoke.index)
+        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0)
+        pd.testing.assert_frame_equal(
+            ca.transform_columns(columns),
+            _axes_frame(profiles.T @ hand["row_standard"][:, :2], columns.columns),
+            rtol=0,
+            atol=1e-12,
+        )
+
+    @pytest.mark.parametrize("method", ["transform", "transform_columns", "map_plot"])
+    def test_an_unfitted_model_is_refused(self, smoke: pd.DataFrame, method: str) -> None:
+        arguments = () if method == "map_plot" else (smoke,)
+        with pytest.raises(NotFittedError):
+            getattr(CA(), method)(*arguments)
+
+
+def _zero_sum_message(label: str, names: list) -> str:
+    return re.escape(
+        f"{label} {names} of X sum to zero. A category that never occurs has no profile to compare, and its mass "
+        "of zero would divide the chi-squared distance by zero. Drop it before fitting."
+    )
+
+
+class TestCARefusals:
+    @pytest.mark.parametrize(
+        ("table", "message"),
+        [
+            (
+                pd.DataFrame([[1.0, 2.0, 3.0]]),
+                r"X must be a 2-D table with at least two rows and two columns; got \(1, 3\)\.",
+            ),
+            (pd.DataFrame([[1.0, np.inf], [3.0, 4.0]]), r"X must contain only finite counts \(no NaN or infinity\)\."),
+            # A missing count in a nullable integer table is NaN as a float, not an object numpy cannot test.
+            (
+                pd.DataFrame([[1, pd.NA], [3, 4]], dtype="Int64"),
+                r"X must contain only finite counts \(no NaN or infinity\)\.",
+            ),
+            (pd.DataFrame([[1.0, -2.0], [3.0, 4.0]]), r"X must not contain negative counts\."),
+            (pd.DataFrame([[0, 0], [3, 4]], index=["a", "b"]), _zero_sum_message("Rows", ["a"])),
+            (pd.DataFrame([[1, 0, 2], [3, 0, 4]], columns=["p", "q", "r"]), _zero_sum_message("Columns", ["q"])),
+        ],
+    )
+    def test_invalid_tables_are_refused_in_full(self, table: pd.DataFrame, message: str) -> None:
+        with pytest.raises(ValueError, match=f"^{message}$"):
+            CA().fit(table)
+
+    def test_n_components_below_one_is_refused_and_one_is_kept(self, smoke: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match=r"^n_components must be at least 1; got 0\.$"):
+            CA(n_components=0).fit(smoke)
+        assert CA(n_components=1).fit(smoke).row_coordinates_.shape == (5, 1)
+
+    def test_no_association_is_refused_in_full(self) -> None:
+        independent = pd.DataFrame(np.outer([10, 20, 30], [1, 2, 3, 4]).astype(float))
+        message = (
+            "The table shows no association between its rows and columns: every row has the same profile, so the "
+            "total inertia is zero and there are no axes to find. That is a result, not a fault in the data, but "
+            "there is no map to draw from it."
+        )
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            CA().fit(independent)
+
+    @pytest.mark.parametrize(("delta", "kept"), [(1.0, False), (10.0, True)])
+    def test_an_axis_is_kept_only_above_an_inertia_of_1e_minus_12(self, delta: float, kept: bool) -> None:
+        """A 2 x 2 table's one inertia is (ad - bc)^2 over the product of its margins.
+
+        With a = b = c = 1e6 and d = 1e6 + delta that is 6.25e-14 delta^2: below 1e-12 for delta = 1,
+        so the axis is noise; above it for delta = 10, so it is kept.
+        """
+        a = b = c = 1e6
+        d = 1e6 + delta
+        inertia = (a * d - b * c) ** 2 / ((a + b) * (c + d) * (a + c) * (b + d))
+        table = pd.DataFrame([[a, b], [c, d]])
+        if not kept:
+            assert inertia < 1e-12
+            with pytest.raises(ValueError, match="no association"):
+                CA().fit(table)
+            return
+        assert inertia > 1e-12
+        with pytest.warns(SpecificationWarning):
+            ca = CA().fit(table)
+        assert ca.total_inertia_ == pytest.approx(inertia, rel=1e-6)
+
+    def test_too_many_axes_are_clamped_with_the_tables_shape_in_the_warning(self) -> None:
+        """Two rows of one profile in a 3 x 4 table leave one axis."""
+        table = pd.DataFrame([[10, 20, 30, 40], [20, 40, 60, 80], [30, 10, 5, 1]], dtype=float)
+        message = "Asked for 2 axes, but this 3 x 4 table has 1 with any inertia; keeping 1."
+        with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+            CA().fit(table)
+
+    def test_asking_for_exactly_the_axes_there_are_does_not_warn(self, smoke: pd.DataFrame) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert CA(n_components=3).fit(smoke).n_components_ == 3
+
+    def test_supplementary_points_are_refused_in_full(self, smoke: pd.DataFrame) -> None:
+        ca = CA().fit(smoke)
+        shared = "must match the fitted table along the shared dimension"
+        cases = [
+            (ca.transform, np.ones((2, 3)), rf"^Supplementary rows {shared}: expected 4, got shape \(2, 3\)\.$"),
+            (
+                ca.transform_columns,
+                np.ones((4, 2)),
+                rf"^Supplementary columns {shared}: expected 5, got shape \(4, 2\)\.$",
+            ),
+            (
+                ca.transform,
+                pd.DataFrame([[1, 2, 3, pd.NA]], dtype="Int64"),
+                r"^Supplementary rows must be finite, non-negative counts\.$",
+            ),
+            (
+                ca.transform_columns,
+                np.array([[1.0], [2.0], [-3.0], [4.0], [5.0]]),
+                r"^Supplementary columns must be finite, non-negative counts\.$",
+            ),
+            # One row of two sums to zero: each is checked, not their total.
+            (
+                ca.transform,
+                np.array([[1.0, 2.0, 3.0, 4.0], [0.0, 0.0, 0.0, 0.0]]),
+                r"^A supplementary row sums to zero, so it has no profile to place\.$",
+            ),
+            (
+                ca.transform_columns,
+                np.array([[1.0, 0.0], [2.0, 0.0], [3.0, 0.0], [4.0, 0.0], [5.0, 0.0]]),
+                r"^A supplementary column sums to zero, so it has no profile to place\.$",
+            ),
+        ]
+        for method, counts, message in cases:
+            with pytest.raises(ValueError, match=message):
+                method(counts)
+
+
+class TestMapPlot:
+    def test_the_points_and_the_layout(self, smoke: pd.DataFrame) -> None:
+        ca = CA(n_components=3).fit(smoke)
+        fig = ca.map_plot()
+        for trace, frame, name, symbol in zip(
+            fig.data,
+            (ca.row_coordinates_, ca.column_coordinates_),
+            ("rows", "columns"),
+            ("circle", "triangle-up"),
+            strict=True,
+        ):
+            np.testing.assert_array_equal(trace.x, frame[1].to_numpy())
+            np.testing.assert_array_equal(trace.y, frame[2].to_numpy())
+            assert (trace.name, trace.mode, trace.textposition) == (name, "markers+text", "top center")
+            assert list(trace.text) == [str(label) for label in frame.index]
+            assert (trace.marker.color, trace.marker.symbol, trace.marker.size) == (None, symbol, 10)
+            assert trace.hovertemplate == f"%{{text}}: (%{{x:.3f}}, %{{y:.3f}})<extra>{name}</extra>"
+        share = 100 * _ca_by_hand(smoke)["eigenvalues"] / _ca_by_hand(smoke)["eigenvalues"].sum()
+        layout = fig.layout
+        assert layout.title.text == "Correspondence analysis map"
+        assert layout.xaxis.title.text == f"Axis 1 ({share[0]:.1f}% of inertia)"
+        assert layout.yaxis.title.text == f"Axis 2 ({share[1]:.1f}% of inertia)"
+        assert (layout.xaxis.zeroline, layout.yaxis.zeroline) == (True, True)
+        assert (layout.yaxis.scaleanchor, layout.yaxis.scaleratio) == ("x", 1)
+        assert (layout.width, layout.height) == (600, 600)
+        assert layout.template == go.Figure(layout={"template": DEFAULT_THEME}).layout.template
+
+    def test_other_axes_and_settings(self, smoke: pd.DataFrame) -> None:
+        ca = CA(n_components=3).fit(smoke)
+        settings = {
+            "title": "Staff",
+            "row_color": "red",
+            "column_color": "blue",
+            "html_image_height": 400,
+            "html_aspect_ratio_w_over_h": 1.5,
+            "template": "plotly_white",
+        }
+        fig = ca.map_plot(3, 1, settings=settings)
+        np.testing.assert_array_equal(fig.data[0].x, ca.row_coordinates_[3].to_numpy())
+        np.testing.assert_array_equal(fig.data[1].y, ca.column_coordinates_[1].to_numpy())
+        assert (fig.data[0].marker.color, fig.data[1].marker.color) == ("red", "blue")
+        share = 100 * ca.explained_inertia_
+        assert fig.layout.xaxis.title.text == f"Axis 3 ({share[2]:.1f}% of inertia)"
+        assert fig.layout.yaxis.title.text == f"Axis 1 ({share[0]:.1f}% of inertia)"
+        assert (fig.layout.title.text, fig.layout.width, fig.layout.height) == ("Staff", 600, 400)
+        assert fig.layout.template == go.Figure(layout={"template": "plotly_white"}).layout.template
+        with pytest.raises(ValueError, match=r"^Axes run from 1 to 3; got 0\.$"):
+            ca.map_plot(0, 1)
+        with pytest.raises(ValueError, match=r"^Axes run from 1 to 3; got 4\.$"):
+            ca.map_plot(1, 4)
 
 
 # ---------------------------------------------------------------------------

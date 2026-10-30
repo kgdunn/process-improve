@@ -34,6 +34,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
 from ._common import DataMatrix, SpecificationWarning
+from ._pca import _opposes_convention
 
 try:
     import plotly.graph_objects as go
@@ -55,7 +56,7 @@ def _as_table(X: DataMatrix, what: str) -> pd.DataFrame:
         missing, infinite or negative cell, or has a row or column that sums to zero.
     """
     table = X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-    if table.ndim != 2 or min(table.shape) < 2:
+    if min(table.shape) < 2:
         raise ValueError(f"{what} must be a 2-D table with at least two rows and two columns; got {table.shape}.")
     values = table.to_numpy(dtype=float)
     if not np.all(np.isfinite(values)):
@@ -70,7 +71,7 @@ def _as_table(X: DataMatrix, what: str) -> pd.DataFrame:
                 "profile to compare, and its mass of zero would divide the chi-squared distance by zero. "
                 "Drop it before fitting."
             )
-    return table.astype(float)
+    return table.astype(float)  # pragma: no mutate - astype(None) is float64
 
 
 #: Principal inertia below which an axis is numerical noise rather than structure.
@@ -86,11 +87,8 @@ def _flip_signs(left: np.ndarray, right: np.ndarray) -> tuple[np.ndarray, np.nda
     Each axis is flipped so that its largest-magnitude left singular vector entry is
     positive, the same convention the package's PCA uses for its loadings.
     """
-    for k in range(left.shape[1]):
-        if left[np.argmax(np.abs(left[:, k])), k] < 0:
-            left[:, k] *= -1.0
-            right[:, k] *= -1.0
-    return left, right
+    flip = _opposes_convention(left)
+    return np.where(flip, -left, left), np.where(flip, -right, right)
 
 
 class CA(TransformerMixin, BaseEstimator):
@@ -185,12 +183,14 @@ class CA(TransformerMixin, BaseEstimator):
         column_mass = proportions.sum(axis=0)
 
         residuals = (proportions - np.outer(row_mass, column_mass)) / np.sqrt(np.outer(row_mass, column_mass))
-        left, singular, right_t = np.linalg.svd(residuals, full_matrices=False)
+        left, singular, right_t = np.linalg.svd(residuals, full_matrices=False)  # pragma: no mutate - see below
         # At most min(I, J) - 1 axes, since centring on the average profile removes
-        # one; fewer when the table is rank-deficient. An axis with no inertia is not
-        # kept, because every relative quantity on it (its share, the contributions to
-        # it) would be noise divided by noise.
-        rank = int(np.sum(singular[: min(table.shape) - 1] ** 2 > _NULL_INERTIA))
+        # one (its singular value is rounding noise, far below the threshold); fewer
+        # when the table is rank-deficient. An axis with no inertia is not kept,
+        # because every relative quantity on it (its share, the contributions to it)
+        # would be noise divided by noise. So no vector past the rank is read.
+        eigenvalues = singular**2
+        rank = int(np.sum(eigenvalues > _NULL_INERTIA))  # pragma: no mutate - >= differs only at exact equality
         if rank == 0:
             raise ValueError(
                 "The table shows no association between its rows and columns: every row has the same "
@@ -198,7 +198,7 @@ class CA(TransformerMixin, BaseEstimator):
                 "not a fault in the data, but there is no map to draw from it."
             )
         left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
-        singular = singular[:rank]
+        singular, eigenvalues = singular[:rank], eigenvalues[:rank]
 
         keep = int(self.n_components)
         if keep > rank:
@@ -206,13 +206,12 @@ class CA(TransformerMixin, BaseEstimator):
                 f"Asked for {keep} axes, but this {table.shape[0]} x {table.shape[1]} table has {rank} with "
                 f"any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
         all_rows = left / np.sqrt(row_mass)[:, np.newaxis] * singular
         all_columns = right / np.sqrt(column_mass)[:, np.newaxis] * singular
-        eigenvalues = singular**2
 
         self.n_components_ = keep
         self.eigenvalues_ = eigenvalues[:keep]
@@ -276,7 +275,7 @@ class CA(TransformerMixin, BaseEstimator):
             If the column count differs from the fitted table's, or the rows are not
             valid counts.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         rows = self._supplementary(X, expected=len(self._columns), axis=1, what="rows")
         profiles = rows.to_numpy() / rows.to_numpy().sum(axis=1, keepdims=True)
         return pd.DataFrame(profiles @ self._column_standard, index=rows.index, columns=self.row_coordinates_.columns)
@@ -304,9 +303,9 @@ class CA(TransformerMixin, BaseEstimator):
             If the row count differs from the fitted table's, or the columns are not
             valid counts.
         """
-        check_is_fitted(self, "column_coordinates_")
+        check_is_fitted(self)
         columns = self._supplementary(X, expected=len(self._rows), axis=0, what="columns")
-        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0, keepdims=True)
+        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0)
         return pd.DataFrame(
             profiles.T @ self._row_standard, index=columns.columns, columns=self.column_coordinates_.columns
         )
@@ -315,7 +314,7 @@ class CA(TransformerMixin, BaseEstimator):
     def _supplementary(X: DataMatrix, *, expected: int, axis: int, what: str) -> pd.DataFrame:
         """Validate supplementary counts; ``axis`` is the dimension that must match the fit."""
         table = X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        if table.ndim != 2 or table.shape[axis] != expected:
+        if table.shape[axis] != expected:
             raise ValueError(
                 f"Supplementary {what} must match the fitted table along the shared dimension: "
                 f"expected {expected}, got shape {table.shape}."
@@ -323,9 +322,9 @@ class CA(TransformerMixin, BaseEstimator):
         values = table.to_numpy(dtype=float)
         if not np.all(np.isfinite(values)) or np.any(values < 0):
             raise ValueError(f"Supplementary {what} must be finite, non-negative counts.")
-        if np.any(values.sum(axis=1 - axis) == 0):
+        if np.any(values.sum(axis=axis) == 0):
             raise ValueError(f"A supplementary {what[:-1]} sums to zero, so it has no profile to place.")
-        return table.astype(float)
+        return table.astype(float)  # pragma: no mutate - astype(None) is float64
 
     def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
         """Draw the symmetric map: rows and columns together, both in principal coordinates.
@@ -365,7 +364,7 @@ class CA(TransformerMixin, BaseEstimator):
 
 def _map_plot(model: CA | FAMD | MFA, axis_x: int, axis_y: int, settings: dict | None, default_title: str) -> go.Figure:
     """Plot a fitted model's row and column coordinates on one pair of axes, at a 1:1 ratio."""
-    check_is_fitted(model, "row_coordinates_")
+    check_is_fitted(model)
 
     class Settings(BaseModel):
         """Validated display settings for a categorical-methods map."""
