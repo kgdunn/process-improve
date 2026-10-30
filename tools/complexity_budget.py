@@ -38,6 +38,8 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 33: #1026 built PCA.fit's Hotelling's T² as one cumulative sum through the
+    # rule diagnose and project share, taking it under C901.
     # 34: #1025 read OPLS.fit's response through one pd.DataFrame call and folded
     # its two scaler checks into one factor, taking it under C901.
     # 35: 2.0.0 removed `optimize_responses`' deprecated `desirability_weights` branch,
@@ -57,12 +59,16 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 34,
+    "C901": 33,
+    # 19: #1027 built PLS.cross_validate's resamples first and fitted them in one
+    # loop, taking it under PLR0912.
+    # 20: #1026 built PCA.select_n_components' result once after its scheme
+    # branches rather than in each, taking it under PLR0912.
     # 21: #678's Plotly change took `_add_annotation` under PLR0912. 22: #513 took
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 21,
+    "PLR0912": 19,
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
     # the simulation (the designs, the hypothesised process, the goal and its
@@ -103,15 +109,17 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
-    # 27: #981 scored each Z group of `TPLS.diagnose` with the shared regression
+    # 26: #981 scored each Z group of `TPLS.diagnose` with the shared regression
     # helper, which took that function under PLR0915.
+    # 27: #1027 scored PLS.nested_cv's outer folds through the helper
+    # select_n_components uses, taking it under PLR0915.
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 27,
+    "PLR0915": 26,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.

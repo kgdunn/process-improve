@@ -138116,8 +138116,26 @@
      },
      "check": [
       {
-       "manual": "the pure error of the three repeated settings, 0 on 3 df; the library's lack-of-fit analysis gives up when the pure error is zero ('Insufficient degrees of freedom for lack-of-fit test.', returned by _run_lack_of_fit in _analyses/lack_of_fit.py when ss_pure_error <= 0), so it reports no ss_pure_error (the check pure_error_ss raised KeyError)",
-       "cause": "library_gap"
+       "kind": "pure_error_ss",
+       "model": "x1 + x2 + x3 + x4 + x1:x2 + x1:x3 + x1:x4",
+       "runs": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+       ],
+       "summary": {
+        "of": [
+         "y1",
+         "y2"
+        ],
+        "statistic": "each"
+       },
+       "printed": "0"
       },
       {
        "kind": "ss_residual",
@@ -211886,7 +211904,7 @@
       "quote": "(g) None! See the penultimate sentence of (f)."
      },
      "check": {
-      "manual": "none: the 11 parameters of (c) and the 4 cubic contrasts of (f) fill the 15 distinct design points (19 runs less the 4 pure-error df); the library's lack-of-fit analysis of the model with the four cubic terms returns an error ('Insufficient degrees of freedom'), not 0, and its residual has the 4 pure-error df; no check counts the terms left to add",
+      "manual": "none: the 11 parameters of (c) and the 4 cubic contrasts of (f) fill the 15 distinct design points (19 runs less the 4 pure-error df); the library's lack-of-fit analysis of the model with the four cubic terms gives a lack of fit of 0 on 0 df, and its residual has the 4 pure-error df; no check counts the terms left to add",
       "cause": "not_a_result"
      }
     }
@@ -267677,8 +267695,9 @@
       "quote": "Lack of Fit? Untested, s² = 0"
      },
      "check": {
-      "manual": "the five centre values of y2 are all 0.66, so the pure-error mean square is 0 on 4 df; the library fails on it: analyze_experiment(..., analysis_type=['lack_of_fit']) returns lack_of_fit = {'error': 'Insufficient degrees of freedom for lack-of-fit test.'} with no pure-error entries, so a pure_error_ms check raises KeyError: 'ms_pure_error'",
-      "cause": "library_gap"
+      "kind": "pure_error_ms",
+      "model": "(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+      "response": "y2"
      }
     },
     {

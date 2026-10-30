@@ -99,6 +99,47 @@ jobs:
       run: >-
         npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock
         pyodide@${{ steps.runtime.outputs.pyodide }}
+    # Under the tests, Pyodide downloads each wheel it lacks from the CDN, and one download
+    # that came back cut short failed all 40 Pyodide tests ("typing_inspection-0.4.2-py3-none-any.whl
+    # is not a zip file"; annotated_types another time). Fetch here every wheel web/runtime.json
+    # needs, with its dependencies, checked against Pyodide's lock file and fetched again on a
+    # mismatch; Pyodide then reads them from node_modules.
+    - name: Fetch the Pyodide wheels the app loads
+      shell: bash
+      run: |
+        python3 - <<'EOF'
+        import hashlib, json, pathlib, re, sys, time, urllib.request
+
+        runtime = json.loads(pathlib.Path("web/runtime.json").read_text(encoding="utf-8"))
+        pyodide = pathlib.Path.home() / ".cache/process-improve/node/node_modules/pyodide"
+        lock = {
+            re.sub(r"[-_.]+", "-", name).lower(): package
+            for name, package in json.loads((pyodide / "pyodide-lock.json").read_text(encoding="utf-8"))["packages"].items()
+        }
+        cdn = f"https://cdn.jsdelivr.net/pyodide/v{runtime['pyodide']}/full/"
+        todo, seen = list(runtime["packages"]), set()
+        while todo:
+            name = re.sub(r"[-_.]+", "-", todo.pop()).lower()
+            if name in seen:
+                continue
+            seen.add(name)
+            package = lock[name]
+            todo += package["depends"]
+            wheel = pyodide / package["file_name"]
+            for attempt in range(4):
+                if wheel.is_file() and hashlib.sha256(wheel.read_bytes()).hexdigest() == package["sha256"]:
+                    break
+                if attempt:
+                    print(f"::warning::{wheel.name} does not match pyodide-lock.json; fetching it again")
+                    time.sleep(2**attempt)
+                try:
+                    urllib.request.urlretrieve(cdn + package["file_name"], wheel)
+                except OSError as error:
+                    print(f"::warning::{wheel.name}: {error}")
+            else:
+                sys.exit(f"{wheel.name} does not match pyodide-lock.json after 3 downloads")
+        print(f"{len(seen)} Pyodide packages match pyodide-lock.json")
+        EOF
     - name: Cache the downloads of the page in the browser
       uses: actions/cache@v6
       with:
