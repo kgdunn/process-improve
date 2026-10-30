@@ -11,6 +11,105 @@ those changes.
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-29
+
+### Added
+
+- **The design catalog in words, with a page per field and a page per book.** The catalog opens with
+  the reader's field, two doors ("Browse by book", "Can I trust it?") and goals that write a search
+  ("Screen many factors", "Find an optimum", ...). Each application has a page under
+  `catalog/fields/`: the typical size of its published experiments and the kinds of design they use,
+  on a chart of factors and runs. Each source has a page under `catalog/books/`: how closely Factorial
+  gives its answers, its examples in page order, the misprints found in it with the printed value
+  beside the value its own data give, and what Factorial cannot compute yet. The reproduction page
+  opens with one printed answer beside Factorial's, why answers differ, and the books, and keeps its
+  tables behind "Show the numbers". In Factorial, "Experiments like yours" sets the plan beside what
+  others in the chosen field have run. The writing rule these pages follow is in `CONTRIBUTING.md`.
+
+### Changed
+
+- **`PRM` is now the Partial Robust M-regression of Serneels et al. (2005), step for step.** It cited the paper
+  but differed from it in five steps, and its fitted values on the PAC data of Varmuza and Filzmoser were 11 to 15
+  (root mean square, y's standard deviation 81) from those of the R package chemometrics, written by one of the
+  paper's authors; at its defaults its weights did not settle. Now X is centred once at its L1 median and y at its
+  median; the leverage weight measures each row's scores with every component scaled to unit length, so the first
+  components no longer decide it alone; the residual weight divides by the median absolute residual itself; the
+  loop stops when the norm of the regression on those scores changes by less than `coefficient_tol` (default 1%);
+  and the intercept is the median residual. With `scale=False` it reproduces chemometrics's `prm` to 1e-7, once
+  that code's one slip is undone: it subtracts the scores' L1 median as `T - mt`, which R recycles down the columns,
+  so with two or more components the median lands in the wrong cells. `scale=True` (the default) now divides each
+  column by 1.4826 times its median absolute deviation, once, instead of standardising with the weights at every
+  iteration. Every number a `PRM` returns changes.
+
+### Deprecated
+
+- **`PRM(weight_tol=...)` is deprecated and has no effect.** `PRM` stops, as Serneels et al. (2005) do, on the
+  relative change in the norm of its regression on the scores, set by the new `coefficient_tol`. Passing
+  `weight_tol` warns with a `DeprecationWarning`; it will be removed in 3.0.
+
+### Fixed
+
+- **`hotellings_t2_limit(conf_level, 0, n_rows)` returns 0.0, not NaN.** With no components every T2 value
+  is 0, and so is its limit; the formula tends to 0 as the number of components falls to 0, but scipy
+  cannot evaluate an F distribution with 0 numerator degrees of freedom. Found by mutation testing.
+- **`recommend_next_step` no longer confirms a model that misses the repeated runs while interactions of its active
+  factors with the others are untested.** When the model the terms were judged in does not fit the repeats, that
+  lack of fit now holds for the smaller final model too, whose own test has less power; and the second look also
+  tests the interactions of an active factor with every other factor (weak heredity, Holm's method). Before, a
+  10-factor study could confirm, after a definitive screening design and 4 de-alias runs, an optimum below two
+  runs it had already made.
+- **`analyze_experiment` refuses three inputs by name that used to fail deep inside numpy or statsmodels:**
+  data with no complete run (#1000); a zero in a binomial GLM's trials *column*, which was refused as a
+  number or a list but not as a column (#1001); and a response so large in its units that its sums of
+  squares overflow, with the advice to rescale it, which changes no test or R-squared (#1005).
+- **A response named after a Python keyword, such as `yield`, is analysed when the data also has a column
+  `yield_`.** Its stand-in name became `yield__`, which the formula check refused as dunder access (#1002).
+- **Factorial: a blank cell for a categorical factor is named by its run (#1006).** The app refused the run,
+  as it should, but called the blank `nan`, a value the reader never typed: "Factor S: each run must be at A or
+  B, not nan." It now says "Factor S: run 2 has no setting; each run must be at A or B."
+- **The warning `calculate_cpk` gives for a side with no spread now names the line that called it.** It named a
+  line inside `calculate_cpk` instead, because the helper that raises it sits one frame deeper than its
+  `stacklevel` allowed for. Found by mutation testing.
+- **`analyze_experiment` no longer calls a model estimable because its factors, coded to -1/+1, would estimate it.**
+  With `A * B` the same in every run, `y ~ A:B` has rank 1 of 2, but it was reported as estimable with a warning
+  that blamed the units, and the browser app showed the intercept and `A:B` each as half the mean, with a small
+  p-value. Now `rank_deficient` is true and the app refuses the model, as it does any model the runs cannot
+  estimate. A hierarchical model in very unequal units, or with a tiny span far from zero, is still not blamed on
+  the design. (#997)
+- **`lm(...).get_parameters()` is annotated and documented as returning a pandas `Series`**, indexed by term,
+  which it always returned; the annotation said `DataFrame`, so a type checker accepted DataFrame-only calls such
+  as `.to_dict(orient="records")` that fail at run time.
+- **`ControlChart.calculate_limits` keeps a Holt-Winters weight pinned on its own, and searches only the other.**
+  Pinning one of `ld_1` and `ld_2` was ignored: both were searched over the grid, the pinned value was replaced,
+  and an out-of-range value such as `ld_2=5.0` was accepted without a word. It is now kept, checked to lie in
+  0 to 1, and, when the data cannot choose the other weight, kept beside its default. Results change only for a
+  call that pins exactly one of the two. Found by mutation testing.
+- **`recommend_next_step` is many times faster on a large screening study.** Listing the alternatives, it chose
+  the runs of the response-surface option by a D-optimal search only to count them; the search always adds the
+  runs it is asked for, so the count now skips it. An 11-factor Plackett-Burman design with 3 centre runs took
+  15 s, nearly all of it on that count, and now takes under 1 s, with the same alternatives.
+- **`recommend_next_step(..., response=None)` says the runs have no response column `None`**, as for any other
+  name not among the runs, not a `KeyError` for a column `'y'` the caller never named.
+- **`recommend_next_step` no longer reads a shift between blocks as curvature when the centre runs are in a block
+  of their own.** With the corners in one round and the centre runs in the next (`block="Round"`), the centre runs'
+  mean was compared with the corners' and the blocks ignored, so a process that ran 8 units higher in the second
+  round showed significant curvature (p = 0.0003) and the step was `augment_to_rsm`. The runs cannot tell that
+  shift from curvature, so curvature is now not judged (`"source": None`), a reason in the step says why, and the
+  step is the same with the shift as without it (#998).
+- **A one-component mixture region with a constraint no longer crashes.** `DesignRegion` with a single
+  mixture component and any constraint raised `ValueError: cannot reshape array of size 0` while
+  enumerating its vertices. Its only blend is the pure component, so its share of the blends is now 1.0
+  when the constraints allow that blend and 0.0 when they do not (#999).
+- **`reshape_to_long` refuses two labels that differ only in surrounding whitespace (#1003).** It strips each
+  label, so `"P1"` and `"P1 "` (a space typed into a spreadsheet) became one panelist: silently when their mean
+  scores agreed, and otherwise through a round-trip failure that blamed the column mapping. A `ValueError` now
+  names the two labels, for panelists, products and attributes alike.
+- **`variance_components` refuses a random term that cannot be told apart from the residual.** With one
+  reading at each level of a term, such as `part:operator` in a gauge study with one reading per part
+  and operator, only the sum of the term's variance and the residual's is estimable. It used to report
+  an arbitrary split of that sum, with standard errors near 2e7; now it raises a `ValueError`, before
+  fitting, that names the term. (#1004)
+
 ## [2.2.0] - 2026-10-26
 
 ### Added
@@ -10645,7 +10744,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/kgdunn/process-improve/compare/v2.2.0...v2.2.2
 [2.2.0]: https://github.com/kgdunn/process-improve/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kgdunn/process-improve/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/kgdunn/process-improve/compare/v1.99.0...v2.0.0

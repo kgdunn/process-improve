@@ -404,7 +404,7 @@ class TestPRMConvergenceReporting:
 
     def test_weight_tol_is_deprecated_and_has_no_effect(self) -> None:
         data = _dataset(seed=0, n_bad=N_BAD)
-        with pytest.warns(DeprecationWarning, match="weight_tol is deprecated since 2.2.0"):
+        with pytest.warns(DeprecationWarning, match="weight_tol is deprecated since 2.2.2"):
             old = PRM(n_components=2, weight_tol=1e-4).fit(*data)
         np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(*data).robust_weights_)
 
