@@ -3,9 +3,11 @@
 import copy
 import inspect
 import io
+import itertools
 import logging
 import pathlib
 import re
+import time
 import urllib.request
 import warnings
 from collections.abc import Callable
@@ -16,6 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import pytest
+import scipy.linalg
 from scipy.sparse import csr_matrix
 from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
@@ -31,6 +34,7 @@ from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _nz
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
+from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -1165,7 +1169,9 @@ def test_pca_select_n_components() -> None:
     assert "q2_se" in result
     assert (result.q2_se >= 0).all()
     X_arr = np.asarray(X, dtype=float)
-    null_ss = _pca_ekf_press(X_arr, max_comp, n_folds=5, random_state=0).null_model_ss
+    null_ss = _pca_ekf_press(
+        X_arr, max_comp, n_folds=5, random_state=0, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=True
+    ).null_model_ss
     np.testing.assert_allclose(result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9)
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
@@ -7910,3 +7916,1332 @@ class TestEkfLoopKnobsWereRenamed:
         stingy = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=1, random_state=0)
         patient = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=50, random_state=0)
         assert not np.allclose(stingy.q2.to_numpy(), patient.q2.to_numpy()), "ekf_max_iter did not reach the EM loop"
+
+
+# ---- PCA worked by hand: the estimator's API, its three fitting paths and its diagnostics (#1026) ----
+
+
+def _named_block(seed: int = 0, n: int = 12) -> pd.DataFrame:
+    """Return ``n`` centred rows of three named, correlated columns, labelled r0, r1, ..."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, 3)) @ np.array([[2.0, 1.0, 0.5], [0.0, 1.0, -1.0], [0.0, 0.0, 0.3]])
+    X -= X.mean(axis=0)
+    return pd.DataFrame(X, columns=["a", "b", "c"], index=[f"r{i}" for i in range(n)])
+
+
+def _svd_reference(X: np.ndarray, A: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return the first ``A`` loadings and scores of ``X`` by numpy's SVD, each loading's largest entry positive."""
+    _, _, Vt = np.linalg.svd(X, full_matrices=False)
+    P = Vt[:A].T.copy()
+    for a in range(A):
+        if P[np.argmax(np.abs(P[:, a])), a] < 0:
+            P[:, a] = -P[:, a]
+    return P, X @ P
+
+
+def test_pca_constructor_keeps_its_defaults_and_declares_that_it_takes_nan() -> None:
+    """The constructor stores what it is given; the estimator tells sklearn that NaN may reach it."""
+    assert PCA(n_components=2).get_params() == {
+        "n_components": 2,
+        "algorithm": "auto",
+        "tol": epsqrt,
+        "max_iter": 500,
+        "missing_data_settings": None,
+    }
+    assert PCA(n_components=2).__sklearn_tags__().input_tags.allow_nan is True
+
+
+def test_pca_whose_fit_failed_is_not_fitted() -> None:
+    """A fit that raised part way leaves no loadings, and every method that reads them says so.
+
+    The failed fit has set ``n_samples_`` and other attributes ending in ``_`` before it
+    refused the missing cell, so a check for any fitted attribute would wrongly pass.
+    """
+    X = pd.DataFrame([[1.0, 2.0], [np.nan, 1.0], [3.0, 0.5]], columns=["a", "b"])
+    pca = PCA(n_components=1, algorithm="svd")
+    with pytest.raises(ValueError, match=r"^SVD algorithm cannot handle missing data"):
+        pca.fit(X)
+    assert pca.n_samples_ == 3
+    complete = X.fillna(0.0)
+    calls: list[Callable] = [
+        lambda: pca.transform(complete),
+        lambda: pca.diagnose(complete),
+        lambda: pca.project(complete),
+        lambda: pca.score(complete),
+        lambda: pca.projection_matrix([True, True]),
+        pca.get_feature_names_out,
+        pca.detect_outliers,
+    ]
+    for call in calls:
+        with pytest.raises(NotFittedError, match="This PCA instance is not fitted yet"):
+            call()
+
+
+def test_pca_reads_new_rows_by_column_name_and_labels_every_result() -> None:
+    """New rows with their columns in another order are matched by name, and keep their own row labels.
+
+    Every value is worked from the fitted loadings: ``t = x P``, ``T2 = sum_a t_a^2 / s_a^2``
+    cumulated over the components, ``SPE = ||x - t P'||``.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    P = pca.loadings_.to_numpy()
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    new = pd.DataFrame([[0.5, -1.0, 2.0], [1.5, 0.2, -0.4]], columns=["a", "b", "c"], index=["x", "y"])
+    reordered = new[["c", "a", "b"]]
+    t = new.to_numpy() @ P
+    t2 = np.cumsum(t**2 / s**2, axis=1)
+    spe = np.linalg.norm(new.to_numpy() - t @ P.T, axis=1)
+
+    expected_scores = pd.DataFrame(t, index=["x", "y"], columns=[1, 2])
+    pd.testing.assert_frame_equal(pca.transform(reordered), expected_scores, rtol=1e-12)
+    diagnosed = pca.diagnose(reordered)
+    pd.testing.assert_frame_equal(diagnosed.scores, expected_scores, rtol=1e-12)
+    pd.testing.assert_frame_equal(
+        diagnosed.hotellings_t2, pd.DataFrame(t2, index=["x", "y"], columns=[1, 2]), rtol=1e-12
+    )
+    pd.testing.assert_series_equal(diagnosed.spe, pd.Series(spe, index=["x", "y"], name="SPE"), rtol=1e-12)
+    projected = pca.project(reordered)
+    pd.testing.assert_frame_equal(projected.scores, expected_scores, rtol=1e-12)
+    pd.testing.assert_series_equal(
+        projected.hotellings_t2, pd.Series(t2[:, -1], index=["x", "y"], name="Hotelling's T2"), rtol=1e-12
+    )
+    pd.testing.assert_series_equal(projected.spe, pd.Series(spe, index=["x", "y"], name="SPE"), rtol=1e-12)
+    pd.testing.assert_series_equal(
+        projected.condition_number, pd.Series([1.0, 1.0], index=["x", "y"], name="condition_number")
+    )
+    pd.testing.assert_series_equal(projected.n_observed, pd.Series([3, 3], index=["x", "y"], name="n_observed"))
+    assert pca.score(reordered) == pytest.approx(-np.mean((new.to_numpy() - t @ P.T) ** 2), rel=1e-12)
+
+    # An array has no labels of its own: its rows are numbered from 0, its columns read in the fitted order.
+    for result in (
+        pca.transform(new.to_numpy()),
+        pca.diagnose(new.to_numpy()).scores,
+        pca.project(new.to_numpy()).scores,
+    ):
+        pd.testing.assert_frame_equal(result, pd.DataFrame(t, columns=[1, 2]), rtol=1e-12)
+    assert pca.diagnose(new.to_numpy()).hotellings_t2.index.equals(pd.RangeIndex(2))
+    assert pca.diagnose(new.to_numpy()).spe.index.equals(pd.RangeIndex(2))
+    for series in ("hotellings_t2", "spe", "condition_number", "n_observed"):
+        assert pca.project(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
+    np.testing.assert_array_equal(pca.get_feature_names_out(), ["PC1", "PC2"])
+
+
+def test_pca_score_reads_a_dataframe_by_column_name() -> None:
+    """``score`` matches columns by name, as ``transform`` does (#1026).
+
+    It took the scores from ``transform``, which realigns a DataFrame's columns, but the
+    data from the DataFrame as given, so columns in another order were subtracted from the
+    reconstruction of the wrong variables: -4.84 for a block whose reconstruction error is
+    0.82.
+    """
+    X = _named_block()
+    pca = PCA(n_components=1).fit(X)
+    P = pca.loadings_.to_numpy()
+    residual = X.to_numpy() - X.to_numpy() @ P @ P.T
+    for frame in (X, X[["c", "b", "a"]], X[["b", "c", "a"]]):
+        assert pca.score(frame) == pytest.approx(-np.mean(residual**2), rel=1e-12)
+
+
+def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
+    """A nullable ``Float64`` column's ``pd.NA`` is a missing cell, as ``transform`` and ``project`` read it (#1026).
+
+    ``diagnose`` and ``score`` converted the DataFrame as given with ``float()``, which
+    raises TypeError on ``pd.NA``. The rows without one get the values worked by hand.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    P = pca.loadings_.to_numpy()
+    nullable = X.astype("Float64")
+    nullable.iloc[1, 0] = pd.NA
+    diagnosed = pca.diagnose(nullable)
+    spe = np.linalg.norm(X.to_numpy() - X.to_numpy() @ P @ P.T, axis=1)
+    assert np.isnan(diagnosed.spe.iloc[1])
+    assert np.isnan(diagnosed.hotellings_t2.iloc[1]).all()
+    np.testing.assert_allclose(diagnosed.spe.drop("r1"), np.delete(spe, 1), rtol=1e-12)
+    assert np.isnan(pca.score(nullable))
+    assert pca.score(nullable.drop(index="r1")) == pytest.approx(-np.mean(np.delete(spe, 1) ** 2) / 3, rel=1e-12)
+
+
+def test_pca_refuses_new_rows_that_do_not_fit_the_model() -> None:
+    """New rows are checked against the fit, never fitted to: the width, sparse input and infinities.
+
+    A missing cell is allowed through ``transform`` (its score is NaN), but an infinite one
+    is not. The expected width stays the fitted one after a refusal.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X.to_numpy())
+    calls: list[Callable] = [pca.transform, pca.diagnose, pca.project, pca.score]
+    for call in calls:
+        with pytest.raises(ValueError, match=r"^X has 2 features, but PCA is expecting 3 features as input\.$"):
+            call(np.ones((2, 2)))
+        message = (
+            "Sparse data was passed for X, but dense data is required. Use '.toarray()' to convert to a dense numpy "
+            "array."
+        )
+        with pytest.raises(TypeError, match=f"^{re.escape(message)}$"):
+            call(csr_matrix(np.ones((2, 3))))
+        with pytest.raises(ValueError, match=r"^Input X contains infinity"):
+            call(np.array([[1.0, np.inf, 0.0]]))
+    assert pca.n_features_in_ == 3
+    scores = pca.transform(np.array([[1.0, np.nan, 0.0], [1.0, 2.0, 0.0]]))
+    assert np.isnan(scores.iloc[0]).all()
+    assert np.isfinite(scores.iloc[1]).all()
+
+
+def test_pca_project_and_projection_matrix_work_without_training_residuals() -> None:
+    """A model that keeps no training residuals (one pickled before they were kept) still projects.
+
+    Its estimator for a row with a missing cell is the one ``project_rows`` and
+    ``operator_for_pattern`` build when they are given no residuals.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    row = np.array([[0.5, np.nan, 2.0]])
+    with_residuals = pca.project(row).scores.to_numpy()
+    del pca._x_residuals
+    loadings = pca.loadings_.to_numpy()
+    expected = project_rows(loadings, loadings, pca.explained_variance_, row, method="tsr", x_residuals=None)
+    np.testing.assert_allclose(pca.project(row).scores.to_numpy(), expected.scores, rtol=1e-12)
+    assert not np.allclose(with_residuals, expected.scores), (
+        "the residuals must change the estimate for the test to see them"
+    )
+    mask = np.array([True, False, True])
+    op = operator_for_pattern(loadings, loadings, pca.explained_variance_, mask, method="tsr", x_residuals=None)
+    built = pca.projection_matrix(["a", "c"])
+    pd.testing.assert_frame_equal(built.matrix, pd.DataFrame(op.matrix, index=[1, 2], columns=["a", "c"]))
+    assert built.condition_number == op.condition_number
+    assert built.method == "tsr"
+    assert pca.projection_matrix(["a", "c"], method="SCP").method == "scp"
+
+
+def _block_with_a_flat_and_a_small_column() -> pd.DataFrame:
+    """Return 8 centred rows: two correlated columns, a column of zeros and one with a sum of squares of 0.5."""
+    rng = np.random.default_rng(3)
+    big = rng.standard_normal((8, 2)) @ np.array([[3.0, 1.0], [0.0, 2.0]])
+    small = rng.standard_normal(8)
+    small = (small - small.mean()) * np.sqrt(0.5 / np.sum((small - small.mean()) ** 2))
+    X = np.column_stack([big[:, 0], np.zeros(8), small, big[:, 1]])
+    return pd.DataFrame(X - X.mean(axis=0), columns=["a", "flat", "small", "d"])
+
+
+@pytest.mark.parametrize("algorithm", ["svd", "nipals", "tsr"])
+def test_pca_fit_paths_by_hand_on_complete_data(algorithm: str) -> None:
+    """Each path fits the truncated SVD on complete data, and reports its R2, SPE and variance by hand.
+
+    The loadings are numpy's right singular vectors, signed so the largest entry of each is
+    positive; scores ``X P``; explained variance ``diag(T'T) / (N - 1)``; cumulative R2
+    ``1 - ||X - T P'||^2 / ||X||^2``, its increments the per-component R2; a column's
+    cumulative R2 the same ratio over that column, NaN for the column of zeros, and an
+    ordinary value for the column whose sum of squares is only 0.5; SPE the row norms of
+    the residual. None of it warns.
+    """
+    X = _block_with_a_flat_and_a_small_column()
+    A = 3
+    P, T = _svd_reference(X.to_numpy(), A)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=A, algorithm=algorithm).fit(X)
+    tol = 1e-12 if algorithm != "nipals" else 1e-6
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=tol)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=tol * 10)
+    np.testing.assert_allclose(pca.explained_variance_, np.sum(T**2, axis=0) / 7, rtol=tol)
+    total = np.sum(X.to_numpy() ** 2)
+    r2_cumulative = []
+    for a in range(1, A + 1):
+        residual = X.to_numpy() - T[:, :a] @ P[:, :a].T
+        r2_cumulative.append(1 - np.sum(residual**2) / total)
+        np.testing.assert_allclose(pca.spe_.iloc[:, a - 1], np.linalg.norm(residual, axis=1), atol=tol * 10)
+        kept = [0, 2, 3]
+        per_column = 1 - np.sum(residual[:, kept] ** 2, axis=0) / np.sum(X.to_numpy()[:, kept] ** 2, axis=0)
+        assert np.isnan(pca.r2_per_variable_.loc["flat", a])
+        np.testing.assert_allclose(pca.r2_per_variable_.iloc[kept, a - 1], per_column, atol=tol)
+    np.testing.assert_allclose(pca.r2_cumulative_, r2_cumulative, atol=tol)
+    np.testing.assert_allclose(pca.r2_per_component_, np.diff(r2_cumulative, prepend=0.0), atol=tol)
+
+
+def test_pca_fit_paths_on_two_rows_divide_the_variance_by_one() -> None:
+    """Two rows have one degree of freedom: the explained variance is ``t't / 1``."""
+    X = np.array([[1.0, -2.0, 0.5], [-1.0, 2.0, -0.5]])
+    for algorithm in ("svd", "nipals", "tsr"):
+        pca = PCA(n_components=1, algorithm=algorithm).fit(X)
+        np.testing.assert_allclose(pca.explained_variance_, [np.sum(X**2)], rtol=1e-10)
+
+
+def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
+    """With nothing to explain, every R2 is NaN rather than a 0/0 warning; T2 and SPE are 0.
+
+    A block whose sum of squares is only 0.02 has its R2 as any other.
+    """
+    small = _named_block().to_numpy() * 0.01
+    assert np.sum(small**2) < 1
+    P, T = _svd_reference(small, 1)
+    expected = 1 - np.sum((small - T @ P.T) ** 2) / np.sum(small**2)
+    assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
+    assert pca.r2_cumulative_.isna().all()
+    assert pca.r2_per_component_.isna().all()
+    assert pca.r2_per_variable_.isna().all().all()
+    assert (pca.hotellings_t2_.to_numpy() == 0).all()
+    assert (pca.spe_.to_numpy() == 0).all()
+
+
+def test_pca_fitting_info_of_each_path() -> None:
+    """SVD records no timing or iterations; NIPALS one of each per component; TSR its EM rounds, 0 on complete data.
+
+    A time is a duration within the fit's own, not a clock reading.
+    """
+    X = _named_block()
+    A = 2
+    pca = PCA(n_components=A, algorithm="svd").fit(X)
+    assert set(pca.fitting_info_) == {"timing", "iterations"}
+    for value in pca.fitting_info_.values():
+        assert value.shape == (A,)
+        assert np.isnan(value).all()
+    started = time.time()
+    pca = PCA(n_components=A, algorithm="nipals").fit(X)
+    elapsed = time.time() - started
+    assert ((pca.fitting_info_["timing"] >= 0) & (pca.fitting_info_["timing"] <= elapsed)).all()
+    iterations = pca.fitting_info_["iterations"]
+    assert iterations.dtype == float
+    assert pca.fitting_info_["timing"].dtype == float
+    assert ((iterations >= 1) & (iterations == np.round(iterations))).all()
+    started = time.time()
+    pca = PCA(n_components=A, algorithm="tsr").fit(X)
+    elapsed = time.time() - started
+    assert pca.fitting_info_["iterations"] == 0
+    assert 0 <= pca.fitting_info_["timing"] <= elapsed
+
+
+def test_pca_nipals_after_one_iteration_by_hand() -> None:
+    """With ``max_iter=1`` NIPALS stops after one pass, which can be worked by hand.
+
+    The seed is the column with the largest sum of squares (the third here, not the first),
+    its missing cell set to 0, plus 1. Then ``p_k = sum_i x_ik t_i / sum_i t_i^2`` over the
+    rows observed in column k, normalised, and ``t_i = sum_k x_ik p_k / sum_k p_k^2`` over
+    the columns observed in row i; the largest loading entry is made positive. The second
+    component repeats it on the deflated block. Each component says it stopped at the cap.
+    """
+    X = np.array(
+        [
+            [0.5, -1.0, 4.0],
+            [-1.0, 0.5, -3.0],
+            [1.5, np.nan, 2.0],
+            [0.0, 1.0, -2.5],
+            [-1.0, -0.5, -0.5],
+        ]
+    )
+    observed = ~np.isnan(X)
+    Xd = np.nan_to_num(X)
+    loadings, scores = [], []
+    for _ in range(2):
+        seed = Xd[:, int(np.argmax(np.sum(Xd**2, axis=0)))] + 1.0
+        p = (Xd.T @ seed) / (observed.T @ seed**2)
+        p /= np.linalg.norm(p)
+        t = (Xd @ p) / (observed @ p**2)
+        if p[np.argmax(np.abs(p))] < 0:
+            p, t = -p, -t
+        loadings.append(p)
+        scores.append(t)
+        Xd = np.where(observed, Xd - np.outer(t, p), 0.0)
+    assert np.argmax(np.sum(np.nan_to_num(X) ** 2, axis=0)) == 2
+    with pytest.warns(SpecificationWarning) as record:
+        pca = PCA(n_components=2, algorithm="nipals", max_iter=1).fit(X)
+    assert [str(w.message) for w in record] == [
+        f"PCA NIPALS: component {a} reached the maximum number of iterations (1) without converging." for a in (1, 2)
+    ]
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), np.column_stack(loadings), rtol=1e-12)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), np.column_stack(scores), rtol=1e-12)
+    np.testing.assert_array_equal(pca.fitting_info_["iterations"], [1, 1])
+
+
+def test_pca_nipals_seeds_from_the_largest_column_not_the_first() -> None:
+    """A first column of zeros, orthogonal to every score, does not stall NIPALS (#195).
+
+    Seeded from it, the score would be a column of ones, which a centred block maps to a
+    zero loading. Seeded from the largest column, NIPALS finds the SVD's components.
+    """
+    X = _block_with_a_flat_and_a_small_column()[["flat", "a", "small", "d"]].to_numpy()
+    P, _ = _svd_reference(X, 2)
+    pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+
+
+def test_pca_nipals_signs_each_component_whatever_its_seed() -> None:
+    """NIPALS converges to the sign its seed points to; the convention then fixes the sign.
+
+    The seed is the third column, the largest, which leans against the first component
+    (along the first two columns), so that component converges with its largest entries
+    negative and is flipped, loading and scores together, to agree with the SVD's.
+    """
+    rng = np.random.default_rng(3)
+    f = rng.standard_normal(30)
+    X = np.column_stack(
+        [
+            2.2 * f + 0.3 * rng.standard_normal(30),
+            2.2 * f + 0.3 * rng.standard_normal(30),
+            2.8 * rng.standard_normal(30) - 0.4 * f,
+        ]
+    )
+    X -= X.mean(axis=0)
+    assert np.argmax(np.sum(X**2, axis=0)) == 2
+    P, T = _svd_reference(X, 2)
+    pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=1e-5)
+
+
+def test_pca_nipals_refines_a_large_seed_at_least_once() -> None:
+    """On a column of size 1e9 the ``+ 1`` offset is lost, so the seed passes the convergence test unrefined.
+
+    The first pass runs regardless, so the fitted loading is the SVD's, not zero.
+    """
+    X = _named_block().to_numpy() * 1e9
+    P, _ = _svd_reference(X, 1)
+    pca = PCA(n_components=1, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+
+
+def test_pca_nipals_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
+    """Each component's iteration count and the tolerance are logged at DEBUG level."""
+    X = _named_block()
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._pca"):
+        pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    iterations = pca.fitting_info_["iterations"].astype(int)
+    assert [record.getMessage() for record in caplog.records] == [
+        f"PCA NIPALS: component {a + 1} converged in {iterations[a]} iterations (tol=1.49012e-08)" for a in range(2)
+    ]
+
+
+def test_pca_nipals_needs_a_sum_of_squares_of_at_least_epsqrt() -> None:
+    """A block whose sum of squares is exactly epsqrt (``2**-26``) still fits; one below it is refused.
+
+    The single non-zero cell ``2**-13`` gives the loading (1, 0) and the scores (2**-13, 0).
+    A second component finds nothing left, and the refusal says after which component.
+    """
+    X = np.array([[2.0**-13, 0.0], [0.0, 0.0]])
+    assert np.sum(X**2) == epsqrt
+    pca = PCA(n_components=1, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), [[2.0**-13], [0.0]], atol=1e-20)
+    message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
+    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.5)
+    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
+        PCA(n_components=2, algorithm="nipals").fit(X)
+
+
+def _tsr_by_hand(X: np.ndarray, A: int, max_iter: int, tol: float) -> tuple[np.ndarray, np.ndarray, int]:
+    """Trimmed score regression (Arteaga and Ferrer, 2002; Folch-Fortuny et al., 2015), written out.
+
+    Start the missing cells at 0. Each round: take the column means and covariance S of the
+    current block, and the first A loadings V of its centred SVD; fill each row's missing
+    cells, centred, with ``S_mo V_o (V_o' S_oo V_o)^+ V_o' x_o``, using at most as many
+    loadings as the row has observed cells. Stop once the mean squared change of the filled
+    cells is at most ``tol``, or after ``max_iter`` rounds. The loadings are then the first
+    A eigenvectors of the filled block's covariance, signed so the largest entry is positive,
+    and the scores the filled block times them.
+    """
+    missing = np.isnan(X)
+    filled = np.where(missing, 0.0, X)
+    rounds = 0
+    for rounds in range(1, max_iter + 1):  # noqa: B007 - the count is returned
+        before = filled[missing]
+        mean = filled.mean(axis=0)
+        S = np.cov(filled, rowvar=False)
+        centred = filled - mean
+        V = np.linalg.svd(centred, full_matrices=False)[2][:A].T
+        for i in np.flatnonzero(missing.any(axis=1)):
+            o, m = ~missing[i], missing[i]
+            L = V[o, : min(A, o.sum())]
+            centred[i, m] = S[np.ix_(m, o)] @ L @ np.linalg.pinv(L.T @ S[np.ix_(o, o)] @ L) @ L.T @ centred[i, o]
+        filled = centred + mean
+        if np.mean((filled[missing] - before) ** 2) <= tol:
+            break
+    values, vectors = np.linalg.eigh(np.cov(filled, rowvar=False))
+    P = vectors[:, np.argsort(values)[::-1][:A]]
+    P = P * np.where(P[np.argmax(np.abs(P), axis=0), np.arange(A)] < 0, -1.0, 1.0)
+    return P, filled @ P, rounds
+
+
+@pytest.mark.parametrize(("shape", "max_iter"), [((9, 4), 1), ((9, 4), 3), ((9, 4), 500), ((4, 6), 500)])
+def test_pca_tsr_by_hand(shape: tuple[int, int], max_iter: int) -> None:
+    """TSR on a block with missing cells, one row with fewer observed cells than components, tall and wide.
+
+    The rounds, loadings, scores, R2 and SPE match the algorithm written out, and the
+    reconstruction error of the observed cells only enters R2 and SPE.
+    """
+    rng = np.random.default_rng(11)
+    N, K = shape
+    X = rng.standard_normal((N, 2)) @ rng.standard_normal((2, K)) + 0.3 * rng.standard_normal((N, K)) + 2.0
+    X[0, 1] = X[2, 3] = X[3, 0] = np.nan
+    X[1, : K - 1] = np.nan  # one observed cell, fewer than the two components
+    A = 2
+    P, T, rounds = _tsr_by_hand(X, A, max_iter, epsqrt)
+    pca = PCA(n_components=A, algorithm="tsr", max_iter=max_iter).fit(X)
+    assert pca.fitting_info_["iterations"] == rounds
+    assert rounds == max_iter or 1 < rounds < max_iter
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-8)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=1e-7)
+    np.testing.assert_allclose(pca.explained_variance_, np.sum(T**2, axis=0) / (N - 1), rtol=1e-8)
+    observed = ~np.isnan(X)
+    for a in range(1, A + 1):
+        residual = np.where(observed, T[:, :a] @ P[:, :a].T - np.nan_to_num(X), 0.0)
+        np.testing.assert_allclose(pca.spe_.iloc[:, a - 1], np.linalg.norm(residual, axis=1), atol=1e-7)
+        np.testing.assert_allclose(pca.r2_cumulative_.iloc[a - 1], 1 - np.sum(residual**2) / np.nansum(X**2), atol=1e-8)
+        np.testing.assert_allclose(
+            pca.r2_per_variable_.iloc[:, a - 1], 1 - np.sum(residual**2, axis=0) / np.nansum(X**2, axis=0), atol=1e-8
+        )
+    np.testing.assert_allclose(pca.r2_per_component_, np.diff(pca.r2_cumulative_, prepend=0.0), atol=1e-12)
+
+
+def test_pca_tsr_on_complete_data_runs_no_imputation_and_does_not_warn() -> None:
+    """With nothing missing, TSR takes the covariance's eigenvectors at once: no rounds, no warning."""
+    X = _block_with_a_flat_and_a_small_column()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=2, algorithm="tsr").fit(X)
+    assert pca.fitting_info_["iterations"] == 0
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), _svd_reference(X.to_numpy(), 2)[0], atol=1e-12)
+
+
+def _ekf_fill(X: np.ndarray, unknown: np.ndarray, a: int, constants: tuple, settings: dict) -> np.ndarray:
+    """Fill the ``unknown`` cells from rank-``a`` reconstructions until they settle, as the ekf EM does.
+
+    ``constants`` holds the fold's column centres and spreads.
+    """
+    centre, spread = constants
+    sd = np.broadcast_to(spread, X.shape)[unknown]
+    Xa = np.where(unknown, centre, X)
+    previous = Xa[unknown] / sd
+    for _ in range(settings["max_iter"]):
+        if settings["scale"]:
+            recon = _low_rank_reconstruction((Xa - centre) / spread, a) * spread + centre
+        else:
+            mean = Xa.mean(axis=0)
+            recon = _low_rank_reconstruction(Xa - mean, a) + mean
+        Xa = np.where(unknown, recon, Xa)
+        current = Xa[unknown] / sd
+        if np.linalg.norm(current - previous) < settings["tol"] * max(1.0, np.linalg.norm(previous)):
+            break
+        previous = current
+    return Xa
+
+
+def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: int, **settings: object) -> tuple:
+    """Element-wise k-fold cross-validation (Bro et al., 2008), written out cell by cell.
+
+    Each repeat deals the observed cells, in an order drawn from ``seed``, into ``n_folds``
+    folds of ``n_cells // n_folds`` cells, the last fold taking the rest. In a fold, each
+    column's centre is the mean of its cells neither held out nor missing, and, when scaling,
+    its spread their sd, kept at 1 for fewer than two cells or an sd of at most epsqrt. The
+    unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
+    (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
+    scaled change is below ``tol`` times the norm of their scaled values (at least 1), or
+    for ``max_iter`` rounds. PRESS sums the held-out cells' scaled squared errors, the null
+    reference their scaled squared deviations from the centre; totals are averaged over
+    the repeats. ``settings`` holds ``max_iter``, ``tol`` and ``scale``. Returns the six
+    fields of ``_pca_ekf_press`` in its order.
+    """
+    n, p = X.shape
+    rng = np.random.default_rng(seed)
+    cells = np.flatnonzero(~np.isnan(X))
+    size = cells.size // n_folds
+    per_fold = np.full((A, n_folds * n_repeats), np.nan)
+    per_column, per_column_null, press_units, null = np.zeros((A, p)), np.zeros(p), np.zeros(A), 0.0
+    column = np.broadcast_to(np.arange(p), X.shape)
+    for r in range(n_repeats):
+        order = cells[rng.permutation(cells.size)]
+        for k in range(n_folds):
+            held = order[k * size : (k + 1) * size] if k < n_folds - 1 else order[k * size :]
+            mask = np.isin(np.arange(n * p), held).reshape(n, p)
+            unknown = mask | np.isnan(X)
+            known = [X[~unknown[:, j], j] for j in range(p)]
+            centre = np.array([cells_j.mean() if cells_j.size else 0.0 for cells_j in known])
+            spread = np.array(
+                [
+                    cells_j.std(ddof=1)
+                    if settings["scale"] and cells_j.size > 1 and cells_j.std(ddof=1) > epsqrt
+                    else 1.0
+                    for cells_j in known
+                ]
+            )
+            null_residual = ((X - centre) / spread)[mask]
+            null += np.sum(null_residual**2)
+            np.add.at(per_column_null, column[mask], null_residual**2)
+            for a in range(1, A + 1) if held.size else ():
+                error = (X - _ekf_fill(X, unknown, a, (centre, spread), settings))[mask]
+                scaled = error / np.broadcast_to(spread, X.shape)[mask]
+                per_fold[a - 1, r * n_folds + k] = np.sum(scaled**2)
+                np.add.at(per_column[a - 1], column[mask], scaled**2)
+                press_units[a - 1] += np.sum(error**2)
+    m = n_repeats
+    return np.nansum(per_fold, axis=1) / m, per_fold, per_column / m, null / m, per_column_null / m, press_units / m
+
+
+def _gappy_block() -> np.ndarray:
+    """Return 7 rows of 4 columns with missing cells, a constant column, and a column observed twice."""
+    rng = np.random.default_rng(21)
+    X = rng.standard_normal((7, 2)) @ rng.standard_normal((2, 4)) * [1.0, 5.0, 1.0, 0.2] + [0.0, 3.0, 1.0, -1.0]
+    X[:, 2] = 1.0  # constant
+    X[[0, 4], 1] = np.nan
+    X[2:, 3] = np.nan  # observed in two rows only
+    X[5, 0] = np.nan
+    return X
+
+
+_EKF_CASES = {
+    "complete, two repeats": (
+        np.random.default_rng(5).standard_normal((8, 4)) @ np.diag([3.0, 1.0, 1.0, 0.5]),
+        3,
+        3,
+        2,
+        1e-6,
+        True,
+    ),
+    "gappy, loose tolerance": (_gappy_block(), 3, 4, 1, 0.05, True),
+    "gappy, unscaled": (_gappy_block(), 3, 4, 1, 0.05, False),
+    "fewer cells than folds": (np.array([[1.0, 2.0], [3.0, 4.5]]), 1, 5, 1, 1e-6, True),
+    "an in-fold sd of exactly epsqrt": (
+        np.array([[-(2.0**-26), 1.0], [0.0, 2.0], [2.0**-26, 0.5], [1.0, -1.0]]),
+        1,
+        8,
+        1,
+        1e-6,
+        True,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_EKF_CASES))
+def test_ekf_press_by_hand(case: str) -> None:
+    """Every field of the element-wise k-fold pass agrees with the scheme written out.
+
+    The cases reach each branch: two repeats; a constant column (spread 1), a column with
+    one or two cells left in a fold, a fold missing a column altogether; the unscaled
+    variant; folds with no cells; and, one cell per fold, a column whose in-fold sd is
+    ``2**-26`` exactly, which is not above epsqrt and so is not divided by.
+    """
+    X, A, n_folds, n_repeats, tol, scale = _EKF_CASES[case]
+    settings = {"n_folds": n_folds, "n_repeats": n_repeats, "ekf_max_iter": 50, "ekf_tol": tol}
+    result = _pca_ekf_press(X, A, scale_inside_folds=scale, random_state=3, **settings)
+    expected = _ekf_by_hand(X, A, n_folds=n_folds, n_repeats=n_repeats, seed=3, max_iter=50, tol=tol, scale=scale)
+    for got, want in zip(result, expected, strict=True):
+        np.testing.assert_allclose(got, want, rtol=1e-10, atol=1e-12)
+
+
+def test_ekf_null_reference_without_in_fold_scaling_is_the_centred_sum_of_squares() -> None:
+    """Without in-fold scaling, Q2 is measured against each column's sum of squares about its mean.
+
+    Missing cells are left out of both the mean and the sum.
+    """
+    X = _gappy_block()
+    X[:, 2] = [0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 3.0]  # not constant, so every column has a reference
+    centred_ss = np.nansum((X - np.nanmean(X, axis=0)) ** 2, axis=0)
+    with pytest.warns(SpecificationWarning):
+        result = PCA.select_n_components(X, max_components=2, cv=3, scale_inside_folds=False, random_state=4)
+    ekf = _pca_ekf_press(
+        X, 2, n_folds=3, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=False, random_state=4
+    )
+    np.testing.assert_allclose(result.q2, 1 - ekf.press / centred_ss.sum(), rtol=1e-12)
+    np.testing.assert_allclose(result.q2_per_variable, 1 - ekf.per_column_press / centred_ss, rtol=1e-12)
+
+
+def test_cell_scheme_preprocessing_by_hand() -> None:
+    """Each column is centred and divided by its sd, unless the sd is below epsqrt.
+
+    An sd of exactly ``2**-26`` (epsqrt) still divides; ``2**-27`` does not, and a constant
+    column is all zeros either way.
+    """
+    from process_improve.multivariate._pca import _preprocess_for_cell_schemes
+
+    d = 2.0**-26
+    X = np.array([[1.0, -d, -d / 2, 4.0], [2.0, 0.0, 0.0, 4.0], [6.0, d, d / 2, 4.0]])
+    assert X[:, 1].std(ddof=1) == epsqrt
+    expected = np.column_stack([(X[:, 0] - 3.0) / X[:, 0].std(ddof=1), [-1.0, 0.0, 1.0], X[:, 2], np.zeros(3)])
+    np.testing.assert_array_equal(_preprocess_for_cell_schemes(X, "ek"), expected)
+
+
+@pytest.mark.parametrize(
+    ("missing", "where"),
+    [
+        ([(0, 0), (1, 0), (2, 1)], "2 of them in column 0"),
+        ([(0, 0), (1, 1)], "spread over 2 columns"),
+        ([(0, 0), (1, 0), (2, 1), (3, 1), (4, 2)], "spread over 3 columns"),
+    ],
+)
+def test_cell_schemes_say_where_the_missing_cells_are(missing: list[tuple[int, int]], where: str) -> None:
+    """One column holding more than half of the missing cells is named; otherwise the count of columns is.
+
+    Exactly half is not more than half, and two of five is less.
+    """
+    X = np.arange(18.0).reshape(6, 3) ** 1.5
+    for cell in missing:
+        X[cell] = np.nan
+    message = (
+        f"cv_scheme='sacv' cannot take a block with missing cells, because it factorises the matrix directly. "
+        f"This block has {len(missing)} of 18, {where}. Use cv_scheme='ekf', which imputes an unmeasured cell "
+        "alongside the held-out ones and never scores it, or drop what is missing first."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, cv_scheme="sacv")
+
+
+def _ckf_by_hand(Z: np.ndarray, A: int, n_folds: int, seed: int) -> tuple[np.ndarray, ...]:
+    """Column-wise k-fold, written out: each group's columns predicted from scores of the others."""
+    p = Z.shape[1]
+    groups = np.array_split(np.random.default_rng(seed).permutation(p), max(1, min(n_folds, p)))
+    V = np.linalg.svd(Z)[2].T
+    per_fold = np.full((A, len(groups)), np.nan)
+    per_column = np.full((A, p), np.nan)
+    for a in range(1, A + 1):
+        for g, held in enumerate(groups):
+            kept = np.setdiff1d(np.arange(p), held)
+            if kept.size >= a:
+                residual = Z[:, held] - Z[:, kept] @ np.linalg.pinv(V[kept, :a]).T @ V[held, :a].T
+                per_column[a - 1, held] = np.sum(residual**2, axis=0)
+                per_fold[a - 1, g] = np.sum(residual**2)
+    press = np.where(np.isnan(per_fold).any(axis=1), np.nan, per_fold.sum(axis=1))
+    return press, per_fold, per_column
+
+
+def test_ckf_by_hand_through_select_n_components() -> None:
+    """The ckf curve, its folds, its per-variable Q2 and its standard error, worked by hand.
+
+    Five columns in three groups of 2, 2 and 1: a count of three leaves at least three
+    columns in, so every group evaluates it. The SE is the per-group spread over sqrt(3).
+    """
+    rng = np.random.default_rng(8)
+    X = rng.standard_normal((9, 2)) @ rng.standard_normal((2, 5)) + 0.4 * rng.standard_normal((9, 5))
+    Z = (X - X.mean(axis=0)) / X.std(axis=0, ddof=1)
+    press, per_fold, per_column = _ckf_by_hand(Z, 3, 3, seed=6)
+    result = PCA.select_n_components(X, max_components=3, cv=3, cv_scheme="ckf", random_state=6)
+    np.testing.assert_allclose(result.press, press, rtol=1e-10)
+    np.testing.assert_allclose(result.per_fold_press, per_fold, rtol=1e-10)
+    np.testing.assert_allclose(result.q2, 1 - press / np.sum(Z**2), rtol=1e-10)
+    np.testing.assert_allclose(result.q2_per_variable, 1 - per_column / np.sum(Z**2, axis=0), rtol=1e-10)
+    np.testing.assert_allclose(result.se_press, per_fold.std(axis=1, ddof=1) / np.sqrt(3), rtol=1e-10)
+    np.testing.assert_allclose(result.press_input_units, press, rtol=1e-10)
+
+
+def test_ckf_cannot_evaluate_a_count_with_one_group() -> None:
+    """``cv=1`` puts every column in one group, which leaves none to predict from: no count can be scored."""
+    X = np.random.default_rng(1).standard_normal((8, 3))
+    message = "Cross-validation produced NaN PRESS for every component count; no recommendation can be made."
+    with pytest.raises(RuntimeError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, cv=1, cv_scheme="ckf", random_state=0)
+
+
+def test_ckf_reports_the_spread_of_the_groups_that_evaluate_a_count_and_no_more() -> None:
+    """A count only one group can evaluate has no spread: its SE is NaN, and computing it does not warn.
+
+    Five columns in groups of 3 and 2: three components leave 2 columns beside the first
+    group, too few, and 3 beside the second.
+    """
+    X = np.random.default_rng(2).standard_normal((9, 5))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PCA.select_n_components(X, max_components=3, cv=2, cv_scheme="ckf", random_state=0)
+    per_fold = result.per_fold_press.to_numpy()
+    counted = (~np.isnan(per_fold)).sum(axis=1)
+    np.testing.assert_array_equal(counted, [2, 2, 1])
+    np.testing.assert_allclose(result.se_press.iloc[:2], per_fold[:2].std(axis=1, ddof=1) / np.sqrt(2), rtol=1e-12)
+    assert np.isnan(result.se_press.iloc[2])
+
+
+def _ek_fold_models(X: np.ndarray, groups: list, axis: int, reference: np.ndarray, dots: list[float]) -> list:
+    """Fit the SVD of X without each group of rows (axis 0) or columns (axis 1).
+
+    Keeps the group, the singular values, and the right vectors (rows left out) or the left
+    vectors (columns left out), each turned to agree in sign with the full SVD's vector of
+    the same rank, and left as it is when the two are orthogonal. Every inner product the
+    signs were read from is appended to ``dots``.
+    """
+    models = []
+    for group in groups:
+        u, d, vt = np.linalg.svd(np.delete(X, group, axis=axis), full_matrices=False)
+        vectors = vt.T.copy() if axis == 0 else u.copy()
+        for k in range(vectors.shape[1]):
+            dots.append(float(vectors[:, k] @ reference[:, k]))
+            if dots[-1] < 0:
+                vectors[:, k] = -vectors[:, k]
+        models.append((group, d, vectors))
+    return models
+
+
+def _ek_by_hand(X: np.ndarray, A: int, n_folds: int, seed: int) -> tuple[np.ndarray, np.ndarray, list[float]]:
+    """Eastment and Krzanowski's two models, written out cell by cell.
+
+    ``x_ij`` is predicted by ``sum_k u_ik sqrt(d_k) sqrt(e_k) v_jk``, the score and singular
+    value from the SVD of X without the column group of j, the loading and singular value from
+    the SVD without the row group of i. Also returns every inner product the signs were read
+    from.
+    """
+    n, p = X.shape
+    rng = np.random.default_rng(seed)
+    row_groups = np.array_split(rng.permutation(n), n_folds)
+    column_groups = np.array_split(rng.permutation(p), n_folds)
+    U, _, Vt = np.linalg.svd(X, full_matrices=False)
+    dots: list[float] = []
+    row_models = _ek_fold_models(X, row_groups, 0, Vt.T, dots)
+    column_models = _ek_fold_models(X, column_groups, 1, U, dots)
+    usable = min(model[1].size for model in row_models + column_models)
+    press = np.full(A, np.nan)
+    per_column = np.full((A, p), np.nan)
+    for a in range(1, min(A, usable) + 1):
+        predicted = np.zeros_like(X)
+        for (rows, e, v), (columns, d, u) in itertools.product(row_models, column_models):
+            for i, j in itertools.product(rows, columns):
+                predicted[i, j] = sum(u[i, k] * np.sqrt(d[k]) * np.sqrt(e[k]) * v[j, k] for k in range(a))
+        press[a - 1] = np.sum((X - predicted) ** 2)
+        per_column[a - 1] = np.sum((X - predicted) ** 2, axis=0)
+    return press, per_column, dots
+
+
+def test_ek_press_by_hand() -> None:
+    """The two-model prediction of every cell, on a general block and on one whose columns are orthogonal.
+
+    On the second, whose columns are orthogonal, a fold model's vector can be exactly
+    orthogonal to the full fit's vector of the same rank; its sign is then left as it is.
+    """
+    from process_improve.multivariate._pca import _eastment_krzanowski_press
+
+    rng = np.random.default_rng(13)
+    general = rng.standard_normal((8, 2)) @ rng.standard_normal((2, 5)) + 0.3 * rng.standard_normal((8, 5))
+    general -= general.mean(axis=0)
+    # Orthogonal columns of a Hadamard matrix: some fold models' vectors are exactly orthogonal to the full fit's.
+    hadamard = scipy.linalg.hadamard(8)[:, 1:4] * [3.0, 2.0, 1.0]
+    for X, A, folds, seed in ((general, 3, 3, 2), (hadamard, 1, 3, 1)):
+        press, per_column, dots = _ek_by_hand(X, A, folds, seed=seed)
+        got = _eastment_krzanowski_press(X, A, n_folds=folds, random_state=seed)
+        np.testing.assert_allclose(got[0], press, rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(got[1], per_column, rtol=1e-10, atol=1e-12)
+        assert got[2] == pytest.approx(np.sum(X**2), rel=1e-15)
+        np.testing.assert_allclose(got[3], np.sum(X**2, axis=0), rtol=1e-15)
+    assert 0.0 in dots, "the Hadamard block must give a fold vector at right angles to the full fit's"
+
+
+def test_ek_warns_only_when_its_folds_cannot_reach_the_counts_asked_for() -> None:
+    """Two folds of 4 rows leave 2 rows per row model: 2 components can be evaluated, not 3.
+
+    Asked for exactly 2 it is silent; asked for 3 it says so, and the third count is NaN.
+    """
+    from process_improve.multivariate._pca import _eastment_krzanowski_press
+
+    X = np.random.default_rng(3).standard_normal((4, 6))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _eastment_krzanowski_press(X, 2, n_folds=2, random_state=0)
+    message = (
+        "cv_scheme='ek' can evaluate at most 2 component(s) with 2 folds on a 4 by 6 block, not 3: each fold model "
+        "is fitted on fewer rows or columns than the whole. Component counts above that are reported as NaN. "
+        "Use fewer folds to evaluate more."
+    )
+    with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+        press, per_column, _, _ = _eastment_krzanowski_press(X, 3, n_folds=2, random_state=0)
+    assert np.isfinite(press[:2]).all()
+    assert np.isnan(press[2])
+    assert np.isnan(per_column[2]).all()
+
+
+def _leverage_block() -> np.ndarray:
+    """Return a centred 4 x 4 block of rank 3 whose first row has no part in the third left singular vector.
+
+    ``X = U diag(3, 2, 1) V'`` with orthonormal U orthogonal to the ones vector and
+    ``U[0, 2] = 0``: with two components the first row's leverage is the largest a centred
+    row can have, 1 - 1/n, so its cells are not scored while the other rows' are.
+    """
+    U = np.column_stack(
+        [
+            np.array([0.0, 1, 1, -2]) / np.sqrt(6),
+            np.array([3.0, -1, -1, -1]) / np.sqrt(12),
+            np.array([0.0, 1, -1, 0]) / np.sqrt(2),
+        ]
+    )
+    V = np.linalg.qr(np.random.default_rng(9).standard_normal((4, 3)))[0]
+    return U @ np.diag([3.0, 2.0, 1.0]) @ V.T
+
+
+def test_sacv_by_hand_with_cells_it_cannot_score() -> None:
+    """The smoothing approximation of Josse and Husson (2012), cell by cell.
+
+    Each residual is divided by ``(1 - 1/n - h_i)(1 - b_j)``; a cell whose divisor is at most
+    epsqrt is dropped, and each column's error is rescaled from the sum of squares of its
+    scored cells to its whole. With two components the first row is dropped, so every column
+    is rescaled; with three, every row is, and nothing is reported.
+    """
+    X = _leverage_block()
+    n, p = X.shape
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    press, per_column, null_ss, per_column_null = _leverage_corrected_press(X, 3, method="sacv")
+    for a in (1, 2):
+        residual = X - (U[:, :a] * S[:a]) @ Vt[:a]
+        divisor = np.outer(1 - 1 / n - np.sum(U[:, :a] ** 2, axis=1), 1 - np.sum(Vt[:a] ** 2, axis=0))
+        scored = divisor > epsqrt
+        assert scored.all() == (a == 1)
+        corrected = np.where(scored, residual, 0.0) / np.where(scored, divisor, 1.0)
+        scored_ss = np.sum(np.where(scored, X**2, 0.0), axis=0)
+        expected = np.sum(corrected**2, axis=0) * np.sum(X**2, axis=0) / scored_ss
+        np.testing.assert_allclose(per_column[a - 1], expected, rtol=1e-10)
+        assert press[a - 1] == pytest.approx(expected.sum(), rel=1e-10)
+    assert not (np.outer(1 - 1 / n - np.sum(U[:, :3] ** 2, axis=1), np.ones(p)) > epsqrt).any()
+    assert np.isnan(press[2])
+    assert np.isnan(per_column[2]).all()
+    assert null_ss == pytest.approx(np.sum(X**2), rel=1e-15)
+    np.testing.assert_allclose(per_column_null, np.sum(X**2, axis=0), rtol=1e-15)
+
+
+def test_sacv_leaves_a_column_of_zeros_unscaled() -> None:
+    """A column with no sum of squares to rescale onto keeps its own (zero) error, not 0/0."""
+    X = np.column_stack([_leverage_block(), np.zeros(4)])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        press, per_column, _, _ = _leverage_corrected_press(X, 2, method="sacv")
+    assert per_column[1, 4] == 0.0
+    assert np.isfinite(press).all()
+
+
+def test_gcv_by_hand() -> None:
+    """Generalised cross-validation: residuals inflated by ``np / [(n - 1)p - a(n + p - a - 1)]``.
+
+    On 3 rows and 2 columns the first count leaves exactly one degree of freedom, an
+    inflation of 6; the second leaves none, so it is not reported.
+    """
+    X = np.array([[1.0, 2.0], [-2.0, 0.5], [1.0, -2.5]])
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    residual = X - (U[:, :1] * S[:1]) @ Vt[:1]
+    press, per_column, _, _ = _leverage_corrected_press(X, 2, method="gcv")
+    np.testing.assert_allclose(per_column[0], np.sum((6.0 * residual) ** 2, axis=0), rtol=1e-12)
+    assert press[0] == pytest.approx(36.0 * np.sum(residual**2), rel=1e-12)
+    assert np.isnan(press[1])
+    X = _leverage_block()
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    press, _, _, _ = _leverage_corrected_press(X, 2, method="gcv")
+    for a, remaining in ((1, 6), (2, 2)):
+        residual = X - (U[:, :a] * S[:a]) @ Vt[:a]
+        assert press[a - 1] == pytest.approx(np.sum((16.0 / remaining * residual) ** 2), rel=1e-12)
+
+
+def _raw_block(n: int = 12, k: int = 4, seed: int = 0) -> pd.DataFrame:
+    """Return an uncentred block of named columns with two latent factors, in units far from 1."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, 2)) @ rng.standard_normal((2, k)) + 0.3 * rng.standard_normal((n, k))
+    return pd.DataFrame(X * np.arange(1, k + 1) * 3.0 + 10.0, columns=[f"v{j}" for j in range(k)])
+
+
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek", "sacv", "gcv"])
+def test_select_n_components_labels_every_result(scheme: str) -> None:
+    """Every curve is a Series indexed by the component count, named for what it holds.
+
+    The PRESS ratio is ``PRESS_a / PRESS_(a-1)`` from the second count; ``cv_scores`` is
+    ``per_fold_press``; Q2's standard error is PRESS's over the same reference as Q2.
+    """
+    X = _raw_block()
+    result = PCA.select_n_components(X, max_components=3, cv=3, cv_scheme=scheme, random_state=0)
+    counts = pd.Index([1, 2, 3], name="n_components")
+    for key, name in (
+        ("press", "PRESS"),
+        ("press_input_units", "PRESS (input units)"),
+        ("q2", "Q2"),
+        ("se_press", "SE(PRESS)"),
+        ("q2_se", "SE(Q2)"),
+    ):
+        assert result[key].name == name
+        assert result[key].index.equals(counts)
+        assert result[key].index.name == "n_components"
+    assert result.per_fold_press.index.equals(counts)
+    folds = {"ekf": 3, "ckf": 3}.get(scheme, 1)
+    assert list(result.per_fold_press.columns) == [f"fold_{i}" for i in range(1, folds + 1)]
+    assert result.cv_scores is result.per_fold_press
+    assert result.q2_per_variable.index.equals(counts)
+    assert list(result.q2_per_variable.columns) == list(X.columns)
+    press = result.press.to_numpy()
+    expected_ratio = pd.Series([press[1] / press[0], press[2] / press[1]], index=[2, 3], name="PRESS ratio")
+    expected_ratio.index.name = "n_components"
+    pd.testing.assert_series_equal(result.press_ratio, expected_ratio, rtol=1e-15)
+    reference = press[0] / (1.0 - result.q2.iloc[0])  # Q2 = 1 - PRESS / reference
+    np.testing.assert_allclose(result.q2_se, result.se_press / reference, rtol=1e-10)
+    if scheme == "ekf":
+        assert not np.allclose(result.press_input_units, result.press)
+        np.testing.assert_allclose(
+            result.se_press, result.per_fold_press.std(axis=1, ddof=1) / np.sqrt(3) * 3, rtol=1e-12
+        )
+    else:
+        np.testing.assert_array_equal(result.press_input_units, result.press)
+    if scheme not in ("ekf", "ckf"):
+        assert result.per_fold_press.isna().all().all()
+        assert result.se_press.isna().all()
+    assert result.cv_scheme == scheme
+    assert result.selection_rule == "min"
+
+
+def test_select_n_components_caps_the_counts_at_n_minus_1_and_k() -> None:
+    """At most ``min(N - 1, K)`` counts are evaluated, whether the cap or the request is the binding one."""
+    wide, tall = _raw_block(n=5, k=8), _raw_block(n=10, k=3)
+    for X, cap in ((wide, 4), (tall, 3)):
+        for requested in (None, 100):
+            result = PCA.select_n_components(X, max_components=requested, cv_scheme="gcv")
+            assert list(result.press.index) == list(range(1, cap + 1))
+        result = PCA.select_n_components(X, max_components=2, cv_scheme="gcv")
+        assert list(result.press.index) == [1, 2]
+
+
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek"])
+def test_select_n_components_reads_a_splitter_as_five_folds(scheme: str) -> None:
+    """A cross-validation splitter is not read by these schemes: five folds are used, as for ``cv=5``."""
+    X = _raw_block(n=12, k=6)
+    with_splitter = PCA.select_n_components(X, max_components=2, cv=KFold(3), cv_scheme=scheme, random_state=1)
+    with_five = PCA.select_n_components(X, max_components=2, cv=5, cv_scheme=scheme, random_state=1)
+    pd.testing.assert_series_equal(with_splitter.press, with_five.press)
+    pd.testing.assert_frame_equal(with_splitter.per_fold_press, with_five.per_fold_press)
+
+
+def test_select_n_components_ekf_defaults_by_hand() -> None:
+    """By default ekf deals the cells into 5 folds once, scales inside each, and caps EM at 50 rounds.
+
+    With a tolerance of 0 the EM never converges early, so the cap shows in the curve.
+    """
+    X = _raw_block()
+    result = PCA.select_n_components(X, max_components=2, ekf_tol=0.0, random_state=7)
+    press = _ekf_by_hand(X.to_numpy(), 2, n_folds=5, n_repeats=1, seed=7, max_iter=50, tol=0.0, scale=True)[0]
+    np.testing.assert_allclose(result.press, press, rtol=1e-10)
+
+
+def test_select_n_components_reads_integer_data_as_numbers() -> None:
+    """An integer block gives the curve of the same block as floats: a held-out cell is not truncated."""
+    X = _raw_block().round().astype(int)
+    for scheme in ("ekf", "ckf", "sacv"):
+        as_int = PCA.select_n_components(X, max_components=2, cv=3, cv_scheme=scheme, random_state=0)
+        as_float = PCA.select_n_components(X.astype(float), max_components=2, cv=3, cv_scheme=scheme, random_state=0)
+        pd.testing.assert_series_equal(as_int.press, as_float.press)
+
+
+def test_select_n_components_warns_about_a_prescaled_block_in_full() -> None:
+    """The ekf folds re-standardise inside every element-fold, which erases a scaling the caller chose."""
+    X = MCUVScaler().fit_transform(_raw_block())
+    message = (
+        "X is already centred and unit-variance scaled, so scale_inside_folds=True is not protecting you from "
+        "leakage: it re-standardises inside every element-fold and overwrites the scaling you chose. Two "
+        "deliberately different scalings (say autoscale versus Pareto) collapse onto the same standardised model "
+        "this way, so a comparison of their PRESS reflects only the units the blocks arrived in, never which "
+        "scaling suits the data. Pass the raw, unscaled X and let the folds scale it, or keep your own scaling and "
+        "set scale_inside_folds=False (accepting the optimism that flag warns about)."
+    )
+    with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, max_components=1, cv=3, random_state=0)
+
+
+@pytest.mark.parametrize(
+    ("scheme", "removed"),
+    [
+        ("bogus", ""),
+        (
+            "row_wise",
+            (
+                " 'row_wise' was removed in 2.0: it scored a held-out row through its own values, so it could not "
+                "pick a component count."
+            ),
+        ),
+    ],
+)
+def test_select_n_components_refuses_an_unknown_scheme_in_full(scheme: str, removed: str) -> None:
+    """An unknown scheme is named, with the five there are; the removed ``"row_wise"`` says why it went."""
+    message = f"Unknown cv_scheme {scheme!r}; expected one of 'ekf', 'ckf', 'ek', 'sacv' or 'gcv'.{removed}"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(_raw_block(), cv_scheme=scheme)
+
+
+def _select_with_press(monkeypatch: pytest.MonkeyPatch, press: list[float], **kwargs: object) -> Bunch:
+    """Run ``select_n_components`` with sacv's criterion replaced by ``press``, against a reference of 10.
+
+    Q2 is then ``1 - press / 10``, and every column carries a quarter of each count's PRESS.
+    """
+    curve = np.asarray(press, dtype=float)
+
+    def stand_in(Z: np.ndarray, max_components: int, *, method: str) -> tuple:
+        assert method == "sacv"
+        assert max_components == curve.size
+        return curve, np.tile(curve[:, np.newaxis] / 4, (1, 4)), 10.0, np.full(4, 2.5)
+
+    monkeypatch.setattr("process_improve.multivariate._pca._leverage_corrected_press", stand_in)
+    return PCA.select_n_components(_raw_block(), max_components=curve.size, cv_scheme="sacv", **kwargs)
+
+
+def test_select_n_components_press_ratio_with_zeros_is_inf_or_nan_without_a_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A PRESS of 0 gives a ratio of 0 after it, NaN for 0/0 and inf for a positive PRESS over 0, silently."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = _select_with_press(monkeypatch, [2.0, 0.0, 0.0, 3.0])
+    np.testing.assert_array_equal(result.press_ratio, [0.0, np.nan, np.inf])
+    np.testing.assert_allclose(result.q2, [0.8, 1.0, 1.0, 0.7])
+    np.testing.assert_allclose(result.q2_per_variable, 1 - np.tile([[0.2], [0.0], [0.0], [0.3]], (1, 4)))
+
+
+@pytest.mark.parametrize(
+    ("press", "warns"),
+    [
+        ([4.0, 3.0, 2.0, 1.0], True),  # rises at every count and ends at the last: no optimum
+        ([4.0, 3.0], True),  # two counts are enough to see it
+        ([4.0], False),  # one count does not rise at all
+        ([3.0, 3.0, 2.0], False),  # flat once, so it is not rising at every count
+        ([2.0, 3.0, 1.0], False),  # the best is the last, but the curve turned over before it
+        ([4.0, 1.0, 2.0], False),  # rising, then turning over: an optimum
+    ],
+)
+def test_select_n_components_says_when_q2_never_turns_over(
+    monkeypatch: pytest.MonkeyPatch, press: list[float], warns: bool
+) -> None:
+    """The warning fires only when Q2 rises at every count evaluated and the best count is the last."""
+    message = (
+        f"cv_scheme='sacv' did not turn over: its Q2 rises at every one of the {len(press)} component counts it "
+        f"could evaluate, so {len(press)} is the largest count tried rather than an optimum. Evaluate more "
+        "components, or use a scheme that holds data out (cv_scheme='ekf' or cv_scheme='ek'), before reading "
+        "this as an answer."
+    )
+    if warns:
+        with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+            _select_with_press(monkeypatch, press)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _select_with_press(monkeypatch, press)
+
+
+def test_select_n_components_passes_the_q2_threshold_to_its_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Q2 of 0.5, 0.55 and 0.6 keeps all three counts at the default step of 0.01, and one at 0.1."""
+    with pytest.warns(SpecificationWarning, match="did not turn over"):
+        default = _select_with_press(monkeypatch, [5.0, 4.5, 4.0], selection_rule="q2_increment")
+    assert default.n_components == 3
+    strict = _select_with_press(monkeypatch, [5.0, 4.5, 4.0], selection_rule="q2_increment", min_q2_increase=0.1)
+    assert strict.n_components == 1
+
+
+@pytest.mark.parametrize(
+    ("minka", "parallel", "consensus"), [(2, 2, "agree"), (3, 2, "agree"), (4, 2, "disagree"), (2, 0, "disagree")]
+)
+def test_select_n_components_consensus_by_hand(
+    monkeypatch: pytest.MonkeyPatch, minka: int, parallel: int, consensus: str
+) -> None:
+    """The three counts agree when they span at most one; parallel analysis gets the caller's seed."""
+    seeds: list[object] = []
+    monkeypatch.setattr(PCA, "minka_mle", classmethod(lambda _cls, _X: minka))
+
+    def parallel_analysis(cls: type, X: object, **kwargs: object) -> Bunch:
+        seeds.append(kwargs)
+        return Bunch(n_components=parallel)
+
+    monkeypatch.setattr(PCA, "parallel_analysis", classmethod(parallel_analysis))
+    result = _select_with_press(monkeypatch, [4.0, 1.0, 2.0], return_consensus=True, random_state=17)
+    assert result.n_components == 2
+    assert seeds == [{"random_state": 17}]
+    assert result.minka_n_components == minka
+    assert result.parallel_analysis_n_components == parallel
+    assert result.consensus == consensus
+    assert result.consensus_counts == (2, minka, parallel)
+
+
+def _parallel_analysis_by_hand(
+    X: np.ndarray, n_simulations: int, quantile: float, surrogate: str, seed: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Horn (1965), written out: covariance eigenvalues of X against a quantile of those of random blocks."""
+    n, p = X.shape
+
+    def eigenvalues(block: np.ndarray) -> np.ndarray:
+        return np.sort(np.linalg.eigvalsh(np.atleast_2d(np.cov(block, rowvar=False))))[::-1][: min(n, p)]
+
+    rng = np.random.default_rng(seed)
+    null = []
+    for _ in range(n_simulations):
+        if surrogate == "normal":
+            null.append(eigenvalues(rng.standard_normal((n, p))))
+        else:
+            null.append(eigenvalues(np.column_stack([rng.permutation(X[:, j]) for j in range(p)])))
+    observed = eigenvalues(X)
+    threshold = np.quantile(np.array(null), quantile, axis=0)
+    retained = 0
+    while retained < observed.size and observed[retained] > threshold[retained]:
+        retained += 1
+    return observed, threshold, retained
+
+
+@pytest.mark.parametrize("surrogate", ["normal", "permutation"])
+def test_parallel_analysis_by_hand(surrogate: str) -> None:
+    """Unscaled, the eigenvalues are those of X's covariance (about the column means), against the null quantile.
+
+    Scaled, they are those of the MCUVScaler-scaled block. The default draws 200 null blocks.
+    """
+    X = _raw_block(n=15, k=5, seed=4).to_numpy()
+    observed, threshold, retained = _parallel_analysis_by_hand(X, 40, 0.9, surrogate, seed=5)
+    result = PCA.parallel_analysis(X, n_simulations=40, quantile=0.9, surrogate=surrogate, scale=False, random_state=5)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10)
+    assert result.n_components == retained
+    assert result.surrogate == surrogate
+    scaled = MCUVScaler().fit_transform(pd.DataFrame(X)).to_numpy()
+    observed, threshold, retained = _parallel_analysis_by_hand(scaled, 200, 0.95, surrogate, seed=6)
+    result = PCA.parallel_analysis(X, surrogate=surrogate, random_state=6)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10)
+    assert result.n_components == retained
+
+
+def test_parallel_analysis_retains_only_the_leading_run() -> None:
+    """A later eigenvalue above its null does not count once an earlier one fell below.
+
+    One strong column and two of about unit spread: the second eigenvalue (1.269) falls just
+    short of its null threshold (1.281) while the third (0.907) clears its own (0.847).
+    """
+    rng = np.random.default_rng(2)
+    n = 40
+    X = np.column_stack([5 * rng.standard_normal(n), 1.05 * rng.standard_normal(n), rng.standard_normal(n)])
+    result = PCA.parallel_analysis(X, n_simulations=60, scale=False, random_state=0)
+    above = result.observed_eigenvalues > result.null_threshold
+    np.testing.assert_array_equal(above, [True, False, True])
+    assert result.n_components == 1
+
+
+def test_parallel_analysis_reads_its_input_as_numbers_in_columns() -> None:
+    """A 1-D input is one column, an object array is read as numbers, and two rows have one degree of freedom."""
+    x = np.array([1.0, 3.0, 2.0, 7.0, 4.0])
+    one = PCA.parallel_analysis(x, n_simulations=10, scale=False, random_state=0)
+    column = PCA.parallel_analysis(x[:, np.newaxis], n_simulations=10, scale=False, random_state=0)
+    np.testing.assert_array_equal(one.observed_eigenvalues, column.observed_eigenvalues)
+    assert one.observed_eigenvalues == pytest.approx([np.var(x, ddof=1)], rel=1e-12)
+    X = _raw_block(n=8, k=3).to_numpy()
+    as_objects = PCA.parallel_analysis(X.astype(object), n_simulations=10, scale=False, random_state=0)
+    as_floats = PCA.parallel_analysis(X, n_simulations=10, scale=False, random_state=0)
+    np.testing.assert_array_equal(as_objects.observed_eigenvalues, as_floats.observed_eigenvalues)
+    two = np.array([[1.0, 2.0], [3.0, -1.0]])
+    result = PCA.parallel_analysis(two, n_simulations=10, scale=False, random_state=0)
+    assert result.observed_eigenvalues[0] == pytest.approx(np.sum((two - two.mean(axis=0)) ** 2), rel=1e-12)
+    observed, threshold, _ = _parallel_analysis_by_hand(two, 10, 0.95, "normal", seed=0)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10, atol=1e-12)
+
+
+def test_minka_mle_is_sklearn_mle_on_the_block() -> None:
+    """Minka's estimate is sklearn's, which centres the block itself; a 1-D input is one column."""
+    from sklearn import decomposition
+
+    X = _raw_block(n=60, k=6, seed=2).to_numpy()
+    expected = decomposition.PCA(n_components="mle", svd_solver="full").fit(X).n_components_
+    assert PCA.minka_mle(X) == expected
+    assert PCA.minka_mle(pd.DataFrame(X)) == expected
+    x = np.random.default_rng(0).standard_normal(20)
+    column = x[:, np.newaxis]
+    assert PCA.minka_mle(x) == decomposition.PCA(n_components="mle", svd_solver="full").fit(column).n_components_
+
+
+def _outlier_block(units: float = 1.0) -> pd.DataFrame:
+    """Return 12 rows near a plane in three columns, one far along it and one far off it."""
+    rng = np.random.default_rng(31)
+    X = rng.standard_normal((12, 2)) @ np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]) + 0.05 * rng.standard_normal(
+        (12, 3)
+    )
+    X[3] = [6.0, 9.0, 3.0]  # far along the plane: a T2 outlier
+    X[8] += [0.8, -0.8, 0.8]  # off the plane: an SPE outlier
+    X -= X.mean(axis=0)
+    return pd.DataFrame(X * units, index=[f"r{i}" for i in range(12)], columns=["a", "b", "c"])
+
+
+@pytest.mark.parametrize("units", [10.0, 1e-3])
+def test_detect_outliers_by_hand(units: float) -> None:
+    """Each flagged row with its reasons, values, limits and severity ``max(SPE / limit, T2 / limit)``, worst first.
+
+    The limits are the model's own at the confidence asked for; in thousandths of the units
+    the SPE limit is below 1 and the severities are unchanged.
+    """
+    pca = PCA(n_components=2).fit(_outlier_block(units))
+    spe, t2 = pca.spe_.iloc[:, -1], pca.hotellings_t2_.iloc[:, -1]
+    spe_limit, t2_limit = pca.spe_limit(conf_level=0.95), pca.hotellings_t2_limit(conf_level=0.95)
+    assert (spe_limit < 1) == (units < 1)
+    found = pca.detect_outliers(conf_level=0.95)
+    for outlier in found:
+        label = outlier["observation"]
+        assert outlier["spe"] == spe[label]
+        assert outlier["hotellings_t2"] == t2[label]
+        assert outlier["spe_limit"] == spe_limit
+        assert outlier["hotellings_t2_limit"] == t2_limit
+        assert outlier["severity"] == round(max(spe[label] / spe_limit, t2[label] / t2_limit), 4)
+    assert "hotellings_t2" in next(o for o in found if o["observation"] == "r3")["outlier_types"]
+    assert "spe" in next(o for o in found if o["observation"] == "r8")["outlier_types"]
+    severities = [o["severity"] for o in found]
+    assert severities == sorted(severities, reverse=True)
+    assert pca.detect_outliers() == found
+
+
+def test_detect_outliers_runs_the_esd_test_on_each_statistic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ESD looks for up to ``max(1, N // 5)`` outliers in SPE and in T2, at ``alpha = 1 - conf_level``.
+
+    With ESD finding nothing, only the rows above a limit are flagged.
+    """
+    calls: list[tuple[np.ndarray, dict]] = []
+
+    def esd(values: np.ndarray, **kwargs: object) -> tuple[list, dict]:
+        calls.append((values, kwargs))
+        return [], {}
+
+    monkeypatch.setattr("process_improve.multivariate._pca.detect_outliers_esd", esd)
+    for rows, most in ((10, 2), (4, 1)):
+        pca = PCA(n_components=1).fit(_outlier_block().iloc[:rows])
+        calls.clear()
+        found = pca.detect_outliers(conf_level=0.9)
+        assert len(calls) == 2
+        np.testing.assert_array_equal(calls[0][0], pca.spe_.iloc[:, -1].to_numpy())
+        np.testing.assert_array_equal(calls[1][0], pca.hotellings_t2_.iloc[:, -1].to_numpy())
+        for _, kwargs in calls:
+            assert kwargs == {"max_outliers_detected": most, "alpha": pytest.approx(0.1)}
+            assert type(kwargs["max_outliers_detected"]) is int
+        above = (pca.spe_.iloc[:, -1] > pca.spe_limit(conf_level=0.9)) | (
+            pca.hotellings_t2_.iloc[:, -1] > pca.hotellings_t2_limit(conf_level=0.9)
+        )
+        assert sorted(o["observation"] for o in found) == sorted(above[above].index)
+
+
+def test_detect_outliers_accepts_confidence_levels_from_0_8_to_0_999() -> None:
+    """Both ends are allowed; a level just outside either is refused, in full."""
+    pca = PCA(n_components=1).fit(_outlier_block())
+    pca.detect_outliers(conf_level=0.8)
+    pca.detect_outliers(conf_level=0.999)
+    for level in (0.7999, 0.9991):
+        with pytest.raises(ValueError, match=rf"^conf_level must be between 0\.8 and 0\.999, got {level}\.$"):
+            pca.detect_outliers(conf_level=level)
+
+
+def test_detect_outliers_ignores_a_limit_that_carries_no_information(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A perfect fit has an SPE limit of 0, and as many components as rows an infinite T2 limit.
+
+    Neither ratio counts towards the severity then: a perfect fit is ranked by T2 alone, and
+    no row is above an SPE limit of 0. With an infinite T2 limit no row is above it, and a
+    row the ESD test flags is ranked by its SPE alone.
+    """
+    # NIPALS normalises a one-entry loading to exactly 1, so every residual is exactly 0.
+    one_column = PCA(n_components=1, algorithm="nipals").fit(_outlier_block()[["b"]])
+    assert (one_column.spe_.to_numpy() == 0).all()
+    assert one_column.spe_limit(conf_level=0.95) == 0.0
+    t2 = one_column.hotellings_t2_.iloc[:, -1]
+    limit = one_column.hotellings_t2_limit(conf_level=0.95)
+    found = one_column.detect_outliers()
+    assert found
+    for outlier in found:
+        assert outlier["outlier_types"] == ["hotellings_t2"]
+        assert outlier["severity"] == round(t2[outlier["observation"]] / limit, 4)
+    # A row the ESD test flags well inside the T2 limit is ranked below 1, not at 1.
+    quietest = int(np.argmin(t2.to_numpy()))
+    with monkeypatch.context() as patch:
+        patch.setattr("process_improve.multivariate._pca.detect_outliers_esd", lambda _values, **_: ([quietest], {}))
+        (outlier,) = (o for o in one_column.detect_outliers() if o["observation"] == t2.index[quietest])
+    assert outlier["severity"] == round(t2.iloc[quietest] / limit, 4) < 1
+    wide = pd.DataFrame(np.random.default_rng(4).standard_normal((4, 6)))
+    full = PCA(n_components=4).fit(wide - wide.mean())
+    assert full.hotellings_t2_limit(conf_level=0.95) == np.inf
+    spe, spe_limit = full.spe_.iloc[:, -1], full.spe_limit(conf_level=0.95)
+    assert spe_limit > 0
+    monkeypatch.setattr("process_improve.multivariate._pca.detect_outliers_esd", lambda _values, **_: ([0], {}))
+    found = full.detect_outliers()
+    assert [outlier["observation"] for outlier in found] == [0]
+    assert found[0]["severity"] == round(spe[0] / spe_limit, 4)

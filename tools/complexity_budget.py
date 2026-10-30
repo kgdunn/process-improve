@@ -60,11 +60,13 @@ BUDGET: dict[str, int] = {
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
     "C901": 33,
+    # 20: #1026 built PCA.select_n_components' result once after its scheme
+    # branches rather than in each, taking it under PLR0912.
     # 21: #678's Plotly change took `_add_annotation` under PLR0912. 22: #513 took
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 21,
+    "PLR0912": 20,
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
     # the simulation (the designs, the hypothesised process, the goal and its
