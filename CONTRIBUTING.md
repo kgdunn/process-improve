@@ -141,6 +141,11 @@ equivalent change on its line with `# pragma: no mutate - <why>`, so a reviewer 
 reason. Start each new module from a fresh `mutants/` directory: a rerun after editing the source
 can report a mutant as killed when it was not.
 
+A mutant whose tests run past mutmut's time limit (about 30 times their usual CPU time) counts as
+caught, as in mutmut's own score: the change made the code loop or slow down, and the tests saw it.
+Whether a mutant times out depends on the machine, so one that timed out on CI may fail its tests
+locally instead; either way it is caught.
+
 ### The README is tested
 
 The README is the first code a new user runs, so CI checks it like code:

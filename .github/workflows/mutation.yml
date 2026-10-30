@@ -33,12 +33,15 @@ jobs:
       # `--with` adds mutmut for this run only: no dev dependency, uv.lock untouched.
       - name: Mutate the modules in [tool.mutmut] and rerun their tests
         run: uv run --with mutmut==3.8.1 mutmut run --max-children 4
+      # A mutant whose tests overrun mutmut's CPU limit (about 30 times their usual time) made the
+      # code loop or slow down, which the tests noticed: mutmut's own score counts it as killed, and
+      # so does this gate. Whether one times out depends on the runner's speed, not on the tests.
       - name: Fail on any mutant the tests do not catch
         run: |
           uv run --with mutmut==3.8.1 mutmut export-cicd-stats
           stats=mutants/mutmut-cicd-stats.json
-          jq -r '"\(.killed) of \(.total) mutants killed; \(.survived) survived, \(.no_tests) reached by no test, \(.timeout) timed out."' "$stats" | tee -a "$GITHUB_STEP_SUMMARY"
-          missed=$(jq '.survived + .no_tests + .suspicious + .timeout' "$stats")
+          jq -r '"\(.killed + .timeout) of \(.total) mutants caught (\(.timeout) of them by timing out); \(.survived) survived, \(.no_tests) reached by no test."' "$stats" | tee -a "$GITHUB_STEP_SUMMARY"
+          missed=$(jq '.survived + .no_tests + .suspicious' "$stats")
           if [ "$missed" != "0" ]; then
             { echo '```diff'; uv run --with mutmut==3.8.1 mutmut results | awk -F: '{print $1}' |
               while read -r name; do uv run --with mutmut==3.8.1 mutmut show "$name"; done; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
