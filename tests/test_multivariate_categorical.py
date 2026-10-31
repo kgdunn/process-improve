@@ -9,6 +9,7 @@ but not an identity.
 
 from __future__ import annotations
 
+import itertools
 import re
 import warnings
 
@@ -206,10 +207,10 @@ class TestApi:
 # ---------------------------------------------------------------------------
 
 
-def _ca_by_hand(table: pd.DataFrame) -> dict[str, np.ndarray]:
+def _ca_by_hand(table: pd.DataFrame, axes: int | None = None) -> dict[str, np.ndarray]:
     """Greenacre's formulas: the standardised residuals, their SVD, and the principal coordinates.
 
-    Every axis with inertia is kept (``min(I, J) - 1`` of them on a table of full rank). Each
+    ``axes`` is how many have inertia: ``min(I, J) - 1`` on a table of full rank, the default. Each
     axis is signed so that the largest-magnitude entry of its left singular vector is positive.
     """
     counts = table.to_numpy(dtype=float)
@@ -217,7 +218,7 @@ def _ca_by_hand(table: pd.DataFrame) -> dict[str, np.ndarray]:
     rows, columns = proportions.sum(axis=1), proportions.sum(axis=0)
     expected = np.outer(rows, columns)
     u, singular, vt = np.linalg.svd((proportions - expected) / np.sqrt(expected))
-    axes = min(counts.shape) - 1
+    axes = min(counts.shape) - 1 if axes is None else axes
     u, singular, v = u[:, :axes], singular[:axes], vt[:axes].T
     signs = np.sign(u[np.abs(u).argmax(axis=0), np.arange(axes)])
     u, v = u * signs, v * signs
@@ -677,6 +678,133 @@ class TestMCAInputs:
 
     def test_map_plot_is_inherited(self, batches: pd.DataFrame) -> None:
         assert len(MCA().fit(batches).map_plot().data) == 2
+
+
+def _indicator_by_hand(frame: pd.DataFrame) -> pd.DataFrame:
+    """One 0/1 column per level, sorted as text within each variable, named "variable=level"."""
+    columns = {}
+    for variable in frame.columns:
+        text = frame[variable].astype(str)
+        for level in sorted(text.unique()):
+            columns[f"{variable}={level}"] = (text == level).to_numpy(dtype=float)
+    return pd.DataFrame(columns, index=frame.index)
+
+
+def _adjusted_by_hand(eigenvalues: np.ndarray, n_vars: int) -> np.ndarray:
+    """Benzecri: (Q / (Q - 1))^2 (lambda - 1/Q)^2 above 1/Q, and 0 at or below it."""
+    return np.array(
+        [(n_vars / (n_vars - 1)) ** 2 * (e - 1 / n_vars) ** 2 if e > 1 / n_vars else 0.0 for e in eigenvalues]
+    )
+
+
+class TestMCAByHand:
+    def test_mca_is_ca_of_the_indicator_matrix(self, batches: pd.DataFrame) -> None:
+        """Eight levels of three variables: J - Q = 5 axes with inertia, 2 kept by default."""
+        mca = MCA().fit(batches)
+        indicator = _indicator_by_hand(batches)
+        hand = _ca_by_hand(indicator, axes=5)
+        assert mca.n_components_ == 2
+        assert mca.variables_ == ["grade", "supplier", "shift"]
+        np.testing.assert_allclose(mca.eigenvalues_, hand["eigenvalues"][:2], rtol=1e-12)
+        assert mca.total_inertia_ == pytest.approx(5 / 3, rel=1e-12)
+        pd.testing.assert_frame_equal(
+            mca.row_coordinates_, _axes_frame(hand["F"][:, :2], batches.index), rtol=0, atol=1e-12
+        )
+        pd.testing.assert_frame_equal(
+            mca.column_coordinates_, _axes_frame(hand["G"][:, :2], indicator.columns), rtol=0, atol=1e-12
+        )
+        # Without a correction the "corrected" values are the raw ones.
+        np.testing.assert_array_equal(mca.corrected_eigenvalues_, mca.eigenvalues_)
+        np.testing.assert_array_equal(mca.corrected_explained_inertia_, mca.explained_inertia_)
+
+    @pytest.mark.parametrize("correction", ["benzecri", "greenacre"])
+    def test_the_corrections_at_three_variables(self, batches: pd.DataFrame, correction: str) -> None:
+        """Benzecri divides by the sum of every adjusted eigenvalue; Greenacre by the Burt matrix's
+        adjusted inertia, Q / (Q - 1) (sum lambda^2 - (J - Q) / Q^2), over every axis.
+        """
+        every = _ca_by_hand(_indicator_by_hand(batches), axes=5)["eigenvalues"]
+        adjusted = _adjusted_by_hand(every, 3)
+        total = adjusted.sum() if correction == "benzecri" else 3 / 2 * (np.sum(every**2) - 5 / 9)
+        mca = MCA(n_components=3, correction=correction).fit(batches)
+        np.testing.assert_allclose(mca.corrected_eigenvalues_, adjusted[:3], rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(mca.corrected_explained_inertia_, adjusted[:3] / total, rtol=1e-12, atol=1e-15)
+
+    @pytest.mark.parametrize(
+        "levels",
+        [
+            {"grade": ["A", "B"], "supplier": ["s1", "s2"]},
+            {"grade": ["A", "B", "C"], "supplier": ["s1", "s2"]},
+            {"grade": ["A", "B"], "supplier": ["s1", "s2"], "shift": ["day", "night"]},
+        ],
+    )
+    @pytest.mark.parametrize("correction", ["benzecri", "greenacre"])
+    def test_variables_crossed_in_full_have_no_corrected_inertia(self, levels: dict, correction: str) -> None:
+        """Every combination once: no association, so every eigenvalue is exactly 1/Q and every share is 0.
+
+        Rounding left an eigenvalue 1e-16 above 1/Q, and Benzecri's shares were that noise over itself:
+        50% on axis 1 of the 2 x 2 crossing, 100% on the 3 x 2 one.
+        """
+        crossed = pd.DataFrame(list(itertools.product(*levels.values())), columns=list(levels))
+        mca = MCA(correction=correction).fit(crossed)
+        np.testing.assert_allclose(mca.eigenvalues_, [1 / len(levels)] * 2, rtol=1e-12)
+        np.testing.assert_array_equal(mca.corrected_explained_inertia_, np.zeros(2), strict=True)
+
+    def test_arrays_are_read_as_frames_numbered_from_zero(self, batches: pd.DataFrame) -> None:
+        mca = MCA(n_components=3).fit(batches.to_numpy())
+        reference = MCA(n_components=3).fit(batches)
+        assert mca.variables_ == ["0", "1", "2"]
+        assert list(mca.column_coordinates_.index[:3]) == ["0=A", "0=B", "0=C"]
+        np.testing.assert_allclose(mca.row_coordinates_, reference.row_coordinates_, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(mca.transform(batches.to_numpy()[:4]), reference.row_coordinates_[:4], atol=1e-12)
+        outcome = np.where(batches["grade"] == "A", "good", "bad")[:, np.newaxis]
+        placed = mca.transform_columns(outcome)
+        assert list(placed.index) == ["0=bad", "0=good"]
+
+    def test_a_few_observations_are_placed_from_their_levels(self, batches: pd.DataFrame) -> None:
+        """Their indicator rows, against the fitted levels, by the transition formula.
+
+        Three observations leave levels out, so the indicator has columns that sum to zero; those
+        rows were refused as "summing to zero" before.
+        """
+        mca = MCA().fit(batches)
+        hand = _ca_by_hand(_indicator_by_hand(batches), axes=5)
+        few = batches.iloc[[0, 5, 9]]
+        rows = _indicator_by_hand(batches).iloc[[0, 5, 9]].to_numpy()
+        pd.testing.assert_frame_equal(
+            mca.transform(few), _axes_frame(rows / 3 @ hand["column_standard"][:, :2], few.index), rtol=0, atol=1e-12
+        )
+
+    @pytest.mark.parametrize("method", ["transform", "transform_columns"])
+    def test_an_unfitted_model_is_refused(self, batches: pd.DataFrame, method: str) -> None:
+        with pytest.raises(NotFittedError):
+            getattr(MCA(), method)(batches)
+
+    def test_the_refusals_in_full(self, batches: pd.DataFrame) -> None:
+        gapped = batches.copy()
+        gapped.iloc[2, 1] = None
+        missing = (
+            "Columns ['supplier'] have missing values. MCA needs every observation to have a level in every "
+            "variable; fill the gaps with an explicit level (for example 'unknown') if their absence is itself "
+            "informative, or drop those rows."
+        )
+        one = (
+            "MCA needs at least two categorical variables; with one, use CA on its cross-tabulation against "
+            "another variable, or simply its frequency table."
+        )
+        for frame, message in ((gapped, missing), (batches[["grade"]], one)):
+            with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+                MCA().fit(frame)
+        with pytest.raises(
+            ValueError, match=r"^correction must be one of \(None, 'benzecri', 'greenacre'\); got 'burt'\.$"
+        ):
+            MCA(correction="burt").fit(batches)
+        mca = MCA().fit(batches)
+        reordered = "Expected the variables ['grade', 'supplier', 'shift']; got ['shift', 'grade', 'supplier']."
+        with pytest.raises(ValueError, match=f"^{re.escape(reordered)}$"):
+            mca.transform(batches[["shift", "grade", "supplier"]])
+        unseen = batches.iloc[:1].assign(grade="Z")
+        with pytest.raises(ValueError, match=r"^Column 'grade' has levels \['Z'\] that the model was not fitted on\.$"):
+            mca.transform(unseen)
 
 
 # ---------------------------------------------------------------------------

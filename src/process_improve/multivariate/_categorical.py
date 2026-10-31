@@ -448,8 +448,8 @@ def _indicator(frame: pd.DataFrame, levels: dict[str, list] | None = None) -> pd
         unseen = sorted(set(values) - set(known))
         if unseen:
             raise ValueError(f"Column {column!r} has levels {unseen} that the model was not fitted on.")
-        blocks.append(pd.DataFrame({f"{column}={level}": (values == level).astype(float) for level in known}))
-    return pd.concat(blocks, axis=1).set_axis(frame.index, axis=0)
+        blocks.append(pd.DataFrame({f"{column}={level}": values == level for level in known}))
+    return pd.concat(blocks, axis=1).set_axis(frame.index)
 
 
 class MCA(CA):
@@ -546,27 +546,30 @@ class MCA(CA):
         self._levels = {str(column): sorted(frame[column].astype(str).unique()) for column in frame.columns}
 
         n_vars, n_levels = len(self.variables_), indicator.shape[1]
-        raw = self.eigenvalues_
         if self.correction is None:
-            self.corrected_eigenvalues_ = raw.copy()
+            self.corrected_eigenvalues_ = self.eigenvalues_.copy()
             self.corrected_explained_inertia_ = self.explained_inertia_.copy()
             return self
 
-        threshold = 1.0 / n_vars
-        factor = (n_vars / (n_vars - 1)) ** 2
-        self.corrected_eigenvalues_ = np.where(raw > threshold, factor * (raw - threshold) ** 2, 0.0)
+        # Every axis with inertia, kept or not, adjusted: zero at or below 1/Q.
+        every = self._all_eigenvalues
+        adjusted = (n_vars / (n_vars - 1)) ** 2 * np.maximum(every - 1.0 / n_vars, 0.0) ** 2
+        self.corrected_eigenvalues_ = adjusted[: self.n_components_]
         if self.correction == "benzecri":
-            every = self._all_eigenvalues
-            total = float(np.sum(np.where(every > threshold, factor * (every - threshold) ** 2, 0.0)))
+            total = float(adjusted.sum())
         else:
             # The Burt matrix's inertia is the sum of squared eigenvalues over *every* axis.
-            burt_inertia = float(np.sum(self._all_eigenvalues**2))
+            burt_inertia = float(np.sum(every**2))
             total = n_vars / (n_vars - 1) * (burt_inertia - (n_levels - n_vars) / n_vars**2)
         # No eigenvalue above 1/Q means the variables are unassociated beyond what the
         # coding forces: every corrected eigenvalue is zero, and so is its total. That is
-        # a finding, reported as zero shares, not 0/0.
+        # a finding, reported as zero shares. Rounding leaves an eigenvalue of exactly 1/Q
+        # a few 1e-16 either side of it, so the total is then noise near 1e-32 (or 1e-16
+        # for Greenacre's difference), never above an axis's null inertia: its shares would
+        # be noise over noise, 100% on one axis.
+        unassociated = total <= _NULL_INERTIA  # pragma: no mutate - < differs only at a total of exactly 1e-12
         self.corrected_explained_inertia_ = (
-            self.corrected_eigenvalues_ / total if total > 0 else np.zeros_like(self.corrected_eigenvalues_)
+            np.zeros_like(self.corrected_eigenvalues_) if unassociated else self.corrected_eigenvalues_ / total
         )
         return self
 
@@ -588,7 +591,7 @@ class MCA(CA):
         ValueError
             If the variables differ from the fit's, or a level is unseen or missing.
         """
-        check_is_fitted(self, "variables_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         if [str(column) for column in frame.columns] != self.variables_:
             raise ValueError(f"Expected the variables {self.variables_}; got {list(frame.columns)}.")
@@ -613,7 +616,7 @@ class MCA(CA):
             Principal coordinates, one row per supplementary level, named
             ``"variable=level"``.
         """
-        check_is_fitted(self, "variables_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         return super().transform_columns(_indicator(frame))
 
