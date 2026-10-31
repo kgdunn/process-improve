@@ -1585,3 +1585,133 @@ def test_the_channels_of_no_rows_and_of_several_responses_keep_their_labels(
     channels = model.decompose_prediction(X.iloc[[3, 5]])
     assert list(channels.index) == list(X.index[[3, 5]])
     assert list(channels.columns[:4]) == [(Y.columns[0], c) for c in ("static", "preprocessing", "kernel", "adaptive")]
+
+
+# --------------------------------------------------------------------------- #
+# The adaptation plot
+# --------------------------------------------------------------------------- #
+
+
+def _traces(fig: object) -> list[tuple[object, ...]]:
+    """Return each trace's name, line colour, width and dash, and the axes it is drawn on."""
+    return [(t.name, t.line.color, t.line.width, t.line.dash, t.xaxis, t.yaxis) for t in fig.data]
+
+
+def _axes(fig: object) -> list[str]:
+    """Return the names of the figure's axes."""
+    return sorted(key for key in fig.layout.to_plotly_json() if "axis" in key)
+
+
+def test_the_adaptation_plot_of_adaptive_pls(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Three panels sharing their x axis: the channels with their total on a right axis, then the two drifts.
+
+    Each trace is drawn from the history it names, over the history's labels. The channel axis spans
+    1.05 times the largest channel, the total's twice that; the panels split the height of 3 x 270
+    with 0.07 between them.
+    """
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True)
+    model.fit(X.iloc[:90], Y.iloc[:90]).partial_fit(X.iloc[90:], Y.iloc[90:])
+    fig = model.adaptation_plot()
+    channels = model.prediction_channels_
+    assert _traces(fig) == [
+        ("Centering + scaling", "#1f4e79", 1, None, "x", "y"),
+        ("Kernel (subspace/regression)", "#c55a11", 1, None, "x", "y"),
+        ("Total (right axis)", "#222222", 1, None, "x", "y2"),
+        ("Centre migration [training SD]", "#1f4e79", 1, None, "x2", "y3"),
+        ("Scale change [fraction]", "#2e75b6", 1, "dash", "x2", "y3"),
+        ("Subspace rotation (A - distance)", "#c55a11", 1, None, "x3", "y4"),
+        ("Regression change", "#e0912f", 1, "dash", "x3", "y4"),
+    ]
+    histories = [
+        channels["preprocessing"],
+        channels["kernel"],
+        channels["preprocessing"] + channels["kernel"],
+        model.center_shift_,
+        model.scale_shift_,
+        3 - model.distance_,
+        model.beta_shift_,
+    ]
+    for trace, history in zip(fig.data, histories, strict=True):
+        assert list(trace.x) == list(range(90, 180))
+        np.testing.assert_allclose(np.asarray(trace.y, dtype=float), history.to_numpy(), rtol=1e-15)
+
+    layout = fig.layout
+    titles = ["Prediction departure from static, by channel", "Preprocessing drift", "Kernel drift"]
+    assert [note.text for note in layout.annotations] == titles
+    assert _axes(fig) == ["xaxis", "xaxis2", "xaxis3", "yaxis", "yaxis2", "yaxis3", "yaxis4"]
+    assert (layout.xaxis.matches, layout.xaxis2.matches) == ("x3", "x3")
+    span = float(channels[["preprocessing", "kernel"]].abs().to_numpy().max())
+    assert (layout.yaxis.title.text, layout.yaxis2.title.text) == ("Channel", "Total")
+    np.testing.assert_allclose(layout.yaxis.range, [-1.05 * span, 1.05 * span], rtol=1e-15)
+    np.testing.assert_allclose(layout.yaxis2.range, [-2.1 * span, 2.1 * span], rtol=1e-15)
+    panel = (1 - 2 * 0.07) / 3
+    domains = [layout.yaxis.domain, layout.yaxis3.domain, layout.yaxis4.domain]
+    np.testing.assert_allclose(domains, [[1 - panel, 1], [panel + 0.07, 2 * panel + 0.07], [0, panel]], atol=1e-12)
+    assert layout.height == 810
+    assert (layout.margin.l, layout.margin.r, layout.margin.t, layout.margin.b) == (70, 70, 40, 40)
+    assert layout.legend.font.size == 9
+
+
+def test_the_adaptation_plot_of_adaptive_pca(synthetic_pca_data: pd.DataFrame) -> None:
+    """Two panels, the drifts only, on a height of 2 x 270 with 0.09 between them."""
+    model = AdaptivePCA(n_components=2, forgetting_factor=0.05, update_when_out_of_control=True)
+    model.fit(synthetic_pca_data).partial_fit(synthetic_pca_data.iloc[:30].set_axis([f"r{i}" for i in range(30)]))
+    fig = model.adaptation_plot()
+    assert _traces(fig) == [
+        ("Centre migration [training SD]", "#1f4e79", 1, None, "x", "y"),
+        ("Scale change [fraction]", "#2e75b6", 1, "dash", "x", "y"),
+        ("Subspace rotation (A - distance)", "#c55a11", 1, None, "x2", "y2"),
+    ]
+    for trace, history in zip(fig.data, [model.center_shift_, model.scale_shift_, 2 - model.distance_], strict=True):
+        assert list(trace.x) == [f"r{i}" for i in range(30)]
+        np.testing.assert_allclose(np.asarray(trace.y, dtype=float), history.to_numpy(), rtol=1e-15)
+    layout = fig.layout
+    assert [note.text for note in layout.annotations] == ["Preprocessing drift", "Kernel drift"]
+    assert _axes(fig) == ["xaxis", "xaxis2", "yaxis", "yaxis2"]
+    assert layout.xaxis.matches == "x2"
+    panel = (1 - 0.09) / 2
+    np.testing.assert_allclose([layout.yaxis.domain, layout.yaxis2.domain], [[1 - panel, 1], [0, panel]], atol=1e-12)
+    assert layout.height == 540
+    assert (layout.margin.l, layout.margin.r, layout.margin.t, layout.margin.b) == (70, 70, 40, 40)
+    assert layout.legend.font.size == 9
+
+
+def test_adaptive_pls_shows_no_channels_before_a_history_or_for_several_responses(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], ldpe_data: tuple[pd.DataFrame, pd.DataFrame]
+) -> None:
+    """The channel panel needs a history of one response: without one, the plot is the drifts' two panels."""
+    X, Y = synthetic_pls_data
+    fresh = AdaptivePLS(n_components=2).fit(X, Y).adaptation_plot()
+    assert (len(fresh.data), fresh.layout.height) == (3, 540)
+    X5, Y5 = ldpe_data
+    model = AdaptivePLS(n_components=2, update_when_out_of_control=True).fit(X5.iloc[:40], Y5.iloc[:40])
+    several = model.partial_fit(X5.iloc[40:], Y5.iloc[40:]).adaptation_plot()
+    assert [trace.name for trace in several.data] == [
+        "Centre migration [training SD]",
+        "Scale change [fraction]",
+        "Subspace rotation (A - distance)",
+    ]
+
+
+def test_the_channel_axes_of_a_frozen_model_span_1(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Nothing moves, so every channel is 0, and the channel axes span 1.05 and 2.1 rather than 0."""
+    X, Y = synthetic_pls_data
+    frozen = {"forgetting_factor": 0.0, "gamma": 0.0, "lambda_center": 0.0, "alpha_scale": 0.0}
+    frozen |= {"lambda_center_y": 0.0, "alpha_scale_y": 0.0, "update_when_out_of_control": True}
+    model = AdaptivePLS(n_components=2, **frozen).fit(X.iloc[:90], Y.iloc[:90])
+    model.partial_fit(X.iloc[90:95], Y.iloc[90:95])
+    np.testing.assert_array_equal(model.prediction_channels_[["preprocessing", "kernel"]], np.zeros((5, 2)))
+    layout = model.adaptation_plot().layout
+    assert (tuple(layout.yaxis.range), tuple(layout.yaxis2.range)) == ((-1.05, 1.05), (-2.1, 2.1))
+
+
+def test_the_channel_axes_span_the_rows_shown(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """With rows left out by ``valid``, the axes span the largest channel of the rows kept."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True)
+    model.fit(X.iloc[:90], Y.iloc[:90]).partial_fit(X.iloc[90:], Y.iloc[90:])
+    valid = np.arange(90) % 3 == 0
+    span = float(model.prediction_channels_[["preprocessing", "kernel"]].abs().to_numpy()[valid].max())
+    layout = model.adaptation_plot(valid=valid).layout
+    np.testing.assert_allclose(layout.yaxis.range, [-1.05 * span, 1.05 * span], rtol=1e-15)

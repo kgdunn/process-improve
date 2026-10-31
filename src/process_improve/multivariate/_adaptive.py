@@ -478,6 +478,10 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         return pd.Series(self._hist_kernel_norm, index=self._hist_index, name="Kernel update (relative)")
 
+    def _channels_to_plot(self) -> pd.DataFrame | None:
+        """Return the prediction channels, and the regression change, the adaptation plot shows: none here."""
+        return None
+
     def adaptation_plot(self, valid: np.ndarray | None = None) -> object:
         """Plot the adaptation as preprocessing vs kernel channels and state drift.
 
@@ -503,41 +507,32 @@ class _AdaptiveModel(_LatentVariableModel):
         from plotly.subplots import make_subplots  # noqa: PLC0415
 
         x = list(self._hist_index)
-        cen = np.asarray(self._hist_center_shift, dtype=float)
-        sca = np.asarray(self._hist_scale_shift, dtype=float)
-        rot = self.n_components - np.asarray(self._hist_distance, dtype=float)
-        has_channels = bool(getattr(self, "_hist_static", [])) and getattr(self, "n_targets_", None) == 1
+        rot = self.n_components - np.asarray(self._hist_distance)
+        channels = self._channels_to_plot()
 
-        if has_channels:
+        if channels is not None:
             fig = make_subplots(
-                rows=3,
-                cols=1,
+                rows=3,  # in one column, the default
                 shared_xaxes=True,
                 vertical_spacing=0.07,
-                specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]],
+                specs=[[{"secondary_y": True}], [{}], [{}]],
                 subplot_titles=["Prediction departure from static, by channel", "Preprocessing drift", "Kernel drift"],
             )
-            ch = self.prediction_channels_
-            prep = ch["preprocessing"].to_numpy(dtype=float)
-            kern = ch["kernel"].to_numpy(dtype=float)
+            prep = channels["preprocessing"].to_numpy()
+            kern = channels["kernel"].to_numpy()
             if valid is not None:
-                keep = np.asarray(valid, dtype=bool)
-                prep = np.where(keep, prep, np.nan)
-                kern = np.where(keep, kern, np.nan)
+                prep = np.where(valid, prep, np.nan)
+                kern = np.where(valid, kern, np.nan)
             total = prep + kern
-            span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) if len(prep) else 1.0
-            span = span or 1.0
+            # A history of one row or more; a frozen model's channels are all 0.
+            span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) or 1.0
             fig.add_trace(
-                go.Scatter(x=x, y=prep, name="Centering + scaling", line=dict(color="#1f4e79", width=1)),
-                row=1,
-                col=1,
-                secondary_y=False,
+                go.Scatter(x=x, y=prep, name="Centering + scaling", line=dict(color="#1f4e79", width=1)), row=1, col=1
             )
             fig.add_trace(
                 go.Scatter(x=x, y=kern, name="Kernel (subspace/regression)", line=dict(color="#c55a11", width=1)),
                 row=1,
                 col=1,
-                secondary_y=False,
             )
             fig.add_trace(
                 go.Scatter(x=x, y=total, name="Total (right axis)", line=dict(color="#222222", width=1)),
@@ -545,13 +540,14 @@ class _AdaptiveModel(_LatentVariableModel):
                 col=1,
                 secondary_y=True,
             )
-            fig.update_yaxes(title_text="Channel", range=[-1.05 * span, 1.05 * span], row=1, col=1, secondary_y=False)
-            fig.update_yaxes(title_text="Total", range=[-2.1 * span, 2.1 * span], row=1, col=1, secondary_y=True)
+            fig.update_layout(
+                yaxis={"title_text": "Channel", "range": [-1.05 * span, 1.05 * span]},
+                yaxis2={"title_text": "Total", "range": [-2.1 * span, 2.1 * span]},
+            )
             r_pre, r_ker = 2, 3
         else:
             fig = make_subplots(
-                rows=2,
-                cols=1,
+                rows=2,  # in one column, the default
                 shared_xaxes=True,
                 vertical_spacing=0.09,
                 subplot_titles=["Preprocessing drift", "Kernel drift"],
@@ -559,12 +555,22 @@ class _AdaptiveModel(_LatentVariableModel):
             r_pre, r_ker = 1, 2
 
         fig.add_trace(
-            go.Scatter(x=x, y=cen, name="Centre migration [training SD]", line=dict(color="#1f4e79", width=1)),
+            go.Scatter(
+                x=x,
+                y=self._hist_center_shift,
+                name="Centre migration [training SD]",
+                line=dict(color="#1f4e79", width=1),
+            ),
             row=r_pre,
             col=1,
         )
         fig.add_trace(
-            go.Scatter(x=x, y=sca, name="Scale change [fraction]", line=dict(color="#2e75b6", width=1, dash="dash")),
+            go.Scatter(
+                x=x,
+                y=self._hist_scale_shift,
+                name="Scale change [fraction]",
+                line=dict(color="#2e75b6", width=1, dash="dash"),
+            ),
             row=r_pre,
             col=1,
         )
@@ -573,11 +579,11 @@ class _AdaptiveModel(_LatentVariableModel):
             row=r_ker,
             col=1,
         )
-        if has_channels:
+        if channels is not None:
             fig.add_trace(
                 go.Scatter(
                     x=x,
-                    y=self._hist_beta_shift,
+                    y=channels["regression"],
                     name="Regression change",
                     line=dict(color="#e0912f", width=1, dash="dash"),
                 ),
@@ -585,7 +591,9 @@ class _AdaptiveModel(_LatentVariableModel):
                 col=1,
             )
         fig.update_layout(
-            height=270 * (3 if has_channels else 2), margin=dict(l=70, r=70, t=40, b=40), legend=dict(font=dict(size=9))
+            height=270 * (2 if channels is None else 3),
+            margin=dict(l=70, r=70, t=40, b=40),
+            legend=dict(font=dict(size=9)),
         )
         return fig
 
@@ -1184,6 +1192,12 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         frame = pd.DataFrame(data, index=index)
         frame.columns = pd.MultiIndex.from_tuples(list(data), names=["target", "channel"])
         return frame
+
+    def _channels_to_plot(self) -> pd.DataFrame | None:
+        """Return the channels of a single response, and the regression change, once there is a history."""
+        if self._hist_static and self.n_targets_ == 1:
+            return self.prediction_channels_.assign(regression=self._hist_beta_shift)
+        return None
 
     @property
     def beta_shift_(self) -> pd.Series:
