@@ -765,8 +765,16 @@ class _Fit:
 
     @property
     def group_cols(self) -> list[str]:
-        """Columns identifying replicated runs: the factors, within each block when blocked."""
-        return [*self.factor_cols, BLOCK_COL] if self.blocks else self.factor_cols
+        """Columns identifying replicated runs: the factors, within each block when the model has the blocks.
+
+        The model has the blocks as the contrasts :func:`_add_block_term` adds, or wherever its
+        formula refers to the block column itself (``C(Block)``, ``C(Block, Treatment(1))``).
+        Pooled across blocks, the replicates' block-to-block difference would count as pure
+        error although the model already fits it, and the lack of fit would go negative (#968).
+        """
+        rhs = self.ols.model.formula.split("~", 1)[1]
+        blocked = self.blocks or (BLOCK_COL in self.df.columns and _references(rhs, BLOCK_COL))
+        return [*self.factor_cols, BLOCK_COL] if blocked and BLOCK_COL not in self.factor_cols else self.factor_cols
 
     def coded(self) -> tuple[RegressionResultsWrapper, dict[str, Any]]:
         """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on."""
@@ -1065,7 +1073,9 @@ def analyze_experiment(  # noqa: PLR0913
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
         differences do not inflate the error; drop the column to analyse without it. An
         explicit formula gets the same fixed effect where it names ``Block`` as a term
-        (``"y ~ Block + A + B + A:B"``).
+        (``"y ~ Block + A + B + A:B"``). Pure error, for the lack of fit and the curvature
+        test, is taken within blocks whenever the model has the blocks, in either form or
+        written ``C(Block)``, ``C(Block, Treatment(1))`` and so on.
         A ``WholePlot`` column, which ``generate_design`` adds to a split-plot design,
         labels each run's whole plot: it is used by ``analysis_type="split_plot"``,
         and any other analysis warns that it treats the runs as independent.
