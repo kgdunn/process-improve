@@ -4685,9 +4685,10 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     parts; the others name none, and stay as they are.
     """
 
-    def spaced(word: str) -> str:
+    def spaced(word: str, *, identity: bool = False) -> str:
+        # The defining relation's I is the identity, a generator's is a factor: a factor may be named I.
         left, _, right = word.partition(" = ")
-        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+        return f"{left if identity else _renamed_word(left, names)} = {_renamed_word(right, names)}"
 
     generators = [spaced(g) for g in facts.get("generators") or []]
     groups = _aliased_groups(coded, list(names.values()))
@@ -4704,7 +4705,7 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     return {
         **facts,
         "generators": generators,
-        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "defining_relation": [spaced(w, identity=True) for w in facts.get("defining_relation") or []],
         "aliases": groups,
         "notes": notes,
     }
