@@ -1361,12 +1361,6 @@ def make_design(spec: dict) -> dict:
         **described,
         **({"constraints": limits} if limits else {}),
     }
-    if stored["model"] in ("quadratic", MAIN_QUADRATIC) and any(f.name == "I" for f in factors):
-        # Patsy finds a column before its own I(), which every square term calls; refused before the runs, not after.
-        raise ValueError(
-            "A factor cannot be named I in this design: its model has squares, whose terms call I(), "
-            "which the factor would hide. Try 'I_'."
-        )
     coded = _coded(runs, stored["factors"])
     facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
