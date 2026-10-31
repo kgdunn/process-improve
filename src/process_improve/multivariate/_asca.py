@@ -35,6 +35,7 @@ from process_improve.univariate.metrics import benjamini_hochberg
 
 from ._common import DataMatrix, _model_method, epsqrt
 from ._pca import PCA
+from ._preprocessing import MCUVScaler
 from .plots import effect_summary_plot as _effect_summary_plot
 
 #: Name used for the residual term wherever the design terms are keyed.
@@ -72,7 +73,7 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
     if model == "main_effects":
         rhs = joined
     elif model == "interactions":
-        rhs = f"({joined}) ** 2" if len(coded) > 1 else joined
+        rhs = f"({joined}) ** 2"  # patsy reads (A) ** 2 as A, so one factor needs no branch
     else:
         rhs = model
     validate_formula_is_safe(rhs, factors, allow_transforms=True)
@@ -129,7 +130,9 @@ class ASCA(BaseEstimator):
         Design term names, in the order patsy resolved them, with the coding wrapper
         stripped: ``["A", "B", "A:B"]``.
     grand_mean_ : pd.Series
-        Column means removed before the decomposition.
+        The intercept removed before the decomposition: the column means on a balanced
+        design, and on an unbalanced one the intercept of the sum-coded least-squares fit,
+        which is not the column mean.
     column_scale_ : pd.Series
         Column scaling applied, all ones when ``scale=False``.
     effect_matrices_ : dict[str, pd.DataFrame]
@@ -146,7 +149,8 @@ class ASCA(BaseEstimator):
     pvalues_ : pd.Series
         Permutation p-values per term. Absent until :meth:`permutation_test` is called.
     is_balanced_ : bool
-        Whether every factor-level combination occurs equally often.
+        Whether every factor-level combination occurs, and equally often: a combination no
+        row takes leaves the design unbalanced.
 
     Notes
     -----
@@ -157,8 +161,10 @@ class ASCA(BaseEstimator):
     on how you choose to attribute it, which is the Type I / II / III question. This
     implementation fits every term simultaneously by least squares and reads each term's
     fitted contribution off that single fit, which is the usual ASCA treatment. It warns
-    when the design is unbalanced, and :attr:`ssq_` then no longer partitions the total
-    exactly; the gap is reported as ``ssq_["total"]`` minus the sum of the parts.
+    when :attr:`ssq_` does not partition the total, to rounding; the gap is reported as
+    ``ssq_["total"]`` minus the sum of the parts. A design whose terms are
+    orthogonal without being balanced, such as a fraction fitted for its main effects,
+    partitions the total and does not warn.
 
     Examples
     --------
@@ -228,16 +234,12 @@ class ASCA(BaseEstimator):
         """
         X, design = self._validated(X, design)
         self.feature_names_in_ = np.asarray(X.columns)
-        self.grand_mean_ = X.mean(axis=0)
-        centred = X - self.grand_mean_
-        if self.scale:
-            spread = X.std(axis=0, ddof=1)
-            spread[spread < epsqrt] = 1.0
-            self.column_scale_ = spread
-            centred = centred / spread
-        else:
-            self.column_scale_ = pd.Series(1.0, index=X.columns)
-        self._centred = centred
+        # MCUVScaler's centre and scale: a column is constant when its values are all
+        # equal, whatever its units, and is then centred to exactly 0 and left unscaled.
+        scaler = MCUVScaler().fit(X)
+        self.grand_mean_ = scaler.center_
+        self.column_scale_ = scaler.scale_ if self.scale else pd.Series(1.0, index=X.columns)
+        centred = (X - self.grand_mean_) / self.column_scale_
 
         rhs = _sum_coded_rhs(list(design.columns), self.model)
         design_matrix = dmatrix(rhs, design, return_type="dataframe")
@@ -245,7 +247,7 @@ class ASCA(BaseEstimator):
         self.is_balanced_ = self._check_balance(design)
 
         design_array = design_matrix.to_numpy()
-        coefficients, *_ = np.linalg.lstsq(design_array, centred.to_numpy(), rcond=None)
+        coefficients, *_ = np.linalg.lstsq(design_array, centred.to_numpy())
         # Kept for the permutation tests, which refit this same design against shuffled
         # responses; rebuilding it per permutation would dominate their runtime.
         self._design_array = design_array
@@ -257,15 +259,18 @@ class ASCA(BaseEstimator):
         explained = np.zeros_like(centred.to_numpy())
         for term, columns in slices.items():
             name = _pretty(term.name())
-            if name == "Intercept":
-                # X is already centred, so the intercept is numerically zero. It stays in
-                # the design matrix because dropping it would change the coding, but it
-                # is not a term anyone wants a PCA of.
-                continue
-            self._term_columns[name] = columns
             block = design_array[:, columns]
             effect = block @ coefficients[columns, :]
             explained += effect
+            if name == "Intercept":
+                # X is centred at its column means, which are the intercept on a balanced
+                # design only: on an unbalanced one, sum coding puts it elsewhere (at the mean
+                # of the cell means, for a full model). What it fits joins the grand mean, so
+                # the residuals are what no term explains; it is not a term anyone wants a
+                # PCA of.
+                self.grand_mean_ = self.grand_mean_ + coefficients[columns][0] * self.column_scale_
+                continue
+            self._term_columns[name] = columns
             self.terms_.append(name)
             self.effect_matrices_[name] = pd.DataFrame(effect, index=X.index, columns=X.columns)
             term_ranks[name] = int(np.linalg.matrix_rank(block))
@@ -281,9 +286,7 @@ class ASCA(BaseEstimator):
     @staticmethod
     def _validated(X: DataMatrix, design: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Coerce both inputs to frames and reject what the decomposition cannot use."""
-        X = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
-        if not isinstance(design, pd.DataFrame):
-            design = pd.DataFrame(design)
+        X, design = pd.DataFrame(X), pd.DataFrame(design)
         if X.shape[0] != design.shape[0]:
             msg = f"X has {X.shape[0]} rows but design has {design.shape[0]}."
             raise ValueError(msg)
@@ -301,13 +304,21 @@ class ASCA(BaseEstimator):
                 f"These factors have a single level and can carry no effect: {single_level}. Drop them from the design."
             )
             raise ValueError(msg)
-        return X, design
+        # A category no row takes would be coded as a level of its own, so sum coding would no
+        # longer centre the factor's effect: only the levels the rows take are levels.
+        return X, design.apply(
+            lambda column: (
+                column.cat.remove_unused_categories() if isinstance(column.dtype, pd.CategoricalDtype) else column
+            )
+        )
 
     @staticmethod
     def _check_balance(design: pd.DataFrame) -> bool:
-        """Report whether every observed combination of factor levels occurs equally often."""
-        counts = design.groupby(list(design.columns), observed=True).size().to_numpy()
-        return bool(counts.size and (counts == counts[0]).all())
+        """Report whether every combination of the factors' levels occurs, and equally often."""
+        # A combination no row takes is missing from the counts, or counted 0 times (pandas 3
+        # counts the combinations of a categorical's categories): as often as no other, either way.
+        counts = design.value_counts().to_numpy()
+        return bool(counts.size == np.prod(design.nunique().to_numpy()) and counts.min() == counts.max())
 
     def _summarise_sums_of_squares(self, total: float) -> None:
         """Build `ssq_` / `ssq_percent_`, and say so when the design does not partition."""
@@ -316,17 +327,18 @@ class ASCA(BaseEstimator):
         parts["total"] = total
         self.ssq_ = pd.Series(parts, name="sum of squares")
         self.ssq_percent_ = (self.ssq_ / total * 100.0).rename("percent of total")
-        if self.is_balanced_:
-            return
         accounted = sum(parts[name] for name in [*self.terms_, RESIDUAL])
-        warnings.warn(
+        # The parts add to the total, to rounding, on a balanced design, and on any other whose
+        # terms are orthogonal, such as a fraction fitted for its main effects.
+        if abs(accounted - total) <= epsqrt * total:
+            return
+        warnings.warn(  # a UserWarning
             f"The design is unbalanced, so the terms are not orthogonal and the sums of squares do not "
             f"partition the total exactly: the parts add to {accounted:.6g} against a total of {total:.6g}. "
             "Every term is still fitted simultaneously by least squares, which is the usual ASCA treatment, "
             "but a term's share depends on how the shared variation is attributed (the Type I / II / III "
             "question). Read the percentages as indicative rather than as a partition.",
-            UserWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
         )
 
     def _fit_term_pca(self, term: str) -> PCA:
@@ -340,8 +352,8 @@ class ASCA(BaseEstimator):
         if self.add_residuals:
             block = block + self.residuals_
         # With residuals added the matrix is full rank again, so only the pure effect
-        # matrix needs its rank ceiling.
-        ceiling = block.shape[1] if self.add_residuals else max(1, self._term_ranks[term])
+        # matrix needs its rank ceiling; neither has more components than X has columns.
+        ceiling = block.shape[1] if self.add_residuals else min(max(1, self._term_ranks[term]), block.shape[1])
         return PCA(n_components=min(self.n_components, ceiling)).fit(block)
 
     def permutation_test(
@@ -418,7 +430,7 @@ class ASCA(BaseEstimator):
         block = design_array[:, columns]
         for index in range(n_permutations):
             shuffled = reduced[rng.permutation(rows), :]
-            coefficients, *_ = np.linalg.lstsq(design_array, shuffled, rcond=None)
+            coefficients, *_ = np.linalg.lstsq(design_array, shuffled)
             effect = block @ coefficients[columns, :]
             null[index] = float((effect**2).sum())
         return null
@@ -507,7 +519,7 @@ class ASCA(BaseEstimator):
         draws = np.empty((int(n_permutations), observed.size))
         for index in range(int(n_permutations)):
             shuffled = reduced[rng.permutation(rows), :]
-            coefficients, *_ = np.linalg.lstsq(design_array, shuffled, rcond=None)
+            coefficients, *_ = np.linalg.lstsq(design_array, shuffled)
             effect = block @ coefficients[columns, :]
             # The null subset is the top-m of *this* permutation, not of the observed
             # ranking: taking the observed ordering would let the null inherit it and
@@ -515,13 +527,15 @@ class ASCA(BaseEstimator):
             draws[index, :] = np.cumsum(np.sort((effect**2).sum(axis=0))[::-1])
 
         raw = (1 + (draws >= observed).sum(axis=0)) / (1 + int(n_permutations))
-        corrected = np.asarray(benjamini_hochberg(raw, alpha=alpha).p_adjusted, dtype=float)
+        corrected = benjamini_hochberg(raw).p_adjusted  # alpha sets which are rejected, not these
         # How far above its own null each subset sits. With a few hundred permutations the
         # smallest attainable p-value is reached by many subset sizes at once, so the
         # p-value alone cannot say which subset is best; this can, and it is the quantity
-        # the p-value is a coarse rounding of.
-        spread = draws.std(axis=0, ddof=1)
-        z_score = np.divide(observed - draws.mean(axis=0), spread, out=np.zeros_like(observed), where=spread > epsqrt)
+        # the p-value is a coarse rounding of. A null with no spread, to rounding against its
+        # own size, puts no subset above it; 0 / 0 is such a null's at a term with no effect.
+        centre, spread = draws.mean(axis=0), draws.std(axis=0, ddof=1)
+        with np.errstate(invalid="ignore"):
+            z_score = np.where(spread > epsqrt * centre, (observed - centre) / spread, 0.0)
 
         passing = np.flatnonzero(corrected <= alpha)
         if passing.size:

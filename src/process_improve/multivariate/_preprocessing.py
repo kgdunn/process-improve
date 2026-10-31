@@ -167,6 +167,21 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         return pd.DataFrame(out, index=index, columns=self.center_.index)
 
 
+def _back_to_units(*scalers: MCUVScaler | None) -> tuple[np.ndarray | float, np.ndarray | float]:
+    """Return ``(centre, scale)`` with ``units = scaled * scale + centre``, undoing ``scalers`` in the order given.
+
+    Each scaler maps ``u`` to ``(u - center_) / scale_``, so the one applied last is undone
+    first; a missing scaler is the identity.
+    """
+    centre: np.ndarray | float = 0.0
+    scale: np.ndarray | float = 1.0
+    for scaler in scalers:
+        if scaler is not None:
+            centre = centre * scaler.scale_.to_numpy() + scaler.center_.to_numpy()
+            scale = scale * scaler.scale_.to_numpy()
+    return centre, scale
+
+
 def center(
     X,  # noqa: ANN001
     func: Callable = np.mean,
