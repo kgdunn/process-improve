@@ -162,9 +162,10 @@ def predict(
     for a in range(n_comp):
         t_f = sum(f_x[g] @ r_all[g][:, a] for g in groups) / sum(r_den[g][a] for g in groups)
         if model.n_conditions > 0:
-            t_z = sum(z_x[k] @ model.w_loadings_z[k].to_numpy()[:, a] for k in z_x)
-            t_z = t_z / sum(np.sum(model.w_loadings_z[k].to_numpy()[:, a] ** 2) for k in z_x)
-            t_a = np.c_[t_z, t_f] @ w_super[:, a]
+            # One score per Z group: each is a block of its own in the super-level.
+            w_z = {k: model.w_loadings_z[k].to_numpy()[:, a] for k in z_x}
+            t_z = [z_x[k] @ w_z[k] / np.sum(w_z[k] ** 2) for k in z_x]
+            t_a = np.column_stack([*t_z, t_f]) @ w_super[:, a]
         else:
             t_a = t_f * w_super[0, a]
         scores[:, a] = t_a

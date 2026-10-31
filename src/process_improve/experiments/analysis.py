@@ -336,6 +336,27 @@ def _references(rhs: str, column: str) -> bool:
     return re.search(rf"(?<![\w.]){re.escape(column)}(?!\w)", rhs) is not None
 
 
+def _polynomial_in(rhs: str, numeric: list[str]) -> bool:
+    """Whether every term of ``rhs`` is a product of whole powers of the numeric factors ``numeric``.
+
+    Only then does coding each numeric factor to -1/+1 re-express every term in the terms
+    of the same model: ``A``, ``I(A ** 2)`` or ``I(A * B)``, coded, lie in the span of the
+    terms the model already has below them. An ``I()`` term of any other shape can change
+    what it means, or have no value at all: ``I(z2 - 0.2 * z1)`` is no longer orthogonal
+    to ``z1`` once ``z2`` is centred, and ``I(x ** 0.5)`` or ``I(1 / x)`` is undefined
+    where the coded ``x`` is negative or zero. A categorical ``C(A)`` keeps its levels.
+    """
+    monomial = re.compile(r"I\((\w+(?: \*\* \d+)?(?: \* \w+(?: \*\* \d+)?)*)\)")
+    for factor in itertools.chain.from_iterable(term.factors for term in ModelDesc.from_formula(rhs).rhs_termlist):
+        code = factor.name()
+        if code.startswith("C(") or not any(_references(code, col) for col in numeric):
+            continue
+        match = monomial.fullmatch(code)
+        if not set(re.findall(r"[A-Za-z_]\w*", match[1]) if match else [code]) <= set(numeric):
+            return False
+    return True
+
+
 def _resolve_model(
     df: pd.DataFrame,
     model: str | None,
@@ -725,17 +746,20 @@ def _coding_range(name: str, bounds: object) -> tuple[float, float]:
 
 
 def _resolve_coding(
-    coding: object, df: pd.DataFrame, factor_cols: list[str], model: str
+    coding: object, df: pd.DataFrame, factor_cols: list[str], model: str, rhs: str
 ) -> str | Mapping[str, Mapping[str, float]]:
     """Check ``coding`` and return the scale it means: ``"actual"``, ``"coded"``, or ranges per numeric factor.
 
-    ``"auto"``, the default, is ``"coded"`` except for a mixture model, and for data with
-    mixture components beside process factors: components have no coded scale, so these keep
+    ``"auto"``, the default, is ``"coded"`` except for a mixture model, for data with
+    mixture components beside process factors, and for a model ``rhs`` that is not a
+    polynomial in the factors (see :func:`_polynomial_in`): components have no coded
+    scale, and ``I(x ** 0.5)`` none where the coded ``x`` is negative, so these keep
     ``"actual"``. ``None`` means ``"auto"``.
     """
     components = _mixture_components(df, factor_cols)
+    polynomial = _polynomial_in(rhs, [c for c in factor_cols if _is_numeric(df[c])])
     if coding is None or coding == "auto":
-        return "actual" if model in SCHEFFE_MODELS or components else "coded"
+        return "actual" if model in SCHEFFE_MODELS or components or not polynomial else "coded"
     resolved: str | Mapping[str, Mapping[str, float]]
     if isinstance(coding, Mapping):
         for name, bounds in coding.items():
@@ -763,6 +787,12 @@ def _resolve_coding(
             f"The mixture components {components} have no coded scale: they are proportions that sum to 1, and "
             "coding each one from -1 to +1 would break that. Use coding='actual', or 'auto', and give the process "
             "factors in the units the coefficients should be in."
+        )
+    if resolved != "actual" and not polynomial:
+        raise ValueError(
+            "This model has an I() term that is not a product of whole powers of the factors, such as "
+            "I(x ** 0.5) or I(z2 - 0.2 * z1), which has no coded scale: on the factors coded to -1/+1 it is "
+            "undefined or means another term. Use coding='actual', or 'auto'."
         )
     return resolved
 
@@ -801,8 +831,16 @@ class _Fit:
 
     @property
     def group_cols(self) -> list[str]:
-        """Columns identifying replicated runs: the factors, within each block when blocked."""
-        return [*self.factor_cols, BLOCK_COL] if self.blocks else self.factor_cols
+        """Columns identifying replicated runs: the factors, within each block when the model has the blocks.
+
+        The model has the blocks as the contrasts :func:`_add_block_term` adds, or wherever its
+        formula refers to the block column itself (``C(Block)``, ``C(Block, Treatment(1))``).
+        Pooled across blocks, the replicates' block-to-block difference would count as pure
+        error although the model already fits it, and the lack of fit would go negative (#968).
+        """
+        rhs = self.ols.model.formula.split("~", 1)[1]
+        blocked = self.blocks or (BLOCK_COL in self.df.columns and _references(rhs, BLOCK_COL))
+        return [*self.factor_cols, BLOCK_COL] if blocked and BLOCK_COL not in self.factor_cols else self.factor_cols
 
     def coded(self) -> tuple[RegressionResultsWrapper, dict[str, Any]]:
         """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on."""
@@ -832,7 +870,8 @@ class _Fit:
         names do not change. The fit itself is kept for a mixture model and for data with
         mixture components beside process factors, whose components are proportions, and
         when coding would change the model rather than re-express it, as for an interaction
-        without its main effects. When the units are so unequal that
+        without its main effects or an ``I()`` term that is not a product of whole powers of
+        the factors (see :func:`_polynomial_in`). When the units are so unequal that
         the fit as given lost rank in floating point, the coded fit, which has not, is used.
         """
         numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
@@ -843,6 +882,7 @@ class _Fit:
             self.model in SCHEFFE_MODELS
             or _mixture_components(self.df, self.factor_cols)
             or coded_df[numeric].equals(self.df[numeric])
+            or not _polynomial_in(self.ols.model.formula.split("~", 1)[1], numeric)
         ):
             return self.ols
         with warnings.catch_warnings():
@@ -1101,7 +1141,9 @@ def analyze_experiment(  # noqa: PLR0913
         columns ``Block1``, ...; one ``"Block"`` row in the ANOVA), so block-to-block
         differences do not inflate the error; drop the column to analyse without it. An
         explicit formula gets the same fixed effect where it names ``Block`` as a term
-        (``"y ~ Block + A + B + A:B"``).
+        (``"y ~ Block + A + B + A:B"``). Pure error, for the lack of fit and the curvature
+        test, is taken within blocks whenever the model has the blocks, in either form or
+        written ``C(Block)``, ``C(Block, Treatment(1))`` and so on.
         A ``WholePlot`` column, which ``generate_design`` adds to a split-plot design,
         labels each run's whole plot: it is used by ``analysis_type="split_plot"``,
         and any other analysis warns that it treats the runs as independent.
@@ -1143,7 +1185,8 @@ def analyze_experiment(  # noqa: PLR0913
         units. On the factors as given, a main effect alongside its interaction or square
         would be tested where those are zero (0 degC, say), and so would differ between
         degC and kelvin. A model that coding would change, such as an interaction without
-        its main effects, is tested as given. The
+        its main effects or an ``I()`` term that is not a product of whole powers of the
+        factors (``I(x ** 0.5)``, ``I(z2 - 0.2 * z1)``), is tested as given. The
         ANOVA and significance list exactly aliased terms once, as their alias chain
         (``"A:B + C:D"``), as the effects do; the coefficients keep one entry per term.
         A factor nested in another, whose levels each fall in one of that other's, leaves
@@ -1234,7 +1277,9 @@ def analyze_experiment(  # noqa: PLR0913
         analyses do not use it.
 
         - ``"auto"`` (default): ``"coded"``, except for a Scheffe mixture model, whose
-          components are proportions and which keeps ``"actual"``. ``None`` means the same.
+          components are proportions, and a model with an ``I()`` term that is not a product
+          of whole powers of the factors, such as ``I(x ** 0.5)``; these keep ``"actual"``,
+          and asking for another scale raises ``ValueError``. ``None`` means the same.
           Before 2.0.0 the default was ``"actual"``; pass it to keep the factors' own scale.
         - ``"actual"``: the factors as given.
         - ``"coded"``: the model refitted with each numeric factor mapped from its minimum
@@ -1448,7 +1493,6 @@ def analyze_experiment(  # noqa: PLR0913
     ]
     df = _drop_incomplete_runs(df, used)
     _check_response_scale(df[response_col], reported_response)
-    coding = _resolve_coding(coding, df, factor_cols, model)
 
     categorical = [c for c in factor_cols if not _is_numeric(df[c])]
     searched_model = model  # what model_selection searches, even when the default falls back below
@@ -1469,6 +1513,7 @@ def analyze_experiment(  # noqa: PLR0913
 
     raw_response = df[response_col].astype(float)
     rhs = formula.split("~", 1)[1]
+    coding = _resolve_coding(coding, df, factor_cols, model, rhs)
     transformed, transform_info = transform_response(
         raw_response.to_numpy(),
         transform,
@@ -1599,13 +1644,18 @@ def _design_rank(df: pd.DataFrame, rhs: str, factor_cols: list[str], model: str)
     another through the other's 0/1 indicators, ``I1:B + I2:B``, which coded are
     ``(2*I1 - 1)*B`` and its negative. Its rank is then its own, of its columns as given
     scaled to unit length, which no choice of units changes. A mixture model's components
-    are proportions and are not coded.
+    are proportions and are not coded. A model that is not a polynomial in the factors
+    (see :func:`_polynomial_in`) is ranked as given too: ``I(x ** 0.5)`` has no value where
+    the coded ``x`` is negative.
     """
+    as_given = _unit_columns(np.asarray(dmatrix(rhs, df, return_type="dataframe"), dtype=float))
+    if model not in SCHEFFE_MODELS and not _polynomial_in(rhs, [c for c in factor_cols if _is_numeric(df[c])]):
+        return int(np.linalg.matrix_rank(as_given))
     coded = np.asarray(_coded_model_matrix(df, rhs, factor_cols, model), dtype=float)
     rank = int(np.linalg.matrix_rank(coded))
     if model in SCHEFFE_MODELS or _coding_re_expresses(df, rhs, factor_cols, coded):
         return rank
-    return int(np.linalg.matrix_rank(_unit_columns(np.asarray(dmatrix(rhs, df, return_type="dataframe"), dtype=float))))
+    return int(np.linalg.matrix_rank(as_given))
 
 
 #: The golden ratio, whose multiples give each factor a different second coding (see :func:`_coding_re_expresses`).

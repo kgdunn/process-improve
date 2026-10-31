@@ -54,6 +54,13 @@ class RobustRegressionInput(BaseModel):
         True,
         description="If true (default), fit an intercept term. If false, force through origin.",
     )
+    n_boot: int = Field(
+        999,
+        ge=1,
+        le=1_000,
+        description="Bootstrap resamples behind the intervals (default 999). Lower it for over a few hundred points.",
+    )
+    random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
 
 
 @tool_spec(
@@ -63,10 +70,13 @@ class RobustRegressionInput(BaseModel):
         "median slope estimator. Unlike ordinary least squares, the repeated median method is "
         "highly resistant to outliers - up to half of the data can be contaminated before "
         "the slope estimate breaks down (Siegel's repeated median has a 50% breakdown point). "
-        "Returns slope, intercept, R-squared, standard errors, prediction intervals, and "
-        "fitted values. Only the slope and intercept are robust: the standard errors, R-squared "
-        "and intervals use least-squares formulas on the residuals, so they are approximate, "
-        "and an outlier widens the intervals even when it does not move the slope. "
+        "Returns slope, intercept, R-squared, standard errors, a confidence interval for the slope, "
+        "prediction intervals, and fitted values. The slope interval and the prediction intervals "
+        "are percentile-bootstrap intervals over n_boot resamples of the (x, y) pairs, each refitted "
+        "with the repeated median, so like the slope they resist outliers. R-squared and the "
+        "standard errors use least-squares formulas on the residuals around the robust line, so "
+        "an outlier raises the standard errors and lowers R-squared even when it does not move "
+        "the slope. Each resample costs time in proportion to the square of the number of points. "
         "Use this when you suspect outliers in the data or want a more reliable fit."
     ),
     input_model=RobustRegressionInput,
@@ -78,6 +88,7 @@ class RobustRegressionInput(BaseModel):
         -> ``robust_regression(x=[...], y=[...], fit_intercept=false, confidence_level=0.99)``
     """,
     category="regression",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
 )
 def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
     """Fit a robust simple linear regression."""
@@ -92,6 +103,8 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             y_arr,
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
+            n_boot=spec.n_boot,
+            random_state=spec.random_state,
         )
         if result["N"] is None:
             # The fit hands back its empty result when two or fewer complete pairs remain.
