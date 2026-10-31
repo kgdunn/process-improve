@@ -550,6 +550,44 @@ def test_a_column_is_left_out_only_when_its_sd_is_below_epsqrt() -> None:
     pd.testing.assert_series_equal(scale, pd.Series([np.sqrt(2) * epsqrt, np.sqrt(18.0)], index=["kept", "b"]))
 
 
+def test_a_column_with_nothing_observed_is_named_on_its_own() -> None:
+    """A column with no observed value gets its own warning, and only that one; it is left out (#982).
+
+    A column with one observed value has no sd (NaN), so it is named as having no variance. In
+    a block of one row every scale is 1, except that of a column with nothing in it, which is NaN.
+    """
+    model = TPLS(n_components=1, d_matrix=_synthetic()[0])
+    block = pd.DataFrame(
+        {"never": [np.nan] * 3, "b": [1.0, 4.0, 7.0], "once": [np.nan, 3.0, np.nan], "a": [2.0, 2.0, 2.0]},
+        index=["r0", "r1", "r2"],
+    )
+    never = (
+        "has columns with no observed values, which carry no information and are excluded from the model: "
+        "'never'. Drop them, or check the data for a sensor that was never logged."
+    )
+    no_variance = (
+        "has columns with no variance, which carry no information and are excluded from the model: "
+        "'once', 'a'. Drop them, or check the data for a stuck sensor."
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        centre, scale = model._learn_center_and_scaling_parameters(block, 'F["G"]')
+    assert [(w.category, str(w.message)) for w in caught] == [
+        (UserWarning, f'Block F["G"] {never}'),
+        (UserWarning, f'Block F["G"] {no_variance}'),
+    ]
+    pd.testing.assert_series_equal(centre, pd.Series([np.nan, 4.0, 3.0, 2.0], index=block.columns))
+    pd.testing.assert_series_equal(scale, pd.Series([np.nan, 3.0, np.nan, np.nan], index=block.columns))
+
+    one_row = block.iloc[[1]]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        centre, scale = model._learn_center_and_scaling_parameters(one_row, "Y")
+    assert [str(w.message) for w in caught] == [f"Block Y {never}"]
+    pd.testing.assert_series_equal(centre, one_row.iloc[0].rename(None))
+    pd.testing.assert_series_equal(scale, pd.Series([np.nan, 1.0, 1.0, 1.0], index=block.columns))
+
+
 @pytest.mark.parametrize(
     ("action", "where"),
     [

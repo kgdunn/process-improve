@@ -62,6 +62,9 @@ BUDGET: dict[str, int] = {
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
     "C901": 32,
+    # 17: #1028 merged with #981 scored every Z group of `TPLS.diagnose`, none or
+    # several, in one loop, which needs no branch for a model without Z and takes
+    # that function under PLR0912.
     # 18: #1029 took `_pca_ekf_press` under PLR0912 (see C901).
     # 19: #1027 built PLS.cross_validate's resamples first and fitted them in one
     # loop, taking it under PLR0912.
@@ -71,7 +74,7 @@ BUDGET: dict[str, int] = {
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 18,
+    "PLR0912": 17,
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
     # the simulation (the designs, the hypothesised process, the goal and its

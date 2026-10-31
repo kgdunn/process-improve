@@ -660,7 +660,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
+    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901
         """
         Model inference on new data.
 
@@ -747,19 +747,18 @@ class TPLS(RegressorMixin, BaseEstimator):
             # all-missing row.
             r = {key: self.r_loadings_f[key].to_numpy()[:, pc_a] for key in x_f}
             with np.errstate(invalid="ignore"):
-                block_scores = [sum(x_f[key] @ r[key] for key in x_f) / sum(not_na_f[key] @ r[key] ** 2 for key in x_f)]
-            if self.n_conditions > 0:
-                # One Z score per Z group likewise, from that group's own weights, as fit() scores each group on
-                # its own (#981), in the training order of the rows of w_loadings_super. A row with no value in a
-                # group scores 0 there, as in fit() (#513). Z is optional here: a group left out of X scores 0.
-                score_z = {key: np.zeros(n_rows) for key in self.w_loadings_z}
-                for key, values in x_z.items():
-                    w = self.w_loadings_z[key].to_numpy()[:, pc_a]
-                    rows = not_na_z[key].any(axis=1)
-                    score_z[key][rows] = values[rows] @ w / (not_na_z[key][rows] @ w**2)
-                block_scores = [*score_z.values(), *block_scores]
+                score_f = sum(x_f[key] @ r[key] for key in x_f) / sum(not_na_f[key] @ r[key] ** 2 for key in x_f)
+            # One Z score per Z group likewise, from that group's own weights, as fit() scores each group on its
+            # own (#981), in the training order of the rows of w_loadings_super; none for a model without Z. A
+            # row with no value in a group scores 0 there, as in fit() (#513). Z is optional here: a group left
+            # out of X scores 0.
+            score_z = {key: np.zeros(n_rows) for key in self.w_loadings_z}
+            for key, values in x_z.items():
+                w = self.w_loadings_z[key].to_numpy()[:, pc_a]
+                rows = not_na_z[key].any(axis=1)
+                score_z[key][rows] = values[rows] @ w / (not_na_z[key][rows] @ w**2)
             # The super score: the block scores, [Z groups..., F] or [F], weighted by the super weights.
-            scores[:, pc_a] = np.column_stack(block_scores) @ weights_super[:, pc_a]
+            scores[:, pc_a] = np.column_stack([*score_z.values(), score_f]) @ weights_super[:, pc_a]
 
             # Deflate each block, to score the next component and to compute SPE. Only the observed cells,
             # as in fit(): a missing cell has no residual (#1028).
