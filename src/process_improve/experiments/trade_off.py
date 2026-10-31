@@ -243,7 +243,10 @@ def _check_runs(n_runs: int) -> int:
 
 
 def _alias_chains(generators: list[str], factor_names: list[str]) -> list[str]:
-    """Alias chains for the main effects and the two-factor interactions."""
+    """Alias chains for the main effects and the two-factor interactions.
+
+    The words are written without signs, so every generator must be positive.
+    """
     words = _defining_relation_from_generators(generators, factor_names)
     if not words:
         return []
@@ -334,6 +337,9 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
             label=f"2^{n_factors} ({how_often})",
         )
     else:
+        # Every generator here is positive: the search writes `name=word`, and `_MIN_ABERRATION` holds no negated
+        # one. So the unsigned `_word_to_str` below is exact; a signed generator would need `_signed_defining_relation`.
+        # TestDefiningWordsArePositive fails if one ever arrives.
         generators = list(minimum_aberration_generators(n_runs, n_factors))
         words = _defining_relation_from_generators(generators, names)
         resolution = min(len(word) for word in words)
