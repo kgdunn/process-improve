@@ -114,6 +114,7 @@ class RecommendNextStepInput(BaseModel):
         "output to choose the next design by hand."
     ),
     input_model=RecommendNextStepInput,
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
     examples="""
     # "I ran the screening design; what now?"
         -> ``recommend_next_step(factors=[...], runs=[{"A": -1, ..., "y": 101.2}, ...], response_column="y")``
