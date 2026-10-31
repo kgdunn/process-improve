@@ -112,8 +112,8 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
-    # 26: #1028 wrote TPLS.diagnose's scores and deflation over arrays, taking it under
-    # PLR0915.
+    # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
+    # arrays) and in #981 (each Z group scored on its own) alike.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper
     # select_n_components uses, taking it under PLR0915.
     # 28: #513 (see C901). 29 before that.

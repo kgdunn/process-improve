@@ -15,7 +15,7 @@ import typing
 
 import numpy as np
 
-from ._common import _nz, epsqrt
+from ._common import _nz, epsqrt, largest_ssq_column
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +270,7 @@ def internal_pls_nipals_fit_one_pc(
     """Fit a PLS model using the NIPALS algorithm."""
     max_iter: int = 500
 
-    u_i = y_space[:, [0]]
+    u_i = largest_ssq_column(y_space)  # not the first column, which can be constant (#954)
     for n_iter in range(1, max_iter + 1):  # noqa: B007 - the log line after the loop reads it
         # Step 1. w_i = X'u / u'u. Regress the columns of X on u_i, and store the slope coeff in vectors w_i.
         w_i = regress_a_space_on_b_row(x_space.T, u_i.T, x_present_map.T)

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import itertools
+import json
 import re
 import warnings
+from importlib import resources
 
 import numpy as np
 import pandas as pd
@@ -1513,6 +1515,52 @@ class TestBlocks:
         with pytest.warns(UserWarning, match="blocks are not added"):
             analyze_experiment(df, response_column="y", model="scheffe_linear")
 
+    @pytest.mark.parametrize("block", ["Block", "C(Block)", "C(Block, Sum)", "C(Block, Treatment(1))"])
+    def test_pure_error_is_within_blocks_however_the_formula_writes_the_block(self, block: str) -> None:
+        """Box and Draper (2007), exercise 7.12: a central composite design in two blocks (#968).
+
+        The centre runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
+        across blocks they gave 154 on 5 df, more than the residual, and a negative lack of fit.
+        """
+        r2 = np.sqrt(2)
+        runs = pd.DataFrame(
+            {
+                "Block": [1] * 7 + [2] * 7,
+                "x1": [-1, 1, -1, 1, 0, 0, 0, -r2, r2, 0, 0, 0, 0, 0],
+                "x2": [-1, -1, 1, 1, 0, 0, 0, 0, 0, -r2, r2, 0, 0, 0],
+                "y": [73, 85, 83, 79, 80, 81, 79, 67, 73, 69, 71, 71, 69, 70],
+            }
+        )
+        model = f"y ~ {block} + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(4.0), 4)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(0.201, abs=5e-4), 3)
+
+    @pytest.mark.dataset
+    def test_pure_error_within_blocks_with_a_treatment_coded_block(self) -> None:
+        """Box and Draper (2007), exercise 11.20 (answer p. 703): pure error 227 on 5 df, lack of fit 2,198 on 6."""
+        catalogue = resources.files("process_improve.datasets.experiments") / "reference_catalogue"
+        entry = next(
+            e
+            for e in json.loads((catalogue / "box-draper-2007.json").read_text(encoding="utf-8"))["experiments"]
+            if e["name"] == "box-draper-11-ex-11-20-rubber-tensile-strength"
+        )
+        runs = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"]).drop(columns="Run")
+        runs["Block"] = runs["Block"].astype(int)
+        squares = " + ".join(f"I(x{i} ** 2)" for i in range(1, 6))
+        model = f"y ~ C(Block, Treatment(1)) + (x1 + x2 + x3 + x4 + x5) ** 2 + {squares}"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
+
+    def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
+        """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
+        df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})
+        fit = smf.ols("y ~ C(Block) + A", data=df).fit()
+        lof = _run_lack_of_fit(fit, df, "y", factor_cols=["A"])["lack_of_fit"]
+        assert set(lof) == {"error"}
+        assert "pure-error sum of squares" in lof["error"]
+
 
 class TestTransformedResponse:
     """The model is fitted on the transformed response; every comparison is made on that scale."""
@@ -2115,6 +2163,24 @@ class TestTestsAtTheCentre:
         expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
         assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
 
+    @pytest.mark.parametrize("model", ["z1 + I(z2 - 0.2 * z1) - 1", "z1 - 1"])
+    def test_an_i_term_that_mixes_factors_is_tested_as_given(self, model: str) -> None:
+        """Box and Draper (2007) Table 3.6: z1 and z2 - 0.2 z1 are orthogonal, so SS(z1) = 12 in either model.
+
+        Coding z2 to -1/+1 makes I(z2 - 0.2 * z1) a column no longer orthogonal to z1, with the
+        same fitted values, and SS(z1) was 14.97 (#963).
+        """
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        result = analyze_experiment(
+            data, response_column="y", model=model, analysis_type=["anova", "coefficients"], coding="actual"
+        )
+        table = {row["source"]: row["sum_sq"] for row in result["anova_table"]}
+        assert table["z1"] == pytest.approx(12.0)
+        if "I(" in model:
+            assert table["I(z2 - 0.2 * z1)"] == pytest.approx(4.5)
+            assert table["Residual"] == pytest.approx(1.5)
+            assert _terms(result) == pytest.approx({"z1": 2.0, "I(z2 - 0.2 * z1)": 2.5})
+
     def test_units_too_unequal_for_floating_point_are_tested_coded(self) -> None:
         """A tiny span far from zero loses the fit's rank; the coded fit, which keeps it, is tested."""
         coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
@@ -2367,6 +2433,41 @@ class TestDefaultCoding:
         actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
         assert actual["coding"] == "actual"
         assert "coefficients_actual" not in actual
+
+
+class TestNoCodedScale:
+    """An ``I()`` term such as ``I(xi ** 0.5)`` has no value where the coded factor is negative (#963)."""
+
+    #: Box and Draper (2007) Table 8.4, the polymer catalyst data fitted as Y = b0 + b1 xi^(1/2) in Eq. (8.5.26).
+    DATA = pd.DataFrame({"xi": [0.5, 1.5, 2.5, 3.5, 4.5], "Y": [28.45, 47.78, 64.35, 74.67, 83.65]})
+
+    @pytest.mark.parametrize(
+        ("model", "column"),
+        [("I(xi ** 0.5)", np.sqrt), ("I(1 / xi)", np.reciprocal), ("I(xi ** -1)", np.reciprocal)],
+    )
+    @pytest.mark.parametrize("coding", ["actual", "auto"])
+    def test_it_fits_as_given(self, model: str, column, coding: str) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model=model, analysis_type=["anova", "coefficients"], coding=coding
+        )
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(column(self.DATA["xi"]))).fit()
+        assert result["coding"] == "actual"
+        assert [row["coefficient"] for row in result["coefficients"]] == pytest.approx(list(expected.params))
+        assert result["anova_table"][0]["sum_sq"] == pytest.approx(expected.ess)
+        assert result["model_summary"]["model_rank"] == 2
+
+    @pytest.mark.parametrize("coding", ["coded", {"xi": {"low": 0.5, "high": 4.5}}])
+    def test_a_coded_scale_is_refused(self, coding) -> None:
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(
+                self.DATA, response_column="Y", model="I(xi ** 0.5)", analysis_type="coefficients", coding=coding
+            )
+
+    def test_a_square_keeps_the_coded_scale(self) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="coefficients"
+        )
+        assert result["coding"] == "coded"
 
 
 class TestStandardisedCoefficients:

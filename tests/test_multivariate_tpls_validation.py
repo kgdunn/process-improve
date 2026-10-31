@@ -90,19 +90,13 @@ def test_the_constructor_refuses_an_invalid_argument(arguments: dict, error: typ
             _fit,
             DataFrameDict({**_synthetic()[1], "Y": {**_synthetic()[1]["Y"], "Y2": _synthetic(1)[1]["Y"]["Y1"]}}),
             ValueError,
-            r"^TPLS fits one Y block and at most one Z block; got Y \['Y1', 'Y2'\] and Z \['Z1'\]\.$",
+            r"^TPLS fits one Y block; got \['Y1', 'Y2'\]\.$",
         ),
         (
             _fit,
             DataFrameDict({**_synthetic()[1], "Y": {}}),
             ValueError,
-            r"^TPLS fits one Y block and at most one Z block; got Y \[\] and Z \['Z1'\]\.$",
-        ),
-        (
-            _fit,
-            DataFrameDict({**_synthetic()[1], "Z": {**_synthetic()[1]["Z"], "Z2": _synthetic(1)[1]["Z"]["Z1"]}}),
-            ValueError,
-            r"^TPLS fits one Y block and at most one Z block; got Y \['Y1'\] and Z \['Z1', 'Z2'\]\.$",
+            r"^TPLS fits one Y block; got \[\]\.$",
         ),
         (
             _diagnose,
@@ -129,7 +123,6 @@ def test_the_constructor_refuses_an_invalid_argument(arguments: dict, error: typ
         "fit-an-F-group-that-D-lacks",
         "fit-two-Y-blocks",
         "fit-no-Y-block",
-        "fit-two-Z-blocks",
         "diagnose-a-renamed-F-column",
         "diagnose-a-renamed-Z-column",
         "score-without-a-Y-block",
@@ -350,7 +343,7 @@ def test_a_block_with_no_variation_still_stops_the_fit_at_once() -> None:
             ValueError,
             match=(
                 r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation for "
-                r"the iteration to follow\. Check that the first column of the first Y block, and at least one "
+                r"the iteration to follow\. Check that at least one column of the first Y block, and at least one "
                 r"column of each D and F group, varies and is observed\.$"
             ),
         ),
@@ -373,11 +366,39 @@ def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
 
     with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no variance.*'mat3'"):
         fixed = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(constant)))
-    absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
+    with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no observed values.*'mat3'"):
+        absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
 
     np.testing.assert_allclose(fixed.t_scores_super, absent.t_scores_super, atol=1e-12)
     np.testing.assert_allclose(fixed.hat["Y1"], absent.hat["Y1"], atol=1e-12)
     np.testing.assert_allclose(fixed.diagnose(DataFrameDict(constant)).t_scores_super, fixed.t_scores_super, atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    ("block", "group", "column"),
+    [("D", "G", "r"), ("F", "G", "mat3"), ("Z", "Z1", "z2"), ("Y", "Y1", "y_unlogged")],
+)
+def test_an_all_nan_column_is_named_in_a_warning_as_a_constant_one_is(block: str, group: str, column: str) -> None:
+    """#982: a column with no observed value is excluded from the fit with a warning that names it.
+
+    A constant column got that warning (#513); an all-NaN column, which carries no more
+    information, used to be left out without a word.
+    """
+    d_matrix, blocks = _synthetic()
+    frame = d_matrix[group] if block == "D" else blocks[block][group]
+    frame[column] = np.nan
+    pattern = rf"Block {block}\[\"{group}\"\] has columns with no observed values.*'{column}'"
+    with pytest.warns(UserWarning, match=pattern):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_column_with_one_observed_value_is_named_as_having_no_variance() -> None:
+    """#982: a single observed value has a NaN standard deviation, which was also excluded silently."""
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"]["z2"] = np.nan
+    blocks["Z"]["Z1"].loc["blend0", "z2"] = 1.0
+    with pytest.warns(UserWarning, match=r"Block Z\[\"Z1\"\] has columns with no variance.*'z2'"):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
 def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
@@ -573,3 +594,43 @@ def test_an_unknown_metric_and_an_empty_y_are_refused_in_full() -> None:
     message = "y_actual is empty: X['Y'] must contain at least one block to compute a score."
     with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         model.score(DataFrameDict({**blocks, "Y": {}}))
+
+
+def _with_a_second_z_group() -> tuple[dict[str, pd.DataFrame], dict[str, dict[str, pd.DataFrame]]]:
+    """Return the synthetic blocks with a second Z group, "Z2", of three conditions."""
+    d_matrix, blocks = _synthetic()
+    index = blocks["F"]["G"].index
+    values = np.random.default_rng(5).normal(size=(len(index), 3))
+    blocks["Z"]["Z2"] = pd.DataFrame(values, index=index, columns=["a", "b", "c"])
+    return d_matrix, blocks
+
+
+def test_several_z_groups_fit_and_diagnose_alike() -> None:
+    """#981: each Z group is its own block in the super-level, in the fit and in diagnose alike.
+
+    The fit gives each Z group its own weights and its own block score, so the super weights
+    have one row per Z group, then one for F. They were labelled for a single Z group, so a
+    second one raised a shape error, and diagnose pooled every Z group into one score.
+    """
+    d_matrix, blocks = _with_a_second_z_group()
+    blocks["Z"]["Z2"].loc["blend4", "a"] = np.nan
+    blocks["Z"]["Z2"].loc["blend7"] = np.nan
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+
+    assert model.w_loadings_super.index.to_list() == ['Z["Z1"]', 'Z["Z2"]', "F"]
+    result = model.diagnose(DataFrameDict(blocks))
+    np.testing.assert_allclose(result.t_scores_super, model.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(result.hat["Y1"], model.hat["Y1"], atol=1e-10)
+
+
+def test_the_order_of_the_z_groups_does_not_change_the_fit() -> None:
+    """#981: the Z groups enter the super-level as a set, so listing them in another order changes nothing."""
+    d_matrix, blocks = _with_a_second_z_group()
+    swapped = copy.deepcopy(blocks)
+    swapped["Z"] = {"Z2": swapped["Z"]["Z2"], "Z1": swapped["Z"]["Z1"]}
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    other = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(swapped))
+
+    np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(other.hat["Y1"], model.hat["Y1"], atol=1e-10)
+    np.testing.assert_allclose(other.w_loadings_super.loc[model.w_loadings_super.index], model.w_loadings_super)

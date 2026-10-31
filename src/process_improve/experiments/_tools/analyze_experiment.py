@@ -63,7 +63,8 @@ class AnalyzeExperimentInput(BaseModel):
         "auto",
         description=(
             "Scale of the coefficients and confidence_intervals. 'auto' (default; null means the same): 'coded', "
-            "but 'actual' for a mixture model. 'actual': the factors as given. 'coded': refitted with each factor "
+            "but 'actual' for a mixture model and for an I() term such as I(x ** 0.5) that has no coded scale. "
+            "'actual': the factors as given. 'coded': refitted with each factor "
             "from -1 at its lowest value to +1 at its highest. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, "
             "that map to -1 and +1, such as a central composite design's cube levels rather than its axial runs. "
             "Coded coefficients are what optimize_responses needs, since it evaluates models at coded settings "

@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import math
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -500,8 +501,8 @@ def plackett_burman_runs(n_factors: int) -> int:
     """Return the number of runs in the Plackett-Burman design for ``n_factors`` factors.
 
     The smallest multiple of 4 above ``n_factors`` for which a Hadamard matrix is
-    built here (every order up to 200 except 92, 116, 156, 172, 184 and 188, which
-    step up to the next multiple of 4).
+    built here: every order up to 232. The first gaps are 236, 260 and 268, which
+    step up to the next multiple of 4.
     """
     n = 4 * (n_factors // 4 + 1)
     while hadamard_matrix(n) is None:
@@ -518,10 +519,12 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     48, ... runs) the design is Paley's cyclic one, which is what Plackett and Burman
     (1946) printed for 12, 20, 24 and 44 runs; for 36 runs it is their own generating
     row. Powers of 2 are the classical construction (Sylvester's doubling), and the other
-    orders (28, 40, 52, ...) come from the finite-field constructions in
-    :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``. A
-    doubled design is used only where no cyclic one is built: it aliases some products of
-    three columns completely with the intercept.
+    orders (28, 40, 52, ..., and the Goethals-Seidel arrays at 92, 116, 156, 172 and 188)
+    come from the constructions in :mod:`process_improve.experiments._finite_fields`,
+    checked against ``H'H = N I``. A doubled design is used only where no cyclic one is
+    built: it aliases some products of three columns completely with the intercept. A
+    ``UserWarning`` names both run counts when ``N`` is above the smallest multiple of 4
+    above ``k`` because that order is not built here.
 
     Parameters
     ----------
@@ -535,6 +538,12 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """
     k = len(factors)
     n = plackett_burman_runs(k)
+    if n > (smallest := 4 * (k // 4 + 1)):
+        warnings.warn(
+            f"No {smallest}-run Plackett-Burman design is built here, so the design for {k} factors has {n} runs.",
+            UserWarning,
+            stacklevel=2,
+        )
     if n in _PB_CYCLIC_ROWS:
         return _cyclic_design(_PB_CYCLIC_ROWS[n])[:, :k], {
             "construction": f"cyclic_row_{n}",

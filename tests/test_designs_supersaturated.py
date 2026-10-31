@@ -19,18 +19,18 @@ def _factors(k: int) -> list[Factor]:
     return [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(k)]
 
 
-@pytest.mark.parametrize("order", [*range(4, 92, 4), *range(96, 116, 4)])
+@pytest.mark.parametrize("order", range(4, 120, 4))
 def test_hadamard_orders(order: int) -> None:
-    """Every order up to 112 except 92 is built (28 needs GF(27), 36 Paley II); the first column is all +1."""
+    """Every order up to 116 is built (28 needs GF(27), 36 Paley II, 92 Goethals-Seidel); the first column is all +1."""
     h = hadamard(order)
     assert h is not None
     np.testing.assert_array_equal(h.T @ h, order * np.eye(order))
     assert (h[:, 0] == 1).all()
 
 
-def test_hadamard_order_92_is_not_built() -> None:
-    """Order 92 needs Williamson's construction, which is not implemented."""
-    assert hadamard(92) is None
+def test_hadamard_order_236_is_not_built() -> None:
+    """Order 236 is the first multiple of 4 that no construction here reaches."""
+    assert hadamard(236) is None
 
 
 @pytest.mark.parametrize(("k", "budget"), [(10, 6), (16, 10), (22, 12), (30, 16), (40, 22)])

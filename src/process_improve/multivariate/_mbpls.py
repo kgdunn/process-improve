@@ -35,6 +35,7 @@ from ._common import (
     _select_n_components,
     epsqrt,
     informative_widths,
+    largest_ssq_column,
     resolve_loop_settings,
     y_is_exhausted,
     y_reach,
@@ -290,10 +291,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     # Deterministic start (#503): seed ``u`` from the column of the (deflated) Y block with the
     # largest sum of squares, exactly as single-block PLS does (#195). No RNG is involved, so the
     # fit is reproducible without a random_state parameter, and the highest-variance Y column is
-    # closest to the leading component. The sign convention applied after convergence makes the
-    # fitted signs independent of this seed. (NaN is replaced by 0 for the missing-data path.)
-    start_col = int(np.argmax(np.nansum(y_def**2, axis=0)))
-    u_a = np.nan_to_num(y_def[:, start_col])
+    # closest to the leading component; ties go to the first (#954). The sign convention applied
+    # after convergence makes the fitted signs independent of this seed. (NaN is replaced by 0.)
+    u_a = largest_ssq_column(y_def)[:, 0]
     for itern in itertools.count(1):
         prev = u_a
         local_w, local_t, t_b_summary = _block_projections(x_def, u_a, context)
