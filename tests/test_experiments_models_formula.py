@@ -305,6 +305,9 @@ class TestStandInNames:
     def test_a_formula_that_does_not_parse_has_no_stand_ins(self) -> None:
         assert stand_ins_for("y ~ I(I ** 2) +", ["y", "I"]) == {}
         assert stand_ins_for(["y ~ I(I ** 2)"], ["y", "I"]) == {}  # type: ignore[arg-type]
+        # A side that does not parse is left as written; the one that does still takes the stand-in.
+        assert with_stand_ins("y ~ I(I ** 2) +", {"I": "I_"}) == "y ~ I(I ** 2) +"
+        assert with_stand_ins("I + ~ I(I ** 2)", {"I": "I_"}) == "I + ~ I(I_ ** 2)"
 
     def test_the_results_are_read_under_the_real_names(self) -> None:
         """A column named ``I_`` keeps its name beside a column ``I`` fitted as ``I_2``, as does a level ``I_2``."""
