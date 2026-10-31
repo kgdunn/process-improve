@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, _fit_context
 from sklearn.metrics import r2_score
-from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold
+from sklearn.model_selection import BaseCrossValidator, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
@@ -67,23 +67,20 @@ def _stacked_super_weights(
     Written out over the variables rather than over the blocks,
 
     .. math::
-        t_i = \frac{1}{\mathbf{w}_s' \mathbf{w}_s} \sum_b w_{s,b}
-              \frac{\mathbf{x}_{ib}' \mathbf{w}_b}{\sqrt{K_b}}
-            = \frac{\mathbf{x}_i' \mathbf{g}}{\mathbf{w}_s' \mathbf{w}_s},
+        t_i = \sum_b w_{s,b} \frac{\mathbf{x}_{ib}' \mathbf{w}_b}{\sqrt{K_b}}
+            = \mathbf{x}_i' \mathbf{g},
         \qquad
         \mathbf{g} = \big[\, w_{s,b}\, \mathbf{w}_b / \sqrt{K_b} \,\big]_b
 
     the super score is one linear combination of all the variables of all the blocks.
-    ``g`` is that combination.
+    ``g`` is that combination. (The block weights ``w_b`` have unit length, and so does the
+    super weight ``w_s``, so no block score or super score is divided by a sum of squares.)
     """
     return np.concatenate([super_weight[b] * block_weights[name] / sqrt_kb[name] for b, name in enumerate(block_names)])
 
 
 def _pooled_super_score(
-    x_def: dict[str, np.ndarray],
-    stacked_weights: np.ndarray,
-    super_weight: np.ndarray,
-    block_names: Sequence[str],
+    x_def: dict[str, np.ndarray], stacked_weights: np.ndarray, block_names: Sequence[str]
 ) -> np.ndarray:
     r"""Score every row by one masked regression of the whole row onto the stacked weights.
 
@@ -97,15 +94,12 @@ def _pooled_super_score(
     The ratio is rescaled by :math:`\mathbf{g}'\mathbf{g}` so a complete row reproduces the
     weighted sum of block scores exactly, which is what leaves every complete-data model
     unchanged. A row with nothing observed under a non-zero weight has no score: it comes back
-    as NaN.
+    as NaN, the division by NaN in place of 0 giving no warning.
     """
     stacked_x = np.hstack([x_def[name] for name in block_names])
-    observed = ~np.isnan(stacked_x)
     numerator = np.nan_to_num(stacked_x) @ stacked_weights
-    denominator = observed @ (stacked_weights**2)
-    scale = float(stacked_weights @ stacked_weights) / _nz(float(super_weight @ super_weight))
-    usable = denominator > 0
-    return np.where(usable, numerator / np.where(usable, denominator, 1.0) * scale, np.nan)
+    denominator = ~np.isnan(stacked_x) @ (stacked_weights**2)
+    return numerator / np.where(denominator > 0, denominator, np.nan) * float(stacked_weights @ stacked_weights)
 
 
 def _rows_with_data(values: np.ndarray) -> np.ndarray:
@@ -152,9 +146,7 @@ def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], y: pd.DataFrame, 
             raise ValueError(
                 f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
             )
-    observed_anywhere = np.zeros(X[block_names[0]].shape[0], dtype=bool)
-    for name in block_names:
-        observed_anywhere |= _rows_with_data(X[name].values)
+    observed_anywhere = np.any([_rows_with_data(X[name].values) for name in block_names], axis=0)
     if not np.all(observed_anywhere):
         bad_rows = np.where(~observed_anywhere)[0].tolist()
         raise ValueError(
@@ -205,25 +197,31 @@ def _block_projections(
 
     The ``"nipals"`` branch is mask-aware: each projection is a per-column (or per-row)
     regression that uses only the entries that are not NaN, and divides by the masked sum of
-    squares. It reuses the same primitives as single-block PCA NIPALS.
+    squares. It reuses the same primitives as single-block PCA NIPALS. On the dense path each
+    weight is scaled to unit length as soon as it is formed, so dividing it by ``u'u`` first,
+    or a score by ``w_b'w_b``, would change nothing.
     """
     local_w: dict[str, np.ndarray] = {}
     local_t: dict[str, np.ndarray] = {}
     t_b_summary = np.zeros((u_a.shape[0], len(context.block_names)))
     if context.algo == "nipals":
-        u_a_col = u_a.reshape(-1, 1)
+        u_a_col = u_a[:, np.newaxis]
         for b_idx, name in enumerate(context.block_names):
             w_b = quick_regress(x_def[name], u_a_col, per="column").flatten()
-            w_b = w_b / _nz(float(np.sqrt(ssq(w_b.reshape(-1, 1)))))
-            t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / context.sqrt_kb[name]
+            w_b = w_b / _nz(float(np.sqrt(ssq(w_b))))
+            t_b = quick_regress(x_def[name], w_b[:, np.newaxis], per="row").flatten() / context.sqrt_kb[name]
             local_w[name] = w_b
             local_t[name] = t_b
-            t_b_summary[:, b_idx] = np.where(context.block_has_data[name], t_b, np.nan)
+            t_b_summary[:, b_idx] = np.where(
+                context.block_has_data[name],
+                t_b,
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
+            )
     else:
         for b_idx, name in enumerate(context.block_names):
-            w_b = x_def[name].T @ u_a / _nz(float(u_a @ u_a))
+            w_b = x_def[name].T @ u_a
             w_b = w_b / _nz(float(np.linalg.norm(w_b)))
-            t_b = x_def[name] @ w_b / _nz(float(w_b @ w_b)) / context.sqrt_kb[name]
+            t_b = x_def[name] @ w_b / context.sqrt_kb[name]
             local_w[name] = w_b
             local_t[name] = t_b
             t_b_summary[:, b_idx] = t_b
@@ -234,7 +232,7 @@ def _block_loadings(
     x_def: dict[str, np.ndarray], t_super: np.ndarray, context: _MBPLSLoopContext
 ) -> dict[str, np.ndarray]:
     """Regress every block on the super score, giving the loadings that deflate it."""
-    t_super_col = t_super.reshape(-1, 1)
+    t_super_col = t_super[:, np.newaxis]
     loadings: dict[str, np.ndarray] = {}
     for name in context.block_names:
         if context.algo == "nipals":
@@ -273,16 +271,15 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
 
     The weighted blocks stand in for Y, so the hierarchical NIPALS converges to the leading
     principal component of the deflated, block-weighted X. The component's Y-loading is
-    Y's regression on its super score, about zero, and it has no Y-score.
+    Y's regression on its super score, about zero, and it has no Y-score. The regression
+    masks Y's missing cells, and on complete data is the dense ``Y't / t't``: it runs once
+    per component, outside the loop, so it needs no dense path of its own.
     """
     target = np.column_stack([x_def[name] / context.sqrt_kb[name] for name in context.block_names])
     component = _fit_one_component(x_def, target, context)
     t_super = component.super_score
-    if context.algo == "nipals":
-        c_a = quick_regress(y_def, t_super.reshape(-1, 1), per="column").flatten()
-    else:
-        c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
-    return component._replace(super_y_loading=c_a, super_y_score=np.zeros_like(t_super))
+    c_a = quick_regress(y_def, t_super[:, np.newaxis], per="column").flatten()
+    return component._replace(super_y_loading=c_a, super_y_score=np.zeros(t_super.shape))
 
 
 def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context: _MBPLSLoopContext) -> _MBPLSComponent:
@@ -303,27 +300,24 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
 
         if context.algo == "nipals":
             # Masked, so a block this row has nothing in does not vote on the super weight.
-            w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1), per="column").flatten()
+            w_s = quick_regress(t_b_summary, u_a[:, np.newaxis], per="column").flatten()
         else:
-            w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
+            # Scaled to unit length on the next line, so not divided by u'u first.
+            w_s = t_b_summary.T @ u_a
         w_s = w_s / _nz(float(np.linalg.norm(w_s)))
         # One masked regression of the whole row onto the stacked weights, rather than a weighted
         # sum of per-block scores: identical on complete rows, and on a row with missing cells it
         # uses every cell the row has instead of one score per block.
         t_super = _pooled_super_score(
-            x_def,
-            _stacked_super_weights(local_w, w_s, context.sqrt_kb, context.block_names),
-            w_s,
-            context.block_names,
+            x_def, _stacked_super_weights(local_w, w_s, context.sqrt_kb, context.block_names), context.block_names
         )
         # A row observed only where the weights are zero has no score for this component: place it
         # at the centre so the iteration stays finite. The guard in ``_reject_degenerate_missingness``
         # has already refused a row with nothing observed anywhere.
         t_super = np.nan_to_num(t_super)
         if context.algo == "nipals":
-            t_super_col = t_super.reshape(-1, 1)
-            c_a = quick_regress(y_def, t_super_col, per="column").flatten()
-            u_a = quick_regress(y_def, c_a.reshape(-1, 1), per="row").flatten()
+            c_a = quick_regress(y_def, t_super[:, np.newaxis], per="column").flatten()
+            u_a = quick_regress(y_def, c_a[:, np.newaxis], per="row").flatten()
         else:
             c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
             u_a = y_def @ c_a / _nz(float(c_a @ c_a))
@@ -362,7 +356,12 @@ def _deflate(
 
 
 class _InitialSumsOfSquares(typing.NamedTuple):
-    """The sums of squares of the preprocessed data, the denominators of every R² below."""
+    """The sums of squares of the preprocessed data, the denominators of every R² below.
+
+    R² is undefined for a block, a column or a Y with nothing to explain, so its sum of
+    squares is held as NaN: every R² divided by it is NaN, without the warning a division by
+    0 gives, and not a misleading 1.0.
+    """
 
     x_block: dict[str, float]
     x_variable: dict[str, np.ndarray]
@@ -372,11 +371,15 @@ class _InitialSumsOfSquares(typing.NamedTuple):
     @classmethod
     def of(cls, x_blocks_pp: dict[str, np.ndarray], y_pp: np.ndarray) -> _InitialSumsOfSquares:
         """Take the sums of squares of the preprocessed blocks and Y."""
+        x_variable = {name: np.nansum(values**2, axis=0) for name, values in x_blocks_pp.items()}
+        y_variable = np.nansum(y_pp**2, axis=0)
+        x_block = {name: float(np.sum(values)) for name, values in x_variable.items()}
+        y_total = float(np.sum(y_variable))
         return cls(
-            x_block={name: float(np.nansum(values**2)) for name, values in x_blocks_pp.items()},
-            x_variable={name: np.nansum(values**2, axis=0) for name, values in x_blocks_pp.items()},
-            y_total=float(np.nansum(y_pp**2)),
-            y_variable=np.nansum(y_pp**2, axis=0),
+            x_block={name: total if total > 0 else np.nan for name, total in x_block.items()},
+            x_variable={name: np.where(values > 0, values, np.nan) for name, values in x_variable.items()},
+            y_total=y_total if y_total > 0 else np.nan,
+            y_variable=np.where(y_variable > 0, y_variable, np.nan),
         )
 
 
@@ -433,7 +436,11 @@ class _MBPLSArrays:
         for name in context.block_names:
             self.block_loadings[name][:, a] = loadings[name]
             self.block_weights[name][:, a] = component.block_weights[name]
-            self.block_scores[name][:, a] = np.where(context.block_has_data[name], component.block_scores[name], np.nan)
+            self.block_scores[name][:, a] = np.where(
+                context.block_has_data[name],
+                component.block_scores[name],
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
+            )
         self.super_scores[:, a] = component.super_score
         self.super_y_scores[:, a] = component.super_y_score
         self.super_weights[:, a] = component.super_weight
@@ -450,37 +457,20 @@ class _MBPLSArrays:
     ) -> None:
         """Store the cumulative R²X and R²Y through component ``a``, and the per-block SPE.
 
-        R² is undefined for a zero-variance block or column; it is reported as NaN rather than
-        dividing by zero (inf/nan plus a warning) or returning a misleading 1.0.
+        R² is NaN where the initial sum of squares is NaN: see :class:`_InitialSumsOfSquares`.
         """
         for b_idx, name in enumerate(context.block_names):
             ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
-            self.r2_x_block_cum[b_idx, a] = (
-                1 - np.sum(ssq_remain_per_var) / initial.x_block[name] if initial.x_block[name] > 0 else np.nan
-            )
-            per_var = initial.x_variable[name]
-            self.r2_x_var_cum[name][:, a] = np.where(
-                per_var > 0, 1 - ssq_remain_per_var / np.where(per_var > 0, per_var, 1.0), np.nan
-            )
+            self.r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / initial.x_block[name]
+            self.r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / initial.x_variable[name]
             self.block_spe[name][:, a] = np.where(
-                context.block_has_data[name], np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), np.nan
+                context.block_has_data[name],
+                np.sqrt(np.nansum(x_def[name] ** 2, axis=1)),
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
             )
         ssq_y_remain_per_var = np.nansum(y_def**2, axis=0)
-        self.r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / initial.y_total if initial.y_total > 0 else np.nan
-        self.r2_y_var_cum[:, a] = np.where(
-            initial.y_variable > 0,
-            1 - ssq_y_remain_per_var / np.where(initial.y_variable > 0, initial.y_variable, 1.0),
-            np.nan,
-        )
-
-
-def _cumulative_to_per_component(cumulative: np.ndarray) -> np.ndarray:
-    """Difference a cumulative R² along its last (component) axis, keeping the first value as it is."""
-    per_component = np.empty_like(cumulative)
-    per_component[..., 0] = cumulative[..., 0]
-    if cumulative.shape[-1] > 1:
-        per_component[..., 1:] = np.diff(cumulative, axis=-1)
-    return per_component
+        self.r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / initial.y_total
+        self.r2_y_var_cum[:, a] = 1 - ssq_y_remain_per_var / initial.y_variable
 
 
 class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
@@ -537,6 +527,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The number of components fitted. Everything after ``fit`` reads it, not the
+        ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
     block_names_ : list[str]
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
@@ -684,7 +677,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         *,
         max_iter: int = 500,
         tol: float = epsqrt,
-        algorithm: str = "auto",
+        algorithm: str = "auto",  # pragma: no mutate - _resolve_algorithm lowercases it, so "AUTO" is the same default
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
@@ -816,10 +809,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """Centre and scale each X-block and Y independently, and return the numpy values."""
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
         self.y_preproc_ = MCUVScaler().fit(y)
-        x_blocks_pp: dict[str, np.ndarray] = {
-            name: self.preproc_[name].transform(X[name]).values.astype(float) for name in self.block_names_
-        }
-        return x_blocks_pp, self.y_preproc_.transform(y).values.astype(float)
+        x_blocks_pp = {name: self.preproc_[name].transform(X[name]).to_numpy() for name in self.block_names_}
+        return x_blocks_pp, self.y_preproc_.transform(y).to_numpy()
 
     def _store_latent_frames(self, work: _MBPLSArrays) -> None:
         """Wrap the fitted scores, weights and loadings in pandas, and predict the fitted rows."""
@@ -842,13 +833,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_
         }
 
-        # In-sample predictions on the original Y scale
-        y_hat_pp = work.super_scores @ work.super_y_loadings.T
-        y_hat = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
+        # In-sample predictions on the original Y scale, labelled with Y's columns by the scaler
+        y_hat = self.y_preproc_.inverse_transform(work.super_scores @ work.super_y_loadings.T)
         y_hat.index = self._sample_index
         self.predictions_ = y_hat
 
-        self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / max(1, self.n_samples_ - 1)
+        # fit() has at least two rows: each block's MCUVScaler refuses fewer
+        self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / (self.n_samples_ - 1)
         self.scaling_factor_for_super_scores_ = pd.Series(
             np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
         )
@@ -865,14 +856,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 f"component(s) {failed}; results for those components may be unreliable.",
                 SpecificationWarning,
                 # Three frames up: this helper, ``fit``, and the sklearn ``_fit_context`` wrapper.
-                stacklevel=3,
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
 
     def _store_explained_variation(self, work: _MBPLSArrays) -> None:
         """Wrap the R² bookkeeping in pandas, and derive the per-block and super VIP from it."""
         component_names = list(range(1, self.n_components_ + 1))
-        r2_x_block_per_a = _cumulative_to_per_component(work.r2_x_block_cum)
-        r2_y_per_a = _cumulative_to_per_component(work.r2_y_cum)
+        r2_x_block_per_a = np.diff(work.r2_x_block_cum, prepend=0.0)
+        r2_y_per_a = np.diff(work.r2_y_cum, prepend=0.0)
 
         self.r2_x_per_block_cumulative_ = pd.DataFrame(
             work.r2_x_block_cum, index=self.block_names_, columns=component_names
@@ -938,15 +929,18 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "block_spe_")
         if block not in self.block_spe_:
             raise KeyError(f"Unknown block '{block}'. Known blocks: {list(self.block_spe_)}.")
-        return spe_calculation(self.block_spe_[block].iloc[:, -1].to_numpy(), conf_level=conf_level)
+        # A row with nothing observed in the block has no SPE there (NaN), and no part in its limit.
+        return spe_calculation(self.block_spe_[block].iloc[:, -1].dropna().to_numpy(), conf_level=conf_level)
 
     def super_spe_limit(self, conf_level: float = 0.95) -> float:
-        """SPE limit for the merged super-block (sum of per-block SPE squared)."""
+        """SPE limit for the merged super-block (sum of per-block SPE squared).
+
+        A block a row has nothing observed in leaves no residual in that row: its NaN SPE
+        counts as 0 in the sum.
+        """
         check_is_fitted(self, "block_spe_")
-        merged_spe_squared = np.zeros(self.n_samples_)
-        for name in self.block_names_:
-            merged_spe_squared += self.block_spe_[name].iloc[:, -1].to_numpy() ** 2
-        return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
+        spe = np.column_stack([self.block_spe_[name].iloc[:, -1].to_numpy() for name in self.block_names_])
+        return spe_calculation(np.sqrt(np.nansum(spe**2, axis=1)), conf_level=conf_level)
 
     def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
         """Per-variable squared residuals for each X-block (SPE contributions).
@@ -979,7 +973,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             block = X[name]
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
-            x_pp = self.preproc_[name].transform(block).values.astype(float)
+            x_pp = self.preproc_[name].transform(block).to_numpy()
             x_hat = super_scores @ self.block_loadings_[name].values.T
             residuals_sq = (x_pp - x_hat) ** 2
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
@@ -997,7 +991,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         missing = set(self.block_names_) - set(X)
         if missing:
             raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= int(component) <= a_max):
             msg = f"component must be a 1-based index within 1..{a_max}, got {component}."
             raise ValueError(msg)
@@ -1010,7 +1004,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if sample_index is None:
                 sample_index = block.index
-            x_def[name] = self.preproc_[name].transform(block).values.astype(float)
+            x_def[name] = self.preproc_[name].transform(block).to_numpy()
 
         sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
@@ -1018,7 +1012,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             weights = {name: self.block_weights_[name].values[:, a] for name in self.block_names_}
             t_super = np.nan_to_num(
                 _pooled_super_score(
-                    x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), w_s, self.block_names_
+                    x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), self.block_names_
                 )
             )
             for name in self.block_names_:
@@ -1123,7 +1117,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
         """Scatter plot of super-scores for two components."""
         check_is_fitted(self, "super_scores_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
         x = self.super_scores_[pc_horiz].to_numpy()
@@ -1151,7 +1145,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     def super_weights_bar_plot(self, component: int = 1) -> go.Figure:
         """Bar plot of super-weights ``w_super`` for a single component."""
         check_is_fitted(self, "super_weights_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         weights = self.super_weights_[component]
@@ -1178,8 +1172,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             variable = str(self.predictions_.columns[0])
         if variable not in self.predictions_.columns:
             raise ValueError(f"Unknown Y-variable '{variable}'. Known: {list(self.predictions_.columns)}.")
-        observed = pd.Series(y_observed[variable].values, name="observed").reset_index(drop=True)
-        predicted = pd.Series(self.predictions_[variable].values, name="predicted").reset_index(drop=True)
+        observed = pd.Series(y_observed[variable].to_numpy())
+        predicted = pd.Series(self.predictions_[variable].to_numpy())
         rmsee = float(np.sqrt(np.mean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
         lo = float(min(observed.min(), predicted.min()))
         hi = float(max(observed.max(), predicted.max()))
@@ -1213,11 +1207,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """Format a short text summary of per-block R²X, overall R²Y, iterations and timing."""
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
-        rows.append(f"MBPLS model: {self.n_components} component(s), {len(self.block_names_)} X-block(s)")
+        rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
         header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
         rows.append(header)
         rows.append("-" * len(header))
-        for a in range(self.n_components):
+        for a in range(self.n_components_):
             cells = [f"{i:>3d}" for i in [a + 1]]
             for name in self.block_names_:
                 src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
@@ -1243,7 +1237,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         DataFrame]), ``predictions`` (DataFrame on original Y scale),
         ``block_spe`` (dict[str, Series], per-block SPE of the new
         observations) and ``hotellings_t2`` (Series of cumulative
-        Hotelling's T² over all components, per new observation).
+        Hotelling's T² over all components, per new observation). A row with
+        nothing observed in a block has NaN for its block scores and its block
+        SPE there, as in ``block_scores_`` and ``block_spe_``.
 
         The rename (since 1.38.4, #395) matches :meth:`PLS.diagnose`
         and PCA.diagnose. The deprecated ``predict`` alias, which returned this
@@ -1403,15 +1399,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         total_width = sum(block.shape[1] for block in X.values())
 
         if isinstance(cv, int):
+            # One repeat of a RepeatedKFold is the shuffled KFold the docstring names: the same
+            # random_state draws the same folds.
             repeats = 10 if n_repeats is None else int(n_repeats)
-            splitter: BaseCrossValidator = (
-                KFold(cv, shuffle=True, random_state=random_state)
-                if repeats == 1
-                else RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
-            )
+            splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
             n_splits = cv
         else:
-            splitter, repeats, n_splits = cv, 1, cv.get_n_splits(y)
+            splitter, n_splits = cv, cv.get_n_splits(y)
 
         if max_components is not None and int(max_components) < 1:
             raise ValueError(f"max_components must be at least 1; got {max_components}.")
@@ -1425,45 +1419,47 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         component_index = pd.Index(range(1, A + 1), name="n_components")
         targets = list(y.columns)
+        values = y.to_numpy(dtype=float)
         press = np.zeros((A, len(targets)))
         per_fold = np.full((A, len(splits)), np.nan)
+        # Held-out predictions are gathered by row position, as rows may share a label.
         gathered: dict[int, list[pd.DataFrame]] = {a: [] for a in component_index}
         tested = np.zeros(n_samples)  # how often each row is held out, which need not be uniform
 
         for fold, (train, test) in enumerate(splits):
             tested[test] += 1.0
-            tr, te = y.index[train], y.index[test]
             train_blocks = {name: block.iloc[train] for name, block in X.items()}
             test_blocks = {name: block.iloc[test] for name, block in X.items()}
             for a in component_index:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", SpecificationWarning)
-                    model = cls(n_components=a, **mbpls_kwargs).fit(train_blocks, y.loc[tr])
-                    predicted = model.diagnose(test_blocks).predictions
-                residual = y.loc[te].to_numpy(dtype=float) - np.asarray(predicted, dtype=float)
+                    model = cls(n_components=a, **mbpls_kwargs).fit(train_blocks, y.iloc[train])
+                    predicted = model.predict(test_blocks).to_numpy()
+                residual = values[test] - predicted
                 press[a - 1] += np.nansum(residual**2, axis=0)
                 per_fold[a - 1, fold] = float(np.sqrt(np.nanmean(residual**2)))
-                gathered[a].append(pd.DataFrame(predicted, index=te, columns=targets))
+                gathered[a].append(pd.DataFrame(predicted, index=test, columns=targets))
 
         # Weight the "predict the mean" reference by the same per-row coverage that
         # built PRESS, so each row counts in the denominator exactly as often as it
         # counted in the numerator. A splitter that tests some rows more than others,
         # or not at all, is then handled exactly rather than by a flat repeat count.
         # This is what PLS.select_n_components does, and both sides are on the
-        # original Y scale, so the two are directly comparable.
-        values = y.to_numpy(dtype=float)
+        # original Y scale, so the two are directly comparable. A target with no spread has
+        # no R²: dividing by NaN in place of 0 gives NaN without a warning.
         centred_sq = (values - np.nanmean(values, axis=0)) ** 2
         tss = np.nansum(tested[:, None] * centred_sq, axis=0)
-        per_target = np.where(tss > 0, 1.0 - press / np.where(tss > 0, tss, 1.0), np.nan)
-        total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
+        per_target = 1.0 - press / np.where(tss > 0, tss, np.nan)
+        total = 1.0 - press.sum(axis=1) / (tss.sum() if tss.sum() > 0 else np.nan)
 
         n_predicted = float(tested.sum())
         rmsecv = pd.Series(
             np.sqrt(press.sum(axis=1) / max(n_predicted * len(targets), 1.0)), index=component_index, name="RMSECV"
         )
+        # A component with fewer than two folds has no spread (NaN), and nanstd warns of it.
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            se = np.nanstd(per_fold, axis=1, ddof=1) / np.sqrt(np.maximum(1, np.sum(~np.isnan(per_fold), axis=1)))
+            warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - only RuntimeWarnings arise here
+            se = np.nanstd(per_fold, axis=1, ddof=1) / np.sqrt(np.sum(~np.isnan(per_fold), axis=1))
         se_rmsecv = pd.Series(se, index=component_index, name="SE of RMSECV")
         r2y_validated = pd.DataFrame(
             np.column_stack([per_target, total, _equal_weight_r2_total(per_target)]),
@@ -1477,7 +1473,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             se_error=se_rmsecv.to_numpy(),
             q2_cumulative=r2y_validated["total"].to_numpy(),
         )
-        held_out = pd.concat(gathered[recommended]).groupby(level=0).mean().reindex(y.index)
+        held_out = pd.concat(gathered[recommended]).groupby(level=0).mean().reindex(range(n_samples)).set_axis(y.index)
 
         return Bunch(
             n_components=int(recommended),
@@ -1500,8 +1496,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         if missing:
             raise ValueError(f"Missing X-blocks for prediction: {sorted(missing)}.")
 
-        # Preprocess each block
-        x_pp: dict[str, np.ndarray] = {}
+        # Preprocess each block. Each deflation below binds a new array, so the blocks are not copied.
+        x_def: dict[str, np.ndarray] = {}
         sample_index: pd.Index | None = None
         for name in self.block_names_:
             block = X[name]
@@ -1509,30 +1505,34 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
                 raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
-            x_pp[name] = self.preproc_[name].transform(block).values.astype(float)
+            x_def[name] = self.preproc_[name].transform(block).to_numpy()
             if sample_index is None:
                 sample_index = block.index
 
-        n_components = int(self.n_components)
-        n_new = next(iter(x_pp.values())).shape[0]
+        n_components = self.n_components_
+        n_new = next(iter(x_def.values())).shape[0]
         sqrt_kb = self._block_scale()
 
         super_scores = np.zeros((n_new, n_components))
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
 
-        x_def = {name: x_pp[name].copy() for name in self.block_names_}
-        block_has_data = {name: _rows_with_data(x_pp[name]) for name in self.block_names_}
+        # A row with nothing observed in a block has no score there, nor an SPE, as in fit.
+        block_has_data = {name: _rows_with_data(x_def[name]) for name in self.block_names_}
         for a in range(n_components):
             weights = {}
             for name in self.block_names_:
                 w_b = self.block_weights_[name].values[:, a]
                 weights[name] = w_b
-                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1), per="row").flatten() / sqrt_kb[name]
-                block_scores[name][:, a] = np.where(block_has_data[name], t_b, np.nan)
+                t_b = quick_regress(x_def[name], w_b[:, np.newaxis], per="row").flatten() / sqrt_kb[name]
+                block_scores[name][:, a] = np.where(
+                    block_has_data[name],
+                    t_b,
+                    np.nan,  # pragma: no mutate - None reads as NaN in a float array
+                )
             w_s = self.super_weights_.values[:, a]
             # The same pooled regression the fit uses, so a projected score matches a fitted one.
             t_super = _pooled_super_score(
-                x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), w_s, self.block_names_
+                x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), self.block_names_
             )
             super_scores[:, a] = t_super
             t_super_finite = np.nan_to_num(t_super)
@@ -1546,14 +1546,18 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             name: pd.DataFrame(block_scores[name], index=sample_index, columns=component_names)
             for name in self.block_names_
         }
-        y_hat_pp = super_scores @ self.super_y_loadings_.values.T
-        predictions = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
+        # Labelled with Y's columns by the scaler
+        predictions = self.y_preproc_.inverse_transform(super_scores @ self.super_y_loadings_.values.T)
         assert sample_index is not None  # block_names_ is non-empty, so it was set in the loop
         predictions.index = sample_index
 
         # Per-block SPE for new observations (residual after final deflation)
         block_spe = {
-            name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
+            name: pd.Series(
+                np.where(block_has_data[name], np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), np.nan),
+                index=sample_index,
+                name=f"SPE[{name}]",
+            )
             for name in self.block_names_
         }
         # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
@@ -1631,7 +1635,7 @@ def randomization_test_mbpls(
     """
     check_is_fitted(model, "super_scores_")
     rng = np.random.default_rng(seed)
-    a_components = int(model.n_components)
+    a_components = model.n_components_
 
     def _objective(mod: MBPLS) -> np.ndarray:
         t = mod.super_scores_.values
@@ -1647,17 +1651,12 @@ def randomization_test_mbpls(
         return out
 
     observed = _objective(model)
-    n_exceed = np.zeros(a_components, dtype=int)
-    n_samples = y.shape[0]
+    n_exceed = np.zeros(a_components)
+    # fit reads the blocks and Y by position, never aligning their row labels, so the
+    # permuted rows of Y meet the blocks' rows as they stand.
     for _ in range(int(n_permutations)):
-        perm_idx = rng.permutation(n_samples)
-        y_perm = y.iloc[perm_idx].reset_index(drop=True)
-        # Reset X indices to align row positions (otherwise pandas will
-        # join on index and silently misalign).
-        x_reset = {name: X[name].reset_index(drop=True) for name in X}
-        permuted_model = MBPLS(n_components=a_components).fit(x_reset, y_perm)
-        stat = _objective(permuted_model)
-        n_exceed += (stat >= observed).astype(int)
+        permuted_model = MBPLS(n_components=a_components).fit(X, y.iloc[rng.permutation(len(y))])
+        n_exceed += _objective(permuted_model) >= observed
 
     component_names = list(range(1, a_components + 1))
     # See the `risk_pct` note in the docstring for why both sides carry the + 1.
