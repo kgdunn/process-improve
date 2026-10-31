@@ -1472,6 +1472,24 @@ def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
     assert (stretched.press_input_units > base.press_input_units).all()
 
 
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek", "sacv", "gcv"])
+def test_pca_select_n_components_is_scale_invariant_in_small_units(scheme: str) -> None:
+    """A column 1e9 times smaller is standardised as any other, in every scheme (#1029).
+
+    Its standard deviation, near 1e-9, was below the sqrt(eps) that was taken for a
+    constant column's, so it was left unscaled and dropped out of PRESS: with the
+    element-wise scheme the curve moved from 93.6, 62.9, ... to 87.9, 45.0, ....
+    """
+    rng = np.random.default_rng(0)
+    T, P = rng.standard_normal((40, 2)), rng.standard_normal((6, 2))
+    X = pd.DataFrame(T @ P.T + 0.3 * rng.standard_normal((40, 6)), columns=list("abcdef"))
+    kwargs = {"max_components": 4, "cv_scheme": scheme, "random_state": 0}
+    base = PCA.select_n_components(X, **kwargs)
+    shrunk = PCA.select_n_components(X.assign(a=X["a"] * 1e-9), **kwargs)
+    np.testing.assert_allclose(shrunk.press.to_numpy(), base.press.to_numpy(), rtol=1e-8)
+    np.testing.assert_allclose(shrunk.q2.to_numpy(), base.q2.to_numpy(), rtol=1e-8, atol=1e-10)
+
+
 def test_pca_select_n_components_ekf_q2_per_variable_reconciles() -> None:
     """The per-variable Q2 splits the pooled figure rather than restating it (#546)."""
     rng = np.random.default_rng(12)
@@ -9240,7 +9258,7 @@ def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: i
     Each repeat deals the observed cells, in an order drawn from ``seed``, into ``n_folds``
     folds of ``n_cells // n_folds`` cells, the last fold taking the rest. In a fold, each
     column's centre is the mean of its cells neither held out nor missing, and, when scaling,
-    its spread their sd, kept at 1 for fewer than two cells or an sd of at most epsqrt. The
+    its spread their sd, kept at 1 for fewer than two cells or cells all equal, in any units. The
     unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
     (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
     scaled change is below ``tol`` times the norm of their scaled values (at least 1), or
@@ -9267,7 +9285,7 @@ def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: i
             spread = np.array(
                 [
                     cells_j.std(ddof=1)
-                    if settings["scale"] and cells_j.size > 1 and cells_j.std(ddof=1) > epsqrt
+                    if settings["scale"] and cells_j.size > 1 and cells_j.max() > cells_j.min()
                     else 1.0
                     for cells_j in known
                 ]
@@ -9308,7 +9326,7 @@ _EKF_CASES = {
     "gappy, loose tolerance": (_gappy_block(), 3, 4, 1, 0.05, True),
     "gappy, unscaled": (_gappy_block(), 3, 4, 1, 0.05, False),
     "fewer cells than folds": (np.array([[1.0, 2.0], [3.0, 4.5]]), 1, 5, 1, 1e-6, True),
-    "an in-fold sd of exactly epsqrt": (
+    "an in-fold sd of 2**-26": (
         np.array([[-(2.0**-26), 1.0], [0.0, 2.0], [2.0**-26, 0.5], [1.0, -1.0]]),
         1,
         8,
@@ -9326,7 +9344,8 @@ def test_ekf_press_by_hand(case: str) -> None:
     The cases reach each branch: two repeats; a constant column (spread 1), a column with
     one or two cells left in a fold, a fold missing a column altogether; the unscaled
     variant; folds with no cells; and, one cell per fold, a column whose in-fold sd is
-    ``2**-26`` exactly, which is not above epsqrt and so is not divided by.
+    ``2**-26``, which is divided by as any other: a column is constant when its cells are
+    all equal, not when its sd is small (#1029).
     """
     X, A, n_folds, n_repeats, tol, scale = _EKF_CASES[case]
     settings = {"n_folds": n_folds, "n_repeats": n_repeats, "ekf_max_iter": 50, "ekf_tol": tol}
@@ -9354,17 +9373,17 @@ def test_ekf_null_reference_without_in_fold_scaling_is_the_centred_sum_of_square
 
 
 def test_cell_scheme_preprocessing_by_hand() -> None:
-    """Each column is centred and divided by its sd, unless the sd is below epsqrt.
+    """Each column is centred and divided by its sd, in any units: only a constant column is not.
 
-    An sd of exactly ``2**-26`` (epsqrt) still divides; ``2**-27`` does not, and a constant
-    column is all zeros either way.
+    An sd of ``2**-26`` (epsqrt) divides, and so does one of ``2**-27``, which until #1029 did
+    not; a constant column is all zeros.
     """
     from process_improve.multivariate._pca import _preprocess_for_cell_schemes
 
     d = 2.0**-26
     X = np.array([[1.0, -d, -d / 2, 4.0], [2.0, 0.0, 0.0, 4.0], [6.0, d, d / 2, 4.0]])
     assert X[:, 1].std(ddof=1) == epsqrt
-    expected = np.column_stack([(X[:, 0] - 3.0) / X[:, 0].std(ddof=1), [-1.0, 0.0, 1.0], X[:, 2], np.zeros(3)])
+    expected = np.column_stack([(X[:, 0] - 3.0) / X[:, 0].std(ddof=1), [-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], np.zeros(3)])
     np.testing.assert_array_equal(_preprocess_for_cell_schemes(X, "ek"), expected)
 
 
