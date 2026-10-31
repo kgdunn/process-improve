@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import pytest
 
+from process_improve.experiments.designs_screening import _MIN_ABERRATION
+from process_improve.experiments.evaluate import _defining_relation_strings, _signed_defining_relation
 from process_improve.experiments.trade_off import (
     SearchLimitError,
     _alias_chains,
+    _factor_names,
     get_trade_off_table_entry,
     minimum_aberration_generators,
     trade_off_table,
@@ -234,6 +237,31 @@ class TestMinimumAberrationGenerators:
     def test_no_generators_means_no_alias_chains(self):
         """A design with no defining relation aliases nothing."""
         assert _alias_chains([], ["A", "B", "C"]) == []
+
+
+class TestDefiningWordsArePositive:
+    """The report writes its defining words and alias chains without signs, which is exact only for positive generators.
+
+    Its generators come only from ``minimum_aberration_generators``: from the search, which writes
+    ``name=word``, or from the ``_MIN_ABERRATION`` catalogue past the search limit. A generator such
+    as ``D=-AB`` would be reported as ``I=ABD`` instead of ``I=-ABD``.
+    """
+
+    def test_catalogue_has_no_negative_word(self):
+        for k, by_runs in _MIN_ABERRATION.items():
+            for n_runs, generators in by_runs.items():
+                signed = _signed_defining_relation(list(generators), _factor_names(k))
+                assert all(sign == 1 for _word, sign in signed), (k, n_runs, generators)
+
+    def test_report_agrees_with_the_signed_defining_relation(self):
+        """Each fractional cell of the default table (searched), and each cell taken from the catalogue."""
+        table = trade_off_table(display=False)
+        cells = [(r, k) for r in table.index for k in table.columns if table.loc[r, k].startswith("2^(")]
+        cells += [(64, 11), (128, 11), (256, 11)]  # past the search limit
+        for n_runs, n_factors in cells:
+            entry = get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False)
+            signed = _defining_relation_strings(entry.generators, _factor_names(n_factors))
+            assert entry.defining_relation == signed, (n_runs, n_factors)
 
 
 # ---------------------------------------------------------------------------
