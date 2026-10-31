@@ -1044,3 +1044,259 @@ def test_ewma_factors_of_0_and_1_are_kept_as_one_float_per_variable(
     ]:
         assert getattr(model, name).dtype == np.float64
         np.testing.assert_array_equal(getattr(model, name), expected)
+
+
+# --------------------------------------------------------------------------- #
+# AdaptivePCA: its settings, its fit, and its projection, by hand
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_the_documented_defaults(cls: type) -> None:
+    """Each estimator's defaults are the ones its docstring gives."""
+    defaults = {
+        "forgetting_factor": 0.02,
+        "gamma": 0.1,
+        "lambda_center": 0.02,
+        "alpha_scale": 0.01,
+        "update_when_out_of_control": False,
+        "adaptive_spe_limit": True,
+        "spe_limit_window": 200,
+        "conf_level": 0.95,
+    }
+    if cls is AdaptivePLS:
+        defaults |= {"lambda_center_y": 0.02, "alpha_scale_y": 0.01}
+    assert cls(n_components=2).get_params() == {"n_components": 2, **defaults}
+
+
+def _two_pairs() -> pd.DataFrame:
+    """Two pairs of tags with no covariance between the pairs, exactly: each row moves one pair, about a mean of 0."""
+    return pd.DataFrame(
+        {
+            "a": [1.0, -1.0, 2.0, -2.0, 0.0, 0.0, 0.0, 0.0],
+            "b": [1.0, -1.0, 1.0, -1.0, 0.0, 0.0, 0.0, 0.0],
+            "c": [0.0, 0.0, 0.0, 0.0, 3.0, -3.0, 1.0, -1.0],
+            "d": [0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 3.0, -3.0],
+        }
+    )
+
+
+def _scp_by_hand(scaled: np.ndarray, loadings: np.ndarray) -> tuple[np.ndarray, float]:
+    """Single-component projection (Nelson, Taylor and MacGregor, 1996) of one row with missing entries.
+
+    Each component in turn: its score is the observed part of the row on the observed part of
+    its loading, over that part's squared length (0 when nothing of it is observed), and is
+    deflated from the row. The SPE is the length of what is left.
+    """
+    observed = ~np.isnan(scaled)
+    left = scaled[observed]
+    scores = []
+    for loading in loadings.T:
+        part = loading[observed]
+        score = left @ part / (part @ part) if part @ part > 1e-8 else 0.0
+        left = left - score * part
+        scores.append(score)
+    return np.array(scores), float(np.linalg.norm(left))
+
+
+def test_adaptive_pca_projects_a_row_with_missing_values_one_component_at_a_time(
+    synthetic_pca_data: pd.DataFrame,
+) -> None:
+    """The scores and SPE of a row with missing values, by single-component projection, and T2 from those scores.
+
+    On the two pairs, the second component loads only on the missing pair, so its score is 0.
+    """
+    X = synthetic_pca_data
+    model = AdaptivePCA(n_components=3).fit(X)
+    _, loadings, variances, _ = _pca_by_svd(X, 3)
+    row = X.iloc[3].to_numpy().copy()
+    row[[1, 4]] = np.nan
+    scores, spe = _scp_by_hand(((row - X.mean()) / X.std()).to_numpy(), loadings)
+    out = model.update(row)
+    np.testing.assert_allclose(out.scores, scores, rtol=1e-9)
+    assert out.spe == pytest.approx(spe, rel=1e-9)
+    assert out.hotellings_t2 == pytest.approx(float(np.sum(scores**2 / variances)), rel=1e-9)
+
+    pairs = _two_pairs()
+    model = AdaptivePCA(n_components=2).fit(pairs)
+    row = np.array([0.5, 1.5, np.nan, np.nan])
+    scaled = row / pairs.std().to_numpy()
+    first = (scaled[0] + scaled[1]) / np.sqrt(2.0)  # the first loading is (1, 1, 0, 0) / sqrt(2)
+    out = model.update(row)
+    np.testing.assert_allclose(out.scores, [first, 0.0], rtol=1e-12, atol=1e-15)
+    assert out.spe == pytest.approx(abs(scaled[0] - scaled[1]) / np.sqrt(2.0), rel=1e-12)
+
+
+def test_a_component_with_no_spread_carries_no_t2(synthetic_pca_data: pd.DataFrame) -> None:
+    """With a constant tag, the third of three components has no variance, and T2 leaves it out (#1029).
+
+    So do PCA and PLS, through one rule. Its variance used to be raised to eps instead, so a
+    row moving the constant tag by 0.01 had a T2 of 4.5e11 and was out of control.
+    """
+    X = synthetic_pca_data.iloc[:, :3].assign(v2=1.0)
+    model = AdaptivePCA(n_components=3).fit(X)
+    _, loadings, variances, _ = _pca_by_svd(X.iloc[:, :2], 2)
+    row = X.iloc[0].to_numpy() + np.array([0.0, 0.0, 0.01])
+    scores = ((row[:2] - X.iloc[:, :2].mean()) / X.iloc[:, :2].std()).to_numpy() @ loadings
+    out = model.update(row)
+    assert out.hotellings_t2 == pytest.approx(float(np.sum(scores**2 / variances)), rel=1e-9)
+    assert out.in_control
+
+
+def test_adaptive_pca_fits_an_array_with_missing_cells(synthetic_pca_data: pd.DataFrame) -> None:
+    """A missing training cell is 0 after centring and scaling (by the observed mean and sd), so adds nothing to X'X.
+
+    An array has its columns and components numbered; the model records its size.
+    """
+    values = synthetic_pca_data.to_numpy().copy()
+    values[[2, 7], [0, 3]] = np.nan
+    model = AdaptivePCA(n_components=2).fit(values)
+    scaled = np.nan_to_num((values - np.nanmean(values, axis=0)) / np.nanstd(values, axis=0, ddof=1))
+    np.testing.assert_allclose(model.XtX0_, scaled.T @ scaled, rtol=1e-12)
+    assert (model.n_features_in_, model.n_samples_, model.n_components_) == (8, 250, 2)
+    assert list(model.loadings_.index) == list(range(8))
+    assert list(model.loadings_.columns) == [1, 2]
+    factor = model.scaling_factor_for_scores_
+    assert (list(factor.index), factor.name) == ([1, 2], "Standard deviation per score")
+    np.testing.assert_allclose(factor, np.sqrt(model.explained_variance_), rtol=1e-15)
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_the_bounds_of_the_forgetting_factor_and_gamma_are_allowed(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """Both are checked to lie in [0, 1], inclusive."""
+    X, Y = synthetic_pls_data
+    for value in (0.0, 1.0):
+        model = _fit_either(cls, X, Y, forgetting_factor=value, gamma=value)
+        assert (model.forgetting_factor, model.gamma) == (value, value)
+
+
+def test_the_t2_limit_and_each_field_of_an_update(synthetic_pca_data: pd.DataFrame) -> None:
+    """The T2 limit is the F-based one for a new row, A (N - 1)(N + 1) / (N (N - A)) F(A, N - A), at conf_level."""
+    X = synthetic_pca_data
+    model = AdaptivePCA(n_components=3, conf_level=0.9).fit(X)
+    n = len(X)
+    limit = 3 * (n - 1) * (n + 1) / (n * (n - 3)) * stats.f.ppf(0.9, 3, n - 3)
+    out = model.update(X.iloc[0].to_numpy())
+    assert out.hotellings_t2_limit == pytest.approx(limit, rel=1e-12)
+    assert out.distance == model.distance_.iloc[-1]
+    assert out.updated is True
+    assert out.in_control is True
+    wild = model.update(X.iloc[0].to_numpy() + 50.0)
+    assert (wild.updated, wild.in_control) == (False, False)
+    assert sorted(out) == sorted(
+        ["scores", "hotellings_t2", "spe", "spe_limit", "hotellings_t2_limit", "in_control", "updated", "distance"]
+    )
+
+
+def test_the_rolling_spe_limit_waits_for_a_plus_2_values_past_20() -> None:
+    """With 19 components the window must hold 21 SPEs, not 20, before the rolling limit takes over."""
+    rng = np.random.default_rng(3)
+    train = pd.DataFrame(rng.standard_normal((30, 25)))
+    _, _, _, spe = _pca_by_svd(train, 19)
+    for window, expected in [(20, spe), (21, spe[-21:])]:
+        model = AdaptivePCA(n_components=19, spe_limit_window=window).fit(train)
+        assert model.update(train.iloc[0].to_numpy()).spe_limit == pytest.approx(
+            _spe_limit_by_hand(expected, 0.95), rel=1e-9
+        )
+
+
+def test_the_default_window_holds_the_last_200_training_spes(synthetic_pca_data: pd.DataFrame) -> None:
+    """Of the 250 training rows, the first update's limit is fitted to the last 200 SPEs."""
+    _, _, _, spe = _pca_by_svd(synthetic_pca_data, 3)
+    model = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
+    limit = model.update(synthetic_pca_data.iloc[0].to_numpy()).spe_limit
+    assert limit == pytest.approx(_spe_limit_by_hand(spe[-200:], 0.95), rel=1e-9)
+
+
+def test_a_model_of_constant_tags_stays_at_a_kernel_of_zeros() -> None:
+    """Every tag constant: X'X is 0, and an update leaves it there, with an injection and a kernel change of 0."""
+    X = pd.DataFrame({"a": [2.0] * 5, "b": [-1.0] * 5})
+    model = AdaptivePCA(n_components=2, update_when_out_of_control=True).fit(X)
+    out = model.update(np.array([2.5, -1.0]))
+    assert out.updated
+    np.testing.assert_array_equal(model.XtX_, np.zeros((2, 2)))
+    np.testing.assert_array_equal(model.injection_ratio_, [0.0])
+    np.testing.assert_array_equal(model.kernel_update_norm_, [0.0])
+
+
+def test_one_update_of_a_kernel_of_trace_1() -> None:
+    """Two rows and one varying tag: X'X is [[1, 0], [0, 0]], whose trace and norm are 1.
+
+    With gamma = mu = 1 and no moving centre or scale, the new kernel is x x' + f [[1, 0], [0, 0]]
+    with f = ||x||^2, rescaled to a trace of 1; the kernel change is its distance from the old one.
+    """
+    X = pd.DataFrame({"a": [0.0, 1.0], "b": [3.0, 3.0]})
+    params = {"forgetting_factor": 1.0, "gamma": 1.0, "lambda_center": 0.0, "alpha_scale": 0.0}
+    model = AdaptivePCA(n_components=2, update_when_out_of_control=True, **params).fit(X)
+    x = np.array([(0.25 - 0.5) / np.sqrt(0.5), 0.5])  # scaled by the training mean and sd; a constant tag by 1
+    kernel = np.diag([1.0, 0.0])
+    moved = np.outer(x, x) + float(x @ x) * kernel
+    moved /= np.trace(moved)
+    model.update(np.array([0.25, 3.5]))
+    np.testing.assert_allclose(model.XtX_, moved, rtol=1e-12)
+    np.testing.assert_allclose(model.injection_ratio_, [float(x @ x)], rtol=1e-12)
+    np.testing.assert_allclose(model.kernel_update_norm_, [np.linalg.norm(moved - kernel)], rtol=1e-12)
+    np.testing.assert_allclose(model.explained_variance_[0], np.linalg.eigvalsh(moved)[-1], rtol=1e-12)
+
+
+def test_an_update_with_a_missing_value_puts_it_at_the_centre_in_the_kernel(synthetic_pca_data: pd.DataFrame) -> None:
+    """The kernel takes the row scaled with the moved centre and scale, its missing entry as 0; None is missing too."""
+    X = synthetic_pca_data
+    mu, gamma = 0.2, 0.0
+    model = AdaptivePCA(n_components=3, forgetting_factor=mu, gamma=gamma, update_when_out_of_control=True).fit(X)
+    kernel = model.XtX0_.copy()
+    row = X.iloc[4].to_numpy().copy()
+    row[2] = np.nan
+    centre, scale = model.mx_.copy(), model.sx_.copy()
+    model.update([*row[:2], None, *row[3:]])
+    new_scale = np.sqrt(0.99 * scale**2 + 0.01 * (row - centre) ** 2)
+    new_centre = centre + 0.02 * (row - centre)
+    x = np.nan_to_num((row - new_centre) / new_scale)
+    assert x[2] == 0.0
+    moved = (1 - mu) * kernel + mu * np.outer(x, x)
+    np.testing.assert_allclose(model.XtX_, moved * np.trace(kernel) / np.trace(moved), rtol=1e-12)
+
+
+def test_adaptive_pca_transform_by_hand(synthetic_pca_data: pd.DataFrame) -> None:
+    """Scores of the current model, with no update: of an array, a labelled frame, mixed types, no rows."""
+    X = synthetic_pca_data
+    model = AdaptivePCA(n_components=2).fit(X)
+    _, loadings, _, _ = _pca_by_svd(X, 2)
+    np.testing.assert_allclose(model.loadings_, loadings, rtol=0, atol=1e-12)
+    assert list(model.loadings_.index) == list(X.columns)
+    rows = X.iloc[:4]
+    expected = ((rows - X.mean()) / X.std()).to_numpy() @ loadings
+    labelled = rows.set_axis(["p", "q", "r", "s"])
+    np.testing.assert_allclose(model.transform(labelled), expected, rtol=1e-9)
+    assert list(model.transform(labelled).index) == ["p", "q", "r", "s"]
+    assert list(model.transform(labelled).columns) == [1, 2]
+    by_array = model.transform(rows.to_numpy())
+    assert list(by_array.index) == [0, 1, 2, 3]
+    np.testing.assert_allclose(by_array, expected, rtol=1e-9)
+    mixed = rows.astype({"v0": "Float64"}).assign(v1=[True, False, True, False])
+    mixed.loc[mixed.index[1], "v0"] = pd.NA
+    flags = rows.assign(v1=[1.0, 0.0, 1.0, 0.0]).astype(float)
+    flags.iloc[1, 0] = np.nan
+    np.testing.assert_allclose(model.transform(mixed), model.transform(flags), rtol=1e-15)
+    assert model.transform(rows.iloc[:0]).shape == (0, 2)
+    assert model.distance_.empty
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_partial_fit_reads_a_frame_of_mixed_types(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """A nullable column's missing value is NaN, and a flag is 0 or 1, in X and in Y alike."""
+    X, Y = synthetic_pls_data
+    mixed_model, float_model = (_fit_either(cls, X, Y, update_when_out_of_control=True) for _ in range(2))
+    rows = X.iloc[:3].astype({"x0": "Float64"}).assign(x1=[True, False, True])
+    rows.loc[rows.index[1], "x0"] = pd.NA
+    floats = rows.astype({"x0": float, "x1": float})
+    y_mixed = Y.iloc[:3].astype("Float64")
+    y_mixed.iloc[2, 0] = pd.NA
+    mixed_model.partial_fit(rows, y_mixed if cls is AdaptivePLS else None)
+    float_model.partial_fit(floats, y_mixed.astype(float) if cls is AdaptivePLS else None)
+    np.testing.assert_array_equal(mixed_model.XtX_, float_model.XtX_)
+    np.testing.assert_array_equal(mixed_model.spe_, float_model.spe_)

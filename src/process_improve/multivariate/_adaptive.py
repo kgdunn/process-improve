@@ -75,6 +75,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
 from ._common import DataMatrix, epsqrt
+from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import _kernel_pls, _sign_align
@@ -142,6 +143,16 @@ def _subspace_distance(reference: np.ndarray, current: np.ndarray) -> float:
     """
     cross = reference.T @ current
     return float(np.trace(cross @ cross.T))
+
+
+def _as_rows(X: DataMatrix) -> tuple[pd.Index, np.ndarray]:
+    """Return the row labels of ``X`` (0, 1, ... for an array) and its values as floats.
+
+    ``to_numpy(dtype=float)`` reads a missing value of a nullable column as NaN and a
+    flag as 0 or 1, in a frame of mixed column types as in any other.
+    """
+    frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+    return frame.index, frame.to_numpy(dtype=float)
 
 
 def _ewma_step(
@@ -257,6 +268,16 @@ class _AdaptiveModel(_LatentVariableModel):
         """Advance the X-space EWMA centering and scaling vectors by one observation."""
         self.mx_, self.sx_ = _ewma_step(self.mx_, self.sx_, x0, self.lambda_center_, self.alpha_scale_)
 
+    def _update_scaling_factor(self) -> None:
+        """Recompute the per-score standard deviations used for Hotelling's T2."""
+        self.scaling_factor_for_scores_ = pd.Series(
+            np.sqrt(self.explained_variance_), index=self._component_names, name="Standard deviation per score"
+        )
+
+    def _hotellings_t2(self, scores: np.ndarray) -> float:
+        """Return one row's Hotelling's T2, leaving out a component with no spread as PCA and PLS do."""
+        return float(np.sum((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
+
     def _current_spe_limit(self) -> float:
         """Return the SPE limit: rolling-window adaptive, or the fixed training limit."""
         if self.adaptive_spe_limit and len(self._spe_buffer) >= self._min_spe_window:
@@ -280,12 +301,10 @@ class _AdaptiveModel(_LatentVariableModel):
         self : _AdaptiveModel
         """
         check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        # Rows by position: update() reads each as floats, and Y's labels are not used.
-        Y_rows = None if Y is None else np.asarray(Y)
-        for pos, label in enumerate(X_df.index):
-            y_row = None if Y_rows is None else Y_rows[pos]
-            self.update(X_df.iloc[pos].to_numpy(), y_row=y_row, label=label)
+        labels, rows = _as_rows(X)
+        y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
+        for pos, label in enumerate(labels):
+            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label)
         return self
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
@@ -582,14 +601,13 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)
-        self.mx_ = self._scaler.center_.to_numpy(dtype=float).copy()
-        self.sx_ = self._scaler.scale_.to_numpy(dtype=float).copy()
+        self.mx_ = self._scaler.center_.to_numpy().copy()
+        self.sx_ = self._scaler.scale_.to_numpy().copy()
         self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
         self._sx0 = self.sx_.copy()
-        self._last_injection = 0.0
-        self._last_kernel_norm = 0.0
 
-        Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
+        # A missing cell is 0: at the centre, it adds nothing to X'X.
+        Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy())
         self.XtX0_ = Xs.T @ Xs
         self.XtX_ = self.XtX0_.copy()
         # Nuclear norm of the kernel. For a symmetric PSD matrix this is the sum
@@ -604,7 +622,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         loadings, eigenvalues = _kernel_pca(self.XtX0_, A)
         self.loadings0_ = loadings.copy()
         self._loadings = loadings.copy()
-        self.explained_variance_ = eigenvalues / max(1, N - 1)
+        self.explained_variance_ = eigenvalues / (N - 1)  # MCUVScaler refused fewer than 2 rows
         self._update_scaling_factor()
 
         # Initialise the limits, and the rolling SPE window, from the training SPE
@@ -626,15 +644,6 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         """The current loadings ``P`` as a DataFrame (features x components)."""
         return pd.DataFrame(self._loadings, index=self._feature_names, columns=self._component_names)
 
-    def _update_scaling_factor(self) -> None:
-        """Recompute the per-score standard deviations used for Hotelling's T2."""
-        var = self.explained_variance_
-        self.scaling_factor_for_scores_ = pd.Series(
-            np.sqrt(np.clip(var, a_min=epsqrt**2, a_max=None)),
-            index=self._component_names,
-            name="Standard deviation per score",
-        )
-
     def _project(self, x0: np.ndarray) -> tuple[np.ndarray, float, float, np.ndarray]:
         """Project one raw observation onto the current model.
 
@@ -646,24 +655,23 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         """
         x = (x0 - self.mx_) / self.sx_
         P = self._loadings
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
         missing = np.isnan(x)
         if not missing.any():
             t = x @ P
             residual = x - P @ t
             spe = float(np.sqrt(residual @ residual))
         else:
-            x_obs = np.where(missing, 0.0, x)
-            deflate = x_obs.copy()
+            deflate = np.where(missing, 0.0, x)
             t = np.zeros(P.shape[1])
             for a in range(P.shape[1]):
                 p_a = np.where(missing, 0.0, P[:, a])
                 denom = float(p_a @ p_a)
-                t[a] = float(deflate @ p_a) / denom if denom > epsqrt else 0.0
+                # A loading with (almost) nothing observed gives no score.
+                observed = denom > epsqrt  # pragma: no mutate - >= differs only at a denom of exactly epsqrt
+                t[a] = float(deflate @ p_a) / denom if observed else 0.0
                 deflate = deflate - t[a] * p_a
             spe = float(np.sqrt(deflate @ deflate))
-        t2 = float(np.sum((t / s) ** 2))
-        return t, t2, spe, x
+        return t, self._hotellings_t2(t), spe, x
 
     def _recompute(self, x_scaled: np.ndarray) -> None:
         """Update the kernel with one scaled observation and recompute the loadings."""
@@ -675,7 +683,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
         new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
         norm_xx = float(np.trace(new_xx))
-        if norm_xx > epsqrt:
+        if norm_xx > epsqrt:  # pragma: no mutate - >= differs only at a trace of exactly epsqrt
             new_xx = new_xx * (self._norm_xx0 / norm_xx)
         # Diagnostics: injection weight and the relative size of this step's change.
         self._last_injection = f_x
@@ -685,9 +693,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
 
         loadings, eigenvalues = _kernel_pca(self.XtX_, self.n_components)
         signs = _sign_align(loadings, self._loadings)
-        loadings *= signs
+        loadings *= signs  # pragma: no mutate - the signs are +1 and -1, which / reads the same
         self._loadings = loadings
-        self.explained_variance_ = eigenvalues / max(1, self.n_samples_ - 1)
+        self.explained_variance_ = eigenvalues / (self.n_samples_ - 1)
         self._update_scaling_factor()
 
     def update(
@@ -718,7 +726,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         x0 = np.asarray(x_row, dtype=float).ravel()
         t, t2, spe, _x_scaled = self._project(x0)
         spe_limit = self._current_spe_limit()
-        in_control = (t2 <= self._t2_limit_0) and (spe <= spe_limit) and not np.isnan(x0).all()
+        below_t2 = t2 <= self._t2_limit_0  # pragma: no mutate - < differs only at a T2 exactly on its limit
+        below_spe = spe <= spe_limit  # pragma: no mutate - < differs only at an SPE exactly on its limit
+        in_control = below_t2 and below_spe and not np.isnan(x0).all()
 
         updated = False
         if (in_control or self.update_when_out_of_control) and not np.isnan(x0).all():
@@ -727,7 +737,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
             # scale this same observation with the updated (i+1) vectors for the
             # kernel contribution. The monitoring statistics above used the
             # pre-update (i) vectors via _project; the kernel uses i+1.
-            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
+            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_)  # a missing value at the centre
             self._recompute(x_for_kernel)
             if in_control:
                 self._spe_buffer.append(spe**2)
@@ -754,9 +764,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Project data onto the *current* model, returning the scores (no update)."""
         check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        out = np.array([self._project(row.to_numpy(dtype=float))[0] for _, row in X_df.iterrows()])
-        return pd.DataFrame(out.reshape(-1, self.n_components), index=X_df.index, columns=self._component_names)
+        labels, rows = _as_rows(X)
+        scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
+        return pd.DataFrame(scores, index=labels, columns=self._component_names)
 
 
 # -----------------------------------------------------------------------------
@@ -1000,11 +1010,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._y_loadings = C
         self._beta_scaled = R @ C.T  # (K, M) mapping scaled X to scaled Y
         self.explained_variance_ = score_ssq / max(1, self.n_samples_ - 1)
-        self.scaling_factor_for_scores_ = pd.Series(
-            np.sqrt(np.clip(self.explained_variance_, a_min=epsqrt**2, a_max=None)),
-            index=self._component_names,
-            name="Standard deviation per score",
-        )
+        self._update_scaling_factor()
 
     # ---- current-parameter DataFrame views ---------------------------------
 
@@ -1034,7 +1040,6 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         x = (x0 - self.mx_) / self.sx_
         P = self._loadings
         R = self._direct
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
         missing = np.isnan(x)
         if not missing.any():
             t = x @ R
@@ -1050,10 +1055,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
                 t[a] = float(deflate @ w_a) / denom if denom > epsqrt else 0.0
                 deflate = deflate - t[a] * np.where(missing, 0.0, P[:, a])
             spe = float(np.sqrt(deflate @ deflate))
-        t2 = float(np.sum((t / s) ** 2))
         y_scaled_hat = t @ self._y_loadings.T
         y_hat = y_scaled_hat * self.sy_ + self.my_
-        return t, t2, spe, y_hat, x
+        return t, self._hotellings_t2(t), spe, y_hat, x
 
     def _recompute(self, x_scaled: np.ndarray, y_scaled: np.ndarray | None) -> None:
         """Update the kernels with one scaled observation and recompute the model."""
