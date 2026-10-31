@@ -415,6 +415,7 @@ class TestContrastLevels:
             pytest.param("y ~ C(A, Treatment(-1))", id="a-negative-level"),
             pytest.param("y ~ C(Block, Sum) + C(Block, Treatment())", id="no-level"),
             pytest.param("y ~ C(Block, Treatment(3), levels=[1, 2, 3])", id="the-levels-given"),
+            pytest.param("y ~ C(Block, Treatment(A))", id="not-a-literal"),  # validate_formula_is_safe refuses it
         ],
     )
     def test_a_level_patsy_can_read_passes(self, formula: str) -> None:
