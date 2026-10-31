@@ -61,7 +61,7 @@ from ._diagnostics import (
 )
 from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
+from ._preprocessing import MCUVScaler, _back_to_units, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -207,21 +207,6 @@ def _standard_error(per_fold: np.ndarray) -> np.ndarray:
     if folds < 2:
         return np.full(per_fold.shape[0], np.nan)
     return np.std(per_fold, axis=1, ddof=1) / np.sqrt(folds)
-
-
-def _back_to_units(*scalers: MCUVScaler | None) -> tuple[np.ndarray | float, np.ndarray | float]:
-    """Return ``(centre, scale)`` with ``units = scaled * scale + centre``, undoing ``scalers`` in the order given.
-
-    Each scaler maps ``u`` to ``(u - center_) / scale_``, so the one applied last is undone
-    first; a missing scaler is the identity.
-    """
-    centre: np.ndarray | float = 0.0
-    scale: np.ndarray | float = 1.0
-    for scaler in scalers:
-        if scaler is not None:
-            centre = centre * scaler.scale_.to_numpy() + scaler.center_.to_numpy()
-            scale = scale * scaler.scale_.to_numpy()
-    return centre, scale
 
 
 def _fit_fold(
@@ -2313,11 +2298,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Number of shuffled K-fold segments, or a splitter that holds out every row
             exactly once.
         scope : {"global", "local"}, default="global"
-            ``"global"`` (the published default) fits the fold models on rows of the fully
-            autoscaled data without re-centring them; the prediction property above is
-            then exact. ``"local"`` autoscales each training fold separately, as
-            :meth:`PLS.select_n_components` does; scores and SPE are still reproduced
-            exactly, predictions approximately.
+            ``"global"`` (the published default) fits the fold models on the rows as the
+            model fitted to all rows scales them (autoscaled, for PLS), without re-centring
+            them; the prediction property above is then exact. ``"local"`` autoscales each
+            training fold separately, as :meth:`PLS.select_n_components` does; scores and
+            SPE are still reproduced exactly, predictions approximately. A fold model that
+            centres its rows itself, as :class:`~process_improve.multivariate.methods.PRM`
+            always does, predicts approximately in either scope.
         random_state : int, numpy.random.Generator or None, default=None
             Seed for the fold assignment and the random directions of the residual part.
         **pls_kwargs
