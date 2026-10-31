@@ -284,17 +284,27 @@ def test_asca_uses_any_other_model_string_as_a_verbatim_right_hand_side() -> Non
     assert only_a.ssq_["residual"] == pytest.approx(main.ssq_["residual"] + main.ssq_["B"], rel=1e-9)
 
 
-def test_asca_refuses_a_factor_named_c_with_a_rename_that_fits() -> None:
-    """A factor named C hides patsy's C() in every C(name, Sum) term; the rename the error offers fits."""
-    from process_improve.experiments.models import UnsafeFormulaError
-
+@pytest.mark.parametrize(
+    ("name", "model"),
+    [
+        pytest.param("C", "interactions", id="C"),
+        pytest.param("Sum", "interactions", id="Sum"),
+        pytest.param("C", "C(A, Sum) + C(C, Sum)", id="C-in-a-right-hand-side"),
+    ],
+)
+def test_asca_fits_a_factor_named_like_a_function_as_the_same_factor_named_otherwise(name: str, model: str) -> None:
+    """A factor named C hides patsy's C() in every C(name, Sum) term; it is fitted under a stand-in, keyed C (#986)."""
     X, design, _ = _two_factor_design()
-    named_c = design.rename(columns={"B": "C"})
-    with pytest.raises(UnsafeFormulaError, match=re.escape(".rename(columns={'C': 'C_'})")):
-        ASCA(n_components=2).fit(X, named_c)
-    fitted = ASCA(n_components=2).fit(X, named_c.rename(columns={"C": "C_"}))
-    reference = ASCA(n_components=2).fit(X, design)
-    assert fitted.ssq_["C_"] == pytest.approx(reference.ssq_["B"], rel=1e-12)
+    fitted = ASCA(n_components=2, model=model).fit(X, design.rename(columns={"B": name}))
+    reference = ASCA(n_components=2, model=model.replace("C, Sum", "B, Sum")).fit(X, design)
+
+    def named(term: str) -> str:
+        return ":".join(name if part == "B" else part for part in term.split(":"))
+
+    assert fitted.terms_ == [named(term) for term in reference.terms_]
+    pd.testing.assert_series_equal(fitted.ssq_, reference.ssq_.rename(named), rtol=0, atol=0)
+    for term, effect in reference.effect_matrices_.items():
+        pd.testing.assert_frame_equal(fitted.effect_matrices_[named(term)], effect, rtol=0, atol=0)
 
 
 def test_asca_checks_a_verbatim_right_hand_side_as_any_formula() -> None:
