@@ -79,6 +79,8 @@ jobs:
             patterns: >-
               process_improve.multivariate._plsda.*
               process_improve.multivariate._asca.*
+          - name: categorical
+            patterns: process_improve.multivariate._categorical.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
