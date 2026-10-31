@@ -391,8 +391,6 @@ def test_asca_on_the_tablet_spectra() -> None:
 # Checked by hand: each number against a calculation that does not use ASCA
 # ---------------------------------------------------------------------------
 
-_EPSQRT = float(np.sqrt(np.finfo(float).eps))
-
 
 def _effects_by_cell_means(Z: pd.DataFrame, design: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
     """Two-way ANOVA of a balanced crossed design from its level and cell means: Z is centred already."""
