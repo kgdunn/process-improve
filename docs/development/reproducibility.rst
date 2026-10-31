@@ -117,7 +117,9 @@ The contract
    seed. A tool that gives a new output on each call by design
    (``create_simulator``, ``simulate_process``) is listed there with
    the reason instead. A tool registered with neither a sample input
-   nor a reason fails the test.
+   nor a reason fails the test. The same file fails a tool whose input
+   has a ``random_state`` or ``seed`` field that its ``rng=`` does not
+   name as ``seed_param``, with the field's default as ``default_seed``.
 
 How to migrate an existing function
 -----------------------------------
