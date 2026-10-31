@@ -26,8 +26,13 @@ ingredient; the 700 columns ``1100`` to ``2498`` are the NIR reflectance spectru
 column per wavelength in nm, at 2 nm intervals. The values are the upstream values,
 unchanged; only the column names of the spectrum are the wavelengths instead of 1 to 700.
 
-License (upstream)
-------------------
-ppls, groc and seedCCA are distributed under the GNU General Public License, version 2 or
-later. This file is redistributed under those terms. The MIT licence of process-improve
-covers its code, not this file.
+Terms
+-----
+The values are measurements reported by Osborne et al. (1984): facts, not a creative work.
+The MIT licence of process-improve covers its code, not this file, and claims nothing over
+the measurements. Cite Osborne et al. (1984) when you use them.
+
+The R packages ppls, groc and seedCCA are distributed under the GNU General Public License,
+version 2 or later. That is the licence of those packages, whose authors did not make the
+measurements. This file is kept separate from the code that reads it, so it is an aggregate
+in the sense of the GPL and does not change the licence of process-improve.

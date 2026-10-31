@@ -284,8 +284,9 @@ def biscuit() -> pd.DataFrame:
     Osborne, B. G., Fearn, T., Miller, A. R. and Douglas, S., Application of near infrared
     reflectance spectroscopy to the compositional analysis of biscuits and biscuit doughs,
     Journal of the Science of Food and Agriculture, 35, 99-105, 1984; as ``cookie`` in the
-    ppls R package. The file is distributed under the GPL (version 2 or later) of that
-    package, not under the MIT licence of this one: see the ``NOTICE`` beside it.
+    ppls R package. The values are the source's measurements, which the MIT licence of this
+    package does not cover; cite the source when you use them. See the ``NOTICE`` beside the
+    file.
 
     """
     return pd.read_csv(_DATASETS_DIR / "biscuit" / "biscuit.csv")

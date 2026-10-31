@@ -5,8 +5,8 @@
   first response that is not a curve.
 - **`experiments.datasets.biscuit()`.** The NIR spectra of 72 biscuit doughs whose fat, sucrose,
   dry flour and water were varied (Osborne et al., 1984): a mixture of four ingredients with a
-  700-point spectrum as each run's response, also reachable as `data("biscuit")`. The file keeps
-  the GPL of the R package it comes from; see the `NOTICE` beside it.
+  700-point spectrum as each run's response, also reachable as `data("biscuit")`. The values are
+  the source's measurements, to be cited as such; the `NOTICE` beside the file states their terms.
 - **The reference catalogue holds McMullen and Jurica (2024), the first case whose response is a time course
   sampled at different times in each run.** `mcmullen-jurica-2024` holds the methoxylation optimisation of the
   article's supplementary information: 40 reactions with 9 to 12 samples each, and the 15 nearest the optimum
