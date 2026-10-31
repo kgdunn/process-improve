@@ -479,6 +479,8 @@ only_mutate = [
     "src/process_improve/multivariate/_cv_criteria.py",
     "src/process_improve/multivariate/_plsda.py",
     "src/process_improve/multivariate/_asca.py",
+    "src/process_improve/multivariate/_categorical.py",
+    "src/process_improve/multivariate/_adaptive.py",
 ]
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
@@ -524,7 +526,7 @@ pytest_add_cli_args_test_selection = [
     "--deselect",
     "tests/test_multiblock_reference.py::TestFMCReference",
     "tests/test_multiblock_weighting.py",
-    "tests/test_multivariate_categorical.py::TestMFAAgainstMBPCA",
+    "tests/test_multivariate_categorical.py",
     "tests/test_mbpls_cross_validation.py",
     "tests/test_mbpls_regressor.py",
     "tests/test_multivariate_tpls_validation.py",

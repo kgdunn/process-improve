@@ -37,13 +37,6 @@ from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
 from .plots import Plot
 
-#: Standard deviations below this count as "no variance", so the column carries no
-#: information and is excluded from the fit. It used to share the attribute that also
-#: held the convergence tolerance, which tied two unrelated quantities together: a
-#: caller loosening convergence would also have started discarding low-variance
-#: columns. It is deliberately not user-tunable (#588).
-_ZERO_VARIANCE_FLOOR = epsqrt
-
 
 class DataFrameDict(dict):
     """Container for the partitionable (Z, F) and static (Y) data blocks used by TPLS."""
@@ -1011,9 +1004,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         Warns
         -----
         UserWarning
-            If any column has no variance. Its scale is set to ``NaN``, which makes the
-            whole column ``NaN`` and then zero, so the column is silently excluded from
-            the fit. That is the right thing to do with a constant column, but it used to
+            If a column of a block of two or more rows has no variance: its observed
+            values are all equal, or there is only one. Its scale is set to ``NaN``,
+            which makes the whole column ``NaN`` and then zero, so the column is
+            silently excluded from the fit. That is the right thing to do with a constant column, but it used to
             happen without a word (#513): the only sign was a message-less
             ``AssertionError`` further down, or, under ``python -O``, nothing at all.
             A column with no observed value is excluded the same way and gets the same
@@ -1024,8 +1018,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
         # it is named separately because "no variance" would send the caller to the wrong cause.
         unobserved = y.isna().all()
-        # Negated so that a NaN standard deviation (a single observed value) counts as no variance.
-        degenerate = ~(scaling >= _ZERO_VARIANCE_FLOOR) & ~unobserved
+        # No variance: its observed values are all equal, in any units, as MCUVScaler reads a
+        # column. An sd below a floor (it was sqrt(eps)) also took a column in small units for a
+        # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
+        # a NaN maximum and minimum, which are not equal, so it is not counted here.
+        degenerate = (y.max() == y.min()) & (y.shape[0] > 1)
         for excluded, reason, advice in (
             (unobserved, "no observed values", "check the data for a sensor that was never logged"),
             (degenerate, "no variance", "check the data for a stuck sensor"),

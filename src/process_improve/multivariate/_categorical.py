@@ -34,6 +34,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
 from ._common import DataMatrix, SpecificationWarning
+from ._pca import _opposes_convention
 
 try:
     import plotly.graph_objects as go
@@ -55,7 +56,7 @@ def _as_table(X: DataMatrix, what: str) -> pd.DataFrame:
         missing, infinite or negative cell, or has a row or column that sums to zero.
     """
     table = X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-    if table.ndim != 2 or min(table.shape) < 2:
+    if min(table.shape) < 2:
         raise ValueError(f"{what} must be a 2-D table with at least two rows and two columns; got {table.shape}.")
     values = table.to_numpy(dtype=float)
     if not np.all(np.isfinite(values)):
@@ -70,7 +71,7 @@ def _as_table(X: DataMatrix, what: str) -> pd.DataFrame:
                 "profile to compare, and its mass of zero would divide the chi-squared distance by zero. "
                 "Drop it before fitting."
             )
-    return table.astype(float)
+    return table.astype(float)  # pragma: no mutate - astype(None) is float64
 
 
 #: Principal inertia below which an axis is numerical noise rather than structure.
@@ -86,11 +87,22 @@ def _flip_signs(left: np.ndarray, right: np.ndarray) -> tuple[np.ndarray, np.nda
     Each axis is flipped so that its largest-magnitude left singular vector entry is
     positive, the same convention the package's PCA uses for its loadings.
     """
-    for k in range(left.shape[1]):
-        if left[np.argmax(np.abs(left[:, k])), k] < 0:
-            left[:, k] *= -1.0
-            right[:, k] *= -1.0
-    return left, right
+    flip = _opposes_convention(left)
+    return np.where(flip, -left, left), np.where(flip, -right, right)
+
+
+def _axes_with_inertia(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the singular values and the signed left and right singular vectors of every axis with inertia.
+
+    An axis whose inertia, its squared singular value, is at most :data:`_NULL_INERTIA`
+    is dropped, because every relative quantity on it (its share, the contributions to
+    it) would be noise divided by noise. So no vector past the rank is ever read.
+    """
+    left, singular, right_t = np.linalg.svd(matrix, full_matrices=False)  # pragma: no mutate - see the docstring
+    inertia = singular**2
+    rank = int(np.sum(inertia > _NULL_INERTIA))  # pragma: no mutate - >= differs only at exact equality
+    left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+    return singular[:rank], left, right
 
 
 class CA(TransformerMixin, BaseEstimator):
@@ -185,20 +197,17 @@ class CA(TransformerMixin, BaseEstimator):
         column_mass = proportions.sum(axis=0)
 
         residuals = (proportions - np.outer(row_mass, column_mass)) / np.sqrt(np.outer(row_mass, column_mass))
-        left, singular, right_t = np.linalg.svd(residuals, full_matrices=False)
-        # At most min(I, J) - 1 axes, since centring on the average profile removes
-        # one; fewer when the table is rank-deficient. An axis with no inertia is not
-        # kept, because every relative quantity on it (its share, the contributions to
-        # it) would be noise divided by noise.
-        rank = int(np.sum(singular[: min(table.shape) - 1] ** 2 > _NULL_INERTIA))
+        # At most min(I, J) - 1 axes, since centring on the average profile removes one
+        # (its singular value is rounding noise, far below the null inertia); fewer when
+        # the table is rank-deficient.
+        singular, left, right = _axes_with_inertia(residuals)
+        rank = singular.size
         if rank == 0:
             raise ValueError(
                 "The table shows no association between its rows and columns: every row has the same "
                 "profile, so the total inertia is zero and there are no axes to find. That is a result, "
                 "not a fault in the data, but there is no map to draw from it."
             )
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
-        singular = singular[:rank]
 
         keep = int(self.n_components)
         if keep > rank:
@@ -206,7 +215,7 @@ class CA(TransformerMixin, BaseEstimator):
                 f"Asked for {keep} axes, but this {table.shape[0]} x {table.shape[1]} table has {rank} with "
                 f"any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
@@ -276,7 +285,7 @@ class CA(TransformerMixin, BaseEstimator):
             If the column count differs from the fitted table's, or the rows are not
             valid counts.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         rows = self._supplementary(X, expected=len(self._columns), axis=1, what="rows")
         profiles = rows.to_numpy() / rows.to_numpy().sum(axis=1, keepdims=True)
         return pd.DataFrame(profiles @ self._column_standard, index=rows.index, columns=self.row_coordinates_.columns)
@@ -304,9 +313,9 @@ class CA(TransformerMixin, BaseEstimator):
             If the row count differs from the fitted table's, or the columns are not
             valid counts.
         """
-        check_is_fitted(self, "column_coordinates_")
+        check_is_fitted(self)
         columns = self._supplementary(X, expected=len(self._rows), axis=0, what="columns")
-        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0, keepdims=True)
+        profiles = columns.to_numpy() / columns.to_numpy().sum(axis=0)
         return pd.DataFrame(
             profiles.T @ self._row_standard, index=columns.columns, columns=self.column_coordinates_.columns
         )
@@ -315,7 +324,7 @@ class CA(TransformerMixin, BaseEstimator):
     def _supplementary(X: DataMatrix, *, expected: int, axis: int, what: str) -> pd.DataFrame:
         """Validate supplementary counts; ``axis`` is the dimension that must match the fit."""
         table = X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        if table.ndim != 2 or table.shape[axis] != expected:
+        if table.shape[axis] != expected:
             raise ValueError(
                 f"Supplementary {what} must match the fitted table along the shared dimension: "
                 f"expected {expected}, got shape {table.shape}."
@@ -323,9 +332,9 @@ class CA(TransformerMixin, BaseEstimator):
         values = table.to_numpy(dtype=float)
         if not np.all(np.isfinite(values)) or np.any(values < 0):
             raise ValueError(f"Supplementary {what} must be finite, non-negative counts.")
-        if np.any(values.sum(axis=1 - axis) == 0):
+        if np.any(values.sum(axis=axis) == 0):
             raise ValueError(f"A supplementary {what[:-1]} sums to zero, so it has no profile to place.")
-        return table.astype(float)
+        return table.astype(float)  # pragma: no mutate - astype(None) is float64
 
     def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
         """Draw the symmetric map: rows and columns together, both in principal coordinates.
@@ -365,7 +374,7 @@ class CA(TransformerMixin, BaseEstimator):
 
 def _map_plot(model: CA | FAMD | MFA, axis_x: int, axis_y: int, settings: dict | None, default_title: str) -> go.Figure:
     """Plot a fitted model's row and column coordinates on one pair of axes, at a 1:1 ratio."""
-    check_is_fitted(model, "row_coordinates_")
+    check_is_fitted(model)
 
     class Settings(BaseModel):
         """Validated display settings for a categorical-methods map."""
@@ -449,8 +458,8 @@ def _indicator(frame: pd.DataFrame, levels: dict[str, list] | None = None) -> pd
         unseen = sorted(set(values) - set(known))
         if unseen:
             raise ValueError(f"Column {column!r} has levels {unseen} that the model was not fitted on.")
-        blocks.append(pd.DataFrame({f"{column}={level}": (values == level).astype(float) for level in known}))
-    return pd.concat(blocks, axis=1).set_axis(frame.index, axis=0)
+        blocks.append(pd.DataFrame({f"{column}={level}": values == level for level in known}))
+    return pd.concat(blocks, axis=1).set_axis(frame.index)
 
 
 class MCA(CA):
@@ -547,27 +556,30 @@ class MCA(CA):
         self._levels = {str(column): sorted(frame[column].astype(str).unique()) for column in frame.columns}
 
         n_vars, n_levels = len(self.variables_), indicator.shape[1]
-        raw = self.eigenvalues_
         if self.correction is None:
-            self.corrected_eigenvalues_ = raw.copy()
+            self.corrected_eigenvalues_ = self.eigenvalues_.copy()
             self.corrected_explained_inertia_ = self.explained_inertia_.copy()
             return self
 
-        threshold = 1.0 / n_vars
-        factor = (n_vars / (n_vars - 1)) ** 2
-        self.corrected_eigenvalues_ = np.where(raw > threshold, factor * (raw - threshold) ** 2, 0.0)
+        # Every axis with inertia, kept or not, adjusted: zero at or below 1/Q.
+        every = self._all_eigenvalues
+        adjusted = (n_vars / (n_vars - 1)) ** 2 * np.maximum(every - 1.0 / n_vars, 0.0) ** 2
+        self.corrected_eigenvalues_ = adjusted[: self.n_components_]
         if self.correction == "benzecri":
-            every = self._all_eigenvalues
-            total = float(np.sum(np.where(every > threshold, factor * (every - threshold) ** 2, 0.0)))
+            total = float(adjusted.sum())
         else:
             # The Burt matrix's inertia is the sum of squared eigenvalues over *every* axis.
-            burt_inertia = float(np.sum(self._all_eigenvalues**2))
+            burt_inertia = float(np.sum(every**2))
             total = n_vars / (n_vars - 1) * (burt_inertia - (n_levels - n_vars) / n_vars**2)
         # No eigenvalue above 1/Q means the variables are unassociated beyond what the
         # coding forces: every corrected eigenvalue is zero, and so is its total. That is
-        # a finding, reported as zero shares, not 0/0.
+        # a finding, reported as zero shares. Rounding leaves an eigenvalue of exactly 1/Q
+        # a few 1e-16 either side of it, so the total is then noise near 1e-32 (or 1e-16
+        # for Greenacre's difference), never above an axis's null inertia: its shares would
+        # be noise over noise, 100% on one axis.
+        unassociated = total <= _NULL_INERTIA  # pragma: no mutate - < differs only at a total of exactly 1e-12
         self.corrected_explained_inertia_ = (
-            self.corrected_eigenvalues_ / total if total > 0 else np.zeros_like(self.corrected_eigenvalues_)
+            np.zeros_like(self.corrected_eigenvalues_) if unassociated else self.corrected_eigenvalues_ / total
         )
         return self
 
@@ -589,7 +601,7 @@ class MCA(CA):
         ValueError
             If the variables differ from the fit's, or a level is unseen or missing.
         """
-        check_is_fitted(self, "variables_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         if [str(column) for column in frame.columns] != self.variables_:
             raise ValueError(f"Expected the variables {self.variables_}; got {list(frame.columns)}.")
@@ -614,7 +626,7 @@ class MCA(CA):
             Principal coordinates, one row per supplementary level, named
             ``"variable=level"``.
         """
-        check_is_fitted(self, "variables_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         return super().transform_columns(_indicator(frame))
 
@@ -745,29 +757,31 @@ class FAMD(TransformerMixin, BaseEstimator):
             # Population variance, so that each standardised column carries an inertia of
             # exactly 1: that is what puts a numeric column on the same footing as a level.
             self._spreads = values.std(axis=0)
-            constant = [name for name, s in zip(self.numeric_, self._spreads, strict=True) if s == 0]
+            # A column of equal values, in any units, as MCUVScaler reads one. Its standard
+            # deviation is as often rounding noise (1e-17) as an exact 0, and dividing by the
+            # noise made it a column of +-1, uncentred, with an inertia of 1 of its own.
+            constant = pd.Index(self.numeric_)[np.ptp(values, axis=0) == 0].tolist()
             if constant:
                 raise ValueError(f"Numeric columns {constant} are constant, so they carry no information. Drop them.")
         if self.categorical_:
             categories = frame[self.categorical_].astype(str)
             self._levels = {column: sorted(categories[column].unique()) for column in self.categorical_}
-            self._frequencies = _indicator(categories, self._levels).to_numpy().mean(axis=0)
+            self._frequencies = _indicator(categories).to_numpy().mean(axis=0)
 
         transformed = self._transformed(frame)
         n_rows = transformed.shape[0]
-        left, singular, right_t = np.linalg.svd(transformed / np.sqrt(n_rows), full_matrices=False)
-        eigenvalues = singular**2
-        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
+        singular, _, right = _axes_with_inertia(transformed / np.sqrt(n_rows))
+        rank = singular.size
         if rank == 0:
             raise ValueError("The table has no variation to analyse: every observation is the same.")
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+        eigenvalues = singular**2
 
         keep = int(self.n_components)
         if keep > rank:
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
@@ -811,7 +825,7 @@ class FAMD(TransformerMixin, BaseEstimator):
         ValueError
             If the columns differ from the fit's, or a level is unseen or missing.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
         if list(frame.columns) != self._columns:
@@ -986,18 +1000,19 @@ class MFA(TransformerMixin, BaseEstimator):
         weights = {}
         for name, columns in self.groups_.items():
             values = frame[columns].to_numpy(dtype=float)
-            self._means[name] = values.mean(axis=0)
-            spread = values.std(axis=0) if self.scale else np.ones(values.shape[1])
-            if np.any(spread == 0):
+            # A column of equal values, in any units and at any offset, as MCUVScaler reads
+            # one. Its standard deviation is as often rounding noise as an exact 0, and the
+            # size of the values says nothing about how much they vary.
+            constant = np.ptp(values, axis=0) == 0
+            if self.scale and constant.any():
                 raise ValueError(f"Group {name!r} has a constant column; drop it before fitting.")
-            self._spreads[name] = spread
-            centred = (values - self._means[name]) / spread
-            leading = np.linalg.svd(centred / np.sqrt(len(values)), compute_uv=False)[0] ** 2
-            # Relative to the data's own size, so that an unscaled group measured in
-            # tiny units is not mistaken for a constant one.
-            if leading <= _NULL_INERTIA * np.mean(values**2):
+            if constant.all():
                 raise ValueError(f"Group {name!r} has no variation, so there is nothing to weight it by.")
-            weights[name] = 1.0 / leading
+            self._means[name] = values.mean(axis=0)
+            self._spreads[name] = values.std(axis=0) if self.scale else np.ones(values.shape[1])
+            centred = (values - self._means[name]) / self._spreads[name]
+            # One over the group's first eigenvalue, its largest singular value squared over n.
+            weights[name] = len(values) / np.linalg.norm(centred, 2) ** 2
         self.group_weights_ = pd.Series(weights, name="weight")
 
     def _per_group(self, blocks: dict[str, np.ndarray], index: pd.Index, axes: list[int]) -> None:
@@ -1050,17 +1065,16 @@ class MFA(TransformerMixin, BaseEstimator):
         self._weigh_groups(frame)
         blocks = {name: self._group_block(frame, name) for name in self.groups_}
         combined = np.hstack(list(blocks.values()))
-        left, singular, right_t = np.linalg.svd(combined / np.sqrt(len(frame)), full_matrices=False)
+        singular, _, right = _axes_with_inertia(combined / np.sqrt(len(frame)))
+        rank = singular.size
         eigenvalues = singular**2
-        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
 
         keep = int(self.n_components)
         if keep > rank:
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
@@ -1101,7 +1115,7 @@ class MFA(TransformerMixin, BaseEstimator):
         ValueError
             If a grouped column is absent or a cell is missing.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         frame = _as_frame(X)
         used = [column for columns in self.groups_.values() for column in columns]
         missing = [column for column in used if column not in frame.columns]
