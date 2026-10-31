@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import Bunch
 
+from .._random import check_random_state
 from ..univariate.metrics import t_value
 
 __eps = np.finfo(np.float32).eps
@@ -67,6 +68,46 @@ def _drop_non_finite_pairs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np
     return x[finite], y[finite]
 
 
+def _repeated_median(x: np.ndarray, y: np.ndarray) -> float:
+    """
+    Siegel's repeated-median slope of finite, equal-length 1-D arrays, without input checks.
+
+    Row ``i`` of an N x N matrix holds the slopes ``(y[j] - y[i]) / (x[j] - x[i])``, with
+    NaN on the diagonal and wherever ``x[j] == x[i]``. Sorting each row puts its NaN last,
+    so the row's median sits at fixed positions among its defined slopes. A row with no
+    defined slope has no median and is left out of the outer one; with none at all the
+    slope is NaN. At the SEC-19 cap of 5,000 points the matrix and the x differences it is
+    divided by take 400 MB together.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Finite 1-D arrays of the same length.
+
+    Returns
+    -------
+    float
+        The median over the rows of each row's median slope.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    dx = x[None, :] - x[:, None]
+    slopes = y[None, :] - y[:, None]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        np.divide(slopes, dx, out=slopes)
+    slopes[dx == 0] = np.nan
+    del dx
+    slopes.sort(axis=1)
+    n_defined = np.count_nonzero(~np.isnan(slopes), axis=1)
+    rows = np.flatnonzero(n_defined)
+    if rows.size == 0:
+        return float("nan")
+    count = n_defined[rows]
+    # (a + b) / 2 is how np.median averages the middle pair, and gives a when a == b.
+    row_medians = (slopes[rows, (count - 1) // 2] + slopes[rows, count // 2]) / 2
+    return float(np.median(row_medians))
+
+
 def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) -> float:
     """
     Robust slope calculation via Siegel's repeated-median estimator.
@@ -110,13 +151,12 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     formed, and the estimate is computed from the remainder. The dropping is pairwise and
     silent, so check the inputs first if the count of usable observations matters to you.
 
-
-    INVESTIGATE: algorithm speed-ups via these articles:
-    https://link.springer.com/article/10.1007/PL00009190
-    http://www.sciencedirect.com/science/article/pii/S0020019003003508
+    Cost: the pairwise slopes are formed at once as an N x N matrix, so time and memory grow
+    as N squared. At the SEC-19 cap of 5,000 points the call needs about 425 MB of memory;
+    at 1,000 points, 17 MB. Faster algorithms exist (Matousek, Mount,
+    Netanyahu, 1998, https://link.springer.com/article/10.1007/PL00009190), but they are not
+    used here.
     """
-    # Slope
-    medians = []
     x = x.copy().ravel() if isinstance(x, np.ndarray) else pd.Series(x).values.ravel()
     y = y.copy().ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
 
@@ -139,26 +179,50 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
             )
 
     x, y = _drop_non_finite_pairs(x, y)
+    return _repeated_median(x, y)
 
-    for i in np.arange(len(x)):
-        inner_medians = []
-        for j in np.arange(len(y)):
-            den = x[j] - x[i]
-            if j != i and den != 0:
-                inner_medians.append((y[j] - y[i]) / den)
 
-        # An empty list means every other point shares this x value, so no slope
-        # through point i is defined. Record that directly instead of calling a
-        # median on an empty slice, which warns.
-        medians.append(np.median(inner_medians) if inner_medians else np.nan)
+def _bootstrap_lines(
+    x: np.ndarray, y: np.ndarray, fit_intercept: bool, n_boot: int, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Refit the robust line to ``n_boot`` resamples of the ``(x, y)`` pairs.
 
-    if np.all(np.isnan(medians)):
-        # Documented degenerate case: no slope is defined anywhere (e.g. every x
-        # value is equal). Return NaN without routing an all-NaN list through
-        # np.nanmedian, which would warn.
-        return float("nan")
+    Each resample draws N pairs with replacement and is fitted as :func:`robust_regression`
+    fits the data: the repeated-median slope, then the median intercept. A resample whose
+    x values are all equal has no slope and is left out.
 
-    return float(np.nanmedian(medians))
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Finite 1-D arrays of the same length.
+    fit_intercept : bool
+        If ``False``, every resampled line passes through the origin.
+    n_boot : int
+        The number of resamples.
+    rng : np.random.Generator
+        The source of every random draw.
+
+    Returns
+    -------
+    slopes, intercepts, errors : np.ndarray
+        One value per resample that has a slope. ``errors`` is a normal draw scaled by
+        1.4826 times the median absolute residual of that resample: the error of one new
+        observation, on a scale that outliers move as little as they move the line.
+    """
+    if not isinstance(n_boot, (int, np.integer)) or n_boot < 1:
+        raise ValueError(f"n_boot must be a positive integer; got {n_boot!r}.")
+    picks = rng.integers(0, x.size, size=(n_boot, x.size))
+    slopes = np.array([_repeated_median(x[pick], y[pick]) for pick in picks])
+    has_slope = ~np.isnan(slopes)
+    if not has_slope.any():
+        # Only a few points and a few resamples can get here. One NaN each makes every interval NaN.
+        return np.full(1, np.nan), np.full(1, np.nan), np.full(1, np.nan)
+    x_b, y_b, slopes = x[picks[has_slope]], y[picks[has_slope]], slopes[has_slope]
+    lines = slopes[:, None] * x_b
+    intercepts = np.median(y_b - lines, axis=1) if fit_intercept else np.zeros(slopes.size)
+    scale = 1.4826 * np.median(np.abs(y_b - lines - intercepts[:, None]), axis=1)
+    return slopes, intercepts, scale * rng.standard_normal(slopes.size)
 
 
 def robust_regression(  # noqa: PLR0913, PLR0915
@@ -169,65 +233,111 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     conflevel: float = 0.95,
     nowarn: bool = False,
     pi_resolution: int = 50,
+    *,
+    intervals: Literal["bootstrap", "least_squares"] = "bootstrap",
+    n_boot: int = 999,
+    random_state: int | np.random.Generator | None = 0,
 ) -> dict:
     """
     Perform the Simple robust regression analysis between `x` and `y` variables.
-
-    Parameters
-    - x, y: Sequences of numerical values.
-    - fit_intercept: If True, fits an intercept term. If False, forces regression through origin.
-    - na_rm: If True, removes all observations with one or more missing values.
-    - conflevel: Confidence level for confidence intervals, default is 0.95.
-    - nowarn: If True, suppresses warnings. Users should ensure data validity beforehand.
-    - pi_resolution: The resolution of prediction intervals, default is 50.
 
     Simple robust regression between an `x` and a `y` using the `repeated_median_slope` method
     to calculate the slope. The intercept is the median intercept, when using that slope and the
     provided `x` and `y` values, or forced to zero if fit_intercept=False.
 
-    Returns a dictionary of outputs with these keys::
+    Parameters
+    ----------
+    x, y : np.ndarray, pd.DataFrame or pd.Series
+        Sequences of numerical values, paired by position.
+    fit_intercept : bool, default True
+        If True, fits an intercept term. If False, forces regression through origin.
+    na_rm : bool, default True
+        If True, removes all observations with one or more missing values.
+    conflevel : float, default 0.95
+        Confidence level for the confidence and prediction intervals.
+    nowarn : bool, default False
+        If True, skips the minimum-size check and the SEC-19 cap on the number of points.
+        Users should ensure data validity beforehand.
+    pi_resolution : int, default 50
+        The number of x values, evenly spaced over the range of the data, at which
+        ``pi_range`` gives the prediction interval.
+    intervals : {"bootstrap", "least_squares"}, default "bootstrap"
+        How ``conf_intervals``, ``conf_interval_intercept`` and ``pi_range`` are found.
+        ``"bootstrap"`` takes percentiles over ``n_boot`` resamples of the ``(x, y)`` pairs,
+        each refitted with the repeated median, so the intervals resist outliers as the
+        slope does. ``"least_squares"`` applies the least-squares formulas to the residuals
+        around the robust line, as releases up to 2.2.2 did for every call: one gross outlier
+        widens those intervals even when it leaves the slope where it was.
+    n_boot : int, default 999
+        The number of bootstrap resamples. Ignored when ``intervals="least_squares"``.
+    random_state : int, np.random.Generator or None, default 0
+        Seeds the bootstrap resamples; see
+        :func:`process_improve._random.check_random_state`. The default seed makes a
+        repeated call return the same intervals. Ignored when ``intervals="least_squares"``.
 
-        N:                        the number of observations used to fit the model
-        coefficients:             a length-1 list containing the regression slope
-        intercept:                the fitted intercept on the full-fit path
-                                  (0 when ``fit_intercept=False``); ``np.nan``
-                                  on the degenerate early-return path (see
-                                  below), regardless of ``fit_intercept``
-        standard_errors:          a length-1 list containing the standard error of the slope
-        standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
-        R2:                       RegSS / (RegSS + RSS), around the robust line. Around a line
-                                  that is not the least-squares one, RegSS + RSS is not the
-                                  total sum of squares, so this is not 1 - RSS / TSS (the R2
-                                  of ``multiple_linear_regression``)
-        SE:                       the model's standard error
-        x_ssq:                    the sum of squares of (x - mean(x))
-        k:                        the number of model parameters (2 if fit_intercept else 1)
-        fitted_values:            the N predicted values, one per row in y
-        residuals:                the N residuals
-        t_value:                  the t-values for the standard errors, one per
-                                  coefficient (same meaning as in
-                                  ``multiple_linear_regression``)
-        conf_intervals:           1 row x 2 columns (lower, upper) confidence interval for
-                                  the single slope coefficient
-        conf_interval_intercept:  (lower, upper) confidence interval for the intercept
-        pi_range:                 prediction intervals above and below, over the range of data
-        leverage:                 the hat-matrix diagonal (leverage) for each observation
-        influence:                Cook-style influence values for each observation
+    Returns
+    -------
+    dict
+        The fit, with these keys::
 
-    On the degenerate early-return path (fewer than three usable observations
-    in ``x`` or ``y``), the returned dictionary is the initialization stub:
-    ``N`` is ``None``, ``x_ssq`` is absent, and ``leverage``, ``influence``,
-    ``pi_range``, ``t_value``, ``fitted_values``, ``residuals``, and the
-    coefficient/interval arrays hold ``np.nan``.
+            N:                        the number of observations used to fit the model
+            coefficients:             a length-1 list containing the regression slope
+            intercept:                the fitted intercept on the full-fit path
+                                      (0 when ``fit_intercept=False``); ``np.nan``
+                                      on the degenerate early-return path (see
+                                      below), regardless of ``fit_intercept``
+            standard_errors:          a length-1 list containing the standard error of the slope
+            standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
+            R2:                       RegSS / (RegSS + RSS), around the robust line. Around a line
+                                      that is not the least-squares one, RegSS + RSS is not the
+                                      total sum of squares, so this is not 1 - RSS / TSS (the R2
+                                      of ``multiple_linear_regression``)
+            SE:                       the model's standard error
+            x_ssq:                    the sum of squares of (x - mean(x))
+            k:                        the number of model parameters (2 if fit_intercept else 1)
+            fitted_values:            the N predicted values, one per row in y
+            residuals:                the N residuals
+            t_value:                  the t-values for the standard errors, one per
+                                      coefficient (same meaning as in
+                                      ``multiple_linear_regression``)
+            conf_intervals:           1 row x 2 columns (lower, upper) confidence interval for
+                                      the single slope coefficient, found as ``intervals`` says
+            conf_interval_intercept:  (lower, upper) confidence interval for the intercept, found
+                                      as ``intervals`` says (np.nan if fit_intercept=False)
+            pi_range:                 pi_resolution rows x 3 columns: x, then the lower and upper
+                                      prediction limits for one new observation at that x, found
+                                      as ``intervals`` says
+            leverage:                 the hat-matrix diagonal (leverage) for each observation
+            influence:                Cook-style influence values for each observation
 
-    Only the slope and the intercept are robust. ``SE``, the standard errors, ``t_value``,
-    ``R2``, the confidence intervals and ``pi_range`` use the least-squares formulas, applied
-    to the residuals around the robust line, so they are approximate: they are not derived
-    from the sampling distribution of the repeated-median slope. One gross outlier, which
-    leaves the slope almost where it was, inflates the residual sum of squares and so widens
-    every interval and lowers ``R2``. For an interval that resists outliers as the slope
-    does, bootstrap the slope.
+        On the degenerate early-return path (fewer than three usable observations
+        in ``x`` or ``y``), the returned dictionary is the initialization stub:
+        ``N`` is ``None``, ``x_ssq`` is absent, and ``leverage``, ``influence``,
+        ``pi_range``, ``t_value``, ``fitted_values``, ``residuals``, and the
+        coefficient/interval arrays hold ``np.nan``.
+
+    Notes
+    -----
+    With ``intervals="bootstrap"`` (the default) the three interval keys are percentile
+    intervals over the resamples, each refitted as above. A resample whose x values are all
+    equal has no slope and is left out. The prediction limits add to each resampled line a
+    normal error scaled by 1.4826 times that resample's median absolute residual, so an
+    outlier widens them no more than it moves the line. Without outliers the slope interval
+    is a little wider than the least-squares one, because it measures the spread of the
+    repeated-median slope, which uses the data less efficiently than least squares does.
+
+    ``SE``, the standard errors, ``t_value``, ``R2``, ``leverage`` and ``influence`` use the
+    least-squares formulas, applied to the residuals around the robust line, whichever
+    ``intervals`` is: one gross outlier, which leaves the slope almost where it was, inflates
+    the residual sum of squares and so raises ``SE`` and lowers ``R2``.
+
+    The bootstrap refits the line ``n_boot`` times, and each fit grows as N squared (see
+    :func:`repeated_median_slope`). The default 999 resamples take about 0.1 s for 100
+    points, 3 s for 500 and over 10 s for 1,000; for more points, lower ``n_boot`` or use
+    ``intervals="least_squares"``.
     """
+    if intervals not in ("bootstrap", "least_squares"):
+        raise ValueError(f"intervals must be 'bootstrap' or 'least_squares'; got {intervals!r}.")
 
     out: dict[str, Any] = {
         "N": None,
@@ -359,6 +469,16 @@ def robust_regression(  # noqa: PLR0913, PLR0915
             ],
         ]
     )
+
+    # With no spread in x, or a non-finite value kept in (SE is then not finite), the NaN intervals above stand.
+    if intervals == "bootstrap" and out["x_ssq"] >= __eps and np.isfinite(out["SE"]):
+        slopes, intercepts, errors = _bootstrap_lines(x, y, fit_intercept, n_boot, check_random_state(random_state))
+        tails = [50 * (1 - conflevel), 50 * (1 + conflevel)]
+        out["conf_intervals"] = np.percentile(slopes, tails)[None, :]
+        if fit_intercept:
+            out["conf_interval_intercept"] = np.percentile(intercepts, tails)
+        new_observations = intercepts[:, None] + slopes[:, None] * pi_range + errors[:, None]
+        out["pi_range"] = np.column_stack([pi_range, *np.percentile(new_observations, tails, axis=0)])
 
     if out["SE"] < __eps:
         out["influence"] = out["residuals"] * 0.0

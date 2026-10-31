@@ -87861,9 +87861,7 @@
       {
        "kind": "anova_sum_sq",
        "term": "z1",
-       "model": "z1 + I(z2 - 0.2 * z1) - 1",
-       "disagreement": "a library bug: analyze_experiment's ANOVA refits on factors coded to -1/+1, which changes I(z2 - 0.2 * z1); in the model as written z1 and z2.1 are orthogonal and SS(z1) = 12.0",
-       "cause": "library"
+       "model": "z1 + I(z2 - 0.2 * z1) - 1"
       }
      ]
     },

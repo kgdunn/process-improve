@@ -28,7 +28,7 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _nz, epsqrt
+from ._common import _nz, epsqrt, largest_ssq_column
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -254,7 +254,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     - ``F``: Formula matrices (rows = blends, columns = materials).
       ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
-    - ``Z``: Process conditions - one row per blend, one column per condition.
+    - ``Z``: Process conditions - one row per blend, one column per condition, in one or more
+      groups. Each Z group has its own weights and block score, as a block of a multi-block PLS.
     - ``Y``: Product quality indicators - one row per blend, one column per indicator.
 
     The ``D`` matrix (database of material properties) is supplied once at
@@ -306,7 +307,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         Z-block weights per Z-block.
     w_loadings_super : pd.DataFrame
         Super-block weights, rows ``["Z", "F"]`` (or just ``["F"]`` when
-        there are no process conditions).
+        there are no process conditions). Each Z group is a block of its own
+        in the super-level, so several Z groups give one row each, labelled
+        ``Z["<group>"]``, before the ``"F"`` row.
     s_loadings_d, v_loadings_d : dict[str, pd.DataFrame]
         D-block scores and loadings per group.
     p_loadings_f : dict[str, pd.DataFrame]
@@ -602,7 +605,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.w_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
-        self.w_loadings_super = pd.DataFrame(index=["Z", "F"] if self.n_conditions > 0 else ["F"])
+        self.w_loadings_super = pd.DataFrame(index=self._super_block_names())
         # Capture the correlation of the properties in D; for the last component.
         self.s_loadings_d: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
@@ -646,7 +649,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
+    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
         """
         Model inference on new data.
 
@@ -760,27 +763,27 @@ class TPLS(RegressorMixin, BaseEstimator):
             denominators[denominators == 0] = np.nan
             score_f_a /= denominators
 
-            # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
-            # t-score for that pc_a. It seems redundant to divide by w'w, since w is already normalized, but if there
-            # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
+            # Repeat for the Z-space: regress the row of each new Z group on its own w-loadings, to get one
+            # t-score per group for that pc_a, as fit() does (#981). The regression divides by the squared
+            # weights of the cells each row has (#513), and a row with no value in a group scores 0 there.
+            # The groups follow the training order, the order of the rows of w_loadings_super; Z is optional
+            # here, so a group left out of X scores 0, as a row with no value in it does. The deflation below
+            # leaves a value in a missing cell, which the mask takes out again before the regression.
             if self.n_conditions > 0:
-                score_z_a = np.zeros(num_obs)
-                denominators = np.zeros(num_obs)
-                z_observed = np.zeros(num_obs, dtype=bool)
-                for key, df_x_z in x_z.items():
-                    b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
-                    denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
-                    score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
-                    denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
-                    z_observed |= not_na_z[key].any(axis=1)
-                # The correction the comment above describes was computed and never applied, so a row with a
-                # missing Z cell scored closer to 0 here than in fit() (#513). A row with no Z value scores 0,
-                # as in fit().
-                score_z_a = np.where(z_observed, score_z_a / np.where(z_observed, denominators, 1.0), 0.0)
+                scores_z_a = [
+                    regress_a_space_on_b_row(
+                        x_z[key].to_numpy() * not_na_z[key],
+                        self.w_loadings_z[key].iloc[:, pc_a].to_numpy(),
+                        not_na_z[key],
+                    ).ravel()
+                    if key in x_z
+                    else np.zeros(num_obs)
+                    for key in self.z_mats
+                ]
 
                 # Multiply the individual block scores by the super-weights, to get the super-scores.
-                # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-                super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+                # After transposing below, rows are the observations, and columns are the blocks: [Z groups..., F]
+                super_score_a = np.vstack([*scores_z_a, score_f_a]).T @ np.asarray(
                     self.w_loadings_super.iloc[:, pc_a].values
                 ).reshape(-1, 1)
             else:
@@ -1049,7 +1052,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             The block to learn from.
         label : str
             Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
-            zero-variance warning.
+            warnings for excluded columns.
 
         Returns
         -------
@@ -1067,19 +1070,29 @@ class TPLS(RegressorMixin, BaseEstimator):
             the fit. That is the right thing to do with a constant column, but it used to
             happen without a word (#513): the only sign was a message-less
             ``AssertionError`` further down, or, under ``python -O``, nothing at all.
+            A column with no observed value is excluded the same way and gets the same
+            warning, worded for its own cause (#982).
         """
         centering = y.mean(axis="index")
         scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
-        degenerate = scaling < _ZERO_VARIANCE_FLOOR
-        if degenerate.any():
-            named = ", ".join(repr(col) for col in y.columns[degenerate])
-            warnings.warn(
-                f"Block {label or '?'} has columns with no variance, which carry no information and are "
-                f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                UserWarning,
-                stacklevel=3,
-            )
-        scaling[degenerate] = float("nan")  # columns with little/no variance: set as nan
+        # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
+        # it is named separately because "no variance" would send the caller to the wrong cause.
+        unobserved = y.isna().all(axis="index")
+        # Negated so that a NaN standard deviation (a single observed value) counts as no variance.
+        degenerate = ~(scaling >= _ZERO_VARIANCE_FLOOR) & ~unobserved
+        for excluded, reason, advice in (
+            (unobserved, "no observed values", "check the data for a sensor that was never logged"),
+            (degenerate, "no variance", "check the data for a stuck sensor"),
+        ):
+            if excluded.any():
+                named = ", ".join(repr(col) for col in y.columns[excluded])
+                warnings.warn(
+                    f"Block {label or '?'} has columns with {reason}, which carry no information and are "
+                    f"excluded from the model: {named}. Drop them, or {advice}.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+        scaling[degenerate | unobserved] = float("nan")  # columns with no information: set as nan
         return centering, scaling
 
     def _validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1133,17 +1146,24 @@ class TPLS(RegressorMixin, BaseEstimator):
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
         row or a material with nothing observed no longer causes one: it gets a zero score or
         loading and no weight (#513). What is left is a direction the iteration cannot take,
-        because the vector it regresses on is zero: the first Y column it starts from, or
+        because the vector it regresses on is zero: every column of the first Y block, or
         every column of D or F, has no variation.
         """
         if np.isfinite(t_super_i).all():
             return
         msg = (
             f"TPLS cannot fit component {component}: its scores are not finite, because a block has "
-            "no variation for the iteration to follow. Check that the first column of the first Y "
+            "no variation for the iteration to follow. Check that at least one column of the first Y "
             "block, and at least one column of each D and F group, varies and is observed."
         )
         raise ValueError(msg)
+
+    def _super_block_names(self) -> list[str]:
+        """Row labels of ``w_loadings_super``: one per Z group, as the fit scores each on its own, then F."""
+        if self.n_conditions == 0:
+            return ["F"]
+        # A single Z group keeps the plain "Z" label it always had.
+        return ["Z", "F"] if len(self.z_mats) == 1 else [*(f'Z["{key}"]' for key in self.z_mats), "F"]
 
     def _store_model_coefficients(  # noqa: PLR0913
         self,
@@ -1177,7 +1197,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
 
         self.w_loadings_super = self.w_loadings_super.join(
-            pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a_column])
+            pd.DataFrame(w_super_i, index=self._super_block_names(), columns=[pc_a_column])
         )
 
         self.s_loadings_d = {
@@ -1676,8 +1696,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_iter = 0
             milliseconds_start = time.time()
 
-            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway, so it doesn't matter)
-            u_super_i = next(iter(self.y_mats.values()))[:, [0]]
+            # Step 1: Start from the Y column with the largest sum of squares, as PLS does (#195). The first
+            # column can be constant, all zero after preprocessing, and then the iteration has nothing to follow (#954).
+            u_super_i = largest_ssq_column(next(iter(self.y_mats.values())))
             u_prior = u_super_i + 1
 
             while not self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
