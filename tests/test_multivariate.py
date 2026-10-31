@@ -5587,8 +5587,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # from sklearn.model_selection import cross_val_score
 
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
-    # Ensure model is fitted appropriately, with the expected number of iterations
-    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
+    # Ensure model is fitted appropriately, with the expected number of iterations. These were
+    # [11, 9, 27] when the iteration started from the first Quality column; it now starts from the
+    # column with the largest sum of squares (#954). The autoscaled Quality columns tie for the
+    # first component, so that one still starts from the first column; the third gets there in fewer.
+    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 25]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
@@ -5614,9 +5617,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
         [5.60356584, 2.82414766, 1.69358176, 3.4829089], rel=1e-8
     )
-    # Test the last 4 observations
+    # Test the last 4 observations. This pin and the D["Group 3"] one below were re-taken when the
+    # iteration started from the largest Quality column (#954): the model is the same within the
+    # convergence tolerance, and these two moved by 1e-8 and 1e-7 relative, just past their rel.
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
-        [2.79253124, 2.00872637, 10.80292179, 3.26432946], rel=1e-8
+        [2.79253125, 2.00872639, 10.80292176, 3.26432949], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
         [167.49971736, 132.25813164, 201.56460235, 198.02742727], rel=1e-8
@@ -5634,7 +5639,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         [30.77363754, 31.61877076, 30.53696788, 97.88805239], rel=1e-8
     )
     assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [0.015504765277819974, 0.002021083231104291, 0.04795499280275304, 0.0024131901105140696], rel=1e-7
+        [0.015504767382306245, 0.0020210834557258493, 0.0479549926196664, 0.002413190023210532], rel=1e-7
     )
     # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
     assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
@@ -5841,6 +5846,50 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     # The fit completes, and the excluded column leaves no NaN behind in the scores.
     assert np.isfinite(model.t_scores_super.to_numpy()).all()
     assert np.isfinite(model.z_mats["Z1"]).all()
+
+
+def test_tpls_and_mbpls_start_from_the_y_column_with_the_most_variation() -> None:
+    """#954: a constant first Y column does not stop the fit, and its position does not change the model.
+
+    TPLS seeded its iteration, and its inner one-component PLS, from the first Y column. A
+    constant column is a column of zeros after preprocessing, so the scores came out NaN and
+    the fit was refused although the other Y columns vary. Both now start from the column with
+    the largest sum of squares, as PLS and MBPLS do (#195, #503).
+    """
+    rng = np.random.default_rng(954)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    f_block = pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)
+    z_block = pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])
+    y_block = pd.DataFrame(
+        {"stuck": np.ones(n_blends), "y1": rng.normal(size=n_blends), "y2": rng.normal(size=n_blends)}, index=index
+    )
+
+    def fit_tpls(columns: list[str]) -> tuple[TPLS, pd.DataFrame]:
+        blocks = DataFrameDict({"F": {"G": f_block}, "Z": {"Z1": z_block}, "Y": {"Y1": y_block[columns]}})
+        with pytest.warns(UserWarning, match="no variance"):
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+        return model, model.diagnose(blocks).hat["Y1"][["y1", "y2"]]
+
+    first, predicted_first = fit_tpls(["stuck", "y1", "y2"])
+    last, predicted_last = fit_tpls(["y1", "y2", "stuck"])
+    # The same model up to the sign of each component, so the same predictions.
+    scores_first, scores_last = first.t_scores_super.to_numpy(), last.t_scores_super.to_numpy()
+    signs = np.sign(np.sum(scores_first * scores_last, axis=0))
+    assert np.all(signs != 0)
+    np.testing.assert_allclose(scores_first, scores_last * signs, atol=1e-6)
+    np.testing.assert_allclose(predicted_first.to_numpy(), predicted_last.to_numpy(), atol=1e-6)
+
+    # MBPLS, checked for the same case (CONTRIBUTING.md, API consistency).
+    x_blocks = {"F": f_block, "Z": z_block}
+
+    def fit_mbpls(columns: list[str]) -> MBPLS:
+        return MBPLS(n_components=2).fit(x_blocks, y_block[columns])
+
+    mb_first, mb_last = fit_mbpls(["stuck", "y1", "y2"]), fit_mbpls(["y1", "y2", "stuck"])
+    np.testing.assert_allclose(mb_first.super_scores_.to_numpy(), mb_last.super_scores_.to_numpy(), atol=1e-6)
 
 
 def test_tpls_preprocessing_invariant_names_what_failed() -> None:
@@ -10487,9 +10536,10 @@ def _masked_regression(block: np.ndarray, vector: np.ndarray, per: str) -> np.nd
 def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = epsqrt, max_iter: int = 500) -> dict:
     """NIPALS PLS as ``PLS`` runs it, written out, with the iterations each component took.
 
-    Each component is seeded from the Y column of largest sum of squares (a missing cell as
-    0), plus 1; an iteration is ``w = X'u / u'u`` normalised, ``t = Xw / w'w``,
-    ``c = Y't / t't``, ``u = Yc / c'c``, each over the observed cells; the loop stops once
+    Each component is seeded from the Y column of largest sum of squares, the first of any that
+    tie to round-off as autoscaled columns do (a missing cell as 0), plus 1; an iteration is
+    ``w = X'u / u'u`` normalised, ``t = Xw / w'w``, ``c = Y't / t't``, ``u = Yc / c'c``, each
+    over the observed cells; the loop stops once
     ``||u_old - u|| / ||u|| < tol``, or after ``max_iter`` iterations. Then ``p = X't / t't``,
     both blocks are deflated, and the component is turned so that its largest loading is
     positive.
@@ -10497,7 +10547,8 @@ def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = eps
     X, Y = np.array(X, dtype=float), np.array(Y, dtype=float)
     out: dict = {name: [] for name in ("T", "U", "W", "P", "C", "iterations")}
     for _ in range(A):
-        seed = np.nan_to_num(Y[:, [np.argmax(np.nansum(Y**2, axis=0))]])
+        ssq_y = np.nansum(Y**2, axis=0)
+        seed = np.nan_to_num(Y[:, [np.flatnonzero(ssq_y >= ssq_y.max() * (1 - 1e-9))[0]]])
         u, iterations = seed + 1.0, 0
         while True:
             previous = u
