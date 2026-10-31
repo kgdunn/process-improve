@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import keyword
 import re
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -20,9 +21,13 @@ from process_improve.experiments._lm import (
     real_names,
     stand_ins_for,
     suggest_identifier,
+    validate_contrast_levels,
     validate_identifiers_are_safe,
     with_stand_ins,
 )
+from process_improve.experiments.augment import augment_design
+from process_improve.experiments.evaluate import evaluate_design
+from process_improve.experiments.layouts import tukey_nonadditivity
 from process_improve.experiments.models import (
     Model,
     UnsafeFormulaError,
@@ -32,6 +37,7 @@ from process_improve.experiments.models import (
     validate_formula_is_safe,
     validate_identifier_is_safe,
 )
+from process_improve.multivariate import ASCA
 
 _COLUMNS = ["A", "B", "C", "y", "d"]
 #: No column C beside a formula that calls C(): patsy would find the column first (see TestColumnNamedLikeACall).
@@ -389,6 +395,91 @@ class TestCategoricalContrasts:
     def test_literal_contrast_arguments_allowed(self, formula: str) -> None:
         """A reference level or level list given as literals is a legitimate contrast specification."""
         validate_formula_is_safe(formula, _CATEGORICAL_COLUMNS, allow_transforms=True, allow_numpy=True)
+
+
+_BLOCKED = pd.DataFrame({"Block": [1, 1, 2, 2] * 2, "A": [-1.0, 1.0] * 4, "y": [1.0, 2.1, 3.0, 4.2] * 2})
+_TWO_WAY = pd.DataFrame({"block": np.repeat([1, 2, 3], 3), "treatment": np.tile([1, 2, 3], 3)})
+_TWO_WAY["y"] = 5.0 + _TWO_WAY.block + 2.0 * _TWO_WAY.treatment + np.linspace(-0.1, 0.1, 9)
+
+
+class TestContrastLevels:
+    """A contrast's level is checked against its column's levels before patsy reads it (follow-up to #1043)."""
+
+    @pytest.mark.parametrize(
+        "formula",
+        [
+            pytest.param("y ~ C(Block, Treatment(2))", id="a-level"),
+            pytest.param("y ~ C(Block, Treatment(reference=1))", id="a-level-by-keyword"),
+            pytest.param("y ~ C(Block, Treatment(0))", id="an-integer-patsy-reads-as-a-position"),
+            pytest.param("y ~ C(Block, Sum(-1))", id="a-negative-position"),
+            pytest.param("y ~ C(A, Treatment(-1))", id="a-negative-level"),
+            pytest.param("y ~ C(Block, Sum) + C(Block, Treatment())", id="no-level"),
+            pytest.param("y ~ C(Block, Treatment(3), levels=[1, 2, 3])", id="the-levels-given"),
+        ],
+    )
+    def test_a_level_patsy_can_read_passes(self, formula: str) -> None:
+        validate_contrast_levels(formula, _BLOCKED)
+
+    @pytest.mark.parametrize(
+        ("formula", "message"),
+        [
+            pytest.param(
+                "y ~ A + C(Block, Treatment('1'))",
+                "C(Block, Treatment('1')) asks for the level '1', which column 'Block' does not have: its levels "
+                "are [1, 2]. Write the level as the column holds it, as in C(Block, Treatment(1)).",
+                id="a-string-on-integer-levels",
+            ),
+            pytest.param(
+                "y ~ C(Block, contrast=Sum(omit='2'))",
+                "C(Block, contrast=Sum(omit='2')) asks for the level '2', which column 'Block' does not have: its "
+                "levels are [1, 2]. Write the level as the column holds it, as in C(Block, Sum(2)).",
+                id="the-omitted-level-by-keyword",
+            ),
+            pytest.param(
+                "y ~ C(Block, Treatment(3))",
+                "C(Block, Treatment(3)) asks for the level 3, which column 'Block' does not have: its levels "
+                "are [1, 2]. Write the level as the column holds it, as in C(Block, Treatment(1)).",
+                id="an-integer-past-the-last-position",
+            ),
+        ],
+    )
+    def test_a_level_the_column_does_not_have_is_named_with_the_levels(self, formula: str, message: str) -> None:
+        with pytest.raises(ValueError, match=re.escape(message)):
+            validate_contrast_levels(formula, _BLOCKED)
+
+    @pytest.mark.parametrize(
+        "fit",
+        [
+            pytest.param(lambda: lm("y ~ A + C(Block, Treatment('1'))", _BLOCKED), id="lm"),
+            pytest.param(
+                lambda: tukey_nonadditivity(_TWO_WAY, "y ~ C(block, Treatment('1')) + C(treatment)"),
+                id="tukey_nonadditivity",
+            ),
+            # evaluate_design reads the blocks as labels, '1' and '2', so an integer is a position there.
+            pytest.param(
+                lambda: evaluate_design(_BLOCKED[["A", "Block"]], "A + C(Block, Treatment(2))"), id="evaluate_design"
+            ),
+            pytest.param(
+                lambda: augment_design(
+                    _BLOCKED[["A", "Block"]],
+                    "add_runs_optimal",
+                    target_model="A + C(Block, Treatment('1'))",
+                    n_additional_runs=2,
+                    factor_names=["A", "Block"],
+                ),
+                id="augment_design",
+            ),
+            pytest.param(
+                lambda: ASCA(model="C(block, Treatment('1')) + C(treatment, Sum)").fit(
+                    _TWO_WAY[["y"]], design=_TWO_WAY[["block", "treatment"]]
+                ),
+                id="ASCA",
+            ),
+        ],
+    )
+    def test_every_entry_point_names_the_levels(self, fit: Callable[[], object]) -> None:
+        with pytest.raises(ValueError, match=r"which column '[Bb]lock' does not have: its levels are"):
+            fit()
 
 
 class TestValidateFormulaRejectionMessages:

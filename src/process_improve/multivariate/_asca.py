@@ -33,6 +33,7 @@ from process_improve._random import check_random_state
 from process_improve.experiments._lm import (
     real_names,
     stand_ins_for,
+    validate_contrast_levels,
     validate_formula_is_safe,
     validate_identifiers_are_safe,
     with_stand_ins,
@@ -251,7 +252,9 @@ class ASCA(BaseEstimator):
         self._centred = centred
 
         rhs, stand_ins = _sum_coded_rhs(list(design.columns), self.model)
-        design_matrix = dmatrix(rhs, design.rename(columns=stand_ins), return_type="dataframe")
+        fitted_design = design.rename(columns=stand_ins)
+        validate_contrast_levels(rhs, fitted_design)
+        design_matrix = dmatrix(rhs, fitted_design, return_type="dataframe")
         slices = design_matrix.design_info.term_slices
         self.is_balanced_ = self._check_balance(design)
 

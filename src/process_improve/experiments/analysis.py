@@ -79,6 +79,7 @@ from process_improve.experiments._lm import (
     real_names,
     stand_ins_for,
     suggest_identifier,
+    validate_contrast_levels,
     validate_identifiers_are_safe,
     with_stand_ins,
 )
@@ -685,10 +686,14 @@ def _whole_plot_column(df: pd.DataFrame, whole_plot: str | None, types: list[str
     return column
 
 
-def _check_term_count(formula: str) -> None:
-    """Refuse a formula that expands beyond ``settings.max_formula_terms`` terms (SEC-19), as ``lm`` does."""
+def _check_formula(formula: str, df: pd.DataFrame) -> None:
+    """Refuse a contrast level that ``df`` lacks, and a formula beyond ``settings.max_formula_terms`` terms (SEC-19).
+
+    ``lm`` refuses both as well.
+    """
     from process_improve.config import settings  # noqa: PLC0415
 
+    validate_contrast_levels(formula, df)
     n_terms = len(ModelDesc.from_formula(formula).rhs_termlist)
     if n_terms > settings.max_formula_terms:
         raise ValueError(
@@ -1509,7 +1514,7 @@ def analyze_experiment(  # noqa: PLR0913
     # with I()/Q() over data columns (the ``quadratic`` shorthand needs it).
     validate_formula_is_safe(formula, df.columns, allow_transforms=True)
     df, formula, blocks = _add_block_term(df, formula, model)
-    _check_term_count(formula)
+    _check_formula(formula, df)
 
     raw_response = df[response_col].astype(float)
     rhs = formula.split("~", 1)[1]
