@@ -480,6 +480,7 @@ only_mutate = [
     "src/process_improve/multivariate/_plsda.py",
     "src/process_improve/multivariate/_asca.py",
     "src/process_improve/multivariate/_categorical.py",
+    "src/process_improve/multivariate/_adaptive.py",
 ]
 # The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]

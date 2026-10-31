@@ -81,6 +81,8 @@ jobs:
               process_improve.multivariate._asca.*
           - name: categorical
             patterns: process_improve.multivariate._categorical.*
+          - name: adaptive
+            patterns: process_improve.multivariate._adaptive.*
     steps:
       - uses: actions/checkout@v7
       - name: Set up the project environment
