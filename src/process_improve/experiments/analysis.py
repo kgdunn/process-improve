@@ -843,7 +843,12 @@ class _Fit:
         return [*self.factor_cols, BLOCK_COL] if blocked and BLOCK_COL not in self.factor_cols else self.factor_cols
 
     def coded(self) -> tuple[RegressionResultsWrapper, dict[str, Any]]:
-        """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on."""
+        """Return the model refitted on factors coded to -1/+1, the scale the effects are defined on.
+
+        A model that is not a polynomial in the factors (see :func:`_polynomial_in`) has no
+        such scale once a numeric factor is coded, so it raises ``ValueError``, as an explicit
+        coded ``coding`` does for it.
+        """
         if self._coded is None:
             coded_df = self.df.copy()
             coding: dict[str, Any] = {}
@@ -851,6 +856,14 @@ class _Fit:
                 coded_df[col], how = _code_factor(self.df[col])
                 if how is not None:
                     coding[col] = how
+            numeric = [c for c in self.factor_cols if _is_numeric(self.df[c])]
+            if set(coding) & set(numeric) and not _polynomial_in(self.ols.model.formula.split("~", 1)[1], numeric):
+                raise ValueError(
+                    "Effects are measured between each factor's -1 and +1 settings, but this model has an I() term "
+                    "that is not a product of whole powers of the factors, such as I(x ** 0.5) or I(z2 - 0.2 * z1), "
+                    "which has no coded scale: on the factors coded to -1/+1 it is undefined or means another term. "
+                    "Use analysis_type='coefficients' for its coefficients in the factors' own units, or 'anova'."
+                )
             if coding:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")  # the rank warning was already given for the fit
@@ -1199,7 +1212,10 @@ def analyze_experiment(  # noqa: PLR0913
         from its first level to its second (sorted); the mapping is reported under
         ``effects_coding``. An effect is the change in response from the lowest to the
         highest value of its model column: twice the coefficient for a main effect or
-        interaction, the coefficient itself for a square such as ``I(A**2)``. The curvature test uses
+        interaction, the coefficient itself for a square such as ``I(A**2)``. A model with
+        an ``I()`` term that is not a product of whole powers of the factors has no coded
+        scale, so its effects and Lenth's method raise ``ValueError`` unless its numeric
+        factors are already coded. The curvature test uses
         pure error from the replicated runs.
 
         Each of the ``"coefficients"`` carries its ``std_error``, ``t_value``, ``p_value``, its
