@@ -1369,3 +1369,215 @@ class TestMFAInputs:
         fig = MFA(GROUPS).fit(blocks).map_plot()
         assert fig.layout.title.text == "MFA map"
         assert fig.layout.xaxis.title.text.startswith("Axis 1")
+
+
+def _mfa_by_hand(frame: pd.DataFrame, groups: dict[str, list[str]], *, scale: bool = True) -> dict:
+    """Escofier and Pages: each group centred (and scaled), weighted by one over its first eigenvalue.
+
+    The first eigenvalue is the largest of the group's covariance (or correlation) matrix, by
+    eigvalsh; the weighted groups side by side are decomposed by SVD over sqrt(n), and every
+    axis with inertia is kept, signed as CA's.
+    """
+    n, weighted, weights = len(frame), {}, {}
+    for name, columns in groups.items():
+        values = frame[columns].to_numpy(dtype=float)
+        centred = values - values.mean(axis=0)
+        if scale:
+            centred = centred / values.std(axis=0)
+        weights[name] = 1 / np.linalg.eigvalsh(centred.T @ centred / n)[-1]
+        weighted[name] = centred * np.sqrt(weights[name])
+    combined = np.hstack(list(weighted.values()))
+    u, singular, vt = np.linalg.svd(combined / np.sqrt(n))
+    axes = int(np.sum(singular**2 > 1e-12))
+    signs = np.sign(u[np.abs(u)[:, :axes].argmax(axis=0), np.arange(axes)])
+    v, singular = vt[:axes].T * signs, singular[:axes]
+    rows, start = {}, 0
+    for name, block in weighted.items():
+        rows[name] = slice(start, start + block.shape[1])
+        start += block.shape[1]
+    column_weights = np.concatenate([[weights[name]] * len(columns) for name, columns in groups.items()])
+    return {
+        "weights": weights,
+        "eigenvalues": singular**2,
+        "F": combined @ v,
+        "partial": {name: len(groups) * block @ v[rows[name]] for name, block in weighted.items()},
+        "groups": {name: (v[rows[name]] ** 2).sum(axis=0) * singular**2 for name in groups},
+        "columns": v * singular / np.sqrt(column_weights)[:, np.newaxis],
+        "contributions": v**2,
+    }
+
+
+@pytest.fixture
+def three_groups() -> tuple[pd.DataFrame, dict[str, list[str]]]:
+    """Three groups of 3, 2 and 2 columns on one driver, with labelled rows."""
+    data, groups = _driven_groups(seed=2, widths=(3, 2, 2), shared=True)
+    return data.set_axis([f"s{i}" for i in range(len(data))]), groups
+
+
+class TestMFAByHand:
+    @pytest.mark.parametrize("scale", [True, False])
+    def test_every_attribute_by_hand(self, three_groups: tuple, scale: bool) -> None:
+        """Three groups, so the third group's columns start past the first two groups' columns."""
+        data, groups = three_groups
+        if not scale:
+            data = data.assign(g1_0=1000 * data["g1_0"], g2_1=1e-6 * data["g2_1"])
+        mfa = MFA(groups, scale=scale).fit(data)
+        hand = _mfa_by_hand(data, groups, scale=scale)
+        eigenvalues, used = hand["eigenvalues"], [c for columns in groups.values() for c in columns]
+        assert mfa.groups_ == groups
+        pd.testing.assert_series_equal(mfa.group_weights_, pd.Series(hand["weights"], name="weight"), rtol=1e-12)
+        assert mfa.n_components_ == 2
+        np.testing.assert_allclose(mfa.eigenvalues_, eigenvalues[:2], rtol=1e-12)
+        assert mfa.total_inertia_ == pytest.approx(eigenvalues.sum(), rel=1e-12)
+        np.testing.assert_allclose(mfa.explained_inertia_, eigenvalues[:2] / eigenvalues.sum(), rtol=1e-12)
+        expected = {
+            "row_coordinates_": _axes_frame(hand["F"][:, :2], data.index),
+            "column_coordinates_": _axes_frame(hand["columns"][:, :2], pd.Index(used)),
+            "column_contributions_": _axes_frame(hand["contributions"][:, :2], pd.Index(used)),
+            "group_coordinates_": _axes_frame(
+                np.array([hand["groups"][name][:2] for name in groups]), pd.Index(list(groups))
+            ),
+            "group_contributions_": _axes_frame(
+                np.array([hand["groups"][name][:2] / eigenvalues[:2] for name in groups]), pd.Index(list(groups))
+            ),
+        }
+        for name, frame in expected.items():
+            pd.testing.assert_frame_equal(getattr(mfa, name), frame, rtol=0, atol=1e-10, obj=name)
+        assert list(mfa.partial_row_coordinates_) == list(groups)
+        for name, partial in hand["partial"].items():
+            pd.testing.assert_frame_equal(
+                mfa.partial_row_coordinates_[name], _axes_frame(partial[:, :2], data.index), rtol=0, atol=1e-10
+            )
+        new = data.iloc[[3, 8]].set_axis(["n1", "n2"])
+        pd.testing.assert_frame_equal(
+            mfa.transform(new), _axes_frame(hand["F"][[3, 8], :2], new.index), rtol=0, atol=1e-10
+        )
+
+    def test_an_array_is_read_as_a_frame_numbered_from_zero(self, blocks: pd.DataFrame) -> None:
+        by_position = {"spectra": [0, 1, 2, 3], "lab": [4, 5]}
+        mfa, reference = MFA(by_position).fit(blocks.to_numpy()), MFA(GROUPS).fit(blocks)
+        pd.testing.assert_index_equal(mfa.row_coordinates_.index, pd.RangeIndex(12))
+        np.testing.assert_allclose(mfa.row_coordinates_, reference.row_coordinates_, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(mfa.transform(blocks.to_numpy()), reference.row_coordinates_, rtol=0, atol=1e-12)
+
+    def test_nullable_columns_are_read_as_floats(self, blocks: pd.DataFrame) -> None:
+        """An Int64 and a Float64 column in one group, as pandas reads a file with nullable dtypes."""
+        rounded = blocks.assign(lab1=(1000 * blocks["lab1"]).round())
+        nullable = rounded.assign(lab1=rounded["lab1"].astype("Int64"), lab2=rounded["lab2"].astype("Float64"))
+        mfa, reference = MFA(GROUPS).fit(nullable), MFA(GROUPS).fit(rounded)
+        np.testing.assert_allclose(mfa.eigenvalues_, reference.eigenvalues_, rtol=1e-12)
+        np.testing.assert_allclose(mfa.transform(nullable), reference.row_coordinates_, rtol=0, atol=1e-12)
+
+    @pytest.mark.parametrize("scale", [True, False])
+    def test_a_group_far_from_zero_fits_as_it_does_near_zero(self, blocks: pd.DataFrame, scale: bool) -> None:
+        """Lab results 1e7 above zero vary as much as they do near it: the offset is centred away.
+
+        A group was refused for "no variation" when its first eigenvalue was below 1e-12 of the
+        mean square of its raw values, which an offset of 1e7 on values of sd 1 makes 1e14.
+        """
+        offset = blocks.assign(lab1=blocks["lab1"] + 1e7, lab2=blocks["lab2"] + 1e7)
+        mfa, reference = MFA(GROUPS, scale=scale).fit(offset), MFA(GROUPS, scale=scale).fit(blocks)
+        np.testing.assert_allclose(mfa.eigenvalues_, reference.eigenvalues_, rtol=1e-6)
+        np.testing.assert_allclose(mfa.row_coordinates_, reference.row_coordinates_, rtol=0, atol=1e-6)
+
+    @pytest.mark.parametrize("scale", [True, False])
+    def test_a_group_in_small_units_fits_as_it_does_in_large_ones(self, blocks: pd.DataFrame, scale: bool) -> None:
+        small = blocks.assign(lab1=blocks["lab1"] * 1e-12, lab2=blocks["lab2"] * 1e-12)
+        mfa, reference = MFA(GROUPS, scale=scale).fit(small), MFA(GROUPS, scale=scale).fit(blocks)
+        np.testing.assert_allclose(mfa.eigenvalues_, reference.eigenvalues_, rtol=1e-10)
+
+    def test_a_constant_column_is_refused_whatever_its_sd_rounds_to(self, blocks: pd.DataFrame) -> None:
+        """0.1 twelve times has a population sd of 1.4e-17, not 0.
+
+        Divided by that, the column was one of -1s, uncentred, and the group took it in unrefused.
+        """
+        assert np.full(12, 0.1).std() > 0
+        message = "Group 'lab' has a constant column; drop it before fitting."
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            MFA({**GROUPS, "lab": ["lab1", "lab2", "setpoint"]}).fit(blocks.assign(setpoint=0.1))
+
+    def test_an_unscaled_group_may_hold_a_constant_column(self, blocks: pd.DataFrame) -> None:
+        """Centred, it is a column of zeros, which changes nothing; a group of nothing else has no variation."""
+        with_setpoint = blocks.assign(setpoint=0.1)
+        mfa = MFA({**GROUPS, "lab": ["lab1", "lab2", "setpoint"]}, scale=False).fit(with_setpoint)
+        reference = MFA(GROUPS, scale=False).fit(blocks)
+        np.testing.assert_allclose(mfa.eigenvalues_, reference.eigenvalues_, rtol=1e-12)
+        message = "Group 'fixed' has no variation, so there is nothing to weight it by."
+        for scale, expected in (
+            (False, message),
+            (True, "Group 'fixed' has a constant column; drop it before fitting."),
+        ):
+            with pytest.raises(ValueError, match=f"^{re.escape(expected)}$"):
+                MFA({**GROUPS, "fixed": ["setpoint"]}, scale=scale).fit(with_setpoint)
+
+    def test_the_number_of_axes(self, blocks: pd.DataFrame) -> None:
+        assert MFA(GROUPS, n_components=1).fit(blocks).row_coordinates_.shape == (12, 1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert MFA(GROUPS, n_components=6).fit(blocks).n_components_ == 6
+        message = "Asked for 10 axes, but this table has 6 with any inertia; keeping 6."
+        with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+            MFA(GROUPS, n_components=10).fit(blocks)
+
+    def test_the_refusals_in_full(self, blocks: pd.DataFrame) -> None:
+        as_blocks = {name: blocks[columns] for name, columns in GROUPS.items()}
+        cases = [
+            (MFA(GROUPS), as_blocks, "Pass either a dict of blocks or groups=, not both."),
+            (MFA(), blocks, "Say which columns form each group with groups=, or pass a dict of blocks."),
+            (MFA(), {"spectra": as_blocks["spectra"]}, "MFA needs at least two groups; with one, it is just a PCA."),
+            (MFA({"spectra": GROUPS["spectra"], "lab": []}), blocks, "Group 'lab' has no columns."),
+            (
+                MFA({"spectra": GROUPS["spectra"], "lab": ["lab1", "viscosity"]}),
+                blocks,
+                "Group 'lab' names column 'viscosity', which is not in the data.",
+            ),
+            (
+                MFA({"spectra": GROUPS["spectra"], "lab": ["lab1", "spec1"]}),
+                blocks,
+                "Column 'spec1' is in both group 'spectra' and group 'lab'.",
+            ),
+            (
+                MFA({**GROUPS, "context": ["rework"]}),
+                blocks.assign(rework=[True, False] * 6),
+                (
+                    "Column 'rework' in group 'context' is not numeric. MFA here takes numeric groups; for a table "
+                    "mixing numeric and categorical columns use FAMD."
+                ),
+            ),
+            (
+                MFA(),
+                {"spectra": as_blocks["spectra"], "lab": as_blocks["lab"].iloc[::-1]},
+                "Every block must have the same row index, in the same order.",
+            ),
+            (
+                MFA(),
+                {"a": blocks[["spec1", "spec2"]], "b": blocks[["spec2", "lab1"]]},
+                "Column names must be unique across blocks; ['spec2'] repeat.",
+            ),
+            (MFA(GROUPS, n_components=0), blocks, "n_components must be at least 1; got 0."),
+        ]
+        gapped = blocks.copy()
+        gapped.iloc[2, 4] = np.nan
+        cases.append(
+            (MFA(GROUPS), gapped, "MFA needs complete data; impute or drop the rows with missing values first.")
+        )
+        for model, data, message in cases:
+            with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+                model.fit(data)
+        with pytest.raises(TypeError, match=r"^groups must be a dict of group name to column names; got list\.$"):
+            MFA([GROUPS["spectra"], GROUPS["lab"]]).fit(blocks)
+
+        mfa = MFA(GROUPS).fit(blocks)
+        with pytest.raises(ValueError, match=r"^New observations lack the columns \['lab2'\]\.$"):
+            mfa.transform(blocks.drop(columns="lab2"))
+        with pytest.raises(ValueError, match=r"^New observations must not have missing values\.$"):
+            mfa.transform(gapped)
+        with pytest.raises(NotFittedError):
+            MFA(GROUPS).transform(blocks)
+
+    def test_map_plot_at_its_defaults_and_with_settings(self, blocks: pd.DataFrame) -> None:
+        mfa = MFA(GROUPS, n_components=3).fit(blocks)
+        fig = mfa.map_plot()
+        np.testing.assert_array_equal(fig.data[0].x, mfa.row_coordinates_[1].to_numpy())
+        np.testing.assert_array_equal(fig.data[1].y, mfa.column_coordinates_[2].to_numpy())
+        assert mfa.map_plot(3, 2, settings={"title": "Blocks"}).layout.title.text == "Blocks"

@@ -1000,18 +1000,19 @@ class MFA(TransformerMixin, BaseEstimator):
         weights = {}
         for name, columns in self.groups_.items():
             values = frame[columns].to_numpy(dtype=float)
-            self._means[name] = values.mean(axis=0)
-            spread = values.std(axis=0) if self.scale else np.ones(values.shape[1])
-            if np.any(spread == 0):
+            # A column of equal values, in any units and at any offset, as MCUVScaler reads
+            # one. Its standard deviation is as often rounding noise as an exact 0, and the
+            # size of the values says nothing about how much they vary.
+            constant = np.ptp(values, axis=0) == 0
+            if self.scale and constant.any():
                 raise ValueError(f"Group {name!r} has a constant column; drop it before fitting.")
-            self._spreads[name] = spread
-            centred = (values - self._means[name]) / spread
-            leading = np.linalg.svd(centred / np.sqrt(len(values)), compute_uv=False)[0] ** 2
-            # Relative to the data's own size, so that an unscaled group measured in
-            # tiny units is not mistaken for a constant one.
-            if leading <= _NULL_INERTIA * np.mean(values**2):
+            if constant.all():
                 raise ValueError(f"Group {name!r} has no variation, so there is nothing to weight it by.")
-            weights[name] = 1.0 / leading
+            self._means[name] = values.mean(axis=0)
+            self._spreads[name] = values.std(axis=0) if self.scale else np.ones(values.shape[1])
+            centred = (values - self._means[name]) / self._spreads[name]
+            # One over the group's first eigenvalue, its largest singular value squared over n.
+            weights[name] = len(values) / np.linalg.norm(centred, 2) ** 2
         self.group_weights_ = pd.Series(weights, name="weight")
 
     def _per_group(self, blocks: dict[str, np.ndarray], index: pd.Index, axes: list[int]) -> None:
@@ -1073,7 +1074,7 @@ class MFA(TransformerMixin, BaseEstimator):
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
@@ -1114,7 +1115,7 @@ class MFA(TransformerMixin, BaseEstimator):
         ValueError
             If a grouped column is absent or a cell is missing.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         frame = _as_frame(X)
         used = [column for columns in self.groups_.values() for column in columns]
         missing = [column for column in used if column not in frame.columns]
