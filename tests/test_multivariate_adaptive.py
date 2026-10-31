@@ -24,6 +24,7 @@ import pytest
 from scipy import stats
 from sklearn.base import clone
 from sklearn.exceptions import NotFittedError
+from sklearn.utils import Bunch
 
 from process_improve.multivariate import PCA, PLS, AdaptivePCA, AdaptivePLS, MCUVScaler
 from process_improve.multivariate._adaptive import (
@@ -702,7 +703,7 @@ def test_pls_missing_data_projection_is_finite(synthetic_pls_data: tuple[pd.Data
 
 
 def test_a_missing_response_is_treated_as_no_response(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """A NaN in y_row holds the regression side, exactly as passing no response does."""
+    """A NaN in y_row holds the regression side, exactly as passing no response does; None is NaN, in x_row too."""
     X, Y = synthetic_pls_data
     with_nan = AdaptivePLS(n_components=2, forgetting_factor=0.05).fit(X, Y)
     without = AdaptivePLS(n_components=2, forgetting_factor=0.05).fit(X, Y)
@@ -711,6 +712,12 @@ def test_a_missing_response_is_treated_as_no_response(synthetic_pls_data: tuple[
     assert without.update(row).updated
     for attribute in ("XtX_", "XtY_", "my_", "sy_"):
         np.testing.assert_array_equal(getattr(with_nan, attribute), getattr(without, attribute))
+
+    with_none, nan_x = (AdaptivePLS(n_components=2, forgetting_factor=0.05).fit(X, Y) for _ in range(2))
+    assert with_none.update([*row[:-1], None], y_row=[None]).updated
+    assert nan_x.update([*row[:-1], np.nan]).updated
+    for attribute in ("XtX_", "XtY_", "my_", "sy_", "mx_", "sx_"):
+        np.testing.assert_array_equal(getattr(with_none, attribute), getattr(nan_x, attribute))
 
 
 def test_prediction_channels_for_several_responses(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
@@ -1300,3 +1307,281 @@ def test_partial_fit_reads_a_frame_of_mixed_types(
     float_model.partial_fit(floats, y_mixed.astype(float) if cls is AdaptivePLS else None)
     np.testing.assert_array_equal(mixed_model.XtX_, float_model.XtX_)
     np.testing.assert_array_equal(mixed_model.spe_, float_model.spe_)
+
+
+# --------------------------------------------------------------------------- #
+# AdaptivePLS by hand
+# --------------------------------------------------------------------------- #
+
+
+def _autoscale(X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the block centred and scaled by its mean and sd (ddof=1), a missing cell as 0, and the two vectors."""
+    centre, scale = X.mean().to_numpy(), X.std().to_numpy()
+    return np.nan_to_num((X.to_numpy() - centre) / scale), centre, scale
+
+
+def _nuclear(matrix: np.ndarray) -> float:
+    """Return the nuclear norm: the sum of the singular values."""
+    return float(np.linalg.svd(matrix, compute_uv=False).sum())
+
+
+_PLS_RATES = {"mu": 0.2, "gamma": 0.3, "lam": 0.1, "alpha": 0.2, "lam_y": 0.3, "alpha_y": 0.4}
+
+
+def _ldpe_after_one_update(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> tuple[AdaptivePLS, Bunch, dict]:
+    """Fit AdaptivePLS to 40 LDPE rows, update it with the 41st and its five responses; return the steps by hand.
+
+    The training kernels and kernel model from the autoscaled block, and the centre and scale of X and
+    Y after the update by the EWMA equations.
+    """
+    X, Y = ldpe_data
+    r = _PLS_RATES
+    model = AdaptivePLS(
+        n_components=3,
+        forgetting_factor=r["mu"],
+        gamma=r["gamma"],
+        lambda_center=r["lam"],
+        alpha_scale=r["alpha"],
+        lambda_center_y=r["lam_y"],
+        alpha_scale_y=r["alpha_y"],
+        update_when_out_of_control=True,
+    ).fit(X.iloc[:40], Y.iloc[:40])
+    xs, centre, scale = _autoscale(X.iloc[:40])
+    ys, y_centre, y_scale = _autoscale(Y.iloc[:40])
+    x, y = X.iloc[40].to_numpy(), Y.iloc[40].to_numpy()
+    out = model.update(x, y_row=y, label="lab")
+    hand = {
+        "x": x,
+        "y": y,
+        "kernel_xx": xs.T @ xs,
+        "kernel_xy": xs.T @ ys,
+        "centre": centre,
+        "scale": scale,
+        "y_centre": y_centre,
+        "y_scale": y_scale,
+        "new_centre": centre + r["lam"] * (x - centre),
+        "new_scale": np.sqrt((1 - r["alpha"]) * scale**2 + r["alpha"] * (x - centre) ** 2),
+        "new_y_centre": y_centre + r["lam_y"] * (y - y_centre),
+        "new_y_scale": np.sqrt((1 - r["alpha_y"]) * y_scale**2 + r["alpha_y"] * (y - y_centre) ** 2),
+    }
+    hand["training"] = _kernel_pls(hand["kernel_xx"], hand["kernel_xy"], 3)
+    return model, out, hand
+
+
+def test_one_update_of_adaptive_pls_by_hand(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """One observation with its five responses, from the method's equations; the model from the moved kernels.
+
+    X'Y moves by (1 - mu) X'Y + mu x y' + f X'Y_0 with f = gamma mu ||x|| ||y|| / ||X'Y_0||, rescaled to the
+    training nuclear norm (the sum of singular values, which is not the Frobenius norm of a K x 5 matrix).
+    The weights, loadings and coefficients are the Dayal-MacGregor kernel model of the moved kernels,
+    signed to agree with the loadings before.
+    """
+    X, Y = ldpe_data
+    model, out, h = _ldpe_after_one_update(ldpe_data)
+    mu, gamma = _PLS_RATES["mu"], _PLS_RATES["gamma"]
+    weights0, loadings0, direct0, y_loadings0, _ = h["training"]
+    np.testing.assert_allclose(model.XtY0_, h["kernel_xy"], rtol=1e-12)
+    scores = (h["x"] - h["centre"]) / h["scale"] @ direct0
+    np.testing.assert_allclose(out.scores, scores, rtol=1e-9)
+    np.testing.assert_allclose(out.prediction, scores @ y_loadings0.T * h["y_scale"] + h["y_centre"], rtol=1e-9)
+    np.testing.assert_allclose(model.prediction_channels_.loc["lab"].xs("static", level="channel"), out.prediction)
+
+    np.testing.assert_allclose(model.my_, h["new_y_centre"], rtol=1e-14)
+    np.testing.assert_allclose(model.sy_, h["new_y_scale"], rtol=1e-14)
+    x_new = (h["x"] - h["new_centre"]) / h["new_scale"]
+    y_new = (h["y"] - h["new_y_centre"]) / h["new_y_scale"]
+    injection = gamma * mu * np.linalg.norm(x_new) * np.linalg.norm(y_new) / _nuclear(h["kernel_xy"])
+    moved_xy = (1 - mu) * h["kernel_xy"] + mu * np.outer(x_new, y_new) + injection * h["kernel_xy"]
+    moved_xy *= _nuclear(h["kernel_xy"]) / _nuclear(moved_xy)
+    np.testing.assert_allclose(model.XtY_, moved_xy, rtol=1e-10, atol=1e-12)
+    injection_xx = gamma * mu * float(x_new @ x_new) / np.trace(h["kernel_xx"])
+    np.testing.assert_allclose(model.injection_ratio_, [injection_xx], rtol=1e-12)
+
+    weights, loadings, direct, y_loadings, ssq = _kernel_pls(model.XtX_, moved_xy, 3)
+    signs = np.sign(np.sum(loadings * loadings0, axis=0))
+    np.testing.assert_allclose(model.x_weights_, weights * signs, rtol=1e-8, atol=1e-12)
+    np.testing.assert_allclose(model.x_loadings_, loadings * signs, rtol=1e-8, atol=1e-12)
+    np.testing.assert_allclose(model.direct_weights_, direct * signs, rtol=1e-8, atol=1e-12)
+    np.testing.assert_allclose(model.explained_variance_, ssq / 39, rtol=1e-10)
+    beta, beta0 = direct @ y_loadings.T, direct0 @ y_loadings0.T
+    raw = beta * h["new_y_scale"][np.newaxis, :] / h["new_scale"][:, np.newaxis]
+    np.testing.assert_allclose(model.beta_coefficients_, raw, rtol=1e-8, atol=1e-12)
+    assert list(model.beta_coefficients_.index) == list(X.columns)
+    assert list(model.beta_coefficients_.columns) == list(Y.columns)
+    shift = np.linalg.norm(beta - beta0) / np.linalg.norm(beta0)
+    np.testing.assert_allclose(model.beta_shift_, [shift], rtol=1e-8)
+    overlap = float(np.sum((weights0.T @ (weights * signs)) ** 2))
+    assert out.distance == model.distance_.iloc[-1] == pytest.approx(overlap, rel=1e-10)
+
+
+def test_the_prediction_channels_of_the_next_row_by_hand(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """After one update, the next row's prediction splits into the training model's, then two corrections.
+
+    The preprocessing channel moves the centre and scale with the training coefficients; the kernel
+    channel then moves the coefficients, those of the kernel model of the moved kernels.
+    """
+    X, _ = ldpe_data
+    model, _, h = _ldpe_after_one_update(ldpe_data)
+    _, _, direct0, y_loadings0, _ = h["training"]
+    beta0 = direct0 @ y_loadings0.T
+    _, _, direct, y_loadings, _ = _kernel_pls(model.XtX_, model.XtY_, 3)
+    beta = direct @ y_loadings.T  # the signs of R and C cancel
+    following = X.iloc[41].to_numpy()
+    static = h["y_centre"] + h["y_scale"] * (beta0.T @ ((following - h["centre"]) / h["scale"]))
+    moved = (following - h["new_centre"]) / h["new_scale"]
+    preprocessing = h["new_y_centre"] + h["new_y_scale"] * (beta0.T @ moved) - static
+    kernel = h["new_y_scale"] * ((beta - beta0).T @ moved)
+    second = model.update(following)
+    channels = model.prediction_channels_.loc[1]
+    for channel, expected in [("static", static), ("preprocessing", preprocessing), ("kernel", kernel)]:
+        np.testing.assert_allclose(channels.xs(channel, level="channel"), expected, rtol=1e-8, atol=1e-10)
+    np.testing.assert_allclose(second.prediction, static + preprocessing + kernel, rtol=1e-8)
+
+
+def test_adaptive_pls_fits_arrays_with_missing_cells(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Missing training cells are 0 in both kernels, after centring and scaling; arrays have numbered names."""
+    X, Y = synthetic_pls_data
+    x, y = X.to_numpy().copy(), Y.to_numpy().copy()
+    x[[3, 9], [1, 4]] = np.nan
+    y[5, 0] = np.nan
+    model = AdaptivePLS(n_components=2).fit(x, y)
+    xs, _, _ = _autoscale(pd.DataFrame(x))
+    ys, _, _ = _autoscale(pd.DataFrame(y))
+    np.testing.assert_allclose(model.XtX0_, xs.T @ xs, rtol=1e-12)
+    np.testing.assert_allclose(model.XtY0_, xs.T @ ys, rtol=1e-12)
+    assert (model.n_features_in_, model.n_targets_, model.n_samples_) == (6, 1, 180)
+    assert list(model.x_loadings_.index) == list(range(6))
+    assert list(model.predict(x[:2]).columns) == [0]
+
+
+def test_the_training_spe_limit_of_adaptive_pls_by_hand(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """The SPE of each training row after A components, its limit at conf_level, from the kernel model by hand."""
+    X, Y = synthetic_pls_data
+    xs, _, _ = _autoscale(X)
+    ys, _, _ = _autoscale(Y)
+    _, loadings, direct, _, _ = _kernel_pls(xs.T @ xs, xs.T @ ys, 2)
+    spe = np.linalg.norm(xs - xs @ direct @ loadings.T, axis=1)
+    model = AdaptivePLS(n_components=2, adaptive_spe_limit=False, conf_level=0.9).fit(X, Y)
+    out = model.update(X.iloc[0].to_numpy())
+    assert out.spe == pytest.approx(spe[0], rel=1e-9)
+    assert out.spe_limit == pytest.approx(_spe_limit_by_hand(spe, 0.9), rel=1e-6)
+    n = len(X)
+    assert out.hotellings_t2_limit == pytest.approx(2 * (n - 1) * (n + 1) / (n * (n - 2)) * stats.f.ppf(0.9, 2, n - 2))
+    assert (out.in_control, out.updated) == (True, True)
+    assert sorted(out) == sorted(
+        [
+            "scores",
+            "prediction",
+            "hotellings_t2",
+            "spe",
+            "spe_limit",
+            "hotellings_t2_limit",
+            "in_control",
+            "updated",
+            "distance",
+        ]
+    )
+
+
+def test_adaptive_pls_projects_a_row_with_missing_values_along_its_weights(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """Each score is read along the observed part of a weight, and the row deflated along the observed loading.
+
+    On the two pairs with one response on each pair, each weight lies on one pair, so the second
+    component's score is 0 when its pair is missing.
+    """
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=2).fit(X, Y)
+    xs, centre, scale = _autoscale(X)
+    ys, y_centre, y_scale = _autoscale(Y)
+    weights, loadings, _, y_loadings, ssq = _kernel_pls(xs.T @ xs, xs.T @ ys, 2)
+    row = X.iloc[2].to_numpy().copy()
+    row[[0, 3]] = np.nan
+    observed = ~np.isnan(row)
+    left = ((row - centre) / scale)[observed]
+    scores = np.zeros(2)
+    for a in range(2):
+        along = weights[observed, a]
+        scores[a] = left @ along / (along @ along)
+        left = left - scores[a] * loadings[observed, a]
+    out = model.update(row)
+    np.testing.assert_allclose(out.scores, scores, rtol=1e-9)
+    assert out.spe == pytest.approx(float(np.linalg.norm(left)), rel=1e-9)
+    assert out.hotellings_t2 == pytest.approx(float(np.sum(scores**2 / (ssq / 179))), rel=1e-9)
+    np.testing.assert_allclose(out.prediction, scores @ y_loadings.T * y_scale + y_centre, rtol=1e-9)
+
+    pairs = _two_pairs()
+    responses = pd.DataFrame({"ab": pairs["a"] + pairs["b"], "cd": 0.5 * (pairs["c"] + pairs["d"])})
+    model = AdaptivePLS(n_components=2).fit(pairs, responses)
+    weights = model.x_weights_.to_numpy()
+    np.testing.assert_allclose([weights[2:, 0], weights[:2, 1]], np.zeros((2, 2)), rtol=0, atol=1e-15)
+    out = model.update(np.array([0.5, 1.5, np.nan, np.nan]))
+    assert out.scores[1] == 0.0
+
+
+def test_a_sign_flip_of_the_kernel_model_is_undone(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """With mu = 1 and two responses, the model after one row is that row's direction, signed by the eigensolver.
+
+    Two models, one fed a row and the other its mirror about the centre, get opposite raw signs from
+    the same eigenvector of the same Y'X X'Y, so one of the two is flipped. Both keep loadings that
+    point the way the training ones did, and their weights and direct weights go with them.
+    """
+    X, Y = synthetic_pls_data
+    Y2 = Y.assign(z=X["x0"] - X["x1"])
+    params = {"forgetting_factor": 1.0, "gamma": 0.0, "lambda_center": 0.0, "alpha_scale": 0.0}
+    params |= {"lambda_center_y": 0.0, "alpha_scale_y": 0.0, "update_when_out_of_control": True}
+    for row in (X.iloc[7].to_numpy(), 2 * X.mean().to_numpy() - X.iloc[7].to_numpy()):
+        model = AdaptivePLS(n_components=1, **params).fit(X, Y2)
+        before = model.x_loadings_.to_numpy()
+        model.update(row, y_row=Y2.iloc[7].to_numpy())
+        loadings = model.x_loadings_.to_numpy()
+        assert float(loadings[:, 0] @ before[:, 0]) > 0
+        x = (row - model.mx_) / model.sx_
+        direction = np.sign(loadings[:, 0] @ x)
+        np.testing.assert_allclose(model.x_weights_.to_numpy()[:, 0], direction * x / np.linalg.norm(x), rtol=1e-9)
+        np.testing.assert_allclose(model.direct_weights_.to_numpy()[:, 0], direction * x / np.linalg.norm(x), rtol=1e-9)
+
+
+def test_adaptive_pls_reads_rows_of_any_kind(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """predict, transform and decompose_prediction of an array, a labelled frame, a frame of mixed types, no rows."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=2, forgetting_factor=0.1, update_when_out_of_control=True).fit(X, Y)
+    model.partial_fit(X.iloc[:20], Y.iloc[:20])
+    rows = X.iloc[30:33].set_axis(["p", "q", "r"])
+    mixed = rows.astype({"x0": "Float64"}).assign(x1=[True, False, True])
+    mixed.loc["q", "x0"] = pd.NA
+    floats = rows.assign(x1=[1.0, 0.0, 1.0])
+    floats.loc["q", "x0"] = np.nan
+    for method in ("predict", "transform", "decompose_prediction"):
+        by_frame = getattr(model, method)(floats)
+        assert list(by_frame.index) == ["p", "q", "r"]
+        pd.testing.assert_frame_equal(getattr(model, method)(mixed), by_frame)
+        by_array = getattr(model, method)(floats.to_numpy())
+        assert list(by_array.index) == [0, 1, 2]
+        np.testing.assert_array_equal(by_array.to_numpy(), by_frame.to_numpy())
+        assert getattr(model, method)(rows.iloc[:0]).shape == (0, by_frame.shape[1])
+    complete = floats.loc[["p", "r"]]  # a missing value is at the centre in the channels, but projected in predict
+    np.testing.assert_allclose(
+        model.decompose_prediction(complete)["adaptive"], model.predict(complete)["y"], rtol=1e-12
+    )
+    assert list(model.transform(floats).columns) == [1, 2]
+    assert list(model.predict(floats).columns) == ["y"]
+    xs = np.nan_to_num((floats.to_numpy() - model.mx_) / model.sx_)  # a missing value at the centre
+    static = model._my0 + model._sy0 * (np.nan_to_num((floats.to_numpy() - model._mx0) / model._sx0) @ model._beta0)
+    np.testing.assert_allclose(model.decompose_prediction(floats)["static"], static[:, 0], rtol=1e-12)
+    adaptive = model.my_ + model.sy_ * (xs @ model._beta_scaled)
+    np.testing.assert_allclose(model.decompose_prediction(floats)["adaptive"], adaptive[:, 0], rtol=1e-12)
+
+
+def test_the_channels_of_no_rows_and_of_several_responses_keep_their_labels(
+    ldpe_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """With no history the channels are an empty frame; with five responses each keeps its label."""
+    X, Y = ldpe_data
+    model = AdaptivePLS(n_components=2).fit(X, Y)
+    assert model.prediction_channels_.shape == (0, 20)
+    assert model.predict(X.iloc[:0]).shape == (0, 5)
+    channels = model.decompose_prediction(X.iloc[[3, 5]])
+    assert list(channels.index) == list(X.index[[3, 5]])
+    assert list(channels.columns[:4]) == [(Y.columns[0], c) for c in ("static", "preprocessing", "kernel", "adaptive")]
