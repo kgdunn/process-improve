@@ -147,6 +147,42 @@ def _subspace_distance(reference: np.ndarray, current: np.ndarray) -> float:
     return float(np.trace(cross @ cross.T))
 
 
+def _ewma_step(
+    centre: np.ndarray, scale: np.ndarray, value: np.ndarray, factor_centre: np.ndarray, factor_scale: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Move an EWMA centring and scaling vector one observation toward ``value``.
+
+    Equations 1a and 2a of the method: the scale tracks the squared deviation from
+    the centre before this step, then the centre moves toward the value. A variable
+    with a zero factor is frozen, and one whose value is missing moves neither its
+    centre nor its scale.
+
+    Parameters
+    ----------
+    centre, scale : np.ndarray of shape (n_variables,)
+        The current centring and scaling vectors.
+    value : np.ndarray of shape (n_variables,)
+        The new raw observation, ``NaN`` where missing.
+    factor_centre, factor_scale : np.ndarray of shape (n_variables,)
+        The EWMA factors of the centre (lambda) and of the scale (alpha).
+
+    Returns
+    -------
+    centre, scale : np.ndarray of shape (n_variables,)
+        The vectors after this step. A scale of exactly 0 (a scale factor of 1 and a
+        value at the centre) is set to 1, as :class:`MCUVScaler` scales a column of
+        equal values; a scale in small units is kept, in any units.
+    """
+    deviation = value - centre
+    observed = ~np.isnan(deviation)
+    spread = np.sqrt((1.0 - factor_scale) * scale**2 + factor_scale * deviation**2)
+    spread = np.where(spread > 0.0, spread, 1.0)
+    # (1 - lambda) m + lambda x, written as m + lambda (x - m): the same value, but exact
+    # when x equals m, so an observation at the centre leaves it unchanged to the last bit.
+    moved = centre + factor_centre * deviation
+    return np.where(observed, moved, centre), np.where(observed, spread, scale)
+
+
 # -----------------------------------------------------------------------------
 # Shared base class.
 # -----------------------------------------------------------------------------
@@ -222,20 +258,8 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_kernel_norm.append(self._last_kernel_norm if updated else 0.0)
 
     def _ewma_update_x(self, x0: np.ndarray) -> None:
-        """Advance the X-space EWMA centering and scaling vectors by one observation.
-
-        Uses the pre-update centre for both steps (equations 1a / 2a of the
-        method): the scaling tracks the squared deviation from the current
-        centre, then the centre itself moves toward the new value. Frozen
-        variables (a zero forgetting factor) are left untouched.
-        """
-        # Scaling first, referencing the not-yet-updated centre.
-        self.sx_ = np.sqrt((1.0 - self.alpha_scale_) * self.sx_**2 + self.alpha_scale_ * (x0 - self.mx_) ** 2)
-        # Guard against a scale collapsing to zero on a frozen / constant tag.
-        self.sx_ = np.where(self.sx_ < epsqrt, 1.0, self.sx_)
-        # (1 - lambda) m + lambda x, written as m + lambda (x - m): the same value, but exact
-        # when x equals m, so an observation at the centre leaves it unchanged to the last bit.
-        self.mx_ = self.mx_ + self.lambda_center_ * (x0 - self.mx_)
+        """Advance the X-space EWMA centering and scaling vectors by one observation."""
+        self.mx_, self.sx_ = _ewma_step(self.mx_, self.sx_, x0, self.lambda_center_, self.alpha_scale_)
 
     def _current_spe_limit(self) -> float:
         """Return the SPE limit: rolling-window adaptive, or the fixed training limit."""
@@ -1108,11 +1132,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             if y_row is not None:
                 y0 = np.asarray(y_row, dtype=float).ravel()
                 if not np.isnan(y0).any():
-                    self.sy_ = np.sqrt(
-                        (1.0 - self.alpha_scale_y_) * self.sy_**2 + self.alpha_scale_y_ * (y0 - self.my_) ** 2
-                    )
-                    self.sy_ = np.where(self.sy_ < epsqrt, 1.0, self.sy_)
-                    self.my_ = self.my_ + self.lambda_center_y_ * (y0 - self.my_)  # exact at y0 == my_, as for X
+                    self.my_, self.sy_ = _ewma_step(self.my_, self.sy_, y0, self.lambda_center_y_, self.alpha_scale_y_)
                     y_scaled = (y0 - self.my_) / self.sy_  # uses updated (i+1) Y vectors
             x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)  # updated (i+1) X vectors
             self._recompute(x_for_kernel, y_scaled)

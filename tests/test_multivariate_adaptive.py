@@ -745,3 +745,82 @@ def test_adaptation_plot_blanks_the_channels_outside_valid(
         values = np.asarray(trace.y, dtype=float)
         assert np.isnan(values[:10]).all(), trace.name
         assert np.isfinite(values[10:]).all(), trace.name
+
+
+# --------------------------------------------------------------------------- #
+# The moving centre and scale
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_a_missing_value_moves_neither_its_centre_nor_its_scale(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """Every other tag takes one EWMA step, by hand: s = sqrt((1 - alpha) s^2 + alpha (x - m)^2), m += lambda (x - m).
+
+    The missing tag keeps its centre and scale (#1029). They used to become NaN, and stayed
+    NaN, so the tag was treated as missing in every later observation.
+    """
+    X, Y = synthetic_pls_data
+    model = _fit_either(cls, X, Y, lambda_center=0.25, alpha_scale=0.5, update_when_out_of_control=True)
+    centre, scale = model.mx_.copy(), model.sx_.copy()
+    row = X.iloc[0].to_numpy().copy()
+    row[1] = np.nan
+    assert model.update(row).updated
+    expected_scale = np.sqrt(0.5 * scale**2 + 0.5 * (row - centre) ** 2)
+    expected_centre = 0.75 * centre + 0.25 * row
+    expected_scale[1], expected_centre[1] = scale[1], centre[1]
+    np.testing.assert_allclose(model.sx_, expected_scale, rtol=1e-15)
+    np.testing.assert_allclose(model.mx_, expected_centre, rtol=1e-15)
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_a_scale_is_set_to_1_only_when_it_is_0(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """With a scale factor of 1 each new scale is the tag's deviation from the centre, in any units.
+
+    A deviation of 0 has no spread to divide by, and its scale is 1, as MCUVScaler scales a
+    column of equal values. One of 1e-12 is kept: the scale used to be set to 1 below 1.5e-8,
+    which took a tag in small units for a constant one (#1029).
+    """
+    X, Y = synthetic_pls_data
+    params = {"alpha_scale": 1.0} if cls is AdaptivePCA else {"alpha_scale": 1.0, "alpha_scale_y": 1.0}
+    model = _fit_either(cls, X, Y, update_when_out_of_control=True, **params)
+    centre = model.mx_.copy()
+    row = centre + np.r_[0.0, 1e-12, -0.5, np.zeros(X.shape[1] - 3)]
+    deviation = np.abs(row - centre)  # 1e-12 and 0.5 to rounding, 0 exactly
+    if cls is AdaptivePCA:
+        model.update(row)
+    else:
+        y_centre = model.my_.copy()
+        model.update(row, y_row=y_centre + 1e-12)
+        np.testing.assert_allclose(model.sy_, np.abs(y_centre + 1e-12 - y_centre), rtol=1e-15)
+    np.testing.assert_allclose(model.sx_, np.where(deviation > 0, deviation, 1.0), rtol=1e-15)
+    assert model.sx_[0] == 1.0
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_a_tag_in_small_units_adapts_as_it_does_in_large_ones(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """Scaled by its moving sd, a tag 1e9 times smaller streams to the same scores and statistics.
+
+    Its sd, near 1e-9, was below the 1.5e-8 that was taken for a scale collapsed to zero, so
+    after the first update it was divided by 1 and dropped out of the model (#1029); so was
+    the response of AdaptivePLS.
+    """
+    X, Y = synthetic_pls_data
+    small_x, small_y = X.assign(x0=X["x0"] * 1e-9), Y * 1e-9
+    params = {"forgetting_factor": 0.05, "alpha_scale": 0.05, "update_when_out_of_control": True}
+    reference = _fit_either(cls, X.iloc[:90], Y.iloc[:90], **params)
+    small = _fit_either(cls, small_x.iloc[:90], small_y.iloc[:90], **params)
+    reference.partial_fit(X.iloc[90:], None if cls is AdaptivePCA else Y.iloc[90:])
+    small.partial_fit(small_x.iloc[90:], None if cls is AdaptivePCA else small_y.iloc[90:])
+    units = np.r_[1e-9, np.ones(X.shape[1] - 1)]
+    np.testing.assert_allclose(small.sx_, reference.sx_ * units, rtol=1e-9)
+    for history in ("scores_", "hotellings_t2_", "spe_"):
+        np.testing.assert_allclose(getattr(small, history), getattr(reference, history), rtol=1e-8, atol=1e-10)
+    if cls is AdaptivePLS:
+        np.testing.assert_allclose(small.sy_, reference.sy_ * 1e-9, rtol=1e-9)
+        np.testing.assert_allclose(small.predictions_ * 1e9, reference.predictions_, rtol=1e-8)
