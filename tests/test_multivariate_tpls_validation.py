@@ -497,25 +497,40 @@ def test_an_infinite_value_is_refused() -> None:
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
-def test_a_column_is_left_out_only_when_its_sd_is_below_epsqrt() -> None:
-    """Each column is centred on its mean and scaled by its sd (ddof=1); one with an sd below epsqrt is left out.
+def test_a_column_is_left_out_only_when_its_values_are_all_equal() -> None:
+    """Each column is centred on its mean and scaled by its sd (ddof=1); one of equal values is left out.
 
-    [-epsqrt, 0, epsqrt] has a mean of exactly 0 and an sd of exactly epsqrt (2**-26), so it stays.
-    A block of one row has no sd: its scale is 1.
+    [-epsqrt, 0, epsqrt] has a mean of exactly 0 and an sd of exactly epsqrt (2**-26), and
+    [5, 5, 5 + 1e-9] one of 1e-9 / sqrt(3): both vary, so both stay, in any units. Their sds
+    were below the floor of epsqrt the rule used to be, which left out 'c', and 'kept' would
+    have gone in units half as large. [0.1, 0.1, 0.1] has an sd of rounding noise, not 0, and
+    one observed value is no spread either: both are left out. A block of one row has no sd:
+    its scale is 1.
     """
     model = TPLS(n_components=1, d_matrix=_synthetic()[0])
     block = pd.DataFrame(
-        {"kept": [-epsqrt, 0.0, epsqrt], "a": [2.0, 2.0, 2.0], "b": [1.0, 4.0, 7.0], "c": [5.0, 5.0, 5.0 + 1e-9]},
+        {
+            "kept": [-epsqrt, 0.0, epsqrt],
+            "a": [2.0, 2.0, 2.0],
+            "b": [1.0, 4.0, 7.0],
+            "c": [5.0, 5.0, 5.0 + 1e-9],
+            "d": [0.1, 0.1, 0.1],
+            "e": [np.nan, 3.0, np.nan],
+        },
         index=["r0", "r1", "r2"],
     )
+    assert block["d"].std() > 0
     message = (
         r'^Block Z\["Z1"\] has columns with no variance, which carry no information and are excluded from the '
-        r"model: 'a', 'c'\. Drop them, or check the data for a stuck sensor\.$"
+        r"model: 'a', 'd', 'e'\. Drop them, or check the data for a stuck sensor\.$"
     )
     with pytest.warns(UserWarning, match=message):
         centre, scale = model._learn_center_and_scaling_parameters(block, 'Z["Z1"]')
-    pd.testing.assert_series_equal(centre, pd.Series([0.0, 2.0, 4.0, 5.0 + 1e-9 / 3], index=block.columns))
-    pd.testing.assert_series_equal(scale, pd.Series([epsqrt, np.nan, 3.0, np.nan], index=block.columns))
+    pd.testing.assert_series_equal(centre, block.mean())
+    pd.testing.assert_series_equal(
+        scale,
+        pd.Series([epsqrt, np.nan, 3.0, np.std([5.0, 5.0, 5.0 + 1e-9], ddof=1), np.nan, np.nan], index=block.columns),
+    )
 
     one_row = block.iloc[[1]]
     with warnings.catch_warnings():
@@ -524,9 +539,28 @@ def test_a_column_is_left_out_only_when_its_sd_is_below_epsqrt() -> None:
     pd.testing.assert_series_equal(centre, one_row.iloc[0].rename(None))
     pd.testing.assert_series_equal(scale, pd.Series(1.0, index=block.columns))
 
-    two_rows = block.iloc[[0, 2]]
-    _, scale = model._learn_center_and_scaling_parameters(two_rows.drop(columns=["a", "c"]), "Y")
-    pd.testing.assert_series_equal(scale, pd.Series([np.sqrt(2) * epsqrt, np.sqrt(18.0)], index=["kept", "b"]))
+    two_rows = block.iloc[[0, 2]][["kept", "a", "b"]]
+    with pytest.warns(UserWarning, match=r"no variance.*: 'a'\. Drop"):
+        _, scale = model._learn_center_and_scaling_parameters(two_rows, "Y")
+    pd.testing.assert_series_equal(
+        scale, pd.Series([np.sqrt(2) * epsqrt, np.nan, np.sqrt(18.0)], index=["kept", "a", "b"])
+    )
+
+
+def test_a_column_in_small_units_fits_as_it_does_in_large_ones() -> None:
+    """Scaled to unit variance, the column is the same in any units (#1029).
+
+    A Z column 1e9 times smaller has an sd near 1e-9, below the floor of epsqrt that marked a
+    column as having no variance: it was left out with a warning, and the scores moved by 4.
+    """
+    d_matrix, blocks = _synthetic()
+    small = copy.deepcopy(blocks)
+    small["Z"]["Z1"]["z1"] *= 1e-9
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(small))
+    reference = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    np.testing.assert_allclose(model.t_scores_super, reference.t_scores_super, rtol=1e-9, atol=1e-9)
 
 
 @pytest.mark.parametrize(
