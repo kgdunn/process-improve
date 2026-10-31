@@ -340,11 +340,39 @@ def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
 
     with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no variance.*'mat3'"):
         fixed = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(constant)))
-    absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
+    with pytest.warns(UserWarning, match=r"Block F\[\"G\"\] has columns with no observed values.*'mat3'"):
+        absent = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(unobserved))
 
     np.testing.assert_allclose(fixed.t_scores_super, absent.t_scores_super, atol=1e-12)
     np.testing.assert_allclose(fixed.hat["Y1"], absent.hat["Y1"], atol=1e-12)
     np.testing.assert_allclose(fixed.diagnose(DataFrameDict(constant)).t_scores_super, fixed.t_scores_super, atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    ("block", "group", "column"),
+    [("D", "G", "r"), ("F", "G", "mat3"), ("Z", "Z1", "z2"), ("Y", "Y1", "y_unlogged")],
+)
+def test_an_all_nan_column_is_named_in_a_warning_as_a_constant_one_is(block: str, group: str, column: str) -> None:
+    """#982: a column with no observed value is excluded from the fit with a warning that names it.
+
+    A constant column got that warning (#513); an all-NaN column, which carries no more
+    information, used to be left out without a word.
+    """
+    d_matrix, blocks = _synthetic()
+    frame = d_matrix[group] if block == "D" else blocks[block][group]
+    frame[column] = np.nan
+    pattern = rf"Block {block}\[\"{group}\"\] has columns with no observed values.*'{column}'"
+    with pytest.warns(UserWarning, match=pattern):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_column_with_one_observed_value_is_named_as_having_no_variance() -> None:
+    """#982: a single observed value has a NaN standard deviation, which was also excluded silently."""
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"]["z2"] = np.nan
+    blocks["Z"]["Z1"].loc["blend0", "z2"] = 1.0
+    with pytest.warns(UserWarning, match=r"Block Z\[\"Z1\"\] has columns with no variance.*'z2'"):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
 def test_diagnose_scores_a_row_with_a_missing_z_cell_as_the_fit_does() -> None:
