@@ -1361,12 +1361,6 @@ def make_design(spec: dict) -> dict:
         **described,
         **({"constraints": limits} if limits else {}),
     }
-    if stored["model"] in ("quadratic", MAIN_QUADRATIC) and any(f.name == "I" for f in factors):
-        # Patsy finds a column before its own I(), which every square term calls; refused before the runs, not after.
-        raise ValueError(
-            "A factor cannot be named I in this design: its model has squares, whose terms call I(), "
-            "which the factor would hide. Try 'I_'."
-        )
     coded = _coded(runs, stored["factors"])
     facts = _design_facts(result, coded.to_numpy(dtype=float), stored["factors"], kwargs)
     if array := (result.metadata or {}).get("orthogonal_array"):
@@ -4691,9 +4685,10 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     parts; the others name none, and stay as they are.
     """
 
-    def spaced(word: str) -> str:
+    def spaced(word: str, *, identity: bool = False) -> str:
+        # The defining relation's I is the identity, a generator's is a factor: a factor may be named I.
         left, _, right = word.partition(" = ")
-        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+        return f"{left if identity else _renamed_word(left, names)} = {_renamed_word(right, names)}"
 
     generators = [spaced(g) for g in facts.get("generators") or []]
     groups = _aliased_groups(coded, list(names.values()))
@@ -4710,7 +4705,7 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     return {
         **facts,
         "generators": generators,
-        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "defining_relation": [spaced(w, identity=True) for w in facts.get("defining_relation") or []],
         "aliases": groups,
         "notes": notes,
     }

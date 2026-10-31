@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import correlated_study, fill_workbook
+from tests.web._support import FACTORS, correlated_study, fill_workbook
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -19,6 +19,7 @@ from tests.web.e2e._page import (
     headers,
     practise,
     reveal,
+    set_factors,
     settled,
     status,
     type_results,
@@ -166,6 +167,22 @@ def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     assert status(page) == ("The results could not be analysed.", "error")
     assert "cannot fit the quadratic model" in page.text_content("#analysis p.error")
     assert page.is_hidden("#charts")
+
+
+def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(blank_page):
+    """Every square term calls I(), and a factor named I is fitted beside it under its own name in each table."""
+    page = blank_page
+    set_factors(page, [FACTORS[0], {**FACTORS[1], "name": "I"}, FACTORS[2]])
+    generate(page, design_type="box_behnken")
+    assert headers(page)[2:5] == ["T", "I", "F"]
+    practise(page)
+    assert status(page)[1] == "ok"
+    terms = ["T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
+    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", *terms]
+    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    assert anova == [*terms, "Residual"]
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 4")
+    assert "over T and I" in page.locator("#charts figcaption").first.text_content()
 
 
 def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page):

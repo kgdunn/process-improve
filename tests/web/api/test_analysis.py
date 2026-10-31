@@ -7,6 +7,8 @@ when the results were simulated, each coefficient carries the true value of what
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
@@ -102,6 +104,36 @@ def test_a_specification_is_data_never_code(api, held, spec_change):
 def test_model_name_from_the_request_is_never_a_formula(api, model):
     reply = analyse(api, {"design_type": "box_behnken", "factors": FACTORS}, model=model)
     assert reply["ok"] is (model == ""), "an empty choice means 'as designed'; anything else not in MODELS is refused"
+
+
+def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(api):
+    """Every square term calls I(), which a factor named I would hide, so the library fits I under a stand-in name.
+
+    The page shows the factor under its own name: the study is the one it makes with the factor named X.
+    """
+    pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+
+    def study(name: str) -> tuple[dict, dict]:
+        factors = [FACTORS[0], {**FACTORS[1], "name": name}, FACTORS[2]]
+        held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": factors}))
+        simulated = api.ok("api_simulate", {**held, "scenario": "optimum", "seed": 1})  # it has a true I²
+        request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
+        return api.ok("api_analyze_runs", request), api.ok("api_plots", request)
+
+    (analysis, charts), (as_x, charts_x) = study("I"), study("X")
+    labels = ["Intercept", "T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
+    assert [c["label"] for c in analysis["coefficients"]] == labels
+    assert [a["source"] for a in analysis["anova"]] == [*labels[1:], "Residual"]
+    assert by_label(analysis)["I²"]["term"] == "I(I ** 2)"
+    assert by_label(analysis)["I²"]["true_value"] == -2.5
+    for c, x in zip(analysis["coefficients"], as_x["coefficients"], strict=True):
+        assert c["term"] == x["term"].replace("X", "I")
+        assert (c["coefficient"], c["true_value"]) == pytest.approx((x["coefficient"], x["true_value"])), c["term"]
+    assert analysis["equation"] == as_x["equation"].replace("X", "I")
+    assert charts["contour_factors"] == ["T", "I"]
+    contour, contour_x = (json.loads(c["figures"]["contour"]) for c in (charts, charts_x))
+    assert contour["layout"]["yaxis"]["title"]["text"] == "I (bar)"
+    np.testing.assert_allclose(contour["data"][0]["z"], contour_x["data"][0]["z"])
 
 
 # --------------------------------------------------------------------------- what the fit can and cannot estimate

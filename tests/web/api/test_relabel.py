@@ -39,8 +39,18 @@ CASES = {
         factors_named(*"ABCD"),
         {"A": "B", "B": "A"},
     ),
+    "a fraction whose generated factor is named I, as the defining relation names the identity": (
+        {"design_type": "fractional_factorial", "resolution": 3},
+        factors_named(*"TPI"),
+        {"I": "F"},
+    ),
     "a Plackett-Burman design": ({"design_type": "plackett_burman"}, factors_named(*"ABCDE"), {"E": "Speed"}),
     "a replicated Box-Behnken design": ({"design_type": "box_behnken", "n_replicates": 2}, FACTORS, WORDS),
+    "a Box-Behnken design, a factor renamed I, which its squares call": (
+        {"design_type": "box_behnken"},
+        FACTORS,
+        {"P": "I"},
+    ),
     "a Box-Behnken design in blocks that confound no effect": (
         {"design_type": "box_behnken", "n_blocks": 2},
         FACTORS,
