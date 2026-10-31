@@ -952,6 +952,167 @@ class TestFAMDInputs:
         assert fig.layout.title.text == "FAMD map"
 
 
+def _famd_matrix_by_hand(fitted: pd.DataFrame, rows: pd.DataFrame, categorical: list[str]) -> tuple[np.ndarray, list]:
+    """Pages' coding, with the statistics of ``fitted`` applied to ``rows``.
+
+    A numeric column is centred and divided by its population sd; a level of frequency p
+    becomes delta / sqrt(p) - sqrt(p), delta its 0/1 indicator.
+    """
+    blocks, names = [], []
+    for column in [c for c in fitted.columns if c not in categorical]:
+        values = fitted[column].to_numpy(dtype=float)
+        blocks.append((rows[column].to_numpy(dtype=float) - values.mean()) / values.std())
+        names.append(column)
+    for column in categorical:
+        text = fitted[column].astype(str)
+        for level in sorted(text.unique()):
+            p = (text == level).mean()
+            blocks.append((rows[column].astype(str) == level).to_numpy(dtype=float) / np.sqrt(p) - np.sqrt(p))
+            names.append(f"{column}={level}")
+    return np.column_stack(blocks), names
+
+
+def _famd_by_hand(frame: pd.DataFrame, categorical: list[str], axes: int) -> dict:
+    """Decompose the coded matrix over sqrt(n) by SVD, each axis signed as CA's, and project the rows."""
+    coded, names = _famd_matrix_by_hand(frame, frame, categorical)
+    u, singular, vt = np.linalg.svd(coded / np.sqrt(len(frame)))
+    u, singular, v = u[:, :axes], singular[:axes], vt[:axes].T
+    signs = np.sign(u[np.abs(u).argmax(axis=0), np.arange(axes)])
+    v = v * signs
+    return {"coded": coded, "names": names, "eigenvalues": singular**2, "V": v, "F": coded @ v, "singular": singular}
+
+
+@pytest.fixture
+def labelled_record(batch_record: pd.DataFrame) -> pd.DataFrame:
+    return batch_record.set_axis([f"batch{i}" for i in range(16)])
+
+
+class TestFAMDByHand:
+    def test_every_attribute_by_hand(self, labelled_record: pd.DataFrame) -> None:
+        """Two numeric columns and two three-level ones: 2 + 2 + 2 = 6 axes, 2 kept by default."""
+        famd = FAMD().fit(labelled_record)
+        hand = _famd_by_hand(labelled_record, ["grade", "supplier"], axes=6)
+        F, V, eigenvalues = hand["F"], hand["V"], hand["eigenvalues"]
+        assert (famd.numeric_, famd.categorical_) == (["temperature", "pressure"], ["grade", "supplier"])
+        assert famd.n_components_ == 2
+        np.testing.assert_allclose(famd.eigenvalues_, eigenvalues[:2], rtol=1e-12)
+        assert famd.total_inertia_ == pytest.approx(6.0, rel=1e-12)
+        np.testing.assert_allclose(famd.explained_inertia_, eigenvalues[:2] / 6, rtol=1e-12)
+        index = labelled_record.index
+        expected = {
+            "row_coordinates_": _axes_frame(F[:, :2], index),
+            "column_coordinates_": _axes_frame(V[:, :2] * hand["singular"][:2], pd.Index(hand["names"])),
+            "row_contributions_": _axes_frame(F[:, :2] ** 2 / 16 / eigenvalues[:2], index),
+            "column_contributions_": _axes_frame(V[:, :2] ** 2, pd.Index(hand["names"])),
+            "row_cos2_": _axes_frame(F[:, :2] ** 2 / (F**2).sum(axis=1, keepdims=True), index),
+        }
+        for name, frame in expected.items():
+            pd.testing.assert_frame_equal(getattr(famd, name), frame, rtol=0, atol=1e-12, obj=name)
+
+        new = labelled_record.iloc[[2, 7, 11]].assign(temperature=[90.0, 70.0, 75.5]).set_axis(["n1", "n2", "n3"])
+        coded, _ = _famd_matrix_by_hand(labelled_record, new, ["grade", "supplier"])
+        pd.testing.assert_frame_equal(famd.transform(new), _axes_frame(coded @ V[:, :2], new.index), rtol=0, atol=1e-12)
+
+    def test_a_row_at_the_centroid_has_a_cos2_of_zero(self) -> None:
+        """Its squared distance over every axis is 0: its share of each is 0, not 0 / 0."""
+        frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0], "y": [2.0, 9.0, 5.0, 1.0, 8.0]})
+        famd = FAMD().fit(frame)
+        F = _famd_by_hand(frame, [], axes=2)["F"]
+        assert np.all(F[2] == 0.0)
+        cos2 = np.zeros_like(F)
+        moved = [0, 1, 3, 4]
+        cos2[moved] = F[moved] ** 2 / (F[moved] ** 2).sum(axis=1, keepdims=True)
+        pd.testing.assert_frame_equal(famd.row_cos2_, _axes_frame(cos2, frame.index), rtol=0, atol=1e-12)
+
+    def test_nullable_columns_are_read_as_floats(self, batch_record: pd.DataFrame) -> None:
+        """An Int64 and a Float64 column, as pandas reads a file with nullable dtypes, fit as float64 ones do."""
+        nullable = batch_record.assign(
+            temperature=batch_record["temperature"].astype("Float64"),
+            pressure=(10 * batch_record["pressure"]).round().astype("Int64"),
+        )
+        reference = batch_record.assign(pressure=(10 * batch_record["pressure"]).round())
+        famd, expected = FAMD(n_components=3).fit(nullable), FAMD(n_components=3).fit(reference)
+        np.testing.assert_allclose(famd.eigenvalues_, expected.eigenvalues_, rtol=1e-12)
+        np.testing.assert_allclose(famd.transform(nullable), expected.row_coordinates_, rtol=0, atol=1e-12)
+
+    def test_an_array_is_read_as_a_frame_numbered_from_zero(self, batch_record: pd.DataFrame) -> None:
+        numeric = batch_record[["temperature", "pressure"]]
+        famd, reference = FAMD().fit(numeric.to_numpy()), FAMD().fit(numeric)
+        assert famd.numeric_ == ["0", "1"]
+        pd.testing.assert_index_equal(famd.row_coordinates_.index, pd.RangeIndex(16))
+        np.testing.assert_allclose(famd.row_coordinates_, reference.row_coordinates_, rtol=0, atol=1e-12)
+        placed = famd.transform(numeric.to_numpy()[:3])
+        pd.testing.assert_index_equal(placed.index, pd.RangeIndex(3))
+        np.testing.assert_allclose(placed, reference.row_coordinates_[:3], rtol=0, atol=1e-12)
+
+    def test_a_column_in_small_units_is_not_constant(self, batch_record: pd.DataFrame) -> None:
+        """Standardised, it is the same column: only equal values make one constant."""
+        small = batch_record.assign(pressure=batch_record["pressure"] * 1e-12)
+        np.testing.assert_allclose(
+            FAMD(n_components=6).fit(small).eigenvalues_, FAMD(n_components=6).fit(batch_record).eigenvalues_
+        )
+
+    @pytest.mark.parametrize("rows", [12, 16])
+    def test_a_constant_numeric_column_is_refused_whatever_its_sd_rounds_to(
+        self, batch_record: pd.DataFrame, rows: int
+    ) -> None:
+        """0.1 twelve times has a population sd of 1.4e-17, not 0, and sixteen times one of exactly 0.
+
+        The column was refused only at an sd of exactly 0: over twelve rows it became a column of
+        -1, uncentred, and added an inertia of 1 to the total, an axis of its own.
+        """
+        assert bool(np.full(rows, 0.1).std() == 0.0) is (rows == 16)
+        message = "Numeric columns ['flat'] are constant, so they carry no information. Drop them."
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            FAMD().fit(batch_record.iloc[:rows].assign(flat=0.1))
+
+    def test_the_number_of_axes(self, batch_record: pd.DataFrame) -> None:
+        assert FAMD(n_components=1).fit(batch_record).row_coordinates_.shape == (16, 1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert FAMD(n_components=6).fit(batch_record).n_components_ == 6
+        message = "Asked for 50 axes, but this table has 6 with any inertia; keeping 6."
+        with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+            FAMD(n_components=50).fit(batch_record)
+
+    def test_the_refusals_in_full(self, batch_record: pd.DataFrame) -> None:
+        with pytest.raises(ValueError, match=r"^n_components must be at least 1; got 0\.$"):
+            FAMD(n_components=0).fit(batch_record)
+        gapped = batch_record.copy()
+        gapped.iloc[3, 0] = np.nan
+        missing = (
+            "Columns ['temperature'] have missing values. Impute the numeric ones, give the categorical ones an "
+            "explicit level, or drop those rows."
+        )
+        with pytest.raises(ValueError, match=f"^{re.escape(missing)}$"):
+            FAMD().fit(gapped)
+        with pytest.raises(ValueError, match=r"^categorical names columns that are not in the data: \['colour'\]\.$"):
+            FAMD(categorical=["colour"]).fit(batch_record)
+        with pytest.raises(
+            ValueError, match=r"^The table has no variation to analyse: every observation is the same\.$"
+        ):
+            FAMD().fit(pd.DataFrame({"grade": ["A"] * 6, "supplier": ["s1"] * 6}))
+        famd = FAMD().fit(batch_record)
+        reordered = (
+            "Expected the columns ['temperature', 'pressure', 'grade', 'supplier']; got "
+            "['pressure', 'temperature', 'grade', 'supplier']."
+        )
+        with pytest.raises(ValueError, match=f"^{re.escape(reordered)}$"):
+            famd.transform(batch_record[["pressure", "temperature", "grade", "supplier"]])
+        with pytest.raises(ValueError, match=r"^New observations must not have missing values\.$"):
+            famd.transform(gapped)
+        with pytest.raises(NotFittedError):
+            FAMD().transform(batch_record)
+
+    def test_map_plot_at_its_defaults_and_with_settings(self, batch_record: pd.DataFrame) -> None:
+        famd = FAMD(n_components=3).fit(batch_record)
+        fig = famd.map_plot()
+        np.testing.assert_array_equal(fig.data[0].x, famd.row_coordinates_[1].to_numpy())
+        np.testing.assert_array_equal(fig.data[1].y, famd.column_coordinates_[2].to_numpy())
+        assert fig.layout.title.text == "FAMD map"
+        assert famd.map_plot(3, 2, settings={"title": "Mixed"}).layout.title.text == "Mixed"
+
+
 @pytest.fixture
 def blocks() -> pd.DataFrame:
     """Twelve samples: four spectral readings and two lab results, mostly one driver.

@@ -91,6 +91,20 @@ def _flip_signs(left: np.ndarray, right: np.ndarray) -> tuple[np.ndarray, np.nda
     return np.where(flip, -left, left), np.where(flip, -right, right)
 
 
+def _axes_with_inertia(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the singular values and the signed left and right singular vectors of every axis with inertia.
+
+    An axis whose inertia, its squared singular value, is at most :data:`_NULL_INERTIA`
+    is dropped, because every relative quantity on it (its share, the contributions to
+    it) would be noise divided by noise. So no vector past the rank is ever read.
+    """
+    left, singular, right_t = np.linalg.svd(matrix, full_matrices=False)  # pragma: no mutate - see the docstring
+    inertia = singular**2
+    rank = int(np.sum(inertia > _NULL_INERTIA))  # pragma: no mutate - >= differs only at exact equality
+    left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+    return singular[:rank], left, right
+
+
 class CA(TransformerMixin, BaseEstimator):
     r"""Correspondence analysis of a two-way contingency table.
 
@@ -183,22 +197,17 @@ class CA(TransformerMixin, BaseEstimator):
         column_mass = proportions.sum(axis=0)
 
         residuals = (proportions - np.outer(row_mass, column_mass)) / np.sqrt(np.outer(row_mass, column_mass))
-        left, singular, right_t = np.linalg.svd(residuals, full_matrices=False)  # pragma: no mutate - see below
-        # At most min(I, J) - 1 axes, since centring on the average profile removes
-        # one (its singular value is rounding noise, far below the threshold); fewer
-        # when the table is rank-deficient. An axis with no inertia is not kept,
-        # because every relative quantity on it (its share, the contributions to it)
-        # would be noise divided by noise. So no vector past the rank is read.
-        eigenvalues = singular**2
-        rank = int(np.sum(eigenvalues > _NULL_INERTIA))  # pragma: no mutate - >= differs only at exact equality
+        # At most min(I, J) - 1 axes, since centring on the average profile removes one
+        # (its singular value is rounding noise, far below the null inertia); fewer when
+        # the table is rank-deficient.
+        singular, left, right = _axes_with_inertia(residuals)
+        rank = singular.size
         if rank == 0:
             raise ValueError(
                 "The table shows no association between its rows and columns: every row has the same "
                 "profile, so the total inertia is zero and there are no axes to find. That is a result, "
                 "not a fault in the data, but there is no map to draw from it."
             )
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
-        singular, eigenvalues = singular[:rank], eigenvalues[:rank]
 
         keep = int(self.n_components)
         if keep > rank:
@@ -212,6 +221,7 @@ class CA(TransformerMixin, BaseEstimator):
 
         all_rows = left / np.sqrt(row_mass)[:, np.newaxis] * singular
         all_columns = right / np.sqrt(column_mass)[:, np.newaxis] * singular
+        eigenvalues = singular**2
 
         self.n_components_ = keep
         self.eigenvalues_ = eigenvalues[:keep]
@@ -747,29 +757,31 @@ class FAMD(TransformerMixin, BaseEstimator):
             # Population variance, so that each standardised column carries an inertia of
             # exactly 1: that is what puts a numeric column on the same footing as a level.
             self._spreads = values.std(axis=0)
-            constant = [name for name, s in zip(self.numeric_, self._spreads, strict=True) if s == 0]
+            # A column of equal values, in any units, as MCUVScaler reads one. Its standard
+            # deviation is as often rounding noise (1e-17) as an exact 0, and dividing by the
+            # noise made it a column of +-1, uncentred, with an inertia of 1 of its own.
+            constant = pd.Index(self.numeric_)[np.ptp(values, axis=0) == 0].tolist()
             if constant:
                 raise ValueError(f"Numeric columns {constant} are constant, so they carry no information. Drop them.")
         if self.categorical_:
             categories = frame[self.categorical_].astype(str)
             self._levels = {column: sorted(categories[column].unique()) for column in self.categorical_}
-            self._frequencies = _indicator(categories, self._levels).to_numpy().mean(axis=0)
+            self._frequencies = _indicator(categories).to_numpy().mean(axis=0)
 
         transformed = self._transformed(frame)
         n_rows = transformed.shape[0]
-        left, singular, right_t = np.linalg.svd(transformed / np.sqrt(n_rows), full_matrices=False)
-        eigenvalues = singular**2
-        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
+        singular, _, right = _axes_with_inertia(transformed / np.sqrt(n_rows))
+        rank = singular.size
         if rank == 0:
             raise ValueError("The table has no variation to analyse: every observation is the same.")
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
+        eigenvalues = singular**2
 
         keep = int(self.n_components)
         if keep > rank:
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
             keep = rank
 
@@ -813,7 +825,7 @@ class FAMD(TransformerMixin, BaseEstimator):
         ValueError
             If the columns differ from the fit's, or a level is unseen or missing.
         """
-        check_is_fitted(self, "row_coordinates_")
+        check_is_fitted(self)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
         if list(frame.columns) != self._columns:
@@ -1052,10 +1064,9 @@ class MFA(TransformerMixin, BaseEstimator):
         self._weigh_groups(frame)
         blocks = {name: self._group_block(frame, name) for name in self.groups_}
         combined = np.hstack(list(blocks.values()))
-        left, singular, right_t = np.linalg.svd(combined / np.sqrt(len(frame)), full_matrices=False)
+        singular, _, right = _axes_with_inertia(combined / np.sqrt(len(frame)))
+        rank = singular.size
         eigenvalues = singular**2
-        rank = int(np.sum(eigenvalues > _NULL_INERTIA))
-        left, right = _flip_signs(left[:, :rank], right_t.T[:, :rank])
 
         keep = int(self.n_components)
         if keep > rank:
