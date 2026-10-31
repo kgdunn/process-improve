@@ -8,7 +8,8 @@ and compare the JSON of the two outputs byte for byte.
 
 ``SAMPLE_INPUTS`` holds one valid input per registered tool, and ``NOT_REPRODUCIBLE`` names each tool
 that by design does not give the same output twice, with the reason. A registered tool in neither
-table fails ``test_every_registered_tool_has_a_sample_input``, so a new tool cannot skip the check.
+table fails ``test_every_registered_tool_has_a_sample_input``, so a new tool cannot skip the check. A tool
+whose input takes a seed that its ``rng=`` does not declare fails ``test_every_tool_that_takes_a_seed_declares_it``.
 """
 
 from __future__ import annotations
@@ -69,7 +70,13 @@ _PANEL = [
     for q in range(5)
     for r in (1, 2)
 ]
-_PRODUCT_COVARIATES = [{"product": f"prod{q}", "d": float(q)} for q in range(5)]
+# Two descriptors: one alone has a selectivity ratio of 0 in every permutation, so its p-value would not use the seed.
+_PRODUCT_COVARIATES = [{"product": f"prod{q}", "d": float(q), "e": float(3 * q % 5)} for q in range(5)]
+# One factor at a time leaves A:B unestimable, so recommend_next_step chooses the next runs by exchange, from its seed.
+_ONE_AT_A_TIME = [
+    {"A": 5.0 + 5 * a, "B": 5.0 + 5 * b, "y": round(40 + 5 * a + 3 * b + v, 3)}
+    for (a, b), v in zip([(0, 0)] * 3 + [(-1, 0), (1, 0), (0, -1), (0, 1)] * 2, _VALUES, strict=False)
+]
 
 _SIMULATOR = {
     "process_description": "A small reactor",
@@ -184,7 +191,7 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
     "trade_off_table": {"runs": [8, 16], "factors": [4, 5]},
     "search_design_catalog": {"families": ["box_behnken"], "max_factors": 3, "limit": 2},
     "analyze_omars": lambda: {"design_matrix": _dsd_runs(), "response_column": "y"},
-    "recommend_next_step": {"factors": _FACTORS, "runs": _FACTORIAL, "response_column": "y"},
+    "recommend_next_step": {"factors": _FACTORS, "runs": _ONE_AT_A_TIME, "response_column": "y"},
     "write_run_sheet": {"runs": [{"A": r["A"], "B": r["B"]} for r in _FACTORIAL], "factors": _FACTORS},
     "read_run_sheet": {
         "csv_text": "Run,A,B,y\n1,0,0,28.0\n2,10,0,36.0\n3,0,10,18.0\n4,10,10,31.0\n",
@@ -222,8 +229,8 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
 #: Tools that by design give a different output on each call, and why.
 NOT_REPRODUCIBLE: dict[str, str] = {
     "create_simulator": (
-        "mints a new sim_id (uuid4) and created_at timestamp on every call, and draws the hidden model's seed "
-        "afresh unless the Python-only 'seed' field is given"
+        "mints a new sim_id (uuid4) and created_at timestamp on every call; "
+        "test_the_simulator_seed_fixes_all_but_the_id_and_the_time checks the rest"
     ),
     "simulate_process": "adds fresh noise on every call, the simulator's documented contract (reproducibility.rst, 4)",
 }
@@ -261,6 +268,22 @@ def test_every_registered_tool_has_a_sample_input() -> None:
     assert sorted((SAMPLE_INPUTS.keys() | NOT_REPRODUCIBLE.keys()) - registered) == [], "no tool has these names"
 
 
+def test_every_tool_that_takes_a_seed_declares_it() -> None:
+    """A tool whose input has a seed field names it as ``seed_param``, with the field's default as ``default_seed``.
+
+    The other way round too: a tool that declares ``uses_rng`` takes the seed it names, with the default it names.
+    """
+    declared, taken = {}, {}
+    for tool in _production_tools():
+        rng = get_tool_specs([tool])[0].get("rng") or {"uses_rng": False}
+        if rng["uses_rng"]:
+            declared[tool] = (rng.get("seed_param"), rng.get("default_seed"))
+        fields = _TOOL_REGISTRY[tool]._input_model.model_fields
+        for name in {"random_state", "seed"} & fields.keys():
+            taken[tool] = (name, fields[name].default)
+    assert declared == taken
+
+
 @pytest.mark.parametrize("tool", [pytest.param(t, marks=_MARKS.get(t, ())) for t in sorted(SAMPLE_INPUTS)])
 def test_the_tool_gives_the_same_output_twice(tool: str, simulator_state: dict[str, Any]) -> None:
     """Twice with the declared ``default_seed`` for a tool that uses an RNG, twice with no seed for any other."""
@@ -278,3 +301,22 @@ def test_the_tool_gives_the_same_output_twice(tool: str, simulator_state: dict[s
         # Otherwise the seed may not reach the RNG, or the sample input may not draw from it at all.
         other_seed = {**tool_input, rng["seed_param"]: rng["default_seed"] + 1}
         assert _output(tool, other_seed, simulator_state) != first, f"{tool}'s output does not depend on its seed"
+
+
+def test_the_simulator_seed_fixes_all_but_the_id_and_the_time() -> None:
+    """``create_simulator`` gives the same output for the same seed but its ``sim_id`` and ``created_at``.
+
+    It declares no ``default_seed``: with no seed it draws one, so the hidden model cannot be guessed.
+    Another seed must give another hidden model, as ``reveal_simulator`` shows it.
+    """
+    seed_param = get_tool_specs(["create_simulator"])[0]["rng"]["seed_param"]
+
+    def created(seed: int) -> tuple[str, str]:
+        output = execute_tool_call("create_simulator", {**_SIMULATOR, seed_param: seed})
+        del output["sim_id"], output["public"]["created_at"]
+        revealed = json.loads(_output("reveal_simulator", {"sim_id": "sim"}, output["_private"]))
+        return json.dumps(clean(output)), json.dumps(revealed["model"])
+
+    first = created(7)
+    assert created(7) == first
+    assert created(8)[1] != first[1], "create_simulator's hidden model does not depend on its seed"

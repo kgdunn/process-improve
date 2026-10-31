@@ -177,6 +177,8 @@ class CreateSimulatorInput(BaseModel):
         "or paraphrase it yourself."
     ),
     input_model=CreateSimulatorInput,
+    # No default_seed: with no seed the tool draws a 63-bit one (SEC-28), so the hidden model cannot be guessed.
+    rng={"uses_rng": True, "seed_param": "seed"},
     examples="""
     # "Simulate a Ni flotation vessel with flow, pH, surfactant and the known
     #  negative pH*surfactant interaction; recovery and grade as outputs."
