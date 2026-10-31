@@ -10,13 +10,25 @@ from __future__ import annotations
 import keyword
 import re
 
+import numpy as np
+import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from process_improve.experiments._lm import suggest_identifier, validate_identifiers_are_safe
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    suggest_identifier,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
 from process_improve.experiments.models import (
+    Model,
     UnsafeFormulaError,
+    lm,
+    predict,
+    summary,
     validate_formula_is_safe,
     validate_identifier_is_safe,
 )
@@ -247,6 +259,93 @@ class TestColumnNamedLikeACall:
     )
     def test_column_the_formula_only_names_is_accepted(self, formula: str, columns: list[str]) -> None:
         validate_formula_is_safe(formula, columns, allow_transforms=True)
+
+
+class TestStandInNames:
+    """A column named like a function the formula calls is fitted under a stand-in, and reported as itself (#986)."""
+
+    @pytest.mark.parametrize(
+        ("formula", "columns", "fitted"),
+        [
+            pytest.param(
+                "y ~ (I + P) ** 2 + I(I ** 2) + I(P ** 2)",
+                ["y", "I", "P"],
+                "y ~ (I_ + P) ** 2 + I(I_ ** 2) + I(P ** 2)",
+                id="I-squares",
+            ),
+            pytest.param(
+                "y ~ A + I(P ** 2)", ["y", "A", "P", "I", "I_"], "y ~ A + I(P ** 2)", id="I_-already-a-column"
+            ),
+            pytest.param("C(C, Sum) + C(B, Sum)", ["B", "C"], "C(C_, Sum) + C(B, Sum)", id="C-contrast"),
+            pytest.param("y ~ C(A, Sum) + Sum", ["y", "A", "Sum"], "y ~ C(A, Sum) + Sum_", id="Sum-contrast"),
+            pytest.param("y ~ np.log(np)", ["y", "np"], "y ~ np.log(np_)", id="np-module"),
+            pytest.param("I ~ A + I(A ** 2)", ["I", "A"], "I_ ~ A + I(A ** 2)", id="I-response"),
+            pytest.param(
+                "y ~ (I:P +\n  I(I ** 2))", ["y", "I", "P"], "y ~ (I_:P +\n  I(I_ ** 2))", id="over-two-lines"
+            ),
+            pytest.param("y ~ I + P + I:P", ["y", "I", "P"], "y ~ I + P + I:P", id="I-named-not-called"),
+            pytest.param(
+                "y ~ C(A, Treatment('I')) + I(I ** 2)",
+                ["y", "A", "I"],
+                "y ~ C(A, Treatment('I')) + I(I_ ** 2)",
+                id="a-level-I-is-not-the-column",
+            ),
+        ],
+    )
+    def test_the_formula_is_written_with_each_hidden_column_under_its_stand_in(
+        self, formula: str, columns: list[str], fitted: str
+    ) -> None:
+        stand_ins = stand_ins_for(formula, columns)
+        assert with_stand_ins(formula, stand_ins) == fitted
+        assert real_names(fitted, stand_ins) == formula
+        validate_formula_is_safe(
+            fitted, [stand_ins.get(c, c) for c in columns], allow_transforms=True, allow_numpy=True
+        )
+
+    def test_a_formula_that_does_not_parse_has_no_stand_ins(self) -> None:
+        assert stand_ins_for("y ~ I(I ** 2) +", ["y", "I"]) == {}
+        assert stand_ins_for(["y ~ I(I ** 2)"], ["y", "I"]) == {}  # type: ignore[arg-type]
+        # A side that does not parse is left as written; the one that does still takes the stand-in.
+        assert with_stand_ins("y ~ I(I ** 2) +", {"I": "I_"}) == "y ~ I(I ** 2) +"
+        assert with_stand_ins("I + ~ I(I ** 2)", {"I": "I_"}) == "I + ~ I(I_ ** 2)"
+
+    def test_the_results_are_read_under_the_real_names(self) -> None:
+        """A column named ``I_`` keeps its name beside a column ``I`` fitted as ``I_2``, as does a level ``I_2``."""
+        results = {"I_2": ["I(I_2 ** 2)", ("I_2:I_", "I_"), "P[T.I_2]", 1.5], "note": "I_2 is I_"}
+        assert real_names(results, {"I": "I_2"}) == {
+            "I": ["I(I ** 2)", ("I:I_", "I_"), "P[T.I_2]", 1.5],
+            "note": "I is I_",
+        }
+
+
+class TestLinearModelOfAFactorNamedLikeAFunction:
+    """``lm`` fits a factor named I in a model with squares, and names every term with I (#986)."""
+
+    @staticmethod
+    def _fit(name: str) -> Model:
+        axial = 2**0.5
+        x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
+        z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
+        noise = np.random.default_rng(0).normal(0, 0.1, len(x))
+        data = pd.DataFrame({name: x, "P": z, "y": 5 + x - x**2 + z + noise})
+        return lm(f"y ~ {name} * P + I({name} ** 2)", data)
+
+    def test_the_fit_is_that_of_the_same_factor_named_otherwise(self) -> None:
+        named_i, named_x = self._fit("I"), self._fit("X")
+        expected = named_x.get_parameters(drop_intercept=False).rename(lambda term: term.replace("X", "I"))
+        pd.testing.assert_series_equal(named_i.get_parameters(drop_intercept=False), expected)
+        assert named_i.get_factor_names(1) == ["I", "P", "I(I ** 2)"]
+        assert predict(named_i, I=0.5, P=0.1).iloc[0] == pytest.approx(predict(named_x, X=0.5, P=0.1).iloc[0])
+        assert "I(I ** 2)" in str(summary(named_i, show=False))
+        assert "I_" not in str(summary(named_i, show=False))
+
+    def test_aliases_are_named_with_the_real_name(self) -> None:
+        """Two runs at I = P alias I with P; the alias reads I, not the stand-in."""
+        data = pd.DataFrame({"I": [-1.0, 1.0, -1.0, 1.0, 0.0], "y": [1.0, 3.0, 1.2, 2.9, 2.5]})
+        data["P"] = data["I"]
+        fitted = lm("y ~ I + P + I(I ** 2)", data)
+        assert fitted.aliasing == {("I",): [["+", "P"]], ("P",): [["+", "I"]]}
+        assert list(fitted.get_parameters().index) == ["I", "I(I ** 2)"]
 
 
 class TestCategoricalContrasts:

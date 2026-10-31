@@ -30,7 +30,13 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from process_improve._random import check_random_state
-from process_improve.experiments._lm import validate_formula_is_safe, validate_identifiers_are_safe
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    validate_formula_is_safe,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
 from process_improve.univariate.metrics import benjamini_hochberg
 
 from ._common import DataMatrix, _model_method, epsqrt
@@ -41,7 +47,7 @@ from .plots import effect_summary_plot as _effect_summary_plot
 RESIDUAL = "residual"
 
 
-def _sum_coded_rhs(factors: list[str], model: str) -> str:
+def _sum_coded_rhs(factors: list[str], model: str) -> tuple[str, dict[str, str]]:
     """Build a patsy right-hand side with sum-to-zero coding for every factor.
 
     Sum coding (``C(name, Sum)``) is what makes the decomposition an ANOVA rather than
@@ -64,7 +70,10 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
     Returns
     -------
     rhs : str
-        A patsy right-hand side, without the leading ``~``.
+        A patsy right-hand side, without the leading ``~``, with each factor whose name it
+        calls (``C``, ``Sum``, ...) under a stand-in name (#986).
+    stand_ins : dict[str, str]
+        Each such factor's name, mapped to its stand-in.
     """
     validate_identifiers_are_safe(factors)
     coded = [f"C({name}, Sum)" for name in factors]
@@ -75,8 +84,10 @@ def _sum_coded_rhs(factors: list[str], model: str) -> str:
         rhs = f"({joined}) ** 2" if len(coded) > 1 else joined
     else:
         rhs = model
-    validate_formula_is_safe(rhs, factors, allow_transforms=True)
-    return rhs
+    stand_ins = stand_ins_for(rhs, factors)
+    rhs = with_stand_ins(rhs, stand_ins)
+    validate_formula_is_safe(rhs, [stand_ins.get(name, name) for name in factors], allow_transforms=True)
+    return rhs, stand_ins
 
 
 def _pretty(term_name: str) -> str:
@@ -239,8 +250,8 @@ class ASCA(BaseEstimator):
             self.column_scale_ = pd.Series(1.0, index=X.columns)
         self._centred = centred
 
-        rhs = _sum_coded_rhs(list(design.columns), self.model)
-        design_matrix = dmatrix(rhs, design, return_type="dataframe")
+        rhs, stand_ins = _sum_coded_rhs(list(design.columns), self.model)
+        design_matrix = dmatrix(rhs, design.rename(columns=stand_ins), return_type="dataframe")
         slices = design_matrix.design_info.term_slices
         self.is_balanced_ = self._check_balance(design)
 
@@ -256,7 +267,7 @@ class ASCA(BaseEstimator):
         term_ranks: dict[str, int] = {}
         explained = np.zeros_like(centred.to_numpy())
         for term, columns in slices.items():
-            name = _pretty(term.name())
+            name = real_names(_pretty(term.name()), stand_ins)
             if name == "Intercept":
                 # X is already centred, so the intercept is numerically zero. It stays in
                 # the design matrix because dropping it would change the coding, but it

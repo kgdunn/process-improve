@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import ast
+import itertools
 import keyword
 import re
 import warnings
 from collections import defaultdict
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -295,23 +296,29 @@ def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool)
         _check_no_column_hides_a_call(tree, allowed)
 
 
-def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
-    """Refuse a column that has the name of a function the formula calls.
-
-    Patsy looks a name up in the data before its own functions, so a column named ``I``
-    turns every ``I(P ** 2)`` into a call of the column, and a column named ``C`` does the
-    same to ``C(A, Sum)``. Each fails with "'Series' object is not callable".
-    """
-    called = set()
+def _called_names(tree: ast.AST) -> list[ast.Name]:
+    """Return the names a parsed formula side calls: ``I`` in ``I(A ** 2)``, ``np``, and ``Sum`` in ``C(A, Sum)``."""
+    called = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func.value if isinstance(node.func, ast.Attribute) else node.func  # np.log(A) calls np
         if isinstance(func, ast.Name):
-            called.add(func.id)
+            called.append(func)
         if isinstance(node.func, ast.Name) and node.func.id == "C":  # the contrast in C(A, Sum) is called too
-            called |= {arg.id for arg in node.args[1:] if isinstance(arg, ast.Name)}
-    hidden = sorted(called & columns)
+            called += [arg for arg in node.args[1:] if isinstance(arg, ast.Name)]
+    return called
+
+
+def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
+    """Refuse a column that has the name of a function the formula calls.
+
+    Patsy looks a name up in the data before its own functions, so a column named ``I``
+    turns every ``I(P ** 2)`` into a call of the column, and a column named ``C`` does the
+    same to ``C(A, Sum)``. Each fails with "'Series' object is not callable". The library's
+    own entry points fit such a column under a stand-in name (:func:`stand_ins_for`).
+    """
+    hidden = sorted({node.id for node in _called_names(tree)} & columns)
     if hidden:
         renames = {name: _unused_name(f"{name}_", columns) for name in hidden}
         raise UnsafeFormulaError(
@@ -319,6 +326,120 @@ def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
             f"which patsy finds first and tries to call. Rename the column, for example with "
             f".rename(columns={renames!r})."
         )
+
+
+def _parsed_side(side: str) -> ast.Expression | None:
+    """Parse one side of a formula as Python, or return None when it does not parse.
+
+    ``:`` becomes ``*`` as in :func:`_validate_formula_ast`, and the side is parsed in parentheses, so it may
+    start with a space or run over lines. Every name keeps its place in ``side``, one byte on in its first line.
+    """
+    try:
+        return ast.parse(f"({side.replace(':', '*')})".encode(), mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+
+
+def stand_ins_for(formula: str, columns: Iterable[str]) -> dict[str, str]:
+    """Map each column whose name *formula* calls to a name no column has: ``I`` to ``I_``, or ``I_2`` if that is taken.
+
+    Patsy finds a column before its own function of the same name (see :func:`_check_no_column_hides_a_call`).
+    The model is fitted with the column under its stand-in (:func:`with_stand_ins`), and the results are
+    reported under its real name (:func:`real_names`), so a factor can be named ``I`` in a model with squares,
+    or ``C`` in one with contrasts. A column the formula only names, as ``I`` in ``y ~ I + P``, keeps its name.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or one side of it. One that does not parse maps nothing, and
+        :func:`validate_formula_is_safe` then refuses it.
+    columns : Iterable[str]
+        The names of the data columns.
+
+    Returns
+    -------
+    dict[str, str]
+        Each hidden column's name, mapped to its stand-in; empty when the formula hides none.
+    """
+    if not isinstance(formula, str):
+        return {}
+    taken = {str(name) for name in columns}
+    called = {node.id for side in formula.split("~") if (tree := _parsed_side(side)) for node in _called_names(tree)}
+    stand_ins = {}
+    for name in sorted(called & taken):
+        stand_ins[name] = _unused_name(f"{name}_", taken)
+        taken.add(stand_ins[name])
+    return stand_ins
+
+
+def with_stand_ins(formula: str, stand_ins: Mapping[str, str]) -> str:
+    """Write *formula* with each column in *stand_ins* under its stand-in; the functions it calls keep their names.
+
+    ``y ~ I + I(I ** 2)`` with ``{"I": "I_"}`` becomes ``y ~ I_ + I(I_ ** 2)``.
+    """
+    if not stand_ins:
+        return formula
+    return "~".join(_side_with_stand_ins(side, stand_ins) for side in formula.split("~"))
+
+
+def _side_with_stand_ins(side: str, stand_ins: Mapping[str, str]) -> str:
+    """Write one side of a formula with each column in *stand_ins* under its stand-in (see :func:`with_stand_ins`)."""
+    tree = _parsed_side(side)
+    if tree is None:
+        return side
+    called = {id(node) for node in _called_names(tree)}
+    text = side.encode()  # the parser counts columns in bytes
+    starts = list(itertools.accumulate((len(line) + 1 for line in text.split(b"\n")), initial=0))
+    columns = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in called]
+    for node in sorted(columns, key=lambda node: (node.lineno, node.col_offset), reverse=True):
+        if node.id in stand_ins and node.end_lineno is not None and node.end_col_offset is not None:
+            start = starts[node.lineno - 1] + node.col_offset - (node.lineno == 1)  # less the "(" around the side
+            end = starts[node.end_lineno - 1] + node.end_col_offset - (node.end_lineno == 1)
+            text = text[:start] + stand_ins[node.id].encode() + text[end:]
+    return text.decode()
+
+
+_Value = TypeVar("_Value")
+
+
+def real_names(value: _Value, stand_ins: Mapping[str, str]) -> _Value:
+    """Return *value* with each stand-in of *stand_ins* read as the name it stands for.
+
+    A stand-in is replaced where it stands as a name of its own, so ``I(I_ ** 2)`` reads
+    ``I(I ** 2)`` and ``I_:P`` reads ``I:P``. A column really named ``I_`` keeps its name, since a
+    stand-in is a name that no column has (:func:`stand_ins_for`), and so does a level label
+    after patsy's ``[T.``.
+
+    Parameters
+    ----------
+    value : str, dict, list or tuple
+        The results: strings, and dicts, lists and tuples of them, nested to any depth. Keys are
+        read as well as values; anything else is returned as it is.
+    stand_ins : Mapping[str, str]
+        Each real name, mapped to its stand-in.
+
+    Returns
+    -------
+    str, dict, list or tuple
+        The same structure, under the real names.
+    """
+    if not stand_ins:
+        return value
+    real = {stand_in: name for name, stand_in in stand_ins.items()}
+    pattern = re.compile(rf"(?<![\w.])({'|'.join(map(re.escape, real))})(?!\w)")
+
+    def read(item: object) -> object:
+        if isinstance(item, str):
+            return pattern.sub(lambda match: real[match.group(1)], item)
+        if isinstance(item, dict):
+            return {read(key): read(entry) for key, entry in item.items()}
+        if type(item) is list:
+            return [read(entry) for entry in item]
+        if type(item) is tuple:
+            return tuple(read(entry) for entry in item)
+        return item
+
+    return cast("_Value", read(value))
 
 
 def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
@@ -458,6 +579,8 @@ class Model(OLS):
     data: Expt | None
     aliasing: dict | None
     name: str | None
+    #: Each column fitted under a stand-in name, mapped to it (see :func:`stand_ins_for`); set by ``lm()``.
+    _stand_ins: dict[str, str]
 
     def __init__(
         self,
@@ -482,6 +605,7 @@ class Model(OLS):
         # Will be replaced by the "lm()" function
         self.data = None
         self.aliasing = aliasing
+        self._stand_ins = {}
 
     def __str__(self) -> str:
         """Return the model specification as a string."""
@@ -625,7 +749,7 @@ class Model(OLS):
 
 def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
     """Make predictions from the model."""
-    return model._OLS.predict(exog=dict(kwargs))
+    return model._OLS.predict(exog={model._stand_ins.get(name, name): value for name, value in kwargs.items()})
 
 
 #: Correlation beyond which two model columns are exact aliases: one, up to rounding.
@@ -689,7 +813,8 @@ def lm(
     Parameters
     ----------
     model_spec : str
-        The model formula, e.g. ``"y ~ A * B"``.
+        The model formula, e.g. ``"y ~ A * B"``. A column named like a function the formula
+        calls, as ``I`` in ``I(P ** 2)``, is fitted under a stand-in name and reported under its own.
     data : Expt
         The data; a plain ``Expt`` or DataFrame works too.
     name : str or None
@@ -711,9 +836,12 @@ def lm(
     # ``model_spec`` is a code-execution vector. Allow only a safe Wilkinson
     # formula over the data columns, optionally with I()/Q() and a curated set of
     # element-wise numpy transforms (the public textbook API relies on these).
-    validate_formula_is_safe(model_spec, data.columns, allow_transforms=True, allow_numpy=True)
+    stand_ins = stand_ins_for(model_spec, data.columns)
+    fit_spec = with_stand_ins(model_spec, stand_ins)
+    fit_data = data.rename(columns=stand_ins) if stand_ins else data
+    validate_formula_is_safe(fit_spec, fit_data.columns, allow_transforms=True, allow_numpy=True)
 
-    pre_model = smf.ols(model_spec, data=data)
+    pre_model = smf.ols(fit_spec, data=fit_data)
     # SEC-19 (#268): a formula like ``y ~ (A+B+C+D+E)**5`` expands to
     # 2**5 terms; combined with a wide ``data`` this is a CPU sink.
     # Cap the expanded term count after patsy parses the RHS.
@@ -739,7 +867,11 @@ def lm(
         aliasing, drop_columns = _find_aliases(pre_model.exog, column_terms, alias_threshold)
         drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
-    post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
+    post_model = smf.ols(fit_spec, data=fit_data, drop_cols=drop_column_names)
+    if stand_ins:  # the coefficients, the summary and the aliases are read under the real names
+        post_model.data.xnames = real_names(post_model.data.xnames, stand_ins)
+        post_model.data.ynames = real_names(post_model.data.ynames, stand_ins)
+        aliasing = real_names(aliasing, stand_ins)
 
     name = name or getattr(data, "pi_title", None)
     out = Model(
@@ -749,6 +881,7 @@ def lm(
         name=name,
     )
     out.data = data
+    out._stand_ins = stand_ins
 
     return out
 
