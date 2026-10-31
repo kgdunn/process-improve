@@ -21,7 +21,9 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 
 from process_improve.multivariate import PCA, PLS, AdaptivePCA, AdaptivePLS, MCUVScaler
 from process_improve.multivariate._adaptive import (
@@ -824,3 +826,221 @@ def test_a_tag_in_small_units_adapts_as_it_does_in_large_ones(
     if cls is AdaptivePLS:
         np.testing.assert_allclose(small.sy_, reference.sy_ * 1e-9, rtol=1e-9)
         np.testing.assert_allclose(small.predictions_ * 1e9, reference.predictions_, rtol=1e-8)
+
+
+# --------------------------------------------------------------------------- #
+# By hand: one update, the rolling SPE limit, the kernel helpers
+# --------------------------------------------------------------------------- #
+
+
+def _signed(vectors: np.ndarray) -> np.ndarray:
+    """Flip each column whose largest-magnitude entry is negative (Wold, Esbensen and Geladi, 1987)."""
+    largest = vectors[np.abs(vectors).argmax(axis=0), np.arange(vectors.shape[1])]
+    return vectors * np.sign(largest)
+
+
+def _pca_by_svd(X: pd.DataFrame, n_components: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return the autoscaled block (sd with ddof=1), signed loadings, score variances and SPE, from numpy's SVD."""
+    scaled = ((X - X.mean()) / X.std()).to_numpy()
+    _, singular, right = np.linalg.svd(scaled, full_matrices=False)
+    loadings = _signed(right[:n_components].T)
+    residual = scaled - scaled @ loadings @ loadings.T
+    return scaled, loadings, singular[:n_components] ** 2 / (len(X) - 1), np.sqrt((residual**2).sum(axis=1))
+
+
+def _spe_limit_by_hand(spe: np.ndarray, conf_level: float) -> float:
+    """Box's (1954) chi-squared limit g * chi2(h), matched to the mean and variance of the squared SPE."""
+    squared = spe**2
+    mean, variance = squared.mean(), squared.var(ddof=1)
+    return float(np.sqrt(variance / (2 * mean) * stats.chi2.ppf(conf_level, 2 * mean**2 / variance)))
+
+
+def test_kernel_pca_keeps_the_leading_eigenvectors_signed_and_clips_noise_below_zero() -> None:
+    """Eigenvectors in descending order of eigenvalue, each with its largest-magnitude entry positive.
+
+    The kernel is built from known eigenvectors: the leading one, (-0.6, 0.8, 0), is signed by its
+    0.8, not by its first entry. An eigenvalue below zero, rounding noise in a kernel X'X, is 0,
+    and an eigenvalue below 1 is kept as it is.
+    """
+    vectors = np.array([[-0.6, 0.8, 0.0], [0.8, 0.6, 0.0], [0.0, 0.0, 1.0]])
+    kernel = vectors @ np.diag([3.0, 0.5, -1e-16]) @ vectors.T
+    loadings, values = _kernel_pca(kernel, n_components=3)
+    np.testing.assert_allclose(loadings, vectors, rtol=0, atol=1e-12)
+    np.testing.assert_allclose(values, [3.0, 0.5, 0.0], rtol=1e-12)
+    assert values[2] == 0.0
+
+
+def test_one_update_of_adaptive_pca_by_hand(synthetic_pca_data: pd.DataFrame) -> None:
+    """One in-control observation, then one out of control, from the method's equations and numpy.
+
+    The first is monitored with the training model, then moves the centre and scale (equations 1a
+    and 2a), and the kernel by (1 - mu) X'X + mu x x' + f X'X_0 with f = gamma mu ||x||^2 / trace(X'X_0),
+    rescaled to the training trace; x is scaled with the moved vectors. The loadings are the
+    kernel's eigenvectors, signed to agree with the ones before. The second is not learned from:
+    the model and its drift stay put, and its injection and kernel change are 0.
+    """
+    X = synthetic_pca_data
+    mu, gamma, lam, alpha = 0.1, 0.3, 0.2, 0.4
+    model = AdaptivePCA(n_components=3, forgetting_factor=mu, gamma=gamma, lambda_center=lam, alpha_scale=alpha)
+    model.fit(X)
+    scaled, loadings, variances, _ = _pca_by_svd(X, 3)
+    centre, scale = X.mean().to_numpy(), X.std().to_numpy()
+    kernel = scaled.T @ scaled
+    x = X.iloc[5].to_numpy()
+
+    out = model.update(x, label="first")
+    scores = (x - centre) / scale @ loadings
+    np.testing.assert_allclose(out.scores, scores, rtol=1e-9)
+    assert out.hotellings_t2 == pytest.approx(float(np.sum(scores**2 / variances)), rel=1e-9)
+    assert out.spe == pytest.approx(float(np.linalg.norm((x - centre) / scale - loadings @ scores)), rel=1e-9)
+    assert out.in_control
+    assert out.updated
+
+    new_scale = np.sqrt((1 - alpha) * scale**2 + alpha * (x - centre) ** 2)
+    new_centre = centre + lam * (x - centre)
+    np.testing.assert_allclose(model.sx_, new_scale, rtol=1e-14)
+    np.testing.assert_allclose(model.mx_, new_centre, rtol=1e-14)
+    x_new = (x - new_centre) / new_scale
+    injection = gamma * mu * float(x_new @ x_new) / np.trace(kernel)
+    moved = (1 - mu) * kernel + mu * np.outer(x_new, x_new) + injection * kernel
+    moved *= np.trace(kernel) / np.trace(moved)
+    np.testing.assert_allclose(model.XtX_, moved, rtol=1e-12)
+    eigenvalues, eigenvectors = np.linalg.eigh(moved)
+    new_loadings = eigenvectors[:, ::-1][:, :3]
+    new_loadings *= np.sign(np.sum(new_loadings * loadings, axis=0))
+    np.testing.assert_allclose(model.loadings_.to_numpy(), new_loadings, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(model.explained_variance_, eigenvalues[::-1][:3] / (len(X) - 1), rtol=1e-12)
+    np.testing.assert_allclose(model.scaling_factor_for_scores_, np.sqrt(eigenvalues[::-1][:3] / (len(X) - 1)))
+    overlap = float(np.sum((loadings.T @ new_loadings) ** 2))
+
+    wild = model.update(x + 50.0)
+    assert not wild.in_control
+    assert not wild.updated
+    np.testing.assert_allclose(model.XtX_, moved, rtol=1e-12)
+    assert list(model.distance_.index) == ["first", 1]
+    np.testing.assert_allclose(model.distance_, [overlap, overlap], rtol=1e-12)
+    np.testing.assert_allclose(model.injection_ratio_, [injection, 0.0], rtol=1e-12)
+    change = np.linalg.norm(moved - kernel) / np.linalg.norm(kernel)
+    np.testing.assert_allclose(model.kernel_update_norm_, [change, 0.0], rtol=1e-9)
+    drift = np.linalg.norm((new_centre - centre) / scale)
+    np.testing.assert_allclose(model.center_shift_, [drift, drift], rtol=1e-12)
+    spread = np.mean(np.abs(new_scale / scale - 1))
+    np.testing.assert_allclose(model.scale_shift_, [spread, spread], rtol=1e-12)
+
+
+def test_the_rolling_spe_limit_by_hand(synthetic_pca_data: pd.DataFrame) -> None:
+    """The SPE limit is Box's, fitted to the last spe_limit_window squared SPEs once there are 20.
+
+    Nineteen training rows leave the window one short of max(20, A + 2): the first update is held
+    to the training limit, which comes from the same 19. Its in-control SPE makes 20, and the
+    second update's limit is fitted to all 20. With a window of 25 over 30 training rows, only the
+    last 25 count.
+    """
+    train = synthetic_pca_data.iloc[:19]
+    _, _, _, spe = _pca_by_svd(train, 2)
+    model = AdaptivePCA(n_components=2, conf_level=0.9).fit(train)
+    first = model.update(train.iloc[0].to_numpy())
+    assert first.in_control
+    assert first.spe == pytest.approx(spe[0], rel=1e-9)
+    assert first.spe_limit == pytest.approx(_spe_limit_by_hand(spe, 0.9), rel=1e-9)
+    second = model.update(train.iloc[1].to_numpy())
+    assert second.spe_limit == pytest.approx(_spe_limit_by_hand(np.r_[spe, spe[0]], 0.9), rel=1e-9)
+
+    train = synthetic_pca_data.iloc[:30]
+    _, _, _, spe = _pca_by_svd(train, 2)
+    model = AdaptivePCA(n_components=2, spe_limit_window=25).fit(train)
+    assert model.update(train.iloc[0].to_numpy()).spe_limit == pytest.approx(
+        _spe_limit_by_hand(spe[-25:], 0.95), rel=1e-9
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Streaming and the guards on it
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_partial_fit_is_update_row_by_row(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type) -> None:
+    """A labelled frame keeps its labels, an array is numbered from 0; the response rows go with them."""
+    X, Y = synthetic_pls_data
+    params = {"forgetting_factor": 0.05, "update_when_out_of_control": True}
+    by_rows, by_frame, by_array = (_fit_either(cls, X.iloc[:90], Y.iloc[:90], **params) for _ in range(3))
+    stream_x = X.iloc[90:100].set_axis([f"r{i}" for i in range(10)])
+    stream_y = Y.iloc[90:100] if cls is AdaptivePLS else None
+    for pos, label in enumerate(stream_x.index):
+        y_row = None if stream_y is None else stream_y.to_numpy()[pos]
+        by_rows.update(stream_x.to_numpy()[pos], y_row=y_row, label=label)
+    by_frame.partial_fit(stream_x, stream_y)
+    by_array.partial_fit(stream_x.to_numpy(), None if stream_y is None else stream_y.to_numpy())
+    assert list(by_frame.spe_.index) == list(stream_x.index)
+    assert list(by_array.spe_.index) == list(range(10))
+    for model in (by_frame, by_array):
+        np.testing.assert_array_equal(model.spe_.to_numpy(), by_rows.spe_.to_numpy())
+        np.testing.assert_array_equal(model.XtX_, by_rows.XtX_)
+        if cls is AdaptivePLS:
+            np.testing.assert_array_equal(model.XtY_, by_rows.XtY_)
+    if cls is AdaptivePLS:
+        assert not np.array_equal(by_rows.XtY_, by_rows.XtY0_)
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_a_model_whose_fit_was_refused_is_not_fitted(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """A refused fit sets a few attributes before its check, but leaves the model unfitted for every method."""
+    X, Y = synthetic_pls_data
+    model = cls(n_components=2, gamma=2.0)
+    with pytest.raises(ValueError, match=r"^gamma must lie in \[0, 1\]; got 2\.0\.$"):
+        model.fit(X) if cls is AdaptivePCA else model.fit(X, Y)
+    assert model.n_components_ == 2
+    calls = [lambda: model.partial_fit(X.iloc[:0]), lambda: model.update(X.iloc[0]), lambda: model.transform(X)]
+    if cls is AdaptivePLS:
+        calls += [lambda: model.predict(X), lambda: model.decompose_prediction(X)]
+    for call in calls:
+        with pytest.raises(NotFittedError):
+            call()
+
+
+@pytest.mark.parametrize(
+    "value", [-0.01, 1.01, np.nan, [0.5, 0.5, -0.1, 0.5, 0.5, 0.5]], ids=["below-0", "above-1", "nan", "one-of-six"]
+)
+@pytest.mark.parametrize(
+    ("cls", "name"),
+    [
+        (AdaptivePCA, "lambda_center"),
+        (AdaptivePCA, "alpha_scale"),
+        (AdaptivePLS, "lambda_center"),
+        (AdaptivePLS, "alpha_scale"),
+        (AdaptivePLS, "lambda_center_y"),
+        (AdaptivePLS, "alpha_scale_y"),
+    ],
+)
+def test_an_ewma_factor_outside_0_1_is_refused(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type, name: str, value: object
+) -> None:
+    """Each factor, or each entry of a vector of them, is a fraction; a NaN is refused too (#1029).
+
+    A NaN factor used to pass, and made every centre it moved NaN.
+    """
+    X, Y = synthetic_pls_data
+    if name.endswith("_y") and isinstance(value, list):
+        value = [-0.1]  # one per response, and there is one
+    with pytest.raises(ValueError, match=rf"^{name} must lie in \[0, 1\]; got values outside that range\.$"):
+        _fit_either(cls, X, Y, **{name: value})
+
+
+def test_ewma_factors_of_0_and_1_are_kept_as_one_float_per_variable(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """The bounds are allowed; a scalar is repeated for every variable, as a float."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=2, lambda_center=0, alpha_scale=1, lambda_center_y=[1], alpha_scale_y=0)
+    model.fit(X, Y)
+    for name, expected in [
+        ("lambda_center_", np.zeros(6)),
+        ("alpha_scale_", np.ones(6)),
+        ("lambda_center_y_", np.ones(1)),
+        ("alpha_scale_y_", np.zeros(1)),
+    ]:
+        assert getattr(model, name).dtype == np.float64
+        np.testing.assert_array_equal(getattr(model, name), expected)

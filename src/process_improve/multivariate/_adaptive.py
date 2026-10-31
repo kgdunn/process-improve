@@ -78,6 +78,7 @@ from ._common import DataMatrix, epsqrt
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import _kernel_pls, _sign_align
+from ._pca import _opposes_convention
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 
@@ -116,11 +117,7 @@ def _kernel_pca(kernel: np.ndarray, n_components: int) -> tuple[np.ndarray, np.n
     order = np.argsort(eigenvalues)[::-1][:n_components]
     loadings = eigenvectors[:, order]
     values = np.clip(eigenvalues[order], a_min=0.0, a_max=None)
-    for a in range(loadings.shape[1]):
-        max_el_idx = int(np.argmax(np.abs(loadings[:, a])))
-        if loadings[max_el_idx, a] < 0:
-            loadings[:, a] *= -1.0
-    return loadings, values
+    return np.where(_opposes_convention(loadings), -loadings, loadings), values
 
 
 def _subspace_distance(reference: np.ndarray, current: np.ndarray) -> float:
@@ -224,8 +221,8 @@ class _AdaptiveModel(_LatentVariableModel):
     @staticmethod
     def _as_vector(value: float | np.ndarray, size: int, name: str) -> np.ndarray:
         """Broadcast a scalar or validate a per-variable vector of forgetting factors."""
-        arr = np.broadcast_to(np.asarray(value, dtype=float), (size,)).astype(float).copy()
-        if np.any(arr < 0) or np.any(arr > 1):
+        arr = np.broadcast_to(np.asarray(value, dtype=float), (size,)).copy()
+        if not np.all((arr >= 0.0) & (arr <= 1.0)):  # a NaN is refused too
             raise ValueError(f"{name} must lie in [0, 1]; got values outside that range.")
         return arr
 
@@ -241,7 +238,6 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_scale_shift: list[float] = []
         self._hist_injection: list[float] = []
         self._hist_kernel_norm: list[float] = []
-        self._n_updates_ = 0
 
     def _record_state_drift(self, updated: bool) -> None:
         """Append the per-observation preprocessing-drift and kernel-update magnitudes.
@@ -285,13 +281,11 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         check_is_fitted(self, "mx_")
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        Y_df = None
-        if Y is not None:
-            Y_df = Y if isinstance(Y, pd.DataFrame) else pd.DataFrame(np.asarray(Y))
-        for pos in range(X_df.shape[0]):
-            idx = X_df.index[pos]
-            y_row = None if Y_df is None else Y_df.iloc[pos].to_numpy(dtype=float)
-            self.update(X_df.iloc[pos].to_numpy(dtype=float), y_row=y_row, label=idx)
+        # Rows by position: update() reads each as floats, and Y's labels are not used.
+        Y_rows = None if Y is None else np.asarray(Y)
+        for pos, label in enumerate(X_df.index):
+            y_row = None if Y_rows is None else Y_rows[pos]
+            self.update(X_df.iloc[pos].to_numpy(), y_row=y_row, label=label)
         return self
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
@@ -737,7 +731,6 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
             self._recompute(x_for_kernel)
             if in_control:
                 self._spe_buffer.append(spe**2)
-            self._n_updates_ += 1
             updated = True
 
         distance = _subspace_distance(self.loadings0_, self._loadings)
@@ -1138,7 +1131,6 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             self._recompute(x_for_kernel, y_scaled)
             if in_control:
                 self._spe_buffer.append(spe**2)
-            self._n_updates_ += 1
             updated = True
 
         distance = _subspace_distance(self.weights0_, self._weights)
