@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.experiments._lm import real_names
 from process_improve.experiments.augment import (
     _AUGMENT_REGISTRY,
     _AugmentContext,
@@ -1028,3 +1029,29 @@ class TestIntegration:
         aug1 = pd.DataFrame(r1["augmented_design"])
         r2 = augment_design(aug1, "replicate")
         assert r2["n_runs_after"] == 14  # (4 + 3) * 2
+
+
+@pytest.mark.parametrize(
+    ("augmentation_type", "options"),
+    [
+        pytest.param("add_runs_optimal", {"n_additional_runs": 6, "target_model": "quadratic"}, id="optimal-quadratic"),
+        pytest.param(
+            "add_runs_optimal", {"n_additional_runs": 6, "target_model": "{0} + B + {0}:B + I({0} ** 2)"}, id="formula"
+        ),
+        pytest.param("upgrade_to_rsm", {}, id="upgrade-to-rsm"),
+    ],
+)
+def test_a_factor_named_i_is_augmented_as_the_same_factor_named_otherwise(
+    augmentation_type: str, options: dict
+) -> None:
+    """A factor named I hides patsy's I() in every square term; the runs are chosen under a stand-in, named I (#986)."""
+
+    def augmented(name: str) -> dict:
+        model = options.get("target_model")
+        chosen = {**options, **({"target_model": model.format(name)} if model else {})}
+        design = _full_factorial_df(3).set_axis([name, "B", "C"], axis=1)
+        return augment_design(design, augmentation_type, random_state=1, **chosen)
+
+    named_i, named_x = augmented("I"), augmented("X")
+    assert named_i == real_names(named_x, {"I": "X"})  # X read as I wherever it stands as a name
+    assert all("I" in run for run in named_i["new_runs"])

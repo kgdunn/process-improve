@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import itertools
+import json
 import re
 import warnings
+from importlib import resources
 
 import numpy as np
 import pandas as pd
@@ -1332,24 +1334,97 @@ def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
         analyze_experiment(data, response_column="y", model="main_effects")
 
 
-def test_a_factor_named_i_in_a_quadratic_model_comes_with_a_rename_that_fits() -> None:
-    """A factor named I hides patsy's I() in every square term; a main-effects model, which calls no I(), fits."""
+def _named(value: object, old: str, new: str) -> object:
+    """Rename the factor ``old`` to ``new`` wherever it stands as a name of its own in a result."""
+    if isinstance(value, str):
+        return re.sub(rf"(?<![\w.]){re.escape(old)}(?!\w)", new, value)
+    if isinstance(value, dict):
+        return {_named(key, old, new): _named(entry, old, new) for key, entry in value.items()}
+    if isinstance(value, list):
+        return [_named(entry, old, new) for entry in value]
+    return value
+
+
+#: Every analysis that a design without whole plots or a count response can run.
+_EVERY_LEAST_SQUARES_ANALYSIS = [
+    "anova",
+    "effects",
+    "coefficients",
+    "significance",
+    "residual_diagnostics",
+    "lack_of_fit",
+    "curvature_test",
+    "model_selection",
+    "box_cox",
+    "lenth_method",
+    "confidence_intervals",
+    "prediction",
+    "confirmation_test",
+]
+
+
+def _box_behnken_analysis(names: list[str], model: str, coding: object = "auto") -> dict:
+    """Analyse one Box-Behnken design, its first factor curved, under the factor names given."""
+    from process_improve.experiments import analyze_experiment
+
+    factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
+    runs = generate_design(factors, design_type="box_behnken", n_center_points=3, random_state=1).design
+    runs = runs[["A", "B", "C"]].reset_index(drop=True)
+    noise = np.random.default_rng(1).normal(0, 0.3, len(runs))
+    y = 15 + 2 * runs["A"] - runs["B"] + 0.5 * runs["A"] * runs["B"] - 1.5 * runs["A"] ** 2 + noise
+    data = runs.set_axis(names, axis=1).assign(y=y)
+    new_points = pd.DataFrame([[0.1, 0.2, 0.0]], columns=names)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the same warnings come from both namings
+        return analyze_experiment(
+            data,
+            response_column="y",
+            model=model.format(*names),
+            analysis_type=_EVERY_LEAST_SQUARES_ANALYSIS,
+            coding=coding,
+            new_points=new_points,
+            observed_at_new=[15.0],
+        )
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param("quadratic", id="quadratic"),
+        pytest.param("y ~ {0} * {1} + {2} + I({0} ** 2)", id="formula"),
+        pytest.param("{0} + {1} + {2} + {0}:{1} + I({0} ** 2) + I({1} ** 2)", id="right-hand-side"),
+    ],
+)
+def test_a_factor_named_i_is_analysed_as_the_same_factor_named_otherwise(model: str) -> None:
+    """A factor named I hides patsy's I() in every square term; it is fitted under a stand-in, reported as I (#986)."""
+    named_i = _box_behnken_analysis(["I", "B", "C"], model)
+    named_x = _box_behnken_analysis(["X", "B", "C"], model)
+    assert named_i == _named(named_x, "X", "I")
+    assert "I(I ** 2)" in [row["term"] for row in named_i["coefficients"]]
+    assert named_i["factor_names"] == ["I", "B", "C"]
+
+
+def test_a_factor_named_i_beside_one_named_i_underscore_keeps_each_name() -> None:
+    """The stand-in for I is I_2 when a factor is named I_, which keeps its own name; ranges are given by real name."""
+    coding = {"I": {"low": -2.0, "high": 2.0}, "I_": {"low": -1.0, "high": 1.0}}
+    named_i = _box_behnken_analysis(["I", "I_", "C"], "quadratic", coding=coding)
+    named_x = _box_behnken_analysis(["X", "W", "C"], "quadratic", coding={"X": coding["I"], "W": coding["I_"]})
+    assert named_i == _named(_named(named_x, "W", "I_"), "X", "I")
+    assert {"I", "I_", "I:I_", "I(I ** 2)", "I(I_ ** 2)"} <= {row["term"] for row in named_i["coefficients"]}
+
+
+def test_the_stand_in_for_a_factor_is_not_the_name_of_the_response() -> None:
+    """With the response named I_, the factor I is fitted as I_2, not as a second column I_."""
     from process_improve.experiments import analyze_experiment
 
     axial = 2**0.5
     x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
     z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
-    noise = np.random.default_rng(0).normal(0, 0.1, len(x))
-    data = pd.DataFrame({"I": x, "P": z, "y": 5 + x - x**2 + z + noise})
-    main = analyze_experiment(data, response_column="y", model="main_effects", analysis_type="coefficients")
-    assert [row["term"] for row in main["coefficients"]] == ["Intercept", "I", "P"]
-    with pytest.raises(ValueError, match=r"calls I\(\)") as refusal:
-        analyze_experiment(data, response_column="y", model="quadratic")
-    renames = ast.literal_eval(re.search(r"columns=(\{.*\})\)\.$", str(refusal.value)).group(1))
-    fitted = analyze_experiment(
-        data.rename(columns=renames), response_column="y", model="quadratic", analysis_type="coefficients"
-    )
-    assert "I(I_ ** 2)" in [row["term"] for row in fitted["coefficients"]]
+    data = pd.DataFrame({"I": x, "P": z, "I_": 5 + x - x**2 + z + np.random.default_rng(0).normal(0, 0.1, len(x))})
+    out = analyze_experiment(data, response_column="I_", model="quadratic", analysis_type="coefficients")
+    assert out["model_summary"]["formula"] == "I_ ~ (I + P) ** 2 + I(I ** 2) + I(P ** 2)"
+    assert out["coefficients"][4]["term"] == "I(I ** 2)"
+    assert out["coefficients"][4]["coefficient"] == pytest.approx(-1, abs=0.1)
 
 
 def test_refused_column_names_come_with_a_rename_that_fits() -> None:
@@ -1512,6 +1587,52 @@ class TestBlocks:
         df["y"] = 10 * df.x1 + 12 * df.x2 + 8 * df.x3 + np.arange(12) * 0.01
         with pytest.warns(UserWarning, match="blocks are not added"):
             analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+    @pytest.mark.parametrize("block", ["Block", "C(Block)", "C(Block, Sum)", "C(Block, Treatment(1))"])
+    def test_pure_error_is_within_blocks_however_the_formula_writes_the_block(self, block: str) -> None:
+        """Box and Draper (2007), exercise 7.12: a central composite design in two blocks (#968).
+
+        The centre runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
+        across blocks they gave 154 on 5 df, more than the residual, and a negative lack of fit.
+        """
+        r2 = np.sqrt(2)
+        runs = pd.DataFrame(
+            {
+                "Block": [1] * 7 + [2] * 7,
+                "x1": [-1, 1, -1, 1, 0, 0, 0, -r2, r2, 0, 0, 0, 0, 0],
+                "x2": [-1, -1, 1, 1, 0, 0, 0, 0, 0, -r2, r2, 0, 0, 0],
+                "y": [73, 85, 83, 79, 80, 81, 79, 67, 73, 69, 71, 71, 69, 70],
+            }
+        )
+        model = f"y ~ {block} + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(4.0), 4)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(0.201, abs=5e-4), 3)
+
+    @pytest.mark.dataset
+    def test_pure_error_within_blocks_with_a_treatment_coded_block(self) -> None:
+        """Box and Draper (2007), exercise 11.20 (answer p. 703): pure error 227 on 5 df, lack of fit 2,198 on 6."""
+        catalogue = resources.files("process_improve.datasets.experiments") / "reference_catalogue"
+        entry = next(
+            e
+            for e in json.loads((catalogue / "box-draper-2007.json").read_text(encoding="utf-8"))["experiments"]
+            if e["name"] == "box-draper-11-ex-11-20-rubber-tensile-strength"
+        )
+        runs = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"]).drop(columns="Run")
+        runs["Block"] = runs["Block"].astype(int)
+        squares = " + ".join(f"I(x{i} ** 2)" for i in range(1, 6))
+        model = f"y ~ C(Block, Treatment(1)) + (x1 + x2 + x3 + x4 + x5) ** 2 + {squares}"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
+
+    def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
+        """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
+        df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})
+        fit = smf.ols("y ~ C(Block) + A", data=df).fit()
+        lof = _run_lack_of_fit(fit, df, "y", factor_cols=["A"])["lack_of_fit"]
+        assert set(lof) == {"error"}
+        assert "pure-error sum of squares" in lof["error"]
 
 
 class TestTransformedResponse:
@@ -2115,6 +2236,24 @@ class TestTestsAtTheCentre:
         expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
         assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
 
+    @pytest.mark.parametrize("model", ["z1 + I(z2 - 0.2 * z1) - 1", "z1 - 1"])
+    def test_an_i_term_that_mixes_factors_is_tested_as_given(self, model: str) -> None:
+        """Box and Draper (2007) Table 3.6: z1 and z2 - 0.2 z1 are orthogonal, so SS(z1) = 12 in either model.
+
+        Coding z2 to -1/+1 makes I(z2 - 0.2 * z1) a column no longer orthogonal to z1, with the
+        same fitted values, and SS(z1) was 14.97 (#963).
+        """
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        result = analyze_experiment(
+            data, response_column="y", model=model, analysis_type=["anova", "coefficients"], coding="actual"
+        )
+        table = {row["source"]: row["sum_sq"] for row in result["anova_table"]}
+        assert table["z1"] == pytest.approx(12.0)
+        if "I(" in model:
+            assert table["I(z2 - 0.2 * z1)"] == pytest.approx(4.5)
+            assert table["Residual"] == pytest.approx(1.5)
+            assert _terms(result) == pytest.approx({"z1": 2.0, "I(z2 - 0.2 * z1)": 2.5})
+
     def test_units_too_unequal_for_floating_point_are_tested_coded(self) -> None:
         """A tiny span far from zero loses the fit's rank; the coded fit, which keeps it, is tested."""
         coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
@@ -2367,6 +2506,41 @@ class TestDefaultCoding:
         actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
         assert actual["coding"] == "actual"
         assert "coefficients_actual" not in actual
+
+
+class TestNoCodedScale:
+    """An ``I()`` term such as ``I(xi ** 0.5)`` has no value where the coded factor is negative (#963)."""
+
+    #: Box and Draper (2007) Table 8.4, the polymer catalyst data fitted as Y = b0 + b1 xi^(1/2) in Eq. (8.5.26).
+    DATA = pd.DataFrame({"xi": [0.5, 1.5, 2.5, 3.5, 4.5], "Y": [28.45, 47.78, 64.35, 74.67, 83.65]})
+
+    @pytest.mark.parametrize(
+        ("model", "column"),
+        [("I(xi ** 0.5)", np.sqrt), ("I(1 / xi)", np.reciprocal), ("I(xi ** -1)", np.reciprocal)],
+    )
+    @pytest.mark.parametrize("coding", ["actual", "auto"])
+    def test_it_fits_as_given(self, model: str, column, coding: str) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model=model, analysis_type=["anova", "coefficients"], coding=coding
+        )
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(column(self.DATA["xi"]))).fit()
+        assert result["coding"] == "actual"
+        assert [row["coefficient"] for row in result["coefficients"]] == pytest.approx(list(expected.params))
+        assert result["anova_table"][0]["sum_sq"] == pytest.approx(expected.ess)
+        assert result["model_summary"]["model_rank"] == 2
+
+    @pytest.mark.parametrize("coding", ["coded", {"xi": {"low": 0.5, "high": 4.5}}])
+    def test_a_coded_scale_is_refused(self, coding) -> None:
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(
+                self.DATA, response_column="Y", model="I(xi ** 0.5)", analysis_type="coefficients", coding=coding
+            )
+
+    def test_a_square_keeps_the_coded_scale(self) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="coefficients"
+        )
+        assert result["coding"] == "coded"
 
 
 class TestStandardisedCoefficients:

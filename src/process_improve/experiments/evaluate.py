@@ -36,7 +36,7 @@ from scipy import stats
 
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
-from process_improve.experiments._lm import validate_identifiers_are_safe
+from process_improve.experiments._lm import real_names, stand_ins_for, validate_identifiers_are_safe, with_stand_ins
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
 from process_improve.experiments.designs_mixture_process import ReducedRank, category_levels, mixture_process_model
@@ -240,11 +240,23 @@ def _build_model_matrix(
         :func:`patsy.build_design_matrices` to expand *new* factor-space points
         through the identical model (see :func:`_prediction_variance_of_frame`).
     """
-    if model is None:
-        model = "interactions"
-
     # Factor names are interpolated into the formula; reject non-identifiers.
     validate_identifiers_are_safe(factor_names)
+    rhs = _model_rhs(design_df, model, factor_names)
+
+    # Patsy evaluates each term as Python, so a custom ``model`` is a code-
+    # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
+    validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
+    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding, reduced_rank), return_type="dataframe")
+    X = np.asarray(dm, dtype=float)
+    column_names = list(dm.columns)
+    return X, column_names, dm.design_info
+
+
+def _model_rhs(design_df: pd.DataFrame, model: str | None, factor_names: list[str]) -> str:
+    """Write the model as a patsy right-hand side: a model name as its terms, a formula without its response."""
+    if model is None:
+        model = "interactions"
 
     # A categorical factor is carried as a non-numeric (label) column; patsy
     # contrast-codes it (see _patsy_data), so it must NOT be manually expanded into
@@ -271,14 +283,37 @@ def _build_model_matrix(
     else:
         # Assume it is already a valid RHS formula
         rhs = model
+    return rhs
 
-    # Patsy evaluates each term as Python, so a custom ``model`` is a code-
-    # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
-    validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
-    dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding, reduced_rank), return_type="dataframe")
-    X = np.asarray(dm, dtype=float)
-    column_names = list(dm.columns)
-    return X, column_names, dm.design_info
+
+def _stand_in_factors(
+    design_df: pd.DataFrame,
+    factor_names: list[str],
+    model: str | None,
+    region: str | DesignRegion | pd.DataFrame,
+    words: list[str],
+) -> tuple[pd.DataFrame, list[str], str | None, str | DesignRegion | pd.DataFrame, dict[str, str]]:
+    """Put each factor whose name the model calls under a stand-in name, so ``I`` and ``C`` are names a factor can have.
+
+    A factor named ``I`` hides patsy's ``I()`` in every square term, and one named ``C`` hides
+    ``C()`` (see :func:`~process_improve.experiments._lm.stand_ins_for`); the squares the alias
+    matrix adds call ``I()`` as well. Returns the design, the factor names, the model and the
+    region under the stand-ins, and each real name mapped to its stand-in, through which the
+    results are read back (#986). ``words`` are the design's generators and defining relation.
+    """
+    squares = [f"I({name} ** 2)" for name in factor_names]
+    stand_ins = stand_ins_for(" + ".join([_model_rhs(design_df, model, factor_names), *squares]), design_df.columns)
+    if not stand_ins or words or isinstance(region, DesignRegion):
+        # shortcut: the generators' words and a region's limits name the factors too, so such a design keeps
+        # the refusal of a factor named I or C; rename those as well if one with such a factor is met.
+        return design_df, factor_names, model, region, {}
+    return (
+        design_df.rename(columns=stand_ins),
+        [stand_ins.get(name, name) for name in factor_names],
+        with_stand_ins(model, stand_ins) if model else model,  # a model's name has no factor in it to rename
+        region.rename(columns=stand_ins) if isinstance(region, pd.DataFrame) else region,
+        stand_ins,
+    )
 
 
 def _unit_length_columns(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -2389,6 +2424,10 @@ def evaluate_design(  # noqa: PLR0913
     elif isinstance(region, DesignRegion) and region.kind == "mixture_process":
         model = _mixture_process_formula(model, design_matrix, region)
 
+    # --- A factor named like a function the model calls (I, C, ...) is evaluated under a stand-in name ---
+    words = [*(generators or []), *(defining_relation or [])]
+    design_df, factor_names, model, region, stand_ins = _stand_in_factors(design_df, factor_names, model, region, words)
+
     # --- Build context ---
     ctx = _build_context(
         _EvalRequest(
@@ -2436,7 +2475,7 @@ def evaluate_design(  # noqa: PLR0913
     if notes:
         results["notes"] = notes
 
-    return results
+    return real_names(results, stand_ins)
 
 
 def evaluate_all(  # noqa: PLR0913

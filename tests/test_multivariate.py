@@ -5606,8 +5606,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # from sklearn.model_selection import cross_val_score
 
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
-    # Ensure model is fitted appropriately, with the expected number of iterations
-    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
+    # Ensure model is fitted appropriately, with the expected number of iterations. These were
+    # [11, 9, 27] when the iteration started from the first Quality column; it now starts from the
+    # column with the largest sum of squares (#954). The autoscaled Quality columns tie for the
+    # first component, so that one still starts from the first column; the third gets there in fewer.
+    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 25]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
@@ -5633,9 +5636,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
         [5.60356584, 2.82414766, 1.69358176, 3.4829089], rel=1e-8
     )
-    # Test the last 4 observations
+    # Test the last 4 observations. This pin and the D["Group 3"] one below were re-taken when the
+    # iteration started from the largest Quality column (#954): the model is the same within the
+    # convergence tolerance, and these two moved by 1e-8 and 1e-7 relative, just past their rel.
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
-        [2.79253124, 2.00872637, 10.80292179, 3.26432946], rel=1e-8
+        [2.79253125, 2.00872639, 10.80292176, 3.26432949], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
         [167.49971736, 132.25813164, 201.56460235, 198.02742727], rel=1e-8
@@ -5653,7 +5658,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         [30.77363754, 31.61877076, 30.53696788, 97.88805239], rel=1e-8
     )
     assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [0.015504765277819974, 0.002021083231104291, 0.04795499280275304, 0.0024131901105140696], rel=1e-7
+        [0.015504767382306245, 0.0020210834557258493, 0.0479549926196664, 0.002413190023210532], rel=1e-7
     )
     # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
     assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
@@ -5862,6 +5867,50 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     assert np.isfinite(model.z_mats["Z1"]).all()
 
 
+def test_tpls_and_mbpls_start_from_the_y_column_with_the_most_variation() -> None:
+    """#954: a constant first Y column does not stop the fit, and its position does not change the model.
+
+    TPLS seeded its iteration, and its inner one-component PLS, from the first Y column. A
+    constant column is a column of zeros after preprocessing, so the scores came out NaN and
+    the fit was refused although the other Y columns vary. Both now start from the column with
+    the largest sum of squares, as PLS and MBPLS do (#195, #503).
+    """
+    rng = np.random.default_rng(954)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    f_block = pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)
+    z_block = pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])
+    y_block = pd.DataFrame(
+        {"stuck": np.ones(n_blends), "y1": rng.normal(size=n_blends), "y2": rng.normal(size=n_blends)}, index=index
+    )
+
+    def fit_tpls(columns: list[str]) -> tuple[TPLS, pd.DataFrame]:
+        blocks = DataFrameDict({"F": {"G": f_block}, "Z": {"Z1": z_block}, "Y": {"Y1": y_block[columns]}})
+        with pytest.warns(UserWarning, match="no variance"):
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+        return model, model.diagnose(blocks).hat["Y1"][["y1", "y2"]]
+
+    first, predicted_first = fit_tpls(["stuck", "y1", "y2"])
+    last, predicted_last = fit_tpls(["y1", "y2", "stuck"])
+    # The same model up to the sign of each component, so the same predictions.
+    scores_first, scores_last = first.t_scores_super.to_numpy(), last.t_scores_super.to_numpy()
+    signs = np.sign(np.sum(scores_first * scores_last, axis=0))
+    assert np.all(signs != 0)
+    np.testing.assert_allclose(scores_first, scores_last * signs, atol=1e-6)
+    np.testing.assert_allclose(predicted_first.to_numpy(), predicted_last.to_numpy(), atol=1e-6)
+
+    # MBPLS, checked for the same case (CONTRIBUTING.md, API consistency).
+    x_blocks = {"F": f_block, "Z": z_block}
+
+    def fit_mbpls(columns: list[str]) -> MBPLS:
+        return MBPLS(n_components=2).fit(x_blocks, y_block[columns])
+
+    mb_first, mb_last = fit_mbpls(["stuck", "y1", "y2"]), fit_mbpls(["y1", "y2", "stuck"])
+    np.testing.assert_allclose(mb_first.super_scores_.to_numpy(), mb_last.super_scores_.to_numpy(), atol=1e-6)
+
+
 def test_tpls_fits_a_column_far_from_zero() -> None:
     """A column of 1e11 plus noise of sd 1 fits as the same column near 0 does (#1028).
 
@@ -5973,13 +6022,23 @@ def _tpls_autoscaled(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.nd
     return (values - centre) / spread, centre, spread
 
 
+def _tpls_start(y: np.ndarray) -> np.ndarray:
+    """Return the column of ``y`` (a missing cell as 0) with the largest sum of squares (#954).
+
+    Columns whose sums of squares agree to 1e-9 relative, as autoscaled columns do, tie, and
+    the first of them is taken.
+    """
+    ssq = np.sum(y**2, axis=0)
+    return y[:, np.flatnonzero(ssq >= (1 - 1e-9) * ssq.max())[0]]
+
+
 def _tpls_inner_pls(t_blocks: np.ndarray, y: np.ndarray, y_present: np.ndarray) -> tuple[np.ndarray, ...]:
-    """One PLS component of Y on the block scores, by NIPALS from Y's first column.
+    """One PLS component of Y on the block scores, by NIPALS from Y's column of largest sum of squares.
 
     It stops once u moves by less than epsqrt of its length, or after 500 passes, and the
     component is flipped whole when its negative scores spread more than the others.
     """
-    u = y[:, 0]
+    u = _tpls_start(y)
     for _ in range(500):
         w = t_blocks.T @ u / (u @ u)
         w = w / max(_TINY, float(np.linalg.norm(w)))
@@ -6022,17 +6081,18 @@ def _tpls_prepared(d_matrix: dict[str, pd.DataFrame], blocks: dict, skip_f: bool
 
 
 def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
-    """One component: from Y's first column ``u``, the passes of the paper's steps 2 to 11.
+    """One component: from Y's column of largest sum of squares ``u``, the passes of the paper's steps 2 to 11.
 
     ``h = F'u / u'u``, ``s = D'h / h'h`` scaled to length 1 over all groups, ``r = Ds / s's``,
     ``t_F = F r / r'r`` over all groups at once, ``w_Z = Z'u / u'u`` scaled to length 1,
-    ``t_Z = Z w_Z / w_Z'w_Z``, and one PLS component of Y on ``[t_Z, t_F]``, whose u is the next
-    ``u``; every regression is over the observed cells. It stops once ``u`` moves by less than
+    ``t_Z = Z w_Z / w_Z'w_Z``, each Z group on its own, and one PLS component of Y on
+    ``[t_Z1, t_Z2, ..., t_F]``, whose u is the next ``u``; every regression is over the observed
+    cells. It stops once ``u`` moves by less than
     ``tol`` of its previous length, or after ``max_iter`` passes (``stop = (max_iter, tol)``).
     """
     groups, ((y_name, y),) = list(left["D"]), left["Y"].items()
     f_all, f_seen = np.hstack(list(left["F"].values())), np.hstack(list(seen["F"].values()))
-    u = y[:, 0]
+    u = _tpls_start(y)
     for passes in itertools.count(1):
         previous = u
         h = {group: _tpls_slopes(left["F"][group].T, u, seen["F"][group].T) for group in groups}
@@ -6077,7 +6137,7 @@ def _tpls_written_out(
     skip_f: bool = False,
     stop: tuple[int, float] = (500, epsqrt),
 ) -> dict:
-    """TPLS written out, for one Z block or none and one Y block: each component, and what it explains.
+    """TPLS written out, for any number of Z groups and one Y block: each component, and what it explains.
 
     ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
     block before the first component. The VIP of a block weights each component by the mean,
@@ -6130,9 +6190,10 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
 
     Each block is scaled with the training centres and scales. Component by component, the F
     score is ``sum F r / sum r^2`` over a row's observed cells in every group, NaN for a row
-    with none; the Z score is ``Z w_Z / w_Z'w_Z`` over the observed cells, 0 for a row with
-    none; the super score is ``[t_Z, t_F]`` times the super weights. Each block then loses
-    ``t p'`` in its observed cells, and its SPE is the length of what is left of each row.
+    with none; each Z group's score is ``Z w_Z / w_Z'w_Z`` over the observed cells, 0 for a row
+    with none and for a group left out of ``new``; the super score is ``[t_Z1, t_Z2, ..., t_F]``,
+    the Z groups in the training order, times the super weights. Each block then loses ``t p'``
+    in its observed cells, and its SPE is the length of what is left of each row.
     """
     groups, z_names = list(fitted["r"]), list(new.get("Z", {}))
     x = {"F": {}, "Z": {}}
@@ -6150,12 +6211,15 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
     for a in range(n_components):
         numerator = sum(x["F"][g] @ fitted["r"][g][:, a] for g in groups)
         denominator = sum(seen["F"][g] @ fitted["r"][g][:, a] ** 2 for g in groups)
+        columns = []
         with np.errstate(divide="ignore", invalid="ignore"):
-            columns = [np.where(denominator > 0, numerator / denominator, np.nan)]
-            for name in z_names:
-                w_z = fitted["w_z"][name][:, a]
-                t_z = (x["Z"][name] @ w_z) / (seen["Z"][name] @ w_z**2)
-                columns.insert(0, np.where(seen["Z"][name].any(axis=1), t_z, 0.0))
+            for name, w_z in fitted["w_z"].items():
+                if name not in z_names:
+                    columns.append(np.zeros(len(numerator)))
+                    continue
+                t_z = (x["Z"][name] @ w_z[:, a]) / (seen["Z"][name] @ w_z[:, a] ** 2)
+                columns.append(np.where(seen["Z"][name].any(axis=1), t_z, 0.0))
+            columns.append(np.where(denominator > 0, numerator / denominator, np.nan))
         t = np.column_stack(columns) @ fitted["w_super"][:, a]
         for block, loadings in (("F", fitted["p_f"]), ("Z", fitted["p_z"])):
             for key in x[block]:
@@ -6173,13 +6237,15 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
     }
 
 
-def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0) -> tuple[dict, dict]:
+def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0, second_z: bool = False) -> tuple[dict, dict]:
     """Two groups of materials and ten labelled blends: D, and F, Z and Y blocks.
 
     Group A has five materials of three properties; group B four of four, so its D is square
     and each masked regression on it must be told which way it runs. Y follows the blends'
     properties through F, with noise, in three columns, so the inner PLS iterates. With
     ``gaps``, one cell is missing in each D group, in A's F, in Y's second column and in Z.
+    With ``second_z``, a second Z group, E, of three conditions follows C, and with ``gaps``
+    it has one cell missing and nothing at all for blend b7.
     """
     rng = np.random.default_rng(seed)
     blends = [f"b{i}" for i in range(10)]
@@ -6195,11 +6261,16 @@ def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0) -> tuple[di
         "Z": {"C": pd.DataFrame(rng.normal(size=(10, 2)), index=blends, columns=["z1", "z2"])} if with_z else {},
         "Y": {"Q": pd.DataFrame(y, index=blends, columns=["y1", "y2", "y3"])},
     }
+    if second_z:
+        blocks["Z"]["E"] = pd.DataFrame(rng.normal(size=(10, 3)), index=blends, columns=["e1", "e2", "e3"])
     if gaps:
         d_matrix["A"].iloc[1, 2] = d_matrix["B"].iloc[2, 0] = np.nan
         blocks["F"]["A"].iloc[3, 1] = blocks["Y"]["Q"].iloc[4, 1] = np.nan
         if with_z:
             blocks["Z"]["C"].iloc[5, 0] = np.nan
+        if second_z:
+            blocks["Z"]["E"].iloc[2, 2] = np.nan
+            blocks["Z"]["E"].iloc[7] = np.nan
     return d_matrix, blocks
 
 
@@ -6227,7 +6298,9 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
     assert model.n_components_ == len(components)
     assert model.is_fitted_ is True
     near(model.t_scores_super, expected["t"], blends)
-    near(model.w_loadings_super, expected["w_super"], ["Z", "F"] if z_names else ["F"])
+    # One row per Z group, then F; a single Z group keeps the plain label "Z" (#981).
+    super_rows = ["Z"] if len(z_names) == 1 else [f'Z["{name}"]' for name in z_names]
+    near(model.w_loadings_super, expected["w_super"], [*super_rows, "F"])
     # The loadings' labels are lists of names, so they keep no index name.
     qualities = blocks["Y"][y_name].columns.to_list()
     near(model.q_loadings_y[y_name], expected["q"], qualities)
@@ -6402,12 +6475,49 @@ class TestTPLSWrittenOut:
         assert expected["iterations"] == [1, 1, 1]
         _check_tpls_fitted(one_pass, d_matrix, blocks, expected, rtol=1e-10)
 
+    @pytest.mark.parametrize("gaps", [True, False], ids=["gappy", "complete"])
+    def test_several_z_groups_follow_the_algorithm(self, monkeypatch: pytest.MonkeyPatch, gaps: bool) -> None:
+        """Each Z group has its own weights, its own block score and its own row of super weights (#981)."""
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped(gaps=gaps, second_z=True)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        _check_tpls_fitted(model, d_matrix, blocks, expected, rtol=1e-10)
+        assert model.display_results() == _tpls_summary_by_hand(expected, (500, False), cumulative=True, ms=125.0)
+
+    def test_new_rows_are_scored_on_each_z_group_in_the_training_order(self) -> None:
+        """Diagnose scores each Z group on its own, in the order of the fit whatever the order of X (#981).
+
+        A row with nothing in one group scores 0 for that group only, and a group left out of X
+        scores 0 for every row.
+        """
+        d_matrix, blocks = _t_shaped(second_z=True)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        new = _t_shaped_new_rows(blocks)
+        new["Z"]["E"].iloc[3] = [0.25, -0.5, 1.5]  # n3 has nothing in C, but all of E
+        index, components = new["F"]["A"].index, [1, 2, 3]
+        for z_groups in ({"E": new["Z"]["E"], "C": new["Z"]["C"]}, {"C": new["Z"]["C"]}, {"E": new["Z"]["E"]}):
+            data = {"F": new["F"], "Z": z_groups}
+            by_hand = _tpls_diagnose_by_hand(expected, data)
+            result = model.diagnose(DataFrameDict(copy.deepcopy(data)))
+            assert np.isfinite(by_hand["t"][:4]).all()
+            _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+            _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+            _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
+            assert list(result.spe["Z"]) == list(z_groups)
+            for block in ("F", "Z"):
+                for key, spe in by_hand["spe"][block].items():
+                    _tpls_near(result.spe[block][key], pd.DataFrame(spe, index=index, columns=components), 1e-10)
+
     def test_the_pyphi_fit_follows_the_algorithm(self, fixture_tpls_example: dict) -> None:
         """Garcia-Munoz's example: five groups of materials, some properties missing."""
         d_matrix = fixture_tpls_example.pop("D")
         model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(fixture_tpls_example)))
         expected = _tpls_written_out(d_matrix, fixture_tpls_example, 3)
-        assert expected["iterations"] == [11, 9, 27]
+        # [11, 9, 27] when each component started from the first Quality column (#954).
+        assert expected["iterations"] == [11, 9, 25]
         _check_tpls_fitted(model, d_matrix, fixture_tpls_example, expected, rtol=1e-9)
 
     def test_a_looser_tolerance_stops_where_the_algorithm_does(self) -> None:
@@ -11239,9 +11349,10 @@ def _masked_regression(block: np.ndarray, vector: np.ndarray, per: str) -> np.nd
 def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = epsqrt, max_iter: int = 500) -> dict:
     """NIPALS PLS as ``PLS`` runs it, written out, with the iterations each component took.
 
-    Each component is seeded from the Y column of largest sum of squares (a missing cell as
-    0), plus 1; an iteration is ``w = X'u / u'u`` normalised, ``t = Xw / w'w``,
-    ``c = Y't / t't``, ``u = Yc / c'c``, each over the observed cells; the loop stops once
+    Each component is seeded from the Y column of largest sum of squares, the first of any that
+    tie to round-off as autoscaled columns do (a missing cell as 0), plus 1; an iteration is
+    ``w = X'u / u'u`` normalised, ``t = Xw / w'w``, ``c = Y't / t't``, ``u = Yc / c'c``, each
+    over the observed cells; the loop stops once
     ``||u_old - u|| / ||u|| < tol``, or after ``max_iter`` iterations. Then ``p = X't / t't``,
     both blocks are deflated, and the component is turned so that its largest loading is
     positive.
@@ -11249,7 +11360,8 @@ def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = eps
     X, Y = np.array(X, dtype=float), np.array(Y, dtype=float)
     out: dict = {name: [] for name in ("T", "U", "W", "P", "C", "iterations")}
     for _ in range(A):
-        seed = np.nan_to_num(Y[:, [np.argmax(np.nansum(Y**2, axis=0))]])
+        ssq_y = np.nansum(Y**2, axis=0)
+        seed = np.nan_to_num(Y[:, [np.flatnonzero(ssq_y >= ssq_y.max() * (1 - 1e-9))[0]]])
         u, iterations = seed + 1.0, 0
         while True:
             previous = u

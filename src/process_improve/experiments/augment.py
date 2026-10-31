@@ -33,7 +33,7 @@ from patsy import dmatrix
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
-from process_improve.experiments._lm import validate_identifiers_are_safe
+from process_improve.experiments._lm import real_names, stand_ins_for, validate_identifiers_are_safe, with_stand_ins
 from process_improve.experiments.designs_response_surface import blocking_alpha, orthogonal_alpha
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
@@ -708,8 +708,22 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     else:
         rhs = model
 
-    validate_formula_is_safe(rhs, factor_names, allow_transforms=True)
+    stand_ins = stand_ins_for(rhs, factor_names)  # as _model_matrix fits it
+    validate_formula_is_safe(
+        with_stand_ins(rhs, stand_ins), [stand_ins.get(name, name) for name in factor_names], allow_transforms=True
+    )
     return rhs
+
+
+def _model_matrix(rhs: str, frame: pd.DataFrame) -> pd.DataFrame:
+    """Return patsy's model matrix of ``rhs`` over ``frame``, with the terms under the factors' own names.
+
+    A factor whose name the formula calls, as ``I`` in a square term, is fitted under a stand-in
+    name (see :func:`~process_improve.experiments._lm.stand_ins_for`, #986).
+    """
+    stand_ins = stand_ins_for(rhs, frame.columns)
+    matrix = dmatrix(with_stand_ins(rhs, stand_ins), frame.rename(columns=stand_ins), return_type="dataframe")
+    return matrix.set_axis(real_names(list(matrix.columns), stand_ins), axis=1)
 
 
 def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candidates: np.ndarray) -> tuple:
@@ -719,7 +733,7 @@ def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candi
     (``center(A)``, say) on a single scale.
     """
     stacked = pd.concat([existing, pd.DataFrame(candidates, columns=factor_names)], ignore_index=True)
-    rows = np.asarray(dmatrix(rhs, stacked, return_type="dataframe"), dtype=float)
+    rows = np.asarray(_model_matrix(rhs, stacked), dtype=float)
     return rows[: len(existing)], rows[len(existing) :]
 
 
@@ -901,7 +915,7 @@ def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) ->
     combination of their columns is zero on every run, so they are aliased.
     """
     rhs = _build_model_rhs(factor_names, model)
-    frame = dmatrix(rhs, design[factor_names].astype(float), return_type="dataframe")
+    frame = _model_matrix(rhs, design[factor_names].astype(float))
     x = frame.to_numpy(dtype=float)
     _u, singular, vt = np.linalg.svd(x, full_matrices=True)
     rank = int((singular > singular.max() * max(x.shape) * np.finfo(float).eps).sum())

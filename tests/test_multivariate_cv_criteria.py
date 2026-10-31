@@ -15,7 +15,6 @@ from scipy.stats import f as f_dist
 from sklearn.model_selection import GroupKFold, KFold, LeaveOneOut, RepeatedKFold, StratifiedKFold
 from sklearn.utils import Bunch
 
-import process_improve.multivariate._cv_criteria as cv_criteria
 from process_improve._random import check_random_state
 from process_improve.multivariate import (
     PLS,
@@ -1187,7 +1186,8 @@ def _assert_near(actual: object, expected: object, rtol: float = 1e-7) -> None:
 def _criteria_case(case: str) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """Return a data set for the by-hand comparisons, and its count of score-correlation permutations."""
     if case == "complete":
-        return (*_two_component_data(n=40, k=6), 1)  # one permutation is enough to take the permutation route
+        X, Y = _two_component_data(n=40, k=6)
+        return X, Y, 1  # one permutation is enough to take the permutation route
     if case == "a constant and a small target":  # no Q2 for the constant, and a TSS below 1 for the other
         X, Y = _two_component_data(n=40, k=6)
         return X, pd.DataFrame({"small": 0.01 * Y["y0"], "constant": 5.0}), 0
@@ -1794,7 +1794,7 @@ def test_the_one_se_rule_is_handed_rmsecv_and_its_standard_error(monkeypatch: py
         calls.append((rule, kwargs))
         return 1
 
-    monkeypatch.setattr(cv_criteria, "_select_n_components", stand_in)
+    monkeypatch.setattr("process_improve.multivariate._cv_criteria._select_n_components", stand_in)
     X, Y = _with_gaps(*_two_component_data(n=40, k=6), fraction=0.1)
     cv = KFold(5, shuffle=True, random_state=0)
     compare_cv_criteria(X, Y, max_components=3, cv=cv, n_permutations=9, n_cv_permutations=0)
