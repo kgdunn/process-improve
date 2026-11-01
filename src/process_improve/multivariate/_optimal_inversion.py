@@ -682,11 +682,23 @@ def _slsqp(search: _Search, maxiter: int) -> np.ndarray:
     return np.clip(full(found.x).copy(), bounds[:, 0], bounds[:, 1])
 
 
-def _linear_point(objective: np.ndarray, a: np.ndarray, low: np.ndarray, high: np.ndarray, bounds: np.ndarray) -> bool:
-    """Whether any point meets the linear rows within the bounds (HiGHS): if not, that is proven at once."""
+def _linear_point(
+    objective: np.ndarray, a: np.ndarray, low: np.ndarray, high: np.ndarray, bounds: np.ndarray
+) -> np.ndarray | None:
+    """
+    Return a point meeting the linear rows within the bounds (HiGHS), or None when none does: proven at once.
+
+    The point is the best of the linear rows alone, or, when that is unbounded (an input free in both directions
+    the objective rewards), any point the rows allow: the start of a second search for the least excess.
+    """
     constraints = optimize.LinearConstraint(a, low, high) if len(a) else ()
-    found = optimize.milp(objective, bounds=optimize.Bounds(bounds[:, 0], bounds[:, 1]), constraints=constraints)
-    return found.status != 2  # 2: infeasible. Unbounded (3) cannot be: T² and SPE bound the inputs.
+    box = optimize.Bounds(bounds[:, 0], bounds[:, 1])
+    found = optimize.milp(objective, bounds=box, constraints=constraints)
+    if found.status == 2:  # infeasible
+        return None
+    if found.x is None:  # unbounded: T² and SPE bound the inputs, but not the linear rows alone
+        found = optimize.milp(np.zeros_like(objective), bounds=box, constraints=constraints)
+    return np.clip(found.x, bounds[:, 0], bounds[:, 1])
 
 
 def _meets(problem: _Problem, w: np.ndarray, rows: tuple[np.ndarray, np.ndarray, np.ndarray]) -> bool:
@@ -720,15 +732,7 @@ def _least_excess(problem: _Problem, rows: tuple, bounds: np.ndarray, start: np.
         scale=np.append(problem.scale(bounds), 1.0),
     )  # fmt: skip
     point = _slsqp(search, 1000)[:-1]
-    ratios_at = {lim.name: lim.value(point[:n]) / lim.limit for lim in problem.limits}
-    excess = max(ratios_at.values()) - 1
-    if excess > _LIMIT_TOLERANCE:
-        over = ", ".join(f"{name} {r:.3g} times" for name, r in ratios_at.items() if r > 1 + _LIMIT_TOLERANCE)
-        problem.why = (
-            "Within their bounds the inputs can meet the linear rules and the windows, but only far from the data "
-            f"the model was built from: at best, {over} its limit."
-        )
-    return excess, point
+    return max(lim.value(point[:n]) / lim.limit for lim in problem.limits) - 1, point
 
 
 def _settled(problem: _Problem, search: _Search, w: np.ndarray, rows: tuple) -> np.ndarray:
@@ -749,6 +753,16 @@ def _settled(problem: _Problem, search: _Search, w: np.ndarray, rows: tuple) -> 
     return w
 
 
+def _too_far(problem: _Problem, point: np.ndarray) -> str:
+    """Say which limits stand in the way, and by how much, at the point of least excess."""
+    ratios = {lim.name: lim.value(point[: problem.n]) / lim.limit for lim in problem.limits}
+    over = ", ".join(f"{name} {r:.3g} times" for name, r in ratios.items() if r > 1 + _LIMIT_TOLERANCE)
+    return (
+        "Within their bounds the inputs can meet the linear rules and the windows, but only far from the data "
+        f"the model was built from: at best, {over} its limit."
+    )
+
+
 def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[np.ndarray, float] | None:
     """
     Search the inputs and target distances with every switch relaxed (``on=None``) or set.
@@ -767,7 +781,8 @@ def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[n
     bounds = problem.continuous_bounds(on)
     rows = problem.core_rows()
     objective = problem.objective[keep]
-    if not _linear_point(objective, *rows, bounds):
+    linear = _linear_point(objective, *rows, bounds)
+    if linear is None:
         problem.why = _NO_LINEAR
         return None
     constraints = _linear_constraints(*rows) + _limit_constraints(problem.limits, problem.n, len(problem.targets))
@@ -775,8 +790,12 @@ def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[n
                      problem.scale(bounds))  # fmt: skip
     w = _slsqp(search, _FIRST_TRY_ITERATIONS)
     if not _meets(problem, w, rows):
+        # The least excess decides "no answer" for this choice, so a second start guards against SLSQP stopping short.
         excess, point = _least_excess(problem, rows, bounds, w)
         if excess > _LIMIT_TOLERANCE:
+            excess, point = min((excess, point), _least_excess(problem, rows, bounds, linear), key=lambda e: e[0])
+        if excess > _LIMIT_TOLERANCE:
+            problem.why = _too_far(problem, point)
             return None
         w = _slsqp(dataclasses.replace(search, start=point), 1000)
         if not _meets(problem, w, rows):
@@ -792,6 +811,10 @@ def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[n
 # ---------------------------------------------------------------------------------------------------------------------
 # Outer approximation, for the counting rules
 # ---------------------------------------------------------------------------------------------------------------------
+class _SearchStoppedError(RuntimeError):
+    """The counting rules' search had to stop before it proved anything; the message says why."""
+
+
 def _master(problem: _Problem) -> tuple[np.ndarray, float] | None:
     """
     Choose the switches: the linear problem with every tangent plane so far; its optimum bounds the answer below.
@@ -814,8 +837,10 @@ def _master(problem: _Problem) -> tuple[np.ndarray, float] | None:
         constraints=optimize.LinearConstraint(rows, [r.low for r in problem.rows], [r.high for r in problem.rows]),
         options={"time_limit": 120, "presolve": False},
     )  # fmt: skip
-    if result.x is None:
+    if result.status == 2:  # infeasible: no choice of switches is left, which is the proof
         return None
+    if result.x is None:  # a time limit or a numerical failure proves nothing
+        raise _SearchStoppedError(f"The master problem could not be solved ({result.message}).")
     z = result.x * scale
     return z, float(problem.objective @ z)
 
@@ -865,8 +890,13 @@ def _solve(problem: _Problem) -> _Solution:
     cuts = _cut(problem, relaxed[0][: problem.n], every=True)
     best: tuple[np.ndarray, float, tuple[int, ...]] | None = None
     proven = False  # True once the master's bound meets the best answer, or the master has nothing left
+    stopped = ""
     for _ in range(_MAX_ROUNDS):
-        chosen = _master(problem)
+        try:
+            chosen = _master(problem)
+        except _SearchStoppedError as err:
+            stopped = str(err)
+            break
         if chosen is None or (best is not None and chosen[1] >= best[1] - 1e-9 * (1 + abs(best[1]))):
             proven = True
             break
@@ -877,10 +907,11 @@ def _solve(problem: _Problem) -> _Solution:
         if found is not None:
             cuts += _cut(problem, found[0][: problem.n], every=True)
             best = min([c for c in (best, (found[0], found[1], on)) if c is not None], key=lambda c: c[1])
+    unproven = stopped or f"The search ran {_MAX_ROUNDS} rounds."
     if best is None:
-        message = _NO_COUNT if proven else f"No answer found in {_MAX_ROUNDS} rounds, and none is ruled out."
+        message = _NO_COUNT if proven else f"{unproven} No answer was found, and none is ruled out."
         return _Solution(None, cuts=cuts, message=message)
-    message = "" if proven else f"Best found after {_MAX_ROUNDS} rounds; not proven optimal."
+    message = "" if proven else f"{unproven} This is the best answer found; it is not proven optimal."
     return _Solution(best[0], best[1], best[2], cuts, proven=proven, message=message)
 
 

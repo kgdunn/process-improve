@@ -11,6 +11,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.optimize import OptimizeResult
 from sklearn.utils import Bunch
 
 from process_improve.multivariate import (
@@ -464,6 +465,27 @@ def test_a_search_that_runs_out_of_rounds_says_it_is_not_proven(mixture: PLS, mo
     assert result.feasible
     assert not result.proven_optimal
     assert "not proven optimal" in result.message
+    assert "ran 1 rounds" in result.message
+
+
+def test_a_master_problem_that_cannot_be_solved_proves_nothing(mixture: PLS, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A time limit in the counting rules' master is not an infeasibility: the answer says the search stopped."""
+    real = oi.optimize.milp
+
+    def timed_out(*args: object, **kwargs: object) -> OptimizeResult:
+        if kwargs.get("integrality") is None:
+            return real(*args, **kwargs)
+        return OptimizeResult(x=None, status=1, message="Time limit reached.", fun=None)
+
+    monkeypatch.setattr(oi.optimize, "milp", timed_out)
+    rules = _mixture_rules(groups={"all": MIXTURE}, max_count={"all": 2}, min_amount={"all": 0.1})
+
+    result = mixture.optimal_inversion(rules)
+
+    assert not result.feasible
+    assert not result.proven_optimal
+    assert "could not be solved (Time limit reached.)" in result.message
+    assert "none is ruled out" in result.message
 
 
 def test_a_mixture_price_range_holds_the_answers_shape_inside_it(mixture: PLS) -> None:
