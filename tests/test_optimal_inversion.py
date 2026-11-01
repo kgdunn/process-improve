@@ -263,7 +263,7 @@ def test_a_fixed_input_stays_put_and_its_price_is_reported(cheese: PLS) -> None:
 def test_rules_the_model_cannot_read_are_refused_with_every_reason(cheese: PLS) -> None:
     """Unknown names, a window upside down, no objective or two, a bad count: each named."""
     bad = InversionRules(
-        costs={"Acetic": 1.0, "Salt": 2.0}, targets={"Taste": 1.0}, windows={"Bitter": (1, 2), "Taste": (5, 1)},
+        costs={"Acetic": 1.0, "Unknown": 2.0}, targets={"Taste": 1.0}, windows={"Missing": (1, 2), "Taste": (5, 1)},
         bounds={"Acetic": 5},
         max_count={"nowhere": 0}, spe_limits={"Y": 1.0},
     )  # fmt: skip
@@ -272,7 +272,7 @@ def test_rules_the_model_cannot_read_are_refused_with_every_reason(cheese: PLS) 
         cheese.optimal_inversion(bad)
 
     message = str(refused.value)
-    for reason in ("'Bitter' is not a quality", "'Salt' is not an input", "'nowhere' is not a group",
+    for reason in ("'Missing' is not a quality", "'Unknown' is not an input", "'nowhere' is not a group",
                    "Taste: a window is", "give costs or targets", "Acetic: bounds are (low, high)",
                    "'Y' is not a residual block", "allow at least one input"):  # fmt: skip
         assert reason in message
@@ -376,15 +376,21 @@ def test_the_methods_are_the_functions_and_the_model_still_pickles(cheese: PLS) 
 # ---------------------------------------------------------------------------------------------------------------------
 # Counting rules: the number of ingredients
 # ---------------------------------------------------------------------------------------------------------------------
-def _cheapest_by_enumeration(model: PLS, rules: InversionRules, most: int) -> float:
-    """Solve every choice of at most ``most`` ingredients with the others held at 0: the best is the optimum."""
-    best = np.inf
+def _every_choice(model: PLS, rules: InversionRules, most: int) -> dict[frozenset[str], float]:
+    """Solve every choice of at most ``most`` ingredients, each at 10% or more and the others at 0: its best cost."""
+    costs = {}
     for size in range(1, most + 1):
         for chosen in itertools.combinations(MIXTURE, size):
             bounds = {n: ((0.1, 1.0) if n in chosen else (0.0, 0.0)) for n in MIXTURE}
             found = optimal_inversion(model, dataclasses.replace(rules, bounds=bounds, max_count={}, min_amount={}))
-            best = min(best, found.objective) if found.feasible else best
-    return best
+            if found.feasible:
+                costs[frozenset(chosen)] = found.objective
+    return costs
+
+
+def _cheapest_by_enumeration(model: PLS, rules: InversionRules, most: int) -> float:
+    """Return the best of every choice of at most ``most`` ingredients: the optimum."""
+    return min(_every_choice(model, rules, most).values(), default=np.inf)
 
 
 def test_at_most_two_ingredients_is_the_best_of_every_choice_of_two(mixture: PLS) -> None:
@@ -444,6 +450,83 @@ def test_too_few_ingredients_for_the_window_has_no_answer_and_says_so(mixture: P
 
     assert not result.feasible
     assert "none do with them" in result.message
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Alternatives: the next best answers, each with a different set of ingredients (no-good cuts)
+# ---------------------------------------------------------------------------------------------------------------------
+COUNTED = {"groups": {"all": MIXTURE}, "max_count": {"all": 2}, "min_amount": {"all": 0.1}}
+
+
+def test_each_alternative_is_the_cheapest_ingredient_set_the_earlier_answers_allow(mixture: PLS) -> None:
+    """Every alternative leaves out an ingredient of each earlier answer; no allowed set, solved alone, is cheaper."""
+    # Arrange
+    rules = _mixture_rules(**COUNTED)
+    costs = _every_choice(mixture, rules, 2)
+
+    # Act
+    result = mixture.optimal_inversion(rules, alternatives=2)
+
+    # Assert
+    answers = [result, *result.alternatives]
+    sets = [frozenset(r.used["all"]) for r in answers]
+    assert all(r.feasible and r.proven_optimal for r in answers)
+    for k, answer in enumerate(answers):
+        allowed = [cost for s, cost in costs.items() if not any(earlier <= s for earlier in sets[:k])]
+        assert not any(earlier <= sets[k] for earlier in sets[:k])
+        assert answer.objective == pytest.approx(min(allowed), rel=1e-5)
+    assert [r.objective for r in answers] == sorted(r.objective for r in answers)
+
+
+def test_leaving_out_two_shares_at_most_the_rest_of_each_earlier_set(mixture: PLS) -> None:
+    """With leave_out=2, a later answer keeps at most |S| - 2 of each earlier answer's ingredients S."""
+    # Arrange
+    rules = _mixture_rules(**COUNTED)
+    costs = _every_choice(mixture, rules, 2)
+
+    # Act
+    result = mixture.optimal_inversion(rules, alternatives=1, leave_out=2)
+
+    # Assert
+    first, second = frozenset(result.used["all"]), result.alternatives[0]
+    allowed = [cost for s, cost in costs.items() if len(first & s) <= len(first) - 2]
+    assert second.feasible
+    assert len(first & set(second.used["all"])) <= len(first) - 2
+    assert second.objective == pytest.approx(min(allowed), rel=1e-5)
+
+
+def test_the_alternatives_end_with_the_reason_once_no_ingredient_set_is_left(mixture: PLS) -> None:
+    """Asked for more than exist, the list stops at a result that says why, after every allowed set was offered."""
+    # Arrange
+    rules = _mixture_rules(**COUNTED)
+    costs = _every_choice(mixture, rules, 2)
+
+    # Act
+    result = mixture.optimal_inversion(rules, alternatives=10)
+
+    # Assert
+    found = [r for r in result.alternatives if r.feasible]
+    last = result.alternatives[-1]
+    assert len(result.alternatives) == len(found) + 1
+    assert not last.feasible
+    assert "No further answer leaves out 1" in last.message
+    sets = [frozenset(r.used["all"]) for r in [result, *found]]
+    assert all(any(earlier <= s for earlier in sets) for s in costs)  # every feasible set is used up
+
+
+def test_alternatives_need_counted_inputs_and_whole_numbers(mixture: PLS) -> None:
+    """Nothing to switch off, nothing to differ in; counts are whole numbers; no answer, no alternatives."""
+    # Arrange, Act, Assert
+    with pytest.raises(ValueError, match="need counted inputs"):
+        mixture.optimal_inversion(_mixture_rules(), alternatives=1)
+    with pytest.raises(ValueError, match="leave_out is a whole number"):
+        mixture.optimal_inversion(_mixture_rules(**COUNTED), alternatives=1, leave_out=0)
+    with pytest.raises(ValueError, match="alternatives is a whole number"):
+        mixture.optimal_inversion(_mixture_rules(**COUNTED), alternatives=-1)
+    unreachable = mixture.optimal_inversion(_mixture_rules(**COUNTED, windows={"q": (20.0, None)}), alternatives=2)
+    assert not unreachable.feasible
+    assert unreachable.alternatives == []
+    assert "alternatives" not in mixture.optimal_inversion(_mixture_rules(**COUNTED))
 
 
 def test_a_counted_input_needs_zero_inside_its_bounds(mixture: PLS) -> None:
@@ -521,6 +604,29 @@ def test_prices_are_ranged_only_for_a_cost_objective(cheese: PLS) -> None:
 # ---------------------------------------------------------------------------------------------------------------------
 # TPLS: which lots, at what fractions
 # ---------------------------------------------------------------------------------------------------------------------
+@pytest.mark.dataset
+@pytest.mark.slow
+def test_tpls_alternative_blends_use_other_lots_and_come_no_closer(pyphi: tuple[TPLS, dict]) -> None:
+    """Each alternative blend leaves out a lot of every earlier blend, stays inside the limits, and is no closer."""
+    # Arrange
+    model, data = pyphi
+    rules = InversionRules(
+        targets=data["Y"]["Quality"].loc["L050"].to_dict(),
+        max_count=dict.fromkeys(GROUPS, 2), min_amount=dict.fromkeys(GROUPS, 0.1),
+    )  # fmt: skip
+
+    # Act
+    result = model.optimal_inversion(rules, alternatives=2)
+
+    # Assert
+    answers = [result, *result.alternatives]
+    lots = [frozenset(lot for g in GROUPS for lot in r.used[g]) for r in answers]
+    assert all(r.feasible and r.proven_optimal for r in answers)
+    assert all(not lots[j] <= lots[k] for k in range(len(lots)) for j in range(k))
+    assert all(r.hotellings_t2 <= r.t2_limit * (1 + 1e-4) for r in answers)
+    assert all(r.objective >= result.objective - 1e-6 for r in answers)
+
+
 @pytest.mark.dataset
 def test_tpls_closest_blend_with_two_lots_per_material_is_what_tpls_predicts(pyphi: tuple[TPLS, dict]) -> None:
     """Like batch L050, at most two lots of each material, each at 10%+: every group sums to 1, inside the limits."""

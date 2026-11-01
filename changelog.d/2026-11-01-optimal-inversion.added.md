@@ -14,3 +14,8 @@
   `AffineModel.to_dict` stores as plain JSON and `AffineModel.from_dict` reads back.
 - **`PLS.diagnose` and `TPLS.diagnose` return the residuals** whose lengths are their SPE: a PLS
   model's in its scaled space, a TPLS model's per `"F"` and `"Z"` group, keyed like `spe`.
+- **Alternatives with other inputs from `optimal_inversion`.** With counting rules,
+  `optimal_inversion(..., alternatives=k, leave_out=l)` also returns the next `k` best answers, each
+  leaving out at least `l` of the counted inputs that every earlier answer uses (a no-good cut on the
+  outer-approximation master). Each is proven best among the input sets the earlier answers allow,
+  and the list ends with the reason when no further set meets the rules.

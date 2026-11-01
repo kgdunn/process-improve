@@ -50,6 +50,7 @@ _KKT_TOLERANCE = 1e-6  # the optimality conditions' relative residual below whic
 _NO_LINEAR = "No inputs within their bounds meet the linear rules and the windows, whatever their T² and SPE."
 _NO_COUNT = "Without the counting rules inputs meet every rule, but none do with them."
 _NOT_SETTLED = "The continuous search did not settle on a point that meets every rule."
+_NO_OTHER = "No further answer leaves out {leave_out} of the counted inputs that each earlier answer uses."
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -476,7 +477,7 @@ class _Row:
     low: float
     high: float
     name: str
-    kind: str  # rule, closure, window, target, switch, count, box, cut, exclude
+    kind: str  # rule, closure, window, target, switch, count, box, cut, exclude, different
     shift: float = 0.0  # added to the row's value and bounds to report it in its own units (a window's y0)
 
 
@@ -506,6 +507,9 @@ class _Problem:
         self.objective[self.n + self.m :] = 1.0
         self.limits = _limits(affine, rules)
         self.why = _NO_LINEAR
+        # Every choice of switches solved, with its best point: a later search for alternatives starts from them, as
+        # the master never offers a choice twice.
+        self.evaluated: list[tuple[np.ndarray, float, tuple[int, ...]]] = []
 
     def _bounds(self) -> np.ndarray:
         """Each input's bounds: TPLS fractions 0 to 1 by default, then the rules' bounds, then fixed values."""
@@ -912,7 +916,21 @@ def _solve(problem: _Problem) -> _Solution:
     problem.check_counted()
     _box(problem)
     cuts = _cut(problem, relaxed[0][: problem.n], every=True)
-    best: tuple[np.ndarray, float, tuple[int, ...]] | None = None
+    return _outer_approximation(problem, cuts, _NO_COUNT)
+
+
+def _allowed(problem: _Problem, z: np.ndarray) -> bool:
+    """Whether a point's choice of inputs meets every 'different' row added for the alternatives."""
+    return all(r.a @ z <= r.high + 1e-9 for r in problem.rows if r.kind == "different")
+
+
+def _outer_approximation(problem: _Problem, cuts: int, none: str) -> _Solution:
+    """
+    Alternate the master's choice of switches with the continuous search for that choice, until the master's bound
+    meets the best answer. A choice solved before still counts when the rows added since allow it: the master never
+    offers it again. ``none`` is the message when no choice meets the rules.
+    """
+    best = min((e for e in problem.evaluated if _allowed(problem, e[0])), key=lambda e: e[1], default=None)
     proven = False  # True once the master's bound meets the best answer, or the master has nothing left
     stopped = ""
     for _ in range(_MAX_ROUNDS):
@@ -930,13 +948,52 @@ def _solve(problem: _Problem) -> _Solution:
         cuts += _cut(problem, chosen[0][: problem.n])  # the master's own point, where it breaks a limit
         if found is not None:
             cuts += _cut(problem, found[0][: problem.n], every=True)
-            best = min([c for c in (best, (found[0], found[1], on)) if c is not None], key=lambda c: c[1])
+            problem.evaluated.append((found[0], found[1], on))
+            best = min([c for c in (best, problem.evaluated[-1]) if c is not None], key=lambda c: c[1])
     unproven = stopped or f"The search ran {_MAX_ROUNDS} rounds."
     if best is None:
-        message = _NO_COUNT if proven else f"{unproven} No answer was found, and none is ruled out."
+        message = none if proven else f"{unproven} No answer was found, and none is ruled out."
         return _Solution(None, cuts=cuts, message=message)
     message = "" if proven else f"{unproven} This is the best answer found; it is not proven optimal."
     return _Solution(best[0], best[1], best[2], cuts, proven=proven, message=message)
+
+
+def _check_alternatives(problem: _Problem, alternatives: int, leave_out: int) -> None:
+    """Refuse a request for alternatives that cannot be read, or that has no counted inputs to differ in."""
+    problems = []
+    if not (isinstance(alternatives, int) and alternatives >= 0):
+        problems.append(f"alternatives is a whole number, 0 or more, not {alternatives!r}")
+    if not (isinstance(leave_out, int) and leave_out >= 1):
+        problems.append(f"leave_out is a whole number, 1 or more, not {leave_out!r}")
+    if alternatives and not problem.switched:
+        problems.append("alternatives differ in the inputs they use, so they need counted inputs: give a group a "
+                        "max_count, or a min_amount (which also says what 'used' means)")  # fmt: skip
+    if problems:
+        msg = "The alternatives cannot be searched: " + "; ".join(problems) + "."
+        raise ValueError(msg)
+
+
+def _differ(problem: _Problem, z: np.ndarray, leave_out: int, number: int) -> None:
+    """Add a no-good cut: every later answer leaves out at least ``leave_out`` of the counted inputs ``z`` uses."""
+    used = [k for k, i in enumerate(problem.switched) if abs(z[i]) > 1e-9]
+    a = np.zeros(problem.width)
+    a[[problem.n + k for k in used]] = 1.0
+    problem.add(_Row(a, -np.inf, len(used) - leave_out, f"differs from answer {number}", "different"))
+
+
+def _alternatives(problem: _Problem, first: _Solution, count: int, leave_out: int) -> list[Bunch]:
+    """
+    Search the next answers in turn: each the best that leaves out at least ``leave_out`` of the counted inputs each
+    earlier answer uses. The list ends early, with an infeasible result saying why, when no further answer exists.
+    """
+    found: list[Bunch] = []
+    solution = first
+    while len(found) < count and solution.z is not None:
+        _differ(problem, solution.z, leave_out, len(found) + 1)
+        none = _NO_OTHER.format(leave_out=leave_out)
+        solution = _most_typical(problem, _outer_approximation(problem, solution.cuts, none))
+        found.append(_result(problem, solution))
+    return found
 
 
 def _most_typical(problem: _Problem, solution: _Solution) -> _Solution:
@@ -1145,7 +1202,9 @@ def _read(model: BaseEstimator | AffineModel, conf_level: float) -> AffineModel:
     return model
 
 
-def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules) -> Bunch:
+def optimal_inversion(
+    model: BaseEstimator | AffineModel, rules: InversionRules, *, alternatives: int = 0, leave_out: int = 1
+) -> Bunch:
     """
     Find the inputs a PLS or TPLS model vouches for that meet the rules, at the least cost or closest to the targets.
 
@@ -1156,6 +1215,13 @@ def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules)
         many problems on one model, or to search with maps stored by :meth:`AffineModel.to_dict`).
     rules : InversionRules
         The objective (costs or targets), the windows, bounds, fixed inputs, linear rules, counting rules and limits.
+    alternatives : int
+        How many further answers to find, each with a different set of inputs: the best answer that leaves out at least
+        ``leave_out`` of the counted inputs used by the answer and by every alternative before it (a no-good cut on the
+        master problem). Needs counted inputs: a group with a ``max_count`` or a ``min_amount``. Give the
+        ``min_amount``, so that a trace of an input does not count as using it.
+    leave_out : int
+        How many of each earlier answer's counted inputs every alternative must leave out.
 
     Returns
     -------
@@ -1188,12 +1254,18 @@ def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules)
             The tangent planes the counting rules needed.
         ``message`` : str
             Why there is no answer, or why it is not proven optimal; empty otherwise.
+        ``alternatives`` : list of sklearn.utils.Bunch
+            Only when ``alternatives`` is asked for: each alternative as a result with the keys above, best first. Its
+            ``proven_optimal`` means no input set the earlier answers allow does better. The list ends early, with a
+            result whose ``feasible`` is False and whose ``message`` says why, when no further input set meets the
+            rules; it is empty when there is no answer at all.
 
     Raises
     ------
     ValueError
-        The rules name what the model does not have, or cannot be read; or the maps given were read at another
-        confidence level.
+        The rules name what the model does not have, or cannot be read; the maps given were read at another
+        confidence level; or alternatives are asked for without counted inputs, or with a count that is not a whole
+        number.
 
     See Also
     --------
@@ -1214,7 +1286,12 @@ def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules)
     >>> result.x_new, result.objective, result.constraints
     """
     problem = _Problem(_read(model, rules.conf_level), rules)
-    return _result(problem, _most_typical(problem, _solve(problem)))
+    _check_alternatives(problem, alternatives, leave_out)
+    solution = _most_typical(problem, _solve(problem))
+    result = _result(problem, solution)
+    if alternatives:
+        result.alternatives = _alternatives(problem, solution, alternatives, leave_out)
+    return result
 
 
 # ---------------------------------------------------------------------------------------------------------------------

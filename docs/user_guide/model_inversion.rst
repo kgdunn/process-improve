@@ -255,6 +255,44 @@ When no inputs meet the rules, ``result.message`` says why: either the windows
 cannot be met within the inputs' bounds at all, or they can only far from the
 data, and then by how many times each limit would be exceeded.
 
+Alternatives: the next best answers, each with other inputs
+-----------------------------------------------------------
+
+A product developer rarely wants one answer. Alternatives that use different
+inputs protect against an input that becomes unavailable or restricted, and
+they make a more informative next round of experiments than several points near
+one optimum. With counting rules, ``alternatives`` asks for them:
+
+.. code-block:: python
+
+    rules = InversionRules(
+        costs=costs, windows=windows, rules=(mixture_total,),
+        groups={"all": names}, max_count={"all": 3}, min_amount={"all": 0.05},
+    )
+    result = pls.optimal_inversion(rules, alternatives=2, leave_out=1)
+
+    result.used  # the inputs of the best answer
+    [r.used for r in result.alternatives]  # each alternative's inputs, best first
+    [r.objective - result.objective for r in result.alternatives]  # what each one costs extra
+
+Each alternative is found by a *no-good cut* on the master problem: if an answer
+uses the counted inputs :math:`S`, every later answer must meet
+
+.. math::
+
+    \sum_{i \in S} u_i \le |S| - \ell,
+
+where :math:`u_i` is 1 when input :math:`i` is used and :math:`\ell` is
+``leave_out``: it leaves out at least :math:`\ell` of :math:`S`, and may add
+others. The tangent planes found so far stay valid for any choice of inputs,
+and every choice already solved keeps its best point, so each alternative takes
+a few more rounds of the same search, and its ``proven_optimal`` means that no
+choice of inputs the earlier answers allow does better. The list ends early,
+with a result whose ``message`` says why, when no further choice meets the rules.
+
+Give a ``min_amount``: it is what "used" means, so that a trace of an input
+does not count as using it.
+
 Sensitivity: what each rule costs
 ---------------------------------
 
