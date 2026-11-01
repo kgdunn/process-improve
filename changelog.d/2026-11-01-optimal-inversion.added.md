@@ -10,6 +10,7 @@
   `inversion_sensitivity` checks those by solving again, traces the objective as one limit moves,
   prices one input more or fewer per group, and finds how far each input's cost can move before the
   answer changes shape. For a target, the answer is the most typical (least T²) of the equally
-  close points of the null space.
+  close points of the null space. Both functions take the fitted model or its maps, which
+  `AffineModel.to_dict` stores as plain JSON and `AffineModel.from_dict` reads back.
 - **`PLS.diagnose` and `TPLS.diagnose` return the residuals** whose lengths are their SPE: a PLS
   model's in its scaled space, a TPLS model's per `"F"` and `"Z"` group, keyed like `spe`.

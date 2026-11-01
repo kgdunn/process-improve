@@ -5570,7 +5570,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
 
     # Test the predicted values are what were expected:
@@ -5691,7 +5691,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
     assert predictions["spe"]["F"] is not None

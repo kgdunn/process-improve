@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import json
 import pathlib
 import pickle
 
@@ -186,12 +187,13 @@ def test_the_cost_falls_as_the_t2_limit_widens_and_the_answer_holds_its_shape_ov
     rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)})
 
     report = oi.inversion_sensitivity(cheese, rules, front=("T²", [2.0, 4.0, 6.0, 8.0]), prices=["Lactic"])
-    taste = oi.inversion_sensitivity(cheese, rules, front=("Taste", [20.0, 22.0, 24.0])).front
+    taste = oi.inversion_sensitivity(cheese, rules, front=("Taste", [20.0, 22.0, 24.0, 31.0])).front
     spe = oi.inversion_sensitivity(cheese, rules, front=("SPE X", [1.0, 1.5])).front
 
     assert report.front["feasible"].all()
     assert (np.diff(report.front["objective"]) < 0).all()
-    assert (np.diff(taste["objective"]) > 0).all()  # the window's binding lower side moves: a tastier cheese costs more
+    assert (np.diff(taste["objective"].iloc[:3]) > 0).all()  # the binding lower side moves: tastier costs more
+    assert not taste["feasible"].iloc[3]  # past the window's upper side, 30, there is nothing to meet
     assert spe["objective"].iloc[1] < spe["objective"].iloc[0]
     lactic = report.prices.iloc[0]
     assert -1.0 <= lactic["falls_by"] <= 0.0 <= lactic["rises_by"] <= 1.0
@@ -318,7 +320,18 @@ def test_a_model_read_at_one_confidence_is_not_used_at_another(cheese: PLS) -> N
     rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)}, conf_level=0.99)
 
     with pytest.raises(ValueError, match=r"read at conf_level 0\.95, the rules ask for 0\.99"):
-        optimal_inversion(cheese, rules, affine)
+        optimal_inversion(affine, rules)
+
+
+def test_maps_stored_as_json_search_as_the_model_does(cheese: PLS) -> None:
+    """Store the maps, read them back, and search without the model: the same answer, and the same sensitivity."""
+    rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)})
+    stored = json.loads(json.dumps(affine_model(cheese).to_dict()))
+
+    affine = oi.AffineModel.from_dict(stored)
+
+    assert optimal_inversion(affine, rules).objective == pytest.approx(cheese.optimal_inversion(rules).objective)
+    assert set(oi.inversion_sensitivity(affine, rules).checked["constraint"]) == {"Taste", "T²", "SPE X"}
 
 
 def test_the_methods_are_the_functions_and_the_model_still_pickles(cheese: PLS) -> None:
@@ -485,7 +498,7 @@ def test_tpls_cheapest_blend_beats_every_training_blend_that_qualifies(pyphi: tu
         and all(lim.value(x) <= lim.limit for lim in limits)
     ]  # fmt: skip
 
-    result = optimal_inversion(model, InversionRules(costs=costs, windows=windows), affine)
+    result = optimal_inversion(affine, InversionRules(costs=costs, windows=windows))
 
     assert qualifying
     assert result.feasible
@@ -507,7 +520,7 @@ def test_tpls_cheapest_blend_of_two_lots_per_material_costs_no_less_than_the_fre
     rules = InversionRules(costs=costs, windows={"Y1": (float(quality["Y1"].median()), None)})
     counted = dataclasses.replace(rules, max_count=dict.fromkeys(GROUPS, 2), min_amount=dict.fromkeys(GROUPS, 0.1))
 
-    free, result = optimal_inversion(model, rules, affine), optimal_inversion(model, counted, affine)
+    free, result = optimal_inversion(affine, rules), optimal_inversion(affine, counted)
 
     assert result.feasible
     assert result.proven_optimal

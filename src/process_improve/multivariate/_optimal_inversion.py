@@ -144,6 +144,50 @@ class AffineModel:
         """Return each block's SPE for one input vector."""
         return np.array([float(np.linalg.norm(b.r0 + b.jacobian @ x)) for b in self.blocks])
 
+    def to_dict(self) -> dict:
+        """
+        Return the maps as plain JSON: lists and numbers, to store beside a project and search later without the model.
+
+        Returns
+        -------
+        dict
+            Every field; :meth:`from_dict` reads it back.
+        """
+        out = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+        out["groups"] = {g: list(names) for g, names in self.groups.items()}
+        out["blocks"] = [{"name": b.name, "r0": b.r0.tolist(), "jacobian": b.jacobian.tolist(), "limit": b.limit}
+                         for b in self.blocks]  # fmt: skip
+        return {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in out.items()}
+
+    @classmethod
+    def from_dict(cls, values: Mapping) -> AffineModel:
+        """
+        Read the maps back from :meth:`to_dict`.
+
+        Parameters
+        ----------
+        values : dict
+            As :meth:`to_dict` wrote it.
+
+        Returns
+        -------
+        AffineModel
+            The same maps, as arrays.
+        """
+        names = ("y0", "y_map", "t0", "t_map", "score_sd", "y_scale", "centre", "spread")
+        arrays = {k: np.asarray(values[k], dtype=float) for k in names}
+        blocks = tuple(
+            ResidualBlock(
+                b["name"], np.asarray(b["r0"], dtype=float), np.asarray(b["jacobian"], dtype=float), b["limit"]
+            )
+            for b in values["blocks"]
+        )
+        return cls(
+            names=tuple(values["names"]), y_names=tuple(values["y_names"]),
+            groups={g: tuple(n) for g, n in values["groups"].items()}, t2_limit=float(values["t2_limit"]),
+            blocks=blocks, conf_level=float(values["conf_level"]), **arrays,
+        )  # fmt: skip
+
 
 @dataclass(frozen=True)
 class _Probe:
@@ -1057,19 +1101,27 @@ def _result(problem: _Problem, solution: _Solution) -> Bunch:
     )  # fmt: skip
 
 
-def optimal_inversion(model: PLS | TPLS, rules: InversionRules, affine: AffineModel | None = None) -> Bunch:
+def _read(model: PLS | TPLS | AffineModel, conf_level: float) -> AffineModel:
+    """Return the maps: read from a fitted model, or the stored maps given, if read at the same confidence level."""
+    if not isinstance(model, AffineModel):
+        return affine_model(model, conf_level)
+    if model.conf_level != conf_level:
+        msg = f"The model was read at conf_level {model.conf_level}, the rules ask for {conf_level}."
+        raise ValueError(msg)
+    return model
+
+
+def optimal_inversion(model: PLS | TPLS | AffineModel, rules: InversionRules) -> Bunch:
     """
     Find the inputs a PLS or TPLS model vouches for that meet the rules, at the least cost or closest to the targets.
 
     Parameters
     ----------
-    model : PLS or TPLS
-        A fitted model.
+    model : PLS, TPLS or AffineModel
+        A fitted model, or its maps as :func:`affine_model` read them at ``rules.conf_level`` (pass the maps to solve
+        many problems on one model, or to search with maps stored by :meth:`AffineModel.to_dict`).
     rules : InversionRules
         The objective (costs or targets), the windows, bounds, fixed inputs, linear rules, counting rules and limits.
-    affine : AffineModel, optional
-        The model as read by :func:`affine_model` at ``rules.conf_level``; read here when not given. Pass it to solve
-        many problems on one model.
 
     Returns
     -------
@@ -1104,7 +1156,8 @@ def optimal_inversion(model: PLS | TPLS, rules: InversionRules, affine: AffineMo
     Raises
     ------
     ValueError
-        The rules name what the model does not have, or cannot be read.
+        The rules name what the model does not have, or cannot be read; or the maps given were read at another
+        confidence level.
 
     See Also
     --------
@@ -1124,11 +1177,7 @@ def optimal_inversion(model: PLS | TPLS, rules: InversionRules, affine: AffineMo
     >>> result = optimal_inversion(pls, rules)
     >>> result.x_new, result.objective, result.constraints
     """
-    if affine is not None and affine.conf_level != rules.conf_level:
-        msg = f"The model was read at conf_level {affine.conf_level}, the rules ask for {rules.conf_level}."
-        raise ValueError(msg)
-    affine = affine if affine is not None else affine_model(model, rules.conf_level)
-    problem = _Problem(affine, rules)
+    problem = _Problem(_read(model, rules.conf_level), rules)
     return _result(problem, _most_typical(problem, _solve(problem)))
 
 
@@ -1168,16 +1217,14 @@ def _step(row: pd.Series, fraction: float) -> float:
     return fraction * abs(at) if np.isfinite(at) and at != 0 else fraction
 
 
-def _check_prices(
-    model: PLS | TPLS, rules: InversionRules, affine: AffineModel, result: Bunch, fraction: float
-) -> pd.DataFrame:
+def _check_prices(rules: InversionRules, affine: AffineModel, result: Bunch, fraction: float) -> pd.DataFrame:
     """Each binding rule moved a little in the direction that relaxes it, solved again: the change, and the forecast."""
     rows = []
     table = result.constraints
     movable = table["binding"].isin(["upper", "lower"]) & table["kind"].isin(["window", "rule", "limit", "bound"])
     for _, row in table[movable].iterrows():
         step = _step(row, fraction)
-        again = optimal_inversion(model, _relaxed(rules, row, step), affine)
+        again = optimal_inversion(affine, _relaxed(rules, row, step))
         change = again.objective - result.objective if again.feasible else np.nan
         signed = step if row["binding"] == "upper" else -step
         rows.append({
@@ -1187,9 +1234,7 @@ def _check_prices(
     return pd.DataFrame(rows, columns=["constraint", "kind", "moved_by", "forecast_change", "actual_change"])
 
 
-def _trace(
-    model: PLS | TPLS, rules: InversionRules, affine: AffineModel, front: tuple[str, list[float]], result: Bunch
-) -> pd.DataFrame:
+def _trace(rules: InversionRules, affine: AffineModel, front: tuple[str, list[float]], result: Bunch) -> pd.DataFrame:
     """
     Return the optimal objective as one rule's bound takes each value: the T² limit, an SPE limit (``"SPE X"``), a
     window or a linear rule. A two-sided rule moves the side that binds (its lower side if neither does).
@@ -1205,24 +1250,25 @@ def _trace(
         row["binding"] if row["binding"] in {"upper", "lower"} else ("lower" if np.isfinite(row["lower"]) else "upper")
     )
     rows = []
+    other = row["upper"] if side == "lower" else row["lower"]
     for value in values:
-        again = optimal_inversion(model, _set_bound(rules, row, side, value), affine)
+        # A bound moved past the rule's other bound leaves nothing to meet: no answer, without a search.
+        crossed = value > other if side == "lower" else value < other
+        again = Bunch(feasible=False) if crossed else optimal_inversion(affine, _set_bound(rules, row, side, value))
         rows.append(
             {"value": value, "feasible": again.feasible, "objective": again.objective if again.feasible else np.nan}
         )
     return pd.DataFrame(rows)
 
 
-def _counts(model: PLS | TPLS, rules: InversionRules, affine: AffineModel, result: Bunch) -> pd.DataFrame:
+def _counts(rules: InversionRules, affine: AffineModel, result: Bunch) -> pd.DataFrame:
     """For each counted group, the optimal objective with one input fewer and one more allowed."""
     rows = []
     for group, most in rules.max_count.items():
         for k in (most - 1, most + 1):
             if k < 1:
                 continue
-            found = optimal_inversion(
-                model, dataclasses.replace(rules, max_count=dict(rules.max_count) | {group: k}), affine
-            )
+            found = optimal_inversion(affine, dataclasses.replace(rules, max_count=dict(rules.max_count) | {group: k}))
             rows.append({
                 "group": group, "max_count": k, "feasible": found.feasible,
                 "objective": found.objective if found.feasible else np.nan,
@@ -1238,9 +1284,7 @@ def _usage(result: Bunch) -> frozenset[str]:
     return frozenset(used | set(table.loc[(table["binding"] != "") & (table["kind"] != "unused"), "constraint"]))
 
 
-def _price_range(
-    model: PLS | TPLS, rules: InversionRules, affine: AffineModel, name: str, base: frozenset[str]
-) -> tuple[float, float]:
+def _price_range(rules: InversionRules, affine: AffineModel, name: str, base: frozenset[str]) -> tuple[float, float]:
     """
     How far one input's cost can fall and rise, as a fraction of itself, before the answer changes shape: another
     input is used, or another rule binds. Within that range the answer moves smoothly with the cost.
@@ -1250,7 +1294,7 @@ def _price_range(
 
     def same(fraction: float) -> bool:
         costs = dict(rules.costs) | {name: rules.costs[name] * (1 + fraction)}
-        return _usage(optimal_inversion(model, dataclasses.replace(rules, costs=costs), affine)) == base
+        return _usage(optimal_inversion(affine, dataclasses.replace(rules, costs=costs))) == base
 
     edges = []
     for far in (-1.0, 1.0):
@@ -1265,21 +1309,19 @@ def _price_range(
     return edges[0], edges[1]
 
 
-def _prices(
-    model: PLS | TPLS, rules: InversionRules, affine: AffineModel, result: Bunch, names: list[str]
-) -> pd.DataFrame:
+def _prices(rules: InversionRules, affine: AffineModel, result: Bunch, names: list[str]) -> pd.DataFrame:
     """Each named input's cost range, as fractions of its cost, over which the answer keeps its shape."""
     base = _usage(result)
     rows = []
     for name in names:
-        low, high = _price_range(model, rules, affine, name, base)
+        low, high = _price_range(rules, affine, name, base)
         used = bool(abs(result.x_new[name]) > 1e-9)
         rows.append({"input": name, "cost": rules.costs[name], "used": used, "falls_by": low, "rises_by": high})
     return pd.DataFrame(rows, columns=["input", "cost", "used", "falls_by", "rises_by"])
 
 
 def inversion_sensitivity(
-    model: PLS | TPLS,
+    model: PLS | TPLS | AffineModel,
     rules: InversionRules,
     *,
     front: tuple[str, list[float]] | None = None,
@@ -1292,8 +1334,8 @@ def inversion_sensitivity(
 
     Parameters
     ----------
-    model : PLS or TPLS
-        A fitted model.
+    model : PLS, TPLS or AffineModel
+        A fitted model, or its maps, as for :func:`optimal_inversion`.
     rules : InversionRules
         The rules, as for :func:`optimal_inversion`.
     front : (str, list of float), optional
@@ -1320,8 +1362,8 @@ def inversion_sensitivity(
     >>> report.checked   # shadow prices against solving again
     >>> report.front     # the cost as the T² limit moves
     """
-    affine = affine_model(model, rules.conf_level)
-    result = optimal_inversion(model, rules, affine)
+    affine = _read(model, rules.conf_level)
+    result = optimal_inversion(affine, rules)
     empty = pd.DataFrame()
     if not result.feasible:
         return Bunch(inversion=result, checked=empty, front=empty, counts=empty, prices=empty)
@@ -1330,8 +1372,8 @@ def inversion_sensitivity(
         raise ValueError(msg)
     return Bunch(
         inversion=result,
-        checked=_check_prices(model, rules, affine, result, fraction),
-        front=_trace(model, rules, affine, front, result) if front else empty,
-        counts=_counts(model, rules, affine, result),
-        prices=_prices(model, rules, affine, result, prices) if prices else empty,
+        checked=_check_prices(rules, affine, result, fraction),
+        front=_trace(rules, affine, front, result) if front else empty,
+        counts=_counts(rules, affine, result),
+        prices=_prices(rules, affine, result, prices) if prices else empty,
     )
