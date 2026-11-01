@@ -29,12 +29,15 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _nz, epsqrt, largest_ssq_column
+from ._common import _model_method, _nz, epsqrt, largest_ssq_column
 from ._diagnostics import _t2_score_sd
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
+from ._optimal_inversion import Probe, finite_or
+from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
+from ._optimal_inversion import optimal_inversion as _optimal_inversion
 from .plots import Plot
 
 
@@ -436,6 +439,56 @@ class TPLS(RegressorMixin, BaseEstimator):
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
     # as real methods keeps ``help`` / ``inspect.signature`` accurate and the
     # fitted model picklable.
+    # Inversion as an optimisation: which lots, at what fractions, and which conditions, under rules.
+    optimal_inversion = _model_method(_optimal_inversion)
+    inversion_sensitivity = _model_method(_inversion_sensitivity)
+
+    def _inversion_columns(self) -> list[tuple[str, str, list[str]]]:
+        """Each input group, in the order optimal inversion reads them: (block, group, its column names)."""
+        columns = [("F", g, list(self.material_names[g])) for g in self.material_names]
+        return columns + [("Z", g, list(self.condition_names[g])) for g in self.condition_names]
+
+    def _inversion_probe(self, conf_level: float) -> Probe:
+        """
+        Describe this model for optimal inversion: the inputs are each group's lot fractions, then the process
+        conditions; each F and Z group is a residual block; rows are read through diagnose.
+        """
+        columns = self._inversion_columns()
+        names = tuple(name for _, _, group in columns for name in group)
+        if len(set(names)) != len(names):
+            # shortcut: inputs are named by their column name alone; qualify them by group if two groups share a name.
+            msg = "Two TPLS groups share a lot or condition name; optimal inversion needs every input named once."
+            raise ValueError(msg)
+        edges = np.cumsum([0] + [len(group) for _, _, group in columns])
+
+        def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
+            index = [f"p{i}" for i in range(len(rows))]
+            blocks: dict[str, dict[str, pd.DataFrame]] = {}
+            for (block, group, cols), lo, hi in zip(columns, edges[:-1], edges[1:], strict=True):
+                blocks.setdefault(block, {})[group] = pd.DataFrame(rows[:, lo:hi], index=index, columns=cols)
+            out = self.diagnose(DataFrameDict(blocks))
+            y = np.hstack([out.hat[g].to_numpy(dtype=float) for g in self.quality_names])
+            residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g, _ in columns]
+            spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g, _ in columns])
+            t2 = out.hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
+            return out.t_scores_super.to_numpy(dtype=float), y, residual, t2, spe
+
+        def preproc(key: str, block: str, group: str, cols: list[str]) -> np.ndarray:
+            return self.preproc_[block][group][key].reindex(cols).to_numpy(dtype=float)
+
+        return Probe(
+            names=names, y_names=tuple(n for g in self.quality_names for n in self.quality_names[g]),
+            groups={g: tuple(self.material_names[g]) for g in self.material_names},
+            block_names=tuple(f"{b}/{g}" for b, g, _ in columns),
+            block_limits=tuple(float(self.spe_limit[b][g](conf_level)) for b, g, _ in columns),
+            score_sd=_t2_score_sd(self.scaling_factor_for_scores.to_numpy()),
+            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            y_scale=np.concatenate([finite_or(self.preproc_["Y"][g]["scale"], 1.0) for g in self.quality_names]),
+            centre=np.concatenate([np.nan_to_num(preproc("center", b, g, c)) for b, g, c in columns]),
+            spread=np.concatenate([finite_or(preproc("scale", b, g, c), 1.0) for b, g, c in columns]),
+            diagnose=diagnose,
+        )  # fmt: skip
+
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
         return _hotellings_t2_limit(
@@ -692,6 +745,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             - ``hotellings_t2`` (DataFrame, shape
               ``(n_new, n_components)``) : cumulative Hotelling's T² per
               new observation after each component.
+            - ``residuals`` (dict[str, dict[str, DataFrame]]) : what is left of
+              each ``"Z"`` and ``"F"`` group after all the components, in the
+              preprocessed (centred and scaled) units, keyed like ``spe``. The
+              last column of ``spe`` is the length of each row; a missing cell,
+              and a column excluded for having no variance, leave 0.
         """
         check_is_fitted(self)  # Check if fit had been called
         if not isinstance(X, DataFrameDict):
@@ -790,6 +848,17 @@ class TPLS(RegressorMixin, BaseEstimator):
             hotellings_t2=pd.DataFrame(
                 self._cumulative_hotellings_t2(scores), index=names_observations, columns=components
             ),
+            # The blocks as deflated by the last component: the vectors whose lengths are SPE, for optimal inversion.
+            residuals={
+                "F": {
+                    key: pd.DataFrame(values, index=X["F"][key].index, columns=self.material_names[key])
+                    for key, values in x_f.items()
+                },
+                "Z": {
+                    key: pd.DataFrame(values, index=X["Z"][key].index, columns=self.condition_names[key])
+                    for key, values in x_z.items()
+                },
+            },
         )
 
     def display_results(self, show_cumulative_stats: bool = True) -> str:

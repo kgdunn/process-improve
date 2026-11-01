@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate, invert, optimal_inversion, inversion_sensitivity
    :undoc-members:
    :show-inheritance:
 
@@ -118,6 +118,28 @@ reached, and every fold is recorded as ``NaN``. Build the scorer with
 untouched.
 
 .. autofunction:: make_tpls_scorer
+
+Optimal inversion
+~~~~~~~~~~~~~~~~~
+
+The inputs a PLS or TPLS model vouches for, at the least cost or closest to
+target qualities, under windows, bounds, linear rules (mixture totals, safety
+limits), the T² and SPE limits and counting rules; with the shadow price of
+every rule. See :doc:`../user_guide/model_inversion`.
+
+.. autofunction:: optimal_inversion
+
+.. autofunction:: inversion_sensitivity
+
+.. autoclass:: InversionRules
+
+.. autoclass:: LinearRule
+   :no-index:
+
+.. autofunction:: affine_model
+
+.. autoclass:: AffineModel
+   :members: predict, scores, hotellings_t2, spe
 
 ASCA
 ~~~~
