@@ -1017,13 +1017,22 @@ def _reported(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> list[_Act
             _Active(lim.name, "limit", value, -np.inf, lim.limit, g, _side(value, -np.inf, lim.limit, lim.limit))
         )
     for i, name in enumerate(problem.names):
-        low, high = bounds[i]
+        low, high = bounds[
+            i
+        ]  # as the search had them: a counted input switched off is held at 0, one on at its minimum
         side = _side(w[i], low, high, float(problem.affine.spread[i]))
-        if side:
-            g = np.zeros(len(w))
-            g[i] = 1.0
-            kind = "fixed" if name in problem.rules.fixed else "unused" if low == high == 0 else "bound"
-            out.append(_Active(name, kind, float(w[i]), float(low), float(high), g, side))
+        if not side:
+            continue
+        g = np.zeros(len(w))
+        g[i] = 1.0
+        own_low, own_high = problem.bounds[i]
+        if name in problem.rules.fixed or low == high:
+            kind = "fixed" if name in problem.rules.fixed else "unused"
+        elif side == "lower" and low > own_low:
+            kind = "min_amount"  # its group's minimum amount, shared by every input of the group: not one input's bound
+        else:
+            kind, low, high = "bound", own_low, own_high  # the input's own bounds, as the rules state them
+        out.append(_Active(name, kind, float(w[i]), float(low), float(high), g, side))
     return out
 
 

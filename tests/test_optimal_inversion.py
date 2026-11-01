@@ -393,6 +393,18 @@ def test_one_of_a_pair_allowed_prices_only_the_second(mixture: PLS) -> None:
     assert list(report.counts["max_count"]) == [2]
 
 
+def test_an_ingredient_held_at_its_minimum_is_reported_as_that_not_as_a_bound(mixture: PLS) -> None:
+    """At its group's minimum amount an ingredient is held by the counting rule, not moved one input at a time."""
+    rules = _mixture_rules(costs={"a": 1.0, "b": 2.0, "c": 4.0, "d": 9.0}, groups={"all": MIXTURE},
+                           max_count={"all": 2}, min_amount={"all": 0.25})  # fmt: skip
+
+    report = mixture.inversion_sensitivity(rules)
+
+    held = report.inversion.constraints.set_index("constraint").loc["b"]
+    assert (held["kind"], held["binding"], held["lower"]) == ("min_amount", "lower", 0.25)
+    assert "b" not in set(report.checked["constraint"])
+
+
 def test_too_few_ingredients_for_the_window_has_no_answer_and_says_so(mixture: PLS) -> None:
     """One ingredient at most, but the quality window needs a blend: the counting rules are named."""
     rules = _mixture_rules(windows={"q": (6.5, 7.0)}, groups={"all": MIXTURE}, max_count={"all": 1},
@@ -559,6 +571,27 @@ def test_without_closure_a_materials_fractions_are_free_to_total_anything() -> N
 
     assert result.feasible
     assert "closure" not in set(result.constraints["kind"])
+
+
+def test_a_counted_lot_at_its_whole_material_keeps_its_own_bounds_when_moved() -> None:
+    """One lot per material, so each is at 100%: moving that bound keeps 0 allowed, as counting needs."""
+    model = _small_tpls(["B1", "B2", "B3"])
+    lots = ["A1", "A2", "A3", "B1", "B2", "B3"]
+    rules = InversionRules(
+        costs=dict(zip(lots, [3.0, 1.0, 2.0, 1.0, 2.0, 3.0], strict=True)),
+        max_count={"A": 1, "B": 1},
+        min_amount={"A": 0.1, "B": 0.1},
+        t2_limit=1e6,
+        spe_limits={"F/A": 1e6, "F/B": 1e6},
+    )  # fmt: skip  (a pure lot is atypical)
+
+    report = model.inversion_sensitivity(rules)
+    whole = report.inversion.constraints.query("kind == 'bound'")
+
+    assert report.inversion.feasible
+    assert (whole["lower"] == 0.0).all()
+    assert (whole["upper"] == 1.0).all()
+    assert set(whole["constraint"]) <= set(report.checked["constraint"])
 
 
 def test_tpls_groups_that_share_a_lot_name_are_refused() -> None:
