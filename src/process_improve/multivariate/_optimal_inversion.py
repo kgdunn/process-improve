@@ -16,10 +16,11 @@ the null space along which every other answer lies. Jaeckle and MacGregor then p
 
 A fitted PLS or TPLS model is a chain of centrings, scalings and projections, so its scores, predictions and residuals
 are affine in the inputs. :func:`affine_model` reads those maps off the model's own ``diagnose`` once, and checks them
-there, so the search is the model, not an approximation of it. Everything is then linear except T² (a convex
-quadratic) and SPE (the length of an affine map: a convex cone). Without the counting rules the problem is convex and
-one continuous search finds its global optimum. With them, outer approximation (Duran and Grossmann, 1986) alternates
-a mixed-integer linear master (HiGHS), which chooses the inputs used, with that continuous search for each choice.
+there, so the search is the model, not an approximation of it. Everything is then linear except T² and SPE, both
+convex: T² a sum of squares of the scores, SPE the length of the residual. Without the counting rules the problem is
+convex and one continuous search finds its global optimum. With them, outer approximation (Duran and Grossmann, 1986)
+alternates a mixed-integer linear master (HiGHS), which chooses the inputs used, with that continuous search for each
+choice.
 
 Every answer carries the shadow price of each rule: how much the objective would change per unit the rule is moved,
 read from the optimality conditions. :func:`inversion_sensitivity` checks them by solving again, traces the objective
@@ -442,7 +443,15 @@ class _Limit:
 
 
 def _limits(affine: AffineModel, rules: InversionRules) -> list[_Limit]:
-    """T² and each block's SPE, on arrays held once: the search calls them thousands of times."""
+    """
+    T² and each block's SPE, on arrays held once: the search calls them thousands of times.
+
+    SPE stays a length, as the model reports it, not its square. The master's tangent plane of a squared limit, taken
+    at a point rho times the limit away (as a length), sits (1 + rho²) / (2 rho) times the limit out, not at it. The
+    box rows let rho reach the square root of the number of directions: one per component for T², one per input for
+    SPE, so a squared SPE gives loose planes. Over 32 test problems a squared SPE took 28% more rounds; T² written as
+    its square root changed nothing that held across them, so T² stays a sum of squares.
+    """
     sd2 = affine.score_sd**2
     t2_limit = rules.t2_limit if rules.t2_limit is not None else affine.t2_limit
 
@@ -909,8 +918,8 @@ class _Solution:
 def _solve(problem: _Problem) -> _Solution:
     """Solve the relaxed problem; with counting rules, run outer approximation until its bound meets the best."""
     relaxed = _continuous(problem)
-    if relaxed is None:
-        return _Solution(None, message=problem.why)
+    if relaxed is None:  # out of reach of the linear rows (a linear program), or of the limits (a convex search)
+        return _Solution(None, proven=problem.why != _NOT_SETTLED, message=problem.why)
     if not problem.switched:
         return _Solution(relaxed[0], relaxed[1], None, 0, proven=True)
     problem.check_counted()
@@ -953,7 +962,7 @@ def _outer_approximation(problem: _Problem, cuts: int, none: str) -> _Solution:
     unproven = stopped or f"The search ran {_MAX_ROUNDS} rounds."
     if best is None:
         message = none if proven else f"{unproven} No answer was found, and none is ruled out."
-        return _Solution(None, cuts=cuts, message=message)
+        return _Solution(None, cuts=cuts, proven=proven, message=message)
     message = "" if proven else f"{unproven} This is the best answer found; it is not proven optimal."
     return _Solution(best[0], best[1], best[2], cuts, proven=proven, message=message)
 
@@ -1249,7 +1258,8 @@ def optimal_inversion(
         ``kkt_residual`` : float
             How nearly the optimality conditions hold at the answer; near 0 at an optimum.
         ``proven_optimal`` : bool
-            The search proved no better answer exists, and the optimality conditions hold.
+            The search proved no better answer exists, and the optimality conditions hold. With no answer: the
+            search proved none exists; False when it stopped before it could.
         ``n_cuts`` : int
             The tangent planes the counting rules needed.
         ``message`` : str

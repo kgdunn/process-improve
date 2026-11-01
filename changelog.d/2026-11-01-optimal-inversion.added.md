@@ -11,7 +11,8 @@
   prices one input more or fewer per group, and finds how far each input's cost can move before the
   answer changes shape. For a target, the answer is the most typical (least T²) of the equally
   close points of the null space. Both functions take the fitted model or its maps, which
-  `AffineModel.to_dict` stores as plain JSON and `AffineModel.from_dict` reads back.
+  `AffineModel.to_dict` stores as plain JSON and `AffineModel.from_dict` reads back. When there is no
+  answer, `proven_optimal` says whether the search proved that none exists.
 - **`PLS.diagnose` and `TPLS.diagnose` return the residuals** whose lengths are their SPE: a PLS
   model's in its scaled space, a TPLS model's per `"F"` and `"Z"` group, keyed like `spe`.
 - **Alternatives with other inputs from `optimal_inversion`.** With counting rules,

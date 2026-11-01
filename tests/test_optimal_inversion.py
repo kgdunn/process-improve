@@ -242,8 +242,10 @@ def test_no_answer_says_whether_the_linear_rules_or_the_limits_stand_in_the_way(
     out_of_reach, far = cheese.optimal_inversion(bounded), cheese.optimal_inversion(unbounded)
 
     assert not out_of_reach.feasible
+    assert out_of_reach.proven_optimal  # proven: no answer exists
     assert "No inputs within their bounds meet the linear rules" in out_of_reach.message
     assert not far.feasible
+    assert far.proven_optimal
     assert "only far from the data the model was built from" in far.message
     assert "T²" in far.message
 
@@ -321,6 +323,7 @@ def test_a_search_that_never_settles_says_so(cheese: PLS, monkeypatch: pytest.Mo
     result = cheese.optimal_inversion(InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)}))
 
     assert not result.feasible
+    assert not result.proven_optimal  # a search that did not settle proves nothing
     assert "did not settle" in result.message
 
 
@@ -449,6 +452,7 @@ def test_too_few_ingredients_for_the_window_has_no_answer_and_says_so(mixture: P
     result = mixture.optimal_inversion(rules)
 
     assert not result.feasible
+    assert result.proven_optimal  # the master ran out of choices: proven that none meets the rules
     assert "none do with them" in result.message
 
 
@@ -509,6 +513,7 @@ def test_the_alternatives_end_with_the_reason_once_no_ingredient_set_is_left(mix
     last = result.alternatives[-1]
     assert len(result.alternatives) == len(found) + 1
     assert not last.feasible
+    assert last.proven_optimal
     assert "No further answer leaves out 1" in last.message
     sets = [frozenset(r.used["all"]) for r in [result, *found]]
     assert all(any(earlier <= s for earlier in sets) for s in costs)  # every feasible set is used up
