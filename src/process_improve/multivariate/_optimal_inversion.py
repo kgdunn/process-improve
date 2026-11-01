@@ -1260,7 +1260,9 @@ def _counts(rules: InversionRules, affine: AffineModel, result: Bunch) -> pd.Dat
 
 
 def _usage(result: Bunch) -> frozenset[str]:
-    """Return the answer's shape: the inputs used, and the rules, limits and bounds that bind."""
+    """Return the answer's shape: the inputs used, and the rules, limits and bounds that bind; or that there is none."""
+    if not result.feasible:  # a search that fails at another price is a change of shape, not a crash
+        return frozenset({"no answer"})
     used = {f"uses {n}" for names in result.used.values() for n in names}
     table = result.constraints
     return frozenset(used | set(table.loc[(table["binding"] != "") & (table["kind"] != "unused"), "constraint"]))

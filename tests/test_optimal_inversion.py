@@ -11,6 +11,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.utils import Bunch
 
 from process_improve.multivariate import (
     PLS,
@@ -480,6 +481,11 @@ def test_a_mixture_price_range_holds_the_answers_shape_inside_it(mixture: PLS) -
     assert shape(row["rises_by"] / 2) == oi._usage(base)
     if row["rises_by"] < 1.0:
         assert shape(row["rises_by"] + 0.02) != oi._usage(base)
+
+
+def test_a_price_with_no_answer_is_a_change_of_shape() -> None:
+    """Price ranging compares shapes: a search with no answer at some price is a shape of its own."""
+    assert oi._usage(Bunch(feasible=False)) == frozenset({"no answer"})
 
 
 def test_prices_are_ranged_only_for_a_cost_objective(cheese: PLS) -> None:
