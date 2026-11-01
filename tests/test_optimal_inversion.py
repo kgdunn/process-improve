@@ -601,8 +601,11 @@ def test_without_closure_a_materials_fractions_are_free_to_total_anything() -> N
     assert "closure" not in set(result.constraints["kind"])
 
 
-def test_a_counted_lot_at_its_whole_material_keeps_its_own_bounds_when_moved() -> None:
-    """One lot per material, so each is at 100%: moving that bound keeps 0 allowed, as counting needs."""
+def test_a_lot_at_its_whole_material_is_held_by_the_total_and_its_bound_is_implied() -> None:
+    """
+    One lot per material, so each is at 100%: its bound and the material's total hold it together. The total keeps
+    the price; the bound, reported with the input's own bounds, is implied (NaN) and not moved to check it.
+    """
     model = _small_tpls(["B1", "B2", "B3"])
     lots = ["A1", "A2", "A3", "B1", "B2", "B3"]
     rules = InversionRules(
@@ -614,12 +617,17 @@ def test_a_counted_lot_at_its_whole_material_keeps_its_own_bounds_when_moved() -
     )  # fmt: skip  (a pure lot is atypical)
 
     report = model.inversion_sensitivity(rules)
-    whole = report.inversion.constraints.query("kind == 'bound'")
+    table = report.inversion.constraints
+    whole = table.query("kind == 'bound'")
 
     assert report.inversion.feasible
+    assert report.inversion.proven_optimal
+    assert len(whole) == 2
     assert (whole["lower"] == 0.0).all()
     assert (whole["upper"] == 1.0).all()
-    assert set(whole["constraint"]) <= set(report.checked["constraint"])
+    assert whole["shadow_price"].isna().all()
+    assert table.query("kind == 'closure'")["shadow_price"].notna().all()
+    assert not set(whole["constraint"]) & set(report.checked["constraint"])
 
 
 def test_tpls_groups_that_share_a_lot_name_are_refused() -> None:

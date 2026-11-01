@@ -977,16 +977,37 @@ def _reported(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> list[_Act
     return out
 
 
+# The order in which binding constraints claim a multiplier when several are linearly dependent: the rules a person
+# sets, then the limits, then what holds a single input. A lot at 100% of its material is held both by its upper bound
+# and by the material's total with the other lots at 0; the total keeps the price, the bound is marked as implied.
+_PRIORITY = ("target", "window", "rule", "closure", "limit", "count", "fixed", "unused", "min_amount", "bound")
+
+
+def _independent(columns: np.ndarray, order: list[int]) -> list[int]:
+    """Return the columns, taken in ``order``, that each add a direction to those kept before them (Gram-Schmidt)."""
+    basis: list[np.ndarray] = []
+    kept = []
+    for k in order:
+        r = columns[:, k] - sum((q @ columns[:, k]) * q for q in basis)
+        if np.linalg.norm(r) > 1e-9 * max(1.0, float(np.linalg.norm(columns[:, k]))):
+            basis.append(r / np.linalg.norm(r))
+            kept.append(k)
+    return kept
+
+
 def _multipliers(objective: np.ndarray, active: list[_Active]) -> tuple[np.ndarray, float]:
     """
     Solve the optimality conditions for each binding constraint's multiplier: the objective's gradient is a
     non-negative mix of the binding constraints' outward gradients (any sign for an equality).
 
+    When binding constraints are linearly dependent, their multipliers are not unique: only the independent ones,
+    taken in ``_PRIORITY`` order, get one; the others are implied, with a multiplier of NaN.
+
     Returns
     -------
     (np.ndarray, float)
-        The multiplier of each constraint (0 when not binding), and the relative residual of the conditions: near 0
-        at an optimum.
+        The multiplier of each constraint (0 when not binding, NaN when implied), and the relative residual of the
+        conditions: near 0 at an optimum.
     """
     binding = [k for k, c in enumerate(active) if c.side]
     lam = np.zeros(len(active))
@@ -994,10 +1015,13 @@ def _multipliers(objective: np.ndarray, active: list[_Active]) -> tuple[np.ndarr
         return lam, float(np.linalg.norm(objective) / max(1.0, np.linalg.norm(objective)))
     sign = {"upper": 1.0, "lower": -1.0, "equal": 1.0}
     g = np.column_stack([sign[active[k].side] * active[k].gradient for k in binding])
-    lower = np.array([-np.inf if active[k].side == "equal" else 0.0 for k in binding])
-    found = optimize.lsq_linear(g, -objective, bounds=(lower, np.full(len(binding), np.inf)))
-    lam[binding] = found.x
-    residual = float(np.linalg.norm(objective + g @ found.x) / max(1.0, np.linalg.norm(objective)))
+    order = sorted(range(len(binding)), key=lambda j: _PRIORITY.index(active[binding[j]].kind))
+    kept = _independent(g, order)
+    lower = np.array([-np.inf if active[binding[j]].side == "equal" else 0.0 for j in kept])
+    found = optimize.lsq_linear(g[:, kept], -objective, bounds=(lower, np.full(len(kept), np.inf)))
+    lam[binding] = np.nan
+    lam[[binding[j] for j in kept]] = found.x
+    residual = float(np.linalg.norm(objective + g[:, kept] @ found.x) / max(1.0, np.linalg.norm(objective)))
     return lam, residual
 
 
@@ -1016,7 +1040,7 @@ def _constraint_table(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> t
     lam, residual = _multipliers(objective, active)
     rows = []
     for c, mu in zip(active, lam, strict=True):
-        # d objective / d bound: -mu for an upper bound or an equality, +mu for a lower bound.
+        # d objective / d bound: -mu for an upper bound or an equality, +mu for a lower bound; NaN when implied.
         price = 0.0 if not c.side else (mu if c.side == "lower" else -mu)
         at = {"upper": c.upper, "lower": c.lower, "equal": c.upper}.get(c.side, np.nan)
         rows.append({
@@ -1098,7 +1122,9 @@ def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules)
         ``constraints`` : pd.DataFrame
             Every rule, window and limit, and each input at a bound: its value, bounds, the side it binds on, and its
             ``shadow_price``, the change in the optimal objective per unit increase of that bound (``per_percent``:
-            per 1% of it). A rule that does not bind has a shadow price of 0.
+            per 1% of it). A rule that does not bind has a shadow price of 0. A binding constraint implied by others
+            (a lot at 100% of its material, held both by its bound and by the material's total) has NaN: its price
+            is not its own.
         ``kkt_residual`` : float
             How nearly the optimality conditions hold at the answer; near 0 at an optimum.
         ``proven_optimal`` : bool
@@ -1177,6 +1203,7 @@ def _check_prices(rules: InversionRules, affine: AffineModel, result: Bunch, fra
     rows = []
     table = result.constraints
     movable = table["binding"].isin(["upper", "lower"]) & table["kind"].isin(["window", "rule", "limit", "bound"])
+    movable &= table["shadow_price"].notna()  # an implied constraint has no price of its own to check
     for _, row in table[movable].iterrows():
         step = _step(row, fraction)
         again = optimal_inversion(affine, _relaxed(rules, row, step))
