@@ -297,6 +297,21 @@ def test_a_first_try_that_stops_short_starts_again_from_the_least_excess(
     assert cheese.optimal_inversion(rules).objective == pytest.approx(expected, rel=1e-6)
 
 
+def test_a_restart_that_finds_nothing_better_keeps_the_point_in_hand(
+    cheese: PLS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Away from the optimum the search starts again; a restart that ends outside the rules changes nothing."""
+    problem = oi._Problem(affine_model(cheese), InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)}))
+    bounds, rows = problem.continuous_bounds(None), problem.core_rows()
+    objective = problem.objective[problem.keep()]
+    point = problem.start(bounds)  # the model's centre: not the optimum
+    search = oi._Search(lambda w: objective @ w, lambda _w: objective, point, bounds, [], problem.scale(bounds))
+    monkeypatch.setattr(oi, "_slsqp", lambda s, _maxiter: s.start + 1e3)
+
+    assert oi._kkt_residual(problem, point, bounds) > oi._KKT_TOLERANCE
+    assert oi._settled(problem, search, point, rows) is point
+
+
 def test_a_search_that_never_settles_says_so(cheese: PLS, monkeypatch: pytest.MonkeyPatch) -> None:
     """Should no point the search ends at pass the final check, the answer says the search did not settle."""
     monkeypatch.setattr(oi, "_meets", lambda *_: False)

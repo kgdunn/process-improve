@@ -44,6 +44,8 @@ _LIMIT_TOLERANCE = 1e-4  # T² or an SPE within this fraction above its limit is
 _ACTIVE = 1e-5  # a rule within this (relative) of its bound is binding
 _MAX_ROUNDS = 200  # outer-approximation rounds before the search reports it is not proven optimal
 _FIRST_TRY_ITERATIONS = 100  # SLSQP from the model centre settles in tens of iterations when an answer exists
+_RESTARTS = 3  # SLSQP restarts from where it stopped, while the optimality conditions do not hold there
+_KKT_TOLERANCE = 1e-6  # the optimality conditions' relative residual below which a point is the optimum
 
 _NO_LINEAR = "No inputs within their bounds meet the linear rules and the windows, whatever their T² and SPE."
 _NO_COUNT = "Without the counting rules inputs meet every rule, but none do with them."
@@ -729,6 +731,24 @@ def _least_excess(problem: _Problem, rows: tuple, bounds: np.ndarray, start: np.
     return excess, point
 
 
+def _settled(problem: _Problem, search: _Search, w: np.ndarray, rows: tuple) -> np.ndarray:
+    """
+    Return a point where the optimality conditions hold, starting again from ``w`` while they do not.
+
+    SLSQP can stop at a point that meets every rule but is not the optimum: at its iteration limit, or (scipy 1.15
+    more often than later releases) on a line search that fails. Feasibility alone cannot tell; the optimality
+    conditions can. A restart resets SLSQP's estimate of the curvature, which is what usually stalled it.
+    """
+    for _ in range(_RESTARTS):
+        if _kkt_residual(problem, w, search.bounds) < _KKT_TOLERANCE:
+            break
+        again = _slsqp(dataclasses.replace(search, start=w), 1000)
+        if not _meets(problem, again, rows) or search.fun(again) > search.fun(w):
+            break  # the restart found nothing better: the point in hand stands
+        w = again
+    return w
+
+
 def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[np.ndarray, float] | None:
     """
     Search the inputs and target distances with every switch relaxed (``on=None``) or set.
@@ -762,6 +782,7 @@ def _continuous(problem: _Problem, on: tuple[int, ...] | None = None) -> tuple[n
         if not _meets(problem, w, rows):
             problem.why = _NOT_SETTLED
             return None
+    w = _settled(problem, search, w, rows)
     z = np.zeros(problem.width)
     z[keep] = w
     z[problem.n : problem.n + problem.m] = [1.0 if w[i] > 1e-9 else 0.0 for i in problem.switched]
@@ -776,7 +797,9 @@ def _master(problem: _Problem) -> tuple[np.ndarray, float] | None:
     Choose the switches: the linear problem with every tangent plane so far; its optimum bounds the answer below.
 
     Each input's column is scaled by its natural size, as the continuous search is: a fraction runs from 0 to 1 and a
-    process condition can run to 1e5, and unscaled, HiGHS's presolve loses feasible points.
+    process condition can run to 1e5. HiGHS's presolve is off: on these masters (tangent planes with coefficients
+    over many orders of magnitude), the HiGHS of scipy 1.15 declared a master with feasible points infeasible, which
+    would end the search with a false "no answer".
     """
     m, extra = problem.m, len(problem.targets)
     scale = np.concatenate([problem.scale(problem.continuous_bounds(None))[: problem.n], np.ones(m + extra)])
@@ -789,7 +812,7 @@ def _master(problem: _Problem) -> tuple[np.ndarray, float] | None:
     result = optimize.milp(
         objective * scale, integrality=integrality, bounds=optimize.Bounds(lower, upper),
         constraints=optimize.LinearConstraint(rows, [r.low for r in problem.rows], [r.high for r in problem.rows]),
-        options={"time_limit": 120},
+        options={"time_limit": 120, "presolve": False},
     )  # fmt: skip
     if result.x is None:
         return None
@@ -976,6 +999,11 @@ def _multipliers(objective: np.ndarray, active: list[_Active]) -> tuple[np.ndarr
     lam[binding] = found.x
     residual = float(np.linalg.norm(objective + g @ found.x) / max(1.0, np.linalg.norm(objective)))
     return lam, residual
+
+
+def _kkt_residual(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> float:
+    """How nearly the optimality conditions hold at ``w``: near 0 at an optimum."""
+    return _multipliers(problem.objective[problem.keep()], _reported(problem, w, bounds))[1]
 
 
 def _constraint_table(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> tuple[pd.DataFrame, float]:
