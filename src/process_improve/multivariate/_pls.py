@@ -62,6 +62,8 @@ from ._diagnostics import (
 )
 from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
+from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
+from ._optimal_inversion import optimal_inversion as _optimal_inversion
 from ._preprocessing import MCUVScaler, _back_to_units, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
@@ -482,6 +484,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     # PLS-specific predictive-importance diagnostics (need beta_coefficients_).
     target_projection = _model_method(_target_projection)
     selectivity_ratio = _model_method(_selectivity_ratio)
+    # Inversion as an optimisation: cost or targets, under rules, with each rule's shadow price.
+    optimal_inversion = _model_method(_optimal_inversion)
+    inversion_sensitivity = _model_method(_inversion_sensitivity)
 
     _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
         "x_scores": "scores_",
@@ -1256,6 +1261,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
             - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
               predictions, on the original Y scale.
+            - ``residuals`` (pd.DataFrame, ``(n_samples, n_features)``): what
+              is left of each row after the components, in the scaled space
+              the model was fitted in; ``spe`` is the length of each row.
 
         Notes
         -----
@@ -1297,7 +1305,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if self._y_scaler is not None:
             y_hat = self._y_scaler.inverse_transform(y_hat)
 
-        return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
+        return Bunch(
+            scores=scores,
+            hotellings_t2=t2,
+            spe=spe_values,
+            y_hat=y_hat,
+            residuals=pd.DataFrame(residuals, index=X.index, columns=X.columns),
+        )
 
     def project(
         self,

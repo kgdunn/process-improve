@@ -29,12 +29,14 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _nz, epsqrt, largest_ssq_column
+from ._common import _model_method, _nz, epsqrt, largest_ssq_column
 from ._diagnostics import _t2_score_sd
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
+from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
+from ._optimal_inversion import optimal_inversion as _optimal_inversion
 from .plots import Plot
 
 
@@ -436,6 +438,10 @@ class TPLS(RegressorMixin, BaseEstimator):
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
     # as real methods keeps ``help`` / ``inspect.signature`` accurate and the
     # fitted model picklable.
+    # Inversion as an optimisation: which lots, at what fractions, and which conditions, under rules.
+    optimal_inversion = _model_method(_optimal_inversion)
+    inversion_sensitivity = _model_method(_inversion_sensitivity)
+
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
         return _hotellings_t2_limit(
@@ -692,6 +698,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             - ``hotellings_t2`` (DataFrame, shape
               ``(n_new, n_components)``) : cumulative Hotelling's T² per
               new observation after each component.
+            - ``residuals`` (dict[str, dict[str, DataFrame]]) : what is left of
+              each ``"Z"`` and ``"F"`` group after all the components, in the
+              preprocessed (centred and scaled) units, keyed like ``spe``. The
+              last column of ``spe`` is the length of each row; a missing cell,
+              and a column excluded for having no variance, leave 0.
         """
         check_is_fitted(self)  # Check if fit had been called
         if not isinstance(X, DataFrameDict):
@@ -790,6 +801,17 @@ class TPLS(RegressorMixin, BaseEstimator):
             hotellings_t2=pd.DataFrame(
                 self._cumulative_hotellings_t2(scores), index=names_observations, columns=components
             ),
+            # The blocks as deflated by the last component: the vectors whose lengths are SPE, for optimal inversion.
+            residuals={
+                "F": {
+                    key: pd.DataFrame(values, index=X["F"][key].index, columns=self.material_names[key])
+                    for key, values in x_f.items()
+                },
+                "Z": {
+                    key: pd.DataFrame(values, index=X["Z"][key].index, columns=self.condition_names[key])
+                    for key, values in x_z.items()
+                },
+            },
         )
 
     def display_results(self, show_cumulative_stats: bool = True) -> str:
