@@ -32,18 +32,12 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
 from scipy import optimize
+from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
-
-from process_improve.multivariate._diagnostics import _t2_score_sd
-
-if TYPE_CHECKING:
-    from process_improve.multivariate._pls import PLS
-    from process_improve.multivariate._tpls import TPLS
 
 _ROW_TOLERANCE = 1e-6  # a linear rule met to within this, relative to its scale, is met
 _LIMIT_TOLERANCE = 1e-4  # T² or an SPE within this fraction above its limit is within it
@@ -190,8 +184,13 @@ class AffineModel:
 
 
 @dataclass(frozen=True)
-class _Probe:
-    """What the model says of rows of inputs, and what is needed to read it as affine maps."""
+class Probe:
+    """
+    What a model says of rows of its inputs, and what is needed to read it as affine maps.
+
+    Each model class that can be inverted builds its own, in ``_inversion_probe(conf_level)``: it knows its inputs,
+    its blocks and its limits. This module then reads every model the same way.
+    """
 
     names: tuple[str, ...]
     y_names: tuple[str, ...]
@@ -207,95 +206,13 @@ class _Probe:
     diagnose: Callable[[np.ndarray], tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]]
 
 
-def _finite(values: object, default: float) -> np.ndarray:
+def finite_or(values: object, default: float) -> np.ndarray:
+    """Return the values as floats, ``default`` where one is not finite or is 0: a spread to divide by or step along."""
     array = np.asarray(values, dtype=float)
     return np.where(np.isfinite(array) & (array != 0), array, default)
 
 
-def _pls_probe(model: PLS, conf_level: float) -> _Probe:
-    """Read a fitted PLS model through its own ``diagnose``."""
-    names = tuple(str(n) for n in model._feature_names)
-    n = len(names)
-    x_scaler, y_scaler = model._x_scaler, model._y_scaler
-    n_targets = model.beta_coefficients_.shape[1]
-
-    def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
-        out = model.diagnose(pd.DataFrame(rows, columns=list(model._feature_names)))
-        spe = out.spe.to_numpy(dtype=float)[:, None]
-        residual = [out.residuals.to_numpy(dtype=float)]
-        return (
-            out.scores.to_numpy(dtype=float),
-            out.y_hat.to_numpy(dtype=float),
-            residual,
-            out.hotellings_t2.to_numpy(dtype=float),
-            spe,
-        )
-
-    return _Probe(
-        names=names,
-        y_names=tuple(str(n) for n in model.beta_coefficients_.columns),
-        groups={},
-        block_names=("X",),
-        block_limits=(float(model.spe_limit(conf_level=conf_level)),),
-        score_sd=_t2_score_sd(model.scaling_factor_for_scores_.to_numpy()),
-        t2_limit=float(model.hotellings_t2_limit(conf_level)),
-        y_scale=_finite(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_targets),
-        centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n),
-        spread=_finite(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n),
-        diagnose=diagnose,
-    )  # fmt: skip
-
-
-def _tpls_columns(model: TPLS) -> list[tuple[str, str, list[str]]]:
-    """Each input group of a TPLS model, in map order: (block, group, its column names)."""
-    columns = [("F", g, list(model.material_names[g])) for g in model.material_names]
-    return columns + [("Z", g, list(model.condition_names[g])) for g in model.condition_names]
-
-
-def _tpls_probe(model: TPLS, conf_level: float) -> _Probe:
-    """Read a fitted TPLS model through its own ``diagnose``."""
-    from process_improve.multivariate._tpls import DataFrameDict  # noqa: PLC0415 - _tpls imports this module
-
-    columns = _tpls_columns(model)
-    names = tuple(name for _, _, group in columns for name in group)
-    if len(set(names)) != len(names):
-        # shortcut: inputs are named by their column name alone; qualify them by group if two groups share a name.
-        msg = "Two TPLS groups share a lot or condition name; optimal inversion needs every input named once."
-        raise ValueError(msg)
-    edges = np.cumsum([0] + [len(group) for _, _, group in columns])
-
-    def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
-        index = [f"p{i}" for i in range(len(rows))]
-        blocks: dict[str, dict[str, pd.DataFrame]] = {}
-        for (block, group, cols), lo, hi in zip(columns, edges[:-1], edges[1:], strict=True):
-            blocks.setdefault(block, {})[group] = pd.DataFrame(rows[:, lo:hi], index=index, columns=cols)
-        out = model.diagnose(DataFrameDict(blocks))
-        y = np.hstack([out.hat[g].to_numpy(dtype=float) for g in model.quality_names])
-        residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g, _ in columns]
-        spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g, _ in columns])
-        t2 = out.hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
-        return out.t_scores_super.to_numpy(dtype=float), y, residual, t2, spe
-
-    centre = np.concatenate(
-        [np.nan_to_num(model.preproc_[b][g]["center"].reindex(c).to_numpy(dtype=float)) for b, g, c in columns]
-    )
-    spread = np.concatenate([_finite(model.preproc_[b][g]["scale"].reindex(c), 1.0) for b, g, c in columns])
-    return _Probe(
-        names=names,
-        y_names=tuple(n for g in model.quality_names for n in model.quality_names[g]),
-        groups={g: tuple(model.material_names[g]) for g in model.material_names},
-        block_names=tuple(f"{b}/{g}" for b, g, _ in columns),
-        block_limits=tuple(float(model.spe_limit[b][g](conf_level)) for b, g, _ in columns),
-        score_sd=_t2_score_sd(model.scaling_factor_for_scores.to_numpy()),
-        t2_limit=float(model.hotellings_t2_limit(conf_level)),
-        y_scale=np.concatenate([_finite(model.preproc_["Y"][g]["scale"], 1.0) for g in model.quality_names]),
-        centre=centre,
-        spread=spread,
-        diagnose=diagnose,
-    )  # fmt: skip
-
-
-def affine_model(model: PLS | TPLS, conf_level: float = 0.95) -> AffineModel:
+def affine_model(model: BaseEstimator, conf_level: float = 0.95) -> AffineModel:
     """
     Read a fitted PLS or TPLS model as exact affine maps of one input vector, checked against its ``diagnose``.
 
@@ -317,14 +234,15 @@ def affine_model(model: PLS | TPLS, conf_level: float = 0.95) -> AffineModel:
 
     Raises
     ------
+    TypeError
+        The model is not a PLS or TPLS model.
     ValueError
         The maps do not reproduce the model's ``diagnose``: the model is not one this reads exactly.
     """
-    # Duck-typed: this module cannot import the classes, which import it to offer the methods.
-    if hasattr(model, "material_names"):
-        probe = _tpls_probe(cast("TPLS", model), conf_level)
-    else:
-        probe = _pls_probe(cast("PLS", model), conf_level)
+    if not hasattr(model, "_inversion_probe"):
+        msg = f"Optimal inversion reads PLS and TPLS models, not {type(model).__name__}."
+        raise TypeError(msg)
+    probe = model._inversion_probe(conf_level)
     centre, spread = probe.centre, probe.spread
     scores, y, residuals, _, _ = probe.diagnose(np.vstack([centre, centre + np.diag(spread)]))
 
@@ -347,7 +265,7 @@ def affine_model(model: PLS | TPLS, conf_level: float = 0.95) -> AffineModel:
     return affine
 
 
-def _check_affine(affine: AffineModel, probe: _Probe) -> None:
+def _check_affine(affine: AffineModel, probe: Probe) -> None:
     """Refuse maps that do not reproduce the model's own predictions, T² and SPE at random points."""
     rng = np.random.default_rng(0)  # pragma: no mutate - any points do; fixed so a failure repeats
     points = affine.centre + rng.normal(size=(3, len(affine.names))) * affine.spread
@@ -1110,7 +1028,7 @@ def _result(problem: _Problem, solution: _Solution) -> Bunch:
     )  # fmt: skip
 
 
-def _read(model: PLS | TPLS | AffineModel, conf_level: float) -> AffineModel:
+def _read(model: BaseEstimator | AffineModel, conf_level: float) -> AffineModel:
     """Return the maps: read from a fitted model, or the stored maps given, if read at the same confidence level."""
     if not isinstance(model, AffineModel):
         return affine_model(model, conf_level)
@@ -1120,7 +1038,7 @@ def _read(model: PLS | TPLS | AffineModel, conf_level: float) -> AffineModel:
     return model
 
 
-def optimal_inversion(model: PLS | TPLS | AffineModel, rules: InversionRules) -> Bunch:
+def optimal_inversion(model: BaseEstimator | AffineModel, rules: InversionRules) -> Bunch:
     """
     Find the inputs a PLS or TPLS model vouches for that meet the rules, at the least cost or closest to the targets.
 
@@ -1330,7 +1248,7 @@ def _prices(rules: InversionRules, affine: AffineModel, result: Bunch, names: li
 
 
 def inversion_sensitivity(
-    model: PLS | TPLS | AffineModel,
+    model: BaseEstimator | AffineModel,
     rules: InversionRules,
     *,
     front: tuple[str, list[float]] | None = None,

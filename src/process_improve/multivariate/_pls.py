@@ -62,6 +62,7 @@ from ._diagnostics import (
 )
 from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
+from ._optimal_inversion import Probe, finite_or
 from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
 from ._optimal_inversion import optimal_inversion as _optimal_inversion
 from ._preprocessing import MCUVScaler, _back_to_units, _uncentred_columns, _warn_scaling_traps
@@ -487,6 +488,29 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     # Inversion as an optimisation: cost or targets, under rules, with each rule's shadow price.
     optimal_inversion = _model_method(_optimal_inversion)
     inversion_sensitivity = _model_method(_inversion_sensitivity)
+
+    def _inversion_probe(self, conf_level: float) -> Probe:
+        """Describe this model for optimal inversion: its inputs, one residual block (X), and rows read by diagnose."""
+        names = tuple(str(n) for n in self._feature_names)
+        x_scaler, y_scaler = self._x_scaler, self._y_scaler
+        n_x, n_y = len(names), len(self.beta_coefficients_.columns)
+
+        def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
+            out = self.diagnose(pd.DataFrame(rows, columns=list(self._feature_names)))
+            scores, y_hat = out.scores.to_numpy(dtype=float), out.y_hat.to_numpy(dtype=float)
+            spe = out.spe.to_numpy(dtype=float)[:, None]
+            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], out.hotellings_t2.to_numpy(dtype=float), spe
+
+        return Probe(
+            names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
+            block_names=("X",), block_limits=(float(self.spe_limit(conf_level=conf_level)),),
+            score_sd=_t2_score_sd(self.scaling_factor_for_scores_.to_numpy()),
+            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            y_scale=finite_or(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_y),
+            centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n_x),
+            spread=finite_or(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n_x),
+            diagnose=diagnose,
+        )  # fmt: skip
 
     _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
         "x_scores": "scores_",

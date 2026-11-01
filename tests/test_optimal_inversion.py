@@ -12,7 +12,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.multivariate import PLS, TPLS, InversionRules, LinearRule, affine_model, optimal_inversion
+from process_improve.multivariate import (
+    PLS,
+    TPLS,
+    InversionRules,
+    LinearRule,
+    MCUVScaler,
+    affine_model,
+    optimal_inversion,
+)
 from process_improve.multivariate import _optimal_inversion as oi
 from process_improve.multivariate._tpls import DataFrameDict
 
@@ -111,16 +119,21 @@ def test_the_affine_maps_reproduce_pls_at_new_rows(cheese: PLS) -> None:
     np.testing.assert_allclose([affine.spe(r)[0] for r in rows], out.spe, rtol=1e-9)
 
 
+def test_only_a_model_that_can_describe_itself_is_read() -> None:
+    """A model without an inversion probe (here, a scaler) is refused by name."""
+    with pytest.raises(TypeError, match="reads PLS and TPLS models, not MCUVScaler"):
+        affine_model(MCUVScaler())
+
+
 def test_maps_that_disagree_with_the_model_are_refused(cheese: PLS, monkeypatch: pytest.MonkeyPatch) -> None:
     """A model that is not affine in its inputs (here, one that squares them) is not read as maps."""
-    probe = oi._pls_probe
+    probe = PLS._inversion_probe
 
-    def curved(model: PLS, conf_level: float) -> oi._Probe:
+    def curved(model: PLS, conf_level: float) -> oi.Probe:
         read = probe(model, conf_level)
-        squared = read.diagnose
-        return oi._Probe(**{**read.__dict__, "diagnose": lambda rows: squared(rows**2)})
+        return dataclasses.replace(read, diagnose=lambda rows: read.diagnose(rows**2))
 
-    monkeypatch.setattr(oi, "_pls_probe", curved)
+    monkeypatch.setattr(PLS, "_inversion_probe", curved)
 
     with pytest.raises(ValueError, match="could not be read as affine maps"):
         affine_model(cheese)

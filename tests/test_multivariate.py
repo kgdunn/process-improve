@@ -6557,7 +6557,7 @@ class TestTPLSWrittenOut:
             warnings.simplefilter("error")  # n4's F score is 0 / 0, and NaN without a word
             result = model.diagnose(DataFrameDict(copy.deepcopy(new)))
 
-        assert sorted(result) == ["hat", "hotellings_t2", "spe", "t_scores_super"]
+        assert sorted(result) == ["hat", "hotellings_t2", "residuals", "spe", "t_scores_super"]
         index, components = new["F"]["A"].index, [1, 2, 3]
         assert np.isnan(by_hand["t"][4]).all()
         assert np.isfinite(by_hand["t"][:4]).all()
