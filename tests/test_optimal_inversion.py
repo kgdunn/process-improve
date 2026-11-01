@@ -597,6 +597,33 @@ def test_tpls_cheapest_blend_of_two_lots_per_material_costs_no_less_than_the_fre
     assert result.objective >= free.objective - 1e-6
 
 
+@pytest.mark.dataset
+@pytest.mark.slow
+def test_a_cheaper_lot_never_loses_the_answer(pyphi: tuple[TPLS, dict]) -> None:
+    """
+    Found by price ranging: with one lot 6.25% cheaper the search once ended with a false 'no answer'. Its master
+    had no bound on the process conditions, the cost ignores them, and a tangent plane taken at an extreme left
+    HiGHS rejecting blends that meet every rule. A cheaper lot can only lower the cost.
+    """
+    model, data = pyphi
+    affine = affine_model(model)
+    lots = [n for g in GROUPS for n in model.material_names[g]]
+    costs = dict(zip(lots, np.round(np.random.default_rng(0).uniform(1, 5, len(lots)), 2), strict=True))
+    quality = data["Y"]["Quality"]
+    rules = InversionRules(
+        costs=costs, windows={"Y1": (float(quality["Y1"].median()), None), "Y3": (None, float(quality["Y3"].median()))},
+        max_count=dict.fromkeys(GROUPS, 2), min_amount=dict.fromkeys(GROUPS, 0.1),
+    )  # fmt: skip
+    base = optimal_inversion(affine, rules)
+
+    cheaper = optimal_inversion(affine, dataclasses.replace(rules, costs=costs | {"A0013": costs["A0013"] * 0.9375}))
+
+    assert base.feasible
+    assert cheaper.feasible
+    assert cheaper.proven_optimal
+    assert cheaper.objective <= base.objective + 1e-9
+
+
 def _small_tpls(lots_b: list[str]) -> TPLS:
     """Fit a two-material TPLS without process conditions: 30 blends of three lots each."""
     rng = np.random.default_rng(3)

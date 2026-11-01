@@ -476,7 +476,7 @@ class _Row:
     low: float
     high: float
     name: str
-    kind: str  # rule, closure, window, target, switch, count, cut, exclude
+    kind: str  # rule, closure, window, target, switch, count, box, cut, exclude
     shift: float = 0.0  # added to the row's value and bounds to report it in its own units (a window's y0)
 
 
@@ -845,6 +845,28 @@ def _master(problem: _Problem) -> tuple[np.ndarray, float] | None:
     return z, float(problem.objective @ z)
 
 
+def _box(problem: _Problem) -> None:
+    """
+    Add, for the master only, the linear consequences of the limits: T² within its limit puts every score within
+    ±sd·√limit, and a block's SPE within its limit puts every component of its residual within ±that limit.
+
+    They bound every input from the first round. Without them an input the objective ignores (a process condition,
+    when only lots cost money) is free in the master, which puts it at an extreme; a tangent plane taken there has
+    coefficients and a bound many orders apart, and HiGHS then rejects points that meet every rule.
+    """
+    affine, n = problem.affine, problem.n
+    half = affine.score_sd * np.sqrt(problem.limits[0].limit)
+    for a in np.flatnonzero(np.isfinite(half)):
+        row = np.zeros(problem.width)
+        row[:n] = affine.t_map[a]
+        problem.add(_Row(row, -half[a] - affine.t0[a], half[a] - affine.t0[a], f"t{a + 1}", "box"))
+    for block, lim in zip(affine.blocks, problem.limits[1:], strict=True):
+        for j in np.flatnonzero(np.abs(block.jacobian).max(axis=1) > 0):  # a column with no variance has no residual
+            row = np.zeros(problem.width)
+            row[:n] = block.jacobian[j]
+            problem.add(_Row(row, -lim.limit - block.r0[j], lim.limit - block.r0[j], block.name, "box"))
+
+
 def _cut(problem: _Problem, x: np.ndarray, every: bool = False) -> int:
     """Add the tangent plane of each limit at x (each broken one, or every one near its limit): valid, as convex."""
     added = 0
@@ -852,9 +874,10 @@ def _cut(problem: _Problem, x: np.ndarray, every: bool = False) -> int:
         value = lim.value(x)
         if value > lim.limit * (1 + _LIMIT_TOLERANCE) or (every and value >= 0.5 * lim.limit):
             gradient = lim.gradient(x)
+            size = float(np.abs(gradient).max()) or 1.0  # each plane at unit scale: HiGHS's tolerances are absolute
             a = np.zeros(problem.width)
-            a[: problem.n] = gradient
-            problem.add(_Row(a, -np.inf, lim.limit - value + gradient @ x, lim.name, "cut"))
+            a[: problem.n] = gradient / size
+            problem.add(_Row(a, -np.inf, (lim.limit - value + gradient @ x) / size, lim.name, "cut"))
             added += 1
     return added
 
@@ -887,6 +910,7 @@ def _solve(problem: _Problem) -> _Solution:
     if not problem.switched:
         return _Solution(relaxed[0], relaxed[1], None, 0, proven=True)
     problem.check_counted()
+    _box(problem)
     cuts = _cut(problem, relaxed[0][: problem.n], every=True)
     best: tuple[np.ndarray, float, tuple[int, ...]] | None = None
     proven = False  # True once the master's bound meets the best answer, or the master has nothing left
