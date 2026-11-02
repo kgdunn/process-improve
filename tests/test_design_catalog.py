@@ -109,8 +109,9 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 49: 23 entries
     # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
     # and 21 response surface designs no family holds (a hexagon, a dodecahedron, an all-bias design,
-    # third-order and three-level designs)
-    assert len(unknown) <= 73, f"a rule is needed for: {sorted(set(unknown))}"
+    # third-order and three-level designs). McMullen and Jurica's 1: runs chosen round by round by SNOBFIT,
+    # an optimiser, not by a design
+    assert len(unknown) <= 74, f"a rule is needed for: {sorted(set(unknown))}"
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():

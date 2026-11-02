@@ -19950,9 +19950,13 @@
    ],
    "responses": [
     {
-     "name": "t0..t9",
+     "name": "colour",
      "description": "ten-point colour-development curve: absorbance at the complex's maximum-absorbance wavelength at ten time points from mixing to plateau (columns t0, t1, ..., t9); modelled jointly with PLS",
-     "units": "absorbance (no unit printed)"
+     "units": "absorbance (no unit printed)",
+     "curve": {
+      "columns": ["t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9"],
+      "argument": {"name": "time point", "units": "index (no unit printed)", "values": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
+     }
     },
     {
      "name": "peak",

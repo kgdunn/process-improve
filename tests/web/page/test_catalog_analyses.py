@@ -27,13 +27,14 @@ from tests.web._support import WEB, catalog_sample, javascript, no_bytecode, sou
 
 pytestmark = [pytest.mark.slow, pytest.mark.dataset]
 
-#: Studies that open, but whose default model, every factor's main effect, the runs cannot separate: the source
-#: lists a factor the others determine, so the reader chooses the model, as the source does. The page refuses a
-#: model it cannot estimate whole, where the source fits it by a generalised inverse.
+#: Studies that open, but whose default model the runs cannot separate: the source lists a factor the others
+#: determine, or fits only some of the model's terms, so the reader chooses the model, as the source does. The
+#: page refuses a model it cannot estimate whole, where the source fits it by a generalised inverse or a subset.
 UNFIT = {
     "bhh-wear-hyper-graeco-latin": "runs 1 to 4 use four of the papers and runs 5 to 8 the others: one df shared",
     "goos-jones-rolling-mill": "the three mills' fractions sum to one, a mixture taken as given",
     "montgomery-evop-yield": "each EVOP point is one setting of temperature and pressure",
+    "mcmullen-jurica-methoxylation-fpca": "13 of the 15 scored runs share one DMF setting: a stepwise subset is fitted",
 }
 
 #: The kinds of check the page may show a number for; an entry with none of them is analysed for its categorical

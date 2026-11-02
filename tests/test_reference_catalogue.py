@@ -10,6 +10,7 @@ here, and so does a number copied wrongly into the catalogue.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -105,6 +106,38 @@ def test_every_experiment_says_where_it_was_printed():
                 assert where.get("answer_key") in ("correct", "incorrect"), f"{name}: an option says how it is keyed"
     for experiment in reference_experiments():
         assert experiment.get("runs") or experiment.get("data_source"), f"{experiment['name']}: no runs, no source"
+
+
+def test_a_curve_response_names_its_columns_and_where_along_the_curve_each_is_read():
+    curves = [(e, r) for e in reference_experiments() for r in e["responses"] if "curve" in r]
+    assert curves, "the catalogue holds at least one response measured as a curve"
+    for experiment, response in curves:
+        name, curve = f"{experiment['name']}:{response['name']}", response["curve"]
+        table = (experiment.get("runs") or experiment.get("data_source") or {}).get("columns", [])
+        columns, argument = curve["columns"], curve["argument"]
+        assert columns, f"{name}: a curve has columns"
+        assert len(set(columns)) == len(columns), f"{name}: each column is read once"
+        assert set(columns) <= set(table), f"{name}: every column of the curve is in the run table"
+        assert response["name"] not in table, f"{name}: the curve is named as a whole, not as one of its columns"
+        scalar = {r["name"] for r in experiment["responses"] if "curve" not in r}
+        assert not scalar & set(columns), f"{name}: no column is both a point on the curve and a response of its own"
+        assert {"name", "units"} <= set(argument), f"{name}: the argument says what it is and in what units"
+        assert ("values" in argument) != ("columns" in argument), f"{name}: values every run shares, or columns"
+        if "values" in argument:
+            values = argument["values"]
+            assert len(values) == len(columns), f"{name}: one argument value per column"
+            assert all(b > a for a, b in itertools.pairwise(values)), f"{name}: the columns are in order"
+        else:
+            assert len(argument["columns"]) == len(columns), f"{name}: one argument column per value column"
+            assert set(argument["columns"]) <= set(table), f"{name}: every argument column is in the run table"
+
+
+def test_a_check_that_names_no_response_is_about_the_first_one_measured_as_a_number():
+    argument = {"name": "t", "units": "", "values": [0, 1]}
+    curve = {"name": "colour", "curve": {"columns": ["t0", "t1"], "argument": argument}}
+    assert reference_catalogue._first_scalar_response({"responses": [curve, {"name": "peak"}]}) == "peak"
+    with pytest.raises(ValueError, match="every response is a curve"):
+        reference_catalogue._first_scalar_response({"name": "only-curves", "responses": [curve]})
 
 
 def test_each_name_is_one_entry():

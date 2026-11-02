@@ -464,6 +464,20 @@ on a case that breaks these rules. Run it before you push:
 uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
 ```
 
+**A response measured as a curve** (a time course, a profile or a spectrum per run) is one
+response, named for the whole curve, with a `curve` key. Its points are columns of the run table,
+one row per run as for every other response. `curve.columns` lists them in order along the curve,
+and `curve.argument` says where each is read: its `name` and `units`, and either `values` (the
+points every run shares) or `columns` (the run table's columns that hold each run's own times, so
+runs may be sampled at different times or a different number of times, with `null` for a point a
+run lacks). A check that names no `response` is about the first response that is not a curve.
+For example, the colour-development case of the book:
+
+```json
+{"name": "colour", "units": "absorbance", "description": "...",
+ "curve": {"columns": ["t0", "t1", "t2"], "argument": {"name": "time point", "units": "", "values": [0, 1, 2]}}}
+```
+
 ## Submitting changes
 
 - Open a pull request against `main` with a clear description of the change
