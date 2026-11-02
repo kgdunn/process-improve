@@ -8088,7 +8088,7 @@ def test_selectivity_ratio_ranks_a_feature_the_model_reproduces_first() -> None:
     ratio = model.selectivity_ratio(X)
     assert ratio["a"] == np.inf
     assert np.isfinite(ratio[["b", "c"]]).all()
-    assert list(ratio.sort_values(ascending=False).index)[0] == "a"
+    assert ratio.sort_values(ascending=False).index[0] == "a"
 
 
 def test_squared_cosine_and_observation_contributions_by_hand() -> None:

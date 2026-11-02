@@ -332,6 +332,15 @@ def selectivity_ratio(
     near-identical SR: the selectivity ratio ranks predictive relevance, it does
     not break ties between mutually collinear features.
 
+    A feature the TP component reproduces exactly has no residual, and its SR is
+    ``inf``, so a descending sort ranks it first. The residual counts as none
+    when its sum of squares is at most machine epsilon (about 2.2e-16) times the
+    explained one, which is a residual norm of at most about 1.5e-8 times the
+    feature's: rounding alone leaves about 1e-32 of its sum of squares. Every
+    finite SR is therefore below ``1 / eps``, about 4.5e15. A feature with no
+    sum of squares at all, such as a constant column after :class:`MCUVScaler`,
+    has neither an explained nor a residual part (0 / 0), and its SR is 0.
+
     Parameters
     ----------
     model : PLS
@@ -350,7 +359,8 @@ def selectivity_ratio(
     Returns
     -------
     pd.Series or pd.DataFrame
-        Selectivity ratios indexed by feature. A Series for one response (with
+        Selectivity ratios indexed by feature, each at least 0 and ``inf`` for
+        a feature with no residual. A Series for one response (with
         ``f_critical`` / ``conf_level`` / ``response`` in ``.attrs``), or a
         feature-by-response DataFrame when ``response`` is ``None`` and the
         model has several responses.
