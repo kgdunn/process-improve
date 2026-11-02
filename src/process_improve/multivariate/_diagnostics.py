@@ -288,7 +288,11 @@ def _selectivity_ratio_one(
     ss_residual = (residuals**2).sum(axis=0)
     with np.errstate(invalid="ignore", divide="ignore"):
         sr = ss_explained / ss_residual
-    sr[~np.isfinite(sr)] = 0.0  # a feature with no residual (or no signal) gets 0 here
+    # Rounding leaves a feature the TP component reproduces exactly a residual of about 1e-32 of its
+    # sum of squares, not 0. A residual of at most eps times the explained sum of squares (a norm at
+    # most epsqrt times the feature's) counts as none, so every ratio from 1 / eps up is inf.
+    sr[sr >= 1.0 / epsqrt**2] = np.inf
+    sr[np.isnan(sr)] = 0.0  # 0 / 0: no sum of squares, or a ratio that missing values leave undefined
 
     series = pd.Series(sr, index=X_df.columns, name="selectivity_ratio")
     # F-based critical value (Rajalahti et al., 2009): SR_j above this is
