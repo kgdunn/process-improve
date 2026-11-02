@@ -1224,6 +1224,8 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
+  // The what-if fits, and any still on their way, name the old factors: the analysis below fits them again.
+  clearWhatIf();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
