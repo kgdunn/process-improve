@@ -22,11 +22,14 @@ solves that choice as a quadratic program in the scaled space of a fitted
 With the quadratic caps the problem is a convex quadratically-constrained QP.
 The workhorse is the penalty-form pure QP solved with `osqp
 <https://osqp.org>`_ (the ``control`` extra); the hard-cap mode wraps the
-same QP in an outer iteration on the two penalty multipliers. For this convex
-problem, whenever some schedule lies strictly inside both caps, there are
-multipliers at which the penalised optimum is the capped one, and the
-iteration finds them to within 1% of each cap in a handful of inner solves at
-this size (a few dozen decision variables at most).
+same QP in an outer iteration on the two penalty multipliers. It raises the
+multiplier of each broken cap until both caps hold, then bisects each
+multiplier down in turn, taking a step only when both caps still hold: a
+schedule returned with status ``"ok"`` meets both caps to within 1%, and a
+cap that binds alone ends with its statistic just inside it. When both caps
+bind, a step down in one multiplier can break the other cap, so a statistic
+can stay well inside its cap and the schedule can fall short of the capped
+optimum.
 
 The formulation follows the latent-variable batch control literature.
 Flores-Cerrillo and MacGregor (2004) give the quality-tracking objective, the
