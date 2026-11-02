@@ -211,6 +211,44 @@ def test_the_comparison_code_reproduces_the_page_s_table(api, node):
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("goal", ["target", "maximize", "minimize", "learn"])
+def test_the_spread_code_reproduces_the_page_s_settings_and_response_table(api, node, goal):
+    """Schmidt and Launsby's 2^(3-1) read twice a setting, a reading still to do: the code sums up as the page does."""
+    settings = [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]]
+    factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+    spec = {
+        "design_type": "given",
+        "factors": factors,
+        "runs": [s for s in settings for _ in range(2)],
+        "response": "y",
+    }
+    held = held_of(api.ok("api_make_design", {**spec, "response_info": {"goal": goal, "target": 20}}))
+    responses = [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    spread = analysis["spread"]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], False, held["spec"], None, {"spread": True}]),
+    )
+    namespace = run(code)
+    shown = namespace["settings"].reset_index()
+    assert len(shown) == len(spread["settings"]) == 3, "the setting read once is left out"
+    for s in spread["settings"]:
+        row = shown[(shown[["A", "B", "C"]] == [s["settings"][n] for n in "ABC"]).all(axis=1)].iloc[0]
+        for key in ("n", "mean", "std_dev", "ln_std_dev", "sn"):
+            if key in row:
+                assert row[key] == pytest.approx(s[key]), (key, s["settings"])
+    assert ("sn" in shown) == (goal != "learn")
+    last = spread["factors"][-1]
+    table = namespace["table"]  # the last factor's, C's
+    for level in last["levels"]:
+        for key in table.columns:
+            assert table.loc[level["level"], key] == pytest.approx(level[key]), (key, level["level"])
+
+
 #: Limits on the worked example's settings: a straight one, and a curved one.
 LIMITS = [{"expression": "T + 25 * P <= 250", "note": "the product chars"}, {"expression": "T * F <= 3600"}]
 
@@ -927,6 +965,10 @@ def test_the_code_for_one_factor_of_four_levels_tests_them_as_the_page_does(api,
         assert tukey.statistic[j, i] == pytest.approx(pair["estimate"])
         assert [low_high.low[j, i], low_high.high[j, i]] == pytest.approx([pair["ci_low"], pair["ci_high"]])
         assert tukey.pvalue[j, i] == pytest.approx(pair["p_value"], abs=1e-6)
+    checks = {check["test"]: check for check in several["checks"]}
+    for name, check in (("spread", checks["bartlett"]), ("ranks", checks["kruskal_wallis"])):
+        found = [shown[name]["statistic"], shown[name]["p_value"]]
+        assert found == pytest.approx([check["statistic"], check["p_value"]]), name
     if not blank:  # with the same runs at each level, Dunnett's intervals are the page's, to scipy's integration
         intervals = shown["dunnett"].confidence_interval(0.95)
         for x, low, high in zip(several["versus"], intervals.low, intervals.high, strict=True):

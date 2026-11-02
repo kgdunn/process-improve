@@ -107,6 +107,29 @@ def _compute_adequate_precision(ols_result: RegressionResultsWrapper, variance: 
     return float(np.ptp(np.asarray(ols_result.fittedvalues, dtype=float)) / noise)
 
 
+#: Adequate precision below this is noted as too low to read the fitted surface (#797 R1). Box and Wetz's
+#: check asks that the fitted values change over the region by several times their average standard error
+#: before the surface is read. The threshold is Design-Expert's, for the same ratio: "a ratio greater than 4
+#: is desirable".
+ADEQUATE_PRECISION = 4.0
+
+
+def precision_note(adequate_precision: float) -> str | None:
+    """Say when the fitted values change over the runs by less than :data:`ADEQUATE_PRECISION` standard errors.
+
+    None when the ratio reaches the threshold, or is not a number: with no residual and no prior
+    sigma there is no standard error to compare the change with.
+    """
+    if not adequate_precision < ADEQUATE_PRECISION:
+        return None
+    return (
+        f"Adequate precision is {adequate_precision:.3g}: the fitted values change over the runs by less than "
+        f"{ADEQUATE_PRECISION:g} times their average standard error, so the fitted surface is not estimated "
+        "precisely enough to read its contours or its optimum (Box and Wetz's check, at Design-Expert's "
+        f"threshold of {ADEQUATE_PRECISION:g})."
+    )
+
+
 def with_prior_sigma(ols_result: RegressionResultsWrapper, sigma: float | None) -> RegressionResultsWrapper:
     """Return ``ols_result`` with its standard errors from a prior ``sigma`` instead of the residual (#789 B6).
 

@@ -302,6 +302,60 @@ def test_a_control_of_more_runs_lowers_the_correlation_of_the_comparisons(api):
         assert [v["ci_low"], v["ci_high"]] == pytest.approx([low, high], abs=2e-3), v["level"]
 
 
+#: Montgomery's etch rates (his Example 3.1) at four RF powers, five wafers each.
+ETCH = {
+    "160": [575, 542, 530, 539, 570],
+    "180": [565, 593, 590, 579, 610],
+    "200": [600, 651, 610, 637, 629],
+    "220": [725, 700, 715, 685, 710],
+}
+POWER = {"name": "Power", "type": "categorical", "levels": list(ETCH), "units": "W"}
+
+
+def test_the_checks_are_bartlett_s_test_and_the_kruskal_wallis_test_as_montgomery_prints_them(api):
+    """His Example 3.4 gives Bartlett's chi-square 0.43 (P = 0.934), and his Example 3.11 Kruskal-Wallis H = 16.91."""
+    runs = [power for power, rates in ETCH.items() for _ in rates]
+    found = compared(api, POWER, runs, [r for rates in ETCH.values() for r in rates])["several"]["checks"]
+    bartlett, kruskal = found
+    assert bartlett["test"] == "bartlett"
+    assert (round(bartlett["statistic"], 2), round(bartlett["p_value"], 2), bartlett["df"]) == (0.43, 0.93, 3)
+    assert kruskal["test"] == "kruskal_wallis"
+    assert (round(kruskal["statistic"], 2), kruskal["df"]) == (16.91, 3)
+    assert kruskal["p_value"] < 0.001
+
+
+def test_the_checks_are_scipy_s_for_levels_of_unequal_runs(diets):
+    """Box, Hunter and Hunter's diets: ties among the times, so the Kruskal-Wallis test corrects for them."""
+    from scipy import stats
+
+    groups = [np.asarray(times, dtype=float) for times in DIETS.values()]  # scipy's bartlett fails on integers
+    bartlett, kruskal = diets["several"]["checks"]
+    for found, expected in ((bartlett, stats.bartlett(*groups)), (kruskal, stats.kruskal(*groups))):
+        assert [found["statistic"], found["p_value"]] == pytest.approx([expected.statistic, expected.pvalue])
+
+
+def test_the_workbook_of_one_factor_comes_back_compared_and_checked_as_the_page_compares_its_runs(api):
+    """Montgomery's etch rates typed into the design's workbook, as in Excel: the same comparison, checks and all."""
+    spec = {"design_type": "full_factorial", "factors": [POWER], "n_replicates": 5, "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    rates = {power: iter(values) for power, values in ETCH.items()}
+    y = [next(rates[power]) for power in run_sheet(design)["Power"]]
+    workbook = fill_workbook(design["xlsx_base64"], lambda _: y)
+    analysed = api.ok("api_analyze", {"xlsx_base64": workbook})["comparison"]
+    assert analysed == api.ok("api_analyze_runs", {**held_of(design), "responses": y})["comparison"]
+    assert round(analysed["several"]["checks"][0]["statistic"], 2) == 0.43, "Bartlett's, as Montgomery prints it"
+
+
+@pytest.mark.parametrize(
+    ("runs", "y"),
+    [("AAABBBC", [10, 11, 12, 20, 21, 22, 30]), ("AABBBCCC", [10, 10, 20, 21, 22, 30, 31, 33])],
+    ids=["a level of one run", "a level whose runs are alike"],
+)
+def test_bartlett_s_test_needs_runs_at_each_level_that_differ(api, runs, y):
+    found = compared(api, CATALYST, list(runs), y)["several"]["checks"]
+    assert [check["test"] for check in found] == ["kruskal_wallis"], "the ranks are still compared"
+
+
 def test_the_control_is_the_first_level_unless_another_is_named(diets, api):
     assert diets["several"]["control"] == "A"
     runs = [diet for diet, times in DIETS.items() for _ in times]

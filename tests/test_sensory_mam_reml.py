@@ -59,7 +59,7 @@ def _name(term: str) -> str:
 
 
 def _reference() -> dict:
-    return json.loads((_FIXTURE / "reference.json").read_text())
+    return json.loads((_FIXTURE / "reference.json").read_text(encoding="utf-8"))
 
 
 def _tvbo_panel(case: str) -> pd.DataFrame:
@@ -177,7 +177,7 @@ class TestAgainstSensMixed:
     @pytest.mark.slow
     def test_df_are_lmertest3s(self) -> None:
         """On the unbalanced panel, lmerTest 3.1's df (accurate derivatives) equal the exact ones."""
-        lmertest3 = json.loads((_FIXTURE / "reference_lmertest3.json").read_text())["unbalanced"]
+        lmertest3 = json.loads((_FIXTURE / "reference_lmertest3.json").read_text(encoding="utf-8"))["unbalanced"]
         anova = _fit("unbalanced").anova.set_index(["attribute", "term"])
         for attribute, tests in lmertest3.items():
             for term, row in tests.items():

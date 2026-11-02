@@ -25,7 +25,7 @@ import pytest
 from process_improve.monitoring.control_charts import ControlChart
 
 GOLDEN = json.loads(
-    (pathlib.Path(__file__).parent / "fixtures" / "control_chart_hw_golden" / "golden.json").read_text()
+    (pathlib.Path(__file__).parent / "fixtures" / "control_chart_hw_golden" / "golden.json").read_text(encoding="utf-8")
 )
 CASES = {case["name"]: case for case in GOLDEN["cases"]}
 TOLERANCE = {"rtol": 1e-12, "atol": 1e-12, "equal_nan": True}

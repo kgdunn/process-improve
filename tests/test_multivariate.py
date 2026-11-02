@@ -1,20 +1,26 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
 import copy
+import functools
 import inspect
 import io
+import itertools
 import logging
 import pathlib
 import re
+import time
 import urllib.request
 import warnings
 from collections.abc import Callable
+from decimal import Decimal
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import pytest
+import scipy.linalg
 from scipy.sparse import csr_matrix
 from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
@@ -23,31 +29,48 @@ from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import BaseCrossValidator, KFold, LeaveOneOut, PredefinedSplit, cross_val_score
+from sklearn.model_selection import (
+    BaseCrossValidator,
+    KFold,
+    LeaveOneOut,
+    PredefinedSplit,
+    RepeatedKFold,
+    ShuffleSplit,
+    cross_val_score,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _nz
+from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
+from process_improve.multivariate._diagnostics import cumulative_block_t2
+from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
+from process_improve.multivariate._pls import _direct_weights, _held_out_scores
+from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
     OPLS,
     PCA,
     PLS,
+    PRM,
     TPLS,
     DataFrameDict,
     MCUVScaler,
     NotEnoughVarianceError,
     SpecificationWarning,
+    UncentredDataWarning,
     center,
     coefficient_plot,
+    compare_cv_criteria,
     correlation_loadings_plot,
     eigenvalue_summary,
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    group_contributions,
     hotellings_t2_limit,
     internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
@@ -55,11 +78,13 @@ from process_improve.multivariate.methods import (
     observation_contributions,
     predictions_vs_observed_plot,
     project_variables,
+    pseudo_validation_set,
     quick_regress,
     regress_a_space_on_b_row,
     rv2_coefficient,
     rv_coefficient,
     scale,
+    score_contributions,
     score_limit,
     selectivity_ratio,
     spe_calculation,
@@ -132,6 +157,16 @@ def test_terminate_check_is_scale_relative() -> None:
     assert terminate_check(zeros, zeros, iterations=1, settings=settings) is True
 
 
+def test_terminate_check_needs_the_change_strictly_below_md_tol() -> None:
+    """Convergence is a relative change *below* ``md_tol``; a change equal to it is not enough.
+
+    ``||(1.5, 0) - (1, 0)|| / ||(1, 0)||`` is exactly 0.5 in binary floating point.
+    """
+    settings = {"md_tol": 0.5, "md_max_iter": 10}
+    assert terminate_check(np.array([1.5, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is False
+    assert terminate_check(np.array([1.25, 0.0]), np.array([1.0, 0.0]), iterations=1, settings=settings) is True
+
+
 def test_nipals_fit_is_scale_invariant() -> None:
     """#504: fitting on ``X`` and on ``1000 * X`` takes the same number of
     NIPALS iterations, and gives identical loadings and scores up to the
@@ -194,7 +229,25 @@ def test_regress_y_space_on_x() -> None:
     present_map = np.logical_not(np.isnan(y_space))
     y_space_filled = nan_to_zeros(y_space)
     regression_vector = regress_a_space_on_b_row(y_space_filled, x_space, present_map)
-    assert pytest.approx(np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, nan_ok=True) == regression_vector
+    # The row with nothing present has no regression: 0, with no weight anywhere (#513), not NaN.
+    assert pytest.approx(np.array([[1, 1, 1, 1, 0, 2 / 3]]).T) == regression_vector
+
+    # Present cells that all meet a zero in the row vector are a degenerate direction, and stay NaN.
+    degenerate = regress_a_space_on_b_row(np.array([[0.0, 5.0]]), np.array([[1.0, 0.0]]), np.array([[False, True]]))
+    assert np.isnan(degenerate).all()
+
+
+def test_regress_a_space_on_b_row_tells_an_empty_row_from_a_degenerate_one_in_one_call() -> None:
+    """An all-missing row gives 0 and a degenerate row NaN, side by side, and neither raises a RuntimeWarning."""
+    a_space = np.array([[0.0, 0.0], [0.0, 5.0], [2.0, 4.0]])
+    present = np.array([[False, False], [False, True], [True, True]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        coefficients = regress_a_space_on_b_row(a_space, np.array([[1.0, 0.0]]), present)
+    assert coefficients.shape == (3, 1)
+    assert coefficients[0, 0] == 0.0
+    assert np.isnan(coefficients[1, 0])
+    assert coefficients[2, 0] == 2.0  # (2 * 1 + 4 * 0) / (1^2 + 0^2)
 
 
 @pytest.mark.slow
@@ -246,6 +299,7 @@ def test_pca_foods() -> None:
             )
     except (urllib.error.URLError, TimeoutError):
         pytest.skip("Cannot reach openmv.net - skipping network-dependent test")
+        return  # pytest.skip raises; CodeQL cannot tell, and reads ``foods`` as possibly unset below
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -415,27 +469,133 @@ def test_quick_regress_refuses_arrays_that_share_no_dimension() -> None:
         quick_regress(np.ones((3, 2)), np.ones((4, 1)))
 
 
+def _rotation(angle: float) -> np.ndarray:
+    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+
+
+def _inner_loop_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.name == "process_improve.multivariate._nipals"]
+
+
 def test_inner_pls_nipals_stops_at_its_iteration_cap(caplog: pytest.LogCaptureFixture) -> None:
-    """Two nearly tied directions in X'Y make the iteration creep; the loop stops at its cap.
+    """Two nearly tied directions in X'Y make the iteration creep; the loop stops after exactly 500 steps.
 
-    With X the identity and singular values 1 and 0.99, each step shrinks the change by
-    only about 2%, so it is still far above the tolerance after 500 steps. By then the
-    weights already point along the dominant direction.
+    With X the identity, each step of the inner loop is a step of the power method on YY':
+    ``w`` is ``u`` normalised, ``t = w``, ``q = Y't`` and the next ``u`` is ``YY'w / |Y'w|^2``.
+    So the ``w`` of step ``n`` is ``(YY')^(n - 1) u_0`` normalised. With singular values 1 and
+    0.99 each step shrinks the change by only about 2%, so it is still far above the tolerance
+    after 500 steps; one step more or fewer moves ``w`` by 3e-7. The loop ran 502 steps
+    under its cap of 500 until the cap was counted right.
     """
-
-    def rotation(angle: float) -> np.ndarray:
-        return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-
     x_space = np.eye(2)
-    y_space = rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ rotation(np.pi / 7)
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.99]) @ _rotation(np.pi / 7)
     everything = np.ones((2, 2), dtype=bool)
     with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
         fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, everything)
 
-    reported = re.search(r"inner loop converged in (\d+) iterations \(max_iter=500\)", caplog.text)
-    assert reported is not None
-    assert int(reported.group(1)) > 500
-    np.testing.assert_allclose(np.abs(fitted["w_i"].ravel()), np.abs(rotation(np.pi / 5)[:, 0]), atol=1e-3)
+    assert _inner_loop_messages(caplog) == ["PLS NIPALS inner loop stopped after 500 iterations (max_iter=500)"]
+    # YY' = R diag(1, 0.99^2) R', with R the left rotation.
+    power = _rotation(np.pi / 5) @ np.diag([1.0, 0.99 ** (2 * 499)]) @ _rotation(np.pi / 5).T
+    expected = power @ y_space[:, 0]
+    np.testing.assert_allclose(fitted["w_i"].ravel(), expected / np.linalg.norm(expected), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("scale", [1e-3, 1.0, 1e3])
+def test_inner_pls_nipals_stops_once_u_moves_less_than_epsqrt_relative(
+    scale: float, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The inner loop stops at the first step whose change in ``u``, relative to ``|u|``, is below epsqrt.
+
+    With X the identity the steps are the power method on YY' (see the test above), worked here
+    in closed form to find that step. Singular values 1 and 0.5 shrink the change fourfold per
+    step, so it comes after about a dozen steps. Scaling X and Y by ``c`` scales ``u`` by ``c``
+    and leaves every relative change as it was, so the step is the same in any units (#504).
+    """
+    y_space = _rotation(np.pi / 5) @ np.diag([1.0, 0.5]) @ _rotation(np.pi / 7)
+    u = y_space[:, 0]
+    for step in range(1, 100):  # noqa: B007 - read after the loop
+        unit = u / np.linalg.norm(u)
+        u_next = y_space @ y_space.T @ unit / float(np.sum((y_space.T @ unit) ** 2))
+        if np.linalg.norm(u - u_next) / np.linalg.norm(u) < epsqrt:
+            break
+        u = u_next
+    assert 10 <= step <= 15
+
+    everything = np.ones((2, 2), dtype=bool)
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._nipals"):
+        internal_pls_nipals_fit_one_pc(scale * np.eye(2), scale * y_space, everything, everything)
+    assert _inner_loop_messages(caplog) == [f"PLS NIPALS inner loop stopped after {step} iterations (max_iter=500)"]
+
+
+@pytest.mark.parametrize(
+    ("scores", "flipped"),
+    [
+        ([-1.0, -5.0, 1.0, 2.0], True),  # the negative side spreads 4.0, the other 0.25
+        ([0.0, 10.0, 10.5, -1.0, -2.0], False),  # 0.25 against 23.4: a zero score sits on the non-negative side
+        ([0.0, 1.0, 2.0, -10.0, -10.5], False),  # 0.0625 against 0.667: and not on the negative side
+        ([-1.0, -2.0, 1.0, 2.0], False),  # a tie, 0.25 each, does not flip
+        ([1.0, 2.0, 3.0], False),  # no negative score: nothing to compare
+        ([-1.0, -2.0, -4.0], False),  # no non-negative score: likewise
+    ],
+)
+def test_inner_pls_nipals_sign_convention(scores: list[float], flipped: bool) -> None:
+    """The component flips when its negative scores spread more (``np.var``) than its non-negative ones.
+
+    With one X column and Y equal to it, the loop converges at once to ``w = q = 1`` and ``t = u = x``,
+    so the scores are the data and the two variances can be worked by hand. A side with no score
+    is not compared, and asks ``np.var`` for nothing, so no RuntimeWarning is raised (SEC-33, #282).
+    """
+    x = np.array(scores)[:, np.newaxis]
+    present = np.ones_like(x, dtype=bool)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fitted = internal_pls_nipals_fit_one_pc(x, x.copy(), present, present)
+    sign = -1.0 if flipped else 1.0
+    for name, expected in (("t_i", x), ("u_i", x), ("w_i", np.ones((1, 1))), ("q_i", np.ones((1, 1)))):
+        np.testing.assert_array_equal(fitted[name], sign * expected, err_msg=name)
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_inner_pls_nipals_flips_u_with_the_rest_of_the_component(seed: int) -> None:
+    """#513: the sign convention flips ``u_i`` too, so it is still ``Yq / q'q`` for the returned ``q_i``.
+
+    Only ``t_i``, ``w_i`` and ``q_i`` were negated, which left ``u_i`` pointing against the
+    score on every component the convention flipped, as PLS and MBPLS never do. Some of
+    these seeds flip and some do not; the relation holds for all of them.
+    """
+    rng = np.random.default_rng(seed)
+    x_space = rng.standard_normal((15, 4))
+    y_space = x_space @ rng.standard_normal((4, 2)) + 0.3 * rng.standard_normal((15, 2))
+    everything = np.ones((15, 4), dtype=bool)
+    fitted = internal_pls_nipals_fit_one_pc(x_space, y_space, everything, np.ones((15, 2), dtype=bool))
+    q_i = fitted["q_i"]
+    np.testing.assert_allclose(fitted["u_i"], y_space @ q_i / float(np.sum(q_i**2)), atol=1e-6)
+
+
+def test_tpls_super_weights_point_the_way_of_the_super_score() -> None:
+    """#513: with ``u`` flipped along with the score, every block score points the super score's way.
+
+    A block's super weight is its score's regression on ``u``, so each is non-negative once
+    ``u`` agrees with the super score; with no Z block the one F weight is +1. The
+    un-flipped ``u`` made it -1 on the components the sign convention flipped. The
+    predictions are the same either way.
+    """
+    rng = np.random.default_rng(3)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    blocks = {
+        "F": {"G": pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)},
+        "Z": {"Z1": pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])},
+        "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=n_blends)}, index=index)},
+    }
+    with_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    assert (with_z.w_loadings_super.to_numpy() >= 0).all()
+
+    blocks["Z"] = {}
+    no_z = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(no_z.w_loadings_super.to_numpy(), 1.0)
 
 
 def test_nipals_unit_normalisation_is_floored() -> None:
@@ -531,6 +691,24 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
+def test_mcuv_keeps_integer_column_labels(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
+    """Integer labels survive: the spectra's columns are 1..650, which once came out as 0..649.
+
+    sklearn sets ``feature_names_in_`` only for string labels, so the labels must come from the frame.
+    """
+    spectra, _ = fixture_tablet_spectra_data
+    assert spectra.columns[0] == 1
+    scaler = MCUVScaler().fit(spectra)
+    X_mcuv = scaler.transform(spectra)
+
+    pd.testing.assert_index_equal(scaler.center_.index, spectra.columns)
+    pd.testing.assert_index_equal(X_mcuv.columns, spectra.columns)
+    pd.testing.assert_index_equal(scaler.inverse_transform(X_mcuv).columns, spectra.columns)
+    pd.testing.assert_index_equal(PCA(n_components=1).fit(X_mcuv).loadings_.index, spectra.columns)
+    # An ndarray has no labels, so its columns are numbered from 0.
+    assert list(MCUVScaler().fit_transform(spectra.to_numpy()[:, :3]).columns) == [0, 1, 2]
+
+
 def test_mcuv_round_trips_a_single_column_target_given_as_a_series_and_a_1d_array() -> None:
     """A Series transforms as its one-column frame, and the 1-D array a regressor predicts inverts to that column."""
     y = pd.Series([3.0, 5.0, 4.0, 8.0, 10.0], index=list("abcde"), name="yield")
@@ -586,6 +764,123 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert divisor[1] == pytest.approx(1.0)
     # ... and is therefore unchanged from its (already centred) input: all zeros.
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
+
+
+def test_mcuv_by_hand_keeps_the_labels_and_round_trips() -> None:
+    """Column a: mean 3, sd sqrt((4 + 1 + 9) / 2) = sqrt(7). Column b: mean 4, sd 1."""
+    X = pd.DataFrame({"a": [1.0, 2.0, 6.0], "b": [3.0, 5.0, 4.0]}, index=["r1", "r2", "r3"])
+    scaler = MCUVScaler().fit(X)
+    pd.testing.assert_series_equal(scaler.center_, pd.Series([3.0, 4.0], index=["a", "b"]))
+    pd.testing.assert_series_equal(scaler.scale_, pd.Series([np.sqrt(7.0), 1.0], index=["a", "b"]))
+
+    expected = pd.DataFrame({"a": np.array([-2.0, -1.0, 3.0]) / np.sqrt(7.0), "b": [-1.0, 1.0, 0.0]}, index=X.index)
+    scaled = scaler.transform(X)
+    pd.testing.assert_frame_equal(scaled, expected)
+    pd.testing.assert_frame_equal(scaler.inverse_transform(scaled), X)
+
+    # An array has no row labels, so the rows are numbered; numbers held as objects come back as floats.
+    from_array = scaler.inverse_transform(expected.to_numpy().astype(object))
+    pd.testing.assert_frame_equal(from_array, X.reset_index(drop=True))
+
+    # Fitted on an array, the output names are the ones the caller supplies, else sklearn's x0, x1.
+    unnamed = MCUVScaler().fit(X.to_numpy())
+    assert unnamed.get_feature_names_out(["a", "b"]).tolist() == ["a", "b"]
+    assert unnamed.get_feature_names_out().tolist() == ["x0", "x1"]
+
+
+def test_mcuv_declares_that_nan_passes_through() -> None:
+    """A Pipeline reads the ``allow_nan`` tag of sklearn to decide whether NaN may reach this step."""
+    assert MCUVScaler().__sklearn_tags__().input_tags.allow_nan is True
+
+
+def test_mcuv_input_contract() -> None:
+    """Dense, at least two rows, NaN allowed but not inf, and transform only on the columns it was fitted on."""
+    with pytest.raises(TypeError, match=r"^MCUVScaler does not accept sparse input: "):
+        MCUVScaler().fit(csr_matrix(np.eye(3)))
+    with pytest.raises(ValueError, match=r"1 sample\(s\) \(shape=\(1, 2\)\) while a minimum of 2 is required"):
+        MCUVScaler().fit(np.array([[1.0, 2.0]]))
+    with pytest.raises(ValueError, match="Input X contains infinity"):
+        MCUVScaler().fit(np.array([[1.0], [np.inf]]))
+    # Two rows are enough for a sample standard deviation: mean 2, sd sqrt(2). A NaN is a missing value.
+    for rows in ([[1.0], [3.0]], [[1.0], [3.0], [np.nan]]):
+        fitted = MCUVScaler().fit(np.array(rows))
+        assert fitted.center_.tolist() == [2.0]
+        assert fitted.scale_.tolist() == [np.sqrt(2.0)]
+
+    from_array = MCUVScaler().fit(np.array([[1.0, 3.0], [2.0, 5.0]]))
+    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+        from_array.transform(csr_matrix(np.eye(2)))
+    with pytest.raises(ValueError, match="X has 3 features, but MCUVScaler is expecting 2 features as input"):
+        from_array.transform(np.ones((2, 3)))
+    from_frame = MCUVScaler().fit(pd.DataFrame({"a": [1.0, 2.0, 4.0], "b": [3.0, 5.0, 4.0]}))
+    with pytest.raises(ValueError, match="The feature names should match those that were passed during fit"):
+        from_frame.transform(pd.DataFrame({"a": [1.0], "c": [2.0]}))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().transform(np.ones((2, 2)))
+    with pytest.raises(NotFittedError):
+        MCUVScaler().inverse_transform(np.ones((2, 2)))
+
+
+def test_mcuv_constant_single_value_and_empty_columns() -> None:
+    """A constant column is centred on its value and not scaled; one observed value or none gives no spread either.
+
+    Three times 0.1 averages to 0.10000000000000002 in floating point, so centring a constant on its
+    mean would leave a residue of 2e-17 where the column should be exactly 0.
+    """
+    X = np.array([[0.1, 7.0, np.nan], [0.1, np.nan, np.nan], [0.1, np.nan, np.nan]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scaler = MCUVScaler().fit(X)
+        out = scaler.transform(X).to_numpy()
+    assert scaler.center_.tolist() == [0.1, 7.0, 0.0]
+    assert scaler.scale_.tolist() == [1.0, 1.0, 1.0]
+    np.testing.assert_array_equal(out, [[0.0, 0.0, np.nan], [0.0, np.nan, np.nan], [0.0, np.nan, np.nan]])
+
+
+def test_mcuv_does_not_divide_by_a_spread_at_or_below_sqrt_tiny() -> None:
+    """The square root of the smallest normal float is 2**-511; a standard deviation that small scales by 1.
+
+    The first column, 2**-510, 0 and 2**-511, has mean 2**-511 and deviations of +-2**-511 and 0, so its
+    sample standard deviation is exactly 2**-511. The second, a thousand times larger, keeps its own.
+    """
+    X = np.array([[2.0**-510, 2.0**-500], [0.0, 0.0], [2.0**-511, 2.0**-501]])
+    scaler = MCUVScaler().fit(X)
+    assert scaler.scale_.iloc[0] == 1.0
+    assert scaler.scale_.iloc[1] == pytest.approx(np.std(X[:, 1], ddof=1), rel=1e-15)
+
+
+def test_center_and_scale_by_hand_along_either_axis() -> None:
+    """Down the columns: means 2, 3.5, 5 and population sds 1, 1.5, 1. Across the rows: means 3, 4."""
+    X = pd.DataFrame([[1.0, 2.0, 6.0], [3.0, 5.0, 4.0]])
+    centred, means = center(X, extra_output=True)
+    np.testing.assert_array_equal(means, [2.0, 3.5, 5.0])
+    np.testing.assert_array_equal(np.asarray(centred), [[-1.0, -1.5, 1.0], [1.0, 1.5, -1.0]])
+    np.testing.assert_array_equal(np.asarray(center(X)), np.asarray(centred))
+    by_row, row_means = center(X, axis=1, extra_output=True)
+    np.testing.assert_array_equal(row_means, [[3.0], [4.0]])
+    np.testing.assert_array_equal(np.asarray(by_row), [[-2.0, -1.0, 3.0], [-1.0, 1.0, 0.0]])
+
+    scaled, multipliers = scale(X, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 1.0 / 1.5, 1.0])
+    np.testing.assert_allclose(np.asarray(scaled), X.to_numpy() * [1.0, 1.0 / 1.5, 1.0], rtol=1e-15)
+    np.testing.assert_array_equal(np.asarray(scale(X)), np.asarray(scaled))
+    # Row 1 is 1, 2, 6: mean 3, population sd sqrt(14 / 3). Row 2 is 3, 5, 4: mean 4, sd sqrt(2 / 3).
+    by_row, row_multipliers = scale(X, axis=1, extra_output=True)
+    np.testing.assert_allclose(row_multipliers, [[np.sqrt(3.0 / 14.0)], [np.sqrt(1.5)]], rtol=1e-15)
+    np.testing.assert_allclose(np.asarray(by_row), X.to_numpy() * row_multipliers, rtol=1e-15)
+
+
+def test_scale_leaves_a_column_unchanged_when_the_measure_gives_no_spread() -> None:
+    """A custom measure can give 0 for a column that is not constant: its multiplier is 1, as for a constant.
+
+    The median absolute deviation of 0, 0, 0, 0, 1 is 0; of 2, 4, 6, 8, 10 it is median(4, 2, 0, 2, 4) = 2.
+    """
+    from scipy.stats import median_abs_deviation
+
+    X = pd.DataFrame({"mostly_zero": [0.0, 0.0, 0.0, 0.0, 1.0], "even": [2.0, 4.0, 6.0, 8.0, 10.0]})
+    scaled, multipliers = scale(X, func=median_abs_deviation, extra_output=True)
+    np.testing.assert_array_equal(multipliers, [1.0, 0.5])
+    np.testing.assert_array_equal(np.asarray(scaled), X.to_numpy() * [1.0, 0.5])
 
 
 @pytest.mark.slow
@@ -893,7 +1188,9 @@ def test_pca_select_n_components() -> None:
     assert "q2_se" in result
     assert (result.q2_se >= 0).all()
     X_arr = np.asarray(X, dtype=float)
-    null_ss = _pca_ekf_press(X_arr, max_comp, n_folds=5, random_state=0).null_model_ss
+    null_ss = _pca_ekf_press(
+        X_arr, max_comp, n_folds=5, random_state=0, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=True
+    ).null_model_ss
     np.testing.assert_allclose(result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9)
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
@@ -1173,6 +1470,24 @@ def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
     # press_input_units does follow the units, which is the point of having it:
     # the stretched column contributes a million times more squared error.
     assert (stretched.press_input_units > base.press_input_units).all()
+
+
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek", "sacv", "gcv"])
+def test_pca_select_n_components_is_scale_invariant_in_small_units(scheme: str) -> None:
+    """A column 1e9 times smaller is standardised as any other, in every scheme (#1029).
+
+    Its standard deviation, near 1e-9, was below the sqrt(eps) that was taken for a
+    constant column's, so it was left unscaled and dropped out of PRESS: with the
+    element-wise scheme the curve moved from 93.6, 62.9, ... to 87.9, 45.0, ....
+    """
+    rng = np.random.default_rng(0)
+    T, P = rng.standard_normal((40, 2)), rng.standard_normal((6, 2))
+    X = pd.DataFrame(T @ P.T + 0.3 * rng.standard_normal((40, 6)), columns=list("abcdef"))
+    kwargs = {"max_components": 4, "cv_scheme": scheme, "random_state": 0}
+    base = PCA.select_n_components(X, **kwargs)
+    shrunk = PCA.select_n_components(X.assign(a=X["a"] * 1e-9), **kwargs)
+    np.testing.assert_allclose(shrunk.press.to_numpy(), base.press.to_numpy(), rtol=1e-8)
+    np.testing.assert_allclose(shrunk.q2.to_numpy(), base.q2.to_numpy(), rtol=1e-8, atol=1e-10)
 
 
 def test_pca_select_n_components_ekf_q2_per_variable_reconciles() -> None:
@@ -1546,6 +1861,29 @@ def test_pca_parallel_analysis_without_scaling_compares_in_the_units_of_x() -> N
     assert standardised.n_components == 0
 
 
+def test_pca_consensus_parallel_analysis_is_scaled_whatever_scale_inside_folds_is() -> None:
+    """#513: the consensus compares the eigenvalues against the N(0, 1) null on a common footing.
+
+    ``scale_inside_folds`` decides how the cross-validation folds are scaled. It was also
+    passed on as ``parallel_analysis(scale=...)``, so with ``scale_inside_folds=False`` the
+    unscaled eigenvalues of loud noise were compared against a unit-variance null and every
+    component was retained. Scaling an already-scaled block changes nothing, so the
+    parallel analysis now always scales, and the noise keeps no component either way.
+    """
+    loud_noise = pd.DataFrame(100.0 * np.random.default_rng(7).standard_normal((30, 5)))
+    expected = PCA.parallel_analysis(loud_noise, random_state=0).n_components
+    assert expected == 0
+
+    with warnings.catch_warnings():
+        # scale_inside_folds=False warns that it leaks the scaling into the folds.
+        warnings.simplefilter("ignore", SpecificationWarning)
+        for inside in (True, False):
+            result = PCA.select_n_components(
+                loud_noise, max_components=3, scale_inside_folds=inside, random_state=0, return_consensus=True
+            )
+            assert result.parallel_analysis_n_components == expected, f"scale_inside_folds={inside}"
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
@@ -1789,6 +2127,221 @@ def test_pls_t2_spe_contributions(
     assert (pls_ldpe.spe_contributions(X_ldpe) ** 2).sum(axis=1).to_numpy() == pytest.approx(
         pls_ldpe.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-6
     )
+
+
+def test_t2_contributions_count_the_components_that_fit_counts_in_t2() -> None:
+    """A small score sd still counts, as in ``hotellings_t2_``; a ~0 one adds nothing, even off the plane.
+
+    Two latent factors drive four columns. With noise of 1e-6 on one column a third
+    component has a score sd near 5e-7: small, but fit() counts it in hotellings_t2_, so
+    the row sums are ``sum_a t_a^2 / s_a^2`` over all three. Without the noise the data
+    span a plane, the third sd is ~1e-16 and fit() leaves that component out; a new row
+    off the plane scores on it all the same, and must not gain ``t_3^2`` from it.
+    """
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
+
+    noisy = plane.copy()
+    noisy[:, 3] += 1e-6 * rng.standard_normal(30)
+    noisy = pd.DataFrame(noisy - noisy.mean(axis=0), columns=list("abcd"))
+    pca = PCA(n_components=3).fit(noisy)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert 1e-8 < s[2] < 1e-5
+    by_hand = ((pca.scores_.to_numpy() / s) ** 2).sum(axis=1)
+    np.testing.assert_allclose(pca.t2_contributions(noisy).sum(axis=1), by_hand, rtol=1e-6)
+
+    flat = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    pca = PCA(n_components=3).fit(flat)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-12
+    new = pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd"))
+    t = new.to_numpy() @ pca.loadings_.to_numpy()
+    assert abs(t[0, 2]) > 1.0  # the new row is well off the plane
+    np.testing.assert_allclose(pca.t2_contributions(new).sum(axis=1), [np.sum(t[0, :2] ** 2 / s[:2] ** 2)], rtol=1e-12)
+
+
+def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
+    """A score sd counts when it exceeds ``epsqrt * max(1, largest sd)``; at the bound it does not.
+
+    A stand-in model whose loadings are the identity, so each score is its own variable
+    and each contribution is ``x_k^2 / s_k^2``, or 0 for a component left out. The largest
+    sd is 1.5, so the bound is ``1.5 * 2**-26`` (epsqrt is exactly ``2**-26``): an sd of
+    exactly the bound is left out, ``1.75 * 2**-26`` is kept, and ``2**-26`` is left out.
+    """
+    assert epsqrt == 2.0**-26
+    s = np.array([1.5, 1.5 * 2.0**-26, 1.75 * 2.0**-26, 2.0**-26])
+    model = SimpleNamespace(
+        scores_=None, loadings_=pd.DataFrame(np.eye(4), index=list("abcd")), scaling_factor_for_scores_=pd.Series(s)
+    )
+    contributions = t2_contributions(model, pd.DataFrame([[3.0, 1.0, 1.0, 1.0]], columns=list("abcd")))
+    np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
+
+
+def _rows_on_a_plane(units: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return 30 centred rows that span a plane in four columns, and one row well off that plane."""
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
+    flat = pd.DataFrame((plane - plane.mean(axis=0)) * units, columns=list("abcd"))
+    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd")) * units
+
+
+def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out() -> None:
+    """A new row's T² counts only the components with spread, as ``hotellings_t2_`` does (#1026).
+
+    Thirty rows on a plane: a third component has a score sd near 1e-16, which fit() leaves
+    out of T². A row off the plane scores well away from 0 on it, and diagnose and project
+    gave it a T² of about 3.5e32. Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, from its scores
+    by hand, and a training row's is the same sum over its fitted scores, not that sum plus
+    noise over noise from the third component.
+    """
+    flat, new = _rows_on_a_plane()
+    pca = PCA(n_components=3).fit(flat)
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-12
+    t = new.to_numpy() @ pca.loadings_.to_numpy()
+    assert abs(t[0, 2]) > 1.0  # the new row is well off the plane
+    by_hand = np.cumsum(t[0, :2] ** 2 / s[:2] ** 2)
+    np.testing.assert_allclose(pca.diagnose(new).hotellings_t2.to_numpy(), [[*by_hand, by_hand[1]]], rtol=1e-12)
+    np.testing.assert_allclose(pca.project(new).hotellings_t2.to_numpy(), [by_hand[1]], rtol=1e-12)
+
+    training = np.sum((pca.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
+    np.testing.assert_allclose(pca.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
+    np.testing.assert_allclose(pca.diagnose(flat).hotellings_t2.iloc[:, -1], training, rtol=1e-10)
+    np.testing.assert_allclose(pca.project(flat).hotellings_t2, training, rtol=1e-10)
+
+
+@pytest.mark.dataset
+def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None:
+    """``n_components=None`` on ten LDPE rows fits ten components, the last one with no spread (#1026).
+
+    Ten centred rows span nine dimensions, so the tenth component's score sd is ~1e-16. The
+    eleventh row, held out, gets the T² of the first nine components, worked from its scores.
+    """
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
+    ldpe = pd.read_csv(folder / "LDPE" / "LDPE.csv", index_col=0)
+    scaler = MCUVScaler().fit(ldpe.iloc[:10])
+    pca = PCA(n_components=None).fit(scaler.transform(ldpe.iloc[:10]))
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    assert pca.n_components_ == 10
+    assert s[9] < 1e-12 < s[8]
+    held_out = scaler.transform(ldpe.iloc[[10]])
+    t = held_out.to_numpy() @ pca.loadings_.to_numpy()
+    by_hand = np.sum(t[0, :9] ** 2 / s[:9] ** 2)
+    np.testing.assert_allclose(pca.diagnose(held_out).hotellings_t2.iloc[0, -1], by_hand, rtol=1e-10)
+    np.testing.assert_allclose(pca.project(held_out).hotellings_t2.iloc[0], by_hand, rtol=1e-10)
+
+
+def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leaves_out() -> None:
+    """PLS's T² of a new row, and of an inverted target, counts only the components with spread (#1026).
+
+    In units of 1e12, unscaled, the noise left after two components still has a sum of squares
+    above PLS's absolute floor, so a third component is fitted to it, with a score sd below 1e-3
+    against about 3e12: fit() leaves it out of T². A row off the plane scores on it all the same.
+    Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution
+    from its scores, which diagnose gives ``x_new`` too.
+    """
+    flat, new = _rows_on_a_plane(units=1e12)
+    y = pd.DataFrame({"y": flat.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0]})
+    y += 0.1 * np.random.default_rng(1).standard_normal((30, 1))
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
+    s = pls.scaling_factor_for_scores_.to_numpy()
+    assert s[2] < 1e-6 * s[0]
+    t = new.to_numpy() @ pls.direct_weights_.to_numpy()
+    assert abs(t[0, 2]) > 1e6 * s[2]  # the new row is well off the plane
+    by_hand = np.sum(t[0, :2] ** 2 / s[:2] ** 2)
+    np.testing.assert_allclose(pls.diagnose(new).hotellings_t2, [by_hand], rtol=1e-10)
+    np.testing.assert_allclose(pls.project(new).hotellings_t2, [by_hand], rtol=1e-10)
+
+    training = np.sum((pls.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
+    np.testing.assert_allclose(pls.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
+    np.testing.assert_allclose(pls.diagnose(flat).hotellings_t2, training, rtol=1e-8)
+    np.testing.assert_allclose(pls.project(flat).hotellings_t2, training, rtol=1e-8)
+
+    inverted = pls.invert(y_desired=1.0)
+    tau = inverted.scores.to_numpy()
+    assert (tau[2] / s[2]) ** 2 > 100.0  # what the third component added
+    assert inverted.hotellings_t2 == pytest.approx(np.sum(tau[:2] ** 2 / s[:2] ** 2), rel=1e-12, abs=1e-30)
+    np.testing.assert_allclose(
+        pls.diagnose(inverted.x_new.to_frame().T).hotellings_t2, [inverted.hotellings_t2], rtol=1e-6, atol=1e-20
+    )
+
+
+def _multiblock_on_a_plane(estimator: type, flat: pd.DataFrame) -> MBPCA | MBPLS:
+    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d."""
+    blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
+    model = estimator(n_components=3)
+    if estimator is MBPLS:
+        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
+    return model.fit(blocks)
+
+
+@pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
+def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: type) -> None:
+    """MBPCA's and MBPLS's super T², fitted and of a new row, count only the components with spread (#1026).
+
+    Two blocks of rows on a plane: a third super score has a variance near 1e-31. It added
+    noise over noise to every fitted row's T², and about 3e28 to a new row's off the plane.
+    Each T² is now ``sum_a t_a^2 / var_a`` over the first two components, by hand.
+    """
+    flat, new = _rows_on_a_plane()
+    model = _multiblock_on_a_plane(estimator, flat)
+    variance = model.explained_variance_
+    assert variance[2] < 1e-24
+    fitted = model.super_scores_.to_numpy()
+    by_hand = np.cumsum(np.column_stack([fitted[:, :2] ** 2 / variance[:2], np.zeros(30)]), axis=1)
+    np.testing.assert_allclose(model.super_hotellings_t2_.to_numpy(), by_hand, rtol=1e-10)
+
+    result = model.diagnose({"A": new[["a", "b"]], "B": new[["c", "d"]]})
+    scores = result.super_scores.to_numpy()
+    assert scores[0, 2] ** 2 / variance[2] > 1e20  # the new row is well off the plane
+    np.testing.assert_allclose(result.hotellings_t2, [np.sum(scores[0, :2] ** 2 / variance[:2])], rtol=1e-10)
+
+
+@pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
+def test_multiblock_block_t2_leaves_out_a_block_score_with_no_spread(estimator: type) -> None:
+    """A block's T² counts only the block components with spread, as the super T² does (#1028).
+
+    Each block of rows on a plane holds two directions, so its third block score has a second
+    moment near 1e-32. Divided by it, that score added noise over noise, of order 1, to every
+    row's block T². Each block T² is now ``sum_a t_a^2 / m_a`` over the first two components,
+    ``m_a = sum_i t_ia^2 / (N - 1)``, by hand.
+    """
+    flat, _ = _rows_on_a_plane()
+    model = _multiblock_on_a_plane(estimator, flat)
+    for name in ("A", "B"):
+        scores = model.block_scores_[name].to_numpy()
+        second_moment = np.sum(scores**2, axis=0) / 29
+        assert second_moment[2] < 1e-24 * second_moment[0]
+        by_hand = np.cumsum(np.column_stack([scores[:, :2] ** 2 / second_moment[:2], np.zeros(30)]), axis=1)
+        np.testing.assert_allclose(model.block_hotellings_t2_[name].to_numpy(), by_hand, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("scores", "expected"),
+    [
+        # Three rows with a score: each column's second moment divides by 3 - 1. The third
+        # column, of sd near 1e-17 against about 2, is left out.
+        (
+            [[1.0, 2.0, 1e-17], [np.nan] * 3, [2.0, -1.0, 0.0], [-2.0, 1.0, -1e-17]],
+            [[1 / 4.5, 1 / 4.5 + 4 / 3], [np.nan] * 2, [4 / 4.5, 4 / 4.5 + 1 / 3], [4 / 4.5, 4 / 4.5 + 1 / 3]],
+        ),
+        # Two rows with a score divide by 1.
+        (
+            [[1.0, 3.0], [np.nan] * 2, [2.0, -1.0], [np.nan] * 2],
+            [[1 / 5, 1 / 5 + 9 / 10], [np.nan] * 2, [4 / 5, 4 / 5 + 1 / 10], [np.nan] * 2],
+        ),
+        # One row with a score divides by 1 too, not by 0.
+        ([[np.nan] * 2, [3.0, -0.5]], [[np.nan] * 2, [1.0, 2.0]]),
+    ],
+)
+def test_cumulative_block_t2_by_hand(scores: list, expected: list) -> None:
+    """Each block score over its second moment about zero, ``sum t^2 / max(1, n - 1)`` over its n scores (#1028)."""
+    expected = np.array(expected)
+    t2 = cumulative_block_t2(np.array(scores))
+    np.testing.assert_allclose(t2[:, : expected.shape[1]], expected, rtol=1e-14)
+    np.testing.assert_array_equal(t2[:, -1], t2[:, expected.shape[1] - 1])
 
 
 def test_pca_detect_outliers() -> None:
@@ -2036,12 +2589,14 @@ def test_pls_invalid_calls() -> None:
     with pytest.raises(ValueError, match=r"Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
-    # The `method` input parameter does not exist anymore
+    # The `method` and `md_method` input parameters do not exist anymore
+    retired: dict[str, object] = {"method": "SVDS"}
     with pytest.raises(ValueError, match=r"Method 'SVDS' is not known."):
-        _ = PLS(n_components=A, method="SVDS")
+        _ = PLS(n_components=A, **retired)
 
+    retired = {"md_method": "SCP"}
     with pytest.raises(ValueError, match=r"Missing data method 'SCP' is not known."):
-        _ = PLS(n_components=A, md_method="SCP")
+        _ = PLS(n_components=A, **retired)
 
     model = PLS(n_components=A)
     with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
@@ -4506,6 +5061,32 @@ def test_recommend_n_components_one_se_rule() -> None:
     with pytest.raises(ValueError, match="same shape"):
         _recommend_n_components_one_se([0.4, 0.3], [0.05])
 
+    # A negative standard error is floored at zero, so the rule falls back to the argmin.
+    assert _recommend_n_components_one_se([0.5, 0.4, 0.3], [0.0, 0.0, -0.1]) == 3
+
+
+@pytest.mark.parametrize("rule", ["min", "1se", "q2_increment"])
+def test_selection_rules_refuse_a_curve_not_indexed_by_component_count(rule: str) -> None:
+    """#513: every rule returns a position plus one, which is a component count only for a curve indexed 1..A.
+
+    A Series indexed from 2, as a caller that left out one component would build it, came
+    back as a count one too small, with no sign that anything was wrong. It is refused now,
+    and the same values indexed 1..A give the answer they always did.
+    """
+    from process_improve.multivariate._common import _select_n_components
+
+    curves = {
+        "mean_error": [0.60, 0.42, 0.40, 0.41],
+        "se_error": [0.03, 0.03, 0.05, 0.05],
+        "q2_cumulative": [0.30, 0.62, 0.625, 0.50],
+    }
+    shifted = {name: pd.Series(values, index=[2, 3, 4, 5]) for name, values in curves.items()}
+    with pytest.raises(ValueError, match=r"must be indexed by component count 1\.\.4; got \[2, 3, 4, 5\]\.$"):
+        _select_n_components(rule, **shifted)
+
+    indexed = {name: pd.Series(values, index=range(1, 5)) for name, values in curves.items()}
+    assert _select_n_components(rule, **indexed) == _select_n_components(rule, **curves)
+
 
 def test_select_n_components_dispatcher() -> None:
     """The selection-rule dispatcher routes to the right helper and validates inputs."""
@@ -4989,7 +5570,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
 
     # Test the predicted values are what were expected:
@@ -5025,8 +5606,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # from sklearn.model_selection import cross_val_score
 
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
-    # Ensure model is fitted appropriately, with the expected number of iterations
-    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
+    # Ensure model is fitted appropriately, with the expected number of iterations. These were
+    # [11, 9, 27] when the iteration started from the first Quality column; it now starts from the
+    # column with the largest sum of squares (#954). The autoscaled Quality columns tie for the
+    # first component, so that one still starts from the first column; the third gets there in fewer.
+    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 25]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
@@ -5052,9 +5636,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
         [5.60356584, 2.82414766, 1.69358176, 3.4829089], rel=1e-8
     )
-    # Test the last 4 observations
+    # Test the last 4 observations. This pin and the D["Group 3"] one below were re-taken when the
+    # iteration started from the largest Quality column (#954): the model is the same within the
+    # convergence tolerance, and these two moved by 1e-8 and 1e-7 relative, just past their rel.
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
-        [2.79253124, 2.00872637, 10.80292179, 3.26432946], rel=1e-8
+        [2.79253125, 2.00872639, 10.80292176, 3.26432949], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
         [167.49971736, 132.25813164, 201.56460235, 198.02742727], rel=1e-8
@@ -5072,7 +5658,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         [30.77363754, 31.61877076, 30.53696788, 97.88805239], rel=1e-8
     )
     assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [0.015504765277819974, 0.002021083231104291, 0.04795499280275304, 0.0024131901105140696], rel=1e-7
+        [0.015504767382306245, 0.0020210834557258493, 0.0479549926196664, 0.002413190023210532], rel=1e-7
     )
     # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
     assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
@@ -5105,7 +5691,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
     assert predictions["spe"]["F"] is not None
@@ -5281,22 +5867,69 @@ def test_tpls_constant_column_warns_instead_of_asserting() -> None:
     assert np.isfinite(model.z_mats["Z1"]).all()
 
 
-def test_tpls_preprocessing_invariant_names_what_failed() -> None:
-    """#513: the invariant check raises with a message, and survives `python -O`.
+def test_tpls_and_mbpls_start_from_the_y_column_with_the_most_variation() -> None:
+    """#954: a constant first Y column does not stop the fit, and its position does not change the model.
 
-    It was a bare `assert`, so a violation gave `AssertionError()` with nothing in it,
-    and `-O` removed the check altogether. The repo runs a `-O` CI job precisely to catch
-    that, so this is a `RuntimeError` now.
+    TPLS seeded its iteration, and its inner one-component PLS, from the first Y column. A
+    constant column is a column of zeros after preprocessing, so the scores came out NaN and
+    the fit was refused although the other Y columns vary. Both now start from the column with
+    the largest sum of squares, as PLS and MBPLS do (#195, #503).
     """
-    # Columns 0 and 2 are fine; column 1 is off-centre by 0.5, and must be the one named.
-    observed = np.array([0.0, 0.5, 1e-9])
-    with pytest.raises(RuntimeError, match=r"block 'Z' group 'Z1' is not centred.*Column 1 has 0.5"):
-        TPLS._check_preprocessed(observed, 0.0, "Z", "Z1", "centre")
+    rng = np.random.default_rng(954)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    f_block = pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)
+    z_block = pd.DataFrame(rng.normal(size=(n_blends, 2)), index=index, columns=["z1", "z2"])
+    y_block = pd.DataFrame(
+        {"stuck": np.ones(n_blends), "y1": rng.normal(size=n_blends), "y2": rng.normal(size=n_blends)}, index=index
+    )
 
-    # A NaN entry is an excluded column, and a zero standard deviation is the same case
-    # seen after scaling; neither is a failure.
-    TPLS._check_preprocessed(np.array([0.0, np.nan]), 0.0, "Z", "Z1", "centre")
-    TPLS._check_preprocessed(np.array([1.0, np.nan, 0.0]), 1.0, "Y", "Y1", "scale")
+    def fit_tpls(columns: list[str]) -> tuple[TPLS, pd.DataFrame]:
+        blocks = DataFrameDict({"F": {"G": f_block}, "Z": {"Z1": z_block}, "Y": {"Y1": y_block[columns]}})
+        with pytest.warns(UserWarning, match="no variance"):
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+        return model, model.diagnose(blocks).hat["Y1"][["y1", "y2"]]
+
+    first, predicted_first = fit_tpls(["stuck", "y1", "y2"])
+    last, predicted_last = fit_tpls(["y1", "y2", "stuck"])
+    # The same model up to the sign of each component, so the same predictions.
+    scores_first, scores_last = first.t_scores_super.to_numpy(), last.t_scores_super.to_numpy()
+    signs = np.sign(np.sum(scores_first * scores_last, axis=0))
+    assert np.all(signs != 0)
+    np.testing.assert_allclose(scores_first, scores_last * signs, atol=1e-6)
+    np.testing.assert_allclose(predicted_first.to_numpy(), predicted_last.to_numpy(), atol=1e-6)
+
+    # MBPLS, checked for the same case (CONTRIBUTING.md, API consistency).
+    x_blocks = {"F": f_block, "Z": z_block}
+
+    def fit_mbpls(columns: list[str]) -> MBPLS:
+        return MBPLS(n_components=2).fit(x_blocks, y_block[columns])
+
+    mb_first, mb_last = fit_mbpls(["stuck", "y1", "y2"]), fit_mbpls(["y1", "y2", "stuck"])
+    np.testing.assert_allclose(mb_first.super_scores_.to_numpy(), mb_last.super_scores_.to_numpy(), atol=1e-6)
+
+
+def test_tpls_fits_a_column_far_from_zero() -> None:
+    """A column of 1e11 plus noise of sd 1 fits as the same column near 0 does (#1028).
+
+    After centring and scaling, fit checked that each column's mean was within 1e-6 of 0 and
+    raised "This is a bug" otherwise. Such a column's mean is known to about 1e-5 of its sd
+    (1e11 has a resolution of 1.5e-5), so the check refused data that fits.
+    """
+    rng = np.random.default_rng(0)
+    index, materials = [f"blend{i}" for i in range(20)], [f"mat{j}" for j in range(4)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(4, 3)), index=materials, columns=list("pqr"))}
+    blocks = {
+        "F": {"G": pd.DataFrame(rng.random((20, 4)), index=index, columns=materials)},
+        "Z": {"Z1": pd.DataFrame({"z": rng.normal(size=20)}, index=index)},
+        "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=20)}, index=index)},
+    }
+    near_zero = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    blocks["Z"]["Z1"]["z"] += 1e11
+    far = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    np.testing.assert_allclose(far.t_scores_super, near_zero.t_scores_super, atol=1e-3)
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
@@ -5355,6 +5988,780 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
         scores.append(score)
 
     return np.array(scores)
+
+
+# ---- TPLS written out by hand ----
+#
+# Garcia-Munoz (2014), https://doi.org/10.1016/j.chemolab.2014.02.006, the steps on page 54, in
+# plain numpy. Every fitted attribute of TPLS is checked against it, labels included.
+
+_TINY = float(np.finfo(float).tiny)
+
+
+def _tpls_slopes(a: np.ndarray, b: np.ndarray, present: np.ndarray) -> np.ndarray:
+    """One least-squares slope per row of ``a`` on ``b``, over the cells of that row that are observed.
+
+    ``sum_j a_ij b_j / sum_j b_j^2``, both sums over the observed cells of row ``i`` (``a`` holds 0
+    in the others). A row with no observed cell has slope 0.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        slopes = (a @ b) / (present.astype(float) @ b**2)
+    return np.where(present.any(axis=1), slopes, 0.0)
+
+
+def _tpls_autoscaled(frame: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Centre and scale each column by its mean and sd (ddof=1) over its observed cells.
+
+    A column whose sd is below epsqrt carries nothing, and is left out: every cell of it reads
+    as missing. Returns the scaled values (NaN where missing), the centres and the scales.
+    """
+    values = frame.to_numpy(dtype=float)
+    centre = np.nanmean(values, axis=0)
+    spread = np.nanstd(values, axis=0, ddof=1) if len(values) > 1 else np.ones(values.shape[1])
+    spread = np.where(spread < epsqrt, np.nan, spread)
+    return (values - centre) / spread, centre, spread
+
+
+def _tpls_start(y: np.ndarray) -> np.ndarray:
+    """Return the column of ``y`` (a missing cell as 0) with the largest sum of squares (#954).
+
+    Columns whose sums of squares agree to 1e-9 relative, as autoscaled columns do, tie, and
+    the first of them is taken.
+    """
+    ssq = np.sum(y**2, axis=0)
+    return y[:, np.flatnonzero(ssq >= (1 - 1e-9) * ssq.max())[0]]
+
+
+def _tpls_inner_pls(t_blocks: np.ndarray, y: np.ndarray, y_present: np.ndarray) -> tuple[np.ndarray, ...]:
+    """One PLS component of Y on the block scores, by NIPALS from Y's column of largest sum of squares.
+
+    It stops once u moves by less than epsqrt of its length, or after 500 passes, and the
+    component is flipped whole when its negative scores spread more than the others.
+    """
+    u = _tpls_start(y)
+    for _ in range(500):
+        w = t_blocks.T @ u / (u @ u)
+        w = w / max(_TINY, float(np.linalg.norm(w)))
+        t = t_blocks @ w / (w @ w)
+        q = _tpls_slopes(y.T, t, y_present.T)
+        u_new = _tpls_slopes(y, q, y_present)
+        change = np.linalg.norm(u - u_new) / max(_TINY, float(np.linalg.norm(u)))
+        u = u_new
+        if change < epsqrt:
+            break
+    negative, other = t[t < 0], t[t >= 0]
+    if negative.size and other.size and np.var(negative) > np.var(other):
+        return -t, -u, -w, -q
+    return t, u, w, q
+
+
+def _tpls_prepared(d_matrix: dict[str, pd.DataFrame], blocks: dict, skip_f: bool) -> tuple[dict, dict, dict]:
+    """Each block autoscaled over its observed cells, D also divided by ``sqrt(lots x properties)``.
+
+    F is left as given with ``skip_f``, though its scaling is still learned. Returns the
+    centres and scales, which cells are observed, and the blocks with a missing cell as 0.
+    """
+    frames = {
+        "D": d_matrix,
+        "F": blocks["F"],
+        "Z": blocks["Z"],
+        "Y": blocks["Y"],
+    }
+    scaling, scaled = {}, {block: {} for block in frames}
+    for block, by_key in frames.items():
+        for key, frame in by_key.items():
+            scaled[block][key], *scaling[block, key] = _tpls_autoscaled(frame)
+    for group, frame in d_matrix.items():
+        scaled["D"][group] = scaled["D"][group] / np.sqrt(frame.size)
+        if skip_f:
+            scaled["F"][group] = blocks["F"][group].to_numpy(dtype=float)
+    seen = {block: {key: ~np.isnan(v) for key, v in by_key.items()} for block, by_key in scaled.items()}
+    left = {block: {key: np.nan_to_num(v) for key, v in by_key.items()} for block, by_key in scaled.items()}
+    return scaling, seen, left
+
+
+def _tpls_component(left: dict, seen: dict, stop: tuple[int, float]) -> dict:
+    """One component: from Y's column of largest sum of squares ``u``, the passes of the paper's steps 2 to 11.
+
+    ``h = F'u / u'u``, ``s = D'h / h'h`` scaled to length 1 over all groups, ``r = Ds / s's``,
+    ``t_F = F r / r'r`` over all groups at once, ``w_Z = Z'u / u'u`` scaled to length 1,
+    ``t_Z = Z w_Z / w_Z'w_Z``, each Z group on its own, and one PLS component of Y on
+    ``[t_Z1, t_Z2, ..., t_F]``, whose u is the next ``u``; every regression is over the observed
+    cells. It stops once ``u`` moves by less than
+    ``tol`` of its previous length, or after ``max_iter`` passes (``stop = (max_iter, tol)``).
+    """
+    groups, ((y_name, y),) = list(left["D"]), left["Y"].items()
+    f_all, f_seen = np.hstack(list(left["F"].values())), np.hstack(list(seen["F"].values()))
+    u = _tpls_start(y)
+    for passes in itertools.count(1):
+        previous = u
+        h = {group: _tpls_slopes(left["F"][group].T, u, seen["F"][group].T) for group in groups}
+        s = {group: _tpls_slopes(left["D"][group].T, h[group], seen["D"][group].T) for group in groups}
+        length = np.linalg.norm(np.concatenate(list(s.values())))
+        s = {group: s[group] / length for group in groups}
+        r = {group: _tpls_slopes(left["D"][group], s[group], seen["D"][group]) for group in groups}
+        t_f = _tpls_slopes(f_all, np.concatenate(list(r.values())), f_seen)
+        w_z = {name: _tpls_slopes(z.T, u, seen["Z"][name].T) for name, z in left["Z"].items()}
+        w_z = {name: w / max(_TINY, float(np.linalg.norm(w))) for name, w in w_z.items()}
+        t_z = [_tpls_slopes(z, w_z[name], seen["Z"][name]) for name, z in left["Z"].items()]
+        t, u, w_super, q = _tpls_inner_pls(np.column_stack([*t_z, t_f]), y, seen["Y"][y_name])
+        gap = np.linalg.norm(previous - u) / max(_TINY, float(np.linalg.norm(previous)))
+        if gap < stop[1] or passes >= stop[0]:
+            return {"t": t, "w_super": w_super, "q": q, "r": r, "s": s, "w_z": w_z, "passes": passes, "gap": gap}
+    return {}  # never reached: itertools.count does not end
+
+
+def _tpls_deflated(left: dict, seen: dict, component: dict) -> dict:
+    """``p_Z = Z't / t't``, ``p_F = F't / t't`` and ``v = D'r / r'r``; each block loses ``t p'`` (D ``r v'``).
+
+    Only the observed cells lose anything. ``left`` is changed in place; the loadings are returned.
+    """
+    t, r = component["t"], component["r"]
+    loadings = {"p_z": {}, "p_f": {}, "v": {}}
+    for block, key_of, by_key in (("Z", "p_z", t), ("F", "p_f", t)):
+        for key, values in left[block].items():
+            loadings[key_of][key] = _tpls_slopes(values.T, by_key, seen[block][key].T)
+            left[block][key] = values - np.outer(t, loadings[key_of][key]) * seen[block][key]
+    for group, values in left["D"].items():
+        loadings["v"][group] = _tpls_slopes(values.T, r[group], seen["D"][group].T)
+        left["D"][group] = values - np.outer(r[group], loadings["v"][group]) * seen["D"][group]
+    ((y_name, y),) = left["Y"].items()
+    left["Y"][y_name] = y - np.outer(t, component["q"]) * seen["Y"][y_name]
+    return loadings
+
+
+def _tpls_written_out(
+    d_matrix: dict[str, pd.DataFrame],
+    blocks: dict[str, dict[str, pd.DataFrame]],
+    n_components: int,
+    skip_f: bool = False,
+    stop: tuple[int, float] = (500, epsqrt),
+) -> dict:
+    """TPLS written out, for any number of Z groups and one Y block: each component, and what it explains.
+
+    ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
+    block before the first component. The VIP of a block weights each component by the mean,
+    over the groups, of the mean R2 of each group's columns.
+    """
+    scaling, seen, left = _tpls_prepared(d_matrix, blocks, skip_f)
+
+    def sums_of_squares() -> dict:
+        return {block: {key: np.sum(v**2, axis=0) for key, v in by_key.items()} for block, by_key in left.items()}
+
+    found: dict = {"scaling": scaling, "seen": seen, "left": left, "sums_of_squares": [sums_of_squares()]}
+    found["columns"] = {block: {key: frame.columns for key, frame in blocks[block].items()} for block in ("F", "Z")}
+    components = []
+    for _ in range(n_components):
+        component = _tpls_component(left, seen, stop)
+        components.append(component | _tpls_deflated(left, seen, component))
+        found["sums_of_squares"].append(sums_of_squares())
+    before = found["sums_of_squares"]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        found["r2"] = [
+            {block: {key: (b[block][key] - a[block][key]) / before[0][block][key] for key in a[block]} for block in a}
+            for b, a in itertools.pairwise(before)
+        ]
+    for key in ("t", "w_super", "q"):
+        found[key] = np.column_stack([component[key] for component in components])
+    for key in ("r", "s", "v", "p_f", "w_z", "p_z"):
+        found[key] = {name: np.column_stack([c[key][name] for c in components]) for name in components[0][key]}
+    found["iterations"] = [component["passes"] for component in components]
+    found["gap"] = [component["gap"] for component in components]
+    t, ((y_name, _),) = found["t"], left["Y"].items()
+    found["sd"] = sd = np.sqrt(np.sum(t**2, axis=0) / (len(t) - 1))
+    usable = sd > epsqrt * max(1.0, float(sd.max()))
+    found["t2"] = np.cumsum(np.where(usable, t**2 / np.where(usable, sd, 1.0) ** 2, 0.0), axis=1)
+    found["hat_"] = t @ found["q"].T
+    found["hat"] = found["hat_"] * scaling["Y", y_name][1] + scaling["Y", y_name][0]
+    found["spe"] = {
+        block: {key: np.sqrt(np.sum(v**2, axis=1)) for key, v in by_key.items()} for block, by_key in left.items()
+    }
+    for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
+        weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
+        stacked = np.vstack(list(loadings.values()))
+        vip = np.sqrt(len(stacked) * (stacked**2 @ weights) / weights.sum())
+        ends = np.cumsum([len(values) for values in loadings.values()])
+        found["vip", block] = dict(zip(loadings, np.split(vip, ends[:-1]), strict=True))
+    return found
+
+
+def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
+    """Score new rows on a model written out by ``_tpls_written_out``, deflating as the fit did.
+
+    Each block is scaled with the training centres and scales. Component by component, the F
+    score is ``sum F r / sum r^2`` over a row's observed cells in every group, NaN for a row
+    with none; each Z group's score is ``Z w_Z / w_Z'w_Z`` over the observed cells, 0 for a row
+    with none and for a group left out of ``new``; the super score is ``[t_Z1, t_Z2, ..., t_F]``,
+    the Z groups in the training order, times the super weights. Each block then loses ``t p'``
+    in its observed cells, and its SPE is the length of what is left of each row.
+    """
+    groups, z_names = list(fitted["r"]), list(new.get("Z", {}))
+    x = {"F": {}, "Z": {}}
+    for group in groups:
+        centre, spread = fitted["scaling"]["F", group]
+        values = new["F"][group][fitted["columns"]["F"][group]].to_numpy(dtype=float)
+        x["F"][group] = values if skip_f else (values - centre) / spread
+    for name in z_names:
+        centre, spread = fitted["scaling"]["Z", name]
+        x["Z"][name] = (new["Z"][name][fitted["columns"]["Z"][name]].to_numpy(dtype=float) - centre) / spread
+    seen = {block: {key: ~np.isnan(v) for key, v in x[block].items()} for block in x}
+    x = {block: {key: np.nan_to_num(v) for key, v in x[block].items()} for block in x}
+    n_components = fitted["t"].shape[1]
+    t_all, spe = [], {block: {key: [] for key in x[block]} for block in x}
+    for a in range(n_components):
+        numerator = sum(x["F"][g] @ fitted["r"][g][:, a] for g in groups)
+        denominator = sum(seen["F"][g] @ fitted["r"][g][:, a] ** 2 for g in groups)
+        columns = []
+        with np.errstate(divide="ignore", invalid="ignore"):
+            for name, w_z in fitted["w_z"].items():
+                if name not in z_names:
+                    columns.append(np.zeros(len(numerator)))
+                    continue
+                t_z = (x["Z"][name] @ w_z[:, a]) / (seen["Z"][name] @ w_z[:, a] ** 2)
+                columns.append(np.where(seen["Z"][name].any(axis=1), t_z, 0.0))
+            columns.append(np.where(denominator > 0, numerator / denominator, np.nan))
+        t = np.column_stack(columns) @ fitted["w_super"][:, a]
+        for block, loadings in (("F", fitted["p_f"]), ("Z", fitted["p_z"])):
+            for key in x[block]:
+                x[block][key] = x[block][key] - np.outer(t, loadings[key][:, a]) * seen[block][key]
+                spe[block][key].append(np.sqrt(np.sum(x[block][key] ** 2, axis=1)))
+        t_all.append(t)
+    t = np.column_stack(t_all)
+    centre, spread = next(value for key, value in fitted["scaling"].items() if key[0] == "Y")
+    usable = fitted["sd"] > epsqrt * max(1.0, float(fitted["sd"].max()))
+    return {
+        "t": t,
+        "t2": np.cumsum(np.where(usable, t**2 / np.where(usable, fitted["sd"], 1.0) ** 2, 0.0), axis=1),
+        "hat": t @ fitted["q"].T * spread + centre,
+        "spe": {block: {key: np.column_stack(v) for key, v in spe[block].items()} for block in spe},
+    }
+
+
+def _t_shaped(gaps: bool = True, with_z: bool = True, seed: int = 0, second_z: bool = False) -> tuple[dict, dict]:
+    """Two groups of materials and ten labelled blends: D, and F, Z and Y blocks.
+
+    Group A has five materials of three properties; group B four of four, so its D is square
+    and each masked regression on it must be told which way it runs. Y follows the blends'
+    properties through F, with noise, in three columns, so the inner PLS iterates. With
+    ``gaps``, one cell is missing in each D group, in A's F, in Y's second column and in Z.
+    With ``second_z``, a second Z group, E, of three conditions follows C, and with ``gaps``
+    it has one cell missing and nothing at all for blend b7.
+    """
+    rng = np.random.default_rng(seed)
+    blends = [f"b{i}" for i in range(10)]
+    d_matrix = {
+        "A": pd.DataFrame(rng.normal(size=(5, 3)), index=[f"a{i}" for i in range(5)], columns=["p", "q", "r"]),
+        "B": pd.DataFrame(rng.normal(size=(4, 4)), index=[f"m{i}" for i in range(4)], columns=["s", "t", "u", "v"]),
+    }
+    f = {g: pd.DataFrame(rng.random((10, len(d))), index=blends, columns=d.index) for g, d in d_matrix.items()}
+    latent = np.hstack([f[g].to_numpy() @ d.to_numpy() for g, d in d_matrix.items()])[:, :3]
+    y = latent @ rng.normal(size=(3, 3)) + 0.3 * rng.normal(size=(10, 3))
+    blocks = {
+        "F": f,
+        "Z": {"C": pd.DataFrame(rng.normal(size=(10, 2)), index=blends, columns=["z1", "z2"])} if with_z else {},
+        "Y": {"Q": pd.DataFrame(y, index=blends, columns=["y1", "y2", "y3"])},
+    }
+    if second_z:
+        blocks["Z"]["E"] = pd.DataFrame(rng.normal(size=(10, 3)), index=blends, columns=["e1", "e2", "e3"])
+    if gaps:
+        d_matrix["A"].iloc[1, 2] = d_matrix["B"].iloc[2, 0] = np.nan
+        blocks["F"]["A"].iloc[3, 1] = blocks["Y"]["Q"].iloc[4, 1] = np.nan
+        if with_z:
+            blocks["Z"]["C"].iloc[5, 0] = np.nan
+        if second_z:
+            blocks["Z"]["E"].iloc[2, 2] = np.nan
+            blocks["Z"]["E"].iloc[7] = np.nan
+    return d_matrix, blocks
+
+
+def _tpls_near(actual: pd.DataFrame | pd.Series, expected: pd.DataFrame | pd.Series, rtol: float) -> None:
+    """Assert equal labels, and values equal to ``rtol`` with a floor of ``rtol`` times the largest."""
+    atol = rtol * max(1.0, float(np.nanmax(np.abs(expected.to_numpy(dtype=float)))))
+    if isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(actual, expected, rtol=rtol, atol=atol)
+    else:
+        pd.testing.assert_frame_equal(actual, expected, rtol=rtol, atol=atol)
+
+
+def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict, rtol: float) -> None:
+    """Every fitted attribute of ``model`` against ``_tpls_written_out``, labels included."""
+    groups, z_names, (y_name,) = list(d_matrix), list(blocks["Z"]), list(blocks["Y"])
+    blends = blocks["F"][groups[0]].index
+    components = list(range(1, expected["t"].shape[1] + 1))
+
+    def near(actual: pd.DataFrame | pd.Series, values: np.ndarray, index: object, **labels: object) -> None:
+        if np.ndim(values) == 1:
+            _tpls_near(actual, pd.Series(values, index=index, **labels), rtol)
+        else:
+            _tpls_near(actual, pd.DataFrame(values, index=index, **({"columns": components} | labels)), rtol)
+
+    assert model.n_components_ == len(components)
+    assert model.is_fitted_ is True
+    near(model.t_scores_super, expected["t"], blends)
+    # One row per Z group, then F; a single Z group keeps the plain label "Z" (#981).
+    super_rows = ["Z"] if len(z_names) == 1 else [f'Z["{name}"]' for name in z_names]
+    near(model.w_loadings_super, expected["w_super"], [*super_rows, "F"])
+    # The loadings' labels are lists of names, so they keep no index name.
+    qualities = blocks["Y"][y_name].columns.to_list()
+    near(model.q_loadings_y[y_name], expected["q"], qualities)
+    near(model.hat_[y_name], expected["hat_"], blends, columns=qualities)
+    near(model.hat[y_name], expected["hat"], blends, columns=qualities)
+    near(model.scaling_factor_for_scores, expected["sd"], components, name="Standard deviation per score")
+    near(model.hotellings_t2, expected["t2"], blends)
+    spe_column = [f"SPE with A={len(components)}"]
+    for block, names in (("Y", [y_name]), ("Z", z_names), ("F", groups)):
+        for key in names:
+            near(model.spe[block][key], expected["spe"][block][key][:, np.newaxis], blends, columns=spe_column)
+    for group in groups:
+        materials, properties = d_matrix[group].index.to_list(), d_matrix[group].columns.to_list()
+        near(model.r_loadings_f[group], expected["r"][group], materials)
+        near(model.p_loadings_f[group], expected["p_f"][group], materials)
+        near(model.s_loadings_d[group], expected["s"][group], properties)
+        near(model.v_loadings_d[group], expected["v"][group], properties)
+        near(model.spe["D"][group], expected["spe"]["D"][group], materials)
+        near(model.feature_importance["D"][group], expected["vip", "D"][group], properties)
+        near(model.feature_importance["F"][group], expected["vip", "F"][group], materials)
+    for name in z_names:
+        conditions = blocks["Z"][name].columns.to_list()
+        near(model.w_loadings_z[name], expected["w_z"][name], conditions)
+        near(model.p_loadings_z[name], expected["p_z"][name], conditions)
+    assert model.feature_importance["Z"] == model.feature_importance["Y"] == {}
+    for block in ("D", "F", "Y", "Z"):
+        assert sorted(model.spe_limit[block]) == sorted(expected["spe"][block])
+        for key, spe in expected["spe"][block].items():
+            assert model.spe_limit[block][key](0.9) == pytest.approx(spe_calculation(spe, 0.9), rel=rtol, abs=rtol)
+            assert model.spe_limit[block][key]() == pytest.approx(spe_calculation(spe, 0.95), rel=rtol, abs=rtol)
+    _check_tpls_bookkeeping(model, d_matrix, blocks, expected, rtol)
+
+
+def _check_tpls_bookkeeping(model: TPLS, d_matrix: dict, blocks: dict, expected: dict, rtol: float) -> None:
+    """Check what is left of each block, the scaling, sums of squares, counts, names and loop statistics."""
+    groups, z_names, (y_name,) = list(d_matrix), list(blocks["Z"]), list(blocks["Y"])
+    blends = blocks["F"][groups[0]].index
+    n_components = model.n_components_
+    residuals = {"D": model.d_mats, "F": model.f_mats, "Z": model.z_mats, "Y": model.y_mats}
+    observed = {"D": model.not_na_d, "F": model.not_na_f, "Z": model.not_na_z, "Y": model.not_na_y}
+    for block, by_key in expected["left"].items():
+        assert list(residuals[block]) == list(observed[block]) == list(by_key)
+        for key, values in by_key.items():
+            assert isinstance(residuals[block][key], np.ndarray)
+            np.testing.assert_allclose(residuals[block][key], values, rtol=rtol, atol=rtol)
+            np.testing.assert_array_equal(observed[block][key], expected["seen"][block][key])
+    for (block, key), (centre, spread) in expected["scaling"].items():
+        columns = (d_matrix[key] if block == "D" else blocks[block][key]).columns
+        _tpls_near(model.preproc_[block][key]["center"], pd.Series(centre, index=columns), rtol)
+        _tpls_near(model.preproc_[block][key]["scale"], pd.Series(spread, index=columns), rtol)
+    assert sorted(model.preproc_["D"]) == groups
+    for group in groups:
+        assert model.preproc_["D"][group]["block"] == np.sqrt(d_matrix[group].size)
+    assert model.d_block_scaling_ == {group: np.sqrt(d_matrix[group].size) for group in groups}
+
+    # Sums of squares and R2, per column, before any component and after each.
+    assert len(model.sums_of_squares_) == len(model.r2_frac) == n_components + 1
+    for a, sums in enumerate(expected["sums_of_squares"]):
+        for block, by_key in sums.items():
+            assert list(model.sums_of_squares_[a][block]) == list(by_key)
+            for key, values in by_key.items():
+                np.testing.assert_allclose(model.sums_of_squares_[a][block][key], values, rtol=rtol, atol=rtol)
+                r2 = np.zeros_like(values) if a == 0 else expected["r2"][a - 1][block][key]
+                np.testing.assert_allclose(model.r2_frac[a][block][key], r2, rtol=rtol, atol=rtol)
+
+    # Counts and names.
+    assert model.n_samples == len(blends)
+    assert model.n_substances == sum(len(d_matrix[group]) for group in groups)
+    assert model.n_conditions == sum(blocks["Z"][name].shape[1] for name in z_names)
+    assert model.n_outputs == blocks["Y"][y_name].shape[1]
+    pd.testing.assert_index_equal(model.observation_names, blends)
+    assert model.material_names == {group: d_matrix[group].index.to_list() for group in groups}
+    assert model.property_names == {group: d_matrix[group].columns.to_list() for group in groups}
+    assert model.condition_names == {name: blocks["Z"][name].columns.to_list() for name in z_names}
+    assert model.quality_names == {y_name: blocks["Y"][y_name].columns.to_list()}
+
+    # How each component's loop went.
+    statistics = model.fitting_statistics
+    assert statistics["iterations"] == expected["iterations"]
+    np.testing.assert_allclose(statistics["convergance_tolerance"], expected["gap"], rtol=1e-6, atol=1e-15)
+    assert len(statistics["milliseconds"]) == n_components
+    assert all(0 <= ms < 60_000 for ms in statistics["milliseconds"])
+
+
+def _tpls_t2_limit(conf_level: float, n_components: int, n_rows: int) -> float:
+    """Hotelling's T2 limit of ``n_components`` scores over ``n_rows`` rows, from the F distribution."""
+    a, n = n_components, n_rows
+    return a * (n - 1) * (n + 1) / (n * (n - a)) * f_dist.ppf(conf_level, a, n - a)
+
+
+def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative: bool, ms: float) -> str:
+    """Write the text of ``display_results`` for a model written out, each component taking ``ms``.
+
+    Each block's R2 is the mean, over its groups, of the mean R2 of a group's columns, summed
+    over the components so far when ``cumulative``. ``settings`` is ``(max_iter, skip_f)``.
+    """
+    iterations, n_rows = expected["iterations"], len(expected["t"])
+    n_components, with_z = len(iterations), bool(expected["r2"][0]["Z"])
+    r2 = {
+        block: np.array([np.mean([np.nanmean(v) for v in entry[block].values()] or [0.0]) for entry in expected["r2"]])
+        for block in "DZFY"
+    }
+    if cumulative:
+        r2 = {block: np.cumsum(values) for block, values in r2.items()}
+        header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y)|    ms [iter]"
+    else:
+        header = "LV #        R2: D      R2: Z      R2: F      R2: Y|    ms [iter]"
+    rule = "------ ---------- ---------- ---------- ---------- -------------"
+    lines = [
+        f"Hotelling's T2 limit [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
+        f"                     [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
+        rule,
+        header,
+        rule,
+    ]
+    for a, passes in enumerate(iterations):
+        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "        -"
+        line = f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}|"
+        line += f"{ms:>5.0f} [{passes:>4d}]".rjust(13)
+        lines.append(line + ("** (max iter reached)" if passes == settings[0] else ""))
+    lines += [
+        rule,
+        f"Timing: {round(ms * n_components / sum(iterations), 2)} ms/iter; {sum(iterations)} iterations required",
+        f"Total time: {ms * n_components / 1000:.2f} seconds",
+        f"Average tolerance: {np.mean(expected['gap']):.4g}",
+        "Settings",
+        "---------",
+        f"n_components: {n_components}",
+        f"max_iter: {settings[0]}",
+        f"skip_f_matrix_preprocessing: {settings[1]}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _t_shaped_new_rows(blocks: dict) -> dict:
+    """Five new blends, n0 to n4, for the F and Z blocks of ``_t_shaped``.
+
+    n0 is complete; n1 misses a cell of F; n2 a cell of Z; n3 has nothing in Z, and n4
+    nothing in F. Each block's columns come in reverse order.
+    """
+    rng = np.random.default_rng(1)
+    index = [f"n{i}" for i in range(5)]
+    new = {
+        block: {
+            key: pd.DataFrame(rng.random((5, frame.shape[1])), index=index, columns=frame.columns)
+            for key, frame in blocks[block].items()
+        }
+        for block in ("F", "Z")
+    }
+    new["F"]["A"].iloc[1, 0] = np.nan
+    for frame in new["F"].values():
+        frame.iloc[4] = np.nan
+    for frame in new["Z"].values():
+        frame.iloc[2, 1] = np.nan
+        frame.iloc[3] = np.nan
+    return {block: {key: frame.iloc[:, ::-1] for key, frame in by_key.items()} for block, by_key in new.items()}
+
+
+class TestTPLSWrittenOut:
+    """TPLS against its algorithm written out by hand, every attribute, label and step."""
+
+    @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
+    @pytest.mark.parametrize("gaps", [True, False], ids=["gappy", "complete"])
+    def test_a_fit_follows_the_algorithm_pass_for_pass(self, gaps: bool, with_z: bool) -> None:
+        """Three components, converged and stopped after one pass, with and without Z and gaps."""
+        d_matrix, blocks = _t_shaped(gaps=gaps, with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 3), rtol=1e-10)
+
+        one_pass = TPLS(n_components=3, d_matrix=d_matrix, max_iter=1).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3, stop=(1, epsqrt))
+        assert expected["iterations"] == [1, 1, 1]
+        _check_tpls_fitted(one_pass, d_matrix, blocks, expected, rtol=1e-10)
+
+    @pytest.mark.parametrize("gaps", [True, False], ids=["gappy", "complete"])
+    def test_several_z_groups_follow_the_algorithm(self, monkeypatch: pytest.MonkeyPatch, gaps: bool) -> None:
+        """Each Z group has its own weights, its own block score and its own row of super weights (#981)."""
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped(gaps=gaps, second_z=True)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        _check_tpls_fitted(model, d_matrix, blocks, expected, rtol=1e-10)
+        assert model.display_results() == _tpls_summary_by_hand(expected, (500, False), cumulative=True, ms=125.0)
+
+    def test_new_rows_are_scored_on_each_z_group_in_the_training_order(self) -> None:
+        """Diagnose scores each Z group on its own, in the order of the fit whatever the order of X (#981).
+
+        A row with nothing in one group scores 0 for that group only, and a group left out of X
+        scores 0 for every row.
+        """
+        d_matrix, blocks = _t_shaped(second_z=True)
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        new = _t_shaped_new_rows(blocks)
+        new["Z"]["E"].iloc[3] = [0.25, -0.5, 1.5]  # n3 has nothing in C, but all of E
+        index, components = new["F"]["A"].index, [1, 2, 3]
+        for z_groups in ({"E": new["Z"]["E"], "C": new["Z"]["C"]}, {"C": new["Z"]["C"]}, {"E": new["Z"]["E"]}):
+            data = {"F": new["F"], "Z": z_groups}
+            by_hand = _tpls_diagnose_by_hand(expected, data)
+            result = model.diagnose(DataFrameDict(copy.deepcopy(data)))
+            assert np.isfinite(by_hand["t"][:4]).all()
+            _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+            _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+            _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
+            assert list(result.spe["Z"]) == list(z_groups)
+            for block in ("F", "Z"):
+                for key, spe in by_hand["spe"][block].items():
+                    _tpls_near(result.spe[block][key], pd.DataFrame(spe, index=index, columns=components), 1e-10)
+
+    def test_the_pyphi_fit_follows_the_algorithm(self, fixture_tpls_example: dict) -> None:
+        """Garcia-Munoz's example: five groups of materials, some properties missing."""
+        d_matrix = fixture_tpls_example.pop("D")
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(fixture_tpls_example)))
+        expected = _tpls_written_out(d_matrix, fixture_tpls_example, 3)
+        # [11, 9, 27] when each component started from the first Quality column (#954).
+        assert expected["iterations"] == [11, 9, 25]
+        _check_tpls_fitted(model, d_matrix, fixture_tpls_example, expected, rtol=1e-9)
+
+    def test_a_looser_tolerance_stops_where_the_algorithm_does(self) -> None:
+        """The tolerance is the change of u between passes, relative to its length, that counts as converged."""
+        d_matrix, blocks = _t_shaped()
+        loose = TPLS(n_components=2, d_matrix=d_matrix, tol=1e-3).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 2, stop=(500, 1e-3))
+        assert expected["iterations"] < _tpls_written_out(d_matrix, blocks, 2)["iterations"]
+        _check_tpls_fitted(loose, d_matrix, blocks, expected, rtol=1e-10)
+
+    def test_f_as_given_follows_the_algorithm(self) -> None:
+        """With skip_f_matrix_preprocessing F is used as given, though its scaling is still learned."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 2, skip_f=True), rtol=1e-10)
+        new = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2, skip_f=True), blocks, skip_f=True)
+        _tpls_near(
+            model.diagnose(DataFrameDict(blocks)).t_scores_super,
+            pd.DataFrame(new["t"], index=blocks["F"]["A"].index, columns=[1, 2]),
+            1e-10,
+        )
+
+    @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+    @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
+    def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:
+        """Diagnose deflates new rows as the fit did, over their observed cells, in the training column order.
+
+        A row with nothing in Z has a Z score of 0, and one with nothing in F no score at all.
+        """
+        d_matrix, blocks = _t_shaped(with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix, skip_f_matrix_preprocessing=skip_f)
+        model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        new = _t_shaped_new_rows(blocks)
+        by_hand = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 3, skip_f=skip_f), new, skip_f=skip_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # n4's F score is 0 / 0, and NaN without a word
+            result = model.diagnose(DataFrameDict(copy.deepcopy(new)))
+
+        assert sorted(result) == ["hat", "hotellings_t2", "residuals", "spe", "t_scores_super"]
+        index, components = new["F"]["A"].index, [1, 2, 3]
+        assert np.isnan(by_hand["t"][4]).all()
+        assert np.isfinite(by_hand["t"][:4]).all()
+        _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+        _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+        assert list(result.hat) == ["Q"]
+        _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
+        assert list(result.spe) == ["Z", "F"]
+        for block in ("F", "Z"):
+            assert list(result.spe[block]) == list(new[block])
+            for key, spe in by_hand["spe"][block].items():
+                _tpls_near(result.spe[block][key], pd.DataFrame(spe, index=index, columns=components), 1e-10)
+
+    def test_one_condition_fits_and_scores_as_written_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A Z block of one column still has its own block score beside F's, and its R2 in the summary."""
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped()
+        blocks["Z"]["C"] = blocks["Z"]["C"][["z1"]]
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 2)
+        _check_tpls_fitted(model, d_matrix, blocks, expected, rtol=1e-10)
+        assert model.display_results() == _tpls_summary_by_hand(expected, (500, False), cumulative=True, ms=125.0)
+        new = _t_shaped_new_rows({"F": blocks["F"], "Z": {}})
+        new["Z"] = {"C": blocks["Z"]["C"].iloc[:5].set_axis(new["F"]["A"].index)}
+        by_hand = _tpls_diagnose_by_hand(expected, new)
+        result = model.diagnose(DataFrameDict(new))
+        _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=new["F"]["A"].index, columns=[1, 2]), 1e-10)
+
+    def test_a_nullable_column_of_new_rows_reads_its_na_as_missing(self) -> None:
+        """New rows in pandas' nullable Float64 and Int64 score as the same values in float64, NA as NaN."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        new = _t_shaped_new_rows(blocks)
+        nullable = copy.deepcopy(new)
+        nullable["F"] = {key: frame.astype("Float64") for key, frame in new["F"].items()}
+        nullable["Z"]["C"] = (new["Z"]["C"] * 1000).round().astype("Int64")
+        new["Z"]["C"] = (new["Z"]["C"] * 1000).round()
+        expected = model.diagnose(DataFrameDict(new))
+        result = model.diagnose(DataFrameDict(nullable))
+        pd.testing.assert_frame_equal(result.t_scores_super, expected.t_scores_super)
+        pd.testing.assert_frame_equal(result.spe["Z"]["C"], expected.spe["Z"]["C"])
+
+    def test_the_training_rows_diagnosed_again_are_the_fitted_rows(self) -> None:
+        """Scores, T2, predictions and SPE of the training rows, gaps and all, are those of the fit.
+
+        diagnose deflated the missing cells of a new row too, so its SPE counted a residual for
+        each, where the fit's has none; and it returned the SPE frames with object columns.
+        """
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        result = model.diagnose(DataFrameDict(blocks))
+        _tpls_near(result.t_scores_super, model.t_scores_super, 1e-12)
+        _tpls_near(result.hotellings_t2, model.hotellings_t2, 1e-12)
+        _tpls_near(result.hat["Q"], model.hat["Q"], 1e-12)
+        for block, key in (("F", "A"), ("F", "B"), ("Z", "C")):
+            assert set(result.spe[block][key].dtypes) == {np.dtype(float)}
+            np.testing.assert_allclose(result.spe[block][key].iloc[:, -1], model.spe[block][key].iloc[:, 0], rtol=1e-12)
+
+    def test_the_limits_and_the_ellipse_are_those_of_the_fitted_scores(self) -> None:
+        """T2 limit: A (N-1)(N+1) / (N (N-A)) F(A, N-A); the ellipse uses 2 for A and the scores' sds."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        sd = _tpls_written_out(d_matrix, blocks, 3)["sd"]
+        assert model.hotellings_t2_limit() == pytest.approx(_tpls_t2_limit(0.95, 3, 10), rel=1e-12)
+        assert model.hotellings_t2_limit(0.99) == pytest.approx(_tpls_t2_limit(0.99, 3, 10), rel=1e-12)
+        horizontal, vertical = model.ellipse_coordinates(1, 3)
+        angles, radius = np.linspace(0, 2 * np.pi, 100), np.sqrt(_tpls_t2_limit(0.95, 2, 10))
+        np.testing.assert_allclose(horizontal, radius * sd[0] * np.cos(angles), rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(vertical, radius * sd[2] * np.sin(angles), rtol=1e-10, atol=1e-12)
+        horizontal, vertical = model.ellipse_coordinates(2, 1, conf_level=0.9, n_points=7)
+        angles, radius = np.linspace(0, 2 * np.pi, 7), np.sqrt(_tpls_t2_limit(0.9, 2, 10))
+        np.testing.assert_allclose(horizontal, radius * sd[1] * np.cos(angles), rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(vertical, radius * sd[0] * np.sin(angles), rtol=1e-10, atol=1e-12)
+
+    @pytest.mark.parametrize("cumulative", [True, False], ids=["cumulative", "per-component"])
+    @pytest.mark.parametrize(
+        ("with_z", "max_iter"), [(True, 500), (True, 10), (False, 7)], ids=["Z", "Z-capped", "no-Z"]
+    )
+    def test_the_summary_in_full(
+        self, monkeypatch: pytest.MonkeyPatch, with_z: bool, max_iter: int, cumulative: bool
+    ) -> None:
+        """display_results, every line, with a clock that moves 250 ms per component.
+
+        A component flagged as having reached max_iter is one whose passes are max_iter, whether
+        or not its last pass converged.
+        """
+        clock = itertools.count(0.0, 0.125)
+        monkeypatch.setattr("process_improve.multivariate._tpls.time", SimpleNamespace(time=lambda: next(clock)))
+        d_matrix, blocks = _t_shaped(gaps=False, with_z=with_z)
+        model = TPLS(n_components=3, d_matrix=d_matrix, max_iter=max_iter).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3, stop=(max_iter, epsqrt))
+        assert model.fitting_statistics["milliseconds"] == [125.0, 125.0, 125.0]
+        summary = _tpls_summary_by_hand(expected, (max_iter, False), cumulative=cumulative, ms=125.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert model.display_results(show_cumulative_stats=cumulative) == summary
+        if cumulative:
+            assert model.display_results() == summary
+        assert ("** (max iter reached)" in summary) == (max_iter < 500)
+
+    def test_the_deflated_vip_follows_the_direct_weights(self) -> None:
+        """VIP on S (V'S)^-1 for D and P (P'P)^-1 for F, each component weighted by the block's R2."""
+        d_matrix, blocks = _t_shaped()
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        expected = _tpls_written_out(d_matrix, blocks, 3)
+        s, v, p = (np.vstack(list(expected[key].values())) for key in ("s", "v", "p_f"))
+        direct = {"D": np.linalg.solve((v.T @ s).T, s.T).T, "F": np.linalg.solve(p.T @ p, p.T).T}
+        found = model.vip(method="deflated")
+        assert list(found) == ["D", "F", "Z", "Y"]
+        assert found["Z"] == found["Y"] == {}
+        for block, names in (("D", "columns"), ("F", "index")):
+            weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in expected["r2"]])
+            vip = np.sqrt(len(direct[block]) * (direct[block] ** 2 @ weights) / weights.sum())
+            ends = np.cumsum([d.shape[1 if block == "D" else 0] for d in d_matrix.values()])
+            assert list(found[block]) == list(d_matrix)
+            for group, values in zip(d_matrix, np.split(vip, ends[:-1]), strict=True):
+                labels = getattr(d_matrix[group], names).to_list()
+                _tpls_near(found[block][group], pd.Series(values, index=labels), 1e-10)
+            assert model.vip(block, method="deflated").keys() == found[block].keys()
+            assert model.vip(block) is model.feature_importance[block]
+        assert model.vip() is model.feature_importance
+
+    def test_the_score_and_the_scorers_are_those_of_the_predictions(self) -> None:
+        """R2, MSE, MAE and RMSE of the predictions written out, per column then averaged, weighted or not."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        data = DataFrameDict(blocks)
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        y = blocks["Y"]["Q"].to_numpy()
+        hat = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2), blocks)["hat"]
+        weight = np.arange(1.0, 11.0)
+        for w in (np.ones(10), weight):
+            mean = w @ y / w.sum()
+            r2 = np.mean(1 - w @ (y - hat) ** 2 / (w @ (y - mean) ** 2))
+            mse = w @ (y - hat) ** 2 / w.sum()
+            mae = w @ np.abs(y - hat) / w.sum()
+            weights = None if w is not weight else w
+            assert model.score(data, sample_weight=weights) == pytest.approx(r2, rel=1e-10)
+            assert make_tpls_scorer()(model, data, sample_weight=weights) == pytest.approx(r2, rel=1e-10)
+            for metric, value in (
+                ("neg_mean_squared_error", np.mean(mse)),
+                ("neg_mean_absolute_error", np.mean(mae)),
+                ("neg_root_mean_squared_error", np.mean(np.sqrt(mse))),
+            ):
+                assert make_tpls_scorer(metric)(model, data, sample_weight=weights) == pytest.approx(-value, rel=1e-10)
+        assert isinstance(model.score(data), float)
+
+    def test_a_scorer_of_a_callable_metric(self) -> None:
+        """A callable metric gets the keyword arguments given, its sign flipped when greater is not better."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        data = DataFrameDict(blocks)
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        y = blocks["Y"]["Q"].to_numpy()
+        hat = _tpls_diagnose_by_hand(_tpls_written_out(d_matrix, blocks, 2), blocks)["hat"]
+
+        def largest_error(y_true: pd.DataFrame, y_pred: pd.DataFrame, sample_weight: object, power: int = 1) -> float:
+            assert sample_weight is None
+            return float(np.max(np.abs(y_true.to_numpy() - y_pred.to_numpy())) ** power)
+
+        scorer = make_tpls_scorer(largest_error, greater_is_better=False, power=2)
+        assert scorer(model, data) == pytest.approx(-(np.max(np.abs(y - hat)) ** 2), rel=1e-10)
+        assert scorer.__name__ == scorer.__qualname__ == "tpls_scorer(largest_error)"
+        assert make_tpls_scorer(largest_error)(model, data) == pytest.approx(np.max(np.abs(y - hat)), rel=1e-10)
+        unnamed = make_tpls_scorer(functools.partial(largest_error, power=3))
+        assert unnamed.__name__ == unnamed.__qualname__ == "tpls_scorer(metric)"
+        named = make_tpls_scorer("neg_mean_absolute_error")
+        assert named.__name__ == named.__qualname__ == "tpls_scorer(neg_mean_absolute_error)"
+
+    def test_a_column_with_no_variance_has_no_r2_and_raises_no_other_warning(self) -> None:
+        """A constant F column is left out with a warning; its R2 is NaN, with no division warning."""
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["B"]["m2"] = 0.5
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r'Block F\["B"\] has columns with no variance')
+            model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 2), rtol=1e-10)
+        assert np.isnan(model.r2_frac[1]["F"]["B"][2])
+        others = np.delete(model.r2_frac[1]["F"]["B"], 2)
+        assert np.isfinite(others).all()
+
+    def test_each_component_logs_its_passes(self, caplog: pytest.LogCaptureFixture) -> None:
+        """One debug line per component, numbered from 1, with the passes its loop took."""
+        d_matrix, blocks = _t_shaped(gaps=False)
+        with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._tpls"):
+            TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+        passes = _tpls_written_out(d_matrix, blocks, 3)["iterations"]
+        assert [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._tpls"] == [
+            f"TPLS: super-component {a} converged in {n} iterations" for a, n in enumerate(passes, start=1)
+        ]
+
+    def test_a_change_of_exactly_tol_has_not_converged(self) -> None:
+        """The loop stops once u moves by less than tol, relative to its length: a change equal to tol goes on.
+
+        The tolerance here is the change the fit's third pass of component 1 made, so that
+        pass is not the last.
+        """
+        d_matrix, blocks = _t_shaped()
+        third = TPLS(n_components=1, d_matrix=d_matrix, max_iter=3).fit(DataFrameDict(copy.deepcopy(blocks)))
+        tol = third.fitting_statistics["convergance_tolerance"][0]
+        assert tol == pytest.approx(_tpls_written_out(d_matrix, blocks, 1, stop=(3, epsqrt))["gap"][0], rel=1e-6)
+        exact = TPLS(n_components=1, d_matrix=d_matrix, tol=tol).fit(DataFrameDict(copy.deepcopy(blocks)))
+        assert exact.fitting_statistics["iterations"] == [4]
+        assert exact.fitting_statistics["convergance_tolerance"][0] < tol
 
 
 # ---- Additional coverage tests for multivariate/methods.py ----
@@ -5836,17 +7243,17 @@ def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 2
 
 
-def test_t2_plot_rejects_zero_with_a(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a == 0`."""
-    with pytest.raises(ValueError, match="with_a"):
-        fixture_pca_for_plots.t2_plot(with_a=0)
+def test_t2_plot_rejects_zero_components(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components == 0`."""
+    with pytest.raises(ValueError, match="n_components"):
+        fixture_pca_for_plots.t2_plot(n_components=0)
 
 
-def test_t2_plot_rejects_with_a_above_components(fixture_pca_for_plots: PCA) -> None:
-    """t2_plot should reject `with_a` larger than the number of fitted components."""
+def test_t2_plot_rejects_more_components_than_fitted(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `n_components` larger than the number of fitted components."""
     model = fixture_pca_for_plots
-    with pytest.raises(ValueError, match="with_a"):
-        model.t2_plot(with_a=model.n_components + 1)
+    with pytest.raises(ValueError, match="n_components"):
+        model.t2_plot(n_components=model.n_components + 1)
 
 
 def test_t2_plot_rejects_invalid_conf_level(fixture_pca_for_plots: PCA) -> None:
@@ -5876,8 +7283,12 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
         ("score_plot", {"pc_horiz": 1, "pc_vert": 1}, r"^Specify distinct components for each axis\.$"),
         ("score_plot", {"settings": {"ellipse_conf_level": 1.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
         ("score_plot", {"settings": {"ellipse_conf_level": 0.0}}, r"0\.0 < `ellipse_conf_level` < 1\.0"),
-        ("spe_plot", {"with_a": 0}, r"^`with_a` must be >= 1, or specified with negative indexing\.$"),
-        ("spe_plot", {"with_a": 4}, r"^`with_a` must be <= the number of components fitted \(3\); got 4\.$"),
+        ("spe_plot", {"n_components": 0}, r"^`n_components` must be >= 1, or specified with negative indexing\.$"),
+        (
+            "spe_plot",
+            {"n_components": 4},
+            r"^`n_components` must be <= the number of components fitted \(3\); got 4\.$",
+        ),
         ("spe_plot", {"settings": {"conf_level": 1.0}}, r"0\.0 < `conf_level` < 1\.0"),
         ("spe_plot", {"settings": {"conf_level": 0.0}}, r"0\.0 < `conf_level` < 1\.0"),
     ],
@@ -6493,8 +7904,367 @@ def test_vip_raises_without_weights_or_loadings() -> None:
     class _FakeFitted:
         r2_per_component_ = pd.DataFrame([[0.5, 0.3]])
 
-    with pytest.raises(ValueError, match="x_weights_"):
+    message = "Model must have 'x_weights_' (PLS) or 'loadings_' (PCA) to compute VIP."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         vip(_FakeFitted())
+
+
+# ---- The diagnostics worked by hand on stand-in models: each reads a fitted model's attributes only ----
+
+
+@pytest.mark.parametrize(
+    ("call", "message"),
+    [
+        (vip, "Model is not fitted. Call fit() before computing VIP."),
+        (squared_cosine, "Model is not fitted. Call fit() before computing the squared cosine."),
+        (observation_contributions, "Model is not fitted. Call fit() before computing observation contributions."),
+        (eigenvalue_summary, "Model is not fitted. Call fit() before computing the eigenvalue summary."),
+        (
+            lambda model: t2_contributions(model, np.zeros((2, 2))),
+            "Model is not fitted. Call fit() before computing contributions.",
+        ),
+        (
+            lambda model: project_variables(model, np.zeros((2, 2))),
+            "Model is not fitted. Call fit() before projecting variables.",
+        ),
+        (
+            lambda model: target_projection(model, np.zeros((2, 2))),
+            "Model is not fitted, or is not a PLS model with 'beta_coefficients_'.",
+        ),
+    ],
+)
+def test_diagnostics_refuse_an_unfitted_model_in_full(call: Callable, message: str) -> None:
+    """Each diagnostic names what it could not compute, word for word."""
+    for unfitted in (PCA(n_components=2), PLS(n_components=2)):
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            call(unfitted)
+
+
+def test_squared_cosine_needs_the_spe_as_well_as_the_scores() -> None:
+    """A model with scores but no SPE has no residual to put in the denominator."""
+    message = "Model is not fitted. Call fit() before computing the squared cosine."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        squared_cosine(SimpleNamespace(scores_=pd.DataFrame([[1.0]])))
+
+
+def test_vip_by_hand_on_a_stand_in_model() -> None:
+    """``VIP_j^2 = K sum_a r2_a w_ja^2 / sum_a r2_a``, for three features and two components.
+
+    With r2 = (0.5, 0.25) and K = 3 this is ``2 w_j1^2 + w_j2^2``: 0.72, 1.64 and 0.64 for the
+    weights below, which sum to K. On the first component alone it is ``3 w_j1^2``: 1.08, 1.92
+    and 0. A PLS model's weights are read before its loadings, set to zero here to show it.
+    """
+    weights = pd.DataFrame([[0.6, 0.0], [0.8, 0.6], [0.0, 0.8]], index=["a", "b", "c"], columns=[1, 2])
+    r2 = pd.Series([0.5, 0.25], index=[1, 2])
+    expected = pd.Series(np.sqrt([0.72, 1.64, 0.64]), index=["a", "b", "c"], name="VIP")
+    pca_like = SimpleNamespace(r2_per_component_=r2, loadings_=weights)
+    pls_like = SimpleNamespace(r2_per_component_=r2, x_weights_=weights, loadings_=0.0 * weights)
+    for model in (pca_like, pls_like):
+        pd.testing.assert_series_equal(vip(model), expected, rtol=1e-14)
+        pd.testing.assert_series_equal(vip(model, n_components=2), expected, rtol=1e-14)
+        np.testing.assert_allclose(vip(model, n_components=1), np.sqrt([1.08, 1.92, 0.0]), rtol=1e-14)
+        with pytest.raises(ValueError, match=r"^n_components must be between 1 and 2, got 3\.$"):
+            vip(model, n_components=3)
+
+
+def test_response_selector_counts_positions_from_0_and_refuses_in_full() -> None:
+    """An integer picks a response by position, 0 to M - 1; anything else is refused with the reason."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.standard_normal((20, 3)), columns=["x0", "x1", "x2"])
+    Y = pd.DataFrame({"y0": X["x0"] + 0.1 * rng.standard_normal(20), "y1": X["x1"] - X["x2"]})
+    pls = PLS(n_components=2).fit(X, Y)
+    assert target_projection(pls, X, response=0).response == "y0"
+    assert target_projection(pls, X, response=np.int64(1)).response == "y1"
+    for position in (2, -1):
+        with pytest.raises(ValueError, match=rf"^response index {position} is out of range for 2 responses\.$"):
+            target_projection(pls, X, response=position)
+    with pytest.raises(ValueError, match=r"^response 'y9' is not one of the model responses \['y0', 'y1'\]\.$"):
+        target_projection(pls, X, response="y9")
+
+
+def _two_feature_tp_model(direct_weights: list[float]) -> SimpleNamespace:
+    """Return a one-response PLS stand-in whose regression vector is ``direct_weights``; it has no X scaler."""
+    return SimpleNamespace(
+        beta_coefficients_=pd.DataFrame({"y": [0.0, 0.0]}, index=["a", "b"]),
+        direct_weights_=pd.DataFrame([[weight] for weight in direct_weights], index=["a", "b"]),
+        y_loadings_=pd.DataFrame([[1.0]], index=["y"]),
+    )
+
+
+_TP_X = pd.DataFrame(
+    [[1.0, 0.0], [0.0, 1.0], [-1.0, -1.0], [2.0, -1.0]], index=["r1", "r2", "r3", "r4"], columns=["a", "b"]
+)
+
+
+def test_target_projection_and_selectivity_ratio_by_hand() -> None:
+    """``w = b / |b|``, ``t = X w``, ``p = X't / t't`` and ``SR_j = p_j^2 t't / |x_j - t p_j|^2``.
+
+    The regression vector ``W* q'`` is (3, 4), so ``w = (0.6, 0.8)``. The four rows give
+    ``t = (0.6, 0.8, -1.4, 0.4)``, ``t't = 3.12`` and ``p = (2.8, 1.8) / 3.12``. The columns'
+    sums of squares are 6 and 3, so the residual ones are ``6 - 2.8^2 / 3.12`` and
+    ``3 - 1.8^2 / 3.12``, and the ratios 49/68 and 9/17. With N = 4 the F critical value has 2
+    and 1 degrees of freedom, where ``1 - (1 + 2F)^(-1/2) = 0.9`` gives F = 49.5.
+    """
+    model = _two_feature_tp_model([3.0, 4.0])
+    tp = target_projection(model, _TP_X)
+    pd.testing.assert_series_equal(tp.weights, pd.Series([0.6, 0.8], index=["a", "b"], name="TP weight"), rtol=1e-15)
+    expected_scores = pd.Series([0.6, 0.8, -1.4, 0.4], index=_TP_X.index, name="TP score")
+    pd.testing.assert_series_equal(tp.scores, expected_scores, rtol=1e-14)
+    expected_loadings = pd.Series([2.8 / 3.12, 1.8 / 3.12], index=["a", "b"], name="TP loading")
+    pd.testing.assert_series_equal(tp.loadings, expected_loadings, rtol=1e-14)
+    assert tp.response == "y"
+
+    ratio = selectivity_ratio(model, _TP_X, conf_level=0.9)
+    pd.testing.assert_series_equal(
+        ratio, pd.Series([49 / 68, 9 / 17], index=["a", "b"], name="selectivity_ratio"), rtol=1e-13
+    )
+    assert ratio.attrs["f_critical"] == pytest.approx(49.5, rel=1e-12)
+    assert ratio.attrs["conf_level"] == 0.9
+    assert ratio.attrs["response"] == "y"
+
+
+def test_target_projection_reads_object_data_as_numbers() -> None:
+    """X held as Python objects gives the float results, with no scaler to convert it first."""
+    model = _two_feature_tp_model([3.0, 4.0])
+    as_objects = _TP_X.astype(object)
+    pd.testing.assert_series_equal(
+        target_projection(model, as_objects).loadings, target_projection(model, _TP_X).loadings
+    )
+    pd.testing.assert_series_equal(selectivity_ratio(model, as_objects), selectivity_ratio(model, _TP_X))
+
+
+def test_target_projection_counts_a_norm_of_exactly_epsqrt_as_0() -> None:
+    """A regression vector, or TP scores, of norm exactly epsqrt (``2**-26``) count as ~0."""
+    assert epsqrt == 2.0**-26
+    message = "The regression vector for response 'y' is ~0; it is not predicted by X."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        target_projection(_two_feature_tp_model([2.0**-26, 0.0]), _TP_X)
+    flat = pd.DataFrame([[2.0**-13, 5.0], [0.0, 3.0]], columns=["a", "b"])  # scores (2**-13, 0)
+    message = "The target-projected scores have ~0 variance; cannot form the TP loading."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        target_projection(_two_feature_tp_model([1.0, 0.0]), flat)
+
+
+def test_selectivity_ratio_is_0_without_a_warning_where_it_cannot_be_formed() -> None:
+    """A feature the TP component reproduces exactly (x / 0) and an all-zero one (0 / 0) both get 0, quietly.
+
+    With ``w = (1, 0)`` the scores are column a itself, so its loading is 1 and its residual 0.
+    Three rows leave the F distribution 0 denominator degrees of freedom: its critical value is NaN.
+    """
+    X = pd.DataFrame({"a": [1.0, -1.0, 2.0], "b": [0.0, 0.0, 0.0]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
+    np.testing.assert_array_equal(ratio.to_numpy(), [0.0, 0.0])
+    assert np.isnan(ratio.attrs["f_critical"])
+
+
+def test_squared_cosine_and_observation_contributions_by_hand() -> None:
+    """Squared scores over each row's total (scores and SPE squared), and over each column's total.
+
+    Row p has scores (3, 4, 0) and an SPE of 5, a total of 50; row q sits at the origin with no
+    residual (0 / 0, read as 0); row r has scores (1, 0, 0) and no residual. Only the last SPE
+    column, the full model's, counts. The columns' sums of squares are 10, 16 and 0 (0 / 0 again).
+    """
+    index, columns = ["p", "q", "r"], [1, 2, 3]
+    scores = pd.DataFrame([[3.0, 4.0, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], index=index, columns=columns)
+    spe = pd.DataFrame([[9.0, 9.0, 5.0], [9.0, 9.0, 0.0], [9.0, 9.0, 0.0]], index=index, columns=columns)
+    model = SimpleNamespace(scores_=scores, spe_=spe)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        cos2, shares = squared_cosine(model), observation_contributions(model)
+    expected_cos2 = pd.DataFrame([[0.18, 0.32, 0.0], [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], index=index, columns=columns)
+    expected_shares = pd.DataFrame([[0.9, 1.0, 0.0], [0.0, 0.0, 0.0], [0.1, 0.0, 0.0]], index=index, columns=columns)
+    for function, result, expected in (
+        (squared_cosine, cos2, expected_cos2),
+        (observation_contributions, shares, expected_shares),
+    ):
+        pd.testing.assert_frame_equal(result, expected)
+        pd.testing.assert_frame_equal(function(model, n_components=1), expected[[1]])
+        pd.testing.assert_frame_equal(function(model, n_components=3), expected)
+        for wrong in (0, 4):
+            with pytest.raises(ValueError, match=rf"^n_components must be between 1 and 3, got {wrong}\.$"):
+                function(model, n_components=wrong)
+
+
+def test_eigenvalue_summary_by_hand() -> None:
+    """The score variances, and r2 per component and cumulated, in percent, indexed by component."""
+    model = SimpleNamespace(
+        explained_variance_=np.array([4.0, 1.0]),
+        r2_per_component_=pd.Series([0.5, 0.25], index=[1, 2]),
+        r2_cumulative_=pd.Series([0.5, 0.75], index=[1, 2]),
+    )
+    expected = pd.DataFrame(
+        {"eigenvalue": [4.0, 1.0], "percent_variance": [50.0, 25.0], "cumulative_percent": [50.0, 75.0]},
+        index=pd.Index([1, 2], name="component"),
+    )
+    pd.testing.assert_frame_equal(eigenvalue_summary(model), expected)
+
+
+def test_project_variables_are_the_correlations_np_corrcoef_gives() -> None:
+    """Each entry is the Pearson correlation of a supplementary column with a score column.
+
+    Neither block is centred (the stand-in's scores have means 3 and 1, the columns 12 and
+    1.25), so the centring counts. A constant column (0 / 0) and one too small to square (its
+    sum of squares underflows to 0, so x / 0) both read as uncorrelated, without a warning.
+    """
+    scores = pd.DataFrame([[1.0, 2.0], [2.0, 0.0], [3.0, 1.0], [6.0, 1.0]], columns=[1, 2])
+    model = SimpleNamespace(scores_=scores)
+    supplementary = pd.DataFrame(
+        {"u": [10.0, 12.0, 11.0, 15.0], "v": [-1.0, 0.0, 4.0, 2.0], "flat": 7.0, "tiny": [1e-170, -1e-170] * 2}
+    )
+    expected = pd.DataFrame(0.0, index=supplementary.columns, columns=scores.columns)
+    for name in ("u", "v"):
+        for component in (1, 2):
+            expected.loc[name, component] = np.corrcoef(supplementary[name], scores[component])[0, 1]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pd.testing.assert_frame_equal(project_variables(model, supplementary), expected, rtol=1e-13)
+    pd.testing.assert_frame_equal(project_variables(model, supplementary.astype(object)), expected, rtol=1e-13)
+    message = "Supplementary data must have 4 rows (the number of observations used to fit the model), got 3."
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        project_variables(model, supplementary.iloc[:3])
+
+
+def test_rv_and_rv2_by_hand() -> None:
+    """Cross-product matrices worked by hand.
+
+    For x = (1, 0, -1) and y = (1, -1, 0), XX' and YY' share only their (1, 1) entry, 1, and
+    each has a sum of squares of 4: RV = 1/4. Off their diagonals they share nothing: RV2 = 0.
+    For x = (0.5, -0.5) and y = (1, -1) the denominator is exactly 1, and RV is 1.
+    """
+    assert rv_coefficient([[1.0], [0.0], [-1.0]], [[1.0], [-1.0], [0.0]]) == 0.25
+    assert rv2_coefficient([[1.0], [0.0], [-1.0]], [[1.0], [-1.0], [0.0]]) == 0.0
+    assert rv_coefficient([[0.5], [-0.5]], [[1.0], [-1.0]]) == 1.0
+
+
+def test_rv_computes_float32_data_in_double_precision() -> None:
+    """Single-precision blocks give the double-precision coefficient, not one rounded at 1e-7."""
+    rng = np.random.default_rng(4)
+    X = rng.standard_normal((30, 5)).astype(np.float32)
+    Y = rng.standard_normal((30, 3)).astype(np.float32)
+    for coefficient in (rv_coefficient, rv2_coefficient):
+        assert coefficient(X, Y) == pytest.approx(coefficient(X.astype(float), Y.astype(float)), rel=1e-14)
+
+
+def test_rv_refuses_its_inputs_in_full() -> None:
+    """The messages name the block and both row counts."""
+    with pytest.raises(ValueError, match=r"^X must be 1- or 2-dimensional, got 3 dimensions\.$"):
+        rv_coefficient(np.zeros((2, 2, 2)), np.zeros((2, 1)))
+    with pytest.raises(ValueError, match=r"^Y must be 1- or 2-dimensional, got 3 dimensions\.$"):
+        rv2_coefficient(np.zeros((2, 1)), np.zeros((2, 2, 2)))
+    with pytest.raises(ValueError, match=r"^X and Y must have the same number of rows; got 4 and 3\.$"):
+        rv_coefficient(np.ones((4, 2)), np.ones((3, 5)))
+
+
+def _identity_model(n_features: int, **attributes: object) -> SimpleNamespace:
+    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable."""
+    names = list("abcdefgh"[:n_features])
+    return SimpleNamespace(scores_=None, loadings_=pd.DataFrame(np.eye(n_features), index=names), **attributes)
+
+
+def test_score_and_group_contributions_by_hand() -> None:
+    """With the identity as loadings, a contribution to score a is the datum on variable a, and 0 elsewhere.
+
+    The default component is 1, and a 2-D array is data, not a score vector. Rows r1 and r3
+    average (2, 3), and against r2 = (0, 1) shift by (2, 2), which component 2 reads as (0, 2).
+    Data and weights held as Python objects give the float results.
+    """
+    model = _identity_model(2)
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    expected = pd.DataFrame([[1.0, 0.0], [0.0, 0.0], [3.0, 0.0]], index=X.index, columns=X.columns)
+    pd.testing.assert_frame_equal(score_contributions(model, X), expected)
+    pd.testing.assert_frame_equal(score_contributions(model, X.to_numpy()), expected.reset_index(drop=True))
+    pd.testing.assert_frame_equal(score_contributions(model, X.astype(object)), expected)
+
+    shift = group_contributions(model, X, group=["r1", "r3"], reference=["r2"], component=2)
+    pd.testing.assert_series_equal(shift, pd.Series([0.0, 2.0], index=["a", "b"], name="group_contributions"))
+    weights = pd.Series([0.5, -1.0, 0.5], dtype=object)
+    pd.testing.assert_series_equal(group_contributions(model, X.astype(object), weights=weights, component=2), shift)
+
+
+@pytest.mark.parametrize(
+    ("call", "error", "message"),
+    [
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], weights=[1.0, 0.0, 0.0]),
+            ValueError,
+            "Pass either weights, or group/reference, not both.",
+        ),
+        (group_contributions, ValueError, "Pass group (optionally with reference), or weights."),
+        (
+            lambda model, X: group_contributions(model, X, group=[]),
+            ValueError,
+            "group selected no observations from X.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], reference=[]),
+            ValueError,
+            "reference selected no observations from X.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=[True, False]),
+            ValueError,
+            "group is a boolean mask of length 2, but X has 3 rows.",
+        ),
+        (
+            lambda model, X: group_contributions(model, X, group=["r1"], reference=["r9", "r8"]),
+            ValueError,
+            (
+                "reference contains entries that are not index labels of X: ['r9', 'r8']. Selection is by index "
+                "label or boolean mask; to select by position, pass X.index[...] instead."
+            ),
+        ),
+        (
+            lambda model, X: score_contributions(model, X, colour="red", size=3),
+            TypeError,
+            "score_contributions() got an unexpected keyword argument: colour, size.",
+        ),
+    ],
+)
+def test_contribution_arguments_are_refused_in_full(call: Callable, error: type, message: str) -> None:
+    """Each refusal says exactly what was wrong."""
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    with pytest.raises(error, match=f"^{re.escape(message)}$"):
+        call(_identity_model(2), X)
+
+
+def test_t2_contributions_by_hand_over_the_components_selected() -> None:
+    """With the identity as loadings, the contribution of variable k is ``x_k^2 / s_k^2`` on a selected component.
+
+    For x = (1, 2, 3) and score sds (1, 2, 0.5) that is (1, 1, 36); components are numbered from
+    1, and whole floats count as their integers. Data held as Python objects give the same numbers.
+    """
+    model = _identity_model(3, scaling_factor_for_scores_=pd.Series([1.0, 2.0, 0.5]))
+    X = pd.DataFrame([[1.0, 2.0, 3.0]], columns=["a", "b", "c"])
+    every = pd.DataFrame([[1.0, 1.0, 36.0]], columns=X.columns)
+    pd.testing.assert_frame_equal(t2_contributions(model, X), every)
+    pd.testing.assert_frame_equal(t2_contributions(model, X.astype(object)), every)
+    pd.testing.assert_frame_equal(
+        t2_contributions(model, X, components=[2]), pd.DataFrame([[0.0, 1.0, 0.0]], columns=X.columns)
+    )
+    pd.testing.assert_frame_equal(
+        t2_contributions(model, X, components=np.array([1.0, 3.0])), pd.DataFrame([[1.0, 0.0, 36.0]], columns=X.columns)
+    )
+    pd.testing.assert_frame_equal(spe_contributions(model, X.astype(object)), 0.0 * X)
+    for wrong in ([], [0, 1], [4]):
+        message = f"components must be 1-based indices within 1..3, got {wrong}."
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            t2_contributions(model, X, components=wrong)
+
+
+def test_contribution_scalings_leave_a_largest_or_total_of_at_most_epsqrt_alone() -> None:
+    """``"maximum"`` and ``"within"`` divide by 1 when the largest contribution, or a row's total, is at most epsqrt.
+
+    epsqrt is exactly ``2**-26``. Such contributions keep their size, rather than being blown up to 1.
+    """
+    model, tiny = _identity_model(2), 2.0**-26
+    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"])
+    expected = pd.DataFrame([[tiny, 0.0], [-tiny / 2, 0.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, X, scaling="maximum"), expected, check_exact=True)
+    rows = pd.DataFrame([[tiny, 5.0], [tiny / 2, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"])
+    expected = pd.DataFrame([[tiny, 0.0], [tiny / 2, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, rows, scaling="within"), expected, check_exact=True)
 
 
 # --------------------------------------------------------------------------
@@ -6901,6 +8671,22 @@ class TestTplsToleranceParameter:
         assert sum(loose.fitting_statistics["iterations"]) < sum(default.fitting_statistics["iterations"])
         assert sum(default.fitting_statistics["iterations"]) < sum(tight.fitting_statistics["iterations"])
 
+    def test_a_loose_tolerance_stops_after_the_first_pass(self, fixture_tpls_example: dict) -> None:
+        """The first pass always runs, however loose the tolerance (#1028).
+
+        The loop tested its tolerance before its first pass, against a previous u primed as
+        u + 1, whose relative change is about 0.7 for a centred and scaled Y column. With a
+        tol above that the loop never began, and the fit raised UnboundLocalError for want of
+        a score. A tol of 10 now stops after one pass, which is what max_iter=1 fits.
+        """
+        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=10.0)
+        one_pass = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], max_iter=1)
+        blocks = {key: value for key, value in fixture_tpls_example.items() if key != "D"}
+        loose.fit(DataFrameDict(copy.deepcopy(blocks)))
+        one_pass.fit(DataFrameDict(blocks))
+        assert loose.fitting_statistics["iterations"] == one_pass.fitting_statistics["iterations"] == [1]
+        pd.testing.assert_frame_equal(loose.t_scores_super, one_pass.t_scores_super)
+
     @pytest.mark.parametrize("bad", [0.0, -1e-3])
     def test_a_non_positive_tolerance_is_refused(self, fixture_tpls_example: dict, bad: float) -> None:
         """A tolerance of zero or less can never be met, so the loop would always run to the cap."""
@@ -7060,3 +8846,3509 @@ class TestEkfLoopKnobsWereRenamed:
         stingy = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=1, random_state=0)
         patient = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=50, random_state=0)
         assert not np.allclose(stingy.q2.to_numpy(), patient.q2.to_numpy()), "ekf_max_iter did not reach the EM loop"
+
+
+# ---- PCA worked by hand: the estimator's API, its three fitting paths and its diagnostics (#1026) ----
+
+
+def _named_block(seed: int = 0, n: int = 12) -> pd.DataFrame:
+    """Return ``n`` centred rows of three named, correlated columns, labelled r0, r1, ..."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, 3)) @ np.array([[2.0, 1.0, 0.5], [0.0, 1.0, -1.0], [0.0, 0.0, 0.3]])
+    X -= X.mean(axis=0)
+    return pd.DataFrame(X, columns=["a", "b", "c"], index=[f"r{i}" for i in range(n)])
+
+
+def _svd_reference(X: np.ndarray, A: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return the first ``A`` loadings and scores of ``X`` by numpy's SVD, each loading's largest entry positive."""
+    _, _, Vt = np.linalg.svd(X, full_matrices=False)
+    P = Vt[:A].T.copy()
+    for a in range(A):
+        if P[np.argmax(np.abs(P[:, a])), a] < 0:
+            P[:, a] = -P[:, a]
+    return P, X @ P
+
+
+def test_pca_constructor_keeps_its_defaults_and_declares_that_it_takes_nan() -> None:
+    """The constructor stores what it is given; the estimator tells sklearn that NaN may reach it."""
+    assert PCA(n_components=2).get_params() == {
+        "n_components": 2,
+        "algorithm": "auto",
+        "tol": epsqrt,
+        "max_iter": 500,
+        "missing_data_settings": None,
+    }
+    assert PCA(n_components=2).__sklearn_tags__().input_tags.allow_nan is True
+
+
+def test_pca_whose_fit_failed_is_not_fitted() -> None:
+    """A fit that raised part way leaves no loadings, and every method that reads them says so.
+
+    The failed fit has set ``n_samples_`` and other attributes ending in ``_`` before it
+    refused the missing cell, so a check for any fitted attribute would wrongly pass.
+    """
+    X = pd.DataFrame([[1.0, 2.0], [np.nan, 1.0], [3.0, 0.5]], columns=["a", "b"])
+    pca = PCA(n_components=1, algorithm="svd")
+    with pytest.raises(ValueError, match=r"^SVD algorithm cannot handle missing data"):
+        pca.fit(X)
+    assert pca.n_samples_ == 3
+    complete = X.fillna(0.0)
+    calls: list[Callable] = [
+        lambda: pca.transform(complete),
+        lambda: pca.diagnose(complete),
+        lambda: pca.project(complete),
+        lambda: pca.score(complete),
+        lambda: pca.projection_matrix([True, True]),
+        pca.get_feature_names_out,
+        pca.detect_outliers,
+    ]
+    for call in calls:
+        with pytest.raises(NotFittedError, match="This PCA instance is not fitted yet"):
+            call()
+
+
+def test_pca_reads_new_rows_by_column_name_and_labels_every_result() -> None:
+    """New rows with their columns in another order are matched by name, and keep their own row labels.
+
+    Every value is worked from the fitted loadings: ``t = x P``, ``T2 = sum_a t_a^2 / s_a^2``
+    cumulated over the components, ``SPE = ||x - t P'||``.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    P = pca.loadings_.to_numpy()
+    s = pca.scaling_factor_for_scores_.to_numpy()
+    new = pd.DataFrame([[0.5, -1.0, 2.0], [1.5, 0.2, -0.4]], columns=["a", "b", "c"], index=["x", "y"])
+    reordered = new[["c", "a", "b"]]
+    t = new.to_numpy() @ P
+    t2 = np.cumsum(t**2 / s**2, axis=1)
+    spe = np.linalg.norm(new.to_numpy() - t @ P.T, axis=1)
+
+    expected_scores = pd.DataFrame(t, index=["x", "y"], columns=[1, 2])
+    pd.testing.assert_frame_equal(pca.transform(reordered), expected_scores, rtol=1e-12)
+    diagnosed = pca.diagnose(reordered)
+    pd.testing.assert_frame_equal(diagnosed.scores, expected_scores, rtol=1e-12)
+    pd.testing.assert_frame_equal(
+        diagnosed.hotellings_t2, pd.DataFrame(t2, index=["x", "y"], columns=[1, 2]), rtol=1e-12
+    )
+    pd.testing.assert_series_equal(diagnosed.spe, pd.Series(spe, index=["x", "y"], name="SPE"), rtol=1e-12)
+    projected = pca.project(reordered)
+    pd.testing.assert_frame_equal(projected.scores, expected_scores, rtol=1e-12)
+    pd.testing.assert_series_equal(
+        projected.hotellings_t2, pd.Series(t2[:, -1], index=["x", "y"], name="Hotelling's T2"), rtol=1e-12
+    )
+    pd.testing.assert_series_equal(projected.spe, pd.Series(spe, index=["x", "y"], name="SPE"), rtol=1e-12)
+    pd.testing.assert_series_equal(
+        projected.condition_number, pd.Series([1.0, 1.0], index=["x", "y"], name="condition_number")
+    )
+    pd.testing.assert_series_equal(projected.n_observed, pd.Series([3, 3], index=["x", "y"], name="n_observed"))
+    assert pca.score(reordered) == pytest.approx(-np.mean((new.to_numpy() - t @ P.T) ** 2), rel=1e-12)
+
+    # An array has no labels of its own: its rows are numbered from 0, its columns read in the fitted order.
+    for result in (
+        pca.transform(new.to_numpy()),
+        pca.diagnose(new.to_numpy()).scores,
+        pca.project(new.to_numpy()).scores,
+    ):
+        pd.testing.assert_frame_equal(result, pd.DataFrame(t, columns=[1, 2]), rtol=1e-12)
+    assert pca.diagnose(new.to_numpy()).hotellings_t2.index.equals(pd.RangeIndex(2))
+    assert pca.diagnose(new.to_numpy()).spe.index.equals(pd.RangeIndex(2))
+    for series in ("hotellings_t2", "spe", "condition_number", "n_observed"):
+        assert pca.project(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
+    np.testing.assert_array_equal(pca.get_feature_names_out(), ["PC1", "PC2"])
+
+
+def test_pca_score_reads_a_dataframe_by_column_name() -> None:
+    """``score`` matches columns by name, as ``transform`` does (#1026).
+
+    It took the scores from ``transform``, which realigns a DataFrame's columns, but the
+    data from the DataFrame as given, so columns in another order were subtracted from the
+    reconstruction of the wrong variables: -4.84 for a block whose reconstruction error is
+    0.82.
+    """
+    X = _named_block()
+    pca = PCA(n_components=1).fit(X)
+    P = pca.loadings_.to_numpy()
+    residual = X.to_numpy() - X.to_numpy() @ P @ P.T
+    for frame in (X, X[["c", "b", "a"]], X[["b", "c", "a"]]):
+        assert pca.score(frame) == pytest.approx(-np.mean(residual**2), rel=1e-12)
+
+
+def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
+    """A nullable ``Float64`` column's ``pd.NA`` is a missing cell, as ``transform`` and ``project`` read it (#1026).
+
+    ``diagnose`` and ``score`` converted the DataFrame as given with ``float()``, which
+    raises TypeError on ``pd.NA``. The rows without one get the values worked by hand.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    P = pca.loadings_.to_numpy()
+    nullable = X.astype("Float64")
+    nullable.iloc[1, 0] = pd.NA
+    diagnosed = pca.diagnose(nullable)
+    spe = np.linalg.norm(X.to_numpy() - X.to_numpy() @ P @ P.T, axis=1)
+    assert np.isnan(diagnosed.spe.iloc[1])
+    assert np.isnan(diagnosed.hotellings_t2.iloc[1]).all()
+    spe_complete = np.delete(spe, 1)
+    np.testing.assert_allclose(diagnosed.spe.drop("r1"), spe_complete, rtol=1e-12)
+    assert np.isnan(pca.score(nullable))
+    complete = nullable.drop(index="r1")
+    assert pca.score(complete) == pytest.approx(-np.mean(spe_complete**2) / 3, rel=1e-12)
+
+
+def test_pca_refuses_new_rows_that_do_not_fit_the_model() -> None:
+    """New rows are checked against the fit, never fitted to: the width, sparse input and infinities.
+
+    A missing cell is allowed through ``transform`` (its score is NaN), but an infinite one
+    is not. The expected width stays the fitted one after a refusal.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X.to_numpy())
+    calls: list[Callable] = [pca.transform, pca.diagnose, pca.project, pca.score]
+    for call in calls:
+        with pytest.raises(ValueError, match=r"^X has 2 features, but PCA is expecting 3 features as input\.$"):
+            call(np.ones((2, 2)))
+        message = (
+            "Sparse data was passed for X, but dense data is required. Use '.toarray()' to convert to a dense numpy "
+            "array."
+        )
+        with pytest.raises(TypeError, match=f"^{re.escape(message)}$"):
+            call(csr_matrix(np.ones((2, 3))))
+        with pytest.raises(ValueError, match=r"^Input X contains infinity"):
+            call(np.array([[1.0, np.inf, 0.0]]))
+    assert pca.n_features_in_ == 3
+    scores = pca.transform(np.array([[1.0, np.nan, 0.0], [1.0, 2.0, 0.0]]))
+    assert np.isnan(scores.iloc[0]).all()
+    assert np.isfinite(scores.iloc[1]).all()
+
+
+def test_pca_project_and_projection_matrix_work_without_training_residuals() -> None:
+    """A model that keeps no training residuals (one pickled before they were kept) still projects.
+
+    Its estimator for a row with a missing cell is the one ``project_rows`` and
+    ``operator_for_pattern`` build when they are given no residuals.
+    """
+    X = _named_block()
+    pca = PCA(n_components=2).fit(X)
+    row = np.array([[0.5, np.nan, 2.0]])
+    with_residuals = pca.project(row).scores.to_numpy()
+    del pca._x_residuals
+    loadings = pca.loadings_.to_numpy()
+    expected = project_rows(loadings, loadings, pca.explained_variance_, row, method="tsr", x_residuals=None)
+    np.testing.assert_allclose(pca.project(row).scores.to_numpy(), expected.scores, rtol=1e-12)
+    assert not np.allclose(with_residuals, expected.scores), (
+        "the residuals must change the estimate for the test to see them"
+    )
+    mask = np.array([True, False, True])
+    op = operator_for_pattern(loadings, loadings, pca.explained_variance_, mask, method="tsr", x_residuals=None)
+    built = pca.projection_matrix(["a", "c"])
+    pd.testing.assert_frame_equal(built.matrix, pd.DataFrame(op.matrix, index=[1, 2], columns=["a", "c"]))
+    assert built.condition_number == op.condition_number
+    assert built.method == "tsr"
+    assert pca.projection_matrix(["a", "c"], method="SCP").method == "scp"
+
+
+def _block_with_a_flat_and_a_small_column() -> pd.DataFrame:
+    """Return 8 centred rows: two correlated columns, a column of zeros and one with a sum of squares of 0.5."""
+    rng = np.random.default_rng(3)
+    big = rng.standard_normal((8, 2)) @ np.array([[3.0, 1.0], [0.0, 2.0]])
+    small = rng.standard_normal(8)
+    small = (small - small.mean()) * np.sqrt(0.5 / np.sum((small - small.mean()) ** 2))
+    X = np.column_stack([big[:, 0], np.zeros(8), small, big[:, 1]])
+    return pd.DataFrame(X - X.mean(axis=0), columns=["a", "flat", "small", "d"])
+
+
+@pytest.mark.parametrize("algorithm", ["svd", "nipals", "tsr"])
+def test_pca_fit_paths_by_hand_on_complete_data(algorithm: str) -> None:
+    """Each path fits the truncated SVD on complete data, and reports its R2, SPE and variance by hand.
+
+    The loadings are numpy's right singular vectors, signed so the largest entry of each is
+    positive; scores ``X P``; explained variance ``diag(T'T) / (N - 1)``; cumulative R2
+    ``1 - ||X - T P'||^2 / ||X||^2``, its increments the per-component R2; a column's
+    cumulative R2 the same ratio over that column, NaN for the column of zeros, and an
+    ordinary value for the column whose sum of squares is only 0.5; SPE the row norms of
+    the residual. None of it warns.
+    """
+    X = _block_with_a_flat_and_a_small_column()
+    A = 3
+    P, T = _svd_reference(X.to_numpy(), A)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=A, algorithm=algorithm).fit(X)
+    tol = 1e-12 if algorithm != "nipals" else 1e-6
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=tol)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=tol * 10)
+    np.testing.assert_allclose(pca.explained_variance_, np.sum(T**2, axis=0) / 7, rtol=tol)
+    total = np.sum(X.to_numpy() ** 2)
+    r2_cumulative = []
+    for a in range(1, A + 1):
+        residual = X.to_numpy() - T[:, :a] @ P[:, :a].T
+        r2_cumulative.append(1 - np.sum(residual**2) / total)
+        np.testing.assert_allclose(pca.spe_.iloc[:, a - 1], np.linalg.norm(residual, axis=1), atol=tol * 10)
+        kept = [0, 2, 3]
+        per_column = 1 - np.sum(residual[:, kept] ** 2, axis=0) / np.sum(X.to_numpy()[:, kept] ** 2, axis=0)
+        assert np.isnan(pca.r2_per_variable_.loc["flat", a])
+        np.testing.assert_allclose(pca.r2_per_variable_.iloc[kept, a - 1], per_column, atol=tol)
+    np.testing.assert_allclose(pca.r2_cumulative_, r2_cumulative, atol=tol)
+    np.testing.assert_allclose(pca.r2_per_component_, np.diff(r2_cumulative, prepend=0.0), atol=tol)
+
+
+def test_pca_fit_paths_on_two_rows_divide_the_variance_by_one() -> None:
+    """Two rows have one degree of freedom: the explained variance is ``t't / 1``."""
+    X = np.array([[1.0, -2.0, 0.5], [-1.0, 2.0, -0.5]])
+    for algorithm in ("svd", "nipals", "tsr"):
+        pca = PCA(n_components=1, algorithm=algorithm).fit(X)
+        np.testing.assert_allclose(pca.explained_variance_, [np.sum(X**2)], rtol=1e-10)
+
+
+def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
+    """With nothing to explain, every R2 is NaN rather than a 0/0 warning; T2 and SPE are 0.
+
+    A block whose sum of squares is only 0.02 has its R2 as any other.
+    """
+    small = _named_block().to_numpy() * 0.01
+    assert np.sum(small**2) < 1
+    P, T = _svd_reference(small, 1)
+    expected = 1 - np.sum((small - T @ P.T) ** 2) / np.sum(small**2)
+    assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
+    assert pca.r2_cumulative_.isna().all()
+    assert pca.r2_per_component_.isna().all()
+    assert pca.r2_per_variable_.isna().all().all()
+    assert (pca.hotellings_t2_.to_numpy() == 0).all()
+    assert (pca.spe_.to_numpy() == 0).all()
+
+
+def test_pca_fitting_info_of_each_path() -> None:
+    """SVD records no timing or iterations; NIPALS one of each per component; TSR its EM rounds, 0 on complete data.
+
+    A time is a duration within the fit's own, not a clock reading.
+    """
+    X = _named_block()
+    A = 2
+    pca = PCA(n_components=A, algorithm="svd").fit(X)
+    assert set(pca.fitting_info_) == {"timing", "iterations"}
+    for value in pca.fitting_info_.values():
+        assert value.shape == (A,)
+        assert np.isnan(value).all()
+    started = time.time()
+    pca = PCA(n_components=A, algorithm="nipals").fit(X)
+    elapsed = time.time() - started
+    assert ((pca.fitting_info_["timing"] >= 0) & (pca.fitting_info_["timing"] <= elapsed)).all()
+    iterations = pca.fitting_info_["iterations"]
+    assert iterations.dtype == float
+    assert pca.fitting_info_["timing"].dtype == float
+    assert ((iterations >= 1) & (iterations == np.round(iterations))).all()
+    started = time.time()
+    pca = PCA(n_components=A, algorithm="tsr").fit(X)
+    elapsed = time.time() - started
+    assert pca.fitting_info_["iterations"] == 0
+    assert 0 <= pca.fitting_info_["timing"] <= elapsed
+
+
+def test_pca_nipals_after_one_iteration_by_hand() -> None:
+    """With ``max_iter=1`` NIPALS stops after one pass, which can be worked by hand.
+
+    The seed is the column with the largest sum of squares (the third here, not the first),
+    its missing cell set to 0, plus 1. Then ``p_k = sum_i x_ik t_i / sum_i t_i^2`` over the
+    rows observed in column k, normalised, and ``t_i = sum_k x_ik p_k / sum_k p_k^2`` over
+    the columns observed in row i; the largest loading entry is made positive. The second
+    component repeats it on the deflated block. Each component says it stopped at the cap.
+    """
+    X = np.array(
+        [
+            [0.5, -1.0, 4.0],
+            [-1.0, 0.5, -3.0],
+            [1.5, np.nan, 2.0],
+            [0.0, 1.0, -2.5],
+            [-1.0, -0.5, -0.5],
+        ]
+    )
+    observed = ~np.isnan(X)
+    Xd = np.nan_to_num(X)
+    loadings, scores = [], []
+    for _ in range(2):
+        seed = Xd[:, int(np.argmax(np.sum(Xd**2, axis=0)))] + 1.0
+        p = (Xd.T @ seed) / (observed.T @ seed**2)
+        p /= np.linalg.norm(p)
+        t = (Xd @ p) / (observed @ p**2)
+        if p[np.argmax(np.abs(p))] < 0:
+            p, t = -p, -t
+        loadings.append(p)
+        scores.append(t)
+        Xd = np.where(observed, Xd - np.outer(t, p), 0.0)
+    assert np.argmax(np.sum(np.nan_to_num(X) ** 2, axis=0)) == 2
+    with pytest.warns(SpecificationWarning) as record:
+        pca = PCA(n_components=2, algorithm="nipals", max_iter=1).fit(X)
+    assert [str(w.message) for w in record] == [
+        f"PCA NIPALS: component {a} reached the maximum number of iterations (1) without converging." for a in (1, 2)
+    ]
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), np.column_stack(loadings), rtol=1e-12)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), np.column_stack(scores), rtol=1e-12)
+    np.testing.assert_array_equal(pca.fitting_info_["iterations"], [1, 1])
+
+
+def test_pca_nipals_seeds_from_the_largest_column_not_the_first() -> None:
+    """A first column of zeros, orthogonal to every score, does not stall NIPALS (#195).
+
+    Seeded from it, the score would be a column of ones, which a centred block maps to a
+    zero loading. Seeded from the largest column, NIPALS finds the SVD's components.
+    """
+    X = _block_with_a_flat_and_a_small_column()[["flat", "a", "small", "d"]].to_numpy()
+    P, _ = _svd_reference(X, 2)
+    pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+
+
+def test_pca_nipals_signs_each_component_whatever_its_seed() -> None:
+    """NIPALS converges to the sign its seed points to; the convention then fixes the sign.
+
+    The seed is the third column, the largest, which leans against the first component
+    (along the first two columns), so that component converges with its largest entries
+    negative and is flipped, loading and scores together, to agree with the SVD's.
+    """
+    rng = np.random.default_rng(3)
+    f = rng.standard_normal(30)
+    X = np.column_stack(
+        [
+            2.2 * f + 0.3 * rng.standard_normal(30),
+            2.2 * f + 0.3 * rng.standard_normal(30),
+            2.8 * rng.standard_normal(30) - 0.4 * f,
+        ]
+    )
+    X -= X.mean(axis=0)
+    assert np.argmax(np.sum(X**2, axis=0)) == 2
+    P, T = _svd_reference(X, 2)
+    pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=1e-5)
+
+
+def test_pca_nipals_refines_a_large_seed_at_least_once() -> None:
+    """On a column of size 1e9 the ``+ 1`` offset is lost, so the seed passes the convergence test unrefined.
+
+    The first pass runs regardless, so the fitted loading is the SVD's, not zero.
+    """
+    X = _named_block().to_numpy() * 1e9
+    P, _ = _svd_reference(X, 1)
+    pca = PCA(n_components=1, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-6)
+
+
+def test_pca_nipals_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
+    """Each component's iteration count and the tolerance are logged at DEBUG level."""
+    X = _named_block()
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._pca"):
+        pca = PCA(n_components=2, algorithm="nipals").fit(X)
+    iterations = pca.fitting_info_["iterations"].astype(int)
+    assert [record.getMessage() for record in caplog.records] == [
+        f"PCA NIPALS: component {a + 1} converged in {iterations[a]} iterations (tol=1.49012e-08)" for a in range(2)
+    ]
+
+
+def test_pca_nipals_needs_a_sum_of_squares_of_at_least_epsqrt() -> None:
+    """A block whose sum of squares is exactly epsqrt (``2**-26``) still fits; one below it is refused.
+
+    The single non-zero cell ``2**-13`` gives the loading (1, 0) and the scores (2**-13, 0).
+    A second component finds nothing left, and the refusal says after which component.
+    """
+    X = np.array([[2.0**-13, 0.0], [0.0, 0.0]])
+    assert np.sum(X**2) == epsqrt
+    pca = PCA(n_components=1, algorithm="nipals").fit(X)
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), [[2.0**-13], [0.0]], atol=1e-20)
+    message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
+    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.5)
+    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
+        PCA(n_components=2, algorithm="nipals").fit(X)
+
+
+def _tsr_by_hand(X: np.ndarray, A: int, max_iter: int, tol: float) -> tuple[np.ndarray, np.ndarray, int]:
+    """Trimmed score regression (Arteaga and Ferrer, 2002; Folch-Fortuny et al., 2015), written out.
+
+    Start the missing cells at 0. Each round: take the column means and covariance S of the
+    current block, and the first A loadings V of its centred SVD; fill each row's missing
+    cells, centred, with ``S_mo V_o (V_o' S_oo V_o)^+ V_o' x_o``, using at most as many
+    loadings as the row has observed cells. Stop once the mean squared change of the filled
+    cells is at most ``tol``, or after ``max_iter`` rounds. The loadings are then the first
+    A eigenvectors of the filled block's covariance, signed so the largest entry is positive,
+    and the scores the filled block times them.
+    """
+    missing = np.isnan(X)
+    filled = np.where(missing, 0.0, X)
+    rounds = 0
+    for rounds in range(1, max_iter + 1):  # noqa: B007 - the count is returned
+        before = filled[missing]
+        mean = filled.mean(axis=0)
+        S = np.cov(filled, rowvar=False)
+        centred = filled - mean
+        V = np.linalg.svd(centred, full_matrices=False)[2][:A].T
+        for i in np.flatnonzero(missing.any(axis=1)):
+            o, m = ~missing[i], missing[i]
+            L = V[o, : min(A, o.sum())]
+            centred[i, m] = S[np.ix_(m, o)] @ L @ np.linalg.pinv(L.T @ S[np.ix_(o, o)] @ L) @ L.T @ centred[i, o]
+        filled = centred + mean
+        if np.mean((filled[missing] - before) ** 2) <= tol:
+            break
+    values, vectors = np.linalg.eigh(np.cov(filled, rowvar=False))
+    P = vectors[:, np.argsort(values)[::-1][:A]]
+    P = P * np.where(P[np.argmax(np.abs(P), axis=0), np.arange(A)] < 0, -1.0, 1.0)
+    return P, filled @ P, rounds
+
+
+@pytest.mark.parametrize(("shape", "max_iter"), [((9, 4), 1), ((9, 4), 3), ((9, 4), 500), ((4, 6), 500)])
+def test_pca_tsr_by_hand(shape: tuple[int, int], max_iter: int) -> None:
+    """TSR on a block with missing cells, one row with fewer observed cells than components, tall and wide.
+
+    The rounds, loadings, scores, R2 and SPE match the algorithm written out, and the
+    reconstruction error of the observed cells only enters R2 and SPE.
+    """
+    rng = np.random.default_rng(11)
+    N, K = shape
+    X = rng.standard_normal((N, 2)) @ rng.standard_normal((2, K)) + 0.3 * rng.standard_normal((N, K)) + 2.0
+    X[0, 1] = X[2, 3] = X[3, 0] = np.nan
+    X[1, : K - 1] = np.nan  # one observed cell, fewer than the two components
+    A = 2
+    P, T, rounds = _tsr_by_hand(X, A, max_iter, epsqrt)
+    pca = PCA(n_components=A, algorithm="tsr", max_iter=max_iter).fit(X)
+    assert pca.fitting_info_["iterations"] == rounds
+    assert rounds == max_iter or 1 < rounds < max_iter
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=1e-8)
+    np.testing.assert_allclose(pca.scores_.to_numpy(), T, atol=1e-7)
+    np.testing.assert_allclose(pca.explained_variance_, np.sum(T**2, axis=0) / (N - 1), rtol=1e-8)
+    observed = ~np.isnan(X)
+    for a in range(1, A + 1):
+        residual = np.where(observed, T[:, :a] @ P[:, :a].T - np.nan_to_num(X), 0.0)
+        np.testing.assert_allclose(pca.spe_.iloc[:, a - 1], np.linalg.norm(residual, axis=1), atol=1e-7)
+        np.testing.assert_allclose(pca.r2_cumulative_.iloc[a - 1], 1 - np.sum(residual**2) / np.nansum(X**2), atol=1e-8)
+        np.testing.assert_allclose(
+            pca.r2_per_variable_.iloc[:, a - 1], 1 - np.sum(residual**2, axis=0) / np.nansum(X**2, axis=0), atol=1e-8
+        )
+    np.testing.assert_allclose(pca.r2_per_component_, np.diff(pca.r2_cumulative_, prepend=0.0), atol=1e-12)
+
+
+def test_pca_tsr_on_complete_data_runs_no_imputation_and_does_not_warn() -> None:
+    """With nothing missing, TSR takes the covariance's eigenvectors at once: no rounds, no warning."""
+    X = _block_with_a_flat_and_a_small_column()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pca = PCA(n_components=2, algorithm="tsr").fit(X)
+    assert pca.fitting_info_["iterations"] == 0
+    np.testing.assert_allclose(pca.loadings_.to_numpy(), _svd_reference(X.to_numpy(), 2)[0], atol=1e-12)
+
+
+def _ekf_fill(X: np.ndarray, unknown: np.ndarray, a: int, constants: tuple, settings: dict) -> np.ndarray:
+    """Fill the ``unknown`` cells from rank-``a`` reconstructions until they settle, as the ekf EM does.
+
+    ``constants`` holds the fold's column centres and spreads.
+    """
+    centre, spread = constants
+    sd = np.broadcast_to(spread, X.shape)[unknown]
+    Xa = np.where(unknown, centre, X)
+    previous = Xa[unknown] / sd
+    for _ in range(settings["max_iter"]):
+        if settings["scale"]:
+            recon = _low_rank_reconstruction((Xa - centre) / spread, a) * spread + centre
+        else:
+            mean = Xa.mean(axis=0)
+            recon = _low_rank_reconstruction(Xa - mean, a) + mean
+        Xa = np.where(unknown, recon, Xa)
+        current = Xa[unknown] / sd
+        if np.linalg.norm(current - previous) < settings["tol"] * max(1.0, np.linalg.norm(previous)):
+            break
+        previous = current
+    return Xa
+
+
+def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: int, **settings: object) -> tuple:
+    """Element-wise k-fold cross-validation (Bro et al., 2008), written out cell by cell.
+
+    Each repeat deals the observed cells, in an order drawn from ``seed``, into ``n_folds``
+    folds of ``n_cells // n_folds`` cells, the last fold taking the rest. In a fold, each
+    column's centre is the mean of its cells neither held out nor missing, and, when scaling,
+    its spread their sd, kept at 1 for fewer than two cells or cells all equal, in any units. The
+    unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
+    (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
+    scaled change is below ``tol`` times the norm of their scaled values (at least 1), or
+    for ``max_iter`` rounds. PRESS sums the held-out cells' scaled squared errors, the null
+    reference their scaled squared deviations from the centre; totals are averaged over
+    the repeats. ``settings`` holds ``max_iter``, ``tol`` and ``scale``. Returns the six
+    fields of ``_pca_ekf_press`` in its order.
+    """
+    n, p = X.shape
+    rng = np.random.default_rng(seed)
+    cells = np.flatnonzero(~np.isnan(X))
+    size = cells.size // n_folds
+    per_fold = np.full((A, n_folds * n_repeats), np.nan)
+    per_column, per_column_null, press_units, null = np.zeros((A, p)), np.zeros(p), np.zeros(A), 0.0
+    column = np.broadcast_to(np.arange(p), X.shape)
+    for r in range(n_repeats):
+        order = cells[rng.permutation(cells.size)]
+        for k in range(n_folds):
+            held = order[k * size : (k + 1) * size] if k < n_folds - 1 else order[k * size :]
+            mask = np.isin(np.arange(n * p), held).reshape(n, p)
+            unknown = mask | np.isnan(X)
+            known = [X[~unknown[:, j], j] for j in range(p)]
+            centre = np.array([cells_j.mean() if cells_j.size else 0.0 for cells_j in known])
+            spread = np.array(
+                [
+                    cells_j.std(ddof=1)
+                    if settings["scale"] and cells_j.size > 1 and cells_j.max() > cells_j.min()
+                    else 1.0
+                    for cells_j in known
+                ]
+            )
+            null_residual = ((X - centre) / spread)[mask]
+            null += np.sum(null_residual**2)
+            np.add.at(per_column_null, column[mask], null_residual**2)
+            for a in range(1, A + 1) if held.size else ():
+                error = (X - _ekf_fill(X, unknown, a, (centre, spread), settings))[mask]
+                scaled = error / np.broadcast_to(spread, X.shape)[mask]
+                per_fold[a - 1, r * n_folds + k] = np.sum(scaled**2)
+                np.add.at(per_column[a - 1], column[mask], scaled**2)
+                press_units[a - 1] += np.sum(error**2)
+    m = n_repeats
+    return np.nansum(per_fold, axis=1) / m, per_fold, per_column / m, null / m, per_column_null / m, press_units / m
+
+
+def _gappy_block() -> np.ndarray:
+    """Return 7 rows of 4 columns with missing cells, a constant column, and a column observed twice."""
+    rng = np.random.default_rng(21)
+    X = rng.standard_normal((7, 2)) @ rng.standard_normal((2, 4)) * [1.0, 5.0, 1.0, 0.2] + [0.0, 3.0, 1.0, -1.0]
+    X[:, 2] = 1.0  # constant
+    X[[0, 4], 1] = np.nan
+    X[2:, 3] = np.nan  # observed in two rows only
+    X[5, 0] = np.nan
+    return X
+
+
+_EKF_CASES = {
+    "complete, two repeats": (
+        np.random.default_rng(5).standard_normal((8, 4)) @ np.diag([3.0, 1.0, 1.0, 0.5]),
+        3,
+        3,
+        2,
+        1e-6,
+        True,
+    ),
+    "gappy, loose tolerance": (_gappy_block(), 3, 4, 1, 0.05, True),
+    "gappy, unscaled": (_gappy_block(), 3, 4, 1, 0.05, False),
+    "fewer cells than folds": (np.array([[1.0, 2.0], [3.0, 4.5]]), 1, 5, 1, 1e-6, True),
+    "an in-fold sd of 2**-26": (
+        np.array([[-(2.0**-26), 1.0], [0.0, 2.0], [2.0**-26, 0.5], [1.0, -1.0]]),
+        1,
+        8,
+        1,
+        1e-6,
+        True,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_EKF_CASES))
+def test_ekf_press_by_hand(case: str) -> None:
+    """Every field of the element-wise k-fold pass agrees with the scheme written out.
+
+    The cases reach each branch: two repeats; a constant column (spread 1), a column with
+    one or two cells left in a fold, a fold missing a column altogether; the unscaled
+    variant; folds with no cells; and, one cell per fold, a column whose in-fold sd is
+    ``2**-26``, which is divided by as any other: a column is constant when its cells are
+    all equal, not when its sd is small (#1029).
+    """
+    X, A, n_folds, n_repeats, tol, scale = _EKF_CASES[case]
+    settings = {"n_folds": n_folds, "n_repeats": n_repeats, "ekf_max_iter": 50, "ekf_tol": tol}
+    result = _pca_ekf_press(X, A, scale_inside_folds=scale, random_state=3, **settings)
+    expected = _ekf_by_hand(X, A, n_folds=n_folds, n_repeats=n_repeats, seed=3, max_iter=50, tol=tol, scale=scale)
+    for got, want in zip(result, expected, strict=True):
+        np.testing.assert_allclose(got, want, rtol=1e-10, atol=1e-12)
+
+
+def test_ekf_null_reference_without_in_fold_scaling_is_the_centred_sum_of_squares() -> None:
+    """Without in-fold scaling, Q2 is measured against each column's sum of squares about its mean.
+
+    Missing cells are left out of both the mean and the sum.
+    """
+    X = _gappy_block()
+    X[:, 2] = [0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 3.0]  # not constant, so every column has a reference
+    centred_ss = np.nansum((X - np.nanmean(X, axis=0)) ** 2, axis=0)
+    with pytest.warns(SpecificationWarning):
+        result = PCA.select_n_components(X, max_components=2, cv=3, scale_inside_folds=False, random_state=4)
+    ekf = _pca_ekf_press(
+        X, 2, n_folds=3, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=False, random_state=4
+    )
+    np.testing.assert_allclose(result.q2, 1 - ekf.press / centred_ss.sum(), rtol=1e-12)
+    np.testing.assert_allclose(result.q2_per_variable, 1 - ekf.per_column_press / centred_ss, rtol=1e-12)
+
+
+def test_cell_scheme_preprocessing_by_hand() -> None:
+    """Each column is centred and divided by its sd, in any units: only a constant column is not.
+
+    An sd of ``2**-26`` (epsqrt) divides, and so does one of ``2**-27``, which until #1029 did
+    not; a constant column is all zeros.
+    """
+    from process_improve.multivariate._pca import _preprocess_for_cell_schemes
+
+    d = 2.0**-26
+    X = np.array([[1.0, -d, -d / 2, 4.0], [2.0, 0.0, 0.0, 4.0], [6.0, d, d / 2, 4.0]])
+    assert X[:, 1].std(ddof=1) == epsqrt
+    expected = np.column_stack([(X[:, 0] - 3.0) / X[:, 0].std(ddof=1), [-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], np.zeros(3)])
+    np.testing.assert_array_equal(_preprocess_for_cell_schemes(X, "ek"), expected)
+
+
+@pytest.mark.parametrize(
+    ("missing", "where"),
+    [
+        ([(0, 0), (1, 0), (2, 1)], "2 of them in column 0"),
+        ([(0, 0), (1, 1)], "spread over 2 columns"),
+        ([(0, 0), (1, 0), (2, 1), (3, 1), (4, 2)], "spread over 3 columns"),
+    ],
+)
+def test_cell_schemes_say_where_the_missing_cells_are(missing: list[tuple[int, int]], where: str) -> None:
+    """One column holding more than half of the missing cells is named; otherwise the count of columns is.
+
+    Exactly half is not more than half, and two of five is less.
+    """
+    X = np.arange(18.0).reshape(6, 3) ** 1.5
+    for cell in missing:
+        X[cell] = np.nan
+    message = (
+        f"cv_scheme='sacv' cannot take a block with missing cells, because it factorises the matrix directly. "
+        f"This block has {len(missing)} of 18, {where}. Use cv_scheme='ekf', which imputes an unmeasured cell "
+        "alongside the held-out ones and never scores it, or drop what is missing first."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, cv_scheme="sacv")
+
+
+def _ckf_by_hand(Z: np.ndarray, A: int, n_folds: int, seed: int) -> tuple[np.ndarray, ...]:
+    """Column-wise k-fold, written out: each group's columns predicted from scores of the others."""
+    p = Z.shape[1]
+    groups = np.array_split(np.random.default_rng(seed).permutation(p), max(1, min(n_folds, p)))
+    V = np.linalg.svd(Z)[2].T
+    per_fold = np.full((A, len(groups)), np.nan)
+    per_column = np.full((A, p), np.nan)
+    for a in range(1, A + 1):
+        for g, held in enumerate(groups):
+            kept = np.setdiff1d(np.arange(p), held)
+            if kept.size >= a:
+                residual = Z[:, held] - Z[:, kept] @ np.linalg.pinv(V[kept, :a]).T @ V[held, :a].T
+                per_column[a - 1, held] = np.sum(residual**2, axis=0)
+                per_fold[a - 1, g] = np.sum(residual**2)
+    press = np.where(np.isnan(per_fold).any(axis=1), np.nan, per_fold.sum(axis=1))
+    return press, per_fold, per_column
+
+
+def test_ckf_by_hand_through_select_n_components() -> None:
+    """The ckf curve, its folds, its per-variable Q2 and its standard error, worked by hand.
+
+    Five columns in three groups of 2, 2 and 1: a count of three leaves at least three
+    columns in, so every group evaluates it. The SE is the per-group spread over sqrt(3).
+    """
+    rng = np.random.default_rng(8)
+    X = rng.standard_normal((9, 2)) @ rng.standard_normal((2, 5)) + 0.4 * rng.standard_normal((9, 5))
+    Z = (X - X.mean(axis=0)) / X.std(axis=0, ddof=1)
+    press, per_fold, per_column = _ckf_by_hand(Z, 3, 3, seed=6)
+    result = PCA.select_n_components(X, max_components=3, cv=3, cv_scheme="ckf", random_state=6)
+    np.testing.assert_allclose(result.press, press, rtol=1e-10)
+    np.testing.assert_allclose(result.per_fold_press, per_fold, rtol=1e-10)
+    np.testing.assert_allclose(result.q2, 1 - press / np.sum(Z**2), rtol=1e-10)
+    np.testing.assert_allclose(result.q2_per_variable, 1 - per_column / np.sum(Z**2, axis=0), rtol=1e-10)
+    np.testing.assert_allclose(result.se_press, per_fold.std(axis=1, ddof=1) / np.sqrt(3), rtol=1e-10)
+    np.testing.assert_allclose(result.press_input_units, press, rtol=1e-10)
+
+
+def test_ckf_cannot_evaluate_a_count_with_one_group() -> None:
+    """``cv=1`` puts every column in one group, which leaves none to predict from: no count can be scored."""
+    X = np.random.default_rng(1).standard_normal((8, 3))
+    message = "Cross-validation produced NaN PRESS for every component count; no recommendation can be made."
+    with pytest.raises(RuntimeError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, cv=1, cv_scheme="ckf", random_state=0)
+
+
+def test_ckf_reports_the_spread_of_the_groups_that_evaluate_a_count_and_no_more() -> None:
+    """A count only one group can evaluate has no spread: its SE is NaN, and computing it does not warn.
+
+    Five columns in groups of 3 and 2: three components leave 2 columns beside the first
+    group, too few, and 3 beside the second.
+    """
+    X = np.random.default_rng(2).standard_normal((9, 5))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PCA.select_n_components(X, max_components=3, cv=2, cv_scheme="ckf", random_state=0)
+    per_fold = result.per_fold_press.to_numpy()
+    counted = (~np.isnan(per_fold)).sum(axis=1)
+    np.testing.assert_array_equal(counted, [2, 2, 1])
+    np.testing.assert_allclose(result.se_press.iloc[:2], per_fold[:2].std(axis=1, ddof=1) / np.sqrt(2), rtol=1e-12)
+    assert np.isnan(result.se_press.iloc[2])
+
+
+def _ek_fold_models(X: np.ndarray, groups: list, axis: int, reference: np.ndarray, dots: list[float]) -> list:
+    """Fit the SVD of X without each group of rows (axis 0) or columns (axis 1).
+
+    Keeps the group, the singular values, and the right vectors (rows left out) or the left
+    vectors (columns left out), each turned to agree in sign with the full SVD's vector of
+    the same rank, and left as it is when the two are orthogonal. Every inner product the
+    signs were read from is appended to ``dots``.
+    """
+    models = []
+    for group in groups:
+        u, d, vt = np.linalg.svd(np.delete(X, group, axis=axis), full_matrices=False)
+        vectors = vt.T.copy() if axis == 0 else u.copy()
+        for k in range(vectors.shape[1]):
+            dots.append(float(vectors[:, k] @ reference[:, k]))
+            if dots[-1] < 0:
+                vectors[:, k] = -vectors[:, k]
+        models.append((group, d, vectors))
+    return models
+
+
+def _ek_by_hand(X: np.ndarray, A: int, n_folds: int, seed: int) -> tuple[np.ndarray, np.ndarray, list[float]]:
+    """Eastment and Krzanowski's two models, written out cell by cell.
+
+    ``x_ij`` is predicted by ``sum_k u_ik sqrt(d_k) sqrt(e_k) v_jk``, the score and singular
+    value from the SVD of X without the column group of j, the loading and singular value from
+    the SVD without the row group of i. Also returns every inner product the signs were read
+    from.
+    """
+    n, p = X.shape
+    rng = np.random.default_rng(seed)
+    row_groups = np.array_split(rng.permutation(n), n_folds)
+    column_groups = np.array_split(rng.permutation(p), n_folds)
+    U, _, Vt = np.linalg.svd(X, full_matrices=False)
+    dots: list[float] = []
+    row_models = _ek_fold_models(X, row_groups, 0, Vt.T, dots)
+    column_models = _ek_fold_models(X, column_groups, 1, U, dots)
+    usable = min(model[1].size for model in row_models + column_models)
+    press = np.full(A, np.nan)
+    per_column = np.full((A, p), np.nan)
+    for a in range(1, min(A, usable) + 1):
+        predicted = np.zeros_like(X)
+        for (rows, e, v), (columns, d, u) in itertools.product(row_models, column_models):
+            for i, j in itertools.product(rows, columns):
+                predicted[i, j] = sum(u[i, k] * np.sqrt(d[k]) * np.sqrt(e[k]) * v[j, k] for k in range(a))
+        press[a - 1] = np.sum((X - predicted) ** 2)
+        per_column[a - 1] = np.sum((X - predicted) ** 2, axis=0)
+    return press, per_column, dots
+
+
+def test_ek_press_by_hand() -> None:
+    """The two-model prediction of every cell, on a general block and on one whose columns are orthogonal.
+
+    On the second, whose columns are orthogonal, a fold model's vector can be exactly
+    orthogonal to the full fit's vector of the same rank; its sign is then left as it is.
+    """
+    from process_improve.multivariate._pca import _eastment_krzanowski_press
+
+    rng = np.random.default_rng(13)
+    general = rng.standard_normal((8, 2)) @ rng.standard_normal((2, 5)) + 0.3 * rng.standard_normal((8, 5))
+    general -= general.mean(axis=0)
+    # Orthogonal columns of a Hadamard matrix: some fold models' vectors are exactly orthogonal to the full fit's.
+    hadamard = scipy.linalg.hadamard(8)[:, 1:4] * [3.0, 2.0, 1.0]
+    for X, A, folds, seed in ((general, 3, 3, 2), (hadamard, 1, 3, 1)):
+        press, per_column, dots = _ek_by_hand(X, A, folds, seed=seed)
+        got = _eastment_krzanowski_press(X, A, n_folds=folds, random_state=seed)
+        np.testing.assert_allclose(got[0], press, rtol=1e-10, atol=1e-12)
+        np.testing.assert_allclose(got[1], per_column, rtol=1e-10, atol=1e-12)
+        assert got[2] == pytest.approx(np.sum(X**2), rel=1e-15)
+        np.testing.assert_allclose(got[3], np.sum(X**2, axis=0), rtol=1e-15)
+    assert 0.0 in dots, "the Hadamard block must give a fold vector at right angles to the full fit's"
+
+
+def test_ek_warns_only_when_its_folds_cannot_reach_the_counts_asked_for() -> None:
+    """Two folds of 4 rows leave 2 rows per row model: 2 components can be evaluated, not 3.
+
+    Asked for exactly 2 it is silent; asked for 3 it says so, and the third count is NaN.
+    """
+    from process_improve.multivariate._pca import _eastment_krzanowski_press
+
+    X = np.random.default_rng(3).standard_normal((4, 6))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _eastment_krzanowski_press(X, 2, n_folds=2, random_state=0)
+    message = (
+        "cv_scheme='ek' can evaluate at most 2 component(s) with 2 folds on a 4 by 6 block, not 3: each fold model "
+        "is fitted on fewer rows or columns than the whole. Component counts above that are reported as NaN. "
+        "Use fewer folds to evaluate more."
+    )
+    with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+        press, per_column, _, _ = _eastment_krzanowski_press(X, 3, n_folds=2, random_state=0)
+    assert np.isfinite(press[:2]).all()
+    assert np.isnan(press[2])
+    assert np.isnan(per_column[2]).all()
+
+
+def _leverage_block() -> np.ndarray:
+    """Return a centred 4 x 4 block of rank 3 whose first row has no part in the third left singular vector.
+
+    ``X = U diag(3, 2, 1) V'`` with orthonormal U orthogonal to the ones vector and
+    ``U[0, 2] = 0``: with two components the first row's leverage is the largest a centred
+    row can have, 1 - 1/n, so its cells are not scored while the other rows' are.
+    """
+    U = np.column_stack(
+        [
+            np.array([0.0, 1, 1, -2]) / np.sqrt(6),
+            np.array([3.0, -1, -1, -1]) / np.sqrt(12),
+            np.array([0.0, 1, -1, 0]) / np.sqrt(2),
+        ]
+    )
+    V = np.linalg.qr(np.random.default_rng(9).standard_normal((4, 3)))[0]
+    return U @ np.diag([3.0, 2.0, 1.0]) @ V.T
+
+
+def test_sacv_by_hand_with_cells_it_cannot_score() -> None:
+    """The smoothing approximation of Josse and Husson (2012), cell by cell.
+
+    Each residual is divided by ``(1 - 1/n - h_i)(1 - b_j)``; a cell whose divisor is at most
+    epsqrt is dropped, and each column's error is rescaled from the sum of squares of its
+    scored cells to its whole. With two components the first row is dropped, so every column
+    is rescaled; with three, every row is, and nothing is reported.
+    """
+    X = _leverage_block()
+    n, p = X.shape
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    press, per_column, null_ss, per_column_null = _leverage_corrected_press(X, 3, method="sacv")
+    for a in (1, 2):
+        residual = X - (U[:, :a] * S[:a]) @ Vt[:a]
+        divisor = np.outer(1 - 1 / n - np.sum(U[:, :a] ** 2, axis=1), 1 - np.sum(Vt[:a] ** 2, axis=0))
+        scored = divisor > epsqrt
+        assert scored.all() == (a == 1)
+        corrected = np.where(scored, residual, 0.0) / np.where(scored, divisor, 1.0)
+        scored_ss = np.sum(np.where(scored, X**2, 0.0), axis=0)
+        expected = np.sum(corrected**2, axis=0) * np.sum(X**2, axis=0) / scored_ss
+        np.testing.assert_allclose(per_column[a - 1], expected, rtol=1e-10)
+        assert press[a - 1] == pytest.approx(expected.sum(), rel=1e-10)
+    assert not (np.outer(1 - 1 / n - np.sum(U[:, :3] ** 2, axis=1), np.ones(p)) > epsqrt).any()
+    assert np.isnan(press[2])
+    assert np.isnan(per_column[2]).all()
+    assert null_ss == pytest.approx(np.sum(X**2), rel=1e-15)
+    np.testing.assert_allclose(per_column_null, np.sum(X**2, axis=0), rtol=1e-15)
+
+
+def test_sacv_leaves_a_column_of_zeros_unscaled() -> None:
+    """A column with no sum of squares to rescale onto keeps its own (zero) error, not 0/0."""
+    X = np.column_stack([_leverage_block(), np.zeros(4)])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        press, per_column, _, _ = _leverage_corrected_press(X, 2, method="sacv")
+    assert per_column[1, 4] == 0.0
+    assert np.isfinite(press).all()
+
+
+def test_gcv_by_hand() -> None:
+    """Generalised cross-validation: residuals inflated by ``np / [(n - 1)p - a(n + p - a - 1)]``.
+
+    On 3 rows and 2 columns the first count leaves exactly one degree of freedom, an
+    inflation of 6; the second leaves none, so it is not reported.
+    """
+    X = np.array([[1.0, 2.0], [-2.0, 0.5], [1.0, -2.5]])
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    residual = X - (U[:, :1] * S[:1]) @ Vt[:1]
+    press, per_column, _, _ = _leverage_corrected_press(X, 2, method="gcv")
+    np.testing.assert_allclose(per_column[0], np.sum((6.0 * residual) ** 2, axis=0), rtol=1e-12)
+    assert press[0] == pytest.approx(36.0 * np.sum(residual**2), rel=1e-12)
+    assert np.isnan(press[1])
+    X = _leverage_block()
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    press, _, _, _ = _leverage_corrected_press(X, 2, method="gcv")
+    for a, remaining in ((1, 6), (2, 2)):
+        residual = X - (U[:, :a] * S[:a]) @ Vt[:a]
+        assert press[a - 1] == pytest.approx(np.sum((16.0 / remaining * residual) ** 2), rel=1e-12)
+
+
+def _raw_block(n: int = 12, k: int = 4, seed: int = 0) -> pd.DataFrame:
+    """Return an uncentred block of named columns with two latent factors, in units far from 1."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, 2)) @ rng.standard_normal((2, k)) + 0.3 * rng.standard_normal((n, k))
+    return pd.DataFrame(X * np.arange(1, k + 1) * 3.0 + 10.0, columns=[f"v{j}" for j in range(k)])
+
+
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek", "sacv", "gcv"])
+def test_select_n_components_labels_every_result(scheme: str) -> None:
+    """Every curve is a Series indexed by the component count, named for what it holds.
+
+    The PRESS ratio is ``PRESS_a / PRESS_(a-1)`` from the second count; ``cv_scores`` is
+    ``per_fold_press``; Q2's standard error is PRESS's over the same reference as Q2.
+    """
+    X = _raw_block()
+    result = PCA.select_n_components(X, max_components=3, cv=3, cv_scheme=scheme, random_state=0)
+    counts = pd.Index([1, 2, 3], name="n_components")
+    for key, name in (
+        ("press", "PRESS"),
+        ("press_input_units", "PRESS (input units)"),
+        ("q2", "Q2"),
+        ("se_press", "SE(PRESS)"),
+        ("q2_se", "SE(Q2)"),
+    ):
+        assert result[key].name == name
+        assert result[key].index.equals(counts)
+        assert result[key].index.name == "n_components"
+    assert result.per_fold_press.index.equals(counts)
+    folds = {"ekf": 3, "ckf": 3}.get(scheme, 1)
+    assert list(result.per_fold_press.columns) == [f"fold_{i}" for i in range(1, folds + 1)]
+    assert result.cv_scores is result.per_fold_press
+    assert result.q2_per_variable.index.equals(counts)
+    assert list(result.q2_per_variable.columns) == list(X.columns)
+    press = result.press.to_numpy()
+    expected_ratio = pd.Series([press[1] / press[0], press[2] / press[1]], index=[2, 3], name="PRESS ratio")
+    expected_ratio.index.name = "n_components"
+    pd.testing.assert_series_equal(result.press_ratio, expected_ratio, rtol=1e-15)
+    reference = press[0] / (1.0 - result.q2.iloc[0])  # Q2 = 1 - PRESS / reference
+    np.testing.assert_allclose(result.q2_se, result.se_press / reference, rtol=1e-10)
+    if scheme == "ekf":
+        assert not np.allclose(result.press_input_units, result.press)
+        np.testing.assert_allclose(
+            result.se_press, result.per_fold_press.std(axis=1, ddof=1) / np.sqrt(3) * 3, rtol=1e-12
+        )
+    else:
+        np.testing.assert_array_equal(result.press_input_units, result.press)
+    if scheme not in ("ekf", "ckf"):
+        assert result.per_fold_press.isna().all().all()
+        assert result.se_press.isna().all()
+    assert result.cv_scheme == scheme
+    assert result.selection_rule == "min"
+
+
+def test_select_n_components_caps_the_counts_at_n_minus_1_and_k() -> None:
+    """At most ``min(N - 1, K)`` counts are evaluated, whether the cap or the request is the binding one."""
+    wide, tall = _raw_block(n=5, k=8), _raw_block(n=10, k=3)
+    for X, cap in ((wide, 4), (tall, 3)):
+        for requested in (None, 100):
+            result = PCA.select_n_components(X, max_components=requested, cv_scheme="gcv")
+            assert list(result.press.index) == list(range(1, cap + 1))
+        result = PCA.select_n_components(X, max_components=2, cv_scheme="gcv")
+        assert list(result.press.index) == [1, 2]
+
+
+@pytest.mark.parametrize("scheme", ["ekf", "ckf", "ek"])
+def test_select_n_components_reads_a_splitter_as_five_folds(scheme: str) -> None:
+    """A cross-validation splitter is not read by these schemes: five folds are used, as for ``cv=5``."""
+    X = _raw_block(n=12, k=6)
+    with_splitter = PCA.select_n_components(X, max_components=2, cv=KFold(3), cv_scheme=scheme, random_state=1)
+    with_five = PCA.select_n_components(X, max_components=2, cv=5, cv_scheme=scheme, random_state=1)
+    pd.testing.assert_series_equal(with_splitter.press, with_five.press)
+    pd.testing.assert_frame_equal(with_splitter.per_fold_press, with_five.per_fold_press)
+
+
+def test_select_n_components_ekf_defaults_by_hand() -> None:
+    """By default ekf deals the cells into 5 folds once, scales inside each, and caps EM at 50 rounds.
+
+    With a tolerance of 0 the EM never converges early, so the cap shows in the curve.
+    """
+    X = _raw_block()
+    result = PCA.select_n_components(X, max_components=2, ekf_tol=0.0, random_state=7)
+    press = _ekf_by_hand(X.to_numpy(), 2, n_folds=5, n_repeats=1, seed=7, max_iter=50, tol=0.0, scale=True)[0]
+    np.testing.assert_allclose(result.press, press, rtol=1e-10)
+
+
+def test_select_n_components_reads_integer_data_as_numbers() -> None:
+    """An integer block gives the curve of the same block as floats: a held-out cell is not truncated."""
+    X = _raw_block().round().astype(int)
+    for scheme in ("ekf", "ckf", "sacv"):
+        as_int = PCA.select_n_components(X, max_components=2, cv=3, cv_scheme=scheme, random_state=0)
+        as_float = PCA.select_n_components(X.astype(float), max_components=2, cv=3, cv_scheme=scheme, random_state=0)
+        pd.testing.assert_series_equal(as_int.press, as_float.press)
+
+
+def test_select_n_components_warns_about_a_prescaled_block_in_full() -> None:
+    """The ekf folds re-standardise inside every element-fold, which erases a scaling the caller chose."""
+    X = MCUVScaler().fit_transform(_raw_block())
+    message = (
+        "X is already centred and unit-variance scaled, so scale_inside_folds=True is not protecting you from "
+        "leakage: it re-standardises inside every element-fold and overwrites the scaling you chose. Two "
+        "deliberately different scalings (say autoscale versus Pareto) collapse onto the same standardised model "
+        "this way, so a comparison of their PRESS reflects only the units the blocks arrived in, never which "
+        "scaling suits the data. Pass the raw, unscaled X and let the folds scale it, or keep your own scaling and "
+        "set scale_inside_folds=False (accepting the optimism that flag warns about)."
+    )
+    with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(X, max_components=1, cv=3, random_state=0)
+
+
+@pytest.mark.parametrize(
+    ("scheme", "removed"),
+    [
+        ("bogus", ""),
+        (
+            "row_wise",
+            (
+                " 'row_wise' was removed in 2.0: it scored a held-out row through its own values, so it could not "
+                "pick a component count."
+            ),
+        ),
+    ],
+)
+def test_select_n_components_refuses_an_unknown_scheme_in_full(scheme: str, removed: str) -> None:
+    """An unknown scheme is named, with the five there are; the removed ``"row_wise"`` says why it went."""
+    message = f"Unknown cv_scheme {scheme!r}; expected one of 'ekf', 'ckf', 'ek', 'sacv' or 'gcv'.{removed}"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        PCA.select_n_components(_raw_block(), cv_scheme=scheme)
+
+
+def _select_with_press(monkeypatch: pytest.MonkeyPatch, press: list[float], **kwargs: object) -> Bunch:
+    """Run ``select_n_components`` with sacv's criterion replaced by ``press``, against a reference of 10.
+
+    Q2 is then ``1 - press / 10``, and every column carries a quarter of each count's PRESS.
+    """
+    curve = np.asarray(press, dtype=float)
+
+    def stand_in(Z: np.ndarray, max_components: int, *, method: str) -> tuple:
+        assert method == "sacv"
+        assert max_components == curve.size
+        return curve, np.tile(curve[:, np.newaxis] / 4, (1, 4)), 10.0, np.full(4, 2.5)
+
+    monkeypatch.setattr("process_improve.multivariate._pca._leverage_corrected_press", stand_in)
+    return PCA.select_n_components(_raw_block(), max_components=curve.size, cv_scheme="sacv", **kwargs)
+
+
+def test_select_n_components_press_ratio_with_zeros_is_inf_or_nan_without_a_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A PRESS of 0 gives a ratio of 0 after it, NaN for 0/0 and inf for a positive PRESS over 0, silently."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = _select_with_press(monkeypatch, [2.0, 0.0, 0.0, 3.0])
+    np.testing.assert_array_equal(result.press_ratio, [0.0, np.nan, np.inf])
+    np.testing.assert_allclose(result.q2, [0.8, 1.0, 1.0, 0.7])
+    np.testing.assert_allclose(result.q2_per_variable, 1 - np.tile([[0.2], [0.0], [0.0], [0.3]], (1, 4)))
+
+
+@pytest.mark.parametrize(
+    ("press", "warns"),
+    [
+        ([4.0, 3.0, 2.0, 1.0], True),  # rises at every count and ends at the last: no optimum
+        ([4.0, 3.0], True),  # two counts are enough to see it
+        ([4.0], False),  # one count does not rise at all
+        ([3.0, 3.0, 2.0], False),  # flat once, so it is not rising at every count
+        ([2.0, 3.0, 1.0], False),  # the best is the last, but the curve turned over before it
+        ([4.0, 1.0, 2.0], False),  # rising, then turning over: an optimum
+    ],
+)
+def test_select_n_components_says_when_q2_never_turns_over(
+    monkeypatch: pytest.MonkeyPatch, press: list[float], warns: bool
+) -> None:
+    """The warning fires only when Q2 rises at every count evaluated and the best count is the last."""
+    message = (
+        f"cv_scheme='sacv' did not turn over: its Q2 rises at every one of the {len(press)} component counts it "
+        f"could evaluate, so {len(press)} is the largest count tried rather than an optimum. Evaluate more "
+        "components, or use a scheme that holds data out (cv_scheme='ekf' or cv_scheme='ek'), before reading "
+        "this as an answer."
+    )
+    if warns:
+        with pytest.warns(SpecificationWarning, match=f"^{re.escape(message)}$"):
+            _select_with_press(monkeypatch, press)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _select_with_press(monkeypatch, press)
+
+
+def test_select_n_components_passes_the_q2_threshold_to_its_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Q2 of 0.5, 0.55 and 0.6 keeps all three counts at the default step of 0.01, and one at 0.1."""
+    with pytest.warns(SpecificationWarning, match="did not turn over"):
+        default = _select_with_press(monkeypatch, [5.0, 4.5, 4.0], selection_rule="q2_increment")
+    assert default.n_components == 3
+    strict = _select_with_press(monkeypatch, [5.0, 4.5, 4.0], selection_rule="q2_increment", min_q2_increase=0.1)
+    assert strict.n_components == 1
+
+
+@pytest.mark.parametrize(
+    ("minka", "parallel", "consensus"), [(2, 2, "agree"), (3, 2, "agree"), (4, 2, "disagree"), (2, 0, "disagree")]
+)
+def test_select_n_components_consensus_by_hand(
+    monkeypatch: pytest.MonkeyPatch, minka: int, parallel: int, consensus: str
+) -> None:
+    """The three counts agree when they span at most one; parallel analysis gets the caller's seed."""
+    seeds: list[object] = []
+    monkeypatch.setattr(PCA, "minka_mle", classmethod(lambda _cls, _X: minka))
+
+    def parallel_analysis(cls: type, X: object, **kwargs: object) -> Bunch:
+        seeds.append(kwargs)
+        return Bunch(n_components=parallel)
+
+    monkeypatch.setattr(PCA, "parallel_analysis", classmethod(parallel_analysis))
+    result = _select_with_press(monkeypatch, [4.0, 1.0, 2.0], return_consensus=True, random_state=17)
+    assert result.n_components == 2
+    assert seeds == [{"random_state": 17}]
+    assert result.minka_n_components == minka
+    assert result.parallel_analysis_n_components == parallel
+    assert result.consensus == consensus
+    assert result.consensus_counts == (2, minka, parallel)
+
+
+def _parallel_analysis_by_hand(
+    X: np.ndarray, n_simulations: int, quantile: float, surrogate: str, seed: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Horn (1965), written out: covariance eigenvalues of X against a quantile of those of random blocks."""
+    n, p = X.shape
+
+    def eigenvalues(block: np.ndarray) -> np.ndarray:
+        return np.sort(np.linalg.eigvalsh(np.atleast_2d(np.cov(block, rowvar=False))))[::-1][: min(n, p)]
+
+    rng = np.random.default_rng(seed)
+    null = []
+    for _ in range(n_simulations):
+        if surrogate == "normal":
+            null.append(eigenvalues(rng.standard_normal((n, p))))
+        else:
+            null.append(eigenvalues(np.column_stack([rng.permutation(X[:, j]) for j in range(p)])))
+    observed = eigenvalues(X)
+    threshold = np.quantile(np.array(null), quantile, axis=0)
+    retained = 0
+    while retained < observed.size and observed[retained] > threshold[retained]:
+        retained += 1
+    return observed, threshold, retained
+
+
+@pytest.mark.parametrize("surrogate", ["normal", "permutation"])
+def test_parallel_analysis_by_hand(surrogate: str) -> None:
+    """Unscaled, the eigenvalues are those of X's covariance (about the column means), against the null quantile.
+
+    Scaled, they are those of the MCUVScaler-scaled block. The default draws 200 null blocks.
+    """
+    X = _raw_block(n=15, k=5, seed=4).to_numpy()
+    observed, threshold, retained = _parallel_analysis_by_hand(X, 40, 0.9, surrogate, seed=5)
+    result = PCA.parallel_analysis(X, n_simulations=40, quantile=0.9, surrogate=surrogate, scale=False, random_state=5)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10)
+    assert result.n_components == retained
+    assert result.surrogate == surrogate
+    scaled = MCUVScaler().fit_transform(pd.DataFrame(X)).to_numpy()
+    observed, threshold, retained = _parallel_analysis_by_hand(scaled, 200, 0.95, surrogate, seed=6)
+    result = PCA.parallel_analysis(X, surrogate=surrogate, random_state=6)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10)
+    assert result.n_components == retained
+
+
+def test_parallel_analysis_retains_only_the_leading_run() -> None:
+    """A later eigenvalue above its null does not count once an earlier one fell below.
+
+    One strong column and two of about unit spread: the second eigenvalue (1.269) falls just
+    short of its null threshold (1.281) while the third (0.907) clears its own (0.847).
+    """
+    rng = np.random.default_rng(2)
+    n = 40
+    X = np.column_stack([5 * rng.standard_normal(n), 1.05 * rng.standard_normal(n), rng.standard_normal(n)])
+    result = PCA.parallel_analysis(X, n_simulations=60, scale=False, random_state=0)
+    above = result.observed_eigenvalues > result.null_threshold
+    np.testing.assert_array_equal(above, [True, False, True])
+    assert result.n_components == 1
+
+
+def test_parallel_analysis_reads_its_input_as_numbers_in_columns() -> None:
+    """A 1-D input is one column, an object array is read as numbers, and two rows have one degree of freedom."""
+    x = np.array([1.0, 3.0, 2.0, 7.0, 4.0])
+    one = PCA.parallel_analysis(x, n_simulations=10, scale=False, random_state=0)
+    column = PCA.parallel_analysis(x[:, np.newaxis], n_simulations=10, scale=False, random_state=0)
+    np.testing.assert_array_equal(one.observed_eigenvalues, column.observed_eigenvalues)
+    assert one.observed_eigenvalues == pytest.approx([np.var(x, ddof=1)], rel=1e-12)
+    X = _raw_block(n=8, k=3).to_numpy()
+    as_objects = PCA.parallel_analysis(X.astype(object), n_simulations=10, scale=False, random_state=0)
+    as_floats = PCA.parallel_analysis(X, n_simulations=10, scale=False, random_state=0)
+    np.testing.assert_array_equal(as_objects.observed_eigenvalues, as_floats.observed_eigenvalues)
+    two = np.array([[1.0, 2.0], [3.0, -1.0]])
+    result = PCA.parallel_analysis(two, n_simulations=10, scale=False, random_state=0)
+    assert result.observed_eigenvalues[0] == pytest.approx(np.sum((two - two.mean(axis=0)) ** 2), rel=1e-12)
+    observed, threshold, _ = _parallel_analysis_by_hand(two, 10, 0.95, "normal", seed=0)
+    np.testing.assert_allclose(result.observed_eigenvalues, observed, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(result.null_threshold, threshold, rtol=1e-10, atol=1e-12)
+
+
+def test_minka_mle_is_sklearn_mle_on_the_block() -> None:
+    """Minka's estimate is sklearn's, which centres the block itself; a 1-D input is one column."""
+    from sklearn import decomposition
+
+    X = _raw_block(n=60, k=6, seed=2).to_numpy()
+    expected = decomposition.PCA(n_components="mle", svd_solver="full").fit(X).n_components_
+    assert PCA.minka_mle(X) == expected
+    assert PCA.minka_mle(pd.DataFrame(X)) == expected
+    x = np.random.default_rng(0).standard_normal(20)
+    column = x[:, np.newaxis]
+    assert PCA.minka_mle(x) == decomposition.PCA(n_components="mle", svd_solver="full").fit(column).n_components_
+
+
+def _outlier_block(units: float = 1.0) -> pd.DataFrame:
+    """Return 12 rows near a plane in three columns, one far along it and one far off it."""
+    rng = np.random.default_rng(31)
+    X = rng.standard_normal((12, 2)) @ np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]) + 0.05 * rng.standard_normal(
+        (12, 3)
+    )
+    X[3] = [6.0, 9.0, 3.0]  # far along the plane: a T2 outlier
+    X[8] += [0.8, -0.8, 0.8]  # off the plane: an SPE outlier
+    X -= X.mean(axis=0)
+    return pd.DataFrame(X * units, index=[f"r{i}" for i in range(12)], columns=["a", "b", "c"])
+
+
+@pytest.mark.parametrize("units", [10.0, 1e-3])
+def test_detect_outliers_by_hand(units: float) -> None:
+    """Each flagged row with its reasons, values, limits and severity ``max(SPE / limit, T2 / limit)``, worst first.
+
+    The limits are the model's own at the confidence asked for; in thousandths of the units
+    the SPE limit is below 1 and the severities are unchanged.
+    """
+    pca = PCA(n_components=2).fit(_outlier_block(units))
+    spe, t2 = pca.spe_.iloc[:, -1], pca.hotellings_t2_.iloc[:, -1]
+    spe_limit, t2_limit = pca.spe_limit(conf_level=0.95), pca.hotellings_t2_limit(conf_level=0.95)
+    assert (spe_limit < 1) == (units < 1)
+    found = pca.detect_outliers(conf_level=0.95)
+    for outlier in found:
+        label = outlier["observation"]
+        assert outlier["spe"] == spe[label]
+        assert outlier["hotellings_t2"] == t2[label]
+        assert outlier["spe_limit"] == spe_limit
+        assert outlier["hotellings_t2_limit"] == t2_limit
+        assert outlier["severity"] == round(max(spe[label] / spe_limit, t2[label] / t2_limit), 4)
+    assert "hotellings_t2" in next(o for o in found if o["observation"] == "r3")["outlier_types"]
+    assert "spe" in next(o for o in found if o["observation"] == "r8")["outlier_types"]
+    severities = [o["severity"] for o in found]
+    assert severities == sorted(severities, reverse=True)
+    assert pca.detect_outliers() == found
+
+
+def test_detect_outliers_runs_the_esd_test_on_each_statistic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ESD looks for up to ``max(1, N // 5)`` outliers in SPE and in T2, at ``alpha = 1 - conf_level``.
+
+    With ESD finding nothing, only the rows above a limit are flagged.
+    """
+    calls: list[tuple[np.ndarray, dict]] = []
+
+    def esd(values: np.ndarray, **kwargs: object) -> tuple[list, dict]:
+        calls.append((values, kwargs))
+        return [], {}
+
+    monkeypatch.setattr("process_improve.multivariate._pca.detect_outliers_esd", esd)
+    for rows, most in ((10, 2), (4, 1)):
+        pca = PCA(n_components=1).fit(_outlier_block().iloc[:rows])
+        calls.clear()
+        found = pca.detect_outliers(conf_level=0.9)
+        assert len(calls) == 2
+        np.testing.assert_array_equal(calls[0][0], pca.spe_.iloc[:, -1].to_numpy())
+        np.testing.assert_array_equal(calls[1][0], pca.hotellings_t2_.iloc[:, -1].to_numpy())
+        for _, kwargs in calls:
+            assert kwargs == {"max_outliers_detected": most, "alpha": pytest.approx(0.1)}
+            assert type(kwargs["max_outliers_detected"]) is int
+        above = (pca.spe_.iloc[:, -1] > pca.spe_limit(conf_level=0.9)) | (
+            pca.hotellings_t2_.iloc[:, -1] > pca.hotellings_t2_limit(conf_level=0.9)
+        )
+        assert sorted(o["observation"] for o in found) == sorted(above[above].index)
+
+
+def test_detect_outliers_accepts_confidence_levels_from_0_8_to_0_999() -> None:
+    """Both ends are allowed; a level just outside either is refused, in full."""
+    pca = PCA(n_components=1).fit(_outlier_block())
+    pca.detect_outliers(conf_level=0.8)
+    pca.detect_outliers(conf_level=0.999)
+    for level in (0.7999, 0.9991):
+        with pytest.raises(ValueError, match=rf"^conf_level must be between 0\.8 and 0\.999, got {level}\.$"):
+            pca.detect_outliers(conf_level=level)
+
+
+def test_detect_outliers_ignores_a_limit_that_carries_no_information(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A perfect fit has an SPE limit of 0, and as many components as rows an infinite T2 limit.
+
+    Neither ratio counts towards the severity then: a perfect fit is ranked by T2 alone, and
+    no row is above an SPE limit of 0. With an infinite T2 limit no row is above it, and a
+    row the ESD test flags is ranked by its SPE alone.
+    """
+    # NIPALS normalises a one-entry loading to exactly 1, so every residual is exactly 0.
+    one_column = PCA(n_components=1, algorithm="nipals").fit(_outlier_block()[["b"]])
+    assert (one_column.spe_.to_numpy() == 0).all()
+    assert one_column.spe_limit(conf_level=0.95) == 0.0
+    t2 = one_column.hotellings_t2_.iloc[:, -1]
+    limit = one_column.hotellings_t2_limit(conf_level=0.95)
+    found = one_column.detect_outliers()
+    assert found
+    for outlier in found:
+        assert outlier["outlier_types"] == ["hotellings_t2"]
+        assert outlier["severity"] == round(t2[outlier["observation"]] / limit, 4)
+    # A row the ESD test flags well inside the T2 limit is ranked below 1, not at 1.
+    quietest = int(np.argmin(t2.to_numpy()))
+    with monkeypatch.context() as patch:
+        patch.setattr("process_improve.multivariate._pca.detect_outliers_esd", lambda _values, **_: ([quietest], {}))
+        (outlier,) = (o for o in one_column.detect_outliers() if o["observation"] == t2.index[quietest])
+    assert outlier["severity"] == round(t2.iloc[quietest] / limit, 4) < 1
+    wide = pd.DataFrame(np.random.default_rng(4).standard_normal((4, 6)))
+    full = PCA(n_components=4).fit(wide - wide.mean())
+    assert full.hotellings_t2_limit(conf_level=0.95) == np.inf
+    spe, spe_limit = full.spe_.iloc[:, -1], full.spe_limit(conf_level=0.95)
+    assert spe_limit > 0
+    monkeypatch.setattr("process_improve.multivariate._pca.detect_outliers_esd", lambda _values, **_: ([0], {}))
+    found = full.detect_outliers()
+    assert [outlier["observation"] for outlier in found] == [0]
+    assert found[0]["severity"] == round(spe[0] / spe_limit, 4)
+
+
+# ---- PLS worked by hand: the estimator's API, its fit, its diagnostics and its cross-validation (#1027) ----
+
+
+def _scale_of(expected: object) -> float:
+    """Return the largest size among ``expected``'s finite values, 0 when it has none."""
+    values = np.abs(np.asarray(expected, dtype=float))
+    return float(np.nanmax(values)) if np.isfinite(values).any() else 0.0
+
+
+def _assert_near(actual: object, expected: object, rtol: float = 1e-7, atol: float | None = None) -> None:
+    """Assert agreement to ``rtol`` of each value, or of the largest one for a value near 0.
+
+    Two iterative fits, ours and sklearn's or two routes to ours, agree to their convergence
+    tolerances, about 1e-8 of the values they reach; a prediction near 0 then misses a purely
+    relative tolerance on some platforms' BLAS. The absolute floor is that tolerance scaled
+    to the largest value compared, so it stays far below any setting or model that is wrong.
+    """
+    floor = rtol * _scale_of(expected)
+    np.testing.assert_allclose(actual, expected, rtol=rtol, atol=floor if atol is None else max(atol, floor))
+
+
+def _assert_frame_near(left: pd.DataFrame, right: pd.DataFrame, rtol: float = 1e-5, **kwargs: object) -> None:
+    """``pd.testing.assert_frame_equal`` with the absolute floor of ``_assert_near``."""
+    floor = rtol * _scale_of(right.select_dtypes("number"))
+    atol = max(float(kwargs.pop("atol", 1e-8)), floor)
+    pd.testing.assert_frame_equal(left, right, rtol=rtol, atol=atol, **kwargs)
+
+
+def _assert_series_near(left: pd.Series, right: pd.Series, rtol: float = 1e-5, **kwargs: object) -> None:
+    """``pd.testing.assert_series_equal`` with the absolute floor of ``_assert_near``."""
+    floor = rtol * _scale_of(right) if pd.api.types.is_numeric_dtype(right) else 0.0
+    atol = max(float(kwargs.pop("atol", 1e-8)), floor)
+    pd.testing.assert_series_equal(left, right, rtol=rtol, atol=atol, **kwargs)
+
+
+def _pls_by_hand(X: np.ndarray, Y: np.ndarray, A: int) -> dict[str, np.ndarray]:
+    """Return NIPALS PLS written out (Geladi and Kowalski, 1986), each component's largest loading positive.
+
+    Each component starts from the column of Y with the largest sum of squares and iterates
+    ``w = X'u / ||X'u||``, ``t = Xw``, ``c = Y't / t't``, ``u = Yc / c'c`` until ``u`` stops
+    moving; then ``p = X't / t't`` and both blocks are deflated by ``t``.
+    """
+    X, Y = np.array(X, dtype=float), np.array(Y, dtype=float)
+    out = {name: np.zeros((size, A)) for name, size in (("T", len(X)), ("U", len(X)), ("W", X.shape[1]))}
+    out |= {"P": np.zeros((X.shape[1], A)), "C": np.zeros((Y.shape[1], A))}
+    for a in range(A):
+        u = Y[:, [np.argmax((Y**2).sum(axis=0))]]
+        for _ in range(10_000):
+            w = X.T @ u
+            w /= np.linalg.norm(w)
+            t = X @ w
+            c = Y.T @ t / (t.T @ t)
+            u_next = Y @ c / (c.T @ c)
+            settled = np.linalg.norm(u_next - u) <= 1e-14 * np.linalg.norm(u_next)
+            u = u_next
+            if settled:
+                break
+        p = X.T @ t / (t.T @ t)
+        X, Y = X - t @ p.T, Y - t @ c.T
+        sign = np.sign(p[np.argmax(np.abs(p))])
+        for name, vector in (("T", t), ("U", u), ("W", w), ("P", p), ("C", c)):
+            out[name][:, a] = (sign * vector).ravel()
+    return out
+
+
+def _autoscaled(values: np.ndarray) -> np.ndarray:
+    """Centre each column and divide it by its standard deviation with ddof=1, as PLS(scale=True) does."""
+    return (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
+
+
+def _pls_block(seed: int = 0, n: int = 12, k: int = 4, m: int = 2) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return ``n`` rows of ``k`` named, correlated X columns and ``m`` named responses that depend on them."""
+    rng = np.random.default_rng(seed)
+    X = rng.standard_normal((n, k)) @ (np.eye(k) + 0.5 * np.triu(np.ones((k, k)), 1))
+    Y = X @ rng.standard_normal((k, m)) + 0.3 * rng.standard_normal((n, m))
+    index = [f"r{i}" for i in range(n)]
+    return (
+        pd.DataFrame(X + 3.0, index=index, columns=[f"x{j}" for j in range(k)]),
+        pd.DataFrame(10.0 * Y - 4.0, index=index, columns=[f"y{j}" for j in range(m)]),
+    )
+
+
+def test_pls_constructor_keeps_its_defaults_and_declares_nan_and_several_targets() -> None:
+    """The constructor stores what it is given; the estimator tells sklearn it takes NaN and several targets."""
+    assert PLS(n_components=2).get_params() == {
+        "n_components": 2,
+        "scale": True,
+        "max_iter": 500,
+        "tol": epsqrt,
+        "copy": True,
+        "warn_on_uncentred": True,
+        "missing_data_settings": None,
+    }
+    tags = PLS(n_components=2).__sklearn_tags__()
+    assert tags.input_tags.allow_nan is True
+    assert tags.target_tags.multi_output is True
+
+
+_UNCENTRED_HEAD = "PLS(scale=False) fits no intercept and centres nothing, but column(s) "
+_UNCENTRED_MIDDLE = " block have a mean that is large relative to their own spread. The consequence is not an error: "
+_UNCENTRED_TAIL = (
+    ". Centre both blocks first (MCUVScaler().fit_transform(...), or X - X.mean()), or pass scale=True and let the "
+    "model do it. Fitting un-centred on purpose? Pass warn_on_uncentred=False to silence this for this model alone."
+)
+_UNCENTRED_Y = (
+    "every prediction is offset by roughly the response mean, so R2 and Q2 go large and negative and the fit reads "
+    "as 'no relationship in this data' even when the relationship is strong"
+)
+_UNCENTRED_X = (
+    "the un-centred columns act as an uncontrolled constant term, so the loadings and R2 describe the offset rather "
+    "than the variation around it"
+)
+
+
+@pytest.mark.parametrize(
+    ("x_offsets", "y_offset", "messages"),
+    [
+        (4, 0.0, [("'0', '1', '2', '3'", "X", _UNCENTRED_X)]),
+        (5, 0.0, [("'0', '1', '2', '3', ... (5 columns in total)", "X", _UNCENTRED_X)]),
+        (0, 7.0, [("'y'", "Y", _UNCENTRED_Y)]),
+        (1, 7.0, [("'y'", "Y", _UNCENTRED_Y), ("'0'", "X", _UNCENTRED_X)]),
+    ],
+    ids=["four-x-columns", "five-x-columns", "y-alone", "y-then-x"],
+)
+def test_pls_names_the_uncentred_columns_of_each_block_in_full(
+    x_offsets: int, y_offset: float, messages: list[tuple[str, str, str]]
+) -> None:
+    """``scale=False`` warns once per block with a mean far from 0, Y first, naming four columns at most.
+
+    The labels are quoted as strings, so the integer label 0 reads as '0'.
+    """
+    rng = np.random.default_rng(5)
+    x = pd.DataFrame(rng.standard_normal((20, 6)))
+    x -= x.mean()
+    y = pd.DataFrame({"y": x[0] - x[1]})
+    x.iloc[:, :x_offsets] += 10.0
+    with pytest.warns(UncentredDataWarning) as record:
+        PLS(n_components=2, scale=False).fit(x, y + y_offset)
+    expected = [
+        _UNCENTRED_HEAD + labels + " of the " + block + _UNCENTRED_MIDDLE + symptom + _UNCENTRED_TAIL
+        for labels, block, symptom in messages
+    ]
+    assert [str(w.message) for w in record if w.category is UncentredDataWarning] == expected
+
+
+def test_pls_refuses_an_md_method_it_cannot_fit_in_full_and_reads_any_case() -> None:
+    """Only "nipals", "tsr" and "pmp" are fit-time methods; each is read whatever its case."""
+    X, Y = _pls_block()
+    X.iloc[0, 0] = np.nan
+    message = (
+        "md_method must be one of ['nipals', 'pmp', 'tsr']; got 'scp'. This is the fit-time setting, a smaller set "
+        "than the method= accepted by project() and the contribution helpers."
+    )
+    with pytest.raises(ValueError, match="^" + re.escape(message) + "$"):
+        PLS(n_components=2, missing_data_settings={"md_method": "scp"}).fit(X, Y)
+    nipals = PLS(n_components=2).fit(X, Y)
+    shouted = PLS(n_components=2, missing_data_settings={"md_method": "NIPALS"}).fit(X, Y)
+    np.testing.assert_array_equal(shouted.beta_coefficients_.to_numpy(), nipals.beta_coefficients_.to_numpy())
+    assert "md_method" not in shouted.fitting_info_
+    tsr = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+    loud_tsr = PLS(n_components=2, missing_data_settings={"md_method": "TSR"}).fit(X, Y)
+    assert loud_tsr.fitting_info_["md_method"] == "tsr"
+    np.testing.assert_array_equal(loud_tsr.beta_coefficients_.to_numpy(), tsr.beta_coefficients_.to_numpy())
+
+
+def _pls_outlier_blocks(units: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return the 12 rows of ``_outlier_block`` and a response along its plane, in ``units``."""
+    X = _outlier_block(units)
+    y = pd.DataFrame({"y": X["a"] + X["b"] + 0.01 * units * np.random.default_rng(3).standard_normal(12)})
+    return X, y
+
+
+@pytest.mark.parametrize("units", [10.0, 1e-3])
+def test_pls_detect_outliers_by_hand(units: float) -> None:
+    """Each flagged row with its reasons, values, limits and severity ``max(SPE / limit, T2 / limit)``, worst first.
+
+    The limits are the model's own at the confidence asked for; in thousandths of the units
+    the SPE limit is below 1 and the severities are unchanged.
+    """
+    pls = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(*_pls_outlier_blocks(units))
+    spe, t2 = pls.spe_.iloc[:, -1], pls.hotellings_t2_.iloc[:, -1]
+    spe_limit, t2_limit = pls.spe_limit(conf_level=0.95), pls.hotellings_t2_limit(conf_level=0.95)
+    assert (spe_limit < 1) == (units < 1)
+    found = pls.detect_outliers(conf_level=0.95)
+    for outlier in found:
+        label = outlier["observation"]
+        assert outlier["spe"] == spe[label]
+        assert outlier["hotellings_t2"] == t2[label]
+        assert outlier["spe_limit"] == spe_limit
+        assert outlier["hotellings_t2_limit"] == t2_limit
+        assert outlier["severity"] == round(max(spe[label] / spe_limit, t2[label] / t2_limit), 4)
+    assert "hotellings_t2" in next(o for o in found if o["observation"] == "r3")["outlier_types"]
+    assert "spe" in next(o for o in found if o["observation"] == "r8")["outlier_types"]
+    severities = [o["severity"] for o in found]
+    assert severities == sorted(severities, reverse=True)
+    assert pls.detect_outliers() == found
+
+
+def test_pls_detect_outliers_runs_the_esd_test_on_each_statistic(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ESD looks for up to ``max(1, N // 5)`` outliers in SPE and in T2, at ``alpha = 1 - conf_level``.
+
+    With ESD finding nothing, only the rows above a limit are flagged.
+    """
+    calls: list[tuple[np.ndarray, dict]] = []
+
+    def esd(values: np.ndarray, **kwargs: object) -> tuple[list, dict]:
+        calls.append((values, kwargs))
+        return [], {}
+
+    monkeypatch.setattr("process_improve.multivariate._pls.detect_outliers_esd", esd)
+    X, y = _pls_outlier_blocks()
+    for rows, most in ((10, 2), (4, 1)):
+        pls = PLS(n_components=1).fit(X.iloc[:rows], y.iloc[:rows])
+        calls.clear()
+        found = pls.detect_outliers(conf_level=0.9)
+        assert len(calls) == 2
+        np.testing.assert_array_equal(calls[0][0], pls.spe_.iloc[:, -1].to_numpy())
+        np.testing.assert_array_equal(calls[1][0], pls.hotellings_t2_.iloc[:, -1].to_numpy())
+        for _, kwargs in calls:
+            assert kwargs == {"max_outliers_detected": most, "alpha": pytest.approx(0.1)}
+            assert type(kwargs["max_outliers_detected"]) is int
+        above = (pls.spe_.iloc[:, -1] > pls.spe_limit(conf_level=0.9)) | (
+            pls.hotellings_t2_.iloc[:, -1] > pls.hotellings_t2_limit(conf_level=0.9)
+        )
+        assert sorted(o["observation"] for o in found) == sorted(above[above].index)
+
+
+def test_pls_detect_outliers_accepts_confidence_levels_from_0_8_to_0_999() -> None:
+    """Both ends are allowed; a level just outside either is refused, in full."""
+    pls = PLS(n_components=1).fit(*_pls_outlier_blocks())
+    pls.detect_outliers(conf_level=0.8)
+    pls.detect_outliers(conf_level=0.999)
+    for level in (0.7999, 0.9991):
+        with pytest.raises(ValueError, match=rf"^conf_level must be between 0\.8 and 0\.999, got {level}\.$"):
+            pls.detect_outliers(conf_level=level)
+
+
+def test_pls_detect_outliers_ignores_a_limit_that_carries_no_information(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A perfect fit has an SPE limit of 0, and as many components as rows an infinite T2 limit.
+
+    Neither ratio counts towards the severity then: a perfect fit is ranked by T2 alone, and
+    no row is above an SPE limit of 0. With an infinite T2 limit no row is above it, and a
+    row the ESD test flags is ranked by its SPE alone.
+    """
+    X, y = _pls_outlier_blocks()
+    # One centred X column: its weight is exactly 1, so the score is the column and every residual exactly 0.
+    one_column = PLS(n_components=1, scale=False).fit(X[["b"]], y - y.mean())
+    assert (one_column.spe_.to_numpy() == 0).all()
+    assert one_column.spe_limit(conf_level=0.95) == 0.0
+    t2 = one_column.hotellings_t2_.iloc[:, -1]
+    limit = one_column.hotellings_t2_limit(conf_level=0.95)
+    found = one_column.detect_outliers()
+    assert found
+    for outlier in found:
+        assert outlier["outlier_types"] == ["hotellings_t2"]
+        assert outlier["severity"] == round(t2[outlier["observation"]] / limit, 4)
+    # A row the ESD test flags well inside the T2 limit is ranked below 1, not at 1.
+    quietest = int(np.argmin(t2.to_numpy()))
+    with monkeypatch.context() as patch:
+        patch.setattr("process_improve.multivariate._pls.detect_outliers_esd", lambda _values, **_: ([quietest], {}))
+        (outlier,) = (o for o in one_column.detect_outliers() if o["observation"] == t2.index[quietest])
+    assert outlier["severity"] == round(t2.iloc[quietest] / limit, 4) < 1
+    rng = np.random.default_rng(4)
+    wide, targets = pd.DataFrame(rng.standard_normal((4, 6)) + 2.0), pd.DataFrame(rng.standard_normal((4, 4)))
+    full = PLS(n_components=4, scale=False, warn_on_uncentred=False).fit(wide, targets)
+    assert full.hotellings_t2_limit(conf_level=0.95) == np.inf
+    spe, spe_limit = full.spe_.iloc[:, -1], full.spe_limit(conf_level=0.95)
+    assert spe_limit > 0
+    monkeypatch.setattr("process_improve.multivariate._pls.detect_outliers_esd", lambda _values, **_: ([0], {}))
+    found = full.detect_outliers()
+    assert [outlier["observation"] for outlier in found] == [0]
+    assert found[0]["severity"] == round(spe[0] / spe_limit, 4)
+
+
+def _pls_new_rows_by_hand(pls: PLS, X: pd.DataFrame, Y: pd.DataFrame, new: np.ndarray) -> dict[str, np.ndarray]:
+    """Return what a PLS fitted with ``scale=True`` on ``X``, ``Y`` gives complete new rows, from its W, P and C.
+
+    ``z = (x - mean) / sd`` with the training statistics (ddof=1); ``t = z W (P'W)^-1``;
+    ``T2 = sum_a t_a^2 / s_a^2`` with ``s_a^2 = t_a't_a / (N - 1)`` over the training scores;
+    ``SPE = ||z - t P'||``; ``y_hat = t C'`` back in the units of Y.
+    """
+    W, P, C = pls.x_weights_.to_numpy(), pls.x_loadings_.to_numpy(), pls.y_loadings_.to_numpy()
+    T = pls.scores_.to_numpy()
+    z = (new - X.mean().to_numpy()) / X.std(ddof=1).to_numpy()
+    t = z @ W @ np.linalg.inv(P.T @ W)
+    return {
+        "scores": t,
+        "t2": np.sum(t**2 / (np.sum(T**2, axis=0) / (len(X) - 1)), axis=1),
+        "spe": np.linalg.norm(z - t @ P.T, axis=1),
+        "y_hat": t @ C.T * Y.std(ddof=1).to_numpy() + Y.mean().to_numpy(),
+        "z": z,
+    }
+
+
+def test_pls_reads_new_rows_by_column_name_and_labels_every_result() -> None:
+    """New rows with their columns in another order are matched by name, and keep their own row labels.
+
+    Every value is worked from the fitted W, P and C and the training statistics; see
+    ``_pls_new_rows_by_hand``.
+    """
+    X, Y = _pls_block()
+    pls = PLS(n_components=2).fit(X, Y)
+    new = pd.DataFrame([[3.5, 2.0, 5.0, 1.0], [2.5, 3.2, 2.6, 4.0]], columns=X.columns, index=["p", "q"])
+    reordered = new[["x2", "x0", "x3", "x1"]]
+    by_hand = _pls_new_rows_by_hand(pls, X, Y, new.to_numpy())
+    expected_scores = pd.DataFrame(by_hand["scores"], index=["p", "q"], columns=[1, 2])
+    expected_y = pd.DataFrame(by_hand["y_hat"], index=["p", "q"], columns=["y0", "y1"])
+
+    pd.testing.assert_frame_equal(pls.transform(reordered), expected_scores, rtol=1e-10)
+    diagnosed = pls.diagnose(reordered)
+    pd.testing.assert_frame_equal(diagnosed.scores, expected_scores, rtol=1e-10)
+    pd.testing.assert_series_equal(
+        diagnosed.hotellings_t2, pd.Series(by_hand["t2"], index=["p", "q"], name="Hotelling's T²"), rtol=1e-10
+    )
+    pd.testing.assert_series_equal(diagnosed.spe, pd.Series(by_hand["spe"], index=["p", "q"], name="SPE"), rtol=1e-10)
+    pd.testing.assert_frame_equal(diagnosed.y_hat, expected_y, rtol=1e-10)
+    pd.testing.assert_frame_equal(pls.predict(reordered), expected_y, rtol=1e-10)
+    projected = pls.project(reordered)
+    pd.testing.assert_frame_equal(projected.scores, expected_scores, rtol=1e-10)
+    pd.testing.assert_frame_equal(projected.y_hat, expected_y, rtol=1e-10)
+    pd.testing.assert_series_equal(
+        projected.hotellings_t2, pd.Series(by_hand["t2"], index=["p", "q"], name="Hotelling's T2"), rtol=1e-10
+    )
+    pd.testing.assert_series_equal(projected.spe, pd.Series(by_hand["spe"], index=["p", "q"], name="SPE"), rtol=1e-10)
+    pd.testing.assert_series_equal(
+        projected.condition_number, pd.Series([1.0, 1.0], index=["p", "q"], name="condition_number")
+    )
+    pd.testing.assert_series_equal(projected.n_observed, pd.Series([4, 4], index=["p", "q"], name="n_observed"))
+    residual = Y.loc[["r0", "r1"]].to_numpy() - pls.predict(X.loc[["r0", "r1"]]).to_numpy()
+    total = ((Y.loc[["r0", "r1"]] - Y.loc[["r0", "r1"]].mean()) ** 2).sum().to_numpy()
+    assert pls.score(X.loc[["r0", "r1"]], Y.loc[["r0", "r1"]]) == pytest.approx(
+        np.mean(1 - (residual**2).sum(axis=0) / total), rel=1e-12
+    )
+
+    # An array has no labels of its own: its rows are numbered from 0, its columns read in the fitted order.
+    for result in (
+        pls.transform(new.to_numpy()),
+        pls.diagnose(new.to_numpy()).scores,
+        pls.project(new.to_numpy()).scores,
+    ):
+        pd.testing.assert_frame_equal(result, pd.DataFrame(by_hand["scores"], columns=[1, 2]), rtol=1e-10)
+    pd.testing.assert_frame_equal(
+        pls.predict(new.to_numpy()), pd.DataFrame(by_hand["y_hat"], columns=["y0", "y1"]), rtol=1e-10
+    )
+    for series in ("hotellings_t2", "spe"):
+        assert pls.diagnose(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
+    for series in ("hotellings_t2", "spe", "condition_number", "n_observed"):
+        assert pls.project(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
+    np.testing.assert_array_equal(pls.get_feature_names_out(), ["T1", "T2"])
+
+
+@pytest.mark.parametrize("scale", [True, False])
+def test_pls_reads_columns_without_string_labels_by_position(scale: bool) -> None:
+    """Columns labelled other than by strings are read by position, whether or not the model scales (#1027).
+
+    sklearn records no feature names for such columns, so ``validate_data`` reads them by
+    position, as the scaler and ``project`` did. Without scaling, ``transform``,
+    ``diagnose`` and ``predict`` multiplied by the direct weights by label instead: integer
+    labels in another order gave the scores of the columns by label but an SPE of them by
+    position, which was neither, and labels the fit had not seen raised "matrices are not
+    aligned". Every value here is ``t = x R``, ``SPE = ||x - t P'||``, ``y_hat = t C'``.
+    """
+    X, Y = _pls_block()
+    X, Y = pd.DataFrame(X.to_numpy()), pd.DataFrame(Y.to_numpy())
+    if not scale:
+        X, Y = X - X.mean(), Y - Y.mean()
+    pls = PLS(n_components=2, scale=scale).fit(X, Y)
+    rows = np.array([[0.5, -1.0, 2.0, 1.0], [1.5, 0.2, -0.4, -2.0]])
+    z = rows if not scale else (rows - X.mean().to_numpy()) / X.std(ddof=1).to_numpy()
+    W, P, C = pls.x_weights_.to_numpy(), pls.x_loadings_.to_numpy(), pls.y_loadings_.to_numpy()
+    t = z @ W @ np.linalg.inv(P.T @ W)
+    y_hat = t @ C.T
+    if scale:
+        y_hat = y_hat * Y.std(ddof=1).to_numpy() + Y.mean().to_numpy()
+    spe = np.linalg.norm(z - t @ P.T, axis=1)
+    for labels in ([3, 2, 1, 0], [10, 11, 12, 13]):
+        new = pd.DataFrame(rows, columns=labels)
+        np.testing.assert_allclose(pls.transform(new).to_numpy(), t, rtol=1e-10)
+        diagnosed = pls.diagnose(new)
+        np.testing.assert_allclose(diagnosed.scores.to_numpy(), t, rtol=1e-10)
+        np.testing.assert_allclose(diagnosed.spe.to_numpy(), spe, rtol=1e-10)
+        np.testing.assert_allclose(pls.predict(new).to_numpy(), y_hat, rtol=1e-10)
+        np.testing.assert_allclose(pls.project(new).scores.to_numpy(), t, rtol=1e-10)
+        np.testing.assert_allclose(pls.project(new).spe.to_numpy(), spe, rtol=1e-10)
+
+
+def _pls_training_residuals(pls: PLS, X: pd.DataFrame) -> np.ndarray:
+    """Return ``E = Z - T P'`` of the autoscaled training block."""
+    Z = _autoscaled(X.to_numpy())
+    return Z - pls.scores_.to_numpy() @ pls.x_loadings_.to_numpy().T
+
+
+@pytest.mark.parametrize(("method", "ridge"), [("tsr", 0.0), ("scp", 0.0), ("pmp", 0.5), ("tsr", 0.5)])
+def test_pls_projects_a_row_with_a_gap_by_each_estimator(method: str, ridge: float) -> None:
+    """A row with a missing cell is scored by the estimator asked for, with PLS's weights and training residuals.
+
+    The reference is ``project_rows`` (and ``operator_for_pattern`` for the matrix) given
+    the model's P, R = W (P'W)^-1, score variances, W and E = Z - T P', worked here from
+    the training data. The estimators differ, so each argument is seen.
+    """
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=2).fit(X, Y)
+    W, P = pls.x_weights_.to_numpy(), pls.x_loadings_.to_numpy()
+    R = W @ np.linalg.inv(P.T @ W)
+    variances = np.sum(pls.scores_.to_numpy() ** 2, axis=0) / 14
+    E = _pls_training_residuals(pls, X)
+    new = pd.DataFrame([[3.5, np.nan, 5.0, 1.0], [2.5, 3.2, 2.6, 4.0]], columns=X.columns, index=["p", "q"])
+    z = (new.to_numpy() - X.mean().to_numpy()) / X.std(ddof=1).to_numpy()
+    expected = project_rows(P, R, variances, z, method=method, ridge=ridge, x_weights=W, x_residuals=E)
+    others = [
+        project_rows(P, R, variances, z, method=other, ridge=other_ridge, x_weights=W, x_residuals=E).scores
+        for other, other_ridge in (("tsr", 0.0), ("scp", 0.0), ("pmp", 0.5), ("tsr", 0.5), ("pmp", 0.0))
+        if (other, other_ridge) != (method, ridge)
+    ]
+    assert all(not np.allclose(other, expected.scores) for other in others)
+    kwargs = {} if (method, ridge) == ("tsr", 0.0) else {"method": method, "ridge": ridge}
+    projected = pls.project(new, **kwargs)
+    np.testing.assert_allclose(projected.scores.to_numpy(), expected.scores, rtol=1e-10)
+    np.testing.assert_allclose(projected.spe.to_numpy(), expected.spe, rtol=1e-10)
+    np.testing.assert_allclose(projected.condition_number.to_numpy(), expected.condition_number, rtol=1e-10)
+    np.testing.assert_array_equal(projected.n_observed.to_numpy(), [3, 4])
+    t2 = np.sum(expected.scores**2 / variances, axis=1)
+    np.testing.assert_allclose(projected.hotellings_t2.to_numpy(), t2, rtol=1e-10)
+    y_hat = expected.scores @ pls.y_loadings_.to_numpy().T * Y.std(ddof=1).to_numpy() + Y.mean().to_numpy()
+    np.testing.assert_allclose(projected.y_hat.to_numpy(), y_hat, rtol=1e-10)
+
+    mask = np.array([True, False, True, True])
+    op = operator_for_pattern(P, R, variances, mask, method=method, ridge=ridge, x_weights=W, x_residuals=E)
+    built = pls.projection_matrix(["x0", "x2", "x3"], **kwargs)
+    pd.testing.assert_frame_equal(
+        built.matrix, pd.DataFrame(op.matrix, index=[1, 2], columns=["x0", "x2", "x3"]), rtol=1e-10
+    )
+    assert built.condition_number == pytest.approx(op.condition_number, rel=1e-10)
+    assert built.method == method
+
+
+def test_pls_project_and_projection_matrix_work_without_training_residuals() -> None:
+    """A model that keeps no training residuals (one pickled before they were kept) still projects.
+
+    Its estimator for a row with a missing cell is the one ``project_rows`` and
+    ``operator_for_pattern`` build when they are given no residuals.
+    """
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=2).fit(X, Y)
+    row = pd.DataFrame([[3.5, np.nan, 5.0, 1.0]], columns=X.columns)
+    with_residuals = pls.project(row).scores.to_numpy()
+    del pls._x_residuals
+    W, P = pls.x_weights_.to_numpy(), pls.x_loadings_.to_numpy()
+    R = pls.direct_weights_.to_numpy()
+    z = (row.to_numpy() - X.mean().to_numpy()) / X.std(ddof=1).to_numpy()
+    with pytest.warns(SpecificationWarning):
+        expected = project_rows(P, R, pls.explained_variance_, z, x_weights=W, x_residuals=None)
+    with pytest.warns(SpecificationWarning):
+        np.testing.assert_allclose(pls.project(row).scores.to_numpy(), expected.scores, rtol=1e-12)
+    assert not np.allclose(with_residuals, expected.scores), "the residuals must change the estimate"
+    mask = np.array([True, False, True, True])
+    with pytest.warns(SpecificationWarning):
+        op = operator_for_pattern(P, R, pls.explained_variance_, mask, x_weights=W, x_residuals=None)
+    with pytest.warns(SpecificationWarning):
+        built = pls.projection_matrix(mask)
+    pd.testing.assert_frame_equal(built.matrix, pd.DataFrame(op.matrix, index=[1, 2], columns=["x0", "x2", "x3"]))
+
+
+def test_pls_whose_fit_failed_is_not_fitted() -> None:
+    """A fit that raised part way leaves no weights, and every method that reads them says so.
+
+    The failed fit has set ``n_samples_`` and other attributes ending in ``_`` before it
+    refused the short Y, so a check for any fitted attribute would wrongly pass.
+    """
+    X, Y = _pls_block()
+    pls = PLS(n_components=1)
+    with pytest.raises(ValueError, match=r"^The X and Y arrays must have the same number of rows"):
+        pls.fit(X, Y.iloc[:5])
+    assert pls.n_samples_ == 12
+    calls: list[Callable] = [
+        lambda: pls.transform(X),
+        lambda: pls.diagnose(X),
+        lambda: pls.predict(X),
+        lambda: pls.project(X),
+        lambda: pls.projection_matrix([True] * 4),
+        lambda: pls.invert(1.0),
+        lambda: pls.cross_validate(X, Y),
+        lambda: pls.prediction_interval(X),
+        pls.get_feature_names_out,
+        pls.detect_outliers,
+    ]
+    for call in calls:
+        with pytest.raises(NotFittedError, match="This PLS instance is not fitted yet"):
+            call()
+    # Being unfitted is said first, before a setting out of range.
+    with pytest.raises(NotFittedError, match="This PLS instance is not fitted yet"):
+        pls.prediction_interval(X, conf_level=2.0)
+
+
+def test_pls_new_rows_are_refused_as_validate_data_refuses_them() -> None:
+    """New rows must have the fitted number of columns and no infinity; a missing cell is allowed."""
+    X, Y = _pls_block()
+    pls = PLS(n_components=2).fit(X.to_numpy(), Y.to_numpy())
+    for call in (pls.transform, pls.diagnose, pls.project):
+        with pytest.raises(ValueError, match=r"^X has 3 features, but PLS is expecting 4 features as input\.$"):
+            call(np.ones((2, 3)))
+        with pytest.raises(ValueError, match=r"^Input X contains infinity"):
+            call(np.array([[1.0, np.inf, 0.0, 1.0]]))
+    assert pls.n_features_in_ == 4
+    scores = pls.transform(np.array([[1.0, np.nan, 0.0, 1.0], [1.0, 2.0, 0.0, 1.0]]))
+    assert np.isnan(scores.iloc[0]).all()
+    assert np.isfinite(scores.iloc[1]).all()
+
+
+def _gapped_pls_block() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return ``_pls_block(n=15)`` with two X cells and one Y cell missing."""
+    X, Y = _pls_block(n=15)
+    X.iloc[1, 2] = X.iloc[6, 0] = np.nan
+    Y.iloc[3, 0] = np.nan
+    return X, Y
+
+
+def _compare_pls_with_by_hand(pls: PLS, reference: dict[str, np.ndarray], rtol: float) -> None:
+    """Check a fitted PLS's T, W, P and C against ``_pls_by_hand``'s."""
+    for name, attribute in (("T", "scores_"), ("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
+        np.testing.assert_allclose(np.asarray(getattr(pls, attribute)), reference[name], rtol=rtol, atol=rtol)
+
+
+@pytest.mark.parametrize("method", ["tsr", "pmp"])
+def test_pls_imputed_fit_by_hand(method: str) -> None:
+    """``md_method="tsr"`` / ``"pmp"``: impute ``[X Y]`` jointly, then fit NIPALS once to the completed blocks.
+
+    The reference fills the cells with ``impute_low_rank`` at the model's own tolerance and
+    cap, autoscales the completed blocks, and fits PLS by hand. The model keeps the column
+    labels, and says how the imputation went.
+    """
+    X, Y = _gapped_pls_block()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pls = PLS(n_components=2, tol=1e-9, max_iter=300, missing_data_settings={"md_method": method}).fit(X, Y)
+    imputation = impute_low_rank(pd.concat([X, Y], axis=1).to_numpy(), 2, method=method, tol=1e-9, max_iter=300)
+    completed = imputation.completed
+    reference = _pls_by_hand(_autoscaled(completed[:, :4]), _autoscaled(completed[:, 4:]), 2)
+    _compare_pls_with_by_hand(pls, reference, rtol=1e-6)
+    assert pls.fitting_info_["md_method"] == method
+    assert pls.fitting_info_["md_rounds"] == imputation.rounds
+    assert pls.fitting_info_["md_converged"] is True
+    assert pls.fitting_info_["md_shift"] == imputation.shift
+    assert list(pls.x_loadings_.index) == list(X.columns)
+    assert list(pls.y_loadings_.index) == list(Y.columns)
+    predictions = reference["T"] @ reference["C"].T * completed[:, 4:].std(axis=0, ddof=1) + completed[:, 4:].mean(
+        axis=0
+    )
+    _assert_near(pls.predictions_.to_numpy(), predictions, rtol=1e-6)
+    # The diagnostics count the observed cells only: row 1 has its third X cell missing.
+    z = (X.to_numpy() - completed[:, :4].mean(axis=0)) / completed[:, :4].std(axis=0, ddof=1)
+    residual = z - reference["T"] @ reference["P"].T
+    assert pls.spe_.iloc[1, -1] == pytest.approx(np.sqrt(np.nansum(residual[1] ** 2)), rel=1e-6)
+
+
+def test_pls_imputed_fit_reads_a_pandas_missing_value_and_any_case() -> None:
+    """A nullable ``Float64`` response's ``pd.NA`` is a missing cell, and ``"TSR"`` is ``"tsr"``."""
+    X, Y = _gapped_pls_block()
+    nullable = Y.astype("Float64")
+    nullable.iloc[3, 0] = pd.NA
+    plain = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+    for y, method in ((nullable, "tsr"), (Y, "TSR")):
+        other = PLS(n_components=2, missing_data_settings={"md_method": method}).fit(X, y)
+        np.testing.assert_array_equal(other.beta_coefficients_.to_numpy(), plain.beta_coefficients_.to_numpy())
+        assert other.fitting_info_["md_method"] == "tsr"
+
+
+def test_pls_weighted_imputed_fit_scales_and_fits_on_the_weighted_rows_only() -> None:
+    """With ``sample_weight``, the imputation models every row, and the scaling and the fit only the weighted ones.
+
+    A weight of 0 drops a row from the fit: the reference autoscales the completed rows of
+    weight 1 with their own statistics and fits PLS to them by hand.
+    """
+    X, Y = _gapped_pls_block()
+    weights = np.ones(15)
+    weights[[0, 5, 9]] = 0.0
+    pls = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y, sample_weight=weights)
+    completed = impute_low_rank(pd.concat([X, Y], axis=1).to_numpy(), 2, method="tsr", tol=epsqrt, max_iter=500)
+    kept = completed.completed[weights > 0]
+    reference = _pls_by_hand(_autoscaled(kept[:, :4]), _autoscaled(kept[:, 4:]), 2)
+    for name, attribute in (("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
+        np.testing.assert_allclose(np.asarray(getattr(pls, attribute)), reference[name], rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(pls.scores_.to_numpy()[weights > 0], reference["T"], rtol=1e-6, atol=1e-6)
+
+
+def test_pls_imputed_fit_says_in_full_when_the_cells_still_move() -> None:
+    """An imputation stopped by ``max_iter`` before it settles is reported with its last shift and rounds."""
+    X, Y = _gapped_pls_block()
+    with pytest.warns(SpecificationWarning) as record:
+        PLS(n_components=2, max_iter=2, missing_data_settings={"md_method": "pmp"}).fit(X, Y)
+    imputation = impute_low_rank(pd.concat([X, Y], axis=1).to_numpy(), 2, method="pmp", tol=epsqrt, max_iter=2)
+    assert not imputation.converged
+    expected = (
+        f"PLS PMP: the imputed cells were still moving by {imputation.shift:.3g} standard deviations after 2 rounds "
+        f"(tol={epsqrt:g}). Raise max_iter, or loosen tol if that change is already negligible for your data."
+    )
+    assert expected in [str(w.message) for w in record]
+
+
+def test_pls_invert_by_hand() -> None:
+    """``invert``: the minimum-norm scores for a target, the null space of C', and the input they give.
+
+    With ``Q = C'`` (components x targets) and ``y`` autoscaled with the training statistics,
+    ``tau = y pinv(Q)``; the null space is spanned by the left singular vectors of ``Q`` past
+    its rank; ``x_new = (tau + N c) P'`` and ``y_hat = (tau + N c) Q``, both back in units;
+    ``T2 = sum tau_a^2 / s_a^2``. A target given as a dict or a DataFrame is read by name.
+    """
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=3).fit(X, Y)
+    Q, P = pls.y_loadings_.to_numpy().T, pls.x_loadings_.to_numpy()
+    variances = np.sum(pls.scores_.to_numpy() ** 2, axis=0) / 14
+    target = np.array([5.0, -3.0])
+    tau = ((target - Y.mean().to_numpy()) / Y.std(ddof=1).to_numpy()) @ np.linalg.pinv(Q)
+    U = np.linalg.svd(Q)[0]
+    null_space = U[:, 2:]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        for given in (
+            target,
+            {"y1": -3.0, "y0": 5.0},
+            pd.Series({"y1": -3.0, "y0": 5.0}),
+            pd.DataFrame({"y1": [-3.0], "y0": [5.0]}, index=["wanted"]),
+        ):
+            result = pls.invert(given)
+            pd.testing.assert_series_equal(result.scores, pd.Series(tau, index=[1, 2, 3], name="scores"), rtol=1e-10)
+            x_new = tau @ P.T * X.std(ddof=1).to_numpy() + X.mean().to_numpy()
+            pd.testing.assert_series_equal(result.x_new, pd.Series(x_new, index=X.columns, name="x_new"), rtol=1e-10)
+            pd.testing.assert_series_equal(result.y_hat, pd.Series(target, index=Y.columns, name="y_hat"), rtol=1e-10)
+            assert result.null_space_dimension == 1
+            basis = result.null_space_basis
+            assert list(basis.index) == [1, 2, 3]
+            assert list(basis.columns) == ["NS1"]
+            np.testing.assert_allclose(np.abs(basis.to_numpy()), np.abs(null_space), rtol=1e-10)
+            assert result.hotellings_t2 == pytest.approx(np.sum(tau**2 / variances), rel=1e-10)
+        moved = pls.invert(target, null_space_coordinates=[2.0])
+    shifted = tau + 2.0 * moved.null_space_basis.to_numpy().ravel()
+    np.testing.assert_allclose(moved.scores.to_numpy(), shifted, rtol=1e-10)
+    x_moved = shifted @ P.T * X.std(ddof=1).to_numpy() + X.mean().to_numpy()
+    np.testing.assert_allclose(moved.x_new.to_numpy(), x_moved, rtol=1e-10)
+    np.testing.assert_allclose(moved.y_hat.to_numpy(), target, rtol=1e-10)
+    assert moved.hotellings_t2 == pytest.approx(np.sum(shifted**2 / variances), rel=1e-10)
+
+
+def test_pls_invert_null_space_has_numpys_rank_tolerance() -> None:
+    """The null space is the dimensions past the rank of C', at numpy's ``matrix_rank`` tolerance.
+
+    In units of 1e-4, two targets nearly proportional to each other give C' a second singular
+    value about 1e-9 times the first: far above that tolerance (``3 * eps * s_1``), so the rank
+    is 2, though below ``3 * eps / s_1``.
+    """
+    X, _ = _pls_block(n=15)
+    X = X - X.mean()
+    y = X.to_numpy() @ np.array([1.0, -1.0, 0.5, 2.0])
+    Y = pd.DataFrame({"a": y, "b": 2.0 * y + 1e-9 * X.to_numpy()[:, 1]}) * 1e-4
+    pls = PLS(n_components=3, scale=False).fit(X, Y - Y.mean())
+    Q = pls.y_loadings_.to_numpy().T
+    singular = np.linalg.svd(Q, compute_uv=False)
+    assert 3 * np.finfo(float).eps * singular[0] < singular[1] < 3 * np.finfo(float).eps / singular[0]
+    assert np.linalg.matrix_rank(Q) == 2
+    assert pls.invert([1e-4, 2e-4]).null_space_dimension == 1
+
+
+def test_pls_invert_refuses_a_target_or_a_move_it_cannot_use_in_full() -> None:
+    """The wrong number of target values, a missing one, and the wrong number of null-space coordinates."""
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=3).fit(X, Y)
+    with pytest.raises(
+        ValueError, match=r"^y_desired has 3 value\(s\); expected 2 to match the fitted target\(s\): \['y0', 'y1'\]\.$"
+    ):
+        pls.invert([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y0', 'y1'\]\.$"):
+        pls.invert({"y0": 1.0})
+    message = r"^null_space_coordinates has 2 value\(s\); expected 1 to match the null-space dimension \(A - r\)\.$"
+    with pytest.raises(ValueError, match=message):
+        pls.invert([1.0, 2.0], null_space_coordinates=[1.0, 2.0])
+
+
+def test_pls_invert_reads_decimal_values_as_the_floats_they_hold() -> None:
+    """A target and a null-space move given as ``Decimal`` are read as floats, by a model that scales nothing too."""
+    X, Y = _pls_block(n=15)
+    X, Y = X - X.mean(), Y[["y0"]] - Y[["y0"]].mean()
+    pls = PLS(n_components=2, scale=False).fit(X, Y)
+    exact = pls.invert(1.5, null_space_coordinates=[0.25])
+    given = pls.invert(Decimal("1.5"), null_space_coordinates=[Decimal("0.25")])
+    pd.testing.assert_series_equal(given.x_new, exact.x_new)
+    pd.testing.assert_series_equal(given.scores, exact.scores)
+
+
+def test_pls_prediction_interval_by_hand() -> None:
+    """``y_hat -/+ t * s_E * sqrt(1 + 1/N + T2 / (N - 1))``, with the t quantile on ``N - A - 1`` degrees of freedom.
+
+    ``s_E`` is the calibration RMSE on that many degrees of freedom, ``RMSE * sqrt(N / (N - A - 1))``,
+    or a cross-validated RMSE as given. The bounds keep the new rows' labels.
+    """
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=2).fit(X, Y)
+    new = pd.DataFrame([[3.5, 2.0, 5.0, 1.0], [2.5, 3.2, 2.6, 4.0]], columns=X.columns, index=["p", "q"])
+    by_hand = _pls_new_rows_by_hand(pls, X, Y, new.to_numpy())
+    fitted = _pls_new_rows_by_hand(pls, X, Y, X.to_numpy())["y_hat"]
+    rmse = np.sqrt(np.mean((Y.to_numpy() - fitted) ** 2, axis=0))
+    quantile = t_dist.ppf(0.95, 12)
+    spread = np.sqrt(1 + 1 / 15 + by_hand["t2"] / 14)[:, None]
+    for cv_result, error_sd in ((None, rmse * np.sqrt(15 / 12)), (Bunch(rmse_cv=pd.Series([0.5, 2.0])), [0.5, 2.0])):
+        interval = pls.prediction_interval(new, conf_level=0.9, cv_result=cv_result)
+        expected = pd.DataFrame(by_hand["y_hat"], index=["p", "q"], columns=["y0", "y1"])
+        pd.testing.assert_frame_equal(interval.y_hat, expected, rtol=1e-10)
+        half = quantile * spread * np.asarray(error_sd)
+        pd.testing.assert_frame_equal(interval.lower, expected - half, rtol=1e-10)
+        pd.testing.assert_frame_equal(interval.upper, expected + half, rtol=1e-10)
+        assert interval.conf_level == 0.9
+    assert pls.prediction_interval(new).lower.iloc[0, 0] == pytest.approx(
+        by_hand["y_hat"][0, 0] - t_dist.ppf(0.975, 12) * spread[0, 0] * rmse[0] * np.sqrt(15 / 12), rel=1e-10
+    )
+
+
+@pytest.mark.parametrize(("components", "scale"), [(2, True), (3, False)])
+def test_pls_prediction_interval_keeps_at_least_one_degree_of_freedom(components: int, scale: bool) -> None:
+    """With ``N - A - 1`` at 1, or at 0 (four rows left uncentred), the interval uses 1 degree of freedom."""
+    X, Y = _pls_block(n=4)
+    pls = PLS(n_components=components, scale=scale, warn_on_uncentred=False).fit(X, Y[["y0"]])
+    interval = pls.prediction_interval(X, conf_level=0.9)
+    rmse = pls.rmse_.iloc[:, -1].to_numpy()
+    assert rmse > 1e-3
+    t2 = pls.diagnose(X).hotellings_t2.to_numpy()
+    half = t_dist.ppf(0.95, 1) * np.sqrt(1 + 1 / 4 + t2 / 3) * rmse * np.sqrt(4 / 1)
+    np.testing.assert_allclose((interval.upper - interval.y_hat).to_numpy().ravel(), half, rtol=1e-10)
+
+
+def test_pls_prediction_interval_refuses_a_level_outside_0_5_to_1_in_full() -> None:
+    """Both ends are refused, as for ``cross_validate``."""
+    X, Y = _pls_block()
+    pls = PLS(n_components=1).fit(X, Y)
+    for level in (0.5, 1.0):
+        with pytest.raises(ValueError, match=rf"^conf_level must be between 0\.5 and 1\.0, got {level}\.$"):
+            pls.prediction_interval(X, conf_level=level)
+
+
+def _record_calls(monkeypatch: pytest.MonkeyPatch, name: str) -> list[tuple]:
+    """Stand in for ``process_improve.multivariate._pls.<name>``, recording each call's arguments."""
+    calls: list[tuple] = []
+    monkeypatch.setattr(f"process_improve.multivariate._pls.{name}", lambda *args: calls.append(args) or Bunch())
+    return calls
+
+
+def test_pls_compare_cv_criteria_passes_its_settings_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The method and the function hand the class, the blocks, every setting and the PLS keywords to the criteria."""
+    calls = _record_calls(monkeypatch, "_compare_cv_criteria")
+    X, Y = _pls_block()
+    PLS.compare_cv_criteria(X, Y)
+    defaults = _CompareSettings(
+        max_components=None,
+        cv=7,
+        random_state=None,
+        n_permutations=999,
+        n_cv_permutations=199,
+        alpha=0.05,
+        angle_threshold=30.0,
+        conf_level=0.95,
+    )
+    settings = {
+        "max_components": 3,
+        "cv": 4,
+        "random_state": 11,
+        "n_permutations": 49,
+        "n_cv_permutations": 9,
+        "alpha": 0.1,
+        "angle_threshold": 20.0,
+        "conf_level": 0.9,
+    }
+    PLS.compare_cv_criteria(X, Y, **settings, max_iter=50)
+    compare_cv_criteria(X, Y, **settings, tol=1e-6)
+    (cls, x, y, given, kwargs), (_, _, _, chosen, more), (function_cls, x2, y2, again, other) = calls
+    assert cls is PLS
+    assert function_cls is PLS
+    assert x is X
+    assert y is Y
+    assert x2 is X
+    assert y2 is Y
+    assert given == defaults
+    assert kwargs == {}
+    assert chosen == _CompareSettings(**settings)
+    assert more == {"max_iter": 50}
+    assert again == _CompareSettings(**settings)
+    assert other == {"tol": 1e-6}
+
+
+def test_pls_pseudo_validation_set_passes_its_settings_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The method and the function hand the class, the blocks, every setting and the PLS keywords to the builder."""
+    calls = _record_calls(monkeypatch, "_pseudo_validation_set")
+    X, Y = _pls_block()
+    PLS.pseudo_validation_set(X, Y, n_components=2)
+    PLS.pseudo_validation_set(X, Y, n_components=3, cv=4, scope="local", random_state=5, max_iter=50)
+    pseudo_validation_set(X, Y, n_components=1, cv=3, tol=1e-6)
+    (cls, x, y, given, kwargs), (_, _, _, chosen, more), (function_cls, x2, y2, again, other) = calls
+    assert cls is PLS
+    assert function_cls is PLS
+    assert x is X
+    assert y is Y
+    assert x2 is X
+    assert y2 is Y
+    assert given == _PseudoValidationSettings(n_components=2, cv=7, scope="global", random_state=None)
+    assert kwargs == {}
+    assert chosen == _PseudoValidationSettings(n_components=3, cv=4, scope="local", random_state=5)
+    assert more == {"max_iter": 50}
+    assert again == _PseudoValidationSettings(n_components=1, cv=3, scope="global", random_state=None)
+    assert other == {"tol": 1e-6}
+
+
+def test_pls_score_weighs_the_rows_it_is_given() -> None:
+    """``score`` is the mean over targets of ``1 - sum w e^2 / sum w (y - ybar_w)^2``, the weighted R²."""
+    X, Y = _pls_block(n=15)
+    pls = PLS(n_components=1).fit(X, Y)
+    weights = np.linspace(0.1, 2.0, 15)
+    y, residual = Y.to_numpy(), Y.to_numpy() - pls.predict(X).to_numpy()
+    centre = weights @ y / weights.sum()
+    r2 = 1 - (weights @ residual**2) / (weights @ (y - centre) ** 2)
+    assert pls.score(X, Y, sample_weight=weights) == pytest.approx(r2.mean(), rel=1e-12)
+    assert pls.score(X, Y, sample_weight=weights) != pytest.approx(pls.score(X, Y), rel=1e-6)
+
+
+def _sklearn_pls(n_components: int) -> PLSRegression:
+    """Return sklearn's PLSRegression, converged far past its default tolerance (a squared change of 1e-6)."""
+    return PLSRegression(n_components=n_components, tol=1e-24, max_iter=10_000)
+
+
+def _stand_in_selection(monkeypatch: pytest.MonkeyPatch, counts: list[int]) -> list[tuple]:
+    """Stand in for ``PLS.select_n_components``: record each call and recommend the next of ``counts``."""
+    calls: list[tuple] = []
+
+    def select(cls: type, X: pd.DataFrame, Y: pd.DataFrame, **kwargs: object) -> Bunch:
+        calls.append((cls, X, Y, kwargs))
+        return Bunch(n_components=counts[len(calls) - 1])
+
+    monkeypatch.setattr(PLS, "select_n_components", classmethod(select))
+    return calls
+
+
+def _nested_scores_by_hand(Y: np.ndarray, oof: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return RMSEP and Q2 (per column, then total) of out-of-fold predictions, over the rows predicted.
+
+    Only observed cells count; the total sum of squares is about each column's mean over all rows.
+    """
+    covered = ~np.isnan(oof).any(axis=1)
+    residual, y = (Y - oof)[covered], Y[covered]
+    observed = ~np.isnan(residual)
+    press = np.array([np.sum(residual[observed[:, m], m] ** 2) for m in range(Y.shape[1])])
+    counts = observed.sum(axis=0)
+    tss = np.array([np.sum((y[observed[:, m], m] - np.nanmean(Y[:, m])) ** 2) for m in range(Y.shape[1])])
+    rmsep = [np.sqrt(p / c) if c else np.nan for p, c in zip(press, counts, strict=True)]
+    q2 = [1 - p / t if t > 0 else np.nan for p, t in zip(press, tss, strict=True)]
+    rmsep.append(np.sqrt(press.sum() / counts.sum()) if counts.sum() else np.nan)
+    q2.append(1 - press.sum() / tss.sum() if tss.sum() > 0 else np.nan)
+    return np.array(rmsep), np.array(q2)
+
+
+def test_pls_nested_cv_by_hand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each outer fold asks the inner selection for a count, fits PLS at it, and predicts its held-out rows.
+
+    The selection is stood in for, so the defaults it is handed can be read. Each fold's
+    predictions are sklearn's ``PLSRegression`` at the chosen count on the fold's training rows
+    (autoscaled with ddof=1 there too); RMSEP and Q2 are worked from them.
+    """
+    calls = _stand_in_selection(monkeypatch, [1, 2, 1])
+    X, Y = _pls_block(n=15)
+    result = PLS.nested_cv(X, Y, outer_cv=3, random_state=4)
+    oof = np.full((15, 2), np.nan)
+    splits = list(KFold(n_splits=3, shuffle=True, random_state=4).split(X))
+    assert len(calls) == 3
+    for i, ((train, test), count) in enumerate(zip(splits, [1, 2, 1], strict=True)):
+        cls, x, y, kwargs = calls[i]
+        assert cls is PLS
+        _assert_frame_near(x, X.iloc[train])
+        _assert_frame_near(y, Y.iloc[train])
+        assert kwargs == {
+            "max_components": None,
+            "cv": 5,
+            "n_repeats": 10,
+            "selection_rule": "1se",
+            "scale_inside_folds": True,
+            "min_q2_increase": 0.01,
+            "n_permutations": 999,
+            "alpha": 0.01,
+            "random_state": 4 + i,
+        }
+        oof[test] = _sklearn_pls(count).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test])
+    _assert_frame_near(result.cv_predictions, pd.DataFrame(oof, index=Y.index, columns=Y.columns))
+    rmsep, q2 = _nested_scores_by_hand(Y.to_numpy(), oof)
+    _assert_series_near(result.rmsep, pd.Series(rmsep, index=["y0", "y1", "total"], name="RMSEP"))
+    _assert_series_near(result.q2y, pd.Series(q2, index=["y0", "y1", "total"], name="Q2Y"))
+    assert result.selected_components_per_fold == [1, 2, 1]
+    expected = pd.Series([2 / 3, 1 / 3], index=pd.Index([1, 2], name="n_components"), name="vote_share")
+    _assert_series_near(result.selected_components_distribution, expected)
+
+
+def test_pls_nested_cv_passes_its_settings_on_and_predicts_as_the_fold_models_do(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every setting reaches the inner selection, the PLS keywords the final fits too (#1027).
+
+    Without in-fold scaling the fold models autoscale themselves (``scale=True``), and each
+    held-out row is predicted as its fold model predicts it, which is sklearn's
+    ``PLSRegression`` on the rows as given.
+    """
+    calls = _stand_in_selection(monkeypatch, [2, 1])
+    fitted: list[tuple[int, int]] = []
+    fit = PLS.fit
+
+    def recording_fit(self: PLS, *args: object, **kwargs: object) -> PLS:
+        fitted.append((self.n_components, self.max_iter))
+        return fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(PLS, "fit", recording_fit)
+    X, Y = _pls_block(n=12)
+    settings = {
+        "max_components": 2,
+        "inner_cv": 3,
+        "n_inner_repeats": 2,
+        "selection_rule": "min",
+        "scale_inside_folds": False,
+        "min_q2_increase": 0.05,
+        "n_permutations": 19,
+        "alpha": 0.05,
+    }
+    result = PLS.nested_cv(X, Y, outer_cv=2, **settings, max_iter=300)
+    for _, _, _, kwargs in calls:
+        assert kwargs == {
+            "max_components": 2,
+            "cv": 3,
+            "n_repeats": 2,
+            "selection_rule": "min",
+            "scale_inside_folds": False,
+            "min_q2_increase": 0.05,
+            "n_permutations": 19,
+            "alpha": 0.05,
+            "random_state": None,
+            "max_iter": 300,
+        }
+    assert fitted == [(2, 300), (1, 300)]
+    oof = np.full((12, 2), np.nan)
+    # The outer folds are shuffled without a seed: each one's training rows are those it handed the selection.
+    for (_, x_train, _, _), count in zip(calls, [2, 1], strict=True):
+        rows = X.index.get_indexer(x_train.index)
+        held = np.setdiff1d(np.arange(12), rows)
+        oof[held] = _sklearn_pls(count).fit(X.iloc[rows], Y.iloc[rows]).predict(X.iloc[held])
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+
+
+class _RecordingSplitter(BaseCrossValidator):
+    """Two folds of alternate rows, recording what ``split`` is given."""
+
+    def __init__(self) -> None:
+        self.seen: list[tuple[object, object]] = []
+
+    def get_n_splits(self, X: object = None, y: object = None, groups: object = None) -> int:  # noqa: ARG002
+        return 2
+
+    def split(self, X: object, y: object = None, groups: object = None):
+        self.seen.append((X, y))
+        yield from super().split(X, y, groups)
+
+    def _iter_test_indices(self, X: object = None, y: object = None, groups: object = None):  # noqa: ARG002
+        n = len(X)  # type: ignore[arg-type]
+        yield from (np.arange(0, n, 2), np.arange(1, n, 2))
+
+
+def test_pls_nested_cv_hands_both_blocks_to_its_splitter_and_needs_two_folds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A splitter is given X and Y, as one that stratifies needs; an integer below 2 is refused in full."""
+    _stand_in_selection(monkeypatch, [1, 1, 1, 1])
+    X, Y = _pls_block()
+    splitter = _RecordingSplitter()
+    PLS.nested_cv(X, Y, outer_cv=splitter)
+    ((x, y),) = splitter.seen
+    pd.testing.assert_frame_equal(x, X)
+    pd.testing.assert_frame_equal(y, Y)
+    assert PLS.nested_cv(X, Y, outer_cv=2).selected_components_per_fold == [1, 1]
+    with pytest.raises(ValueError, match=r"^outer_cv must be >= 2 when given as an int; got 1\.$"):
+        PLS.nested_cv(X, Y, outer_cv=1)
+    _stand_in_selection(monkeypatch, [1] * 5)
+    assert PLS.nested_cv(X, Y).selected_components_per_fold == [1] * 5  # five outer folds by default
+
+
+@pytest.mark.parametrize(
+    ("blanks", "missed"),
+    [
+        ([(1, 1), (2, 1)], 0),
+        ([(0, 0), (1, 0), (2, 0), (1, 1), (2, 1)], 1),
+        ([(0, 1), (1, 1), (2, 1)], 1),
+        ([(r, c) for r in range(3) for c in range(2)], 3),
+    ],
+    ids=["one-cell-in-y1", "one-cell-in-all", "no-cell-in-y1", "none"],
+)
+def test_pls_nested_cv_scores_only_the_observed_cells_of_the_rows_it_predicts(
+    monkeypatch: pytest.MonkeyPatch, blanks: list[tuple[int, int]], missed: int
+) -> None:
+    """One outer fold holds out three rows. RMSEP and Q2 count their observed responses only, NaN where none.
+
+    The responses are in hundredths, so a total sum of squares below 1 still counts, and one
+    observed cell is enough for an RMSEP. Nothing warns.
+    """
+    _stand_in_selection(monkeypatch, [1])
+    X, Y = _pls_block(n=12)
+    Y = Y / 100.0
+    for row, column in blanks:
+        Y.iloc[row, column] = np.nan
+    one_fold = PredefinedSplit([0, 0, 0] + [-1] * 9)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PLS.nested_cv(X, Y, outer_cv=one_fold)
+    oof = np.full((12, 2), np.nan)
+    oof[:3] = _sklearn_pls(1).fit(X.iloc[3:], Y.iloc[3:]).predict(X.iloc[:3])
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+    rmsep, q2 = _nested_scores_by_hand(Y.to_numpy(), oof)
+    _assert_near(result.rmsep.to_numpy(), rmsep, rtol=1e-6)
+    _assert_near(result.q2y.to_numpy(), q2, rtol=1e-6)
+    assert np.isnan(rmsep).sum() == missed
+    assert np.nansum((Y.to_numpy()[:3] - np.nanmean(Y.to_numpy(), axis=0)) ** 2) < 1
+
+
+def test_pls_nested_cv_scales_inside_folds_for_a_model_that_does_not_scale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``scale=False`` fold models on autoscaled folds predict as sklearn's autoscaling PLSRegression does."""
+    calls = _stand_in_selection(monkeypatch, [2, 2])
+    X, Y = _pls_block(n=12)
+    result = PLS.nested_cv(X, Y, outer_cv=2, random_state=5, scale=False)
+    assert all(kwargs["scale"] is False for _, _, _, kwargs in calls)
+    oof = np.full((12, 2), np.nan)
+    for train, test in KFold(n_splits=2, shuffle=True, random_state=5).split(X):
+        oof[test] = _sklearn_pls(2).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test])
+    _assert_near(result.cv_predictions.to_numpy(), oof, rtol=1e-6)
+
+
+def test_pls_nested_cv_projects_a_held_out_row_with_a_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A held-out row with a missing cell is predicted as its fold model's ``project`` predicts it."""
+    _stand_in_selection(monkeypatch, [2, 2])
+    X, Y = _pls_block(n=12)
+    X.iloc[[0, 1], [1, 2]] = np.nan
+    splitter = PredefinedSplit([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1])
+    result = PLS.nested_cv(X, Y, outer_cv=splitter)
+    for held in (np.arange(6), np.arange(6, 12)):
+        trained = np.setdiff1d(np.arange(12), held)
+        model = PLS(n_components=2).fit(X.iloc[trained], Y.iloc[trained])
+        expected = model.project(X.iloc[held]).y_hat.to_numpy()
+        _assert_near(result.cv_predictions.iloc[held].to_numpy(), expected, rtol=1e-6)
+
+
+def _cross_validated_by_hand(
+    X: pd.DataFrame, Y: pd.DataFrame, resamples: list, weights: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return sklearn's coefficients on each resample's rows of weight above 0, and its held-out predictions."""
+    betas, predictions = [], np.full(Y.shape, np.nan)
+    for train, test in resamples:
+        rows = train if weights is None else train[weights[train] > 0]
+        model = _sklearn_pls(2).fit(X.iloc[rows], Y.iloc[rows])
+        betas.append(model.coef_.T)
+        if test is not None:
+            predictions[test] = model.predict(X.iloc[test])
+    return np.array(betas), predictions
+
+
+@pytest.mark.parametrize(("cv", "weighted"), [("loo", False), (4, False), ("loo", True)])
+def test_pls_cross_validate_by_hand(cv: str | int, weighted: bool, capsys: pytest.CaptureFixture) -> None:
+    """Jackknife and K-fold: the coefficients of each resample's fit, their jackknife spread, and the CV predictions.
+
+    With G resamples the standard error is ``sqrt((G - 1) / G * sum (b_g - b_mean)^2)`` and the
+    interval ``b_mean -/+ t(1 - alpha / 2, G - 1) * se``; a weight of 0 drops a row from every fit
+    it is in, but not from the predictions. A constant column has a coefficient of exactly 0,
+    whose interval is [0, 0]: not significant. Arrays are numbered from 0, as frames keep their
+    labels. The progress bar names the scheme.
+    """
+    X, Y = _pls_block(n=10)
+    X["flat"] = 3.0
+    weights = np.array([1, 1, 0, 1, 1, 1, 0, 1, 1, 1.0]) if weighted else None
+    pls = PLS(n_components=2).fit(X, Y)
+    given = (X, Y) if weighted else (X.to_numpy(), Y.to_numpy())
+    result = pls.cross_validate(*given, cv=cv, conf_level=0.9, random_state=2, sample_weight=weights)
+    rows, targets = (X.index, Y.columns) if weighted else (pd.RangeIndex(10), pd.RangeIndex(2))
+    if cv == "loo":
+        resamples = [(np.delete(np.arange(10), i), np.array([i])) for i in range(10)]
+    else:
+        resamples = list(KFold(n_splits=4, shuffle=True, random_state=2).split(X))
+    betas, predictions = _cross_validated_by_hand(X, Y, resamples, weights)
+    G = len(resamples)
+    _assert_near(result.beta_samples, betas, rtol=1e-6)
+    mean = betas.mean(axis=0)
+    se = np.sqrt((G - 1) / G * np.sum((betas - mean) ** 2, axis=0))
+    lower, upper = mean - t_dist.ppf(0.95, G - 1) * se, mean + t_dist.ppf(0.95, G - 1) * se
+    for name, expected in (("beta_mean", mean), ("beta_std", se), ("beta_ci_lower", lower), ("beta_ci_upper", upper)):
+        _assert_frame_near(result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5)
+    _assert_frame_near(result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns))
+    assert (lower[4] == 0).all()
+    assert (upper[4] == 0).all()
+    assert not result.significant.loc["flat"].any()
+    _assert_frame_near(result.y_hat_cv, pd.DataFrame(predictions, index=rows, columns=targets), rtol=1e-6)
+    residual = Y.to_numpy() - predictions
+    assert result.press == pytest.approx(np.sum(residual**2), rel=1e-6)
+    rmse = np.sqrt(np.mean(residual**2, axis=0))
+    _assert_series_near(result.rmse_cv, pd.Series(rmse, index=targets, name="RMSE_CV"), rtol=1e-6)
+    q2 = 1 - np.sum(residual**2, axis=0) / np.sum((Y.to_numpy() - Y.to_numpy().mean(axis=0)) ** 2, axis=0)
+    _assert_series_near(result.q_squared, pd.Series(q2, index=targets, name="Q_squared"), rtol=1e-6)
+    assert result.n_resamples == G
+    assert result.method == {"loo": "jackknife", 4: "kfold"}[cv]
+    assert result.conf_level == 0.9
+    bar = capsys.readouterr().err
+    assert (
+        ("Jackknife (LOO): 100%" in bar and "10/10" in bar)
+        if cv == "loo"
+        else ("4-Fold CV: 100%" in bar and "4/4" in bar)
+    )
+
+
+def test_pls_cross_validate_bootstrap_by_hand(capsys: pytest.CaptureFixture) -> None:
+    """Bootstrap: rows drawn with replacement by ``default_rng(random_state)``, a percentile interval, no CV."""
+    X, Y = _pls_block(n=10)
+    pls = PLS(n_components=2).fit(X, Y)
+    result = pls.cross_validate(X, Y, n_bootstrap=5, conf_level=0.8, random_state=3, show_progress=False)
+    assert capsys.readouterr().err == ""
+    rng = np.random.default_rng(3)
+    draws = [(rng.choice(10, size=10, replace=True), None) for _ in range(5)]
+    betas, _ = _cross_validated_by_hand(X, Y, draws)
+    _assert_near(result.beta_samples, betas, rtol=1e-6)
+    lower, upper = np.percentile(betas, 10, axis=0), np.percentile(betas, 90, axis=0)
+    for name, expected in (
+        ("beta_mean", betas.mean(axis=0)),
+        ("beta_std", betas.std(axis=0, ddof=1)),
+        ("beta_ci_lower", lower),
+        ("beta_ci_upper", upper),
+    ):
+        _assert_frame_near(result[name], pd.DataFrame(expected, index=X.columns, columns=Y.columns), rtol=1e-5)
+    _assert_frame_near(result.significant, pd.DataFrame((lower > 0) | (upper < 0), index=X.columns, columns=Y.columns))
+    assert (result.y_hat_cv, result.press, result.rmse_cv, result.q_squared) == (None, None, None, None)
+    assert (result.n_resamples, result.method, result.conf_level) == (5, "bootstrap", 0.8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # one resample has no spread: its sd is NaN
+        single = pls.cross_validate(X, Y, n_bootstrap=1, random_state=3)
+    assert (single.method, single.n_resamples) == ("bootstrap", 1)
+    assert "Bootstrap: 100%" in capsys.readouterr().err
+
+
+def test_pls_cross_validate_refuses_a_level_outside_0_5_to_1_in_full() -> None:
+    """Both ends are refused."""
+    X, Y = _pls_block()
+    pls = PLS(n_components=1).fit(X, Y)
+    for level in (0.5, 1.0):
+        with pytest.raises(ValueError, match=rf"^conf_level must be between 0\.5 and 1\.0, got {level}\.$"):
+            pls.cross_validate(X, Y, conf_level=level, show_progress=False)
+
+
+def test_pls_fit_transform_names_the_missing_response_in_full() -> None:
+    """``fit_transform`` without Y says why the default exists and what to pass."""
+    X, _ = _pls_block()
+    message = (
+        "Y is required by PLS.fit_transform; got None. The None default exists only to match the sklearn "
+        "fit_transform(X, y=None) signature, and PLS cannot be fitted without responses. Pass the response block, "
+        "e.g. model.fit_transform(X, Y)."
+    )
+    with pytest.raises(ValueError, match="^" + re.escape(message) + "$"):
+        PLS(n_components=1).fit_transform(X)
+
+
+def _masked_regression(block: np.ndarray, vector: np.ndarray, per: str) -> np.ndarray:
+    """Regress ``vector`` on each column (``per="column"``) or row of ``block``, over its observed cells only."""
+    present, values = ~np.isnan(block), np.nan_to_num(block)
+    if per == "column":
+        return (values.T @ vector) / (present.T @ vector**2)
+    return (values @ vector) / (present @ vector**2)
+
+
+def _pls_nipals_as_fitted(X: np.ndarray, Y: np.ndarray, A: int, tol: float = epsqrt, max_iter: int = 500) -> dict:
+    """NIPALS PLS as ``PLS`` runs it, written out, with the iterations each component took.
+
+    Each component is seeded from the Y column of largest sum of squares, the first of any that
+    tie to round-off as autoscaled columns do (a missing cell as 0), plus 1; an iteration is
+    ``w = X'u / u'u`` normalised, ``t = Xw / w'w``, ``c = Y't / t't``, ``u = Yc / c'c``, each
+    over the observed cells; the loop stops once
+    ``||u_old - u|| / ||u|| < tol``, or after ``max_iter`` iterations. Then ``p = X't / t't``,
+    both blocks are deflated, and the component is turned so that its largest loading is
+    positive.
+    """
+    X, Y = np.array(X, dtype=float), np.array(Y, dtype=float)
+    out: dict = {name: [] for name in ("T", "U", "W", "P", "C", "iterations")}
+    for _ in range(A):
+        ssq_y = np.nansum(Y**2, axis=0)
+        seed = np.nan_to_num(Y[:, [np.flatnonzero(ssq_y >= ssq_y.max() * (1 - 1e-9))[0]]])
+        u, iterations = seed + 1.0, 0
+        while True:
+            previous = u
+            w = _masked_regression(X, u, "column")
+            w = w / np.linalg.norm(w)
+            t = _masked_regression(X, w, "row")
+            c = _masked_regression(Y, t, "column")
+            u = _masked_regression(Y, c, "row")
+            iterations += 1
+            if np.linalg.norm(previous - u) / np.linalg.norm(u) < tol or iterations >= max_iter:
+                break
+        p = _masked_regression(X, t, "column")
+        X, Y = X - t @ p.T, Y - t @ c.T
+        sign = np.sign(p[np.argmax(np.abs(p))])
+        for name, vector in (("T", t), ("U", u), ("W", w), ("P", p), ("C", c)):
+            out[name].append((sign * vector).ravel())
+        out["iterations"].append(iterations)
+    return {name: np.array(values) if name == "iterations" else np.column_stack(values) for name, values in out.items()}
+
+
+def _by_hand_diagnostics(Z: np.ndarray, Zy: np.ndarray, ref: dict, y_scale: np.ndarray) -> dict:
+    """Return what ``fit`` reports from a model's T, P and C on its scaled blocks, worked over the observed cells.
+
+    After ``a`` components: SPE is the root of each row's residual sum of squares; R2 per
+    variable is ``1 - SS(residual) / SS(column)`` (NaN for a column of zeros); cumulative R2Y
+    is pooled over Y; RMSE is per target, over its observed cells, in Y's units.
+    """
+    T, P, C = ref["T"], ref["P"], ref["C"]
+    out: dict = {name: [] for name in ("spe", "r2x", "r2y", "r2", "rmse")}
+    for a in range(1, T.shape[1] + 1):
+        ex, ey = Z - T[:, :a] @ P[:, :a].T, Zy - T[:, :a] @ C[:, :a].T
+        out["spe"].append(np.sqrt(np.nansum(ex**2, axis=1)))
+        x_total, y_total = np.nansum(Z**2, axis=0), np.nansum(Zy**2, axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out["r2x"].append(np.where(x_total > 0, 1 - np.nansum(ex**2, axis=0) / x_total, np.nan))
+            out["r2y"].append(np.where(y_total > 0, 1 - np.nansum(ey**2, axis=0) / y_total, np.nan))
+        out["r2"].append(1 - np.nansum(ey**2) / np.nansum(Zy**2))
+        out["rmse"].append(np.sqrt(np.nanmean(ey**2, axis=0)) * y_scale)
+    return {name: np.array(values) if name == "r2" else np.column_stack(values) for name, values in out.items()}
+
+
+@pytest.mark.parametrize("scale", [True, False])
+def test_pls_fit_by_hand(scale: bool) -> None:
+    """Every fitted attribute of a three-component model of two responses, against NIPALS written out.
+
+    With ``scale=True`` both blocks are autoscaled (ddof=1) first and the coefficients,
+    predictions and RMSE are reported back in their units; the coefficients are sklearn's.
+    Each block carries a constant column, whose R2 per variable is NaN without a warning;
+    with ``scale=False`` each also has one whose sum of squares is below 1, an ordinary value.
+    """
+    X, Y = _pls_block(n=15)
+    X["flat"], Y["none"] = (7.0, 3.0) if scale else (0.0, 0.0)
+    if not scale:
+        X, Y = X - X.mean(), Y - Y.mean()
+        X["small"] = np.r_[0.5, -0.5, np.zeros(13)]
+        Y["tiny"] = 0.05 * X["x0"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        pls = PLS(n_components=3, scale=scale).fit(X, Y)
+    with np.errstate(invalid="ignore"):  # the constant columns are 0 / 0 here, set to 0 below
+        Z, Zy = (_autoscaled(X.to_numpy()), _autoscaled(Y.to_numpy())) if scale else (X.to_numpy(), Y.to_numpy())
+    x_sd = X.std(ddof=1).to_numpy(copy=True) if scale else np.ones(X.shape[1])
+    y_sd, y_mean = (Y.std(ddof=1).to_numpy(copy=True), Y.mean().to_numpy()) if scale else (np.ones(4), np.zeros(4))
+    if scale:  # a constant column is centred and left unscaled
+        Z[:, 4], Zy[:, 2], x_sd[4], y_sd[2] = 0.0, 0.0, 1.0, 1.0
+    ref = _pls_nipals_as_fitted(Z, Zy, 3)
+    components = [1, 2, 3]
+    frames = {
+        "scores_": (ref["T"], X.index),
+        "y_scores_": (ref["U"], Y.index),
+        "x_weights_": (ref["W"], X.columns),
+        "x_loadings_": (ref["P"], X.columns),
+        "y_loadings_": (ref["C"], Y.columns),
+        "y_weights_": (ref["C"], Y.columns),
+    }
+    for name, (values, index) in frames.items():
+        _assert_frame_near(getattr(pls, name), pd.DataFrame(values, index=index, columns=components), rtol=1e-6)
+    R = ref["W"] @ np.linalg.inv(ref["P"].T @ ref["W"])
+    _assert_frame_near(pls.direct_weights_, pd.DataFrame(R, index=X.columns, columns=components), rtol=1e-6)
+    beta = R @ ref["C"].T * y_sd / x_sd[:, None]
+    _assert_frame_near(pls.beta_coefficients_, pd.DataFrame(beta, index=X.columns, columns=Y.columns), rtol=1e-6)
+    if scale:
+        sklearn = _sklearn_pls(3).fit(X.drop(columns="flat"), Y.drop(columns="none"))
+        _assert_near(pls.beta_coefficients_.drop(index="flat", columns="none").to_numpy(), sklearn.coef_.T, rtol=1e-6)
+    predictions = ref["T"] @ ref["C"].T * y_sd + y_mean
+    _assert_frame_near(pls.predictions_, pd.DataFrame(predictions, index=Y.index, columns=Y.columns), rtol=1e-6)
+    variance = np.sum(ref["T"] ** 2, axis=0) / 14
+    _assert_near(pls.explained_variance_, variance, rtol=1e-6)
+    _assert_series_near(
+        pls.scaling_factor_for_scores_,
+        pd.Series(np.sqrt(variance), index=components, name="Standard deviation per score"),
+        rtol=1e-6,
+    )
+    t2 = np.cumsum(ref["T"] ** 2 / variance, axis=1)
+    _assert_frame_near(pls.hotellings_t2_, pd.DataFrame(t2, index=X.index, columns=components), rtol=1e-6)
+    _assert_near(pls._x_residuals, Z - ref["T"] @ ref["P"].T, rtol=1e-6, atol=1e-8)
+    hand = _by_hand_diagnostics(Z, Zy, ref, y_sd)
+    _assert_frame_near(pls.spe_, pd.DataFrame(hand["spe"], index=X.index, columns=components), rtol=1e-6)
+    _assert_frame_near(pls.r2_per_variable_, pd.DataFrame(hand["r2x"], index=X.columns, columns=components), rtol=1e-6)
+    assert pls.r2_per_variable_.loc["flat"].isna().all()
+    assert pls.r2y_per_variable_.loc["none"].isna().all()
+    _assert_frame_near(pls.r2y_per_variable_, pd.DataFrame(hand["r2y"], index=Y.columns, columns=components), rtol=1e-6)
+    _assert_series_near(
+        pls.r2_cumulative_, pd.Series(hand["r2"], index=components, name="Output cumulative R²"), rtol=1e-6
+    )
+    _assert_series_near(
+        pls.r2_per_component_,
+        pd.Series(np.diff(hand["r2"], prepend=0.0), index=components, name="Output R² per component"),
+        rtol=1e-6,
+    )
+    _assert_frame_near(pls.rmse_, pd.DataFrame(hand["rmse"], index=Y.columns, columns=components), rtol=1e-6)
+    np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
+    assert pls.fitting_info_["timing"].shape == (3,)
+    assert (pls.fitting_info_["timing"] >= 0).all()
+    assert (pls.fitting_info_["timing"] < 60).all()  # seconds this fit took, not a clock reading
+    assert (pls.n_samples_, pls.n_features_in_, pls.n_targets_, pls.n_components_) == (15, X.shape[1], Y.shape[1], 3)
+    assert pls.has_missing_data_ is False
+
+
+def test_pls_fit_with_missing_cells_by_hand() -> None:
+    """NIPALS skips each missing cell in its sums, and every diagnostic counts the observed cells only (#1027).
+
+    One X cell and one Y cell are missing; the seed column's missing cell counts as 0. The
+    RMSE of the response with a gap is over its observed cells: it was NaN.
+    """
+    X, Y = _gapped_pls_block()
+    X, Y = X - X.mean(), Y - Y.mean()
+    pls = PLS(n_components=2, scale=False).fit(X, Y)
+    ref = _pls_nipals_as_fitted(X.to_numpy(), Y.to_numpy(), 2)
+    for name, attribute in (("T", "scores_"), ("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
+        _assert_near(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
+    np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
+    hand = _by_hand_diagnostics(X.to_numpy(), Y.to_numpy(), ref, np.ones(2))
+    _assert_near(pls.spe_.to_numpy(), hand["spe"], rtol=1e-6)
+    _assert_near(pls.r2y_per_variable_.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(pls.r2_cumulative_.to_numpy(), hand["r2"], rtol=1e-6)
+    _assert_near(pls.rmse_.to_numpy(), hand["rmse"], rtol=1e-6)
+    assert np.isfinite(pls.rmse_.to_numpy()).all()
+    assert pls.has_missing_data_ is True
+    _assert_near(pls._x_residuals, np.nan_to_num(X.to_numpy() - ref["T"] @ ref["P"].T), atol=1e-9)
+    for gapped in ((X, Y.fillna(0.0)), (X.fillna(0.0), Y)):
+        assert PLS(n_components=1, scale=False).fit(*gapped).has_missing_data_ is True
+
+
+def test_pls_fit_labels_its_results_from_the_blocks_it_is_given() -> None:
+    """A labelled X labels the rows of every result; a 1-D response array follows it, a Series keeps its own labels.
+
+    A 1-D array of responses was labelled 0..N-1 while a 2-D one took X's row labels (#1027).
+    Arrays are numbered from 0.
+    """
+    X, Y = _pls_block()
+    for y in (Y["y0"].to_numpy(), Y[["y0"]].to_numpy()):
+        pls = PLS(n_components=1).fit(X, y)
+        assert pls.predictions_.index.equals(X.index)
+        assert pls.y_scores_.index.equals(X.index)
+        assert list(pls.predictions_.columns) == [0]
+    series = pd.Series(Y["y0"].to_numpy(), index=[f"s{i}" for i in range(12)], name="q")
+    pls = PLS(n_components=1).fit(X, series)
+    assert list(pls.y_loadings_.index) == ["q"]
+    assert list(pls.predictions_.columns) == ["q"]
+    assert list(pls.predictions_.index) == list(series.index)
+    bare = PLS(n_components=1).fit(X.to_numpy(), Y.to_numpy())
+    assert bare.scores_.index.equals(pd.RangeIndex(12))
+    assert bare.x_weights_.index.equals(pd.RangeIndex(4))
+    assert bare.y_loadings_.index.equals(pd.RangeIndex(2))
+    np.testing.assert_allclose(bare.scores_.to_numpy(), PLS(n_components=1).fit(X, Y).scores_.to_numpy())
+
+
+@pytest.mark.parametrize(
+    ("call", "error", "message"),
+    [
+        (
+            lambda X, Y: PLS(n_components=1).fit(X, Y, sample_weight=np.r_[np.nan, np.ones(11)]),
+            ValueError,
+            "sample_weight must be finite (no NaN / inf).",
+        ),
+        (
+            lambda X, Y: PLS(n_components=1).fit(X, Y, sample_weight=np.r_[np.inf, np.ones(11)]),
+            ValueError,
+            "sample_weight must be finite (no NaN / inf).",
+        ),
+        (
+            lambda X, Y: PLS(n_components=1).fit(X, Y, sample_weight=np.r_[-0.1, np.ones(11)]),
+            ValueError,
+            "sample_weight must be non-negative.",
+        ),
+        (
+            lambda X, Y: PLS(n_components=1).fit(X, Y, sample_weight=np.ones(11)),
+            ValueError,
+            "sample_weight has 11 entries; expected 12 to match X / Y.",
+        ),
+        (lambda X, Y: PLS(n_components=0).fit(X, Y), ValueError, "n_components must be >= 1; got 0."),
+        (
+            lambda X, Y: PLS(n_components=1).fit(X.iloc[:1], Y.iloc[:1]),
+            ValueError,
+            "Found array with 1 sample(s) (shape=(1, 4)) while a minimum of 2 is required by PLS.",
+        ),
+        (
+            lambda X, Y: PLS(n_components=1, missing_data_settings={"md_tol": 1e-3}).fit(X, Y),
+            ValueError,
+            (
+                "PLS(missing_data_settings=...) no longer takes 'md_tol', removed in 2.0. Pass tol=0.001 to the "
+                "constructor instead."
+            ),
+        ),
+        (
+            lambda X, Y: PLS(n_components=1).fit(csr_matrix(X.to_numpy()), Y),
+            TypeError,
+            "PLS does not accept sparse input: NIPALS centres and scales every column",
+        ),
+    ],
+    ids=[
+        "nan-weight",
+        "infinite-weight",
+        "negative-weight",
+        "short-weights",
+        "no-components",
+        "one-row",
+        "removed-key",
+        "sparse",
+    ],
+)
+def test_pls_fit_refuses_input_it_cannot_use_in_full(call: Callable, error: type[Exception], message: str) -> None:
+    """Each refusal names what is wrong."""
+    X, Y = _pls_block()
+    with pytest.raises(error, match="^" + re.escape(message)):
+        call(X, Y)
+
+
+def test_pls_fit_takes_infinity_nowhere_but_missing_cells_anywhere() -> None:
+    """An infinite X cell is refused; NaN is a missing cell."""
+    X, Y = _pls_block()
+    X.iloc[0, 0] = np.inf
+    with pytest.raises(ValueError, match=r"^Input X contains infinity"):
+        PLS(n_components=1).fit(X, Y)
+    X.iloc[0, 0] = np.nan
+    assert PLS(n_components=1).fit(X, Y).has_missing_data_ is True
+
+
+def test_pls_fit_caps_the_components_at_the_rows_or_columns_in_full() -> None:
+    """More components than ``min(N, K)`` warn and fit that many; exactly that many, or None, fit it silently."""
+    X, Y = _pls_block(n=6, k=4)
+    message = (
+        "The requested number of components is more than can be computed from data. The maximum number of "
+        "components is the minimum of either the number of rows (6) or the number of columns (4)."
+    )
+    with pytest.warns(SpecificationWarning, match="^" + re.escape(message) + "$"):
+        assert PLS(n_components=5).fit(X, Y).n_components_ == 4
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert PLS(n_components=4).fit(X, Y).n_components_ == 4
+        none = PLS(n_components=None).fit(X, Y)
+    assert none.n_components_ == 4
+    assert none.n_components is None
+
+
+def test_pls_fit_reads_decimal_weights_as_the_floats_they_hold() -> None:
+    """Row weights given as ``Decimal`` fit as the same floats."""
+    X, Y = _pls_block()
+    weights = [Decimal("0.5")] * 6 + [Decimal(2)] * 6
+    given = PLS(n_components=2).fit(X, Y, sample_weight=weights)
+    exact = PLS(n_components=2).fit(X, Y, sample_weight=[0.5] * 6 + [2.0] * 6)
+    np.testing.assert_array_equal(given.beta_coefficients_.to_numpy(), exact.beta_coefficients_.to_numpy())
+
+
+def test_pls_weighted_fit_by_hand() -> None:
+    """``sample_weight``: NIPALS on ``sqrt(w)`` times the rows, scaled by the rows of weight above 0 alone.
+
+    The weights, loadings and iterations are those of the rescaled rows; the scores are the
+    rows' own, ``t = z R``, so a row of weight 0 still has one; the Y scores are
+    ``u_a = Y_a c_a / c_a'c_a`` with Y deflated by those scores.
+    """
+    X, Y = _pls_block(n=15)
+    weights = np.linspace(0.0, 2.0, 15)
+    pls = PLS(n_components=2).fit(X, Y, sample_weight=weights)
+    kept = weights > 0
+    Z = (X.to_numpy() - X[kept].mean().to_numpy()) / X[kept].std(ddof=1).to_numpy()
+    Zy = (Y.to_numpy() - Y[kept].mean().to_numpy()) / Y[kept].std(ddof=1).to_numpy()
+    root = np.sqrt(weights)[:, None]
+    ref = _pls_nipals_as_fitted(root * Z, root * Zy, 2)
+    for name, attribute in (("W", "x_weights_"), ("P", "x_loadings_"), ("C", "y_loadings_")):
+        _assert_near(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-6, atol=1e-9)
+    np.testing.assert_array_equal(pls.fitting_info_["iterations"], ref["iterations"])
+    T = Z @ ref["W"] @ np.linalg.inv(ref["P"].T @ ref["W"])
+    _assert_near(pls.scores_.to_numpy(), T, rtol=1e-6, atol=1e-9)
+    C = ref["C"]
+    U = np.column_stack([(Zy - T[:, :a] @ C[:, :a].T) @ C[:, a] / (C[:, a] @ C[:, a]) for a in range(2)])
+    _assert_near(pls.y_scores_.to_numpy(), U, rtol=1e-6, atol=1e-9)
+    assert T[0] @ T[0] > 0.01  # the row of weight 0 has a score of its own
+
+
+@pytest.mark.parametrize("block", ["X", "Y"])
+def test_pls_fit_needs_a_sum_of_squares_of_at_least_epsqrt_in_each_block(block: str) -> None:
+    """A block whose sum of squares is exactly epsqrt (2**-26) is fitted; one smaller is refused in full."""
+    big = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0]})
+    for size, fits in ((2.0**-13, True), (2.0**-14, False)):
+        tiny = pd.DataFrame({"b": [size, 0.0, 0.0, 0.0]})
+        X, Y = (tiny, big) if block == "X" else (big, tiny)
+        model = PLS(n_components=1, scale=False, warn_on_uncentred=False)
+        if fits:
+            model.fit(X, Y)
+            continue
+        message = (
+            f"There is no variance left in the data array for {block}: cannot compute any more components beyond "
+            "component 0."
+        )
+        with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
+            model.fit(X, Y)
+
+
+def test_pls_fit_says_in_full_when_x_runs_out_part_way() -> None:
+    """Two proportional X columns hold one component: asking for two is refused at the second."""
+    rng = np.random.default_rng(8)
+    x = rng.standard_normal(10)
+    X = pd.DataFrame({"a": x, "b": 2 * x})
+    Y = pd.DataFrame(rng.standard_normal((10, 2)), columns=["p", "q"])
+    message = (
+        "There is no variance left in the data array for X: cannot compute any more components beyond component 1."
+    )
+    with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
+        PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X - X.mean(), Y - Y.mean())
+
+
+def test_pls_nipals_says_when_it_stops_at_max_iter_and_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
+    """A component that reaches ``max_iter`` warns in full; each one logs its iterations and tolerance."""
+    X, Y = _pls_block()
+    with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._pls"):
+        with pytest.warns(SpecificationWarning) as record:
+            capped = PLS(n_components=2, max_iter=2).fit(X, Y)
+        settled = PLS(n_components=1).fit(X, Y)
+    messages = [str(w.message) for w in record if w.category is SpecificationWarning]
+    assert messages == [
+        f"PLS NIPALS: component {a} reached the maximum number of iterations (2) without converging." for a in (1, 2)
+    ]
+    np.testing.assert_array_equal(capped.fitting_info_["iterations"], [2, 2])
+    count = int(settled.fitting_info_["iterations"][0])
+    assert count > 2
+    logged = [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._pls"]
+    assert f"PLS NIPALS: component 1 converged in {count} iterations (tol=1.49012e-08)" in logged
+    assert "PLS NIPALS: component 2 converged in 2 iterations (tol=1.49012e-08)" in logged
+
+
+@pytest.mark.parametrize("gapped_training", [False, True])
+def test_held_out_scores_by_hand(gapped_training: bool) -> None:
+    """A held-out row's scores under the first ``a`` components of a fold model (#676).
+
+    A complete row's are ``x R_a``, where ``R_a`` is the first ``a`` columns of the model's
+    ``R = W (P'W)^-1`` on complete training data, and ``W_a (P_a'W_a)^-1`` with gaps in it. A row
+    with gaps is scored by ``operator_for_pattern`` over its observed columns, with the smaller
+    model's P, R, score variances, W and training residuals; a row with fewer observed columns
+    than components, or whose observed columns cannot tell the components apart (two equal
+    columns), has no score.
+    """
+    X, Y = _pls_block(n=15)
+    X["x3"] = X["x2"]
+    X, Y = X - X.mean(), Y - Y.mean()
+    if gapped_training:
+        X.iloc[4, 0] = np.nan
+    pls = PLS(n_components=3, scale=False).fit(X, Y)
+    x_train = X.to_numpy()
+    x_test = np.array(
+        [[1.0, -0.5, 0.3, 0.3], [np.nan, np.nan, 0.3, 0.3], [np.nan, 1.0, 0.2, 0.5], [np.nan] * 3 + [0.4]]
+    )
+    W, P, T = pls.x_weights_.to_numpy(), pls.x_loadings_.to_numpy(), pls.scores_.to_numpy()
+    full_R = W @ np.linalg.inv(P.T @ W)
+    for a in (1, 2, 3):
+        R = W[:, :a] @ np.linalg.inv(P[:, :a].T @ W[:, :a]) if gapped_training else full_R[:, :a]
+        if not gapped_training:
+            np.testing.assert_allclose(R, W[:, :a] @ np.linalg.inv(P[:, :a].T @ W[:, :a]), atol=1e-10)
+        variances = np.sum(T[:, :a] ** 2, axis=0) / 14
+        E = np.nan_to_num(x_train - T[:, :a] @ P[:, :a].T)
+        expected = np.full((4, a), np.nan)
+        expected[0] = x_test[0] @ R
+        for row in (1, 2, 3):
+            observed = ~np.isnan(x_test[row])
+            if observed.sum() < a:
+                continue
+            try:
+                op = operator_for_pattern(P[:, :a], R, variances, observed, x_weights=W[:, :a], x_residuals=E)
+            except np.linalg.LinAlgError:
+                continue
+            expected[row] = op.matrix @ x_test[row, observed]
+        got = _held_out_scores(pls, x_train, x_test, a)
+        np.testing.assert_allclose(got, expected, rtol=1e-8, atol=1e-12)
+        assert (
+            np.isnan(got).any(axis=1).tolist()
+            == {1: [False] * 4, 2: [False, True, False, True], 3: [False] + [True] * 3}[a]
+        )
+    complete = x_test[[0]]
+    np.testing.assert_allclose(
+        _held_out_scores(pls, x_train, complete, 2),
+        complete @ (W[:, :2] @ np.linalg.inv(P[:, :2].T @ W[:, :2])),
+        rtol=1e-8,
+    )
+
+
+def _uncentred_fold_model(x: np.ndarray, y: np.ndarray, a: int) -> tuple[Callable, Callable]:
+    """Return the predictions and reconstruction of PLS fitted by hand to rows as given, centred or not."""
+    fitted = _pls_nipals_as_fitted(x, y, a)
+    R = fitted["W"] @ np.linalg.inv(fitted["P"].T @ fitted["W"])
+    return (lambda rows: rows @ R @ fitted["C"].T), (lambda rows: rows @ R @ fitted["P"].T)
+
+
+def _select_by_hand(  # noqa: PLR0913 - the folds, their first pass and the kind of fold model
+    X: pd.DataFrame, Y: pd.DataFrame, splits: list, A: int, first_repeat: int, *, centred: bool = True
+) -> dict:
+    """Cross-validate PLS by hand: sklearn's PLSRegression at each count on each fold's training rows.
+
+    Each fold's model autoscales its training rows (ddof=1), as in-fold scaling does; with
+    ``centred=False`` it is fitted to the rows as given. Returns the PRESS of Y and of X per
+    count, each fold's PRESS and RMSE, the first repeat's out-of-fold predictions, and the
+    curves ``select_n_components`` reports.
+    """
+    x, y = X.to_numpy(), Y.to_numpy()
+    N, K = x.shape
+    M, F = y.shape[1], len(splits)
+    out = {
+        "press_y": np.zeros((A, M)),
+        "press_x": np.zeros((A, K)),
+        "fold_press": np.zeros((A, F)),
+        "fold_rmse": np.zeros((A, F)),
+        "oof": np.full((A, N, M), np.nan),
+    }
+    for f, (train, test) in enumerate(splits):
+        for a in range(1, A + 1):
+            if centred:
+                model = _sklearn_pls(a).fit(x[train], y[train])
+                y_hat, x_hat = model.predict(x[test]), model.inverse_transform(model.transform(x[test]))
+            else:
+                predict, reconstruct = _uncentred_fold_model(x[train], y[train], a)
+                y_hat, x_hat = predict(x[test]), reconstruct(x[test])
+            out["press_y"][a - 1] += np.sum((y[test] - y_hat) ** 2, axis=0)
+            out["press_x"][a - 1] += np.sum((x[test] - x_hat) ** 2, axis=0)
+            out["fold_press"][a - 1, f] = np.sum((y[test] - y_hat) ** 2)
+            out["fold_rmse"][a - 1, f] = np.sqrt(out["fold_press"][a - 1, f] / (len(test) * M))
+            if f < first_repeat:
+                out["oof"][a - 1, test] = y_hat
+    coverage = np.zeros(N)
+    for _, test in splits:
+        coverage[test] += 1
+    n_eff = coverage.sum()
+    tss_y = coverage @ (y - y.mean(axis=0)) ** 2
+    tss_x = coverage @ (x - x.mean(axis=0)) ** 2
+    out["rmsecv"] = np.column_stack(
+        [np.sqrt(out["press_y"] / n_eff), np.sqrt(out["press_y"].sum(axis=1) / (n_eff * M))]
+    )
+    r2y = 1 - out["press_y"] / tss_y
+    out["r2y"] = np.column_stack([r2y, 1 - out["press_y"].sum(axis=1) / tss_y.sum(), r2y.mean(axis=1)])
+    out["r2x"] = np.column_stack([1 - out["press_x"] / tss_x, 1 - out["press_x"].sum(axis=1) / tss_x.sum()])
+    out["se"] = out["fold_rmse"].std(axis=1, ddof=1) / np.sqrt(F)
+    repeats = F // first_repeat
+    out["q2_se"] = out["fold_press"].std(axis=1, ddof=1) / np.sqrt(F) * first_repeat / (tss_y.sum() / repeats)
+    return out
+
+
+def test_pls_select_n_components_by_hand_with_repeated_folds() -> None:
+    """Every curve of a repeated 3-fold cross-validation, by hand; the "min" rule overall and in each repeat.
+
+    The out-of-fold predictions are the first repeat's at the count recommended, and each
+    repeat votes for its own argmin; the vote shares, their mode, and whether the mode
+    reaches ``stability_threshold`` are reported.
+    """
+    X, Y = _pls_block(n=12)
+    result = PLS.select_n_components(
+        X, Y, cv=3, n_repeats=2, random_state=1, max_components=3, selection_rule="min", stability_threshold=0.75
+    )
+    splits = list(RepeatedKFold(n_splits=3, n_repeats=2, random_state=1).split(X))
+    hand = _select_by_hand(X, Y, splits, 3, 3)
+    index = pd.Index([1, 2, 3], name="n_components")
+    _assert_frame_near(
+        result.rmsecv, pd.DataFrame(hand["rmsecv"], index=index, columns=["y0", "y1", "total"]), rtol=1e-6
+    )
+    folds = [f"fold_{i}" for i in range(1, 7)]
+    _assert_frame_near(result.per_fold_rmsecv, pd.DataFrame(hand["fold_rmse"], index=index, columns=folds), rtol=1e-6)
+    _assert_series_near(result.se_rmsecv, pd.Series(hand["se"], index=index, name="SE(RMSECV)"), rtol=1e-6)
+    _assert_series_near(result.q2_se, pd.Series(hand["q2_se"], index=index, name="SE(Q2)"), rtol=1e-6)
+    _assert_frame_near(
+        result.r2y_validated,
+        pd.DataFrame(hand["r2y"], index=index, columns=["y0", "y1", "total", "scaled_total"]),
+        rtol=1e-6,
+    )
+    _assert_frame_near(
+        result.r2x_validated, pd.DataFrame(hand["r2x"], index=index, columns=[*X.columns, "total"]), rtol=1e-6
+    )
+    _assert_series_near(result.press, pd.Series(hand["press_y"].sum(axis=1), index=index, name="PRESS"), rtol=1e-6)
+    best = int(np.argmin(hand["rmsecv"][:, -1])) + 1
+    assert result.n_components == best
+    _assert_frame_near(
+        result.cv_predictions, pd.DataFrame(hand["oof"][best - 1], index=Y.index, columns=Y.columns), rtol=1e-6
+    )
+    votes = [int(np.argmin(hand["fold_rmse"][:, 3 * r : 3 * r + 3].mean(axis=1))) + 1 for r in range(2)]
+    shares = pd.Series([votes.count(a) / 2 for a in (1, 2, 3)], index=index, name="vote_share")
+    _assert_series_near(result.selection_distribution, shares)
+    assert result.selection_mode == int(np.argmax(shares.to_numpy())) + 1
+    assert result.selection_is_stable is bool(shares.max() >= 0.75)
+    assert result.selection_rule == "min"
+    assert result.randomization_pvalues is None
+
+
+def _record_rule(monkeypatch: pytest.MonkeyPatch, picks: list[int]) -> list[tuple[str, dict]]:
+    """Stand in for the shared selection rule: record each call and return the next of ``picks``."""
+    calls: list[tuple[str, dict]] = []
+
+    def rule(name: str, **kwargs: object) -> int:
+        calls.append((name, kwargs))
+        return picks[len(calls) - 1]
+
+    monkeypatch.setattr("process_improve.multivariate._pls._select_n_components", rule)
+    return calls
+
+
+def test_pls_select_n_components_hands_its_curves_to_the_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The defaults (1-SE on 10 repeats of shuffled 5-fold CV) give the rule the pooled curves, then each repeat's.
+
+    Each repeat's vote reads that repeat's per-fold RMSE only. Votes split evenly reach a
+    ``stability_threshold`` of exactly one half; the mode is the smaller count.
+    """
+    calls = _record_rule(monkeypatch, [2] + [1, 3] * 5)
+    X, Y = _pls_block(n=12)
+    result = PLS.select_n_components(X, Y, max_components=3, random_state=0, stability_threshold=0.5)
+    hand = _select_by_hand(X, Y, list(RepeatedKFold(n_splits=5, n_repeats=10, random_state=0).split(X)), 3, 5)
+    (rule, pooled), *per_repeat = calls
+    assert rule == "1se"
+    assert set(pooled) == {"mean_error", "se_error", "q2_cumulative", "min_q2_increase"}
+    _assert_near(pooled["mean_error"], hand["rmsecv"][:, -1], rtol=1e-6)
+    _assert_near(pooled["se_error"], hand["se"], rtol=1e-6)
+    _assert_near(pooled["q2_cumulative"], hand["r2y"][:, 2], rtol=1e-6)
+    assert pooled["min_q2_increase"] == 0.01
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+    assert len(per_repeat) == 10
+    for r, (name, kwargs) in enumerate(per_repeat):
+        folds = hand["fold_rmse"][:, 5 * r : 5 * r + 5]
+        assert name == "1se"
+        assert set(kwargs) == {"mean_error", "se_error"}
+        _assert_near(kwargs["mean_error"], folds.mean(axis=1), rtol=1e-6)
+        _assert_near(kwargs["se_error"], folds.std(axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
+    assert result.n_components == 2
+    _assert_frame_near(result.cv_predictions, pd.DataFrame(hand["oof"][1], index=Y.index, columns=Y.columns), rtol=1e-6)
+    shares = pd.Series([0.5, 0.0, 0.5], index=pd.Index([1, 2, 3], name="n_components"), name="vote_share")
+    _assert_series_near(result.selection_distribution, shares)
+    assert result.selection_mode == 1
+    assert result.selection_is_stable is True
+
+
+@pytest.mark.parametrize(("rule", "cv"), [("q2_increment", 3), ("1se", KFold(n_splits=3))])
+def test_pls_select_n_components_votes_only_for_the_rmse_rules_over_repeats(
+    monkeypatch: pytest.MonkeyPatch, rule: str, cv: object
+) -> None:
+    """The Q2 rule gets its threshold and no vote is taken; nor is one over a single pass of folds."""
+    calls = _record_rule(monkeypatch, [1])
+    X, Y = _pls_block(n=12)
+    result = PLS.select_n_components(
+        X, Y, cv=cv, n_repeats=3, max_components=2, selection_rule=rule, min_q2_increase=0.05, random_state=0
+    )
+    assert len(calls) == 1
+    assert calls[0][0] == rule
+    assert calls[0][1]["min_q2_increase"] == 0.05
+    assert (result.selection_distribution, result.selection_mode, result.selection_is_stable) == (None, None, None)
+    assert result.selection_rule == rule
+
+
+def test_pls_select_n_components_hands_the_scored_counts_to_van_der_voet(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The randomization rule compares each row's squared error, summed over Y, at every count; its settings pass on."""
+    calls: list[tuple] = []
+
+    def test(per_obs_sse: np.ndarray, **kwargs: object) -> tuple[int, np.ndarray]:
+        calls.append((per_obs_sse, kwargs))
+        return 2, np.array([0.004, 0.3])
+
+    monkeypatch.setattr("process_improve.multivariate._pls._vandervoet_randomization", test)
+    X, Y = _pls_block(n=12)
+    settings = {"n_permutations": 19, "alpha": 0.05, "random_state": 3}
+    result = PLS.select_n_components(
+        X, Y, cv=4, n_repeats=1, max_components=2, selection_rule="randomization", **settings
+    )
+    hand = _select_by_hand(X, Y, list(KFold(n_splits=4, shuffle=True, random_state=3).split(X)), 2, 4)
+    ((sse, kwargs),) = calls
+    _assert_near(sse, np.sum((Y.to_numpy() - hand["oof"]) ** 2, axis=2), rtol=1e-6)
+    _assert_near(kwargs.pop("total_rmsecv"), hand["rmsecv"][:, -1], rtol=1e-6)
+    assert kwargs == settings
+    assert result.n_components == 2
+    _assert_series_near(
+        result.randomization_pvalues,
+        pd.Series([0.004, 0.3], index=pd.Index([1, 2], name="n_components"), name="p-value (Van der Voet)"),
+    )
+    assert result.selection_distribution is None
+    PLS.select_n_components(X, Y, cv=4, n_repeats=1, max_components=2, selection_rule="randomization")
+    assert {key: calls[1][1][key] for key in settings} == {"n_permutations": 999, "alpha": 0.01, "random_state": None}
+
+
+def test_pls_select_n_components_leaves_out_a_count_that_cannot_score_a_held_out_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A held-out row observed in one X column has no score from two components: that count gets no PRESS (#676).
+
+    Its curves are NaN, Van der Voet is handed the first count alone, and its p-value is NaN.
+    The folds are fixed, with that row in the first of four: a count stays unscored once any
+    fold cannot score it, though the later folds score every row.
+    """
+    calls: list[tuple] = []
+
+    def test(per_obs_sse: np.ndarray, **kwargs: object) -> tuple[int, np.ndarray]:
+        calls.append((per_obs_sse, kwargs))
+        return 1, np.array([0.5])
+
+    monkeypatch.setattr("process_improve.multivariate._pls._vandervoet_randomization", test)
+    X, Y = _pls_block(n=12)
+    X.iloc[0, 1:] = np.nan
+    result = PLS.select_n_components(X, Y, cv=KFold(4), max_components=2, selection_rule="randomization")
+    ((sse, kwargs),) = calls
+    assert sse.shape == (1, 12)
+    np.testing.assert_allclose(kwargs["total_rmsecv"], result.rmsecv["total"].to_numpy()[:1])
+    for frame in (result.rmsecv, result.per_fold_rmsecv, result.r2y_validated, result.r2x_validated):
+        assert frame.loc[2].isna().all()
+        assert frame.loc[1].notna().all()
+    for series in (result.press, result.se_rmsecv, result.q2_se):
+        assert np.isnan(series[2])
+        assert np.isfinite(series[1])
+    np.testing.assert_array_equal(result.randomization_pvalues.to_numpy(), [0.5, np.nan])
+    assert result.n_components == 1
+
+
+@pytest.mark.parametrize(("scale_inside_folds", "scale"), [(True, True), (True, False), (False, True), (False, False)])
+def test_pls_select_n_components_with_a_splitter_by_hand(scale_inside_folds: bool, scale: bool) -> None:
+    """A splitter that holds out some rows twice and others never: PRESS and the TSS count each row as often as tested.
+
+    Every held-out row is predicted as its fold model predicts it: autoscaled by the fold or
+    by the model itself (#1027), or, with neither, fitted to the rows as given. Without in-fold
+    scaling the leak is announced in full. The first pass is every fold, and a row tested
+    twice keeps the later prediction.
+    """
+    X, Y = _pls_block(n=12)
+    splitter = ShuffleSplit(n_splits=3, test_size=5, random_state=0)
+    message = (
+        "scale_inside_folds=False leaks centring/scaling estimated on the full dataset into every CV fold, making the "
+        "reported RMSECV optimistic. The default scale_inside_folds=True is preferred."
+    )
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = PLS.select_n_components(
+            X,
+            Y,
+            cv=splitter,
+            n_repeats=4,
+            max_components=3,
+            selection_rule="min",
+            scale_inside_folds=scale_inside_folds,
+            scale=scale,
+            warn_on_uncentred=False,
+        )
+    warned = [str(w.message) for w in record if w.category is SpecificationWarning]
+    assert warned == ([] if scale_inside_folds else [message])
+    hand = _select_by_hand(X, Y, list(splitter.split(X)), 3, 3, centred=scale_inside_folds or scale)
+    _assert_near(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
+    _assert_near(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+    assert list(result.per_fold_rmsecv.columns) == ["fold_1", "fold_2", "fold_3"]
+    _assert_near(result.cv_predictions.to_numpy(), hand["oof"][result.n_components - 1], rtol=1e-6)
+    assert result.selection_distribution is None
+
+
+@pytest.mark.parametrize(
+    ("scale_inside_folds", "scale", "count"), [(True, True, 7), (False, True, 7), (False, False, 8)]
+)
+def test_pls_select_n_components_caps_the_count_where_a_fold_runs_out(
+    scale_inside_folds: bool, scale: bool, count: int
+) -> None:
+    """A training fold of 8 rows centred, by the fold or by its model, holds 7 components; uncentred, 8 (#1027).
+
+    Without in-fold scaling the cap was 8 whether or not the model centres, and a wide
+    block with the default ``PLS(scale=True)`` ran out of X at the eighth component.
+    """
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((10, 12)))
+    Y = pd.DataFrame({"y": X[0] + 0.1 * rng.standard_normal(10)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SpecificationWarning)
+        result = PLS.select_n_components(
+            X, Y, cv=5, n_repeats=1, scale_inside_folds=scale_inside_folds, scale=scale, random_state=0
+        )
+    assert list(result.rmsecv.index) == list(range(1, count + 1))
+    assert PLS.select_n_components(X, Y, cv=5, n_repeats=1, max_components=3, random_state=0).rmsecv.shape[0] == 3
+
+
+def test_pls_select_n_components_refuses_and_warns_in_full() -> None:
+    """Fewer than two folds or one repeat are refused; an X that arrives autoscaled is warned about."""
+    X, Y = _pls_block(n=12)
+    with pytest.raises(ValueError, match=r"^cv must be >= 2 when given as an int; got 1\.$"):
+        PLS.select_n_components(X, Y, cv=1)
+    with pytest.raises(ValueError, match=r"^n_repeats must be >= 1; got 0\.$"):
+        PLS.select_n_components(X, Y, n_repeats=0)
+    assert PLS.select_n_components(X, Y, cv=2, n_repeats=1, max_components=1).per_fold_rmsecv.shape == (1, 2)
+    with pytest.warns(SpecificationWarning, match=r"re-standardises inside every CV fold.* comparison of their RMSECV"):
+        PLS.select_n_components(_autoscaled(X.to_numpy()), Y, cv=3, n_repeats=1, max_components=1)
+
+
+def test_pls_select_n_components_reads_arrays_and_a_series() -> None:
+    """Arrays are numbered from 0; a Series keeps its name and its row labels."""
+    X, Y = _pls_block(n=12)
+    series = pd.Series(Y["y0"].to_numpy(), index=X.index, name="q")
+    named = PLS.select_n_components(X, series, cv=3, n_repeats=1, max_components=2, random_state=0)
+    bare = PLS.select_n_components(X.to_numpy(), series.to_numpy(), cv=3, n_repeats=1, max_components=2, random_state=0)
+    assert list(named.rmsecv.columns) == ["q", "total"]
+    assert list(named.cv_predictions.columns) == ["q"]
+    assert named.cv_predictions.index.equals(X.index)
+    assert list(bare.rmsecv.columns) == [0, "total"]
+    assert list(bare.r2x_validated.columns) == [0, 1, 2, 3, "total"]
+    np.testing.assert_allclose(bare.rmsecv.to_numpy(), named.rmsecv.to_numpy())
+
+
+@pytest.mark.parametrize("scale_inside_folds", [True, False])
+def test_pls_select_n_components_scores_rows_as_a_fold_model_that_recentres_predicts_them(
+    scale_inside_folds: bool,
+) -> None:
+    """PRM centres every fold at its robust centre, after any in-fold scaling: its held-out rows are read in its space.
+
+    The reference is each fold's PRM predicting its held-out rows, after the fold's own
+    autoscaling when there is one, and back in the data's units (#1027).
+    """
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((15, 4)) + 3.0, columns=list("abcd"))
+    Y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 2.0, 0.0, -1.0] + 0.5 * rng.standard_normal(15)})
+    X.iloc[2, 1] += 6.0  # pulls the fold mean away from the robust centre
+    cv = KFold(n_splits=3, shuffle=True, random_state=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SpecificationWarning)
+        result = PRM.select_n_components(X, Y, cv=cv, max_components=1, scale_inside_folds=scale_inside_folds)
+    for train, test in cv.split(X):
+        if scale_inside_folds:
+            sx, sy = MCUVScaler().fit(X.iloc[train]), MCUVScaler().fit(Y.iloc[train])
+            fold = PRM(n_components=1).fit(sx.transform(X.iloc[train]), sy.transform(Y.iloc[train]))
+            expected = sy.inverse_transform(fold.predict(sx.transform(X.iloc[test]))).to_numpy()
+        else:
+            expected = PRM(n_components=1).fit(X.iloc[train], Y.iloc[train]).predict(X.iloc[test]).to_numpy()
+        _assert_near(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-10)
+
+
+def test_pls_nipals_iterates_at_least_once_on_a_huge_response() -> None:
+    """In units of 1e20 the seed's ``+ 1`` is lost, so its first comparison sees no change: one iteration is forced.
+
+    The model is the same as in ordinary units, scaled.
+    """
+    X, Y = _pls_block()
+    X, Y = X - X.mean(), Y - Y.mean()
+    huge = PLS(n_components=2, scale=False).fit(X, Y * 1e20)
+    plain = PLS(n_components=2, scale=False).fit(X, Y)
+    _assert_near(huge.x_weights_.to_numpy(), plain.x_weights_.to_numpy(), rtol=1e-6)
+    _assert_near(huge.y_loadings_.to_numpy(), 1e20 * plain.y_loadings_.to_numpy(), rtol=1e-6)
+
+
+def test_pls_unscaled_fit_reads_a_pandas_missing_value_as_nan() -> None:
+    """``scale=False`` hands the response to NIPALS as given: a nullable column's ``pd.NA`` is a missing cell."""
+    X, Y = _gapped_pls_block()
+    X, Y = X - X.mean(), Y - Y.mean()
+    nullable = Y.astype("Float64")
+    nullable.iloc[3, 0] = pd.NA
+    # The centring check reads the block itself, and does not take pd.NA: it is skipped here.
+    plain = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X, Y)
+    other = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(X, nullable)
+    np.testing.assert_array_equal(other.beta_coefficients_.to_numpy(), plain.beta_coefficients_.to_numpy())
+    np.testing.assert_array_equal(other.rmse_.to_numpy(), plain.rmse_.to_numpy())
+
+
+def test_pls_weighted_fit_leaves_the_y_scores_of_a_component_along_x_at_zero() -> None:
+    """A component along X alone (#913) has a Y-loading of about 0: its rebuilt Y scores stay 0, not 0 / 0.
+
+    Two replicates of a 2x2 design, the second weighted 0: after one component what is left
+    of y is the interaction, which no column of X can reach.
+    """
+    x1, x2 = np.tile([-1.0, 1.0, -1.0, 1.0], 2), np.tile([-1.0, -1.0, 1.0, 1.0], 2)
+    X = pd.DataFrame({"a": x1, "b": x2})
+    y = pd.DataFrame({"y": x1 + 2.0 * x2 + 0.5 * x1 * x2})
+    weights = np.r_[np.ones(4), np.zeros(4)]
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=2).fit(X, y, sample_weight=weights)
+    assert abs(pls.y_loadings_.iloc[0, 1]) < 1e-8
+    np.testing.assert_array_equal(pls.y_scores_.iloc[:, 1].to_numpy(), np.zeros(8))
+    c = pls.y_loadings_.iloc[0, 0]
+    z = (y["y"].to_numpy() - y["y"].iloc[:4].mean()) / y["y"].iloc[:4].std(ddof=1)
+    np.testing.assert_allclose(pls.y_scores_.iloc[:, 0].to_numpy(), z * c / c**2, rtol=1e-10)
+
+
+def test_pls_select_n_components_standard_errors_need_two_folds() -> None:
+    """Over two folds the SE of the RMSECV is half their difference; over one there is none, and 1-SE is argmin."""
+    X, Y = _pls_block(n=12)
+    two = PLS.select_n_components(X, Y, cv=KFold(n_splits=2), max_components=2)
+    folds = two.per_fold_rmsecv.to_numpy()
+    np.testing.assert_allclose(two.se_rmsecv.to_numpy(), np.abs(folds[:, 0] - folds[:, 1]) / 2, rtol=1e-10)
+    assert np.isfinite(two.q2_se.to_numpy()).all()
+    one = PLS.select_n_components(X, Y, cv=PredefinedSplit([0] * 4 + [-1] * 8), max_components=3)
+    assert one.per_fold_rmsecv.shape == (3, 1)
+    for series in (one.se_rmsecv, one.q2_se):
+        assert series.dtype == float
+        assert series.isna().all()
+    assert one.n_components == int(np.argmin(one.rmsecv["total"].to_numpy())) + 1
+
+
+def test_pls_select_n_components_hands_both_blocks_to_its_splitter() -> None:
+    """A splitter is given X and Y, as one that stratifies needs."""
+    X, Y = _pls_block()
+    splitter = _RecordingSplitter()
+    PLS.select_n_components(X, Y, cv=splitter, max_components=1)
+    ((x, y),) = splitter.seen
+    pd.testing.assert_frame_equal(x, X)
+    pd.testing.assert_frame_equal(y, Y)
+
+
+def test_pls_select_n_components_projects_a_held_out_row_with_a_gap() -> None:
+    """A held-out row with missing cells is predicted as its fold model's ``project`` predicts it."""
+    X, Y = _pls_block(n=12)
+    X.iloc[[0, 7], [1, 2]] = np.nan
+    cv = KFold(n_splits=3, shuffle=True, random_state=2)
+    result = PLS.select_n_components(X, Y, cv=cv, max_components=1)
+    for train, test in cv.split(X):
+        expected = PLS(n_components=1).fit(X.iloc[train], Y.iloc[train]).project(X.iloc[test]).y_hat.to_numpy()
+        _assert_near(result.cv_predictions.iloc[test].to_numpy(), expected, rtol=1e-6)
+
+
+def test_pls_select_n_components_leave_one_out_with_one_response_by_hand() -> None:
+    """Each fold holds one row and one response: its RMSE is the size of its one residual."""
+    X, Y = _pls_block(n=8)
+    result = PLS.select_n_components(X, Y[["y0"]], cv=LeaveOneOut(), max_components=2, selection_rule="min")
+    hand = _select_by_hand(X, Y[["y0"]], list(LeaveOneOut().split(X)), 2, 8)
+    _assert_near(result.per_fold_rmsecv.to_numpy(), hand["fold_rmse"], rtol=1e-6)
+    _assert_near(result.rmsecv.to_numpy(), hand["rmsecv"], rtol=1e-6)
+
+
+def test_pls_select_n_components_in_small_units_by_hand() -> None:
+    """In thousandths every sum of squares is below 1, and every validated R2 and the Q2 band still count."""
+    X, Y = _pls_block(n=12)
+    X, Y = X / 1000.0, Y / 1000.0
+    cv = KFold(n_splits=3, shuffle=True, random_state=4)
+    result = PLS.select_n_components(X, Y, cv=cv, max_components=2, selection_rule="min")
+    hand = _select_by_hand(X, Y, list(cv.split(X)), 2, 3)
+    assert (Y.to_numpy() ** 2).sum() < 1
+    _assert_near(result.r2y_validated.to_numpy(), hand["r2y"], rtol=1e-6)
+    _assert_near(result.r2x_validated.to_numpy(), hand["r2x"], rtol=1e-6)
+    _assert_near(result.q2_se.to_numpy(), hand["q2_se"], rtol=1e-6)
+
+
+def test_pls_select_n_components_has_no_r2_where_the_held_out_rows_do_not_vary() -> None:
+    """Held-out rows at the response's mean, and a constant X column, leave no spread to explain: NaN, silently."""
+    rng = np.random.default_rng(6)
+    X = pd.DataFrame(rng.standard_normal((8, 3)), columns=["a", "b", "c"])
+    X["flat"] = 2.0
+    Y = pd.DataFrame({"y": [5.0, 5.0, 3.0, 7.0, 4.0, 6.0, 2.0, 8.0]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PLS.select_n_components(X, Y, cv=PredefinedSplit([0, 0] + [-1] * 6), max_components=2)
+    assert result.r2y_validated.isna().all(axis=None)
+    assert result.r2x_validated["flat"].isna().all()
+    assert result.r2x_validated[["a", "b", "c", "total"]].notna().all(axis=None)
+    assert result.q2_se.isna().all()
+    # Over two such folds the PRESS has a spread, and still no response spread to scale it by.
+    Y = pd.DataFrame({"y": [5.0, 5.0, 5.0, 5.0, 3.0, 7.0, 4.0, 6.0, 2.0, 8.0]})
+    X = pd.DataFrame(rng.standard_normal((10, 3)), columns=["a", "b", "c"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = PLS.select_n_components(X, Y, cv=PredefinedSplit([0, 0, 1, 1] + [-1] * 6), max_components=2)
+    assert np.isfinite(result.se_rmsecv.to_numpy()).all()
+    assert result.q2_se.isna().all()
+
+
+def test_pls_select_n_components_says_in_full_when_no_count_can_be_judged() -> None:
+    """Folds that hold out nothing leave every RMSECV NaN: no recommendation, and the likely causes."""
+    X, Y = _pls_block(n=10)
+    message = (
+        "Cross-validation produced NaN total-RMSECV for every component count; no recommendation can be made. "
+        "Likely cause: a per-fold zero-variance Y column, or every fold trivially degenerate."
+    )
+    with (
+        np.errstate(invalid="ignore"),
+        pytest.warns(SpecificationWarning, match=r"scale_inside_folds=False leaks"),
+        pytest.raises(RuntimeError, match="^" + re.escape(message) + "$"),
+    ):
+        PLS.select_n_components(
+            X, Y, cv=_TrainsOnEverythingTestsNothing(), scale_inside_folds=False, max_components=2, n_permutations=19
+        )
+
+
+def test_held_out_scores_names_a_singular_p_w_of_the_smaller_model() -> None:
+    """With gaps in the training rows the smaller model's ``P'W`` is inverted; a singular one is named in the error."""
+    model = SimpleNamespace(
+        x_loadings_=pd.DataFrame([[1.0, 1.0], [1.0, 1.0]]),
+        x_weights_=pd.DataFrame([[1.0, 0.0], [0.0, 1.0]]),
+    )
+    x_train = np.array([[np.nan, 1.0], [1.0, 2.0]])
+    with pytest.raises(np.linalg.LinAlgError, match=r"^\(P'W of the smaller model\) is singular or ill-conditioned"):
+        _held_out_scores(model, x_train, np.ones((1, 2)), 2)
+
+
+def _design_with_an_interaction(replicates: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return a replicated 2x2 design and ``y = x1 + 2 x2 + x1 x2 / 2``, whose interaction no column of X reaches."""
+    x1, x2 = np.tile([-1.0, 1.0, -1.0, 1.0], replicates), np.tile([-1.0, -1.0, 1.0, 1.0], replicates)
+    return pd.DataFrame({"a": x1, "b": x2}), pd.DataFrame({"y": x1 + 2.0 * x2 + 0.5 * x1 * x2})
+
+
+def test_pls_fits_a_component_along_x_once_y_is_exhausted_in_full() -> None:
+    """After one component the rest of y is the interaction: the second component is X's leading direction left (#913).
+
+    The warning says so in full: R²Y stays at (1 + 4) / (1 + 4 + 1/4). The second weight is the
+    leading right singular vector of X deflated by the first component, its loading's largest
+    entry positive; its Y-loading is about 0 and its Y scores are 0.
+    """
+    X, y = _design_with_an_interaction(2)
+    message = (
+        "PLS: from component 2 on there is nothing left in Y that X can explain: what is left of Y is uncorrelated "
+        f"with what is left of X (R²Y stays at {5 / 5.25:.4g}). The data support 1 component(s); each later one "
+        "takes the largest direction left in X and leaves the predictions unchanged."
+    )
+    with pytest.warns(SpecificationWarning, match="^" + re.escape(message) + "$"):
+        pls = PLS(n_components=2).fit(X, y)
+    Z = _autoscaled(X.to_numpy())
+    w1 = pls.x_weights_.to_numpy()[:, 0]
+    t1 = Z @ w1
+    left = Z - np.outer(t1, Z.T @ t1 / (t1 @ t1))
+    w2 = np.linalg.svd(left)[2][0]
+    p2 = left.T @ (left @ w2)
+    w2 = w2 * np.sign(p2[np.argmax(np.abs(p2))])
+    np.testing.assert_allclose(pls.x_weights_.to_numpy()[:, 1], w2, rtol=1e-6, atol=1e-8)
+    assert abs(pls.y_loadings_.iloc[0, 1]) < 1e-8
+    np.testing.assert_array_equal(pls.y_scores_.iloc[:, 1].to_numpy(), np.zeros(8))
+
+
+def test_pls_fits_a_component_along_x_with_as_many_responses_as_rows() -> None:
+    """Four rows and four responses: the Y-loading of the component along X is regressed over Y's columns."""
+    X, y = _design_with_an_interaction(1)
+    Y = pd.DataFrame(np.column_stack([k * y["y"].to_numpy() for k in (1.0, -2.0, 0.5, 3.0)]), columns=list("pqrs"))
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=2).fit(X, Y)
+    assert np.abs(pls.y_loadings_.iloc[:, 1].to_numpy()).max() < 1e-8
+
+
+def test_pls_nipals_seeds_a_missing_cell_of_its_seed_column_as_zero() -> None:
+    """After one iteration the component still shows its seed: the largest Y column, a missing cell as 0, plus 1."""
+    X, Y = _pls_block(n=12)
+    X, Y = X - X.mean(), Y - Y.mean()
+    Y["y1"] *= 10.0  # the seed column
+    Y.iloc[2, 1] = np.nan
+    with pytest.warns(SpecificationWarning, match="reached the maximum number of iterations"):
+        pls = PLS(n_components=1, max_iter=1, scale=False).fit(X, Y)
+    ref = _pls_nipals_as_fitted(X.to_numpy(), Y.to_numpy(), 1, max_iter=1)
+    for name, attribute in (("T", "scores_"), ("W", "x_weights_"), ("C", "y_loadings_")):
+        np.testing.assert_allclose(np.asarray(getattr(pls, attribute)), ref[name], rtol=1e-10)
+
+
+def test_pls_direct_weights_name_a_singular_p_w() -> None:
+    """``R = W (P'W)^-1``; a ``P'W`` that cannot be inverted is named in the error."""
+    W, P = np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]]), np.array([[1.0, 0.5], [0.0, 1.0], [0.2, 0.3]])
+    np.testing.assert_allclose(_direct_weights(W, P), W @ np.linalg.inv(P.T @ W), rtol=1e-12)
+    with pytest.raises(np.linalg.LinAlgError, match=r"^\(x_loadings' @ x_weights\) is singular or ill-conditioned"):
+        _direct_weights(W, np.ones((3, 2)))
+
+
+def test_pls_imputed_fit_reads_boolean_columns_as_numbers() -> None:
+    """Indicator columns of booleans, as ``pd.get_dummies`` gives, are imputed with the responses as 0 and 1."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((15, 4)) > 0, columns=list("abcd"))
+    Y = pd.DataFrame({"y": X.to_numpy() @ [1.0, 2.0, 3.0, 4.0] + rng.standard_normal(15)})
+    Y.iloc[2, 0] = np.nan
+    given = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X, Y)
+    exact = PLS(n_components=2, missing_data_settings={"md_method": "tsr"}).fit(X.astype(float), Y)
+    _assert_near(given.beta_coefficients_.to_numpy(), exact.beta_coefficients_.to_numpy(), rtol=1e-10)
+
+
+def test_pls_component_along_x_takes_x_leading_direction_not_what_y_still_reaches() -> None:
+    """Once Y is exhausted (#913) the next weight is X's leading direction left, not the direction of X'r.
+
+    A 2x2x2 design with columns scaled 1, 3 and 2, the third nudged by 1e-9 times the
+    x1 x2 interaction, and ``y = x1 + x1 x2 / 2``. After one component the residual r is
+    the interaction, which X reaches only through the nudge: ``||X'r||`` is about 1.2e-8,
+    far above rounding but below epsqrt times y's reach at the start, so the second
+    component is along X. Its weight is the leading right singular vector of the deflated
+    X, along x2; X'r points along x3, so iterating on what is left of y would end there.
+    """
+    levels = np.array(list(itertools.product([-1.0, 1.0], repeat=3)))
+    X = levels * [1.0, 3.0, 2.0]
+    X[:, 2] += 1e-9 * levels[:, 0] * levels[:, 1]
+    y = levels[:, 0] + 0.5 * levels[:, 0] * levels[:, 1]
+    with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
+        pls = PLS(n_components=2, scale=False).fit(pd.DataFrame(X), pd.DataFrame({"y": y}))
+    t1 = X @ pls.x_weights_.to_numpy()[:, 0]
+    deflated = X - np.outer(t1, X.T @ t1 / (t1 @ t1))
+    residual = y - t1 * (y @ t1 / (t1 @ t1))
+    reach = deflated.T @ residual
+    assert 1e-9 < np.linalg.norm(reach) < epsqrt * np.linalg.norm(X.T @ y)
+    leading = np.linalg.svd(deflated)[2][0]
+    assert abs(leading @ reach) / np.linalg.norm(reach) < 1e-6  # X'r is orthogonal to the leading direction
+    np.testing.assert_allclose(np.abs(pls.x_weights_.to_numpy()[:, 1]), np.abs(leading), atol=1e-9)

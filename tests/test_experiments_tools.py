@@ -373,6 +373,22 @@ class TestAnalyzeExperiment:
         )
         assert "error" not in result
 
+    def test_residuals_are_checked_in_the_run_order_the_rows_carry(self) -> None:
+        """A RunOrder column reaches residual_diagnostics through the tool, and its result serialises."""
+        y = [28.0, 36.0, 18.0, 31.0, 27.5, 36.5, 17.5, 31.5]
+        settings = [(-1, -1), (1, -1), (-1, 1), (1, 1)] * 2
+        orders = [5, 2, 8, 3, 1, 7, 4, 6]
+        rows = [
+            {"A": a, "B": b, "RunOrder": order, "y": value}
+            for (a, b), order, value in zip(settings, orders, y, strict=True)
+        ]
+        spec = {"design_matrix": rows, "response_column": "y", "model": "y ~ A*B"}
+        result = execute_tool_call("analyze_experiment", {**spec, "analysis_type": "residual_diagnostics"})
+        found = json.loads(json.dumps(result))["residual_diagnostics"]["run_order"]
+        assert found["known"] is True
+        assert found["std_error"] == pytest.approx(8**-0.5)
+        assert isinstance(found["serially_dependent"], bool)
+
     def test_split_plot_with_a_named_whole_plot_column(self) -> None:
         """The tool passes ``whole_plot`` through: BHH's corrosion heats, temperature tested on 3 df."""
         rows = datasets.corrosion().drop(columns="Position").astype({"Temperature": str}).to_dict("records")

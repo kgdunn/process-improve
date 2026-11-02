@@ -7,8 +7,8 @@ Before any product conclusion is drawn, each panelist is scored on four axes:
 * **discrimination** - does the panelist separate the products (mean
   eta-squared of the product effect across attributes; higher is better);
 * **agreement** - does the panelist rank the products like the rest of the
-  panel (mean correlation of the panelist's product means with the panel's,
-  across attributes; higher is better);
+  panel (correlation of the panelist's product-by-attribute means with those
+  of the other panelists, the panelist left out; higher is better);
 * **scale use** - a location shift and a spread ratio relative to the panel;
 * **drift** - association between session order and the panelist's mean score
   (only when more than one session is present).
@@ -119,8 +119,6 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
     """
     # Replicate-averaged score per (panelist, product, attribute).
     cell = panel.groupby(["panelist_id", "product", "attribute"], observed=True)["score"].mean().reset_index()
-    # Panel consensus: mean across panelists per (product, attribute).
-    consensus = cell.groupby(["product", "attribute"], observed=True)["score"].mean()
 
     grand_mean = panel["score"].mean()
     grand_sd = panel["score"].std()
@@ -141,7 +139,11 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
         # cell means with the panel consensus over the whole space. Stacking the
         # attributes lets those with real product variation dominate and avoids
         # the meaningless per-attribute correlations a near-flat attribute would
-        # otherwise contribute.
+        # otherwise contribute. The consensus leaves the panelist out: a mean that
+        # includes its own scores correlates with them by construction, which
+        # raised every agreement, most of all on a small panel.
+        others = cell[cell["panelist_id"] != pid]
+        consensus = others.groupby(["product", "attribute"], observed=True)["score"].mean()
         own_vec = pan_cell.set_index(["product", "attribute"])["score"]
         pair = pd.concat([own_vec, consensus], axis=1, join="inner").dropna()
         if pair.shape[0] >= 2 and pair.iloc[:, 0].std() > 0 and pair.iloc[:, 1].std() > 0:

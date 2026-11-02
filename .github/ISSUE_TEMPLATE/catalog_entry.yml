@@ -12,7 +12,9 @@ body:
         why it does not (the source's rounding, a misprint, or another method).
 
         Copy the numbers as the source prints them, without correcting them. A number that does not
-        reproduce is worth as much as one that does: the catalog lists it among the errata.
+        reproduce is worth as much as one that does: the catalog lists it among the errata. If you know why
+        a number differs (a misprint, the source's rounding, another method), or that the library cannot
+        compute it yet, say so beside it: the catalogue records the cause of each such number.
   - type: input
     id: source
     attributes:

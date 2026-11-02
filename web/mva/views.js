@@ -501,6 +501,90 @@ export function sequenceFigure(series, state, options = {}) {
   };
 }
 
+/** The colour of R², the fit to the rows the model saw, beside Q²'s accent: R² is the reference, Q² the answer. */
+export const R2_COLOUR = "#b8b8b8";
+
+/**
+ * R² and Q² per number of components, side by side, Q² with one standard error: where Q² stops rising
+ * while R² keeps going, the extra components fit noise. A bar's x is its number of components, so a click
+ * names the count to use.
+ * cv: the glue's cross-validation reply; options: { current: the count in use, stale: the model changed since }
+ */
+export function componentsFigure(cv, options = {}) {
+  const colours = options.colours ?? LIGHT;
+  const outline = (colour) => ({
+    color: cv.components.map((a) => (a === options.current ? colours.fg : colour)),
+    width: cv.components.map((a) => (a === options.current ? 2 : 0)),
+  });
+  const bars = (name, values, colour, extra = {}) => ({
+    type: "bar",
+    name,
+    x: cv.components,
+    y: values,
+    marker: { color: colour, line: outline(colour), opacity: options.stale ? FADED : 1 },
+    hovertemplate: `${name}, %{x} components: %{y:.3f}<extra></extra>`,
+    ...extra,
+  });
+  const best = cv.components.indexOf(cv.recommended);
+  const q2 = `Q²${cv.block}`;
+  return {
+    data: [
+      bars(`R²${cv.block}, fitted rows`, cv.r2, R2_COLOUR),
+      bars(`${q2}, held out`, cv.q2, colours.accent, {
+        error_y: { type: "data", array: cv.q2se, visible: true, color: colours.muted, thickness: 1, width: 3 },
+        customdata: cv.q2se,
+        hovertemplate: `${q2}, %{x} components: %{y:.3f} ± %{customdata:.3f}<extra></extra>`,
+      }),
+    ],
+    layout: {
+      height: options.height ?? 280,
+      margin: { l: 60, r: 20, t: 10, b: 40 },
+      paper_bgcolor: colours.bg,
+      plot_bgcolor: colours.bg,
+      font: { color: colours.fg },
+      barmode: "group",
+      bargap: 0.2,
+      xaxis: { title: { text: "Number of components" }, dtick: 1, gridcolor: colours.line },
+      yaxis: { title: { text: "Cumulative R² and Q²" }, gridcolor: colours.line, zerolinecolor: colours.muted },
+      legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom" },
+      annotations:
+        best < 0
+          ? []
+          : [
+              {
+                x: cv.recommended,
+                y: Math.max(cv.r2[best] ?? 0, (cv.q2[best] ?? 0) + (cv.q2se[best] ?? 0)),
+                text: "recommended",
+                showarrow: true,
+                arrowhead: 2,
+                ax: 0,
+                ay: -24,
+                font: { size: 10, color: colours.fg },
+              },
+            ],
+      dragmode: false,
+    },
+  };
+}
+
+/** What the chart says, in a sentence or two, for the reader and for a screen reader; `current` is the count in use. */
+export function componentsSentence(cv, current) {
+  const where =
+    cv.heldOut === "cells"
+      ? "single cells held out of the fitted rows, each predicted from the rest of its row"
+      : "whole rows held out of the fit, their Y predicted from their X";
+  const k = cv.components.indexOf(current);
+  const fixed = (value) => (Number.isFinite(value) ? value.toFixed(2) : "not available");
+  const using =
+    k < 0
+      ? ""
+      : ` With ${current}: Q²${cv.block} ${fixed(cv.q2[k])} ± ${fixed(cv.q2se[k])}, R²${cv.block} ${fixed(cv.r2[k])}.`;
+  return (
+    `Recommended: ${cv.recommended} component${cv.recommended === 1 ? "" : "s"}, by ${cv.rule}.${using} ` +
+    `Q²${cv.block} is R²${cv.block} measured on ${where} by a model that never saw them (${cv.folds} fits per count).`
+  );
+}
+
 const limitLine = (value, colours) => ({
   type: "line",
   xref: "paper",

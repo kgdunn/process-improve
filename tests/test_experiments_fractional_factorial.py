@@ -315,6 +315,101 @@ class TestBeyondTheTable:
         assert result.resolution == 12
 
 
+def _measured_word_lengths(coded: np.ndarray) -> tuple[int, ...]:
+    """Return (A3, A4, ...) from the runs alone: products of columns that are constant, by length."""
+    k = coded.shape[1]
+    counts: Counter[int] = Counter()
+    for size in range(3, k + 1):
+        for columns in itertools.combinations(range(k), size):
+            product = np.prod(coded[:, list(columns)], axis=1)
+            counts[size] += bool(np.all(product == product[0]))
+    return tuple(counts[length] for length in range(3, max((n for n in counts if counts[n]), default=2) + 1))
+
+
+class TestBudgetSizesTheFraction:
+    """A budget is the fraction's run count: the minimum-aberration fraction of that size (#956)."""
+
+    @pytest.mark.parametrize(("k", "pattern"), [(7, (0, 1, 2)), (8, (0, 3, 4))])
+    def test_thirty_two_runs_between_two_resolutions(self, k: int, pattern: tuple[int, ...]) -> None:
+        """2^(7-2) and 2^(8-3) need neither resolution IV (16 runs) nor V (64): only a budget asks for them."""
+        result = _fraction(k, budget=32)
+        assert result.n_runs == 32
+        assert _measured_word_lengths(_coded(result))[:3] == pattern
+
+    @pytest.mark.parametrize(
+        ("k", "n_runs"),
+        [(k, n_runs) for k in range(5, 12) for n_runs in [*_MIN_ABERRATION[k], 2 ** (k - 1)]],
+    )
+    def test_every_tabulated_size(self, k: int, n_runs: int) -> None:
+        """Every size of the table, and the half fraction, has the table's word-length pattern."""
+        result = _fraction(k, budget=n_runs)
+        expected = (
+            _word_length_pattern(_table_words(k, n_runs))
+            if n_runs in _MIN_ABERRATION[k]
+            else tuple(int(length == k) for length in range(3, k + 1))
+        )
+        assert result.n_runs == n_runs
+        assert _measured_word_lengths(_coded(result)) == expected
+
+    def test_eleven_factors_in_thirty_two_runs(self) -> None:
+        """An exhaustive search over the 230,230 generator sets gives A4 = 25 at best, with no word of length 3."""
+        assert _measured_word_lengths(_coded(_fraction(11, budget=32)))[:2] == (0, 25)
+
+    def test_a_budget_between_powers_of_two_rounds_down_with_a_warning(self) -> None:
+        with pytest.warns(UserWarning, match="40 run.*32 is the largest that fits"):
+            result = _fraction(7, budget=40)
+        assert result.n_runs == 32
+
+    def test_centre_runs_and_replicates_are_counted(self) -> None:
+        """35 runs hold the 32-run fraction and 3 centre runs; 32 runs with 3 centre runs hold only 16."""
+        factors = _factors(7)
+        result = generate_design(factors, design_type="fractional_factorial", budget=35, n_center_points=3)
+        assert result.n_runs == 35
+        with pytest.warns(UserWarning, match="29 run.*after 3 centre run"):
+            result = generate_design(factors, design_type="fractional_factorial", budget=32, n_center_points=3)
+        assert result.n_runs == 16 + 3
+        result = _fraction(6, budget=32, n_replicates=2)
+        assert result.n_runs == 32
+
+    def test_a_budget_beyond_the_half_fraction_gives_the_half_fraction(self) -> None:
+        with pytest.warns(UserWarning, match="half fraction of 5 factors has 16 runs.*full_factorial"):
+            result = _fraction(5, budget=100)
+        assert result.n_runs == 16
+
+    def test_a_resolution_with_a_budget_is_checked(self) -> None:
+        assert _fraction(7, budget=32, resolution=4).n_runs == 32
+        with pytest.raises(
+            ValueError, match="16-run fraction of 7 factors reaches resolution 4, below the resolution=5"
+        ):
+            _fraction(7, budget=16, resolution=5)
+
+    def test_a_budget_below_the_smallest_fraction_raises(self) -> None:
+        with pytest.raises(ValueError, match=r"smallest such fraction has 8 runs.*plackett_burman"):
+            _fraction(7, budget=6)
+
+    def test_a_size_too_large_to_search_names_the_generators(self) -> None:
+        with pytest.raises(ValueError, match="Supply the generators"):
+            generate_design(
+                [Factor(name=f"X{i}", low=-1, high=1) for i in range(12)],
+                design_type="fractional_factorial",
+                budget=64,
+                n_center_points=0,
+            )
+
+    def test_more_factors_than_the_search_names_raises(self) -> None:
+        """The generator search names 25 factors; a fraction of 26 other than the half needs generators."""
+        with pytest.raises(ValueError, match="No minimum-aberration fraction of 26 factors"):
+            generate_design(
+                [Factor(name=f"X{i}", low=-1, high=1) for i in range(26)],
+                design_type="fractional_factorial",
+                budget=64,
+                n_center_points=0,
+            )
+
+    def test_with_generators_the_budget_stays_a_ceiling(self) -> None:
+        assert _fraction(4, generators=["D=ABC"], budget=32).n_runs == 8
+
+
 class TestInvalidRequests:
     @pytest.mark.parametrize("generator", ["D=", "D=-"])
     def test_generator_naming_no_factors(self, generator: str) -> None:

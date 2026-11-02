@@ -6,6 +6,10 @@ papers), recorded so that software can be checked against them. Each entry holds
 exactly as printed (factors, responses, runs) and every number the source prints for it, as the
 text printed, with where it is printed. A number also carries a check, saying how to recompute
 it (the kind of result, the term, the model, the runs it uses), or why it is not recomputed.
+A number known not to reproduce records why (its ``disagreement``) and the cause of the
+difference, one of :data:`DISAGREEMENT_CAUSES`; a number not recomputed records the cause too, one
+of :data:`UNCHECKED_CAUSES`, which tells a number the library cannot compute yet from one with
+nothing to compute.
 
 :func:`reproduce_reference_catalogue` recomputes every checked number with this library and
 reports, row by row, the printed text, the value found, whether they agree to within the
@@ -48,7 +52,7 @@ import re
 import statistics
 import warnings
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Hashable, Iterator
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -67,6 +71,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.crossed_arrays import signal_to_noise
 from process_improve.experiments.design_measures import (
     design_structure,
     projectivity,
@@ -79,6 +84,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_response_surface import blocking_alpha
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
+from process_improve.experiments.layouts import estimate_missing, tukey_nonadditivity
 from process_improve.experiments.least_squares_means import Comparisons, least_squares_means
 from process_improve.experiments.marginal_means import marginal_means_prediction
 from process_improve.experiments.multistratum import multistratum_anova
@@ -90,7 +96,9 @@ from process_improve.experiments.random_effects import fixed_columns as _fixed_c
 from process_improve.experiments.run_order import run_order_trends
 from process_improve.experiments.separating import constraint_through_cuts
 from process_improve.experiments.sequential import steepest_path
+from process_improve.experiments.three_level_components import interaction_components
 from process_improve.experiments.trade_off import minimum_aberration_generators
+from process_improve.experiments.yates import reverse_yates, yates_table
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
@@ -206,7 +214,10 @@ def reference_experiments(source: str | None = None, topic: str | None = None) -
         ``where``, ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does
         not print them, and ``data_source`` then says where they come from), ``expected`` and
         ``notes``. Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed
-        text), ``where`` (a file and line, or a page, with a quotation) and ``check``.
+        text), ``where`` (a file and line, or a page, with a quotation) and ``check``. A response
+        measured as a curve, not as one number, also has ``curve``: its ``columns`` in the run
+        table, in order along the curve, and its ``argument`` (``name`` and ``units``, and either
+        ``values``, the points every run shares, or ``columns``, where each run records its own).
 
     Raises
     ------
@@ -333,13 +344,10 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "sqrt": lambda readings: np.sqrt(readings.iloc[:, 0]),
     "arcsin_sqrt": lambda readings: np.arcsin(np.sqrt(readings.iloc[:, 0])),
     "freeman_tukey_sqrt": lambda readings: (np.sqrt(readings.iloc[:, 0]) + np.sqrt(readings.iloc[:, 0] + 1)) / 2,
-    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
-    # nominal is best in the form 10 log10(mean^2 / variance)
-    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
-    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
-    "sn_nominal": lambda readings: pd.Series(
-        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
-    ),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and nominal is best
+    "sn_larger": lambda readings: pd.Series(signal_to_noise(readings, "larger"), readings.index),
+    "sn_smaller": lambda readings: pd.Series(signal_to_noise(readings, "smaller"), readings.index),
+    "sn_nominal": lambda readings: pd.Series(signal_to_noise(readings, "nominal"), readings.index),
 }
 
 
@@ -354,8 +362,9 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     ``"sn_nominal"`` (10 log10 of the squared mean over the variance). Of one column, a count c or a
     proportion p, ``"sqrt"`` and ``"arcsin_sqrt"`` are the variance-stabilizing transforms and
     ``"freeman_tukey_sqrt"`` ([sqrt(c) + sqrt(c + 1)]/2) and ``"freeman_tukey_arcsin"`` (the two arcsines
-    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's. A source
-    that rounds each
+    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's;
+    ``"angular_degrees"`` is arcsin (m/n)^1/2 in degrees of a count m of ``summary["n"]``, with the source's
+    ``summary["ends"]`` at m = 0 and m = n (Bartlett's values, say). A source that rounds each
     run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
     that prints its readings in one unit and works the statistic in another gives
     ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
@@ -365,6 +374,11 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     if summary["statistic"] == "freeman_tukey_arcsin":  # [arcsin sqrt(np/(n + 1)) + arcsin sqrt((np + 1)/(n + 1))]/2
         n, p = float(summary["n"]), readings.iloc[:, 0]
         values = (np.arcsin(np.sqrt(n * p / (n + 1))) + np.arcsin(np.sqrt((n * p + 1) / (n + 1)))) / 2
+    elif summary["statistic"] == "angular_degrees":  # arcsin (m/n)^1/2 in degrees, a source's own values at 0 and n
+        n, m = float(summary["n"]), readings.iloc[:, 0]
+        values = pd.Series(np.degrees(np.arcsin(np.sqrt(m / n))), index=readings.index)
+        at_zero, at_n = summary.get("ends", (0.0, 90.0))  # Bartlett's 1/(4n) correction, say, for m = 0 and m = n
+        values = values.where(m > 0, at_zero).where(m < n, at_n)
     else:
         values = _STATISTICS[summary["statistic"]](readings)
     if summary.get("round") is not None:
@@ -451,6 +465,15 @@ def _coded_runs(
     return pd.DataFrame(settings), table[names].astype(float)
 
 
+def _first_scalar_response(experiment: dict) -> str:
+    """Return the first response measured as one number: a check that names none is about it, never a curve."""
+    name = next((r["name"] for r in experiment["responses"] if "curve" not in r), None)
+    if name is None:
+        msg = f"{experiment.get('name', 'The experiment')}: every response is a curve, so the check must name one."
+        raise ValueError(msg)
+    return name
+
+
 def _changed(settings: pd.DataFrame, changes: list | None) -> pd.DataFrame:
     """Return coded settings with some elements replaced, each change ``[run, factor, value]``, the run 1-based.
 
@@ -474,7 +497,8 @@ class _Fits:
     ``check["transform"]`` fits the model to the transformed response (``"log"`` or ``"sqrt"``, as
     :func:`~process_improve.experiments.analyze_experiment` takes it), so its tables, and the
     response the other checks read, are on that scale. ``"settings": "as_printed"`` fits the
-    settings as printed, not their exact values (see :func:`_coded_runs`).
+    settings as printed, not their exact values (see :func:`_coded_runs`). ``check["sigma"]`` is
+    an error standard deviation the source knows before the runs, as ``analyze_experiment`` takes it.
     """
 
     def __init__(self) -> None:
@@ -484,7 +508,15 @@ class _Fits:
         positions = tuple(check["runs"]) if check.get("runs") else None
         summary = json.dumps(check["summary"], sort_keys=True) if check.get("summary") else None
         as_printed = check.get("settings") == "as_printed"
-        options = (check.get("model"), positions, check.get("response"), summary, check.get("transform"), as_printed)
+        options = (
+            check.get("model"),
+            positions,
+            check.get("response"),
+            summary,
+            check.get("transform"),
+            as_printed,
+            check.get("sigma"),
+        )
         key = (experiment["name"], *options)
         if key not in self._done:
             self._done[key] = self._fit(experiment, options)
@@ -492,8 +524,8 @@ class _Fits:
 
     @staticmethod
     def _fit(experiment: dict, options: tuple) -> dict[str, Any]:
-        """Fit a model to a set of runs: the model, run positions, response, summary, transform and settings."""
-        model, positions, response, summary, transform, as_printed = options
+        """Fit a model to a set of runs: the model, run positions, response, summary, transform, settings and sigma."""
+        model, positions, response, summary, transform, as_printed, sigma = options
         settings, responses = _coded_runs(
             experiment,
             list(positions) if positions else None,
@@ -511,7 +543,9 @@ class _Fits:
             for wanted in (_ANALYSES, ["coefficients", "anova", "residual_diagnostics"], ["coefficients"]):
                 try:
                     # The coefficients as the source prints them: fitted to the settings as given.
-                    out |= analyze_experiment(settings, y, model=model, analysis_type=wanted, coding="actual")
+                    out |= analyze_experiment(
+                        settings, y, model=model, analysis_type=wanted, coding="actual", sigma=sigma
+                    )
                     break
                 except (ValueError, np.linalg.LinAlgError, KeyError, ZeroDivisionError):
                     continue
@@ -697,18 +731,22 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
     model, as RS/Discover splits a quadratic's regression into its linear and non-linear parts.
     """
 
-    def explained(model: str | None) -> tuple[float, int]:
+    def explained(model: str | None) -> tuple[float, int, int | None]:
         if not model:
-            return 0.0, 0
+            return 0.0, 0, None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitted = analyze_experiment(out["settings"], out["y"], model=model, analysis_type="anova")
         ss, _, df = _anova_sums({**fitted, "y": out["y"]})
-        return ss, df
+        return ss, df, fitted["model_summary"]["df_residual"]
 
-    ss_part, df_part = explained(check.get("part", check["model"]))
-    ss_after, df_after = explained(check.get("after"))
-    ss, df = ss_part - ss_after, df_part - df_after
+    ss_part, df_part, resid_part = explained(check.get("part", check["model"]))
+    ss_after, df_after, resid_after = explained(check.get("after"))
+    # The extra df is the residual df the part takes up beyond the after model. Counting ANOVA rows
+    # fails when only one of the two is read as a mixture: z1 + z2 + z3 - 1 holds the constant and
+    # has one 2-df blend row, z1 + z2 - 1 does not and keeps a row per term.
+    df_extra = df_part - df_after if resid_after is None or resid_part is None else resid_after - resid_part
+    ss, df = ss_part - ss_after, df_extra
     f_ratio = ss / df / out["model_summary"]["mse_residual"]
     p_value = float(f_distribution.sf(f_ratio, df, out["model_summary"]["df_residual"]))
     return {"sum_sq": ss, "mean_sq": ss / df, "F": f_ratio, "p_value": p_value}
@@ -799,7 +837,7 @@ def _prediction_error(predicted: float, check: dict, experiment: dict) -> float:
     check's ``"deviation"``, the run's value less the prediction.
     """
     runs = experiment["runs"]
-    column = check.get("observed") or check.get("response") or experiment["responses"][0]["name"]
+    column = check.get("observed") or check.get("response") or _first_scalar_response(experiment)
     observed = float(runs["rows"][check["run"] - 1][runs["columns"].index(column)])
     error = predicted - observed
     return 100 * error / observed if check["error"] == "percent" else error
@@ -1286,6 +1324,8 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "r_squared_adj": lambda out, _c, _e: out["model_summary"]["r_squared_adj"],
     "r_squared_pred": lambda out, _c, _e: out["model_summary"]["r_squared_pred"],
     "adequate_precision": lambda out, _c, _e: out["model_summary"]["adequate_precision"],
+    "average_fitted_variance": lambda out, _c, _e: out["model_summary"]["average_fitted_variance"],
+    "average_fitted_std_error": lambda out, _c, _e: out["model_summary"]["average_fitted_variance"] ** 0.5,
     "residual_df": lambda out, _c, _e: out["model_summary"]["df_residual"],
     "df_model": lambda out, _c, _e: out["model_summary"]["df_model"],
     "ms_residual": lambda out, _c, _e: out["model_summary"]["mse_residual"],
@@ -1300,6 +1340,14 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "residual_quantile": lambda out, c, _e: float(np.quantile(_residuals(out)[1], c["q"])),
     "f_statistic": lambda out, _c, _e: out["model_summary"]["f_statistic"],
     "f_p_value": lambda out, _c, _e: out["model_summary"]["f_p_value"],
+    # a source's analysis of variance about zero, uncorrected for the mean: Σy², nȳ², Σŷ² and its df, the model's rank
+    "ss_total_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_total_uncorrected"],
+    "ss_mean": lambda out, _c, _e: out["model_summary"]["ss_mean"],
+    "ss_regression_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_model_uncorrected"],
+    "df_model_uncorrected": lambda out, _c, _e: float(len(out["y"]) - out["model_summary"]["df_residual"]),
+    "ms_regression_uncorrected": lambda out, _c, _e: (
+        out["model_summary"]["ss_model_uncorrected"] / (len(out["y"]) - out["model_summary"]["df_residual"])
+    ),
     "f_uncorrected": lambda out, _c, _e: _f_uncorrected(out)[0],
     "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
     "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
@@ -2327,9 +2375,15 @@ def _library_value(check: dict) -> float:
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
     equation a source prints without its data. ``"squared": true`` returns the square of the number read,
-    and ``"root": true`` its square root, a standard deviation from a variance.
+    and ``"root": true`` its square root, a standard deviation from a variance. An eigenvector's sign is
+    arbitrary: ``"abs": true`` reads its size only, and ``check["sign_of"]`` names the element the source
+    prints positive, as for :func:`_optimum`.
     """
-    found = _read(_library_result(check), check.get("key"))
+    result = _library_result(check)
+    found = _read(result, check.get("key"))
+    if check.get("sign_of"):
+        found *= math.copysign(1.0, _read(result, check["sign_of"]))
+    found = abs(found) if check.get("abs") else found
     found = math.sqrt(found) if check.get("root") else found
     return found**2 if check.get("squared") else found
 
@@ -2538,44 +2592,48 @@ def _tukey(experiment: dict, check: dict) -> float:
 def _nonadditivity(experiment: dict, check: dict) -> float:
     """Return a number of Tukey's one-degree-of-freedom test for nonadditivity of a two-factor layout.
 
-    ``check["model"]`` is the additive model, such as ``temperature + pressure``, fitted with
-    :func:`~process_improve.experiments.analyze_experiment` to one observation per cell. Tukey's
-    test is the test of one more regressor, the square of that model's fitted values, so the model
-    is fitted again with it. ``check["key"]`` is ``"ss"`` (the sum of squares for nonadditivity),
-    ``"f"`` or ``"p"`` (its test), ``"ss_error"``, ``"df_error"`` or ``"ms_error"`` (the residual
-    once it is taken out), or ``"f.<term>"`` and ``"p.<term>"``: a term's mean square in the
-    additive model tested against that smaller error, as a source's table of the test prints it.
+    ``check["model"]`` is the additive model, such as ``temperature + pressure``, tested with the
+    library's :func:`~process_improve.experiments.tukey_nonadditivity`: the test of one more
+    regressor, the square of that model's fitted values, against the residual once it is taken out
+    or, with ``check["error"]`` ``"pure"``, against the error within replicated cells. ``check["key"]``
+    is ``"ss"`` (the sum of squares for nonadditivity), ``"f"`` or ``"p"`` (its test), ``"ss_error"``,
+    ``"df_error"`` or ``"ms_error"`` (its denominator), ``"remainder_ss"`` or ``"remainder_ms"`` (the
+    interaction left once it is taken out), or ``"f.<term>"`` and ``"p.<term>"``: a term's mean square
+    in the additive model tested against that denominator, as a source's table of the test prints it.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
-    y = responses[check.get("response") or responses.columns[0]]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        additive = analyze_experiment(
-            settings, y, model=check["model"], analysis_type=["anova", "residual_diagnostics"]
-        )
-        squared = np.square(additive["residual_diagnostics"]["fitted_values"])
-        tested = analyze_experiment(
-            settings.assign(nonadditivity=squared),
-            y,
-            model=f"{check['model']} + nonadditivity",
-            analysis_type=["anova"],
-        )
-    row = _anova_row(tested, "nonadditivity")
-    summary = tested["model_summary"]
+    response = check.get("response") or responses.columns[0]
+    table = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    found = tukey_nonadditivity(table, f"{response} ~ {check['model']}", error=check.get("error", "remainder"))
     kind, _, term = check["key"].partition(".")
     if term:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            additive = analyze_experiment(settings, table[response], model=check["model"], analysis_type=["anova"])
         term_row = _anova_row(additive, term)
-        ratio = term_row["mean_sq"] / summary["mse_residual"]
-        return ratio if kind == "f" else float(f_distribution.sf(ratio, term_row["df"], summary["df_residual"]))
-    found = {
-        "ss": row["sum_sq"],
-        "f": row["F"],
-        "p": row["p_value"],
-        "ss_error": summary["mse_residual"] * summary["df_residual"],
-        "df_error": summary["df_residual"],
-        "ms_error": summary["mse_residual"],
-    }
-    return float(found[kind])
+        ratio = term_row["mean_sq"] / found["ms_error"]
+        return ratio if kind == "f" else float(f_distribution.sf(ratio, term_row["df"], found["df_error"]))
+    if kind == "remainder_ms":
+        return found["remainder_ss"] / found["remainder_df"]
+    return float(found["p_value" if kind == "p" else kind])
+
+
+def _estimate_missing(experiment: dict, check: dict) -> float:
+    """Return a number of the library's approximate analysis of a table completed with estimates of its missing runs.
+
+    The runs ``check["runs"]`` (all by default), and the cells ``check["missing"]``, each a factor
+    setting with no response, are given to :func:`~process_improve.experiments.estimate_missing` under
+    ``check["model"]``; ``check["decimals"]`` rounds the estimates as a source does before it analyses
+    the completed table. ``check["key"]`` is ``"df"``, ``"sum_sq"``, ``"mean_sq"``, ``"f"`` or
+    ``"p_value"`` of the row ``check["term"]`` (a term of the model, or ``"Residual"``) of that analysis.
+    """
+    settings, responses = _coded_runs(experiment, check.get("runs"))
+    response = check.get("response") or responses.columns[0]
+    observed = settings.assign(**{response: responses[response].to_numpy(dtype=float)})
+    table = pd.concat([observed, pd.DataFrame(check["missing"])], ignore_index=True)
+    found = estimate_missing(table, f"{response} ~ {check['model']}", decimals=check.get("decimals"))
+    row = next(row for row in found["approximate_anova"] if row["term"] == check["term"])
+    return float(row[check["key"]])
 
 
 def _capability(experiment: dict, check: dict) -> float:
@@ -2845,23 +2903,51 @@ def _component_ss(experiment: dict, check: dict) -> float:
     """Return a 3^k component of interaction: its sum of squares, or a total of the runs in one of its three groups.
 
     The component ``check["word"]``, AB²C say, groups the runs by its defining contrast
-    L = x1 + 2 x2 + x3 (mod 3), each x a factor's level 0, 1 or 2; its sum of squares is that of the
-    three group totals, sum T_u^2 / n_u - T^2 / N, on two degrees of freedom. ``check["key"]`` is
-    ``"ss"`` (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u.
-    ``check["runs"]`` keeps some runs, as the totals of one level of a third factor.
+    L = x1 + 2 x2 + x3 (mod 3), each x a factor's level 0, 1 or 2; its sum of squares, that of the
+    three group totals on two degrees of freedom, is the one
+    :func:`~process_improve.experiments.interaction_components` gives. ``check["key"]`` is ``"ss"``
+    (the default), ``"total.<u>"`` or ``"count.<u>"`` for the group with L = u. ``check["runs"]``
+    keeps some runs, as the totals of one level of a third factor. ``check["parts"]`` adds up the
+    sums of squares of several components, each part a ``word`` and its own ``runs``, as a source
+    totals the components it estimates from different replicates.
     """
+    if "parts" in check:
+        rest = {key: value for key, value in check.items() if key != "parts"}
+        return math.fsum(_component_ss(experiment, rest | part) for part in check["parts"])
     positions = check.get("runs")
-    contrast = _contrast_values(experiment, check, positions)[:, 0]
     _, responses = _coded_runs(experiment, positions)
     y = responses[check.get("response") or responses.columns[0]].to_numpy(dtype=float)
-    totals = [float(y[contrast == u].sum()) for u in range(3)]
-    counts = [int((contrast == u).sum()) for u in range(3)]
     kind, _, group = check.get("key", "ss").partition(".")
-    if kind == "total":
-        return totals[int(group)]
-    if kind == "count":
-        return float(counts[int(group)])
-    return sum(t * t / n for t, n in zip(totals, counts, strict=True) if n) - y.sum() ** 2 / len(y)
+    if kind in ("total", "count"):
+        in_group = _contrast_values(experiment, check, positions)[:, 0] == int(group)
+        return float(y[in_group].sum() if kind == "total" else in_group.sum())
+    word = _component(_powers(check["word"]))
+    names = check.get("factors") or [f["name"] for f in experiment["factors"]]
+    used = [i for i, e in enumerate(word) if e]
+    levels = _levels_of(experiment, [names[i] for i in used], positions)
+    # Lettered, the factors' components are named as the word is: AB2C. A level a subset of runs lacks stays a level.
+    letters = [_LETTERS[i] for i in used]
+    runs = pd.DataFrame({x: pd.Categorical(levels[:, j], categories=range(3)) for j, x in enumerate(letters)})
+    table = interaction_components(runs.assign(response=y), "response", letters)
+    return float(table.loc[table["component"] == _component_text(word).replace("²", "2"), "sum_of_squares"].item())
+
+
+def _yates_result(experiment: dict, check: dict) -> dict[Hashable, Any]:
+    """Return Yates's algorithm on a 2^k factorial's runs, by :func:`yates_table`, or run in reverse.
+
+    The runs are the entry's settings in coded units and its response, ``check["response"]`` or the
+    first. ``check["keep"]`` runs the algorithm in reverse, by :func:`reverse_yates`, on the effects a
+    model keeps, such as ``["T", "C", "T:K"]``. ``check["key"]`` reads a column of the table, whole
+    (``"(1)"``, ``"estimate"``) or one entry of it (``"(3).1"``, 0-based in standard order, or
+    ``"(2).sum"``), or one of the checks on the columns (``"sum_of_squares.(1)"``, or
+    ``"sum_of_squares.fitted"``, the crude sum of squares of the fitted values, in reverse).
+    """
+    settings, responses = _coded_runs(experiment, None)
+    response = check.get("response") or responses.columns[0]
+    table = yates_table(pd.concat([settings, responses[[response]]], axis=1), response)
+    if "keep" in check:
+        table = reverse_yates(table, check["keep"])
+    return {**table.to_dict("list"), "sum_of_squares": table.attrs["sum_of_squares"]}
 
 
 def _design_columns(experiment: dict, check: dict) -> np.ndarray:
@@ -3138,7 +3224,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
-    y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    y = table[check.get("response") or _first_scalar_response(experiment)].to_numpy(dtype=float)
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
@@ -3271,7 +3357,8 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
 
     ``check["comparisons"]`` is ``"tukey"`` (the default), ``"dunnett"`` (against ``check["control"]``)
     or ``"none"``; ``check["at"]`` holds other factors at one level and ``check["categorical"]`` names
-    the other numeric columns the model takes as levels.
+    the other numeric columns the model takes as levels. ``check["reference_rule"]`` is how the
+    reference scale is worked out, ``"pairwise"`` (the default) or ``"average_replication"``.
     """
     settings, responses = _coded_runs(experiment, check.get("runs"))
     response = check.get("response") or responses.columns[0]
@@ -3279,7 +3366,12 @@ def _least_squares_result(experiment: dict, check: dict) -> dict[str, Any]:
     model = check["model"]
     for name in check.get("categorical") or []:  # numeric columns the model takes as levels
         model = re.sub(rf"\b{re.escape(name)}\b", f"C({name})", model)
-    method = Comparisons(check.get("comparisons", "tukey"), check.get("control"), check.get("confidence", 0.95))
+    method = Comparisons(
+        check.get("comparisons", "tukey"),
+        check.get("control"),
+        check.get("confidence", 0.95),
+        check.get("reference_rule", "pairwise"),
+    )
     return least_squares_means(table, f"{response} ~ {model}", check["factor"], method, at=check.get("at"))
 
 
@@ -3289,7 +3381,8 @@ def _least_squares_means(experiment: dict, check: dict) -> float:
     ``check["key"]`` reads ``"by_level.<level>.mean"`` (or ``std_error``, ``ci_low``, ``ci_high``),
     ``"pairs.<level> - <versus>.<field>"``, with ``difference``, ``std_error``, ``t``, ``p_value``,
     ``ci_low``, ``ci_high`` or ``half_width``, or one number: ``"critical_value"``,
-    ``"studentized_range"``, ``"individual_confidence"`` or ``"family_confidence"``.
+    ``"studentized_range"``, ``"individual_confidence"``, ``"family_confidence"`` or
+    ``"reference_scale"``.
     """
     found = _least_squares_result(experiment, check)
     head, _, rest = check["key"].partition(".")
@@ -3328,6 +3421,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "relative_efficiency": _relative_efficiency,
     "term_correlations": _term_correlations,
     "estimate_correlations": _estimate_correlations,
+    "estimate_missing": _estimate_missing,
     "average_power": _average_power,
     "design_property": lambda _e, c: _design_property(c),
     "design_metric": _design_metric,
@@ -3350,6 +3444,7 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "expected_mean_squares": _expected_mean_squares,
     "least_squares_means": _least_squares_means,
     "multistratum": _multistratum,
+    "yates": lambda e, c: _read(_yates_result(e, c), c.get("key")),
 }
 
 
@@ -3417,6 +3512,7 @@ def _normal_equations_array(experiment: dict, check: dict) -> np.ndarray:
 _ARRAY_KINDS: dict[str, Callable[[dict, dict], np.ndarray]] = {
     "design_metric": _design_metric_array,
     "normal_equations": _normal_equations_array,
+    "yates": lambda e, c: np.asarray(_walk(_yates_result(e, c), c.get("key")), dtype=float),
 }
 
 
@@ -3485,6 +3581,7 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     found = found**2 if check.get("squared") else found  # a variance, from the standard error read
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
+    found = 10.0**found if check.get("exp10") else found  # a fit to common logs read back, as antilogs print it
     found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one
     if check.get("back_transform") == "freeman_tukey_sqrt":  # t = [√y + √(y + 1)]/2 read back as y
         found = (found - 1 / (4 * found)) ** 2
@@ -3496,6 +3593,30 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     return f"{found:.6g}", _agrees(
         nearest, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
     )
+
+
+#: Why a recomputed number differs from its source, as a disagreement's ``cause`` records it. In the first two
+#: the library's value is the right one: the source is in error, or the number is an option of a quiz that its
+#: answer key marks incorrect, as the library finds it to be.
+DISAGREEMENT_CAUSES: dict[str, str] = {
+    "source_error": "The source misprints the number or works it out wrongly; the library's value follows from "
+    "the source's own data.",
+    "incorrect_option": "An option of a quiz that its answer key marks incorrect, as the library finds it to be.",
+    "source_rounding": "The source works the number from values it has already rounded or truncated, or prints "
+    "fewer digits than it carries.",
+    "method": "The source uses another convention, definition, model or software than the library.",
+    "library": "A bug or a limitation of the library.",
+    "unexplained": "The cause is not known yet.",
+}
+
+#: Why a printed number is not recomputed, as its check's ``cause`` records it beside the reason (``manual``).
+UNCHECKED_CAUSES: dict[str, str] = {
+    "library_gap": "The library has no function for it yet.",
+    "check_gap": "The library computes it, but no check of the catalogue reads it yet.",
+    "data_not_printed": "The source does not print the data the number is worked from.",
+    "not_a_result": "Nothing to recompute: a statement in words, an input or a choice, a reading by eye, a unit "
+    "conversion or an intermediate of a number that is checked.",
+}
 
 
 def _checks(expected: dict) -> list[dict]:
@@ -3538,16 +3659,18 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     of signs is the product of the factor columns it is headed with; a Plackett-Burman design is
     matched to the library's by its projections onto one, two and three columns; and a stepwise
     regression's tests are nested tests, held to what the rounding of responses printed rounded
-    carries. A 3^k design's components of interaction, blocks and fractions are worked from their
-    defining contrasts modulo 3; screening designs are compared on their main-effect and two-factor
-    interaction columns; and JMP's relative variances code a categorical factor as JMP does. A
-    response surface design is compared on the determinant of (X'X)^-1, its trace and the
-    prediction variance at a point, and on how far its runs lie from the centre, whether its blocks
-    are orthogonal and whether its runs are fold-over pairs; several fitted responses are scored at
-    a point by the library's desirability functions, and a mixture is fitted in pseudocomponents. A
-    printed alias chain can be held to every alias up to an order, and the effects confounded with a
-    fraction's blocks are read as alias chains. A number without a check is reported with the reason
-    it is not recomputed.
+    carries. A 2^k factorial's columns of Yates's algorithm, run forwards or in reverse, and the
+    checks on them are those of :func:`~process_improve.experiments.yates_table` and
+    :func:`~process_improve.experiments.reverse_yates`. A 3^k design's components of interaction,
+    blocks and fractions are worked from their defining contrasts modulo 3; screening designs are
+    compared on their main-effect and two-factor interaction columns; and JMP's relative variances
+    code a categorical factor as JMP does. A response surface design is compared on the determinant
+    of (X'X)^-1, its trace and the prediction variance at a point, and on how far its runs lie from
+    the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs; several
+    fitted responses are scored at a point by the library's desirability functions, and a mixture is
+    fitted in pseudocomponents. A printed alias chain can be held to every alias up to an order, and
+    the effects confounded with a fraction's blocks are read as alias chains. A number without a
+    check is reported with the reason it is not recomputed.
 
     Parameters
     ----------
@@ -3560,7 +3683,9 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
         One row per check, with columns ``source``, ``experiment``, ``what``, ``term``,
         ``printed`` (the text compared), ``found`` (the value recomputed, as text), ``checked``,
         ``agrees`` (``None`` where not checked), ``reason`` (why a number is not recomputed, or
-        the error raised recomputing it), ``disagreement`` (for a number known not to reproduce,
+        the error raised recomputing it), ``cause`` (why a number is not recomputed, one of
+        :data:`UNCHECKED_CAUSES`, or why it differs, one of :data:`DISAGREEMENT_CAUSES`),
+        ``disagreement`` (for a number known not to reproduce,
         the explanation of why) and ``where``.
 
     Raises
@@ -3587,6 +3712,7 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
             "checked": "kind" in check,
             "agrees": None,
             "reason": check.get("manual"),
+            "cause": check.get("cause"),
             "disagreement": check.get("disagreement"),
             "where": json.dumps(expected["where"], ensure_ascii=False),
         }

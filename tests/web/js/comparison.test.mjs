@@ -6,7 +6,15 @@ import { describe, test } from "node:test";
 
 import { LEVEL_AVERAGE, levelsFigure, spreadOf } from "../../../web/charts.js";
 import { GLOSSARY } from "../../../web/glossary.js";
-import { CAPTIONS, COMPARISON_TESTS, PAIRED_TESTS, TITLES, comparisonSentence } from "../../../web/logic.js";
+import {
+  CAPTIONS,
+  COMPARISON_TESTS,
+  LEVEL_CHECKS,
+  PAIRED_TESTS,
+  TITLES,
+  checkSentences,
+  comparisonSentence,
+} from "../../../web/logic.js";
 
 const COLOURS = { fg: "#111", muted: "#666", line: "#ddd", accent: "#06c" };
 
@@ -96,6 +104,48 @@ describe("two levels compared within pairs, a block of two runs each", () => {
   test("names each test the analysis gives for pairs, each with its glossary entry", () => {
     assert.deepEqual(Object.keys(PAIRED_TESTS), pairs.difference.tests.map((t) => t.test));
     for (const { key } of Object.values(PAIRED_TESTS)) assert.ok(GLOSSARY[key], key);
+  });
+});
+
+describe("the checks of a comparison of three levels or more", () => {
+  /** A comparison of four levels: the one-way analysis of variance's p-value, and each check's. */
+  const checked = (anova, bartlett, kruskal) => ({
+    several: {
+      test: { p_value: anova },
+      checks: [
+        ...(bartlett === null ? [] : [{ test: "bartlett", statistic: 0.43, df: 3, p_value: bartlett }]),
+        { test: "kruskal_wallis", statistic: 16.91, df: 3, p_value: kruskal },
+      ],
+    },
+  });
+
+  test("names each check the analysis gives, with the glossary entry that says what it is", () => {
+    assert.deepEqual(Object.keys(LEVEL_CHECKS), checked(0.01, 0.9, 0.01).several.checks.map((c) => c.test));
+    for (const { key } of Object.values(LEVEL_CHECKS)) assert.ok(GLOSSARY[key], key);
+  });
+
+  test("says the runs are consistent with one pooled noise, and that the ranks agree the levels differ", () => {
+    assert.deepEqual(checkSentences(checked(0.0001, 0.934, 0.0007)), [
+      "Bartlett's test does not show that the runs at some levels spread more than at others, so these runs are " +
+        "consistent with the one noise that the one-way analysis of variance, Tukey's intervals and Dunnett's " +
+        "intervals pool from every level.",
+      "The Kruskal-Wallis test, which ranks the results and so does not assume normal noise, also finds that the " +
+        "levels differ.",
+    ]);
+  });
+
+  test("says unequal spread makes the p-values approximate, and when the ranks and the averages disagree", () => {
+    const [spread, ranks] = checkSentences(checked(0.2, 0.01, 0.03));
+    assert.match(spread, /^Bartlett's test finds that the runs at some levels spread more than at others: .+ approximate here\.$/);
+    assert.match(ranks, /finds that the levels differ, though the one-way analysis of variance does not: /);
+    assert.match(checkSentences(checked(0.03, 0.5, 0.2))[1], /does not show that the levels differ, though the one-way /);
+    assert.match(checkSentences(checked(0.3, 0.5, 0.2))[1], /does not show that the levels differ, nor does the one-way/);
+  });
+
+  test("says what Bartlett's test needs when a level has one run, or results all alike", () => {
+    assert.equal(checkSentences(checked(0.01, null, 0.02))[0], "Bartlett's test needs two runs or more at each level, and results at each level that are not all alike.");
+    assert.deepEqual(checkSentences({ several: null }), []);
+    assert.deepEqual(checkSentences(compared()), [], "two levels have their own tests");
   });
 });
 

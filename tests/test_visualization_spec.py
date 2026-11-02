@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+import numpy as np
 import pytest
 
 from process_improve.visualization.adapters import PlotlyAdapter
@@ -36,6 +39,18 @@ class TestChartSpecSerialisation:
         assert raw["plot_type"] == "scatter"
         # The MarkType enum should be serialised to its string value.
         assert raw["panels"][0]["layers"][0]["mark"] == "scatter"
+
+    def test_to_dict_is_json_safe_with_numpy_values_in_the_data(self) -> None:
+        """Data built from a DataFrame holds numpy scalars; ``to_dict`` turns them into JSON values (#513)."""
+        layer = LayerSpec(
+            mark=MarkType.scatter,
+            data=[{"x": np.int64(1), "y": np.float64(2.5), "ok": np.bool_(True)}, {"x": np.int64(2), "y": np.nan}],
+            x=Encoding(field="x", domain=(np.float64(0.0), np.float64(3.0))),
+        )
+        raw = ChartSpec(panels=[PanelSpec(layers=[layer])]).to_dict()
+        assert json.loads(json.dumps(raw, allow_nan=False)) == raw
+        assert raw["panels"][0]["layers"][0]["data"] == [{"x": 1, "y": 2.5, "ok": True}, {"x": 2, "y": None}]
+        assert raw["panels"][0]["layers"][0]["x"]["domain"] == [0.0, 3.0]
 
     def test_constraint_region_factory(self) -> None:
         ann = constraint_region(x_min=0.0, x_max=1.0, label="No-go")

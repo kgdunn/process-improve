@@ -681,20 +681,21 @@ class TestQualityPins:
     """
 
     @pytest.mark.parametrize(
-        ("k", "log_det_per_p"),
+        ("k", "n_new", "log_det_per_p"),
         [
-            (6, 3.341461),
-            pytest.param(8, 3.169435, marks=pytest.mark.slow),
-            pytest.param(10, 3.331094, marks=pytest.mark.slow),
+            (6, 40, 3.341461),
+            pytest.param(8, 40, 3.169435, marks=pytest.mark.slow),
+            # 16 runs span 11 of the 66 coefficients at k = 10, so 55 new runs are the fewest (#957).
+            pytest.param(10, 55, 3.331094, marks=pytest.mark.slow),
         ],
     )
-    def test_screening_design_augmented_for_a_quadratic_model(self, k: int, log_det_per_p: float) -> None:
-        """The reproducer of the slow ``add_runs_optimal`` report: 16 screening runs plus 40 for a quadratic model."""
+    def test_screening_design_augmented_for_a_quadratic_model(self, k: int, n_new: int, log_det_per_p: float) -> None:
+        """The slow ``add_runs_optimal`` report: 16 screening runs plus 40 (55 at k = 10) for a quadratic model."""
         names = [f"X{i}" for i in range(k)]
         cube = np.array(list(itertools.product([-1, 1], repeat=k)), dtype=float)
         base = pd.DataFrame(cube[:: 2 ** (k - 4)][:16], columns=names)
         result = augment_design(
-            base, "add_runs_optimal", n_additional_runs=40, target_model="quadratic", random_state=0
+            base, "add_runs_optimal", n_additional_runs=n_new, target_model="quadratic", random_state=0
         )
         coded = pd.DataFrame(result["augmented_design"])[names].to_numpy(dtype=float)
         d_value, _ = _quality(coded, [Factor(name=n, low=-1, high=1) for n in names])

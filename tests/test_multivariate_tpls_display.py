@@ -94,3 +94,22 @@ def test_tpls_help_returns_the_quick_reference(tpls_pyphi_data: dict) -> None:
     assert text.startswith("Help for the TPLS Estimator.")
     for call in ("tpls.diagnose(X_new)", "tpls.display_results()", "tpls.help()", ".hotellings_t2_limit()"):
         assert call in text
+
+
+def test_tpls_help_keeps_its_columns(tpls_pyphi_data: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    """help() is its docstring dedented, columns and blank lines as written.
+
+    Removing every run of eight spaces, as it did, also removed the spaces that line up the
+    columns, and ran ".spe" into its description. Under ``python -OO``, which drops
+    docstrings, it is empty.
+    """
+    lines = TPLS(n_components=2, d_matrix=tpls_pyphi_data["D"]).help().splitlines()
+    assert lines[:3] == ["Help for the TPLS Estimator.", "", "Data organization"]
+    assert lines[7] == "Build model:                tpls = TPLS(n_components=2, d_matrix=d_matrix).fit(X)"
+    spe = ".spe" + " " * 24 + "Squared prediction error for each block" + " " * 21 + "[dict of pd.DataFrames]"
+    assert lines[18:21] == [spe, "", ""]
+    vip = ".vip()                      Variable importance (VIP) for the D- and F-blocks          [dict]"
+    assert lines[-1] == vip
+
+    monkeypatch.setattr(TPLS.help, "__doc__", None)
+    assert TPLS(n_components=2, d_matrix=tpls_pyphi_data["D"]).help() == ""

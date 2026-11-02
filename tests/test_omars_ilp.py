@@ -776,7 +776,12 @@ def test_no_warning_escapes_a_multistart() -> None:
 def _run_isolated(code: str) -> str:
     """Run *code* in a fresh interpreter, so HiGHS's process-wide state cannot leak between tests."""
     completed = subprocess.run(  # noqa: S603 - fixed interpreter and test-controlled code
-        [sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, timeout=300, check=False
+        [sys.executable, "-c", textwrap.dedent(code)],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+        encoding="locale",
     )
     assert completed.returncode == 0, completed.stderr
     return completed.stdout

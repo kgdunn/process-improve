@@ -27,13 +27,14 @@ from tests.web._support import WEB, catalog_sample, javascript, no_bytecode, sou
 
 pytestmark = [pytest.mark.slow, pytest.mark.dataset]
 
-#: Studies that open, but whose default model, every factor's main effect, the runs cannot separate: the source
-#: lists a factor the others determine, so the reader chooses the model, as the source does. The page refuses a
-#: model it cannot estimate whole, where the source fits it by a generalised inverse.
+#: Studies that open, but whose default model the runs cannot separate: the source lists a factor the others
+#: determine, or fits only some of the model's terms, so the reader chooses the model, as the source does. The
+#: page refuses a model it cannot estimate whole, where the source fits it by a generalised inverse or a subset.
 UNFIT = {
     "bhh-wear-hyper-graeco-latin": "runs 1 to 4 use four of the papers and runs 5 to 8 the others: one df shared",
     "goos-jones-rolling-mill": "the three mills' fractions sum to one, a mixture taken as given",
     "montgomery-evop-yield": "each EVOP point is one setting of temperature and pressure",
+    "mcmullen-jurica-methoxylation-fpca": "13 of the 15 scored runs share one DMF setting: a stepwise subset is fitted",
 }
 
 #: The kinds of check the page may show a number for; an entry with none of them is analysed for its categorical
@@ -106,6 +107,14 @@ def _checked_against_scipy(result: dict, name: str) -> list[str]:
         same = [pair["ci_low"], pair["ci_high"]] == pytest.approx([interval.low[j, i], interval.high[j, i]], rel=1e-6)
         if not same:
             wrong.append(f"{name}: Tukey's interval of {pair['to']} less {pair['from']} is not scipy's")
+    floats = [np.asarray(v, dtype=float) for v in values]  # scipy's bartlett fails on integers
+    for check in several["checks"]:
+        expected = (stats.bartlett if check["test"] == "bartlett" else stats.kruskal)(*floats)
+        if not math.isclose(check["statistic"], expected.statistic, rel_tol=1e-9):
+            wrong.append(f"{name}: {check['test']} {check['statistic']} is not scipy's {expected.statistic}")
+    spread = all(len(set(v)) > 1 for v in values)
+    if spread != any(check["test"] == "bartlett" for check in several["checks"]):
+        wrong.append(f"{name}: Bartlett's test is {'missing' if spread else 'given'}")
     # Dunnett's critical value holds every comparison with the control within it 95% of the time: the
     # multivariate t of the comparisons' correlations, which share the control's average, says how often.
     control = names.index(str(several["control"]))
@@ -167,6 +176,7 @@ def _not_opened(node: str, campaigns: list[dict]) -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        encoding="utf-8",
     )
     return [
         f"a study does not open: {v}" for v, c in zip(json.loads(done.stdout), campaigns, strict=True) if v != c["v"]

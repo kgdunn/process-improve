@@ -7,6 +7,7 @@ relationship from data without one, which a VIP-exceedance count does not (see
 
 from __future__ import annotations
 
+import pathlib
 import warnings
 from collections.abc import Callable
 
@@ -23,7 +24,7 @@ from process_improve.multivariate import (
     count_discoveries_under_null,
 )
 from process_improve.multivariate._common import SpecificationWarning
-from process_improve.multivariate._null import _loo_fit_predict
+from process_improve.multivariate._null import _loo_fit_predict, _q2_per_column
 
 
 def _blocks(
@@ -420,3 +421,295 @@ class TestRemovedAliases:
 
         with pytest.raises(AttributeError):
             _ = _null.not_a_real_name
+
+
+def _shifted(shifts: list[float | None]) -> Callable[[pd.DataFrame, pd.DataFrame], np.ndarray]:
+    """Return a fit_predict whose k-th call predicts every row ``shifts[k]`` above its response.
+
+    On a response of 0 to 7, whose total sum of squares is 42, a shift of d gives
+    PRESS = 8 d^2 and Q2 = 1 - 8 d^2 / 42 in any row order, exactly for these shifts;
+    None predicts nothing.
+    """
+    calls = iter(shifts)
+
+    def fit_predict(_x: pd.DataFrame, y: pd.DataFrame) -> np.ndarray:
+        shift = next(calls)
+        return np.full(y.shape, np.nan) if shift is None else y.to_numpy() + shift
+
+    return fit_predict
+
+
+_EIGHT = pd.DataFrame({"a": np.arange(8.0)}, index=[f"p{i}" for i in range(8)])
+_ZERO_TO_SEVEN = pd.DataFrame({"u": np.arange(8.0)}, index=_EIGHT.index)
+
+
+class TestPermutationQ2ByHand:
+    """Each number of the table, from Q2 values set by hand."""
+
+    def test_the_null_summary(self) -> None:
+        """Observed 34/42; the null 42, 40, 34, 34, 24, 10, -8 and -30, over 42.
+
+        Four null values reach 34/42, ties included, so p = (1 + 4) / (8 + 1). The mean is
+        146 / 8 / 42, and numpy's 95th percentile of the eight sits 0.95 * 7 = 6.65 places up
+        the sorted values, 65% of the way from 40/42 to 42/42.
+        """
+        fit_predict = _shifted([1.0, 0.0, 0.5, 1.0, 1.0, 1.5, 2.0, 2.5, 3.0])
+        table = check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, fit_predict, n_perm=8)
+        row = table.iloc[0]
+        assert row["attribute"] == "u"
+        assert row["q2_observed"] == pytest.approx(34 / 42, rel=1e-14)
+        assert row["q2_null_mean"] == pytest.approx(146 / 8 / 42, rel=1e-14)
+        assert row["q2_null_p95"] == pytest.approx(41.3 / 42, rel=1e-14)
+        assert row["p_value"] == pytest.approx(5 / 9, rel=1e-14)
+        assert row["n_permutations"] == 8
+
+    def test_a_permutation_with_no_prediction_is_left_out(self) -> None:
+        """Two usable draws, 42/42 and 10/42: one reaches the observed 34/42, so p = (1 + 1) / (2 + 1)."""
+        table = check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, _shifted([1.0, None, 0.0, 2.0]), n_perm=3)
+        row = table.iloc[0]
+        assert row["n_permutations"] == 2
+        assert row["q2_null_mean"] == pytest.approx(52 / 2 / 42, rel=1e-14)
+        assert row["p_value"] == pytest.approx(2 / 3, rel=1e-14)
+
+    def test_one_permutation_is_enough(self) -> None:
+        table = check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, _shifted([1.0, 0.0]), n_perm=1)
+        row = table.iloc[0]
+        assert (row["q2_null_mean"], row["q2_null_p95"], row["p_value"], row["n_permutations"]) == (1.0, 1.0, 1.0, 1)
+
+    def test_an_observed_q2_that_cannot_be_formed_leaves_the_null_unread(self) -> None:
+        table = check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, _shifted([None, 0.0, 1.0]), n_perm=2)
+        row = table.iloc[0]
+        assert np.isnan([row["q2_observed"], row["q2_null_mean"], row["q2_null_p95"], row["p_value"]]).all()
+        assert row["n_permutations"] == 2
+
+    def test_two_products_are_enough(self) -> None:
+        """Rows 0 and 1, each predicted 0.5 off: PRESS 0.5 over a total of 0.5, so Q2 = 0."""
+        x = pd.DataFrame({"a": [0.0, 1.0]})
+        y = pd.DataFrame({"u": [0.0, 1.0]})
+        table = check_predictive_signal(x, y, lambda _x, yy: yy.to_numpy() + 0.5, n_perm=1)
+        assert table["q2_observed"].iloc[0] == 0.0
+        assert table["p_value"].iloc[0] == 1.0
+
+    def test_an_integer_attribute_is_named_as_text(self) -> None:
+        y = pd.DataFrame({7: np.arange(8.0)}, index=_EIGHT.index)
+        table = check_predictive_signal(_EIGHT, y, _shifted([1.0, 0.0]), n_perm=1)
+        assert table["attribute"].tolist() == ["7"]
+
+    def test_a_response_with_no_attributes_gives_the_documented_columns(self) -> None:
+        y = pd.DataFrame(index=_EIGHT.index)
+        table = check_predictive_signal(_EIGHT, y, lambda _x, yy: np.empty(yy.shape), n_perm=1)
+        assert table.empty
+        assert list(table.columns) == [
+            "attribute",
+            "q2_observed",
+            "q2_null_mean",
+            "q2_null_p95",
+            "p_value",
+            "n_permutations",
+        ]
+
+    def test_a_prediction_of_none_is_read_as_missing(self) -> None:
+        """Row 3 left out: the rest are predicted exactly, so Q2 = 1."""
+
+        def fit_predict(_x: pd.DataFrame, y: pd.DataFrame) -> list[list[float | None]]:
+            return [[value] if i != 3 else [None] for i, value in enumerate(y["u"])]
+
+        table = check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, fit_predict, n_perm=1)
+        assert table["q2_observed"].iloc[0] == 1.0
+
+    def test_a_data_frame_of_the_wrong_shape_is_refused_by_name(self) -> None:
+        """One column for two attributes: refused with the shape, as an array is, not an IndexError."""
+        x, y = _blocks(n_products=8, n_features=2)
+        with pytest.raises(
+            ValueError,
+            match=r"^fit_predict returned predictions of shape \(8, 1\), but the response block is \(8, 2\)\. "
+            r"It must return one out-of-sample prediction per row and per attribute\.$",
+        ):
+            check_predictive_signal(x, y, lambda _x, yy: yy[["real"]], n_perm=1)
+
+    def test_every_permuted_response_keeps_the_products_labels(self) -> None:
+        """The responses move between products; the products stay where x has them."""
+        seen: list[pd.Index] = []
+
+        def recorder(_x: pd.DataFrame, y: pd.DataFrame) -> np.ndarray:
+            seen.append(y.index)
+            return y.to_numpy()
+
+        check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, recorder, n_perm=3)
+        assert len(seen) == 4
+        for index in seen:
+            pd.testing.assert_index_equal(index, _EIGHT.index)
+
+    def test_the_defaults_are_500_permutations_from_seed_0(self) -> None:
+        def shuffles(**kwargs: int) -> tuple[list[list[float]], pd.DataFrame]:
+            seen: list[list[float]] = []
+
+            def recorder(_x: pd.DataFrame, y: pd.DataFrame) -> np.ndarray:
+                seen.append(y["u"].tolist())
+                return y.to_numpy() + 1.0
+
+            return seen, check_predictive_signal(_EIGHT, _ZERO_TO_SEVEN, recorder, **kwargs)
+
+        default_order, table = shuffles()
+        assert table["n_permutations"].iloc[0] == 500
+        assert default_order == shuffles(n_perm=500, seed=0)[0]
+        assert default_order != shuffles(n_perm=500, seed=1)[0]
+
+    def test_a_non_frame_is_refused_in_full(self) -> None:
+        with pytest.raises(TypeError, match=r"^x and y must both be pandas DataFrames, one row per product\.$"):
+            check_predictive_signal(np.zeros((8, 2)), _ZERO_TO_SEVEN, _shifted([0.0]))
+
+
+class TestQ2PerColumn:
+    """_q2_per_column worked by hand: 1 - PRESS / TSS over the rows with both values."""
+
+    def test_a_row_missing_either_value_is_left_out(self) -> None:
+        """Rows 0, 2 and 3: values 0, 2, 3 (mean 5/3, TSS 14/3) and PRESS 0.25, so Q2 = 1 - 3/56."""
+        truth = pd.DataFrame({"u": [0.0, 1.0, 2.0, 3.0, np.nan]})
+        predicted = np.array([[0.5], [np.nan], [2.0], [3.0], [4.0]])
+        assert _q2_per_column(truth, predicted)[0] == pytest.approx(53 / 56, rel=1e-14)
+
+    def test_two_rows_are_enough_and_one_is_not(self) -> None:
+        """0 and 2 predicted as 0.5 and 1.5: TSS 2, PRESS 0.5, so Q2 = 0.75."""
+        truth = pd.DataFrame({"u": [0.0, 2.0, np.nan], "v": [1.0, np.nan, np.nan]})
+        predicted = np.array([[0.5, 1.0], [1.5, 1.0], [1.0, 1.0]])
+        out = _q2_per_column(truth, predicted)
+        assert out[0] == 0.75
+        assert np.isnan(out[1])
+
+    def test_a_column_that_cannot_be_scored_does_not_stop_the_next(self) -> None:
+        truth = pd.DataFrame({"one_row": [1.0, np.nan, np.nan], "flat": [2.0, 2.0, 2.0], "u": [0.0, 1.0, 2.0]})
+        out = _q2_per_column(truth, truth.to_numpy() + 0.1)
+        assert np.isnan(out[:2]).all()
+        assert out[2] == pytest.approx(1 - 0.03 / 2, rel=1e-12)
+
+    def test_a_small_spread_is_still_a_spread(self) -> None:
+        """0, 0.1 and 0.2 have a TSS of 0.02; each predicted 0.01 high gives PRESS 3e-4, so Q2 = 0.985."""
+        truth = pd.DataFrame({"u": [0.0, 0.1, 0.2]})
+        assert _q2_per_column(truth, truth.to_numpy() + 0.01)[0] == pytest.approx(0.985, rel=1e-12)
+
+    def test_values_held_as_objects_are_read_as_numbers(self) -> None:
+        """None in an object column is missing, in the response and in the predictions alike."""
+        truth = pd.DataFrame({"u": [0.0, 2.0, None, 5.0]}, dtype=object)
+        predicted = np.array([[0.5], [1.5], [1.0], [None]], dtype=object)
+        assert _q2_per_column(truth, predicted)[0] == 0.75
+
+
+class TestDefaultFitPredictAgainstSklearn:
+    """The default is leave-one-out PLS on the raw blocks, scaled per fold: sklearn's, with the capped count."""
+
+    @pytest.mark.parametrize(
+        ("n_rows", "n_features", "asked", "used"),
+        [(8, 3, 1, 1), (8, 3, 0, 1), (8, 3, 5, 3), (6, 4, 9, 4), (5, 5, 9, 3)],
+        ids=["as-asked", "at-least-one", "capped-by-features", "capped-by-rows", "capped-by-rows-not-features"],
+    )
+    def test_the_predictions_match_sklearn(
+        self, capsys: pytest.CaptureFixture[str], n_rows: int, n_features: int, asked: int, used: int
+    ) -> None:
+        """Leave-one-out leaves n - 1 rows, whose centred rank is n - 2: the cap on the components."""
+        from sklearn.cross_decomposition import PLSRegression
+        from sklearn.model_selection import LeaveOneOut, cross_val_predict
+
+        rng = np.random.default_rng(n_rows * 10 + n_features)
+        x = pd.DataFrame(rng.normal(size=(n_rows, n_features)), columns=[f"c{i}" for i in range(n_features)])
+        y = pd.DataFrame({"y": x.to_numpy() @ np.arange(1.0, n_features + 1) + rng.normal(scale=0.3, size=n_rows)})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # sklearn notes a y residual that is constant to rounding
+            expected = cross_val_predict(PLSRegression(n_components=used), x, y, cv=LeaveOneOut())
+        with warnings.catch_warnings():
+            # PLS would warn, and fit fewer, if asked for more components than the block holds.
+            warnings.simplefilter("error")
+            predicted = _loo_fit_predict(asked)(x, y)
+        np.testing.assert_allclose(predicted.to_numpy(), expected.reshape(-1, 1), atol=1e-10)
+        assert capsys.readouterr().err == ""
+
+
+class TestPipelineNullByHand:
+    """count_discoveries_under_null from selection counts set by hand."""
+
+    @staticmethod
+    def _scripted(counts: list[int]) -> Callable[[pd.DataFrame, pd.DataFrame], list[str]]:
+        """Return a selector whose k-th call returns counts[k] names."""
+        calls = iter(counts)
+        return lambda _x, _y: [f"c{i}" for i in range(next(calls))]
+
+    def test_the_null_summary(self) -> None:
+        """Four names, twice, then 0, 1, 1, 2, 3, 3, 5 and 9 under the shuffles.
+
+        Their mean is 24 / 8 = 3, a ratio of 3 / 4 to the observed count, and numpy's 95th
+        percentile sits 0.95 * 7 = 6.65 places up, 65% of the way from 5 to 9: 7.6.
+        """
+        selector = self._scripted([4, 4, 0, 1, 1, 2, 3, 3, 5, 9])
+        result = count_discoveries_under_null(selector, _EIGHT, _ZERO_TO_SEVEN, n_perm=8)
+        assert result["observed"] == 4
+        assert result["selected"] == ["c0", "c1", "c2", "c3"]
+        np.testing.assert_array_equal(result["null_counts"], [0, 1, 1, 2, 3, 3, 5, 9])
+        assert result["null_mean"] == 3.0
+        assert result["null_p95"] == pytest.approx(7.6, rel=1e-14)
+        assert result["null_to_observed_ratio"] == 0.75
+
+    def test_one_permutation_is_enough(self) -> None:
+        result = count_discoveries_under_null(self._scripted([2, 2, 1]), _EIGHT, _ZERO_TO_SEVEN, n_perm=1)
+        assert result["null_to_observed_ratio"] == 0.5
+
+    def test_the_defaults_are_500_permutations_from_seed_0(self) -> None:
+        """A selector that returns as many names as the first product's shuffled response shows each shuffle."""
+
+        def first_response(_x: pd.DataFrame, y: pd.DataFrame) -> list[str]:
+            return [f"c{i}" for i in range(int(y.iloc[0, 0]))]
+
+        default = count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN)["null_counts"]
+        assert len(default) == 500
+        np.testing.assert_array_equal(
+            default,
+            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, seed=0)["null_counts"],
+        )
+        assert not np.array_equal(
+            default,
+            count_discoveries_under_null(first_response, _EIGHT, _ZERO_TO_SEVEN, n_perm=500, seed=1)["null_counts"],
+        )
+
+    def test_a_nondeterministic_selector_warns_in_full_and_from_the_caller(self) -> None:
+        with pytest.warns(SpecificationWarning) as record:
+            count_discoveries_under_null(self._scripted([1, 2, 0]), _EIGHT, _ZERO_TO_SEVEN, n_perm=1)
+        assert str(record[0].message) == (
+            "select() returned different names on two identical calls, so it carries its own randomness. The "
+            "permutation counts below mix that randomness in with the null, and the empirical FDR cannot be read "
+            "as a property of the data. Seed the selector (or make it deterministic) and re-run."
+        )
+        assert pathlib.Path(record[0].filename).name != "_null.py"
+
+    def test_a_non_frame_is_refused_in_full(self) -> None:
+        with pytest.raises(TypeError, match=r"^x and y must both be pandas DataFrames, one row per product\.$"):
+            count_discoveries_under_null(self._scripted([0]), _EIGHT, np.arange(8.0))
+
+
+class TestClassEnrichmentByHand:
+    ALL = TestClassEnrichment.ALL
+
+    def test_the_top_is_twelve_by_default(self) -> None:
+        assert class_enrichment(self.ALL, self.ALL, "acetate")["n_drawn"] == 12
+
+    def test_a_top_of_one(self) -> None:
+        """One draw from 48 compounds, 8 of them acetates, finds one with probability 8 / 48."""
+        ranked = ["ethyl_0_acetate", *[name for name in self.ALL if name != "ethyl_0_acetate"]]
+        result = class_enrichment(ranked, self.ALL, "acetate", top_n=1)
+        assert (result["in_top"], result["n_drawn"]) == (1, 1)
+        assert result["p_value"] == pytest.approx(8 / 48, rel=1e-12)
+
+    def test_an_empty_ranking_draws_nothing(self) -> None:
+        result = class_enrichment([], self.ALL, "acetate")
+        assert result["n_drawn"] == 0
+        assert np.isnan(result["p_value"])
+
+    def test_the_duplicates_are_named(self) -> None:
+        with pytest.raises(ValueError, match=r"^all_names must not contain duplicates; repeated: \['a', 'c'\]\.$"):
+            class_enrichment(["a"], ["a", "c", "a", "b", "c", "c"], "a")
+
+    def test_the_names_outside_the_population_are_named(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"^ranked contains name\(s\) \['y', 'z'\] that are not in all_names\. The population has to "
+            r"contain the sample, or the hypergeometric probability is not defined\.$",
+        ):
+            class_enrichment(["z", "a", "y"], ["a", "b"], "a")

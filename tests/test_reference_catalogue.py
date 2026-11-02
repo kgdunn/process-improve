@@ -10,6 +10,7 @@ here, and so does a number copied wrongly into the catalogue.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -63,6 +64,25 @@ def test_every_number_not_recomputed_says_why():
     assert "TO CHECK" not in reasons, "every number is given a check or the reason it has none"
 
 
+def test_every_number_that_differs_or_is_not_recomputed_names_its_cause():
+    """A cause tells an error in a source from a library that differs, and a missing function from no computation."""
+    for _, entry, expected, check in CHECKS:
+        name = f"{entry['name']}: {expected['what']} {expected.get('term')}"
+        if "kind" not in check:
+            assert check.get("cause") in reference_catalogue.UNCHECKED_CAUSES, name
+        elif check.get("disagreement"):
+            assert check.get("cause") in reference_catalogue.DISAGREEMENT_CAUSES, name
+        else:
+            assert "cause" not in check, f"{name}: a number that agrees with its source has no cause"
+
+
+def test_a_difference_is_an_incorrect_option_exactly_where_the_answer_key_marks_it_so():
+    for _, entry, expected, check in CHECKS:
+        if check.get("disagreement"):
+            keyed = (expected.get("where") or {}).get("answer_key") == "incorrect"
+            assert (check["cause"] == "incorrect_option") == keyed, f"{entry['name']}: {expected['what']}"
+
+
 def test_the_report_has_a_row_for_every_check():
     report = reproduce_reference_catalogue("ullmann-doe-2012")
     assert len(report) == sum(key == "ullmann-doe-2012" for key, *_ in CHECKS)
@@ -86,6 +106,38 @@ def test_every_experiment_says_where_it_was_printed():
                 assert where.get("answer_key") in ("correct", "incorrect"), f"{name}: an option says how it is keyed"
     for experiment in reference_experiments():
         assert experiment.get("runs") or experiment.get("data_source"), f"{experiment['name']}: no runs, no source"
+
+
+def test_a_curve_response_names_its_columns_and_where_along_the_curve_each_is_read():
+    curves = [(e, r) for e in reference_experiments() for r in e["responses"] if "curve" in r]
+    assert curves, "the catalogue holds at least one response measured as a curve"
+    for experiment, response in curves:
+        name, curve = f"{experiment['name']}:{response['name']}", response["curve"]
+        table = (experiment.get("runs") or experiment.get("data_source") or {}).get("columns", [])
+        columns, argument = curve["columns"], curve["argument"]
+        assert columns, f"{name}: a curve has columns"
+        assert len(set(columns)) == len(columns), f"{name}: each column is read once"
+        assert set(columns) <= set(table), f"{name}: every column of the curve is in the run table"
+        assert response["name"] not in table, f"{name}: the curve is named as a whole, not as one of its columns"
+        scalar = {r["name"] for r in experiment["responses"] if "curve" not in r}
+        assert not scalar & set(columns), f"{name}: no column is both a point on the curve and a response of its own"
+        assert {"name", "units"} <= set(argument), f"{name}: the argument says what it is and in what units"
+        assert ("values" in argument) != ("columns" in argument), f"{name}: values every run shares, or columns"
+        if "values" in argument:
+            values = argument["values"]
+            assert len(values) == len(columns), f"{name}: one argument value per column"
+            assert all(b > a for a, b in itertools.pairwise(values)), f"{name}: the columns are in order"
+        else:
+            assert len(argument["columns"]) == len(columns), f"{name}: one argument column per value column"
+            assert set(argument["columns"]) <= set(table), f"{name}: every argument column is in the run table"
+
+
+def test_a_check_that_names_no_response_is_about_the_first_one_measured_as_a_number():
+    argument = {"name": "t", "units": "", "values": [0, 1]}
+    curve = {"name": "colour", "curve": {"columns": ["t0", "t1"], "argument": argument}}
+    assert reference_catalogue._first_scalar_response({"responses": [curve, {"name": "peak"}]}) == "peak"
+    with pytest.raises(ValueError, match="every response is a curve"):
+        reference_catalogue._first_scalar_response({"name": "only-curves", "responses": [curve]})
 
 
 def test_each_name_is_one_entry():
@@ -679,6 +731,17 @@ def test_the_total_of_a_runs_readings_is_what_yates_algorithm_takes():
     table = pd.DataFrame({"y1": [1.2402, 0.8562], "y2": [1.1005, 0.9602]})
     total = _summarised(table, {"of": ["y1", "y2"], "statistic": "total"})
     assert total.iloc[:, 0].tolist() == pytest.approx([2.3407, 1.8164])
+
+
+def test_a_count_of_n_is_read_as_its_angle_in_degrees_with_the_source_s_values_at_the_ends():
+    """Claringbold's counts m of 12 animals: arcsin (m/12)^1/2 in degrees, Bartlett's 8.30 and 81.70 at 0 and 12."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"m": [0, 2, 6, 12]})
+    plain = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12})
+    assert plain.iloc[:, 0].tolist() == pytest.approx([0.0, 24.0948, 45.0, 90.0], abs=1e-4)
+    bartlett = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12, "ends": [8.30, 81.70]})
+    assert bartlett.iloc[:, 0].tolist() == pytest.approx([8.30, 24.0948, 45.0, 81.70], abs=1e-4)
 
 
 def test_software_that_prints_more_digits_than_it_carries_is_held_to_fewer():
@@ -1637,8 +1700,15 @@ def test_a_3k_component_groups_the_runs_by_its_defining_contrast_modulo_3():
     assert [_component_ss(entry, {"word": "AB", "key": f"total.{u}"}) for u in range(3)] == [18, -2, 8]
     assert [_component_ss(entry, {"word": "AB2", "key": f"total.{u}"}) for u in range(3)] == [0, 18, 6]
     assert _component_ss(entry, {"word": "A2B", "key": "count.0"}) == 6  # A²B is AB², squared
+    assert _component_ss(entry, {"word": "A2B"}) == pytest.approx(28)
+    assert _component_ss(entry, {"word": "B"}) == pytest.approx(25 + 1 / 3), "a main effect is a word too"
     interaction = _component_ss(entry, {"word": "AB"}) + _component_ss(entry, {"word": "AB2"})
     assert interaction == pytest.approx(61 + 1 / 3)
+    assert _component_ss(entry, {"parts": [{"word": "AB"}, {"word": "AB2"}]}) == pytest.approx(interaction)
+    first = _component_ss(entry, {"word": "AB2", "runs": list(range(1, 19, 2))})  # the first reading of each cell
+    second = _component_ss(entry, {"word": "AB2", "runs": list(range(2, 19, 2))})
+    both = {"parts": [{"word": "AB2", "runs": list(range(1, 19, 2))}, {"word": "AB2", "runs": list(range(2, 19, 2))}]}
+    assert _component_ss(entry, both) == pytest.approx(first + second), "each part keeps its own runs"
 
 
 def test_a_3k_component_of_runs_printed_in_coded_units_takes_their_settings_in_order():
@@ -1699,6 +1769,30 @@ def test_3k_blocks_and_fractions_are_the_runs_with_one_value_of_each_defining_co
     fraction = _three_level(list("ABCD"), [[int(c) for c in r] for r in runs])
     assert _component_fraction(fraction, {"words": ["AB2C", "BCD"], "u": [0, 0]}, "")[1]
     assert not _component_fraction(fraction, {"words": ["ABC"]}, "")[1]
+
+
+def test_yates_columns_and_their_checks_are_read_forwards_and_in_reverse():
+    """A 2^2 in standard order, y = 10, 14, 12, 20: column (2) is 56, 12, 8, 4, and A alone fits 11, 17, 11, 17."""
+    entry = {
+        "factors": [{"name": n, "type": "numeric", "low": -1, "high": 1} for n in "AB"],
+        "responses": [{"name": "y"}],
+        "runs": {
+            "columns": ["A", "B", "y"],
+            "rows": [[-1, -1, 10], [1, -1, 14], [-1, 1, 12], [1, 1, 20]],
+            "coded": True,
+        },
+    }
+
+    def reproduced(printed, **check):
+        return reference_catalogue._reproduce(entry, {"value": printed}, {"kind": "yates", **check}, FITS)
+
+    assert reproduced(["56", "12", "8", "4"], key="(2)")[1]
+    assert reproduced(["14.0", "6.0", "4.0", "2.0"], key="estimate")[1]
+    assert reproduced("12", key="(2).1")[1]
+    assert reproduced("1,680", key="sum_of_squares.(1)")[1], "the crude sum of squares, 840, doubled"
+    assert not reproduced(["56", "12", "8", "5"], key="(2)")[1]
+    assert reproduced(["11", "17", "11", "17"], key="fitted", keep=["A"])[1]
+    assert reproduced("820", key="sum_of_squares.fitted", keep=["A"])[1]
 
 
 def test_a_design_printed_as_columns_of_another_is_a_projection_of_it(tmp_path, monkeypatch):
@@ -2316,10 +2410,11 @@ def test_box_cox_reads_the_residual_sum_of_squares_of_the_scaled_power_at_any_la
 
 
 def test_a_prediction_can_be_read_back_from_a_transformed_scale():
-    """A value read as e to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
+    """A value read as e or 10 to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
     found_value = 2.0
     for options, expected in (
         ({"exp": True}, math.exp(2.0)),
+        ({"exp10": True}, 100.0),
         ({"log10": True}, 2.0 / math.log(10)),
         ({"back_transform": "freeman_tukey_sqrt"}, (2.0 - 1 / 8) ** 2),
     ):
@@ -2332,6 +2427,42 @@ def test_a_prediction_can_be_read_back_from_a_transformed_scale():
     y = 12.0
     t = (math.sqrt(y) + math.sqrt(y + 1)) / 2
     assert (t - 1 / (4 * t)) ** 2 == pytest.approx(y, rel=1e-3)
+
+
+def test_an_analysis_of_variance_about_zero_is_read_uncorrected_for_the_mean():
+    """Readings 1, 3, 2, 6 on A + B: Σy² = 50 is nȳ² = 36 and 14 about the mean; Σŷ² = 49 on the model's rank of 3."""
+    entry = _factorial(2, [1.0, 3.0, 2.0, 6.0])
+    wanted = {
+        "ss_total_uncorrected": 50.0,
+        "ss_mean": 36.0,
+        "ss_regression_uncorrected": 49.0,
+        "df_model_uncorrected": 3.0,
+        "ms_regression_uncorrected": 49.0 / 3,
+    }
+    for kind, value in wanted.items():
+        found, agrees = reference_catalogue._reproduce(
+            entry, {"what": kind, "value": f"{value:.4f}", "where": {}}, {"kind": kind, "model": "A + B"}, FITS
+        )
+        assert agrees, (kind, found)
+
+
+def test_an_eigenvector_read_from_a_library_value_takes_the_sign_the_source_prints():
+    """An eigenvector of a printed quadratic comes back with either sign: ``sign_of`` turns it, ``abs`` drops it."""
+    terms = {"Intercept": 50.0, "x1": 1.0, "x2": 2.0, "I(x1 ** 2)": -3.0, "I(x2 ** 2)": -1.0, "x1:x2": -1.0}
+    model = {"response_name": "y", "factor_names": ["x1", "x2"]}
+    model["coefficients"] = [{"term": t, "coefficient": c} for t, c in terms.items()]
+    check = {
+        "kind": "library_value",
+        "function": "optimize_responses",
+        "args": [[model]],
+        "kwargs": {"method": "canonical_analysis"},
+        "key": "canonical_analysis.eigenvectors.0.0",
+    }
+    read = reference_catalogue._library_value(check)
+    other = reference_catalogue._library_value({**check, "key": "canonical_analysis.eigenvectors.1.0"})
+    turned = reference_catalogue._library_value({**check, "sign_of": "canonical_analysis.eigenvectors.1.0"})
+    assert turned == pytest.approx(read * math.copysign(1.0, other))
+    assert reference_catalogue._library_value({**check, "abs": True}) == pytest.approx(abs(read))
 
 
 def test_cross_products_split_into_treatments_and_error():

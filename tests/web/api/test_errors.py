@@ -192,12 +192,23 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        "Factor names must be unique.",
     ),
     "name with a space": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "a b"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'a_b' for 'a b'."
+        ),
+    ),
+    "names with a percent sign and a keyword": (
+        "api_make_design",
+        _make(factors=[{**FACTORS[0], "name": "Water %"}, {**FACTORS[1], "name": "lambda"}, FACTORS[2]]),
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'Water_pct' for 'Water %', 'lambda_' for 'lambda'."
+        ),
     ),
     "low above high": (
         "api_make_design",
@@ -287,6 +298,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze_runs",
         _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, "C", None]]),
         "Factor S: each run must be at A or B, not 'C'.",
+    ),
+    "a run with no label": (
+        "api_analyze_runs",
+        _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, None, None]]),
+        "Factor S: run 4 has no setting; each run must be at A or B.",
     ),
     "the square of a categorical factor": (
         "api_analyze_runs",
@@ -521,6 +537,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="maximin_lhs", budget=12.5),
         "A space-filling design in 3 factors has 4 to 200 runs.",
     ),
+    "an optimal design with fewer runs than its model has coefficients": (
+        "api_make_design",
+        _make(design_type="d_optimal", model_type="quadratic", budget=6),
+        "The quadratic model in 3 factors has 10 coefficients, so it needs at least 10 runs.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),
@@ -589,7 +610,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "response that is not a name": (
         "api_analyze_runs",
         lambda ex: {**_spec(response="__import__('os')")(ex), "responses": ex["simulated"]["responses"]},
-        "The response name must be a variable name different from every factor.",
+        "The response name must be a variable name (letters, digits, _): try 'import_os'.",
     ),
     "unknown model to analyse with": (
         "api_analyze_runs",
