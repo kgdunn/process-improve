@@ -2436,14 +2436,13 @@ def _shortest_words(rows: list[tuple[int, int]], k: int, most: int) -> list[int]
     rows, each an integer with a bit per row, add to 0.
     """
     columns = [sum((row >> j & 1) << i for i, (_, row) in enumerate(rows)) for j in range(k)]
-    found: list[int] = []
-    for size in range(1, k + 1):
-        for subset in itertools.combinations(range(k), size):
-            if not functools.reduce(operator.xor, (columns[j] for j in subset)):
-                found.append(sum(1 << j for j in subset))
-                if len(found) == most:
-                    return found
-    return found
+    words = (
+        sum(1 << j for j in subset)
+        for size in range(1, k + 1)
+        for subset in itertools.combinations(range(k), size)
+        if not functools.reduce(operator.xor, (columns[j] for j in subset))
+    )
+    return list(itertools.islice(words, most))
 
 
 def _relation_sentence(words: list[str], count: int) -> str:
