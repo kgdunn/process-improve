@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, meda, omeda, detect_outliers, cross_validate, invert, optimal_inversion, inversion_sensitivity
    :undoc-members:
    :show-inheritance:
 
@@ -37,11 +37,14 @@ loadings, VIP, Hotelling's T2 and SPE.
 PRM
 ~~~
 
-Partial Robust M-regression: PLS with a bounded influence per observation, so that
-a handful of outlying rows move the fit a little instead of a lot. Each row carries
-the product of a residual weight and a leverage weight, and the fit and the weights
-are recomputed from each other until they settle. Everything :class:`PLS` offers is
-inherited, so a fitted ``PRM`` also has scores, loadings, VIP, Hotelling's T2 and SPE.
+Partial Robust M-regression (Serneels et al., 2005): PLS with a bounded influence per
+observation, so that a handful of outlying rows move the fit a little instead of a lot.
+X is centred at its L1 median and y at its median, each row carries the product of a
+residual weight and a leverage weight, and the fit and the weights are recomputed from
+each other until the regression on the scores changes by less than 1%. With
+``scale=False`` it is the paper's algorithm, and reproduces the R package chemometrics.
+Everything :class:`PLS` offers is inherited, so a fitted ``PRM`` also has scores,
+loadings, VIP, Hotelling's T2 and SPE.
 
 .. autoclass:: PRM
    :members: fit, outlier_summary
@@ -115,6 +118,28 @@ reached, and every fold is recorded as ``NaN``. Build the scorer with
 untouched.
 
 .. autofunction:: make_tpls_scorer
+
+Optimal inversion
+~~~~~~~~~~~~~~~~~
+
+The inputs a PLS or TPLS model vouches for, at the least cost or closest to
+target qualities, under windows, bounds, linear rules (mixture totals, safety
+limits), the T² and SPE limits and counting rules; with the shadow price of
+every rule. See :doc:`../user_guide/model_inversion`.
+
+.. autofunction:: optimal_inversion
+
+.. autofunction:: inversion_sensitivity
+
+.. autoclass:: InversionRules
+
+.. autoclass:: LinearRule
+   :no-index:
+
+.. autofunction:: affine_model
+
+.. autoclass:: AffineModel
+   :members: predict, scores, hotellings_t2, spe
 
 ASCA
 ~~~~

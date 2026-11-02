@@ -129,6 +129,59 @@ def test_r2x_per_component_adds_up_to_the_cumulative_r2_of_the_fit() -> None:
 
 
 # ---------------------------------------------------------------------------
+# How many components?
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.dataset
+def test_cross_validation_is_the_library_s_selector_on_the_fitted_rows_only(ldpe) -> None:
+    cv = Variant("PCA", 2, x_columns=X_COLUMNS, excluded=UPSET).cross_validate(ldpe)
+    included = ldpe.index.difference(list(UPSET))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        by_hand = PCA.select_n_components(ldpe.loc[included, list(X_COLUMNS)], random_state=0)
+    np.testing.assert_array_equal(cv.q2.to_numpy(), by_hand.q2.to_numpy())
+    assert cv.n_components == by_hand.n_components
+    assert (cv.held_out, cv.rule) == ("cells", "min")
+    assert list(cv.r2.index) == list(cv.q2.index) == list(range(1, len(X_COLUMNS) + 1))
+    assert cv.r2.is_monotonic_increasing
+
+
+@pytest.mark.slow
+def test_pls_cross_validation_weighs_the_targets_alike_as_the_model_does() -> None:
+    """A target in large units would otherwise decide the count alone; the model gives each unit variance."""
+    table = synthetic().assign(big=lambda d: 1000 * (d["x0"] - d["x1"]) + 50 * np.sin(np.arange(len(d))))
+    cv = Variant("PLS", 1, y_columns=("y", "big")).cross_validate(table)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        raw = PLS.select_n_components(table.drop(columns=["y", "big"]), table[["y", "big"]], random_state=0)
+    np.testing.assert_allclose(cv.q2.to_numpy(), raw.r2y_validated["scaled_total"].to_numpy(), rtol=1e-8)
+    assert (cv.held_out, cv.folds) == ("rows", raw.per_fold_rmsecv.shape[1])
+
+
+def test_the_number_of_components_plays_no_part_in_cross_validation() -> None:
+    one, three = (Variant("PCA", n, y_columns=("y",)).cross_validate(synthetic()) for n in (1, 3))
+    np.testing.assert_array_equal(one.q2.to_numpy(), three.q2.to_numpy())
+    assert one.n_components == three.n_components
+
+
+@pytest.mark.parametrize("kind", ["PCA", pytest.param("PLS", marks=pytest.mark.slow)])
+def test_the_cross_validation_s_code_repeats_it_after_the_variant_s_code(kind: str, tmp_path, monkeypatch) -> None:
+    content = synthetic().to_csv().encode()
+    (tmp_path / "data.csv").write_bytes(content)
+    recipe = Recipe(SourceFile.of("data.csv", content, index_col=0))
+    variant = Variant(kind, 2, y_columns=("y",), excluded=(5, 9))
+    cv = variant.cross_validate(recipe.run(content))
+    monkeypatch.chdir(tmp_path)
+    namespace: dict[str, object] = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        exec(recipe.to_python() + variant.to_python() + cv.to_python(), namespace)  # noqa: S102 - its own script
+    np.testing.assert_array_equal(np.asarray(namespace["q2"]), cv.q2.to_numpy())
+    assert namespace["cv"].n_components == cv.n_components  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
 # Why is this group different?
 # ---------------------------------------------------------------------------
 

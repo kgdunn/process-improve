@@ -227,8 +227,9 @@ deliberately different choices (autoscale versus Pareto, say) become the
 same model and a comparison between them shows no difference. Both
 selectors emit a ``SpecificationWarning`` when they receive an ``X`` that
 is already centred and unit-variance scaled. If you must keep your own
-scaling, pass ``scale_inside_folds=False``; the scaling then leaks from the
-full dataset into every fold, and a warning says so.
+scaling, pass ``scale_inside_folds=False``, and for PLS ``scale=False`` as
+well, since a ``PLS(scale=True)`` fold model autoscales its own rows; the
+scaling then leaks from the full dataset into every fold, and a warning says so.
 
 The result is a ``Bunch`` with:
 

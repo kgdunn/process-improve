@@ -112,6 +112,35 @@ def test_the_same_seed_gives_the_same_design():
     assert first[1] == again[1]
 
 
+def test_each_start_the_search_climbs_from_estimates_the_model(monkeypatch):
+    """A random start that cannot estimate the model is drawn again before the search climbs from it.
+
+    From a singular start the search worked on M plus a small ridge, so ill-conditioned that the
+    BLAS kernel's rounding chose its path: the case study's 48-run I-optimal design came out
+    differently on AVX2 and on AVX-512 processors. A quarter of this case's random starts are singular.
+    """
+    from process_improve.experiments import designs_split_plot
+
+    draws, climbed = [], []
+    draw, climb = designs_split_plot._random_start, designs_split_plot._climb
+
+    def recorded_draw(*args):
+        draws.append(1)
+        return draw(*args)
+
+    def recorded_climb(model, levels, *args):
+        climbed.append(np.linalg.matrix_rank(model.rows(levels)) == len(model.parts))
+        return climb(model, levels, *args)
+
+    monkeypatch.setattr(designs_split_plot, "_random_start", recorded_draw)
+    monkeypatch.setattr(designs_split_plot, "_climb", recorded_climb)
+    options = SplitPlotOptions(criterion="i_optimal", model_type="quadratic", n_whole_plots=4)
+    split_plot_design(continuous("ABC"), ["A"], 12, options, random_state=0)
+    assert len(climbed) == options.n_starts
+    assert all(climbed)
+    assert len(draws) > options.n_starts, "some random starts were singular, and drawn again"
+
+
 def test_categorical_factors_take_their_labels_and_their_effect_coding():
     factors = [Factor(name="Oven", type="categorical", levels=["x", "y", "z"]), *continuous(["T", "P"])]
     options = SplitPlotOptions(criterion="d_optimal", model_type="interactions", n_whole_plots=6)

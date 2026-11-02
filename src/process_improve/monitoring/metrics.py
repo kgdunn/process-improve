@@ -53,7 +53,8 @@ def calculate_cpk(  # noqa: C901
 
         * ``cpk``: the Cpk value (the limiting, i.e. smaller, of the two sides).
         * ``center``: the center (mean or median) of the limiting side, i.e. of
-          the distance-to-specification metric.
+          the distance-to-specification metric; the lower side when the two
+          sides tie.
         * ``spread``: the spread (standard deviation or Sn) of the limiting side.
         * ``rsd``: the relative standard deviation OF THE DATA COLUMN, as a
           percentage: ``spread / center-of-the-data * 100``. (Earlier versions
@@ -120,9 +121,10 @@ def calculate_cpk(  # noqa: C901
                 f"Cpk_{side}: spread is zero or non-finite; returning NaN. "
                 "Likely cause: constant column or only one non-NaN value.",
                 category=RuntimeWarning,
-                stacklevel=2,
+                # The caller of calculate_cpk: this helper sits inside it, so 2 named a line of calculate_cpk.
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
             )
-            return float("nan")
+            return np.nan
         return numer / (3 * denom)
 
     cpk_lower = _safe_ratio(center_lower, spread_lower, "lower")
@@ -141,14 +143,14 @@ def calculate_cpk(  # noqa: C901
     # the distance-to-spec metric (which made the "RSD" depend on where the
     # specification sat). data_center / data_spread are computed from the data
     # column directly above, alongside the per-side statistics.
-    rsd = (data_spread / data_center) * 100 if abs(data_center) > 0 else float("nan")
+    rsd = (data_spread / data_center) * 100 if abs(data_center) > 0 else np.nan
     outside = stats.norm.cdf(-3 * np.array([cpk_lower, cpk_upper])) * 1e6
     return Bunch(
         cpk=cpk,
         center=center,
         spread=spread,
         rsd=rsd,
-        defects_per_million=float(np.nansum(outside)) if not np.isnan(outside).all() else float("nan"),
+        defects_per_million=float(np.nansum(outside)) if not np.isnan(outside).all() else np.nan,
         defects_per_million_nearer=float(stats.norm.cdf(-3 * cpk) * 1e6),
     )
 

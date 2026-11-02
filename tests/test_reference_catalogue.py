@@ -10,6 +10,7 @@ here, and so does a number copied wrongly into the catalogue.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -63,6 +64,25 @@ def test_every_number_not_recomputed_says_why():
     assert "TO CHECK" not in reasons, "every number is given a check or the reason it has none"
 
 
+def test_every_number_that_differs_or_is_not_recomputed_names_its_cause():
+    """A cause tells an error in a source from a library that differs, and a missing function from no computation."""
+    for _, entry, expected, check in CHECKS:
+        name = f"{entry['name']}: {expected['what']} {expected.get('term')}"
+        if "kind" not in check:
+            assert check.get("cause") in reference_catalogue.UNCHECKED_CAUSES, name
+        elif check.get("disagreement"):
+            assert check.get("cause") in reference_catalogue.DISAGREEMENT_CAUSES, name
+        else:
+            assert "cause" not in check, f"{name}: a number that agrees with its source has no cause"
+
+
+def test_a_difference_is_an_incorrect_option_exactly_where_the_answer_key_marks_it_so():
+    for _, entry, expected, check in CHECKS:
+        if check.get("disagreement"):
+            keyed = (expected.get("where") or {}).get("answer_key") == "incorrect"
+            assert (check["cause"] == "incorrect_option") == keyed, f"{entry['name']}: {expected['what']}"
+
+
 def test_the_report_has_a_row_for_every_check():
     report = reproduce_reference_catalogue("ullmann-doe-2012")
     assert len(report) == sum(key == "ullmann-doe-2012" for key, *_ in CHECKS)
@@ -86,6 +106,38 @@ def test_every_experiment_says_where_it_was_printed():
                 assert where.get("answer_key") in ("correct", "incorrect"), f"{name}: an option says how it is keyed"
     for experiment in reference_experiments():
         assert experiment.get("runs") or experiment.get("data_source"), f"{experiment['name']}: no runs, no source"
+
+
+def test_a_curve_response_names_its_columns_and_where_along_the_curve_each_is_read():
+    curves = [(e, r) for e in reference_experiments() for r in e["responses"] if "curve" in r]
+    assert curves, "the catalogue holds at least one response measured as a curve"
+    for experiment, response in curves:
+        name, curve = f"{experiment['name']}:{response['name']}", response["curve"]
+        table = (experiment.get("runs") or experiment.get("data_source") or {}).get("columns", [])
+        columns, argument = curve["columns"], curve["argument"]
+        assert columns, f"{name}: a curve has columns"
+        assert len(set(columns)) == len(columns), f"{name}: each column is read once"
+        assert set(columns) <= set(table), f"{name}: every column of the curve is in the run table"
+        assert response["name"] not in table, f"{name}: the curve is named as a whole, not as one of its columns"
+        scalar = {r["name"] for r in experiment["responses"] if "curve" not in r}
+        assert not scalar & set(columns), f"{name}: no column is both a point on the curve and a response of its own"
+        assert {"name", "units"} <= set(argument), f"{name}: the argument says what it is and in what units"
+        assert ("values" in argument) != ("columns" in argument), f"{name}: values every run shares, or columns"
+        if "values" in argument:
+            values = argument["values"]
+            assert len(values) == len(columns), f"{name}: one argument value per column"
+            assert all(b > a for a, b in itertools.pairwise(values)), f"{name}: the columns are in order"
+        else:
+            assert len(argument["columns"]) == len(columns), f"{name}: one argument column per value column"
+            assert set(argument["columns"]) <= set(table), f"{name}: every argument column is in the run table"
+
+
+def test_a_check_that_names_no_response_is_about_the_first_one_measured_as_a_number():
+    argument = {"name": "t", "units": "", "values": [0, 1]}
+    curve = {"name": "colour", "curve": {"columns": ["t0", "t1"], "argument": argument}}
+    assert reference_catalogue._first_scalar_response({"responses": [curve, {"name": "peak"}]}) == "peak"
+    with pytest.raises(ValueError, match="every response is a curve"):
+        reference_catalogue._first_scalar_response({"name": "only-curves", "responses": [curve]})
 
 
 def test_each_name_is_one_entry():
@@ -679,6 +731,17 @@ def test_the_total_of_a_runs_readings_is_what_yates_algorithm_takes():
     table = pd.DataFrame({"y1": [1.2402, 0.8562], "y2": [1.1005, 0.9602]})
     total = _summarised(table, {"of": ["y1", "y2"], "statistic": "total"})
     assert total.iloc[:, 0].tolist() == pytest.approx([2.3407, 1.8164])
+
+
+def test_a_count_of_n_is_read_as_its_angle_in_degrees_with_the_source_s_values_at_the_ends():
+    """Claringbold's counts m of 12 animals: arcsin (m/12)^1/2 in degrees, Bartlett's 8.30 and 81.70 at 0 and 12."""
+    from process_improve.experiments.reference_catalogue import _summarised
+
+    table = pd.DataFrame({"m": [0, 2, 6, 12]})
+    plain = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12})
+    assert plain.iloc[:, 0].tolist() == pytest.approx([0.0, 24.0948, 45.0, 90.0], abs=1e-4)
+    bartlett = _summarised(table, {"of": ["m"], "statistic": "angular_degrees", "n": 12, "ends": [8.30, 81.70]})
+    assert bartlett.iloc[:, 0].tolist() == pytest.approx([8.30, 24.0948, 45.0, 81.70], abs=1e-4)
 
 
 def test_software_that_prints_more_digits_than_it_carries_is_held_to_fewer():
@@ -2316,10 +2379,11 @@ def test_box_cox_reads_the_residual_sum_of_squares_of_the_scaled_power_at_any_la
 
 
 def test_a_prediction_can_be_read_back_from_a_transformed_scale():
-    """A value read as e to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
+    """A value read as e or 10 to it, as a common log of a natural one, and as y from t = [sqrt(y) + sqrt(y + 1)]/2."""
     found_value = 2.0
     for options, expected in (
         ({"exp": True}, math.exp(2.0)),
+        ({"exp10": True}, 100.0),
         ({"log10": True}, 2.0 / math.log(10)),
         ({"back_transform": "freeman_tukey_sqrt"}, (2.0 - 1 / 8) ** 2),
     ):
@@ -2332,6 +2396,42 @@ def test_a_prediction_can_be_read_back_from_a_transformed_scale():
     y = 12.0
     t = (math.sqrt(y) + math.sqrt(y + 1)) / 2
     assert (t - 1 / (4 * t)) ** 2 == pytest.approx(y, rel=1e-3)
+
+
+def test_an_analysis_of_variance_about_zero_is_read_uncorrected_for_the_mean():
+    """Readings 1, 3, 2, 6 on A + B: Σy² = 50 is nȳ² = 36 and 14 about the mean; Σŷ² = 49 on the model's rank of 3."""
+    entry = _factorial(2, [1.0, 3.0, 2.0, 6.0])
+    wanted = {
+        "ss_total_uncorrected": 50.0,
+        "ss_mean": 36.0,
+        "ss_regression_uncorrected": 49.0,
+        "df_model_uncorrected": 3.0,
+        "ms_regression_uncorrected": 49.0 / 3,
+    }
+    for kind, value in wanted.items():
+        found, agrees = reference_catalogue._reproduce(
+            entry, {"what": kind, "value": f"{value:.4f}", "where": {}}, {"kind": kind, "model": "A + B"}, FITS
+        )
+        assert agrees, (kind, found)
+
+
+def test_an_eigenvector_read_from_a_library_value_takes_the_sign_the_source_prints():
+    """An eigenvector of a printed quadratic comes back with either sign: ``sign_of`` turns it, ``abs`` drops it."""
+    terms = {"Intercept": 50.0, "x1": 1.0, "x2": 2.0, "I(x1 ** 2)": -3.0, "I(x2 ** 2)": -1.0, "x1:x2": -1.0}
+    model = {"response_name": "y", "factor_names": ["x1", "x2"]}
+    model["coefficients"] = [{"term": t, "coefficient": c} for t, c in terms.items()]
+    check = {
+        "kind": "library_value",
+        "function": "optimize_responses",
+        "args": [[model]],
+        "kwargs": {"method": "canonical_analysis"},
+        "key": "canonical_analysis.eigenvectors.0.0",
+    }
+    read = reference_catalogue._library_value(check)
+    other = reference_catalogue._library_value({**check, "key": "canonical_analysis.eigenvectors.1.0"})
+    turned = reference_catalogue._library_value({**check, "sign_of": "canonical_analysis.eigenvectors.1.0"})
+    assert turned == pytest.approx(read * math.copysign(1.0, other))
+    assert reference_catalogue._library_value({**check, "abs": True}) == pytest.approx(abs(read))
 
 
 def test_cross_products_split_into_treatments_and_error():

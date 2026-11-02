@@ -195,20 +195,16 @@ class TestDOptimal:
             }
             assert sizes == {number_points}, f"requested {number_points}, got sizes {sorted(sizes)}"
 
-    def test_d_optimal_below_minimum_budget_is_estimable(self) -> None:
-        """A budget below the model size yields a design the model can be fitted to."""
+    def test_d_optimal_below_minimum_budget_is_refused(self) -> None:
+        """A budget below the model size is refused, so no design the model cannot be fitted to is returned (#957)."""
         from process_improve.experiments import designs_optimal as _designs_optimal
 
         original = _designs_optimal._PYOPTEX_AVAILABLE
         _designs_optimal._PYOPTEX_AVAILABLE = False
         try:
             factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(3)]
-            for _ in range(25):
-                design, _meta = dispatch_d_optimal(factors, budget=2)
-                assert design.shape[0] >= 4, "intercept plus 3 main effects needs at least 4 runs"
-                # Estimability is the point: the model matrix must have full rank.
-                model_matrix = np.column_stack([np.ones(design.shape[0]), design])
-                assert np.linalg.matrix_rank(model_matrix) == 4
+            with pytest.raises(ValueError, match="budget=2 run"):
+                dispatch_d_optimal(factors, budget=2, model_type="main_effects")
         finally:
             _designs_optimal._PYOPTEX_AVAILABLE = original
 
@@ -233,24 +229,40 @@ class TestDOptimal:
         ("model_type", "n_parameters"),
         [("main_effects", 4), ("interactions", 7), ("quadratic", 10)],
     )
-    def test_budget_floor_matches_the_declared_model(
-        self, model_type: str, n_parameters: int, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    def test_budget_below_the_declared_model_is_refused(
+        self, model_type: str, n_parameters: int, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """An under-budget request is raised to the DECLARED model's size, not to one run per factor.
+        """An under-budget request names the DECLARED model's size, not one run per factor.
 
         The floor used to be ``n_factors + 1`` regardless of `model_type`, which
         is the size of a main-effects model only; an interactions or quadratic
-        model was handed a design far too small to fit it.
+        model was handed a design far too small to fit it. A budget the caller
+        gave is now refused rather than enlarged (#957).
         """
         from process_improve.experiments import designs_optimal as _designs_optimal
 
         monkeypatch.setattr(_designs_optimal, "_PYOPTEX_AVAILABLE", False)
         factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(3)]
         assert _n_model_parameters(factors, model_type) == n_parameters
-        with caplog.at_level("WARNING", logger="process_improve.experiments.designs_optimal"):
-            design, _meta = dispatch_d_optimal(factors, budget=2, model_type=model_type)
+        with pytest.raises(
+            ValueError, match=f"budget=2 run\\(s\\) cannot estimate the '{model_type}' model, which has {n_parameters}"
+        ):
+            dispatch_d_optimal(factors, budget=2, model_type=model_type)
+
+    @pytest.mark.parametrize(
+        ("model_type", "n_parameters"),
+        [("main_effects", 4), ("interactions", 7), ("quadratic", 10)],
+    )
+    def test_budget_equal_to_the_model_is_accepted(
+        self, model_type: str, n_parameters: int, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Exactly one run per coefficient is the smallest budget allowed, and the design has full rank."""
+        from process_improve.experiments import designs_optimal as _designs_optimal
+
+        monkeypatch.setattr(_designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(3)]
+        design, _meta = dispatch_d_optimal(factors, budget=n_parameters, model_type=model_type)
         assert design.shape[0] == n_parameters
-        assert "raising the budget" in caplog.text  # the clamp is announced, not silent
 
     def test_default_budget_supports_the_declared_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The ``2 * n_factors + 1`` default is itself below an interactions model from k=4 up."""

@@ -50,10 +50,12 @@ def _prepare_data(  # noqa: C901, PLR0912
     if phase_col is None:
         phase_col = "__phase_grouper__"
 
+    # The fake grouping columns are added with `assign`, which returns a new frame: an
+    # in-place `insert` added them to the caller's DataFrame as well.
     if phase_col not in df:
         # Cannot use "None" or 'nan'; else it won't group in the
         # groupby([batch_col, phase_col]) statement below.
-        df.insert(0, phase_col, "NoPhases")
+        df = df.assign(**{phase_col: "NoPhases"})
 
     # If no batch_col: add a fake column with all the same values
     if batch_col not in df or batch_col is None:
@@ -61,7 +63,7 @@ def _prepare_data(  # noqa: C901, PLR0912
         if batch_col not in df:
             # Cannot use "None" or 'nan'; else it won't group in the
             # groupby([batch_col, phase_col]) statement below.
-            df.insert(0, batch_col, 1)
+            df = df.assign(**{batch_col: 1})
 
     if tags is None:
         tags = list(df.columns)
@@ -226,12 +228,18 @@ def f_iqr(
     The difference between the 75th percentile and the 25th percentile of a
     sample this is the 25 % trimmed range, an example of an L - estimator.
 
-    See also: f_std
+    Missing values are omitted, as ``f_std`` and ``f_robust_mad`` omit them.
+
+    See also: f_std, f_robust_mad
     """
     base_name = "iqr"
+
+    def _iqr(col: pd.Series) -> float:
+        return float(iqr(col, nan_policy="omit"))
+
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
-    output = prepared.agg(iqr)
+    output = prepared.agg(_iqr)
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
@@ -308,6 +316,9 @@ def f_area(
     The spacing of the x-axis is taken into account, so, this will produce
     accurate areas if the data are not evenly-spaced in time along the x-axis.
 
+    A datetime or timedelta time axis is measured in seconds, so the area is in the tag's
+    units multiplied by seconds. A numeric time axis is used in its own units.
+
     The area is calculated using the trapezoidal rule.
 
     See also: f_sum, f_cumsum
@@ -321,7 +332,13 @@ def f_area(
     for batch_id, this_batch in prepared:
         # Average width of the base * height. For time series, the average width of the base is
         # the same as the sampling intervals. Therefore the diff of the index.
-        half_base_factor = np.diff(this_batch.index)
+        time_axis = this_batch.index
+        if isinstance(time_axis, pd.DatetimeIndex | pd.TimedeltaIndex):
+            # A plain diff gives timedelta64 widths, which made the area a timedelta that a
+            # float column cannot hold. Seconds keep it a number in a stated unit.
+            half_base_factor = np.asarray(pd.TimedeltaIndex(time_axis[1:] - time_axis[:-1]).total_seconds())
+        else:
+            half_base_factor = np.diff(time_axis)
         for tag in tags:
             # Now the sum makes sense: gets the area under the curve by adding
             # up the smaller trapezoids: consider the trapezoids as rotated by 90 degrees.
@@ -777,8 +794,10 @@ def f_crossing(  # noqa: PLR0913
 
     f_name = tag + "_" + base_name
 
-    def _cross_first(x: pd.DataFrame) -> np.ndarray | list:
-        return cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True)
+    def _cross_first(x: pd.DataFrame) -> np.ndarray | list | float:
+        crossing = cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True)
+        # `cross` returns an empty array when there is no crossing; the documented feature is NaN.
+        return np.nan if np.size(crossing) == 0 else crossing
 
     # pandas-stubs' DFCallable1 protocol does not include ``np.ndarray`` among the allowed
     # return types, although groupby.apply accepts array-returning callables at runtime.

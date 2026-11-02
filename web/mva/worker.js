@@ -7,8 +7,9 @@
 
 const runtime = fetch("../runtime.json", { cache: "no-store" }).then((res) => res.json());
 
-// The deploy step writes wheels/manifest.json naming the wheel built from this checkout; without it, PyPI's.
-const manifest = fetch("wheels/manifest.json", { cache: "no-store" })
+// The build writes the app's wheels/manifest.json, one level up, naming the wheel built from this checkout;
+// both pages install that one wheel. Without a manifest (web/ served as it is), PyPI's release.
+const manifest = fetch("../wheels/manifest.json", { cache: "no-store" })
   .then((res) => (res.ok ? res.json() : {}))
   .catch(() => ({}));
 
@@ -30,7 +31,7 @@ async function boot() {
   say("Installing process-improve...");
   const { wheel } = await manifest;
   pyodide.globals.set("_pypi", pyodide.toPy(micropip));
-  pyodide.globals.set("_wheel", wheel ? new URL(`wheels/${wheel}`, self.location.href).href : "process-improve");
+  pyodide.globals.set("_wheel", wheel ? new URL(`../wheels/${wheel}`, self.location.href).href : "process-improve");
   await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(list(_pypi))

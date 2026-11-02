@@ -27,6 +27,7 @@ import functools
 import io
 import itertools
 import json
+import keyword
 import logging
 import math
 import operator
@@ -54,8 +55,10 @@ from process_improve.experiments import (
     generate_design,
     rename_factors,
     separating_constraint,
+    signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
@@ -673,7 +676,8 @@ def _listening() -> Iterator[list[str]]:
     records would otherwise reach the browser console as errors. The logger's handlers are
     swapped for the duration and restored after, so an enclosing block (or a test's log
     capture) is not affected. Warnings raised inside numpy, scipy, statsmodels or pandas
-    are left out.
+    are left out, and so is an ``EncodingWarning``, which Python raises only when a developer
+    asks (``PYTHONWARNDEFAULTENCODING``, as the tests run): it is about code, not the reader's runs.
     """
     heard: list[str] = []
     logger = logging.getLogger("process_improve")
@@ -685,7 +689,9 @@ def _listening() -> Iterator[list[str]]:
             yield heard
     finally:
         logger.handlers, logger.propagate = saved
-    heard.extend(str(w.message) for w in caught if not _foreign(w.filename))
+    heard.extend(
+        str(w.message) for w in caught if not _foreign(w.filename) and not issubclass(w.category, EncodingWarning)
+    )
 
 
 def _foreign(filename: str) -> bool:
@@ -710,12 +716,19 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
-    if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
-        raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
+    unfit = [name for name in names if not name.isidentifier() or keyword.iskeyword(name)]
+    if unfit:
+        tries = ", ".join(f"{suggest_identifier(name)!r} for {name!r}" for name in unfit)
+        raise ValueError(
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            f"try {tries}."
+        )
+    if len(set(names)) != len(names):
+        raise ValueError("Factor names must be unique.")
     return names
 
 
@@ -1415,7 +1428,7 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     if design_type in SPACE_FILLING:
@@ -1520,7 +1533,7 @@ def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
             continue
         values = [_number(v) for v in runs[f.name]]
         if None in values:
@@ -1756,7 +1769,11 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
 
 def _response_name(response: str, factors: list[Factor]) -> str:
     """Check the response's name: a variable name, unlike every factor's and the run sheet's blocks column."""
-    if not response.isidentifier() or response in {f.name for f in factors}:
+    if not response.isidentifier():
+        raise ValueError(
+            f"The response name must be a variable name (letters, digits, _): try {suggest_identifier(response)!r}."
+        )
+    if response in {f.name for f in factors}:
         raise ValueError("The response name must be a variable name different from every factor.")
     if response == BLOCK:
         raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")
@@ -2101,12 +2118,19 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     """Read the runs of a design that takes a number of them, or give its own (logic.js's ``defaultBudget``).
 
     A space-filling design has :func:`_space_filling_runs`; an optimal one the reader's number, else the
-    coefficients of the model it is made for and :data:`SPARE_RUNS` more.
+    coefficients of the model it is made for and :data:`SPARE_RUNS` more. A number below the coefficients
+    is refused, as the library refuses it, rather than enlarged.
     """
     if design_type in SPACE_FILLING:
         return _space_filling_runs(spec, k)
     budget = spec.get("budget")
-    return int(budget) if budget else _n_terms(k, model_type) + SPARE_RUNS
+    n_terms = _n_terms(k, model_type)
+    if budget and int(budget) < n_terms:
+        model = model_type.replace("_", " ")
+        raise ValueError(
+            f"The {model} model in {k} factors has {n_terms} coefficients, so it needs at least {n_terms} runs."
+        )
+    return int(budget) if budget else n_terms + SPARE_RUNS
 
 
 def _space_filling_runs(spec: dict, k: int) -> int:
@@ -2261,15 +2285,6 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
         # A word confounded with the blocks takes its aliases with it (in a 2^(4-1), C·D goes with A·B).
         confounded = list(dict.fromkeys(t for w in words for t in next((g for g in groups if w in g), [w])))
         notes.append(_blocking_sentence(sizes, confounded))
-    asked = kwargs.get("budget")
-    if asked and len(coded) > asked * replicates:
-        model = kwargs["model_type"]
-        made = len(coded) // replicates
-        notes.append(
-            f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
-            f"{_n_terms(len(names), model)} coefficients, so the design has {made} runs"
-            f"{' before it is replicated' if replicates > 1 else ''}."
-        )
     return {
         "resolution": result.resolution,
         "generators": [_spaced(g, names) for g in result.generators or []],
@@ -2651,6 +2666,7 @@ def _analysis(
         "comparison": comparison,
         "transform": transform,
         "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
+        "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
     }
 
 
@@ -3069,6 +3085,117 @@ def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> d
 def _snapped(value: float | None, zero: float) -> float | None:
     """Return 0 for a value no larger than ``zero``, the fit's round-off, and the value otherwise."""
     return 0.0 if value is not None and abs(value) <= zero else value
+
+
+# --------------------------------------------------------------------------- the readings repeated at a setting
+#: The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three; to learn has none.
+SN_KINDS = {"maximize": "larger", "minimize": "smaller", "target": "nominal"}
+
+#: What each setting's readings are summed up as, and whether the higher (1) or the lower (-1) of it is the better.
+SUMMARIES = {"mean": 0, "ln_std_dev": -1, "sn": 1}
+
+
+def _spread(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict[str, Any] | None:
+    """Sum up the results read more than once at a setting, and how each factor's levels move them.
+
+    The runs at one setting, whatever their blocks, are readings of it. Each setting read twice or
+    more gives its readings' ``mean``, standard deviation, its natural logarithm ``ln_std_dev`` and,
+    for a response with a goal, Taguchi's signal-to-noise ratio ``sn`` (see :data:`SN_KINDS`). The
+    response table, ``factors``, averages each summary over the settings at each level of a factor; a
+    factor's ``delta`` of a summary is its largest average less its smallest, ``rank`` orders the
+    factors by it (1 the largest), and ``best`` names the level of the smallest spread and of the
+    highest ratio. For a target, ``adjustment`` names the factor that moves the mean most for its
+    effect on the spread, each as a share of the largest; Taguchi's second step moves the mean to the
+    target with it. A setting read once is left out, and ``left_out`` lists its runs. None unless two
+    settings are read twice or more, and None for a study of one factor, whose comparison of its levels
+    gives each level's mean and spread. A summary a setting cannot give, such as the ln s of readings
+    that do not vary, is left out of the averages.
+    """
+    names = list(coded.columns)
+    if len(names) < 2:
+        return None
+    runs = np.array(order if order is not None else range(1, len(y) + 1))
+    kind = SN_KINDS.get((spec.get("response_info") or {}).get("goal", ""))
+    groups = list(coded.round(9).groupby(names, sort=True).indices.values())  # equal settings agree to round-off
+    kept = [rows for rows in groups if len(rows) > 1]
+    if len(kept) < 2:
+        return None
+    summaries = [key for key in SUMMARIES if key != "sn" or kind]
+    settings = [_readings_at(coded.iloc[rows[0]], y[rows], runs[rows], spec, kind) for rows in kept]
+    frame = pd.DataFrame(
+        [{**dict(zip(names, coded.iloc[rows[0]], strict=True)), **s} for rows, s in zip(kept, settings, strict=True)]
+    )
+    frame[summaries] = frame[summaries].astype(float)  # a summary a setting cannot give is NaN, left out of means
+    zero = ROUND_OFF * frame[summaries].abs().max()  # a delta no larger is round-off: the levels tie
+    factors = [_level_table(frame, f, summaries, zero) for f in spec["factors"]]
+    ranks = pd.DataFrame([f["delta"] for f in factors]).rank(ascending=False, method="min")
+    for f, (_, rank) in zip(factors, ranks.iterrows(), strict=True):
+        f["rank"] = {key: None if pd.isna(r) else int(r) for key, r in rank.items()}
+    return {
+        "kind": kind,
+        "settings": settings,
+        "left_out": sorted(int(r) for rows in groups if len(rows) == 1 for r in runs[rows]),
+        "factors": factors,
+        "adjustment": _adjustment(factors) if kind == "nominal" else None,
+    }
+
+
+def _readings_at(at: pd.Series, values: np.ndarray, runs: np.ndarray, spec: dict, kind: str | None) -> dict[str, Any]:
+    """Sum up the readings at one setting: where it is, its runs, and its readings' mean, spread and ratio."""
+    s = float(values.std(ddof=1))
+    ratio = None if kind is None else float(signal_to_noise(values, kind))  # type: ignore[arg-type]
+    return {
+        "settings": {f["name"]: _level_name(f, at[f["name"]]) for f in spec["factors"]},
+        "runs": runs.tolist(),
+        "n": len(values),
+        "mean": float(values.mean()),
+        "std_dev": s,
+        "ln_std_dev": math.log(s) if s > 0 else None,
+        "sn": ratio if ratio is not None and math.isfinite(ratio) else None,
+    }
+
+
+def _level_name(factor: dict, coded: float) -> object:
+    """Name a factor's level at its coded setting: a category's label, or a number in the factor's own units."""
+    return _level_at(factor, coded) if _categorical(factor) else _actual(factor, coded)
+
+
+def _level_table(frame: pd.DataFrame, factor: dict, summaries: list[str], zero: pd.Series) -> dict[str, Any]:
+    """Return a factor's row of the response table: each summary's average at each of its levels, delta and best.
+
+    A delta no larger than ``zero``, the round-off of its summary, is 0, and levels that tie have no best.
+    """
+    by_level = frame.groupby(factor["name"], sort=True)
+    means = by_level[summaries].mean()
+    delta = means.max() - means.min()
+    delta = delta.where(delta > zero, 0.0)
+    best = {
+        key: _level_name(factor, means[key].idxmax() if SUMMARIES[key] > 0 else means[key].idxmin())
+        for key in summaries
+        if SUMMARIES[key] and delta[key] > 0
+    }
+    return {
+        "name": factor["name"],
+        "levels": [
+            {"level": _level_name(factor, coded), "coded": float(coded), "n": int(by_level.size()[coded]), **row}
+            for coded, row in means.to_dict("index").items()
+        ],
+        "delta": delta.to_dict(),
+        "best": best,
+    }
+
+
+def _adjustment(factors: list[dict]) -> str | None:
+    """Name the factor that moves the mean most for its effect on the spread, or None when none moves the mean more.
+
+    Each factor's delta of the mean and of ln s is taken as a share of the largest of its kind, so the two
+    compare in no units, and the factor of the largest share of the mean less its share of the spread is
+    the one; none when that is not above 0.
+    """
+    deltas = pd.DataFrame([f["delta"] for f in factors], index=[f["name"] for f in factors])[["mean", "ln_std_dev"]]
+    shares = (deltas / deltas.max()).fillna(0.0)  # a delta of 0 over a largest of 0 is no share
+    score = shares["mean"] - shares["ln_std_dev"]
+    return str(score.idxmax()) if score.max() > 0 else None
 
 
 # --------------------------------------------------------------------------- the analysis of a mixture
@@ -3746,27 +3873,38 @@ def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
     """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
-    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+    return pd.DataFrame({f["name"]: _coded_column(runs, f) for f in factors})
 
 
-def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+def _coded_column(runs: pd.DataFrame, factor: dict) -> pd.Series:
     """Code one factor's settings; a categorical factor's runs must each be at one of its levels.
 
     A categorical factor of k levels is coded as the library codes it, its levels spread evenly from
     -1 to +1 in their order (``categorical_codes``): -1 and +1 for two, -1, 0 and +1 for three.
     """
+    column = runs[factor["name"]]
     if not _categorical(factor):
         return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
     codes = np.linspace(-1.0, 1.0, len(_levels_of(factor)))
-    return pd.Series(codes[_level_indices(column, factor)], index=column.index)
+    return pd.Series(codes[_level_indices(runs, factor)], index=column.index)
 
 
-def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
-    """Return which level each run of a categorical factor is at, refusing a run at none of them."""
+def _level_indices(runs: pd.DataFrame, factor: dict) -> np.ndarray:
+    """Return which level each run of a categorical factor is at, refusing a run at none of them.
+
+    A blank setting is named by its run, never by the ``nan`` that pandas reads it as (#1006).
+    """
     levels = _levels_of(factor)
+    column = runs[factor["name"]]
     found = [_level_index(v, levels) for v in column]
     if None in found:
-        other = column.iloc[found.index(None)]
+        at = found.index(None)
+        other = column.iloc[at]
+        if pd.isna(other) or (isinstance(other, str) and not other.strip()):
+            run = runs["Run order"].iloc[at] if "Run order" in runs.columns else at + 1
+            raise ValueError(
+                f"Factor {factor['name']}: run {int(run)} has no setting; each run must be at {_listed(levels, 'or')}."
+            )
         raise ValueError(f"Factor {factor['name']}: each run must be at {_listed(levels, 'or')}, not {other!r}.")
     return np.array(found, dtype=int)
 
@@ -3781,13 +3919,13 @@ def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
         if _several(f):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             at = frame.columns.get_loc(f["name"])
             frame = frame.drop(columns=f["name"])
             for j, name in enumerate(_contrast_names(f)):
                 frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
         if _categorical(f) and set(_indicator_names(f)) & set(columns):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             for j, name in enumerate(_indicator_names(f)):
                 frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
@@ -4647,9 +4785,10 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     parts; the others name none, and stay as they are.
     """
 
-    def spaced(word: str) -> str:
+    def spaced(word: str, *, identity: bool = False) -> str:
+        # The defining relation's I is the identity, a generator's is a factor: a factor may be named I.
         left, _, right = word.partition(" = ")
-        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+        return f"{left if identity else _renamed_word(left, names)} = {_renamed_word(right, names)}"
 
     generators = [spaced(g) for g in facts.get("generators") or []]
     groups = _aliased_groups(coded, list(names.values()))
@@ -4666,7 +4805,7 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     return {
         **facts,
         "generators": generators,
-        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "defining_relation": [spaced(w, identity=True) for w in facts.get("defining_relation") or []],
         "aliases": groups,
         "notes": notes,
     }

@@ -16,7 +16,7 @@ Model variants
 --------------
 
 .. automodule:: process_improve.workbench.variant
-   :members: Variant, Fit, GroupExplanation, MODELS
+   :members: Variant, Fit, CrossValidation, GroupExplanation, MODELS
 
 Project files
 -------------

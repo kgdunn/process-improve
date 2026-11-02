@@ -165,6 +165,7 @@ import {
   mixtureProblem,
   nTerms,
   nameProblem,
+  planVerdict,
   modelKey,
   modelTermsWords,
   namedModelTerms,
@@ -202,6 +203,7 @@ import {
   screensOnly,
   showsVif,
   splitResults,
+  spreadSentences,
   standouts,
   STANDOUT_TIE,
   storedResponses,
@@ -247,6 +249,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
+import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
@@ -1228,6 +1231,8 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
+  // The what-if fits, and any still on their way, name the old factors: the analysis below fits them again.
+  clearWhatIf();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
@@ -1452,6 +1457,64 @@ function refreshDesign() {
   showAim();
   markPicked();
   markStale();
+  showLikeYours();
+}
+
+// ---------------------------------------------------------------- experiments like yours
+// What others in the reader's field have run, from catalog/fields.json (written by the build), with the plan marked
+// on the chart: its factors, and its runs once it has a design. The field chosen is kept in this browser; a field's
+// page in the catalog chooses one through ?field=.
+const FIELD_KEY = "factorial-field";
+let fields = null; // the fields the build wrote, once read
+
+function keptField() {
+  try {
+    return localStorage.getItem(FIELD_KEY) ?? "";
+  } catch {
+    return ""; // storage refused
+  }
+}
+
+function keepField(slug) {
+  try {
+    if (slug) localStorage.setItem(FIELD_KEY, slug);
+    else localStorage.removeItem(FIELD_KEY);
+  } catch {
+    /* storage refused: the choice lasts as long as the page */
+  }
+}
+
+/** Read the fields the build wrote, list them, and choose the one the address or this browser names. */
+async function loadFields() {
+  try {
+    const response = await fetch("catalog/fields.json");
+    fields = response.ok ? (await response.json()).fields : null;
+  } catch {
+    fields = null; // a page served without its catalog shows no panel
+  }
+  if (!fields) return;
+  const named = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+  $("#field").append(...named.map(([slug, field]) => new Option(field.label, slug)));
+  const asked = new URLSearchParams(location.search).get("field") ?? "";
+  if (Object.hasOwn(fields, asked)) keepField(asked);
+  const chosen = keptField();
+  $("#field").value = Object.hasOwn(fields, chosen) ? chosen : "";
+  showLikeYours();
+}
+
+/** Show the chosen field's experiments beside the plan: a sentence, the chart with the plan, and how they compare. */
+function showLikeYours() {
+  $("#like-yours").hidden = !fields;
+  const slug = $("#field").value;
+  const field = fields?.[slug];
+  $("#like-yours-body").hidden = !field;
+  if (!field) return;
+  const k = state.design ? state.design.spec.factors.length : factorCount();
+  const plan = k ? { factors: k, runs: state.design ? runCount() : null } : null;
+  $("#like-yours-sentence").textContent = field.sentence;
+  drawFieldChart($("#like-yours-chart"), field.points, plan);
+  $("#like-yours-verdict").textContent = planVerdict(field.points, plan);
+  $("#like-yours-link").href = `catalog/fields/${encodeURIComponent(slug)}/`;
 }
 
 // ---------------------------------------------------------------- the trade-off grid
@@ -1750,6 +1813,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
+  showLikeYours();
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   renderPicker();
@@ -3034,10 +3098,14 @@ function analysisRequest(name = state.shown) {
   };
 }
 
-/** Whether an analysis compares one factor's levels, which its code then does too, and the control Dunnett's take. */
+/**
+ * Whether an analysis compares one factor's levels, and the control Dunnett's take, and whether it sums up readings
+ * repeated at a setting: its code then does the same.
+ */
 const comparedOf = (analysis) => ({
   compared: Boolean(analysis?.comparison?.difference || analysis?.comparison?.several),
   control: analysis?.comparison?.several?.control ?? null,
+  spread: Boolean(analysis?.spread),
 });
 
 /** The control the reader picked for Dunnett's intervals, while it is a level of the study's one categorical factor. */
@@ -3217,7 +3285,66 @@ function renderAnalysis(reply) {
       ),
     );
   }
+  parts.push(...spreadParts(r.spread));
   out.replaceChildren(...parts);
+}
+
+/**
+ * The results read more than once at a setting (``spread``, as the analysis gives it): what they say, in sentences;
+ * the response table, each summary averaged at each level of each factor; how much each factor moves each summary, and
+ * at which level the spread is smallest and the signal-to-noise ratio highest; and each setting's readings summed up.
+ * Nothing unless two settings were read twice or more.
+ */
+function spreadParts(spread) {
+  if (!spread) return [];
+  const { label, units } = responseWords(shownSpec());
+  const factorUnits = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const ratio = spread.kind ? ["S/N"] : []; // the sentence above names the ratio: larger, smaller or nominal
+  const tableHeading = el("h4", "", "");
+  tableHeading.append(term("Response table", { key: "response-table", alone: true }));
+  const moved = (f, key) => (f.rank[key] === null ? "" : `${fmt(f.delta[key])} (${f.rank[key]})`); // null: no setting gave it
+  const best = (f, key) => (f.best[key] === undefined ? "" : String(f.best[key]));
+  return [
+    el("h3", "", "The spread of the readings at each setting"),
+    ...spreadSentences(spread, { response: label, units, factorUnits }).map((line) => said("", line)),
+    tableHeading,
+    table(
+      ["Factor", "Level", "Settings", "Mean", "ln s", ...ratio],
+      spread.factors.flatMap((f) =>
+        f.levels.map((l) => [f.name, String(l.level), l.n, fmt(l.mean), fmt(l.ln_std_dev), ...(spread.kind ? [fmt(l.sn)] : [])]),
+      ),
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
+    ),
+    el("h4", "", "Each factor's delta, and its rank"),
+    table(
+      ["Factor", "Mean", "ln s", ...ratio, "Least spread at", ...(spread.kind ? ["Best S/N at"] : [])],
+      spread.factors.map((f) => [
+        f.name,
+        moved(f, "mean"),
+        moved(f, "ln_std_dev"),
+        ...(spread.kind ? [moved(f, "sn")] : []),
+        best(f, "ln_std_dev"),
+        ...(spread.kind ? [best(f, "sn")] : []),
+      ]),
+    ),
+    said("hint", "A factor's delta is its largest average less its smallest; the factor of the largest has rank 1, in brackets."),
+    el("h4", "", "Each setting's readings"),
+    table(
+      ["Setting", "Runs", "Readings", "Mean", "Std. dev.", "ln s", ...ratio],
+      spread.settings.map((s) => [
+        Object.entries(s.settings)
+          .map(([name, level]) => `${name} ${level}`)
+          .join(", "),
+        s.runs.join(", "),
+        s.n,
+        fmt(s.mean),
+        fmt(s.std_dev),
+        fmt(s.ln_std_dev),
+        ...(spread.kind ? [fmt(s.sn)] : []),
+      ]),
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------- the numbers a catalog study's source prints
@@ -5605,6 +5732,11 @@ for (const radio of document.querySelectorAll('input[name="aim"]')) {
     saveDraft();
   };
 }
+$("#field").addEventListener("change", () => {
+  keepField($("#field").value);
+  showLikeYours();
+});
+
 $("#design-type").onchange = () => {
   designChosen = true;
   refreshDesign();
@@ -5780,6 +5912,7 @@ refreshDesign();
 renderStudyBar();
 readManifest();
 start();
+loadFields();
 
 call("api_catalogue").then((reply) => {
   if (!reply.ok) {

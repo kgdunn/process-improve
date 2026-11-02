@@ -53,6 +53,7 @@ import {
   describeResponse,
   holds,
   nameProblem,
+  planVerdict,
   percent,
   pickCandidate,
   pickSentence,
@@ -665,6 +666,17 @@ describe("a factor's name", () => {
     assert.match(nameProblem("a b"), /^a b: a name is letters, digits and _/);
     assert.match(nameProblem("2x"), /^2x: /);
     assert.match(nameProblem("x-y"), /^x-y: /);
+  });
+
+  test("comes with a name that keeps the rules, when it breaks them", () => {
+    assert.match(nameProblem("Water %"), /such as Water_pct\.$/);
+    assert.match(nameProblem("Temp (°C)"), /such as Temp_deg_C\.$/);
+    assert.match(nameProblem("2nd stage"), /such as x2nd_stage\.$/);
+  });
+
+  test("is not a Python keyword, which a model cannot name", () => {
+    assert.equal(nameProblem("lambda"), "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_.");
+    for (const name of ["match", "case", "type"]) assert.equal(nameProblem(name), "", `${name} is only a soft keyword`);
   });
 
   test("is given, and is no other factor's", () => {
@@ -1490,5 +1502,27 @@ describe("what Box-Cox makes of the response", () => {
 
   test("each transform has its words", () => {
     assert.deepEqual(Object.keys(TRANSFORM_WORDS), ["log", "sqrt", "inverse"]);
+  });
+});
+
+describe("a plan beside a field's experiments", () => {
+  // Twelve experiments: two small, eight of 16 runs, two large; all with 3 factors but two with 6.
+  const points = [[3, 8, "full", 2], [3, 16, "full", 6], [6, 16, "screening", 2], [3, 64, "surface", 2]];
+
+  test("compares a design's runs once it has one", () => {
+    assert.equal(planVerdict(points, { factors: 3, runs: 128 }), "Your plan is larger than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 4 }), "Your plan is smaller than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 16 }), "Your plan is a typical size here.");
+  });
+
+  test("compares the factors alone before a design is made", () => {
+    assert.equal(planVerdict(points, { factors: 8, runs: null }), "You have more factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 1, runs: null }), "You have fewer factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: null }), "Experiments here often have as many factors as yours.");
+  });
+
+  test("says nothing without a plan or a field", () => {
+    assert.equal(planVerdict(points, null), "");
+    assert.equal(planVerdict([], { factors: 3, runs: 8 }), "");
   });
 });

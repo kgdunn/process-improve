@@ -100,15 +100,26 @@ The contract
        )
 
    The ``seed_param`` field is the name of the kwarg the
-   reproducibility-check harness will exercise. Deterministic
+   reproducibility test in (6) exercises. Deterministic
    tools declare ``{"uses_rng": False}``.
 
-6. **A self-test harness enforces (5).** A test in
-   ``tests/test_rng_contract.py`` will import every registered
-   tool, run it twice with the declared ``default_seed``, and
-   assert byte-equal outputs. The same test verifies that a
-   tool declaring ``{"uses_rng": False}`` produces byte-equal
-   outputs without any seeding.
+6. **``@tool_spec`` checks the declaration in (5); a test checks
+   the behaviour.** At decoration it rejects an ``rng=`` dict without
+   a boolean ``uses_rng`` key, with an unknown key, with a
+   ``seed_param`` or ``default_seed`` on a tool that declares
+   ``{"uses_rng": False}``, or with a ``default_seed`` but no
+   ``seed_param``. ``tests/test_tool_reproducibility.py`` runs
+   each registered tool twice on a sample input, through
+   ``execute_tool_call``, and compares the JSON of the two outputs
+   byte for byte: a tool that declares ``{"uses_rng": True}`` gets
+   its ``default_seed`` through its ``seed_param``, and must also
+   give another output for another seed; any other tool gets no
+   seed. A tool that gives a new output on each call by design
+   (``create_simulator``, ``simulate_process``) is listed there with
+   the reason instead. A tool registered with neither a sample input
+   nor a reason fails the test. The same file fails a tool whose input
+   has a ``random_state`` or ``seed`` field that its ``rng=`` does not
+   name as ``seed_param``, with the field's default as ``default_seed``.
 
 How to migrate an existing function
 -----------------------------------
@@ -158,15 +169,13 @@ What is *not* covered
   out of scope (NumPy ships RNG algorithm changes on a
   documented schedule).
 
+.. _rng_open_work:
+
 Open work
 ---------
 
 Aspects of the contract that are not yet implemented:
 
-- The ``tests/test_rng_contract.py`` harness that exercises every
-  ``@tool_spec(rng={"uses_rng": True})`` against its declared
-  ``default_seed`` will land alongside the first sweep that
-  migrates production callsites.
 - Migration of the existing offenders is tracked in
   `SEC-21 sub-item 9 <https://github.com/kgdunn/process-improve/issues/270>`_
   (Resampler), the relevant SEC-33 sub-item
