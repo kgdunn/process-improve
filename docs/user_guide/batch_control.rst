@@ -10,13 +10,13 @@ machinery lives in :mod:`process_improve.batch.control` and needs the
 ``control`` extra (``pip install 'process-improve[control]'``, which brings
 in the `osqp <https://osqp.org>`_ QP solver).
 
-Every number on this page is *executed*: the corrected schedule is fed back
+Every gain on this page is *executed*: the corrected schedule is fed back
 into the simulator with the identical disturbance seed, so each gain is a
-true same-batch counterfactual, not a model's opinion of itself. That
-discipline matters. Simulation studies in this literature do execute their
-corrections (Flores-Cerrillo and MacGregor rerun their non-linear nylon model
-with the computed trajectories), but that step is unavailable on an operating
-plant, so industrial results are reported as model predictions.
+same-batch counterfactual, not the model's own prediction. On an operating
+plant a batch runs once: its corrected quality is measured, but the quality
+it would have reached without the correction is not, so the gain on a single
+plant batch rests on the model's no-change prediction. The simulator removes
+that limit.
 
 The pieces
 ----------
@@ -42,11 +42,12 @@ The pieces
   against their measured quality), the SPE of the batch so far against its
   limit, and the condition number of the score estimator. Its ``correct``
   method adds the decision: the SPE validity gate (an out-of-family batch is
-  not corrected, following Flores-Cerrillo and MacGregor, 2004), the
+  not corrected; Flores-Cerrillo and MacGregor, 2004, check the SPE before
+  correcting and suggest keeping the previous schedule when it fails), the
   no-correction dead band (correct only when the projected shortfall is
-  significant against that interval, the practical lesson of Yabuki and
-  MacGregor, 1997; the default of 1.0 asks that the whole interval fall
-  short of the target), and per-decision-point limits built the same way
+  significant against that interval, in the role of the no-control region of
+  Yabuki and MacGregor, 1997; the default of 1.0 asks that the whole interval
+  fall short of the target), and per-decision-point limits built the same way
   (Garcia-Munoz, Kourti and MacGregor, 2004).
 - :func:`~process_improve.batch.control.evaluate_control_policies` runs the
   whole comparison end to end.
@@ -55,9 +56,11 @@ Two findings from building this page shape the defaults. The historical
 campaign must contain deliberate setpoint moves in the *shapes* the
 controller will use: the simulator's ``historical`` policy therefore varies
 its schedules with independent knot offsets, and corrections use the same
-knot basis. And a single global linear model averages away a gain direction
-that depends on the feed class (warmer mid-batch rescues a slow batch and
-hurts a fast one), so the evaluation fits one model per feed class and
+knot basis. And a single global linear model averages a gain direction that
+depends on the feed class (a warm hold in mid-batch helps a slow batch and,
+on average, costs a fast one; with one global model the comparison below
+corrects five batches for about a third of the per-class models' mean gain),
+so the evaluation fits one model per feed class and
 assigns a fresh batch to the nearest class centroid in standardised Z; with
 the class ranges overlapping along the feed-quality axis that assignment is
 right about 85% of the time, and a miss hands the batch the neighbouring
@@ -99,59 +102,63 @@ stopped by the SPE validity gate. Reading the table:
   low tail, which is where the money is when the target is a floor.
 - The **oracle-from-k** row re-optimises the remaining schedule of those
   same corrected batches against the simulator itself (the true process) at
-  the same decision point: the ceiling for any mid-course scheme there. The
-  data-driven correction captured 58% of the oracle's mean improvement; the
-  rest is the price of an empirical model confined to the region its
-  history explored.
-- The **adapted** row runs every batch on the true optimal schedule for its
-  own initial conditions, computed before the batch starts: the
-  perfect-feedforward ceiling. It raises the mean and the best batches, but
+  the same decision point, with each batch's own seed: an estimate of the
+  ceiling for any mid-course scheme there, which also knows the disturbances
+  still to come. The data-driven correction captured 58% of the oracle's
+  mean improvement; the rest mixes the error of an empirical model confined
+  to the region its history explored, that foresight, and the corrector's
+  own limits (movement penalty, validity caps, tighter bounds and rate
+  limits).
+- The **adapted** row runs every batch on the schedule that maximises the
+  disturbance-free titer for its own initial conditions, computed before the
+  batch starts from the simulator's own equations: an estimate of the
+  feedforward ceiling. It raises the mean and the best batches, but
   its minimum (4.57 g/L) is *worse* than the corrected policy's (5.65 g/L):
   a schedule fixed at time zero cannot answer a disturbance that develops
   while the batch runs. Feedforward adaptation and mid-course correction
   address the two different variance shares that
   :func:`~process_improve.simulation.variance_decomposition` separates.
 
-The corrector's predictions were conservative: for the eight corrected batches
-it predicted 4.8 to 6.7 g/L and the executed titers came out 5.7 to 8.5 g/L,
-every gain understated. A latent-variable prediction regresses toward the
-mean, so a batch deep in the tail is predicted less deep; the correction
-direction still held.
+The corrector's predictions were conservative: for each of the eight
+corrected batches the predicted gain was smaller than the executed one.
 
 Where to put the decision point
 -------------------------------
 
-Sweeping the single decision point over the batch (same seeds throughout,
-mean executed gain over the batches corrected at that point):
+Sweeping the single decision point over the batch (same seeds throughout;
+mean gain over the batches corrected at that point, as the model predicted
+it, as executed, and for the oracle from the same point on the same
+batches):
 
-=========  ====  ==============  ===============
-Sample     Day   Corrected       Mean gain [g/L]
-=========  ====  ==============  ===============
-4          2.0   9 (2 harmed)    +1.12
-6          3.0   9 (1 harmed)    +1.42
-8          4.0   8 (0 harmed)    +1.40
-10         5.0   8 (0 harmed)    +0.49
-12         6.0   8 (7 harmed)    -0.04
-14         7.0   8 (8 harmed)    -0.23
-=========  ====  ==============  ===============
+=========  ====  ==============  ===============  ==============  ============
+Sample     Day   Corrected       Predicted [g/L]  Executed [g/L]  Oracle [g/L]
+=========  ====  ==============  ===============  ==============  ============
+4          2.0   9 (2 harmed)    +1.43            +1.12           +1.96
+6          3.0   9 (1 harmed)    +1.14            +1.42           +2.19
+8          4.0   8 (0 harmed)    +0.68            +1.40           +2.39
+10         5.0   8 (0 harmed)    +0.19            +0.49           +2.07
+12         6.0   8 (7 harmed)    +0.04            -0.03           +1.86
+14         7.0   8 (8 harmed)    +0.09            -0.23           +1.60
+=========  ====  ==============  ===============  ==============  ============
 
 The window is real and it is in the middle of the batch. Too early, the
 prediction has not yet separated the batches that will fall short from those
 that will not: at day 2 the dead band admits nine batches, two of them are
 harmed, and the mean gain is below the values at days 3 and 4. Too late, the
-biology has already decided: the remaining schedule has almost no leverage,
-and small model errors turn corrections into damage. On this process the
-useful window is days 3 to 5. Days 3 and 4 give the same mean gain, about
-+1.4 g/L, just after the growth phase reveals which batches are behind, and
-day 3 harms one batch where day 4 harms none.
+process still responds to its schedule (the oracle gains 1.6 g/L on the same
+batches even from day 7), but the model no longer sees it: its predicted
+gains fall toward zero, and the corrections computed from them turn into
+damage. On this process the useful window is days 3 to 5. Days 3 and 4 give
+the same mean gain, about +1.4 g/L, just after the growth phase reveals which
+batches are behind, and day 3 harms one batch where day 4 harms none.
 
 Practical notes
 ---------------
 
-- The model is fitted on *recorded* (noisy, realised) trajectories but the
-  corrector outputs *setpoints*. That is standard identification practice;
-  it attenuates the apparent gain slightly, and the executed evaluation
-  absorbs the difference.
+- The model is fitted on *recorded* trajectories (the realised values plus
+  measurement noise), but the corrector outputs *setpoints*. The
+  substitution is sound where the control loops track their setpoints, and
+  the executed evaluation measures the realised effect either way.
 - Setpoint bounds handed to the corrector are tightened inward by about two
   control-error standard deviations, so optimised schedules do not sit on
   actuator rails where clipping would bias the realised mean.
@@ -159,9 +166,10 @@ Practical notes
   hard caps) are the manufacturing-versus-development dial. On this
   configuration, relaxing the T2 penalty monotonically improved both the
   predicted and the executed gains of the corrected batches, because the
-  poorest class's true optimum lies well outside the historical envelope;
-  the harmed batches at late decision points show the same freedom working
-  against you when the model's leverage is gone. There is no
+  poorest class's best schedules lie far from the centre of the historical
+  data, where the T2 penalty holds the correction back; the harmed batches at
+  late decision points show the same freedom working against you when the
+  model's estimate of the leverage is wrong. There is no
   one-size-fits-all setting: measure it, on data the model has never seen.
 
 Agent tools ``correct_batch_midcourse`` and
