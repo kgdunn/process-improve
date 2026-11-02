@@ -298,15 +298,27 @@ class TestRegion:
         with pytest.raises(ValueError, match="pass each point's levels"):
             region.feasible(np.zeros((1, 2)))
 
-    def test_sample_frame_weighs_each_allowed_combination_equally(self, region: DesignRegion) -> None:
+    def test_sample_frame_weighs_each_allowed_combination_by_its_volume(self, region: DesignRegion) -> None:
+        """B with X keeps T up to 180 of 150 to 200, 60% of the box, so it is drawn 0.6 times as often (#783)."""
         frame = region.sample_frame(10_000, np.random.default_rng(0))
         shares = frame.groupby(["catalyst", "solvent"]).size() / len(frame)
-        assert len(shares) == 5
-        assert np.allclose(shares, 0.2, atol=0.02)
+        expected = pd.Series([1.0, 1.0, 0.6, 1.0, 1.0], index=shares.index) / 4.6
+        assert np.allclose(shares, expected, atol=0.01)
         assert region.feasible(frame[region.names].to_numpy(), labels=frame).all()
         temperature = 175 + 25 * frame["T"]
         assert temperature[frame["catalyst"] == "B"].max() <= 180 + 1e-9
         assert temperature[frame["catalyst"] != "B"].max() > 195
+
+    def test_a_combination_with_no_volume_is_not_drawn_but_keeps_its_columns(self) -> None:
+        """B only at T = 150 keeps a face of the box, no volume: it is never drawn, yet still estimates its effect."""
+        rule = "not (catalyst == 'B' and T > 150)"
+        factors = [TEMP, PRESSURE, CATALYST]
+        frame = DesignRegion(factors, [rule]).sample_frame(3000, np.random.default_rng(0))
+        assert set(frame["catalyst"]) == {"A", "C"}
+        design = generate_design(factors, design_type="i_optimal", budget=12, constraints=[rule], random_state=0)
+        assert design.metadata["inestimable_columns"] == {"T:catalyst": 1}
+        notes = evaluate_design(design, metric="d_efficiency")["notes"]
+        assert "['T:catalyst[S.B]'] inestimable" in notes["inestimable_columns"]
 
     def test_support_frame_holds_each_combination(self, region: DesignRegion) -> None:
         frame = region.support_frame()

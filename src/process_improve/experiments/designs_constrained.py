@@ -34,7 +34,7 @@ import logging
 import math
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -55,6 +55,7 @@ from process_improve.experiments.factor import FactorType
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Constraint, Factor
+    from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +343,9 @@ class _Region:
     With ``rules`` (constraints that name categorical factors, see
     :mod:`~process_improve.experiments._rules`), some combinations of levels are not
     allowed, and the inequalities in ``conditional[j]`` apply only on the runs where
-    ``rules.limits[j]`` says they do. ``inequalities`` apply everywhere.
+    ``rules.limits[j]`` says they do. ``inequalities`` apply everywhere. ``source`` is
+    the same region as a :class:`~process_improve.experiments.region.DesignRegion`,
+    which weights each allowed combination by its volume in :meth:`draw_levels`.
     """
 
     continuous: list[Factor]
@@ -352,6 +355,7 @@ class _Region:
     conditional: list[list[_Evaluator]] = field(default_factory=list)
     #: Model columns kept when the rules leave some coefficients inestimable; None keeps every column.
     kept_columns: np.ndarray | None = None
+    source: DesignRegion | None = field(default=None, repr=False, compare=False)
     _lengths: np.ndarray | None = field(default=None, init=False, repr=False, compare=False)
 
     def _limits(self) -> list[tuple[_Evaluator, int | None]]:
@@ -386,18 +390,20 @@ class _Region:
         return _Region(self.continuous, [], self.inequalities + chosen)
 
     def draw_levels(self, n: int, rng: np.random.Generator) -> np.ndarray:
-        """Draw ``n`` combinations of levels, each allowed combination equally likely.
+        """Draw ``n`` combinations of levels, each allowed combination in proportion to its volume.
 
-        The factors the rules name take one of their allowed combinations, each with the
-        same probability; every other categorical factor takes each of its levels with
-        the same probability.
+        The factors the rules name take one of their allowed combinations, each in
+        proportion to the volume of the region its limits leave (see
+        :meth:`~process_improve.experiments.region.DesignRegion.sample_frame`), so every
+        allowed setting is equally likely; every other categorical factor takes each of
+        its levels with the same probability.
         """
         cats = np.zeros((n, len(self.categorical)), dtype=int)
         for j, f in enumerate(self.categorical):
             cats[:, j] = rng.integers(len(f.levels or []), size=n)
         if self.rules is not None:
             table, _ = self.rules.allowed_table()
-            pick = rng.integers(len(table), size=n)
+            pick = cast("DesignRegion", self.source)._draw_combinations(n, rng)
             for j, f in enumerate(self.categorical):
                 if f.name in self.rules.levels:
                     position = {level: i for i, level in enumerate(self.rules.levels[f.name])}
@@ -2026,7 +2032,7 @@ def _uniform_rows(
     (``seeds``, whose level indices are ``seed_cats``), so the moment matrix covers the
     whole region, not the few points a rejection pass happens to hit.
 
-    With rules, each allowed combination of levels carries the same weight (see
+    With rules, each allowed combination of levels carries the weight of its volume (see
     :meth:`_Region.draw_levels`), and the continuous settings of a run are drawn
     uniformly from the region its levels leave: the box cut by the inequalities that
     apply there. Without rules, every combination of levels is allowed and the region
@@ -2224,8 +2230,12 @@ def region_with_rules(factors: list[Factor], constraints: list[Constraint]) -> _
     names = {f.name for f in continuous}
     plain, rules = compile_rules(constraints, names, {f.name: list(f.levels or []) for f in categorical})
     inequalities = [g for _source, text in plain for g in parse_constraint(text, names)]
-    conditional = [parse_constraint(clause.limit or "", names) for clause in rules.limits] if rules else []
-    return _Region(continuous, categorical, inequalities, rules, conditional)
+    if rules is None:
+        return _Region(continuous, categorical, inequalities)
+    from process_improve.experiments.region import DesignRegion  # noqa: PLC0415  region imports this module
+
+    conditional = [parse_constraint(clause.limit or "", names) for clause in rules.limits]
+    return _Region(continuous, categorical, inequalities, rules, conditional, source=DesignRegion(factors, constraints))
 
 
 def _candidate_rows(

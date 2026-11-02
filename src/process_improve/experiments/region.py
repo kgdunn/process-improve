@@ -462,10 +462,13 @@ class DesignRegion:
         """Draw ``n`` points uniformly from the region, as a frame with a column per factor.
 
         Numeric factors are in design units, as :meth:`sample` gives them, and categorical
-        factors hold their levels. Each allowed combination of the levels the rules name
-        is equally likely, every other categorical factor takes each level with the same
-        probability, and the numeric settings of a point are uniform over the region its
-        levels leave (see :meth:`given`).
+        factors hold their levels. Every setting the region allows is equally likely: each
+        allowed combination of the levels the rules name is drawn in proportion to the
+        volume of the region its limits leave (the :meth:`volume_fraction` of :meth:`given`),
+        so one whose limits leave 60% of the box is drawn 0.6 times as often as one they
+        leave whole, and one they leave no volume is not drawn. Every other categorical
+        factor takes each level with the same probability, and the numeric settings of a
+        point are uniform over the region its levels leave.
 
         Parameters
         ----------
@@ -488,7 +491,7 @@ class DesignRegion:
             numeric = self.sample(n, rng)
         else:
             table, applies = self.rules.allowed_table()
-            pick = rng.integers(len(table), size=n)
+            pick = self._draw_combinations(n, rng)
             chosen = self._level_objects(table).iloc[pick].reset_index(drop=True)
             for name in self.rules.factors:
                 frame[name] = chosen[name].to_numpy()
@@ -500,6 +503,24 @@ class DesignRegion:
         for j, name in enumerate(self.names):
             frame[name] = numeric[:, j]
         return frame[[f.name for f in self.factors]]
+
+    def _draw_combinations(self, n: int, rng: np.random.Generator) -> np.ndarray:
+        """Draw ``n`` rows of ``rules.allowed_table()``, each in proportion to the volume its region keeps.
+
+        The volume is :meth:`volume_fraction` of the combination's region (see
+        :meth:`given`), found once per group of combinations that share their limits.
+        """
+        if "volumes" not in self._cache:
+            _table, applies = cast("Rules", self.rules).allowed_table()
+            groups, member = np.unique(applies, axis=0, return_inverse=True)
+            volumes = np.array([self._given_applies(signature).volume_fraction() for signature in groups])
+            self._cache["volumes"] = volumes[member.reshape(-1)]
+        volumes = self._cache["volumes"]
+        if np.all(volumes == volumes[0]):
+            # Drawn as equal weights were before #783, so a region whose combinations keep equal volumes (rules
+            # that only remove combinations, or no volume left anywhere) keeps the samples, and designs, it had.
+            return rng.integers(len(volumes), size=n)
+        return rng.choice(len(volumes), size=n, p=volumes / volumes.sum())
 
     def support_frame(self) -> pd.DataFrame:
         """Return :meth:`support_points` of each allowed combination of the levels the rules name, as a frame.
