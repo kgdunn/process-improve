@@ -47,6 +47,25 @@ def refuse_reserved_names(factors: list[Factor]) -> None:
         )
 
 
+def refuse_budget_below_model(budget: int, n_parameters: int, model: str) -> None:
+    """Raise when a budget the caller gave has fewer runs than the model has coefficients.
+
+    The budget is often a hard limit (batches, reactor time, cost), so a design larger than
+    the one asked for is not built silently. A default budget is raised to the model size
+    by its caller instead, since nobody chose that number.
+
+    Raises
+    ------
+    ValueError
+        If ``budget < n_parameters``.
+    """
+    if budget < n_parameters:
+        raise ValueError(
+            f"budget={budget} run(s) cannot estimate the {model} model, which has {n_parameters} coefficients. "
+            f"Use budget >= {n_parameters}, a smaller model, or fewer factors."
+        )
+
+
 def categorical_codes(n_levels: int) -> np.ndarray:
     """Coded values that stand for the levels of a categorical factor in a numeric design matrix.
 

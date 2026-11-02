@@ -220,13 +220,17 @@ class TestWhenBlocksAreAssignedAfterwards:
 class TestLimits:
     """Budgets the blocks do not fit in."""
 
-    def test_the_budget_rises_for_the_block_effects(self, caplog: pytest.LogCaptureFixture) -> None:
-        """A quadratic model in 2 factors has 6 coefficients; 3 blocks add 2, so 7 runs become 8."""
-        with caplog.at_level("WARNING"):
-            result = _blocked(2, 7, 3)
-        assert len(result.design) == 8
-        assert result.metadata["budget_requested"] == 7
-        assert "adds 2 block effect(s)" in caplog.text
+    def test_a_budget_short_of_the_block_effects_is_refused(self) -> None:
+        """A quadratic model in 2 factors has 6 coefficients; 3 blocks add 2, so 7 runs are too few."""
+        with pytest.raises(ValueError, match=r"adds 2 block effect\(s\).*at least 8 runs, more than budget=7"):
+            _blocked(2, 7, 3)
+        assert len(_blocked(2, 8, 3).design) == 8
+
+    def test_the_default_budget_counts_the_block_effects(self) -> None:
+        """Without a budget, 2k + 1 = 5 runs would be refused; the default counts the 6 + 2 coefficients."""
+        factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(2)]
+        result = generate_design(factors, design_type="d_optimal", model_type="quadratic", n_blocks=3)
+        assert len(result.design) >= 8
 
     def test_too_many_blocks_for_the_budget(self) -> None:
         """Four blocks need at least two runs each, more than a budget of 6 leaves."""

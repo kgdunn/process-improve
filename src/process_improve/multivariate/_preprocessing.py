@@ -86,18 +86,13 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # itself requires 2-D input, so promote here before it sees X.
         if isinstance(X, pd.Series):
             X = X.to_frame()
-        X_arr = validate_data(
-            self,
-            X,
-            reset=True,
-            accept_sparse=False,
-            ensure_min_samples=2,
-            ensure_min_features=1,
-            dtype="numeric",
-            ensure_all_finite="allow-nan",
-        )
-        feature_names = getattr(self, "feature_names_in_", None)
-        index = pd.Index(feature_names) if feature_names is not None else pd.RangeIndex(X_arr.shape[1])
+        # Label from the frame itself, as PCA and PLS do: sklearn sets
+        # feature_names_in_ only for string labels, so integer labels (a
+        # spectrum's wavelengths) would otherwise come out as 0..K-1. An array
+        # has no labels, and pd.Series numbers its columns 0..K-1 from None.
+        index: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
+        # Dense (sparse was refused above), numeric, at least one column: validate_data's defaults.
+        X_arr = validate_data(self, X, ensure_min_samples=2, ensure_all_finite="allow-nan")
 
         # nanmean / nanstd so NaN cells pass through with the right
         # column-level statistics (the chemometric pipeline's missing-data
@@ -106,8 +101,8 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         with warnings.catch_warnings():
             # An all-NaN or single-observation column raises numpy
             # RuntimeWarnings here; both cases are handled explicitly below,
-            # so the warnings are noise for the caller.
-            warnings.simplefilter("ignore", RuntimeWarning)
+            # so the warnings are noise for the caller. Nothing else here warns.
+            warnings.simplefilter("ignore")
             center = np.nanmean(X_arr, axis=0)
             scale = np.nanstd(X_arr, axis=0, ddof=1)
             highest = np.nanmax(X_arr, axis=0)
@@ -140,19 +135,17 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
 
         ``y`` is accepted (and ignored) for :class:`Pipeline` compatibility.
         """
-        check_is_fitted(self, ("center_", "scale_"))
+        check_is_fitted(self)
         # Mirror fit()'s Series convenience for symmetric round-tripping.
         if isinstance(X, pd.Series):
             X = X.to_frame()
         # Preserve the row index for DataFrame input; ndarray input falls
         # back to a RangeIndex.
         index = X.index if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
+        X_arr = validate_data(  # pragma: no mutate - validate_data reads reset=None as reset=False
             self,
             X,
             reset=False,
-            accept_sparse=False,
-            dtype="numeric",
             ensure_all_finite="allow-nan",
         )
         out = (X_arr - self.center_.to_numpy()) / self.scale_.to_numpy()
@@ -160,7 +153,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
 
     def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
         """Inverse the mean-centring and unit-variance scaling."""
-        check_is_fitted(self, ("center_", "scale_"))
+        check_is_fitted(self)
         index = X.index if isinstance(X, pd.DataFrame) else None
         # inverse_transform is intentionally NOT routed through validate_data:
         # callers (TransformedTargetRegressor included) pass ndarray output
@@ -169,9 +162,24 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # We coerce to 2-D, scale back, and return a DataFrame.
         X_arr = np.asarray(X, dtype=float)
         if X_arr.ndim == 1:
-            X_arr = X_arr.reshape(-1, 1)
+            X_arr = X_arr[:, np.newaxis]
         out = X_arr * self.scale_.to_numpy() + self.center_.to_numpy()
         return pd.DataFrame(out, index=index, columns=self.center_.index)
+
+
+def _back_to_units(*scalers: MCUVScaler | None) -> tuple[np.ndarray | float, np.ndarray | float]:
+    """Return ``(centre, scale)`` with ``units = scaled * scale + centre``, undoing ``scalers`` in the order given.
+
+    Each scaler maps ``u`` to ``(u - center_) / scale_``, so the one applied last is undone
+    first; a missing scaler is the identity.
+    """
+    centre: np.ndarray | float = 0.0
+    scale: np.ndarray | float = 1.0
+    for scaler in scalers:
+        if scaler is not None:
+            centre = centre * scaler.scale_.to_numpy() + scaler.center_.to_numpy()
+            scale = scale * scaler.scale_.to_numpy()
+    return centre, scale
 
 
 def center(
@@ -236,7 +244,7 @@ def center(
         # broadcast down the column axis. Without the reshape numpy broadcasts
         # the length-N vector across the columns instead: a ValueError for
         # N != K and a silently wrong answer for square matrices.
-        vector = vector.reshape(-1, 1)
+        vector = vector[:, np.newaxis]
     if extra_output:
         return np.subtract(X, vector), vector
     else:
@@ -327,7 +335,7 @@ def scale(
     center : The centring counterpart, whose extra output is a subtrahend.
 
     """
-    if func is np.std and "ddof" not in kwargs:
+    if func is np.std:  # ``ddof`` is a parameter of its own, so it can never be in ``kwargs``
         kwargs["ddof"] = ddof
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
@@ -342,7 +350,7 @@ def scale(
     vector = 1.0 / vector
     if axis == 1:
         # Row-wise scaling: one value per ROW; see the reshape note in center().
-        vector = vector.reshape(-1, 1)
+        vector = vector[:, np.newaxis]
 
     if extra_output:
         return np.multiply(X, vector), vector
@@ -369,8 +377,8 @@ def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
     values = np.asarray(pd.DataFrame(X), dtype=float)
     with warnings.catch_warnings():
         # All-NaN and single-observation columns raise numpy RuntimeWarnings;
-        # both are filtered out by the callers below.
-        warnings.simplefilter("ignore", RuntimeWarning)
+        # both are filtered out by the callers below. Nothing else here warns.
+        warnings.simplefilter("ignore")
         means = np.nanmean(values, axis=0)
         sds = np.nanstd(values, axis=0, ddof=1)
     return means, sds
@@ -401,13 +409,8 @@ def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> l
     # guard, so the division below cannot overflow.
     tiny = float(np.finfo(float).tiny) ** 0.5
     degenerate = ~np.isfinite(sds) | (sds <= tiny)
-    with np.errstate(invalid="ignore"):
-        flagged = np.where(
-            degenerate,
-            np.isfinite(means) & (np.abs(means) > tiny),
-            np.abs(means) > ratio * np.where(degenerate, 1.0, sds),
-        )
-    return [label for label, flag in zip(frame.columns, flagged, strict=True) if bool(flag)]
+    flagged = np.where(degenerate, np.isfinite(means) & (np.abs(means) > tiny), np.abs(means) > ratio * sds)
+    return list(frame.columns[flagged])
 
 
 def _looks_prescaled(X: DataMatrix) -> bool:
@@ -423,10 +426,10 @@ def _looks_prescaled(X: DataMatrix) -> bool:
     usable = np.isfinite(means) & np.isfinite(sds) & (sds > 0)
     if not np.any(usable):
         return False
-    return bool(
-        np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL)
-        and np.all(np.abs(sds[usable] - 1.0) <= _PRESCALED_SD_ATOL)
-    )
+    spread_error = np.abs(sds[usable] - 1.0)
+    # Near 1, |sd - 1| is a whole number of steps of 2**-53, and 0.05 is not, so the two never meet.
+    unit_variance = (spread_error <= _PRESCALED_SD_ATOL).all()  # pragma: no mutate - so < is the same as <=
+    return bool(np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL) and unit_variance)
 
 
 def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, metric: str) -> None:
@@ -462,7 +465,7 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
             f"dataset into every {fold}, making the reported {metric} optimistic. "
             "The default scale_inside_folds=True is preferred.",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
     elif _looks_prescaled(X):
         warnings.warn(
@@ -475,102 +478,5 @@ def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, m
             "unscaled X and let the folds scale it, or keep your own scaling and set "
             "scale_inside_folds=False (accepting the optimism that flag warns about).",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
-
-
-class _WeightedMCUVScaler(MCUVScaler):
-    """:class:`MCUVScaler` whose centre and spread are weighted statistics (#191).
-
-    The ordinary mean and standard deviation have a breakdown point of zero: one
-    bad row moves both without limit. That is fine when the rows are trusted, and
-    fatal when they are the thing being guarded against, so Partial Robust
-    M-regression centres and scales with the same weights it fits with. It is a
-    private helper rather than public API because the weights that make it useful
-    come from :class:`~process_improve.multivariate.methods.PRM`'s reweighting
-    loop, not from the caller.
-
-    Everything else - validation, feature names, the constant-column guard, and
-    :meth:`transform` / :meth:`inverse_transform` - is inherited unchanged, so a
-    fitted instance is a drop-in for the base class everywhere PLS reads it.
-    """
-
-    def fit(
-        self,
-        X: DataMatrix,
-        y=None,  # noqa: ANN001, ARG002  # reason: Pipeline threads y through every step's fit
-        sample_weight: np.ndarray | None = None,
-    ) -> _WeightedMCUVScaler:
-        """Compute weighted column means and weighted standard deviations.
-
-        Parameters
-        ----------
-        X : DataMatrix
-            Data of shape (n_samples, n_features).
-        y : ignored
-            Accepted for :class:`~sklearn.pipeline.Pipeline` compatibility.
-        sample_weight : np.ndarray of shape (n_samples,), optional
-            Non-negative row weights. ``None`` (or all-equal weights) reproduces
-            :class:`MCUVScaler` exactly.
-
-        Returns
-        -------
-        _WeightedMCUVScaler
-            ``self``, fitted.
-
-        Raises
-        ------
-        ValueError
-            If ``sample_weight`` has the wrong length, is negative, non-finite,
-            or sums to zero.
-        """
-        # The base fit does the validation, sets n_features_in_ / feature_names_in_,
-        # and gives the unweighted statistics; only center_ / scale_ are replaced.
-        super().fit(X)
-        if sample_weight is None:
-            return self
-
-        weights = np.asarray(sample_weight, dtype=float).ravel()
-        values = np.asarray(X.to_frame() if isinstance(X, pd.Series) else X, dtype=float)
-        if weights.shape[0] != values.shape[0]:
-            raise ValueError(f"sample_weight has {weights.shape[0]} entries; expected {values.shape[0]} to match X.")
-        if not np.all(np.isfinite(weights)):
-            raise ValueError("sample_weight must be finite (no NaN / inf).")
-        if np.any(weights < 0):
-            raise ValueError("sample_weight must be non-negative.")
-
-        # Per column, so a NaN cell drops only its own column's contribution
-        # rather than the whole row (MCUVScaler's missing-data contract).
-        observed = np.isfinite(values)
-        per_column = np.where(observed, weights[:, np.newaxis], 0.0)
-        total = per_column.sum(axis=0)
-        if not np.any(total > 0):
-            raise ValueError("sample_weight must not sum to zero: there would be no data left to centre on.")
-
-        safe_total = np.where(total > 0, total, 1.0)
-        filled = np.where(observed, values, 0.0)
-        center = (per_column * filled).sum(axis=0) / safe_total
-
-        # The weighted analogue of ddof=1, so that equal weights reproduce
-        # MCUVScaler exactly rather than coming out sqrt((n-1)/n) too small.
-        # For reliability weights the unbiased denominator is V1 - V2/V1, which
-        # collapses to n - 1 when every weight is 1. Without this the subclass
-        # would silently disagree with its base class on the very case where
-        # they are supposed to be the same estimator.
-        sum_squared = (per_column**2).sum(axis=0)
-        denominator = safe_total - sum_squared / safe_total
-        # One effective observation leaves no degrees of freedom; fall back to
-        # the biased denominator rather than dividing by zero or going negative.
-        denominator = np.where(denominator > 0, denominator, safe_total)
-        variance = (per_column * (filled - center) ** 2 * observed).sum(axis=0) / denominator
-        spread = np.sqrt(variance)
-
-        # Same guard as the base class: a constant (or unobserved) column scales
-        # by 1.0 rather than dividing by zero, and centres at 0 if it has no data.
-        tiny = float(np.finfo(float).tiny) ** 0.5
-        spread = np.where(~np.isfinite(spread) | (spread <= tiny) | (total <= 0), 1.0, spread)
-        center = np.where(np.isfinite(center) & (total > 0), center, 0.0)
-
-        self.center_ = pd.Series(center, index=self.center_.index)
-        self.scale_ = pd.Series(spread, index=self.scale_.index)
-        return self

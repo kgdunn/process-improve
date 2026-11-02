@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import correlated_study, fill_workbook
+from tests.web._support import FACTORS, correlated_study, fill_workbook
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -19,6 +19,7 @@ from tests.web.e2e._page import (
     headers,
     practise,
     reveal,
+    set_factors,
     settled,
     status,
     type_results,
@@ -121,6 +122,44 @@ def test_choosing_a_model_analyses_the_results_again(page):
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F"]
 
 
+def test_choosing_a_transform_analyses_the_response_on_its_scale_and_as_measured_again(page):
+    choose(page, transform="log")
+    settled(page)
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert sent["analysis_transforms"] == {sent["response"]: "log"}
+    assert page.text_content("#analysis p.equation").startswith("ln(")
+    assert "Low to high" in page.locator("#analysis table").first.locator("th").all_text_contents()
+    assert "np.log(y)" in page.text_content("#py-analyse code"), "the code fits what the page fits"
+    choose(page, transform="")
+    settled(page)
+    assert "analysis_transforms" not in calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert not page.text_content("#analysis p.equation").startswith("ln(")
+
+
+def test_box_cox_s_hint_fits_the_transform_it_points_to(page):
+    """When Box-Cox's interval holds the log and not 1, the page says so, and its button fits the log."""
+    choose(page, model="interactions")
+    settled(page)
+    reply = page.evaluate("window.__pi.replies.filter((r) => r.fn === 'api_analyze_runs').at(-1).reply")
+    hint = {"lambda": 0.1, "ci": [-0.2, 0.4], "suggests": "log", "current": None}
+    page.evaluate(
+        "(reply) => window.__pi.fake('api_analyze_runs', reply)",
+        {**reply, "result": {**reply["result"], "box_cox": hint}},
+    )
+    choose(page, model="main_effects")
+    settled(page)
+    assert page.is_visible("#box-cox")
+    assert page.text_content("#box-cox-words").startswith(
+        "Box-Cox's λ is 0.1 (95% interval -0.2 to 0.4): it points to the log of "
+    )
+    page.evaluate("() => { delete window.__pi.fakes.api_analyze_runs; }")
+    page.click("#box-cox-apply")
+    settled(page)
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]["spec"]
+    assert sent["analysis_transforms"] == {sent["response"]: "log"}
+    assert page.input_value("#transform") == "log"
+
+
 def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     generate(page, design_type="dsd", n_center_points=1)  # nine runs, simulated again
     choose(page, model="quadratic")
@@ -128,6 +167,22 @@ def test_a_model_the_design_cannot_fit_is_refused_in_a_sentence(page):
     assert status(page) == ("The results could not be analysed.", "error")
     assert "cannot fit the quadratic model" in page.text_content("#analysis p.error")
     assert page.is_hidden("#charts")
+
+
+def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(blank_page):
+    """Every square term calls I(), and a factor named I is fitted beside it under its own name in each table."""
+    page = blank_page
+    set_factors(page, [FACTORS[0], {**FACTORS[1], "name": "I"}, FACTORS[2]])
+    generate(page, design_type="box_behnken")
+    assert headers(page)[2:5] == ["T", "I", "F"]
+    practise(page)
+    assert status(page)[1] == "ok"
+    terms = ["T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
+    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", *terms]
+    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    assert anova == [*terms, "Residual"]
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 4")
+    assert "over T and I" in page.locator("#charts figcaption").first.text_content()
 
 
 def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page):

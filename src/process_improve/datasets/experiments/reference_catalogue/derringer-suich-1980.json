@@ -136,7 +136,8 @@
       "quote": "A three-variable, rotatable, central composite design with six center points"
      },
      "check": {
-      "manual": "a word, not a number: a CCD on a 2^3 cube is rotatable at alpha = 8^(1/4) = 1.682, and Table 1's 1.633 is the orthogonal-blocking alpha (checked above), so the design printed is orthogonally blocked, not rotatable"
+      "manual": "a word, not a number: a CCD on a 2^3 cube is rotatable at alpha = 8^(1/4) = 1.682, and Table 1's 1.633 is the orthogonal-blocking alpha (checked above), so the design printed is orthogonally blocked, not rotatable",
+      "cause": "not_a_result"
      }
     },
     {
@@ -149,7 +150,8 @@
       "quote": "we set Y1* = 120 and Y2* = 1000"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -162,7 +164,8 @@
       "quote": "we set Y1* = 120 and Y2* = 1000"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -175,7 +178,8 @@
       "quote": "we set Y1^* = 170 and Y2^* = 1300"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -188,7 +192,8 @@
       "quote": "we set Y1^* = 170 and Y2^* = 1300"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -201,7 +206,8 @@
       "quote": "Here Y3* = 400 and Y3^* = 600 while Y4* = 60 and Y4^* = 75"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -214,7 +220,8 @@
       "quote": "Here Y3* = 400 and Y3^* = 600 while Y4* = 60 and Y4^* = 75"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -227,7 +234,8 @@
       "quote": "Here Y3* = 400 and Y3^* = 600 while Y4* = 60 and Y4^* = 75"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -240,7 +248,8 @@
       "quote": "Here Y3* = 400 and Y3^* = 600 while Y4* = 60 and Y4^* = 75"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -253,7 +262,8 @@
       "quote": "we selected midpoints c3 = 500 and c4 = 67.5"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -266,7 +276,8 @@
       "quote": "we selected midpoints c3 = 500 and c4 = 67.5"
      },
      "check": {
-      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it"
+      "manual": "a limit the experimenters chose, a statement of the problem; the desirability checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -279,7 +290,8 @@
       "quote": "we set r = 1 in the transformation given by (2) for both Y1 and Y2"
      },
      "check": {
-      "manual": "an exponent of the desirability functions, a statement of method; the checks use it"
+      "manual": "an exponent of the desirability functions, a statement of method; the checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -292,7 +304,8 @@
       "quote": "Again constants of s = 1 and t = 1 were used"
      },
      "check": {
-      "manual": "an exponent of the desirability functions, a statement of method; the checks use it"
+      "manual": "an exponent of the desirability functions, a statement of method; the checks use it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -496,7 +509,8 @@
       "term": "Intercept",
       "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
       "response": "Y2",
-      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is 1261.133. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is 1261.113, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed."
+      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is 1261.133. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is 1261.113, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -565,7 +579,8 @@
       "term": "x1²",
       "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
       "response": "Y2",
-      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is -83.566. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is -83.546, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed."
+      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is -83.566. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is -83.546, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -583,7 +598,8 @@
       "term": "x2²",
       "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
       "response": "Y2",
-      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is -124.816. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is -124.791, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed."
+      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is -124.816. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is -124.791, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -601,7 +617,8 @@
       "term": "x3²",
       "model": "x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + I(x1**2) + I(x2**2) + I(x3**2)",
       "response": "Y2",
-      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is 199.182. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is 199.169, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed."
+      "disagreement": "With the axial runs' squares exactly 1.633^2 = 2.666689 this coefficient is 199.182. The paper's program evidently squared the axial setting as 2.667, rounded to three decimals, while the linear columns kept 1.633: refitted that way it is 199.169, and all ten of Y2's coefficients agree to their printed digits. Single precision, an axial setting of sqrt(8/3), 1.63 or 1.682, and a change to any one of the twenty Y2 values each leave a coefficient at least 0.02 off; the linear and cross-product coefficients and the standard error agree as printed.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1061,7 +1078,8 @@
        "x2": 0.145,
        "x3": -0.868
       },
-      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y1 = 129.43 (d1 = 0.1887, which agrees)."
+      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y1 = 129.43 (d1 = 0.1887, which agrees).",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1287,7 +1305,8 @@
        "x3": -0.868
       },
       "key": "d.2",
-      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y3 = 465.74 and d3 = 0.6574. Table 3 is not consistent with itself here: it prints Y3 = 465.7, and (465.7 - 400)/100 = 0.657; no value of Y3 rounds both to 465.7 and to d3 = 0.656."
+      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y3 = 465.74 and d3 = 0.6574. Table 3 is not consistent with itself here: it prints Y3 = 465.7, and (465.7 - 400)/100 = 0.657; no value of Y3 rounds both to 465.7 and to d3 = 0.656.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1343,7 +1362,8 @@
        "x3": -0.868
       },
       "key": "d.3",
-      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y4 = 68.002 and d4 = 0.9330. The printed 0.932 needs Y4 between 68.006 and 68.014."
+      "disagreement": "Table 3 prints the optimum rounded to three decimals, and its predictions come from the unrounded optimum, which it does not print. At the printed point the fitted model gives Y4 = 68.002 and d4 = 0.9330. The printed 0.932 needs Y4 between 68.006 and 68.014.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1451,7 +1471,8 @@
        }
       ],
       "key": "optimal_actual.x1",
-      "disagreement": "D is flat at its maximum: the library's search finds D = 0.583271 at (-0.053, 0.150, -0.868), and at the printed point D is 0.583263, so the paper's pattern search stopped within 1e-5 of the maximum but about 0.003 from it in x1 and x2. The maximum D itself agrees, as printed."
+      "disagreement": "D is flat at its maximum: the library's search finds D = 0.583271 at (-0.053, 0.150, -0.868), and at the printed point D is 0.583263, so the paper's pattern search stopped within 1e-5 of the maximum but about 0.003 from it in x1 and x2. The maximum D itself agrees, as printed.",
+      "cause": "method"
      }
     },
     {
@@ -1503,7 +1524,8 @@
        }
       ],
       "key": "optimal_actual.x2",
-      "disagreement": "D is flat at its maximum: the library's search finds D = 0.583271 at (-0.053, 0.150, -0.868), and at the printed point D is 0.583263, so the paper's pattern search stopped within 1e-5 of the maximum but about 0.003 from it in x1 and x2. The maximum D itself agrees, as printed."
+      "disagreement": "D is flat at its maximum: the library's search finds D = 0.583271 at (-0.053, 0.150, -0.868), and at the printed point D is 0.583263, so the paper's pattern search stopped within 1e-5 of the maximum but about 0.003 from it in x1 and x2. The maximum D itself agrees, as printed.",
+      "cause": "method"
      }
     },
     {
@@ -1618,7 +1640,8 @@
       "quote": "The algorithm we employed generally converged in fewer than 250 iterations"
      },
      "check": {
-      "manual": "a property of the authors' FORTRAN program, not of the data"
+      "manual": "a property of the authors' FORTRAN program, not of the data",
+      "cause": "not_a_result"
      }
     }
    ],

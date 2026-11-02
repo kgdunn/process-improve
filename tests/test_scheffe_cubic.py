@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import math
 import warnings
 
@@ -148,11 +147,15 @@ class TestDesigns:
         assert all(np.isclose(runs, point).all(axis=1).any() for point in candidates["edge_third"])
         assert np.linalg.matrix_rank(scheffe_matrix(runs, "scheffe_cubic")) == 10
 
-    def test_a_budget_below_the_number_of_terms_is_raised_to_it(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            result = generate_design(_components(3), "mixture", model_type="cubic", budget=8, random_state=1)
-        assert "cannot estimate a scheffe_cubic model with 10 terms; raising the budget to 10" in caplog.text
-        assert (result.n_runs, result.metadata["budget_requested"]) == (10, 8)
+    def test_a_budget_below_the_number_of_terms_is_refused(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"budget=8 run\(s\) cannot estimate the scheffe_cubic model, which has 10"
+        ):
+            generate_design(_components(3), "mixture", model_type="cubic", budget=8, random_state=1)
+
+    def test_a_budget_of_one_run_per_term_fits_the_model(self) -> None:
+        result = generate_design(_components(3), "mixture", model_type="cubic", budget=10, random_state=1)
+        assert result.n_runs == 10
         assert np.linalg.matrix_rank(scheffe_matrix(result.design_actual[NAMES].to_numpy(dtype=float), "cubic")) == 10
 
     def test_the_design_catalog_lists_the_lattices(self) -> None:

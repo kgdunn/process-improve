@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedKFold, check_cv
+from sklearn.model_selection import BaseCrossValidator, StratifiedKFold, check_cv
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
@@ -45,7 +45,7 @@ def _gaussian_log_density(x: np.ndarray, mean: float, sd: float) -> np.ndarray:
 def _mean_and_sd(values: np.ndarray) -> tuple[float, float]:
     """Mean and sample standard deviation, with a single value giving a spread of zero."""
     if values.size < 2:  # one observation has a mean but no spread
-        return (float(values[0]) if values.size else 0.0), 0.0
+        return float(values[0]), 0.0
     return float(values.mean()), float(values.std(ddof=1))
 
 
@@ -84,7 +84,7 @@ def _bayes_threshold(mean_in: float, sd_in: float, mean_out: float, sd_out: floa
         The indicator value above which a sample is assigned to the class.
     """
     sd_in, sd_out = max(sd_in, _SD_FLOOR), max(sd_out, _SD_FLOOR)
-    lo, hi = (mean_out, mean_in) if mean_out <= mean_in else (mean_in, mean_out)
+    lo, hi = sorted((mean_in, mean_out))
     midpoint = 0.5 * (mean_in + mean_out)
 
     a = 1.0 / (2.0 * sd_out**2)
@@ -95,10 +95,10 @@ def _bayes_threshold(mean_in: float, sd_in: float, mean_out: float, sd_out: floa
     if abs(quad) <= epsqrt * max(abs(lin), 1.0):  # equal spreads: one linear root
         return midpoint if abs(lin) <= epsqrt else float(-const / lin)
 
-    discriminant = lin**2 - 4.0 * quad * const
-    if discriminant < 0:  # the densities never cross; nothing separates them
-        return midpoint
-    root = np.sqrt(discriminant)
+    # A negative discriminant means the densities never cross: its NaN roots lie between
+    # no means, and the midpoint stands in.
+    with np.errstate(invalid="ignore"):
+        root = np.sqrt(lin**2 - 4.0 * quad * const)
     candidates = [(-lin + root) / (2.0 * quad), (-lin - root) / (2.0 * quad)]
     between = [t for t in candidates if lo <= t <= hi]
     return float(between[0]) if between else midpoint
@@ -179,7 +179,10 @@ class PLSDA(ClassifierMixin, PLS):
     Every fitted attribute of :class:`PLS` is also present (``scores_``, ``x_loadings_``,
     ``x_weights_``, ``r2_cumulative_``, ``hotellings_t2_``, ...), along with its
     convenience methods (``score_plot``, ``loading_plot``, ``vip``, ``spe_limit``,
-    ``t2_contributions``, ...), because this class is a :class:`PLS`.
+    ``t2_contributions``, ...), because this class is a :class:`PLS`. Its cross-validation
+    (:meth:`select_n_components`, :meth:`compare_cv_criteria`, :meth:`pseudo_validation_set`,
+    :meth:`nested_cv` and :meth:`cross_validate`) takes the class labels and runs PLS's on
+    their class-indicator matrix.
 
     Examples
     --------
@@ -214,7 +217,7 @@ class PLSDA(ClassifierMixin, PLS):
         decision_rule: str = "max",
         priors: str | np.ndarray | list[float] = "empirical",
         scale: bool = True,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         tol: float = epsqrt,
         copy: bool = True,
         missing_data_settings: dict | None = None,
@@ -277,18 +280,14 @@ class PLSDA(ClassifierMixin, PLS):
         ------
         ValueError
             If ``y`` holds fewer than two distinct labels (there is nothing to
-            discriminate), if its length does not match ``X``, or if ``decision_rule`` /
-            ``priors`` is not a recognised value.
+            discriminate), if its length does not match ``X``, if a row has no label, or
+            if ``decision_rule`` / ``priors`` is not a recognised value.
         """
         if self.decision_rule not in self._DECISION_RULES:
             msg = f"decision_rule must be one of {self._DECISION_RULES}; got {self.decision_rule!r}."
             raise ValueError(msg)
 
-        labels = np.asarray(y).ravel()
-        n_rows = X.shape[0]
-        if labels.shape[0] != n_rows:
-            msg = f"X has {n_rows} rows but y has {labels.shape[0]} labels."
-            raise ValueError(msg)
+        labels, dummy = _indicator_matrix(X, y)
         classes = np.unique(labels)
         min_classes = 2
         if classes.size < min_classes:
@@ -298,13 +297,6 @@ class PLSDA(ClassifierMixin, PLS):
         self.classes_ = classes
         self.n_classes_ = int(classes.size)
         self.priors_ = self._resolve_priors(labels)
-
-        index = X.index if isinstance(X, pd.DataFrame) else pd.RangeIndex(n_rows)
-        dummy = pd.DataFrame(
-            (labels[:, None] == classes[None, :]).astype(float),
-            index=index,
-            columns=[str(c) for c in classes],
-        )
         super().fit(X, dummy, sample_weight=sample_weight)
         self._fit_decision_layer(labels)
         return self
@@ -315,7 +307,7 @@ class PLSDA(ClassifierMixin, PLS):
             if self.priors == "uniform":
                 return np.full(self.n_classes_, 1.0 / self.n_classes_)
             if self.priors == "empirical":
-                counts = np.array([(labels == c).sum() for c in self.classes_], dtype=float)
+                counts = np.array([(labels == c).sum() for c in self.classes_])
                 return counts / counts.sum()
             msg = f"priors must be 'empirical', 'uniform', or an array; got {self.priors!r}."
             raise ValueError(msg)
@@ -336,11 +328,10 @@ class PLSDA(ClassifierMixin, PLS):
         the original (un-scaled) Y scale, rather than re-predicting: the numbers are the
         same and the training X does not have to be kept alive on the model.
         """
-        scores = self.predictions_.copy()
-        scores.columns = pd.Index(self.classes_, name="class")
+        scores = self.predictions_
         rows = []
         for position, klass in enumerate(self.classes_):
-            column = scores.iloc[:, position].to_numpy(dtype=float)
+            column = scores.iloc[:, position].to_numpy()
             inside = labels == klass
             mean_in, sd_in = _mean_and_sd(column[inside])
             mean_out, sd_out = _mean_and_sd(column[~inside])
@@ -380,8 +371,7 @@ class PLSDA(ClassifierMixin, PLS):
         scores : pd.DataFrame of shape (n_samples, n_classes)
             Indexed by ``X``'s rows, columns in :attr:`classes_` order.
         """
-        check_is_fitted(self, "classes_")
-        predicted = super().predict(X)
+        predicted = super().predict(X)  # which refuses an unfitted model
         predicted.columns = pd.Index(self.classes_, name="class")
         return predicted
 
@@ -409,7 +399,6 @@ class PLSDA(ClassifierMixin, PLS):
         proba : np.ndarray of shape (n_samples, n_classes)
             Rows sum to 1; columns in :attr:`classes_` order, as sklearn requires.
         """
-        check_is_fitted(self, "class_statistics_")
         evidence = self._log_evidence(self.decision_function(X))
         # Subtract the row maximum before exponentiating: the terms can underflow to zero
         # outright on a well-separated model, which would make the row sum 0/0.
@@ -432,7 +421,7 @@ class PLSDA(ClassifierMixin, PLS):
         ``g`` is exactly where ``prior_g * LR_g`` crosses ``1 - prior_g``, so the rule and
         the reported thresholds cannot disagree.
         """
-        values = scores.to_numpy(dtype=float)
+        values = scores.to_numpy()
         stats = self.class_statistics_
         return np.column_stack(
             [
@@ -450,7 +439,7 @@ class PLSDA(ClassifierMixin, PLS):
     def _assign(self, scores: pd.DataFrame) -> np.ndarray:
         """Apply the configured decision rule to a table of indicator values."""
         if self.decision_rule == "max":
-            return self.classes_[np.argmax(scores.to_numpy(dtype=float), axis=1)]
+            return self.classes_[np.argmax(scores.to_numpy(), axis=1)]
         return self.classes_[np.argmax(self._log_evidence(scores), axis=1)]
 
     def predict(self, X: DataMatrix) -> np.ndarray:  # type: ignore[override]
@@ -476,7 +465,6 @@ class PLSDA(ClassifierMixin, PLS):
         decision_function : the indicator values the rule is applied to.
         predict_proba : class posteriors.
         """
-        check_is_fitted(self, "classes_")
         return self._assign(self.decision_function(X))
 
     def score(self, X: DataMatrix, y: DataMatrix, sample_weight: np.ndarray | None = None) -> float:
@@ -487,13 +475,8 @@ class PLSDA(ClassifierMixin, PLS):
         samples land in the right class. sklearn's convention (higher is better) holds
         either way, but only accuracy answers the question a classifier is asked.
         """
-        predicted = self.predict(X)
-        truth = np.asarray(y).ravel()
-        correct = (predicted == truth).astype(float)
-        if sample_weight is None:
-            return float(correct.mean())
-        weights = np.asarray(sample_weight, dtype=float).ravel()
-        return float(np.average(correct, weights=weights))
+        correct = self.predict(X) == np.ravel(y)
+        return float(np.average(correct, weights=None if sample_weight is None else np.ravel(sample_weight)))
 
     def _confusion(self, truth: np.ndarray, predicted: np.ndarray) -> pd.DataFrame:
         """Confusion matrix as a labelled frame: rows true, columns predicted."""
@@ -510,17 +493,17 @@ class PLSDA(ClassifierMixin, PLS):
     @staticmethod
     def _rates(confusion: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """Per-class sensitivity and specificity from a confusion matrix."""
-        counts = confusion.to_numpy(dtype=float)
+        counts = confusion.to_numpy()
         true_positive = np.diag(counts)
         actual = counts.sum(axis=1)
-        predicted = counts.sum(axis=0)
-        total = counts.sum()
-        false_positive = predicted - true_positive
-        true_negative = total - actual - false_positive
-        with np.errstate(invalid="ignore", divide="ignore"):
-            sensitivity = np.where(actual > 0, true_positive / actual, np.nan)
-            negatives = total - actual
-            specificity = np.where(negatives > 0, true_negative / negatives, np.nan)
+        negatives = counts.sum() - actual
+        true_negative = negatives - (counts.sum(axis=0) - true_positive)
+        # A class absent from the rows has no positives and gives 0 / 0. So does a class that
+        # is the only one in them: every row it is predicted for is then its own, so it has
+        # no false positive and no true negative either. Both rates are NaN there.
+        with np.errstate(invalid="ignore"):
+            sensitivity = true_positive / actual
+            specificity = true_negative / negatives
         index = confusion.index.rename("class")
         return pd.Series(sensitivity, index=index, name="sensitivity"), pd.Series(
             specificity, index=index, name="specificity"
@@ -550,7 +533,7 @@ class PLSDA(ClassifierMixin, PLS):
         ValueError
             If ``y`` holds a label the model was not fitted on.
         """
-        check_is_fitted(self, "classes_")
+        check_is_fitted(self)
         truth = np.asarray(y).ravel()
         unseen = set(np.unique(truth)) - set(self.classes_.tolist())
         if unseen:
@@ -594,7 +577,7 @@ class PLSDA(ClassifierMixin, PLS):
             If ``positive_class`` is omitted with more than two classes, or names a class
             the model was not fitted on.
         """
-        check_is_fitted(self, "classes_")
+        check_is_fitted(self)
         binary = 2
         if positive_class is None:
             if self.n_classes_ != binary:
@@ -609,8 +592,8 @@ class PLSDA(ClassifierMixin, PLS):
             msg = f"positive_class {positive_class!r} is not one of {self.classes_.tolist()}."
             raise ValueError(msg)
         column = int(matches[0])
-        scores = self.decision_function(X).to_numpy(dtype=float)[:, column]
-        return float(roc_auc_score((np.asarray(y).ravel() == positive_class).astype(int), scores))
+        scores = self.decision_function(X).to_numpy()[:, column]
+        return float(roc_auc_score(np.ravel(y) == positive_class, scores))
 
     def permutation_test(
         self,
@@ -680,18 +663,19 @@ class PLSDA(ClassifierMixin, PLS):
             set of shuffles licenses a claim of exactly zero; the same convention is used
             by the Van der Voet and multiblock randomization tests in this package.
         """
-        check_is_fitted(self, "classes_")
+        check_is_fitted(self)
         rng = check_random_state(random_state)
         labels = np.asarray(y).ravel()
+        rows = pd.DataFrame(X)  # selected by position; PLS reads an array's columns by position too
 
         def accuracy(target: np.ndarray) -> float:
             if cv is None:
                 model = self._clone_unfitted().fit(X, target)
                 return float((model.predict(X) == target).mean())
-            splitter = check_cv(StratifiedKFold(cv) if isinstance(cv, int) else cv, target, classifier=True)
+            splitter = StratifiedKFold(cv) if isinstance(cv, int) else check_cv(cv)
             correct = 0
             for train_idx, test_idx in splitter.split(np.zeros(len(target)), target):
-                x_train, x_test = _take_rows(X, train_idx), _take_rows(X, test_idx)
+                x_train, x_test = rows.iloc[train_idx], rows.iloc[test_idx]
                 model = self._clone_unfitted().fit(x_train, target[train_idx])
                 correct += int((model.predict(x_test) == target[test_idx]).sum())
             return correct / len(target)
@@ -728,9 +712,9 @@ class PLSDA(ClassifierMixin, PLS):
                 f"n_components={self.n_components} and were dropped; the p-value is over the "
                 f"remaining {len(draws)}. Fewer components would make the null complete.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
             )
-        null = np.asarray(draws, dtype=float)
+        null = np.asarray(draws)
         p_value = float((1 + int(np.sum(null >= observed))) / (1 + null.size))
         return Bunch(
             observed=observed,
@@ -744,7 +728,87 @@ class PLSDA(ClassifierMixin, PLS):
         """Build a fresh, unfitted copy carrying this model's constructor parameters."""
         return type(self)(**self.get_params())
 
+    # PLS's cross-validation reads Y as a numeric response, so for class labels each of the
+    # five below runs PLS's own on the class-indicator matrix: the regression this class
+    # fits. A splitter is given the labels, so StratifiedKFold keeps each class's share in
+    # every fold; an integer gives PLS's shuffled K-fold. The other settings are PLS's.
 
-def _take_rows(X: DataMatrix, rows: np.ndarray) -> DataMatrix:
-    """Positional row selection that works for both a DataFrame and an ndarray."""
-    return X.iloc[rows] if isinstance(X, pd.DataFrame) else np.asarray(X)[rows]
+    @classmethod
+    def select_n_components(
+        cls, X: DataMatrix, Y: DataMatrix | pd.Series, *, cv: int | BaseCrossValidator = 5, **pls_kwargs
+    ) -> Bunch:
+        """Run :meth:`PLS.select_n_components` on the class-indicator matrix of the labels ``Y``."""
+        labels, indicators = _indicator_matrix(X, Y)
+        return PLS.select_n_components(X, indicators, cv=_label_splits(cv, X, labels), **pls_kwargs)
+
+    @classmethod
+    def compare_cv_criteria(
+        cls, X: DataMatrix, Y: DataMatrix | pd.Series, *, cv: int | BaseCrossValidator = 7, **pls_kwargs
+    ) -> Bunch:
+        """Run :meth:`PLS.compare_cv_criteria` on the class-indicator matrix of the labels ``Y``.
+
+        ``global_model`` is the :class:`PLS` fitted to that matrix.
+        """
+        labels, indicators = _indicator_matrix(X, Y)
+        return PLS.compare_cv_criteria(X, indicators, cv=_label_splits(cv, X, labels), **pls_kwargs)
+
+    @classmethod
+    def pseudo_validation_set(
+        cls, X: DataMatrix, Y: DataMatrix | pd.Series, *, cv: int | BaseCrossValidator = 7, **pls_kwargs
+    ) -> Bunch:
+        """Run :meth:`PLS.pseudo_validation_set` on the class-indicator matrix of the labels ``Y``.
+
+        ``Y_pv`` is that matrix, and ``global_model`` the :class:`PLS` fitted to it.
+        """
+        labels, indicators = _indicator_matrix(X, Y)
+        return PLS.pseudo_validation_set(X, indicators, cv=_label_splits(cv, X, labels), **pls_kwargs)
+
+    @classmethod
+    def nested_cv(
+        cls, X: DataMatrix, Y: DataMatrix | pd.Series, *, outer_cv: int | BaseCrossValidator = 5, **pls_kwargs
+    ) -> Bunch:
+        """Run :meth:`PLS.nested_cv` on the class-indicator matrix of the labels ``Y``."""
+        labels, indicators = _indicator_matrix(X, Y)
+        return PLS.nested_cv(X, indicators, outer_cv=_label_splits(outer_cv, X, labels), **pls_kwargs)
+
+    def cross_validate(self, X: DataMatrix, Y: DataMatrix | pd.Series, **settings) -> Bunch:
+        """Run :meth:`PLS.cross_validate` for a :class:`PLS` with this model's settings and its labels ``Y``.
+
+        That :class:`PLS` is fitted to the class-indicator matrix of ``Y``, and its
+        coefficients are the ones resampled.
+        """
+        _, indicators = _indicator_matrix(X, Y)
+        pls_settings = {
+            name: value for name, value in self.get_params().items() if name not in ("decision_rule", "priors")
+        }
+        # cross_validate reads from the fitted model only the labels of its coefficients.
+        return PLS(**pls_settings).fit(X, indicators).cross_validate(X, indicators, **settings)
+
+
+def _indicator_matrix(X: DataMatrix, y: DataMatrix | pd.Series) -> tuple[np.ndarray, pd.DataFrame]:
+    """Return the labels as one flat array, and the class-indicator matrix PLS-DA regresses ``X`` on.
+
+    The matrix has one column per class, sorted and named ``str(class)``, holding 1.0 where
+    a row is in that class and 0.0 elsewhere, and ``X``'s row labels.
+    """
+    labels = np.asarray(y).ravel()
+    if labels.shape[0] != X.shape[0]:
+        msg = f"X has {X.shape[0]} rows but y has {labels.shape[0]} labels."
+        raise ValueError(msg)
+    missing = int(pd.isna(labels).sum())
+    if missing:
+        msg = f"y has no label in {missing} of its rows; every row needs a class."
+        raise ValueError(msg)
+    classes = np.unique(labels)
+    index = X.index if isinstance(X, pd.DataFrame) else pd.RangeIndex(labels.shape[0])
+    indicators = np.where(labels[:, None] == classes[None, :], 1.0, 0.0)
+    return labels, pd.DataFrame(indicators, index=index, columns=[str(klass) for klass in classes])
+
+
+def _label_splits(cv: int | BaseCrossValidator, X: DataMatrix, labels: np.ndarray) -> int | BaseCrossValidator:
+    """Return a splitter's folds of ``X``, split by the class labels; any other ``cv`` as given.
+
+    A stratified splitter reads its target to keep each class's share in every fold, and
+    refuses the indicator matrix as a multilabel target, so it is given the labels.
+    """
+    return check_cv(list(cv.split(X, labels))) if hasattr(cv, "split") else cv

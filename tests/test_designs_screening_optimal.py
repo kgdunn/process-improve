@@ -153,16 +153,17 @@ class TestDOptimalDispatch:
         assert meta["grid_sampled"]
         assert meta["n_candidates"] <= MAX_CANDIDATES
 
-    def test_budget_clamped_to_minimum_model_size(self) -> None:
-        """A budget below the model size is raised to it, so the model is estimable.
+    def test_budget_below_the_model_size_is_refused(self) -> None:
+        """A budget below the model size raises (#957), counting the model asked for.
 
         The floor used to be ``k + 1``, the size of a main-effects model, even
         for the default ``model_type="interactions"``: three factors give
         1 + 3 + 3 = 7 coefficients, not 4.
         """
-        design, _meta = dispatch_d_optimal(_continuous(3), budget=2)
+        with pytest.raises(ValueError, match="which has 7 coefficients"):
+            dispatch_d_optimal(_continuous(3), budget=2)
+        design, _meta = dispatch_d_optimal(_continuous(3), budget=7)
         assert design.shape[0] == 7
-        assert np.linalg.matrix_rank(np.column_stack([np.ones(design.shape[0]), design])) == 4
 
     def test_budget_above_the_number_of_candidates_replicates_runs(self) -> None:
         """The exchange may pick a candidate twice, so a large budget gives replicates, not a short design."""
@@ -170,12 +171,16 @@ class TestDOptimalDispatch:
         assert design.shape == (50, 2)
         assert len(np.unique(design, axis=0)) < 50
 
-    @pytest.mark.parametrize(("model_type", "n_runs"), [("main_effects", 8), ("interactions", 8), ("quadratic", 10)])
-    def test_model_type_sets_the_budget_floor_on_the_fallback_path(self, model_type: str, n_runs: int) -> None:
-        """A quadratic model over three factors has 10 coefficients, so a budget of 8 is raised to 10."""
+    @pytest.mark.parametrize("model_type", ["main_effects", "interactions"])
+    def test_a_budget_above_the_model_is_kept_on_the_fallback_path(self, model_type: str) -> None:
         design, meta = dispatch_d_optimal(_continuous(3), budget=8, model_type=model_type)
-        assert design.shape == (n_runs, 3)
+        assert design.shape == (8, 3)
         assert meta["backend"] == "candidate_exchange"
+
+    def test_model_type_sets_the_budget_floor_on_the_fallback_path(self) -> None:
+        """A quadratic model over three factors has 10 coefficients, so a budget of 8 is refused (#957)."""
+        with pytest.raises(ValueError, match="which has 10 coefficients"):
+            dispatch_d_optimal(_continuous(3), budget=8, model_type="quadratic")
 
     def test_the_criterion_follows_the_model(self) -> None:
         """The old point-exchange fallback scored a first-order model whatever was asked for.

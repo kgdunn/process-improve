@@ -152,6 +152,18 @@ export const GLOSSARY = {
   "pure-error":
     "The spread among runs repeated at the same settings: the run-to-run variability of the system, without " +
     "reference to any model.",
+  "signal-to-noise":
+    "Taguchi's summary of the readings at one setting, in decibels, higher being better. Larger is better: " +
+    "-10 log10 of the mean of 1/y². Smaller is better: -10 log10 of the mean of y². Nominal is best: 10 log10(ȳ²/s²).",
+  "ln-s":
+    "The natural logarithm of the standard deviation of the readings at one setting. Its averages show which " +
+    "factors move the spread, apart from the mean.",
+  "response-table":
+    "Each summary of the readings averaged over the settings at each level of a factor. A factor's delta is its " +
+    "largest average less its smallest; its rank orders the factors by it, 1 the largest.",
+  "adjustment-factor":
+    "A factor that moves the mean but not the spread. Once the other factors are set for the smallest spread, " +
+    "Taguchi's second step moves the mean to the target with it.",
   "response-surface":
     "The fitted model drawn over two factors, as contours of the predicted response, with the other factors at " +
     "their centers.",
@@ -223,6 +235,10 @@ export const MARKED = {
   "Residual degrees of freedom": "residual-df",
   "Lack of fit": "lack-of-fit",
   "pure error": "pure-error",
+  "signal-to-noise ratio": "signal-to-noise",
+  "ln s": "ln-s",
+  "response table": "response-table",
+  "adjustment factor": "adjustment-factor",
   "variance inflation factor": "vif",
   PSE: "pse",
   ME: "me",

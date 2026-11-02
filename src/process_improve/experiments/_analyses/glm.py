@@ -88,9 +88,10 @@ def _trials(df: pd.DataFrame, trials: str | float | Sequence[float] | None) -> n
     if trials is None:
         return None
     if isinstance(trials, str):
-        return df[trials].to_numpy(dtype=float)
-    found = np.broadcast_to(np.asarray(trials, dtype=float), (len(df),)).copy()
-    if np.any(found <= 0):
+        found = df[trials].to_numpy(dtype=float)  # a missing count already dropped its run
+    else:
+        found = np.broadcast_to(np.asarray(trials, dtype=float), (len(df),)).copy()
+    if np.any(found <= 0):  # a column too (#1001): a zero reached statsmodels, which divided by it
         raise ValueError("Every run's number of trials must be positive.")
     return found
 

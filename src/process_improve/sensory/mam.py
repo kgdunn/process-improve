@@ -40,6 +40,7 @@ effects models", Journal of Statistical Software, 82(13), 2017.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
@@ -82,7 +83,8 @@ class MAMResult:
         One row per attribute with the MAM and classical product-effect
         F-tests: ``f_product_mam`` / ``p_product_mam`` (disagreement as error)
         and ``f_product_classical`` / ``p_product_classical`` (raw interaction
-        as error), plus the degrees of freedom.
+        as error), plus the degrees of freedom. The four F-test columns are NaN
+        for an attribute where a panelist did not score every product.
     """
 
     scaling: pd.DataFrame
@@ -136,6 +138,15 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         would meet the problem as a ``KeyError`` on ``ftests["f_product_mam"]``
         rather than here.
 
+    Warns
+    -----
+    RuntimeWarning
+        If, for some attribute, a panelist did not score every product. The
+        sums of squares behind the F-tests add up only on a complete
+        panelist-by-product table, so that attribute's F-tests are NaN; the
+        scaling coefficients are still estimated from the cells present.
+        :func:`mixed_assessor_model_reml` handles missing cells.
+
     Examples
     --------
     >>> mam = mixed_assessor_model(validated.normalized_df)
@@ -157,6 +168,7 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
 
     scaling_rows: list[dict[str, object]] = []
     ftest_rows: list[dict[str, object]] = []
+    incomplete: list[str] = []
 
     for attribute in sorted(panel["attribute"].unique()):
         matrix = _cell_means(panel, attribute)
@@ -199,6 +211,12 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
 
         f_mam, p_mam = _ftest(ss_disagreement, df_disagreement)
         f_classical, p_classical = _ftest(ss_interaction, df_interaction)
+        if matrix.isna().to_numpy().any():
+            # ss_interaction is the remainder of ss_total after the product and assessor sums,
+            # which holds only for a complete table: with a missing cell the F-tests were
+            # sometimes NaN and sometimes a finite number on the wrong degrees of freedom.
+            incomplete.append(str(attribute))
+            f_mam = p_mam = f_classical = p_classical = float("nan")
         ftest_rows.append(
             {
                 "attribute": str(attribute),
@@ -211,6 +229,14 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
             }
         )
 
+    if incomplete:
+        warnings.warn(
+            f"mixed_assessor_model: in attribute(s) {incomplete} a panelist did not score every product. The "
+            "closed-form F-tests need a complete panelist-by-product table, so they are NaN for these "
+            "attributes. Use mixed_assessor_model_reml, which handles missing cells.",
+            category=RuntimeWarning,
+            stacklevel=2,
+        )
     return MAMResult(scaling=pd.DataFrame(scaling_rows), ftests=pd.DataFrame(ftest_rows))
 
 

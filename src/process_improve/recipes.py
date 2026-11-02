@@ -29,6 +29,7 @@ from __future__ import annotations
 import importlib
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -47,13 +48,16 @@ logger = logging.getLogger(__name__)
 class RecipeStep:
     """One step in an analysis recipe the agent should execute.
 
+    ``tools`` is stored as a tuple, whatever sequence was passed in, and ``arg_hints`` as a
+    copy of the mapping passed in.
+
     Attributes
     ----------
     order : int
         1-based position of the step in the recipe.
     directive : str
         Natural-language instruction telling the agent what to do.
-    tools : list of str
+    tools : tuple of str
         Names of agent tools this step may call (empty for prose-only steps
         such as interpretation or data assembly).
     arg_hints : dict
@@ -63,13 +67,24 @@ class RecipeStep:
 
     order: int
     directive: str
-    tools: list[str] = field(default_factory=list)
-    arg_hints: dict[str, str] = field(default_factory=dict)
+    tools: Sequence[str] = ()
+    # shortcut: a dict, which frozen=True does not protect, because a read-only mappingproxy cannot be
+    # pickled or deep-copied; use an immutable mapping if a caller comes to rely on it. A dict has no
+    # hash, so it is left out of the hash (equal steps still hash equal).
+    arg_hints: dict[str, str] = field(default_factory=dict, hash=False)
+
+    def __post_init__(self) -> None:
+        """Store ``tools`` as a tuple and ``arg_hints`` as a copy, so no caller's list or dict is shared."""
+        object.__setattr__(self, "tools", tuple(self.tools))
+        object.__setattr__(self, "arg_hints", dict(self.arg_hints))
 
 
 @dataclass(frozen=True)
 class AnalysisRecipe:
     """A reusable, multi-step analysis workflow for the agent.
+
+    The recipe is hashable, and its sequences cannot be changed in place: each is stored as a
+    tuple, whatever sequence was passed in.
 
     Attributes
     ----------
@@ -81,13 +96,13 @@ class AnalysisRecipe:
         One-paragraph description of what the recipe does and when to use it.
     domain : str
         The subpackage the recipe belongs to (e.g. ``"sensory"``).
-    cue_phrases : list of str
+    cue_phrases : tuple of str
         Lower-case substrings; each one found in a user's request scores the
         recipe one point during matching.
-    inputs_needed : list of str
+    inputs_needed : tuple of str
         What the agent must resolve from the user before running, each with a
         short example.
-    stages : list of RecipeStep
+    stages : tuple of RecipeStep
         The ordered steps. Empty for a planned (not yet available) recipe.
     status : str
         ``"available"`` (default) or ``"planned"`` for parked future work.
@@ -97,10 +112,18 @@ class AnalysisRecipe:
     title: str
     summary: str
     domain: str
-    cue_phrases: list[str]
-    inputs_needed: list[str]
-    stages: list[RecipeStep]
+    cue_phrases: Sequence[str]
+    inputs_needed: Sequence[str]
+    stages: Sequence[RecipeStep]
     status: str = "available"
+    #: ``cue_phrases`` in the form :func:`select_recipe` compares, computed once here rather than per query.
+    _canonical_cues: tuple[str, ...] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Store each sequence as a tuple, and canonicalise the cue phrases once."""
+        for name in ("cue_phrases", "inputs_needed", "stages"):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
+        object.__setattr__(self, "_canonical_cues", tuple(_canonicalise(phrase) for phrase in self.cue_phrases))
 
     def to_payload(self) -> dict[str, Any]:
         """Serialise to a JSON-friendly dict the agent can consume."""
@@ -110,13 +133,13 @@ class AnalysisRecipe:
             "summary": self.summary,
             "domain": self.domain,
             "status": self.status,
-            "inputs_needed": self.inputs_needed,
+            "inputs_needed": list(self.inputs_needed),
             "stages": [
                 {
                     "step": s.order,
                     "directive": s.directive,
-                    **({"tools": s.tools} if s.tools else {}),
-                    **({"arg_hints": s.arg_hints} if s.arg_hints else {}),
+                    **({"tools": list(s.tools)} if s.tools else {}),
+                    **({"arg_hints": dict(s.arg_hints)} if s.arg_hints else {}),
                 }
                 for s in self.stages
             ],
@@ -210,7 +233,7 @@ def select_recipe(query: str) -> AnalysisRecipe | None:
     best: AnalysisRecipe | None = None
     best_score = 0
     for recipe in _RECIPE_REGISTRY.values():
-        score = sum(1 for phrase in recipe.cue_phrases if _canonicalise(phrase) in canonical)
+        score = sum(1 for phrase in recipe._canonical_cues if phrase in canonical)
         if score > best_score:
             best_score = score
             best = recipe

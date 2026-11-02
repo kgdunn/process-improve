@@ -161,7 +161,7 @@ def test_fetch_remote_bytes_explicit_timeout_wins(monkeypatch: pytest.MonkeyPatc
 def test_read_remote_csv_reads_a_local_file_url(tmp_path: pathlib.Path) -> None:
     """A ``file://`` URL reads a local copy, which is how a downloaded workbook is used offline."""
     csv_path = tmp_path / "data.csv"
-    csv_path.write_text("batch_id,time,Temp\n1,1,0.5\n1,2,0.6\n")
+    csv_path.write_text("batch_id,time,Temp\n1,1,0.5\n1,2,0.6\n", encoding="utf-8")
     frame = remote_data.read_remote_csv(csv_path.as_uri())
     pd.testing.assert_frame_equal(frame, pd.DataFrame({"batch_id": [1, 1], "time": [1, 2], "Temp": [0.5, 0.6]}))
 

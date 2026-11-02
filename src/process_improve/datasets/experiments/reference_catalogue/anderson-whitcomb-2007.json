@@ -59,7 +59,8 @@
       "quote": "Table 5-1 4 ... Fraction for Screening 12 Savings 25%"
      },
      "check": {
-      "manual": "an irregular 3/4 fraction of the 2^4; the library makes regular fractions only, the 8-run half and the 16-run whole"
+      "manual": "an irregular 3/4 fraction of the 2^4; the library makes regular fractions only, the 8-run half and the 16-run whole",
+      "cause": "library_gap"
      }
     },
     {
@@ -72,7 +73,8 @@
       "quote": "Table 5-1 4 ... Savings 25%"
      },
      "check": {
-      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts"
+      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts",
+      "cause": "not_a_result"
      }
     },
     {
@@ -153,7 +155,8 @@
       "quote": "Table 5-1 5 ... Savings 50%"
      },
      "check": {
-      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts"
+      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts",
+      "cause": "not_a_result"
      }
     },
     {
@@ -234,7 +237,8 @@
       "quote": "Table 5-1 6 ... Savings 50%"
      },
      "check": {
-      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts"
+      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts",
+      "cause": "not_a_result"
      }
     },
     {
@@ -319,7 +323,8 @@
          "n_center_points": 0
         }
        },
-       "disagreement": "the library's smallest resolution IV fraction of seven factors is the 16-run 2^(7-3); the book recommends the 32-run 2^(7-2), whose two-factor interactions are mostly clear"
+       "disagreement": "the library's smallest resolution IV fraction of seven factors is the 16-run 2^(7-3); the book recommends the 32-run 2^(7-2), whose two-factor interactions are mostly clear",
+       "cause": "method"
       }
      ]
     },
@@ -333,7 +338,8 @@
       "quote": "Table 5-1 7 ... Savings 75%"
      },
      "check": {
-      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts"
+      "manual": "one less the share of the full factorial run, 1 - runs/2^k: arithmetic of the two run counts",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2351,7 +2357,8 @@
       "quote": "This design also estimates 10 of the 20 three-factor interactions that are aliased with each other."
      },
      "check": {
-      "manual": "the 20 three-factor interactions fall in 10 alias pairs, ABC = DEF and so on, by the defining relation I = ABCDEF; no check counts the chains of three-factor interactions"
+      "manual": "the 20 three-factor interactions fall in 10 alias pairs, ABC = DEF and so on, by the defining relation I = ABCDEF; no check counts the chains of three-factor interactions",
+      "cause": "check_gap"
      }
     }
    ]
@@ -2519,7 +2526,8 @@
       "quote": "[Intercept] = Intercept - 0.5 * ABC - 0.5 * ABD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2533,7 +2541,8 @@
       "quote": "[A] = A - ACD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2547,7 +2556,8 @@
       "quote": "[B] = B - BCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2561,7 +2571,8 @@
       "quote": "[C] = C - ABCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2575,7 +2586,8 @@
       "quote": "[D] = D - ABCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2589,7 +2601,8 @@
       "quote": "[AB] = AB - ABCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2603,7 +2616,8 @@
       "quote": "[AC] = AC - BCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2617,7 +2631,8 @@
       "quote": "[AD] = AD - BCD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2631,7 +2646,8 @@
       "quote": "[BC] = BC - ACD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2645,7 +2661,8 @@
       "quote": "[BD] = BD - ACD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2659,7 +2676,8 @@
       "quote": "[CD] = CD - ABD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -2673,7 +2691,8 @@
       "quote": "[ABC] = ABC - ABD"
      },
      "check": {
-      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only"
+      "manual": "an alias against three- or four-factor interactions; the library works the alias matrix against the two-factor interactions (and squares) left out of the model only",
+      "cause": "library_gap"
      }
     },
     {
@@ -3125,7 +3144,8 @@
       "quote": "the 7-factor design lays out 30 runs-15 each at the low and high levels"
      },
      "check": {
-      "manual": "a minimum-run resolution V design of seven factors, equireplicated; the library makes no minimum-run (MR4 or MR5) design"
+      "manual": "a minimum-run resolution V design of seven factors, equireplicated; the library makes no minimum-run (MR4 or MR5) design",
+      "cause": "library_gap"
      }
     },
     {
@@ -3138,7 +3158,8 @@
       "quote": "With just 30 runs all main effects and two-factor interactions can be estimated."
      },
      "check": {
-      "manual": "a minimum-run resolution V design of seven factors, equireplicated; the library makes no minimum-run (MR4 or MR5) design"
+      "manual": "a minimum-run resolution V design of seven factors, equireplicated; the library makes no minimum-run (MR4 or MR5) design",
+      "cause": "library_gap"
      }
     }
    ]
@@ -3324,7 +3345,8 @@
       "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 0.5 ... 9.0%"
      },
      "check": {
-      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of"
+      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of",
+      "cause": "library_gap"
      }
     },
     {
@@ -3338,7 +3360,8 @@
       "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 1 ... 21.3%"
      },
      "check": {
-      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of"
+      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of",
+      "cause": "library_gap"
      }
     },
     {
@@ -3352,7 +3375,8 @@
       "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 2 ... 61.9%"
      },
      "check": {
-      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of"
+      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of",
+      "cause": "library_gap"
      }
     },
     {
@@ -3366,7 +3390,8 @@
       "quote": "Table 10-1 Runs 12 Resolution Min-Run IV ... Signal/Noise 4 ... 99.1%"
      },
      "check": {
-      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of"
+      "manual": "a minimum-run resolution IV design of five factors in 12 runs; the library makes no minimum-run design, so it has none to work the power of",
+      "cause": "library_gap"
      }
     }
    ]
@@ -3498,6 +3523,7 @@
      },
      "check": {
       "disagreement": "the library's power rounds to 100.0%; the book cuts powers above 99.9% to 99.9%",
+      "cause": "source_rounding",
       "kind": "design_metric",
       "design": {
        "design_type": "fractional_factorial",
@@ -3645,6 +3671,7 @@
      },
      "check": {
       "disagreement": "the library's power rounds to 100.0%; the book cuts powers above 99.9% to 99.9%",
+      "cause": "source_rounding",
       "kind": "design_metric",
       "design": {
        "design_type": "full_factorial",
@@ -3948,7 +3975,8 @@
       "quote": "The most frequently occurring value is 7."
      },
      "check": {
-      "manual": "the mode, the most frequent total; the library has no mode, which the tally of Figure 1-3 shows at a glance"
+      "manual": "the mode, the most frequent total; the library has no mode, which the tally of Figure 1-3 shows at a glance",
+      "cause": "library_gap"
      }
     },
     {
@@ -4226,7 +4254,8 @@
       "quote": "Point 1 Weight 171 Cumulative Probability 5%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4239,7 +4268,8 @@
       "quote": "Point 2 Weight 172 Cumulative Probability 15%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4252,7 +4282,8 @@
       "quote": "Point 3 Weight 188 Cumulative Probability 25%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4265,7 +4296,8 @@
       "quote": "Point 4 Weight 194 Cumulative Probability 35%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4278,7 +4310,8 @@
       "quote": "Point 5 Weight 199 Cumulative Probability 45%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4291,7 +4324,8 @@
       "quote": "Point 6 Weight 200 Cumulative Probability 55%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4304,7 +4338,8 @@
       "quote": "Point 7 Weight 206 Cumulative Probability 65%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4317,7 +4352,8 @@
       "quote": "Point 8 Weight 219 Cumulative Probability 75%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4330,7 +4366,8 @@
       "quote": "Point 9 Weight 234 Cumulative Probability 85%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     },
     {
@@ -4343,7 +4380,8 @@
       "quote": "Point 10 Weight 235 Cumulative Probability 95%"
      },
      "check": {
-      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values"
+      "manual": "a plotting position of the data, 100(i - 1/2)/n for the i-th smallest of n = 10; the library places a fit's effects at these positions and its residuals at scipy's (Filliben's), but has no probability plot of a sample's own values",
+      "cause": "library_gap"
      }
     }
    ]
@@ -5149,7 +5187,8 @@
      "check": {
       "kind": "mean",
       "model": null,
-      "disagreement": "the book's 3.1625 is the average of its four rounded colour means; the 56 dice average 177/56 = 3.1607"
+      "disagreement": "the book's 3.1625 is the average of its four rounded colour means; the 56 dice average 177/56 = 3.1607",
+      "cause": "source_rounding"
      }
     },
     {
@@ -5168,7 +5207,8 @@
        "colour": 1
       },
       "divisor": 14,
-      "disagreement": "the book works the variance from the four colour means rounded to two decimals"
+      "disagreement": "the book works the variance from the four colour means rounded to two decimals",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6315,7 +6355,8 @@
        3,
        4
       ],
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6336,7 +6377,8 @@
        7,
        8
       ],
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6357,7 +6399,8 @@
        11,
        12
       ],
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6378,7 +6421,8 @@
        15,
        16
       ],
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6399,7 +6443,8 @@
        19,
        20
       ],
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6577,7 +6622,8 @@
       "kind": "coefficient",
       "model": "C(child, Sum) + C(dots, Sum)",
       "term": "child[K4]",
-      "disagreement": "the printed times give -0.471 for K4, the level the sum coding leaves out, whose check cannot carry the rounding of the times; the other three children agree once it is carried, and the book's -0.46 makes the four add to zero"
+      "disagreement": "the printed times give -0.471 for K4, the level the sum coding leaves out, whose check cannot carry the rounding of the times; the other three children agree once it is carried, and the book's -0.46 makes the four add to zero",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6625,7 +6671,8 @@
        "dots": 1
       },
       "divisor": 4,
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print: the printed times give 177.06"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print: the printed times give 177.06",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6642,7 +6689,8 @@
       "kind": "anova_f",
       "model": "dots",
       "term": "dots",
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print: the printed times give 1.925, which rounds to 1.93"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print: the printed times give 1.925, which rounds to 1.93",
+      "cause": "source_rounding"
      }
     },
     {
@@ -6705,7 +6753,8 @@
       "quote": "Table 2-4 ... 1 dot ... K1 25.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6719,7 +6768,8 @@
       "quote": "Table 2-4 ... 1 dot ... K2 19.9"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6733,7 +6783,8 @@
       "quote": "Table 2-4 ... 1 dot ... K3 14.3"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6747,7 +6798,8 @@
       "quote": "Table 2-4 ... 1 dot ... K4 22.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6761,7 +6813,8 @@
       "quote": "Table 2-4 ... 2 dots ... K1 28.5"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6775,7 +6828,8 @@
       "quote": "Table 2-4 ... 2 dots ... K2 28.3"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6789,7 +6843,8 @@
       "quote": "Table 2-4 ... 2 dots ... K3 19.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6803,7 +6858,8 @@
       "quote": "Table 2-4 ... 2 dots ... K4 24.6"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6817,7 +6873,8 @@
       "quote": "Table 2-4 ... 3 dots ... K1 44.1"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6831,7 +6888,8 @@
       "quote": "Table 2-4 ... 3 dots ... K2 42.9"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6845,7 +6903,8 @@
       "quote": "Table 2-4 ... 3 dots ... K3 54.0"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6859,7 +6918,8 @@
       "quote": "Table 2-4 ... 3 dots ... K4 45.1"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6873,7 +6933,8 @@
       "quote": "Table 2-4 ... 4 dots ... K1 33.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6887,7 +6948,8 @@
       "quote": "Table 2-4 ... 4 dots ... K2 36.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6901,7 +6963,8 @@
       "quote": "Table 2-4 ... 4 dots ... K3 28.8"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6915,7 +6978,8 @@
       "quote": "Table 2-4 ... 4 dots ... K4 33.4"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6929,7 +6993,8 @@
       "quote": "Table 2-4 ... 5 dots ... K1 51.5"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6943,7 +7008,8 @@
       "quote": "Table 2-4 ... 5 dots ... K2 54.8"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6957,7 +7023,8 @@
       "quote": "Table 2-4 ... 5 dots ... K3 65.2"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6971,7 +7038,8 @@
       "quote": "Table 2-4 ... 5 dots ... K4 53.2"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6985,7 +7053,8 @@
       "quote": "Table 2-4 ... 6 dots ... K1 38.0"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -6999,7 +7068,8 @@
       "quote": "Table 2-4 ... 6 dots ... K2 38.7"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -7013,7 +7083,8 @@
       "quote": "Table 2-4 ... 6 dots ... K3 39.4"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -7027,7 +7098,8 @@
       "quote": "Table 2-4 ... 6 dots ... K4 42.5"
      },
      "check": {
-      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual"
+      "manual": "the time less its child's mean plus the grand mean: the residual of the model child, which the library gives, plus 36.9; no check adds a constant to a residual",
+      "cause": "check_gap"
      }
     },
     {
@@ -7072,7 +7144,8 @@
        8
       ],
       "squared": true,
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -7095,7 +7168,8 @@
        12
       ],
       "squared": true,
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -7140,7 +7214,8 @@
        20
       ],
       "squared": true,
-      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print"
+      "disagreement": "each time is printed to a tenth of a second, the average of several trials; the book works from the times it does not print",
+      "cause": "source_rounding"
      }
     },
     {
@@ -9612,7 +9687,8 @@
       "kind": "f_regression",
       "model": "B * C",
       "response": "taste",
-      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75"
+      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75",
+      "cause": "source_rounding"
      }
     },
     {
@@ -9748,7 +9824,8 @@
       "model": "B * C",
       "response": "taste",
       "term": "C",
-      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75"
+      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75",
+      "cause": "source_rounding"
      }
     },
     {
@@ -9817,7 +9894,8 @@
       "model": "B * C",
       "response": "taste",
       "term": "B·C",
-      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75"
+      "disagreement": "Table 3-9 is worked by hand, each mean square over the residual's rounded to 24.8; the residual mean square is 99/4 = 24.75",
+      "cause": "source_rounding"
      }
     },
     {
@@ -10200,7 +10278,8 @@
       "model": "B * C",
       "response": "bullets",
       "term": "B·C",
-      "disagreement": "F = 28.44 on 1 and 4 degrees of freedom has p = 0.0060; the 0.0006 printed is the model's"
+      "disagreement": "F = 28.44 on 1 and 4 degrees of freedom has p = 0.0060; the 0.0006 printed is the model's",
+      "cause": "source_error"
      }
     },
     {
@@ -10754,7 +10833,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10768,7 +10848,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10782,7 +10863,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10796,7 +10878,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10810,7 +10893,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10824,7 +10908,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10838,7 +10923,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -10852,7 +10938,8 @@
       "quote": "the P_i from the formula given earlier are 6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, and 93.75 percent"
      },
      "check": {
-      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot"
+      "manual": "a plotting position of the residuals, 100(i - 1/2)/8 for the i-th smallest; the library's normal probability plot of residuals places them at scipy's (Filliben's) positions instead, and no check reads a plot",
+      "cause": "library_gap"
      }
     },
     {
@@ -11890,7 +11977,8 @@
       "run": 11,
       "transform": "log",
       "log10": true,
-      "disagreement": "the book prints 1.658 for log10(47.4) = 1.676"
+      "disagreement": "the book prints 1.658 for log10(47.4) = 1.676",
+      "cause": "source_error"
      }
     },
     {
@@ -12437,7 +12525,8 @@
       "term": "A·C·D",
       "transform": "log",
       "log10": true,
-      "disagreement": "Table 4-3's log column swaps ACD and ABD: its -0.088 is the data's ABD"
+      "disagreement": "Table 4-3's log column swaps ACD and ABD: its -0.088 is the data's ABD",
+      "cause": "source_error"
      }
     },
     {
@@ -12456,7 +12545,8 @@
       "term": "A·B·D",
       "transform": "log",
       "log10": true,
-      "disagreement": "Table 4-3's log column swaps ACD and ABD: its -0.013 is the data's ACD"
+      "disagreement": "Table 4-3's log column swaps ACD and ABD: its -0.013 is the data's ACD",
+      "cause": "source_error"
      }
     },
     {
@@ -20537,7 +20627,8 @@
        "A": 0.5,
        "B": 0.5
       },
-      "disagreement": "the book works the prediction from its AB coefficient, -553.2; the fit to the six runs has AB = -553.0 and predicts 920.00, the mean of the two 50/50 runs"
+      "disagreement": "the book works the prediction from its AB coefficient, -553.2; the fit to the six runs has AB = -553.0 and predicts 920.00, the mean of the two 50/50 runs",
+      "cause": "source_rounding"
      }
     },
     {

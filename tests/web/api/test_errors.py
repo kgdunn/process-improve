@@ -179,12 +179,23 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        "Factor names must be unique.",
     ),
     "name with a space": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "a b"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'a_b' for 'a b'."
+        ),
+    ),
+    "names with a percent sign and a keyword": (
+        "api_make_design",
+        _make(factors=[{**FACTORS[0], "name": "Water %"}, {**FACTORS[1], "name": "lambda"}, FACTORS[2]]),
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'Water_pct' for 'Water %', 'lambda_' for 'lambda'."
+        ),
     ),
     "low above high": (
         "api_make_design",
@@ -274,6 +285,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze_runs",
         _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, "C", None]]),
         "Factor S: each run must be at A or B, not 'C'.",
+    ),
+    "a run with no label": (
+        "api_analyze_runs",
+        _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, None, None]]),
+        "Factor S: run 4 has no setting; each run must be at A or B.",
     ),
     "the square of a categorical factor": (
         "api_analyze_runs",
@@ -508,6 +524,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="maximin_lhs", budget=12.5),
         "A space-filling design in 3 factors has 4 to 200 runs.",
     ),
+    "an optimal design with fewer runs than its model has coefficients": (
+        "api_make_design",
+        _make(design_type="d_optimal", model_type="quadratic", budget=6),
+        "The quadratic model in 3 factors has 10 coefficients, so it needs at least 10 runs.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),
@@ -545,7 +566,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "response that is not a name": (
         "api_analyze_runs",
         lambda ex: {**_spec(response="__import__('os')")(ex), "responses": ex["simulated"]["responses"]},
-        "The response name must be a variable name different from every factor.",
+        "The response name must be a variable name (letters, digits, _): try 'import_os'.",
     ),
     "unknown model to analyse with": (
         "api_analyze_runs",
@@ -571,6 +592,58 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_read_workbook",
         _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
         "Model must be one of main_effects, interactions, quadratic.",
+    ),
+    "a transform the page does not offer": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs()(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "box_cox"}},
+        },
+        "A response is analysed as it is, or as its log, square root or inverse.",
+    ),
+    "a workbook analysed with a transform it does not offer": (  # a workbook keeps its transforms, checked as data
+        "api_read_workbook",
+        _workbook(_stored(analysis_transforms={"y": "__import__('os')"})),
+        "A response is analysed as it is, or as its log, square root or inverse.",
+    ),
+    "a result at or below 0 for its log": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_runs(responses=[-1.0] * len(ex["held"]["rows"]))(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "log"}},
+        },
+        (
+            "The log of Yield needs every result above 0, and run 1 has -1. "
+            "Analyse it as it is, or with another transform."
+        ),
+    ),
+    "an acceptable range below 0 for a logged response": (
+        "api_balance",
+        lambda ex: {
+            **_balanced(goals={"Cost": {"low": 0, "high": 30}})(ex),
+            "spec": {**_balanced()(ex)["spec"], "analysis_transforms": {"Cost": "log"}},
+        },
+        "The log of Cost needs an acceptable range above 0.",
+    ),
+    "a target at 0 for its log": (
+        "api_best_settings",
+        lambda ex: {
+            **_runs()(ex),
+            "spec": {
+                **ex["held"]["spec"],
+                "response_info": {**ex["held"]["spec"].get("response_info", {}), "goal": "target", "target": 0},
+                "analysis_transforms": {ex["held"]["spec"]["response"]: "log"},
+            },
+        },
+        "The log of Yield needs a target above 0.",
+    ),
+    "a mixture's response transformed": (
+        "api_analyze_runs",
+        lambda ex: {
+            **_mixed()(ex),
+            "spec": {**ex["mixture"]["spec"], "analysis_transforms": {ex["mixture"]["spec"]["response"]: "log"}},
+        },
+        "A mixture's responses are analysed as they are on this page.",
     ),
     "no term the design can estimate": (
         "api_analyze_runs",

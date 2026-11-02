@@ -6,6 +6,8 @@ import { describe, test } from "node:test";
 
 import {
   AXIAL_DISTANCE,
+  TRANSFORM_WORDS,
+  boxCoxSentence,
   categoricalFactor,
   isSeveral,
   levelsOf,
@@ -51,6 +53,7 @@ import {
   describeResponse,
   holds,
   nameProblem,
+  planVerdict,
   percent,
   pickCandidate,
   pickSentence,
@@ -587,6 +590,17 @@ describe("a factor's name", () => {
     assert.match(nameProblem("a b"), /^a b: a name is letters, digits and _/);
     assert.match(nameProblem("2x"), /^2x: /);
     assert.match(nameProblem("x-y"), /^x-y: /);
+  });
+
+  test("comes with a name that keeps the rules, when it breaks them", () => {
+    assert.match(nameProblem("Water %"), /such as Water_pct\.$/);
+    assert.match(nameProblem("Temp (°C)"), /such as Temp_deg_C\.$/);
+    assert.match(nameProblem("2nd stage"), /such as x2nd_stage\.$/);
+  });
+
+  test("is not a Python keyword, which a model cannot name", () => {
+    assert.equal(nameProblem("lambda"), "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_.");
+    for (const name of ["match", "case", "type"]) assert.equal(nameProblem(name), "", `${name} is only a soft keyword`);
   });
 
   test("is given, and is no other factor's", () => {
@@ -1378,5 +1392,61 @@ describe("the numbers a catalogue study's source prints", () => {
     assert.equal(modelKey([["B"], ["A"], ["B", "A"]]), modelKey([["A"], ["A", "B"], ["B"]]));
     assert.notEqual(modelKey([["A"], ["B"]]), modelKey([["A"], ["B"], ["A", "B"]]));
     assert.equal(modelTermsWords([["A"], ["B"], ["A", "B"], ["A", "A"]]), "A + B + A·B + A²");
+  });
+});
+
+describe("what Box-Cox makes of the response", () => {
+  const hint = (lambda, ci, suggests, current = null) => ({ lambda, ci, suggests, current });
+
+  test("it points to the transform its interval holds, with a button that fits it", () => {
+    assert.deepEqual(boxCoxSentence(hint(0.13, [-0.04, 0.31], "log"), "Yield"), {
+      words: "Box-Cox's λ is 0.13 (95% interval -0.04 to 0.31): it points to the log of Yield.",
+      apply: "log",
+      button: "Analyse its log",
+    });
+  });
+
+  test("it says nothing when it agrees with the transform fitted, or when the results need none", () => {
+    assert.equal(boxCoxSentence(hint(0.1, [-0.2, 0.4], "log", "log"), "Yield"), null);
+    assert.equal(boxCoxSentence(hint(0.9, [0.6, 1.3], null), "Yield"), null);
+    assert.equal(boxCoxSentence(null, "Yield"), null);
+  });
+
+  test("a transformed response whose results need none is offered the results as measured", () => {
+    const said = boxCoxSentence(hint(0.9, [0.6, 1.3], null, "sqrt"), "Yield");
+    assert.equal(said.apply, "");
+    assert.equal(said.button, "Analyse Yield as measured");
+  });
+
+  test("a power the page does not offer is said, with nothing to press", () => {
+    const said = boxCoxSentence(hint(2.4, [1.8, 3.1], null), "Yield");
+    assert.equal(said.apply, null);
+    assert.match(said.words, /a power of Yield this page does not offer/);
+  });
+
+  test("each transform has its words", () => {
+    assert.deepEqual(Object.keys(TRANSFORM_WORDS), ["log", "sqrt", "inverse"]);
+  });
+});
+
+describe("a plan beside a field's experiments", () => {
+  // Twelve experiments: two small, eight of 16 runs, two large; all with 3 factors but two with 6.
+  const points = [[3, 8, "full", 2], [3, 16, "full", 6], [6, 16, "screening", 2], [3, 64, "surface", 2]];
+
+  test("compares a design's runs once it has one", () => {
+    assert.equal(planVerdict(points, { factors: 3, runs: 128 }), "Your plan is larger than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 4 }), "Your plan is smaller than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 16 }), "Your plan is a typical size here.");
+  });
+
+  test("compares the factors alone before a design is made", () => {
+    assert.equal(planVerdict(points, { factors: 8, runs: null }), "You have more factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 1, runs: null }), "You have fewer factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: null }), "Experiments here often have as many factors as yours.");
+  });
+
+  test("says nothing without a plan or a field", () => {
+    assert.equal(planVerdict(points, null), "");
+    assert.equal(planVerdict([], { factors: 3, runs: 8 }), "");
   });
 });

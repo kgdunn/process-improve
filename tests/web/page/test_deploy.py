@@ -47,7 +47,9 @@ def app(tmp_path: Path) -> Iterator[str]:
 
 def publish(directory: Path, commit: str) -> None:
     """Deploy the app built from ``commit``, as far as the manifest says."""
-    (directory / "wheels" / "manifest.json").write_text(json.dumps({"wheel": "w.whl", "commit": commit}))
+    (directory / "wheels" / "manifest.json").write_text(
+        json.dumps({"wheel": "w.whl", "commit": commit}), encoding="utf-8"
+    )
 
 
 def test_it_waits_until_the_published_manifest_names_the_commit(waiter, app, tmp_path):
