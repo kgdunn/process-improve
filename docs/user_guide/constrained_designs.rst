@@ -226,7 +226,10 @@ Writing the rules:
 * A level that the rules leave with no allowed run is refused; remove it from the
   factor.
 * Only the optimal designs follow these rules, and not yet beside mixture components.
-  The I-criterion and ``evaluate_design`` weight each allowed combination equally.
+* The I-criterion and ``evaluate_design`` average over every setting the rules allow,
+  so each allowed combination weighs as much as the volume of its settings: here, B in
+  solvent X keeps 150 to 180 of 150 to 200 degC, and counts 0.6 times as much as each
+  other pair. A combination whose limits leave no volume does not count in the average.
 
 Judging the design over its own region
 --------------------------------------
