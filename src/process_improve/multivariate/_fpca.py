@@ -290,14 +290,8 @@ class FPCA(TransformerMixin, BaseEstimator):
 
     def _coefficients(self, values: np.ndarray, smoothing: float) -> np.ndarray:
         """Return each curve's B-spline coefficients: its penalised least-squares fit to the points it observes."""
-        missing = np.isnan(values)
-        too_few = np.flatnonzero((~missing).sum(axis=1) < self.penalty_order)
-        if too_few.size:
-            raise ValueError(
-                f"Curve {too_few[0]} has fewer than {self.penalty_order} measured points, so its fit is not determined."
-            )
         coefficients = np.empty((values.shape[0], self.n_basis_))
-        for observed, rows in _patterns(missing):
+        for observed, rows in self._measured(values):
             basis = self._basis[observed]
             system = basis.T @ basis + smoothing * self._penalty
             coefficients[rows] = np.linalg.solve(system, basis.T @ values[np.ix_(rows, observed)].T).T
@@ -305,10 +299,9 @@ class FPCA(TransformerMixin, BaseEstimator):
 
     def _choose_smoothing(self, values: np.ndarray) -> float:
         """Return the penalty weight that minimises the generalised cross-validation score, pooled over the curves."""
-        missing = np.isnan(values)
-        patterns = _patterns(missing)
+        patterns = self._measured(values)
         scale = np.trace(self._basis.T @ self._basis) / max(np.trace(self._penalty), np.finfo(float).tiny)
-        n_observed = int((~missing).sum())
+        n_observed = int(np.isfinite(values).sum())
         best, best_score = scale, np.inf
         for weight in scale * _GCV_GRID:
             residual, used = 0.0, 0.0
@@ -322,6 +315,20 @@ class FPCA(TransformerMixin, BaseEstimator):
             if score < best_score:
                 best, best_score = weight, score
         return float(best)
+
+    def _measured(self, values: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+        """Return the curves grouped by the points they observe, once each curve has enough points to fit.
+
+        The penalty leaves polynomials of degree below ``penalty_order`` unpenalised, so a curve
+        needs at least that many points for its fit to be determined.
+        """
+        missing = np.isnan(values)
+        too_few = np.flatnonzero((~missing).sum(axis=1) < self.penalty_order)
+        if too_few.size:
+            raise ValueError(
+                f"Curve {too_few[0]} has fewer than {self.penalty_order} measured points, so its fit is not determined."
+            )
+        return _patterns(missing)
 
     def _resolve_components(self, n_curves: int) -> int:
         """Return the number of components, clamped to what the centred curves can support."""
