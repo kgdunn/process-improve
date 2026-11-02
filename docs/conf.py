@@ -12,7 +12,7 @@ sys.path.insert(0, str(_repo_root / "docs" / "_ext"))
 
 # -- Project information -----------------------------------------------------
 
-_pyproject = tomllib.loads(_repo_root.joinpath("pyproject.toml").read_text())
+_pyproject = tomllib.loads(_repo_root.joinpath("pyproject.toml").read_text(encoding="utf-8"))
 release = _pyproject["project"]["version"]
 
 project = "process-improve"

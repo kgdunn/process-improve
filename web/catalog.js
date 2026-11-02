@@ -8,9 +8,12 @@
 import { LINK_KEY, packCampaign } from "./campaign.js";
 import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
 import {
+  COMPARED_FACTORS,
   DEFAULT_STATE,
   FAMILY_COLOURS,
+  MAP_TERMS_FACTORS,
   MODELS,
+  NOT_COMPARED,
   OTHER_COLOUR,
   SORTS,
   applicationLine,
@@ -42,6 +45,7 @@ import {
   leverageWords,
   levelsText,
   manyLabels,
+  mapTermsSentence,
   projectionLines,
   pythonCode,
   results,
@@ -74,8 +78,6 @@ const PAGE = 48;
 const TWINS_SHOWN = 15;
 /** The most factors the map draws: a design with more is in the list, and the map says how many. */
 const MAP_FACTORS = 16;
-/** The most factors of a design whose correlation map the detail draws: 12 factors have 90 terms. */
-const MAP_TERMS_FACTORS = 12;
 /** How many errata the table shows at first. */
 const ERRATA_SHOWN = 200;
 /** How many applications the filter lists at first, those of the most designs; the rest are a click away. */
@@ -840,6 +842,7 @@ function detailHead(design, detail, source) {
     said.push(element("p", { class: "hint", text: `Factorial does not open this ${what}: ${detail.closed}.` }));
   }
   if (design.compared) actions.append(compareButton(design)); // append() writes a null out as the text "null"
+  else if (design.n_factors > COMPARED_FACTORS) said.push(element("p", { class: "hint", text: `It cannot join a comparison: ${NOT_COMPARED}.` }));
   actions.append(
     element("button", { type: "button", class: "button", "data-copy-link": design.id, text: "Copy a link to this design" }),
     element("button", { type: "button", class: "button", "data-csv": design.id, text: "Download the runs (CSV)" }),
@@ -1007,25 +1010,27 @@ function projections(design, detail) {
   if (!runs) return [];
   const names = (detail.factors ?? []).map((f) => f.name);
   const out = [element("h3", { text: "Its projections" }), projectionExplorer(runs, names)];
-  if (design.n_factors <= MAP_TERMS_FACTORS) {
-    const map = correlationMap(runs, names);
-    const most = largestSecondOrderR(map);
-    out.push(
-      element("h3", { text: "Correlations between its terms" }),
-      element("p", {
-        class: "hint",
-        text: "The absolute correlation |r| between the main effects, squares and two-factor interactions, from white at 0 to dark at 1, as compare_designs reads them. A term that does not vary, such as the square of a two-level factor, is blank.",
-      }),
-    );
-    if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
-    const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
-    out.push(plot);
-    const height = Math.min(820, 160 + 15 * map.terms.length); // room for every term's label
-    plotlyReady.then((version) => {
-      if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
-      else plot.remove();
-    });
+  if (design.n_factors > MAP_TERMS_FACTORS) {
+    out.push(element("p", { class: "hint", text: mapTermsSentence(design.n_factors) }));
+    return out;
   }
+  const map = correlationMap(runs, names);
+  const most = largestSecondOrderR(map);
+  out.push(
+    element("h3", { text: "Correlations between its terms" }),
+    element("p", {
+      class: "hint",
+      text: "The absolute correlation |r| between the main effects, squares and two-factor interactions, from white at 0 to dark at 1, as compare_designs reads them. A term that does not vary, such as the square of a two-level factor, is blank.",
+    }),
+  );
+  if (most !== null) out.push(element("p", { text: `The largest |r| between two second-order terms is ${most.toFixed(2)}.` }));
+  const plot = element("div", { class: "detail__correlations", "aria-hidden": "true" });
+  out.push(plot);
+  const height = Math.min(820, 160 + 15 * map.terms.length); // room for every term's label
+  plotlyReady.then((version) => {
+    if (version && plot.isConnected) draw(plot, () => correlationFigure(map.terms, map.matrix, design.n_factors), version, height);
+    else plot.remove();
+  });
   return out;
 }
 
@@ -1073,9 +1078,10 @@ function wire() {
       update();
     }, 200);
   });
+  // A goal writes the search that keeps its designs; the search box shows it, so the reader can change it.
   for (const button of $$(".try")) {
     button.addEventListener("click", () => {
-      state.query = button.textContent;
+      state.query = button.dataset.query ?? button.textContent;
       writeForm();
       update();
     });
@@ -1223,6 +1229,25 @@ async function downloadCsv(id) {
   }
 }
 
+// ---------------------------------------------------------------- the reader's field
+/** Offer the fields the build wrote (catalog/fields.json); without them, the form still leads to the list of fields. */
+async function loadFields() {
+  $("#field-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const slug = $("#field").value;
+    location.href = slug ? `fields/${encodeURIComponent(slug)}/` : "fields/";
+  });
+  try {
+    const res = await fetch(app("catalog/fields.json"));
+    if (!res.ok) return;
+    const { fields } = await res.json();
+    const ordered = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+    $("#field").append(...ordered.map(([slug, field]) => element("option", { value: slug, text: field.label })));
+  } catch {
+    /* the list of fields, one page on, names them all */
+  }
+}
+
 async function start() {
   try {
     const res = await fetch(app("catalog/index.json"), { cache: "no-cache" });
@@ -1232,14 +1257,7 @@ async function start() {
     $("#count").textContent = `The catalog could not be loaded: ${err.message}.`;
     return;
   }
-  const published = catalog.designs.filter((d) => d.collection === "published").length;
-  $("#lede").textContent =
-    `${published} designed experiments printed in ${Object.keys(catalog.sources).length} textbooks, handbooks and papers, ` +
-    `and ${catalog.designs.length - published} designs process-improve makes. Search them, filter them, see where each ` +
-    "one sits, and open it in Factorial.";
   if (window.matchMedia("(max-width: 900px)").matches) $("#facets-box").open = false;
-  const differ = catalog.designs.reduce((n, d) => n + (d.checks?.explained ?? 0), 0);
-  $("#errata-open").textContent = `Errata: the ${differ} printed numbers that do not reproduce, with the reasons`;
   buildFacets();
   // A link from the book names its design in the query (?d=), which the book's theme leaves alone; the page keeps
   // what it shows in the fragment, which no server sees, so the address is rewritten that way at once.
@@ -1252,4 +1270,5 @@ async function start() {
   openViews();
 }
 
+loadFields();
 start();

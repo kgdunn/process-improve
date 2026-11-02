@@ -45,6 +45,10 @@ APP_SOURCES = (
     "catalog.js",
     "catalog-logic.js",
     "catalog-views.js",
+    "catalog/reproduced/index.html",
+    "reproduced.js",
+    "reproduced-logic.js",
+    "field-chart.js",
     "style.css",
     "app.js",
     "logic.js",
@@ -384,6 +388,10 @@ CATALOG_SAMPLE = (
     "lib-full-factorial-k3",
 )
 
+#: The sources the reproduction page is tested on: between them, a case in each of the four tiers, errors in
+#: the source and numbers the library cannot compute yet.
+REPRODUCTION_SAMPLE = ("lenth-1989", "nunez-ares-et-al-2023")
+
 
 #: A design printed in the book, whose page the catalog links to at its section: a case study of a fed-batch
 #: bioreactor, with figures whose notes name their files. It is not in :data:`CATALOG_SAMPLE`; the tests of
@@ -398,6 +406,10 @@ BLOCKED_DESIGN = "montgomery-filtration-blocks"
 #: A comparison of two levels in pairs, each pair a block: Box, Hunter and Hunter's boys' shoes, ten boys each wearing
 #: a sole of each material. The tests of a blocked design build their catalog with it too.
 PAIRED_DESIGN = "bhh-boys-shoes-paired"
+
+#: Designs of more than 12 factors: NIST's 2^(31-26) fraction, which opens as its runs are given, and the library's
+#: L81(3^40), which the page makes. The tests of studies of many factors build a catalog of their own with them.
+MANY_FACTOR_DESIGNS = ("nist-5-3-3-4-7-2to31m26", "lib-taguchi-l81-3-40")
 
 
 def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:

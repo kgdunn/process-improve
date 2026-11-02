@@ -72,9 +72,8 @@ def _per_batch_table(sheet: pd.DataFrame, batch_ids: list[Hashable]) -> pd.DataF
 def load_nylon() -> dict[Hashable, pd.DataFrame]:
     """Return the nylon autoclave reactor batch dataset.
 
-    Trajectory data from an industrial nylon polymerization autoclave,
-    used widely in the batch analysis and monitoring literature. Variables
-    ``Tag01`` to ``Tag10`` are temperatures, pressures, and flows recorded
+    Trajectory data from an industrial nylon polymerization autoclave.
+    Variables ``Tag01`` to ``Tag10`` are temperatures, pressures, and flows recorded
     during each batch. Batch durations vary slightly (113 to 135 samples),
     so resample or align the batches to a common length before unfolding
     (see :func:`process_improve.batch.resample_to_reference`).

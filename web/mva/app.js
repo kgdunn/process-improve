@@ -2,12 +2,20 @@
 // write their own Python, fit PCA or PLS, and work with linked views: a lasso on the score plot selects rows in
 // the table, the SPE and T² charts and every header; excluding rows refits and keeps them on every plot, hollow,
 // projected through the model that never saw them; and "Why are these rows different?" ranks the variables
-// that move the group, with the raw data beside the bars.
+// that move the group, with the raw data beside the bars. "Cross-validate" scores every number of components on
+// values the model never saw, only when asked, since it fits the model many times over.
 
 import { bindView } from "./link.js";
 import { Selection } from "./selection.js";
 import { DataTable } from "./table.js";
-import { barFigure, componentTitle, scatterFigure, sequenceFigure } from "./views.js";
+import {
+  barFigure,
+  componentsFigure,
+  componentsSentence,
+  componentTitle,
+  scatterFigure,
+  sequenceFigure,
+} from "./views.js";
 
 /** The Plotly.js that Python's plotly ships, unless the build names another in the app's wheels/manifest.json. */
 const PLOTLY_JS = "4.1.1";
@@ -20,6 +28,8 @@ const state = {
   variant: { kind: "PCA", n_components: 3, y_columns: [] },
   fit: null,
   views: [],
+  cv: null,
+  cvKey: null,
 };
 let dataTable = null;
 let explanation = null;
@@ -99,6 +109,8 @@ function plotly() {
 // ---------------------------------------------------------------------------
 
 function showTable(reply) {
+  // Another file's cross-validation says nothing about this one; a new recipe step only makes it stale.
+  if (reply.recipe.source.sha256 !== state.recipe?.source.sha256) forgetCrossValidation();
   state.table = reply;
   state.recipe = reply.recipe;
   const ids = new Set(reply.rowIds);
@@ -144,11 +156,13 @@ async function refit() {
   if (!state.table) return;
   state.fit = await call("api_fit", { recipe: state.recipe, variant: variant() });
   const fit = state.fit;
-  $("code").textContent = fit.code;
+  $("code").textContent = fit.code + (state.cv && !cvStale() ? `\n${state.cv.code}` : "");
+  $("cross-validate").disabled = false;
   $("model-summary").textContent =
     `${fit.rowIds.length - fit.excluded.length} rows fitted, ${fit.excluded.length} excluded; R²X ${fit.r2x.map((r) => (100 * r).toFixed(1)).join(" + ")}%`;
   if (!state.views.length) await bindViews();
   else state.views.forEach((view) => view.redraw());
+  await drawComponents();
 }
 
 const limitsOf = (name) => [
@@ -215,6 +229,52 @@ async function bindViews() {
     ),
   ];
   await Promise.all(state.views.map((view) => view.ready));
+}
+
+// ---------------------------------------------------------------------------
+// How many components? On request only
+// ---------------------------------------------------------------------------
+
+/** What a cross-validation depends on: the table and the model, but not the model's number of components. */
+const cvKey = () => JSON.stringify({ recipe: state.recipe, variant: { ...variant(), n_components: 1 } });
+const cvStale = () => state.cvKey !== cvKey();
+
+function forgetCrossValidation() {
+  state.cv = null;
+  state.cvKey = null;
+  $("cv-panel").hidden = true;
+}
+
+async function crossValidate() {
+  const key = cvKey();
+  state.cv = await call("api_cross_validate", { recipe: state.recipe, variant: variant() });
+  state.cvKey = key;
+  $("cv-panel").hidden = false;
+  $("code").textContent = `${state.fit.code}\n${state.cv.code}`;
+  await drawComponents();
+}
+
+async function drawComponents() {
+  if (!state.cv) return;
+  const Plotly = await plotly();
+  const stale = cvStale();
+  const figure = componentsFigure(state.cv, { current: state.variant.n_components, stale });
+  $("cv-sentence").textContent =
+    (stale ? "The model has changed since this cross-validation: cross-validate again. " : "") +
+    componentsSentence(state.cv, state.variant.n_components);
+  $("cv-notes").textContent = state.cv.notes.length ? ` Some fits warned: ${state.cv.notes.join(" ")}` : "";
+  const div = $("cv");
+  await Plotly.react(div, figure.data, figure.layout, { displaylogo: false, responsive: true });
+  if (!div.dataset.bound) {
+    div.dataset.bound = "yes";
+    div.on("plotly_click", ({ points }) => points[0] && useComponents(points[0].x));
+  }
+}
+
+function useComponents(n) {
+  state.variant.n_components = Math.max(1, Math.min(20, Number(n) || 1));
+  $("components").value = state.variant.n_components;
+  act("Refitting", refit);
 }
 
 // ---------------------------------------------------------------------------
@@ -439,10 +499,8 @@ $("kind").addEventListener("change", (e) => {
   state.variant.kind = e.target.value;
   act("Refitting", refit);
 });
-$("components").addEventListener("change", (e) => {
-  state.variant.n_components = Math.max(1, Math.min(20, Number(e.target.value) || 1));
-  act("Refitting", refit);
-});
+$("components").addEventListener("change", (e) => useComponents(e.target.value));
+$("cross-validate").addEventListener("click", () => act("Cross-validating every number of components", crossValidate));
 $("add-filter").addEventListener("click", () =>
   act("Filtering rows", () => addStep({ kind: "filter_rows", expression: $("filter").value })),
 );

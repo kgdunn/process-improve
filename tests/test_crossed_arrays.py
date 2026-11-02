@@ -3,19 +3,21 @@
 Ullmann (Table 8) crosses a 2^(4-1) inner array with three centre runs and a 2^2 outer array: 11 x 4
 = 44 runs. Montgomery crosses a 2^(4-1) with a noise factor read three times at each level (the leaf
 springs, Table 12.1), a 3^(4-2) with a 2^3 (the connector pull-off force, Table 12.2) and a 2^(5-2)
-with a 2^(3-1) (Problem 12.18).
+with a 2^(3-1) (Problem 12.18). Schmidt and Launsby's signal-to-noise example reads each setting of a
+2^(3-1) twice and prints each factor's average ratio at each level, for each of Taguchi's three ratios.
 """
 
 from __future__ import annotations
 
 import doctest
 import itertools
+import warnings
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Factor, cross_arrays, generate_design
+from process_improve.experiments import Factor, cross_arrays, generate_design, signal_to_noise
 from process_improve.experiments import crossed_arrays as crossed_arrays_module
 from process_improve.experiments.reference_catalogue import reference_designs, reference_experiments
 
@@ -110,6 +112,63 @@ def test_montgomery_s_connector_pull_off_force_has_seventy_two_readings():
     crossed = cross_arrays(table[list("ABCD")], outer)
     assert len(crossed[list("ABCDEFG")].drop_duplicates()) == 72
     assert crossed.groupby("inner_run").size().tolist() == [8] * 9
+
+
+@pytest.mark.dataset
+@pytest.mark.parametrize(
+    ("kind", "printed"),
+    [
+        ("larger", {"A": (27.69, 18.20), "B": (23.65, 22.24), "C": (23.90, 21.98)}),
+        ("smaller", {"A": (-28.05, -20.51), "B": (-24.09, -24.47), "C": (-24.00, -24.55)}),
+        ("nominal", {"A": (17.96, 10.00), "B": (13.98, 13.98), "C": (20.97, 6.99)}),
+    ],
+)
+def test_schmidt_and_launsby_s_ratios_average_to_the_printed_level_means(kind, printed):
+    table = experiment("schmidt-launsby-2000", "schmidt-signal-to-noise-example")
+    ratios = pd.Series(signal_to_noise(table[["y1", "y2"]], kind), index=table.index)
+    for factor, (low, high) in printed.items():
+        means = ratios.groupby(table[factor]).mean()
+        np.testing.assert_allclose([means[1], means[2]], [low, high], atol=0.006)
+
+
+# --------------------------------------------------------------------------- the ratios
+def test_each_ratio_is_its_formula_one_setting_or_a_table_of_them():
+    y = np.array([[20.0, 30.0], [9.0, 11.0]])
+    for kind, formula in (
+        ("larger", -10 * np.log10((1 / y**2).mean(axis=1))),
+        ("smaller", -10 * np.log10((y**2).mean(axis=1))),
+        ("nominal", 10 * np.log10(y.mean(axis=1) ** 2 / y.var(axis=1, ddof=1))),
+    ):
+        np.testing.assert_allclose(signal_to_noise(y, kind), formula)
+        assert signal_to_noise(y[0], kind) == pytest.approx(formula[0])
+        assert isinstance(signal_to_noise(list(y[0]), kind), float)
+
+
+def test_a_blank_reading_is_left_out():
+    with_blank = signal_to_noise([[20.0, np.nan, 30.0], [9.0, 11.0, 10.0]], "nominal")
+    np.testing.assert_allclose(with_blank, [signal_to_noise([20.0, 30.0], "nominal"), 10 * np.log10(100)])
+
+
+def test_the_edges_are_infinite_or_undefined_without_a_warning():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert signal_to_noise([0.0, 1.0], "larger") == -np.inf
+        assert signal_to_noise([0.0, 0.0], "smaller") == np.inf
+        assert signal_to_noise([5.0, 5.0], "nominal") == np.inf
+        assert np.isnan(signal_to_noise([5.0], "nominal"))
+
+
+@pytest.mark.parametrize(
+    ("readings", "kind", "message"),
+    [
+        ([1.0, 2.0], "bigger", "kind must be 'larger', 'smaller' or 'nominal', not 'bigger'"),
+        (1.0, "larger", "not an array of 0 dimensions"),
+        (np.ones((2, 2, 2)), "larger", "not an array of 3 dimensions"),
+    ],
+)
+def test_ratios_that_cannot_be_worked_are_refused(readings, kind, message):
+    with pytest.raises(ValueError, match=message):
+        signal_to_noise(readings, kind)
 
 
 # --------------------------------------------------------------------------- what the crossing is

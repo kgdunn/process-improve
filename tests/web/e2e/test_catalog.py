@@ -36,6 +36,20 @@ def counted(page, text: str) -> None:
     page.wait_for_function(f"document.querySelector('#count').textContent.startsWith({text!r})")
 
 
+def test_the_reader_s_field_opens_its_page_and_a_goal_writes_a_search(context, site):
+    """The question at the top lists the fields the build wrote; a goal fills the search box, for the reader to edit."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#field option[value='chemical-processes']", state="attached")
+    page.click("text=Blend ingredients")
+    assert page.input_value("#query") == "mixture"
+    counted(page, "0 of 5")
+    # The build writes the field's page (tests/web/page/test_field_pages.py): this site stands in for it.
+    page.route("**/catalog/fields/**", lambda route: route.fulfill(body="<h1>A field</h1>", content_type="text/html"))
+    page.select_option("#field", "chemical-processes")
+    page.click("#field-form button")
+    page.wait_for_url("**/catalog/fields/chemical-processes/")
+
+
 def test_the_app_s_header_opens_the_catalog(fresh_page):
     fresh_page.click("#catalog-link")
     fresh_page.wait_for_url("**/catalog/")
@@ -105,7 +119,8 @@ def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, s
     assert "d=bhh-pilot-plant-2-3" in page.url
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
-    assert "d=" not in page.url
+    # The dialog's close event, which takes the design out of the address, fires after its open attribute goes.
+    page.wait_for_function("!location.hash.includes('d=')")
 
 
 def test_a_click_outside_a_design_s_detail_closes_it_but_a_selection_dragged_out_does_not(context, site):
@@ -123,7 +138,8 @@ def test_a_click_outside_a_design_s_detail_closes_it_but_a_selection_dragged_out
     assert page.evaluate("getSelection().toString()") != ""
     page.mouse.click(box["x"] + box["width"] + 8, box["y"] + 8)
     page.wait_for_selector("#detail:not([open])", state="attached")
-    assert "d=" not in page.url
+    # The dialog's close event, which takes the design out of the address, fires after its open attribute goes.
+    page.wait_for_function("!location.hash.includes('d=')")
 
 
 def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_context, site):
@@ -186,7 +202,7 @@ def test_an_application_narrows_the_list_and_the_address_keeps_it(book_context, 
 
 def test_the_applications_of_the_fewest_designs_are_a_click_away(context, site, catalog_files):
     """With ten applications, the filter lists eight; the rest open on a click, or when the address chose one."""
-    index = json.loads((catalog_files / "index.json").read_text())
+    index = json.loads((catalog_files / "index.json").read_text(encoding="utf-8"))
     ten = [topic for topic in index["topics"] if topic != "general"][:10]
     for design in index["designs"]:
         design["topics"] = {PILOT: ten, COMPARISON: ten[:3]}.get(design["id"], [])
@@ -264,9 +280,9 @@ def test_the_robustness_filters_keep_the_designs_that_withstand_more(context, si
 
 def test_a_design_the_page_cannot_take_says_why_it_does_not_open(context, site, catalog_files):
     """The comparison's detail, as the build writes a design it cannot open: no campaign, and the reason."""
-    index = json.loads((catalog_files / "index.json").read_text())
+    index = json.loads((catalog_files / "index.json").read_text(encoding="utf-8"))
     name = next(d["detail"] for d in index["designs"] if d["id"] == COMPARISON)
-    shard = json.loads((catalog_files / "detail" / f"{name}.json").read_text())
+    shard = json.loads((catalog_files / "detail" / f"{name}.json").read_text(encoding="utf-8"))
     closed = {"campaign": None, "opens_as": None, "closed": "the source prints no complete table of runs"}
     shard["designs"][COMPARISON] |= closed
     context.route(f"{site}catalog/detail/{name}.json", lambda route: route.fulfill(json=shard))
@@ -539,7 +555,7 @@ def test_the_errata_list_every_printed_number_that_does_not_reproduce(context, s
 
 def test_the_gaps_are_the_generated_designs_no_source_prints(context, site):
     page = open_catalog(context, site)
-    page.click(".try:text('gaps')")
+    page.fill("#query", "gaps")
     counted(page, "2 of 5")
     assert set(shown(page)) == {CCD, OMARS}, "the library's 2^3 is Box, Hunter and Hunter's pilot plant"
     page.fill("#query", "")

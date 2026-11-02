@@ -8,8 +8,13 @@ import {
   GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
+  FACTORS_HELD,
+  FEW_FACTORS,
   LEVELS_FORMAT,
+  MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
+  SCENARIOS_HELD,
+  WHAT_IF_FORMAT,
   bookName,
   campaignDone,
   campaignTitle,
@@ -636,8 +641,7 @@ describe("each study is saved in the lowest format that holds it", () => {
     assert.equal(checkCampaign({ ...oneFactor(), v: 1 }).v, ONE_FACTOR_FORMAT);
   });
 
-  test("a factor that lists its levels is format 3, the latest, kept with its type and levels", () => {
-    assert.equal(CAMPAIGN_VERSION, LEVELS_FORMAT);
+  test("a factor that lists its levels is format 3, kept with its type and levels", () => {
     const checked = checkCampaign(threeSuppliers());
     assert.equal(checked.v, LEVELS_FORMAT);
     assert.deepEqual(checked.design.spec.factors[1], { name: "Supplier", type: "categorical", levels: ["A", "B", "C"], units: "" });
@@ -667,5 +671,164 @@ describe("each study is saved in the lowest format that holds it", () => {
     const other = threeSuppliers();
     other.design.spec.factors[1] = { ...other.design.spec.factors[1], levels: ["A", "B", "D"] };
     assert.notEqual(designKey(threeSuppliers().design), designKey(other.design));
+  });
+});
+
+/**
+ * A screening study of k numeric factors X1 to Xk in eight runs, with every response a study can measure, in two
+ * blocks, a confirmation run, and results simulated from a process in the first three factors: the run sheet holds
+ * every kind of column it can.
+ */
+function screening(k) {
+  const names = Array.from({ length: k }, (_, i) => `X${i + 1}`);
+  const responses = ["y", "y2", "y3", "y4", "y5"];
+  const columns = ["Std order", "Run order", "Block", ...names, ...responses, "Confirmation run"];
+  const rows = Array.from({ length: 8 }, (_, run) => [
+    run + 1,
+    run + 1,
+    1 + (run % 2),
+    ...names.map((_, j) => ((run >> j % 3) & 1 ? 1 : -1) * (j % 2 ? -1 : 1)),
+    ...responses.map(() => null),
+    null,
+  ]);
+  const simulation = {
+    scenario: "main_effects",
+    label: "Main effects only",
+    sigma: 1,
+    seed: 3,
+    equation: "y = 50 + 3·X1 - 2·X2 + 1.5·X3",
+    inactive: names.slice(3),
+    truth: [
+      { term: "Intercept", coefficient: 50 },
+      { term: "X1", coefficient: 3 },
+      { term: "X2", coefficient: -2 },
+      { term: "X3", coefficient: 1.5 },
+    ],
+  };
+  return {
+    v: MANY_FACTORS_FORMAT,
+    title: `Plackett-Burman screening in ${k} factors`,
+    design: {
+      spec: {
+        version: 1,
+        design_type: "plackett_burman",
+        factors: names.map((name) => ({ name, low: 0, high: 10, units: "u" })),
+        response: "y",
+        responses: responses.map((name) => ({ name })),
+        model: "main_effects",
+        options: { random_state: 7, n_blocks: 2 },
+      },
+      columns,
+      rows,
+      model: "main_effects",
+      n_runs: 8,
+      facts: { center_runs: 0, notes: [] },
+      outside_range: [...names],
+    },
+    responses: [50, 52, 48, 51, 49, 53, 47, 50],
+    sources: Array(8).fill("simulated"),
+    simulation,
+    simulate: { scenario: "main_effects", sigma: 1, seed: 3 },
+    model: { terms: [...names.map((n) => [n]), ["X1", "X2"]] },
+  };
+}
+
+describe("a study of more factors than an earlier page reads", () => {
+  for (const k of [13, 24, 40]) {
+    test(`a screening study of ${k} factors opens whole, in the format that holds it`, async () => {
+      const checked = checkCampaign(screening(k));
+      assert.equal(checked.v, MANY_FACTORS_FORMAT);
+      assert.equal(checked.design.spec.factors.length, k);
+      assert.deepEqual(checked.simulation.inactive, screening(k).simulation.inactive, "every factor the process leaves out");
+      assert.deepEqual(checked.design.outside_range, screening(k).design.outside_range);
+      assert.deepEqual(checked.model, screening(k).model, "the main effects, and the interaction the reader named");
+      const back = await unpackCampaign(await packCampaign(shareable(checked, true)));
+      assert.deepEqual(back, checked, "a link carries it as it is");
+    });
+  }
+
+  test("format 4 is later than any an earlier page reads, so that page refuses the study by its format", () => {
+    assert.equal(MANY_FACTORS_FORMAT, LEVELS_FORMAT + 1);
+    assert.ok(CAMPAIGN_VERSION >= MANY_FACTORS_FORMAT, "this page reads it");
+    assert.equal(FEW_FACTORS, 12, "the factor list an earlier page holds");
+    for (const k of [13, 24, 40]) assert.equal(studyFormat(screening(k).design.spec), MANY_FACTORS_FORMAT);
+    const levels = screening(13).design.spec;
+    levels.factors[0] = { name: "X1", type: "categorical", levels: ["A", "B", "C"], units: "" };
+    assert.equal(studyFormat(levels), MANY_FACTORS_FORMAT, "with a factor that lists its levels too");
+  });
+
+  test("a study of 12 factors keeps the format it had, so an earlier page still opens it", () => {
+    const data = screening(13);
+    const spec = { ...data.design.spec, factors: data.design.spec.factors.slice(0, FEW_FACTORS) };
+    assert.equal(studyFormat(spec), 1);
+  });
+
+  test("a study of more factors than a study holds is refused", () => {
+    assert.equal(FACTORS_HELD, 40);
+    const data = screening(40);
+    data.design.spec.factors.push({ name: "X41", low: 0, high: 10, units: "u" });
+    assert.throws(() => checkCampaign(data), /the factor list is too long/);
+  });
+});
+
+describe("settings kept from the what-if panel", () => {
+  /** The study, with two sets of settings kept under their names. */
+  const withKept = () => ({
+    ...campaign(),
+    what_if: [
+      { name: "Cooler, more pressure", settings: { T: 175, Supplier: "B" } },
+      { name: "Hot", settings: { T: 200, Supplier: "A" } },
+    ],
+  });
+
+  test("are kept with the study, in the format that holds them, and only then", () => {
+    const checked = checkCampaign(withKept());
+    assert.deepEqual(checked.what_if, withKept().what_if);
+    assert.equal(checked.v, WHAT_IF_FORMAT);
+    assert.equal(WHAT_IF_FORMAT, MANY_FACTORS_FORMAT + 1, "later than any an earlier page reads");
+    assert.equal(CAMPAIGN_VERSION, WHAT_IF_FORMAT);
+    assert.equal(studyFormat(campaign().design.spec, withKept().what_if), WHAT_IF_FORMAT);
+    assert.equal(checkCampaign({ ...campaign(), what_if: [] }).v, 1, "none kept: the format the study had");
+    assert.equal(checkCampaign({ ...campaign(), what_if: [] }).what_if, undefined);
+    assert.equal(checkCampaign({ ...campaign(), what_if: null }).what_if, undefined);
+  });
+
+  test("go out and back through a link, with its results or without", async () => {
+    const checked = checkCampaign(withKept());
+    for (const withResults of [true, false]) {
+      const carried = shareable(checked, withResults);
+      assert.deepEqual(carried.what_if, withKept().what_if, "they are settings: what they predict comes from the results");
+      const back = await unpackCampaign(await packCampaign(carried));
+      assert.deepEqual(back.what_if, withKept().what_if);
+      assert.equal(back.v, WHAT_IF_FORMAT);
+    }
+    assert.equal(shareable(checkCampaign(campaign()), true).what_if, undefined);
+  });
+
+  test("are checked for their shape: a setting the factors no longer have still opens, to be judged where it is listed", () => {
+    const edited = withKept();
+    edited.what_if[0].settings = { T: 260, Supplier: "C", Gone: 1 };
+    assert.deepEqual(checkCampaign(edited).what_if[0].settings, { T: 260, Supplier: "C", Gone: 1 });
+  });
+
+  test("that are not settings are refused, saying why", () => {
+    const refused = (whatIf, why) => assert.throws(() => checkCampaign({ ...campaign(), what_if: whatIf }), why);
+    refused({ name: "Hot" }, /the kept settings is not a list/);
+    refused([{ name: "Hot" }], /kept settings 1 are not a name and settings/);
+    refused([{ name: "", settings: { T: 175 } }], /the name of kept settings 1 is not one line/);
+    refused([{ name: "Two\nlines", settings: { T: 175 } }], /not one line of text/);
+    refused([{ name: "x".repeat(SCENARIOS_HELD.name + 1), settings: {} }], /the name of kept settings 1 is not text/);
+    refused([{ name: "Hot", settings: { T: [1] } }], /the setting of T is neither a number nor a label/);
+    refused([{ name: "Hot", settings: { T: Infinity } }], /the setting of T is neither a number nor a label/);
+    refused(
+      [
+        { name: "Hot", settings: { T: 200 } },
+        { name: "Hot", settings: { T: 150 } },
+      ],
+      /two of its kept settings share a name/,
+    );
+    const many = Array.from({ length: SCENARIOS_HELD.count + 1 }, (_, i) => ({ name: `Settings ${i + 1}`, settings: { T: 175 } }));
+    refused(many, /the kept settings is too long/);
+    assert.equal(checkCampaign({ ...campaign(), what_if: many.slice(1) }).what_if.length, SCENARIOS_HELD.count);
   });
 });

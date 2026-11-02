@@ -30,15 +30,30 @@ export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
 /** The resolutions the page offers a fraction, lowest first; mirrors bootstrap.RESOLUTIONS. */
 export const RESOLUTIONS = [3, 4, 5];
 
+/**
+ * The highest resolution of a fraction in k factors the page makes, as bootstrap._resolution reads it: k, up to V,
+ * and IV past MAX_INTERACTION_FACTORS factors, since V is made to estimate the interactions the page does not model.
+ */
+export const highestResolution = (k) => Math.min(k, screensOnly(k) ? 4 : Math.max(...RESOLUTIONS));
+
 /** A resolution in roman numerals, as a fraction's is written. */
 export const ROMAN = { 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII" };
 
 /** A cell of the trade-off grid whose runs are the full factorial's 2^k. */
 export const FULL = "full";
 
-/** The trade-off grid's rows, run counts, and its columns, numbers of factors: a fraction takes 3 to 11 on the page. */
+/**
+ * The trade-off grid's rows, run counts, and its columns, numbers of factors: 3 to 11, the fractions the library
+ * holds a table of. The page makes fractions in up to 24 factors, and the grid says so past its last column.
+ */
 export const TRADE_OFF_RUNS = [4, 8, 16, 32, 64, 128];
 export const TRADE_OFF_FACTORS = [3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+/** What the grid says to a brief of more factors than its last column: "" for one it has a column for. */
+export const tradeOffBeyond = (k) =>
+  k > TRADE_OFF_FACTORS.at(-1)
+    ? `The grid shows fractions in ${TRADE_OFF_FACTORS[0]} to ${TRADE_OFF_FACTORS.at(-1)} factors; the page finds the fraction in your ${k} when it makes the design.`
+    : "";
 
 const F = FULL;
 const _ = null;
@@ -122,6 +137,29 @@ export const needsCentre = (designType, alpha, k) =>
 /** The analysis model's select value for a model of the terms the reader ticks. */
 export const CHOSEN_TERMS = "terms";
 
+/** The most factors a study has; mirrors bootstrap.MAX_FACTORS. */
+export const MAX_FACTORS = 40;
+
+/** The most factors the page models the interactions of; mirrors bootstrap.MAX_INTERACTION_FACTORS. */
+export const MAX_INTERACTION_FACTORS = 12;
+
+/** The named models with every two-factor interaction, which a study of more factors than that is not fitted with. */
+export const INTERACTION_MODELS = ["interactions", "quadratic"];
+
+/** Whether a study of k factors is fitted for its main effects, or the terms the reader names, and nothing more. */
+export const screensOnly = (k) => k > MAX_INTERACTION_FACTORS;
+
+/**
+ * What the page says of a study of k factors, more than it models the interactions of: the aims and the models
+ * it keeps to, and why. "" for fewer factors. ``where`` is "brief" for the aim, or "learn" for the model.
+ */
+export function screeningSentence(k, where) {
+  if (!screensOnly(k)) return "";
+  const why = `${k} factors have ${(k * (k - 1)) / 2} two-factor interactions, more than a screening design has runs.`;
+  if (where === "learn") return `Past ${MAX_INTERACTION_FACTORS} factors, Learn fits the main effects, or the terms you choose: ${why}`;
+  return `Past ${MAX_INTERACTION_FACTORS} factors, a study finds which factors matter, and a fraction is made at resolution III or IV: ${why}`;
+}
+
 /** Every way of picking `size` of the items, in order: the pairs or triples of factors for interactions. */
 export function combinations(items, size) {
   if (size === 0) return [[]];
@@ -131,18 +169,21 @@ export function combinations(items, size) {
 /**
  * Every term a model of these factors may hold, as the page lists them to tick: {term, label, group},
  * where a term is a list of factor names: one for a main effect, two or three for an interaction,
- * and one name twice for a square, as bootstrap.py reads them.
+ * and one name twice for a square, as bootstrap.py reads them. Past MAX_INTERACTION_FACTORS factors,
+ * whose interactions are too many to list (40 factors have 9880 of three), the interactions listed are
+ * those the reader named: the ones in ``named``.
  */
-export function candidateTerms(factors) {
+export function candidateTerms(factors, named = []) {
   const names = factors.map((f) => f.name);
   const group = (label, terms) => terms.map((term) => ({ term, label: termLabel(term), group: label }));
-  return [
-    ...group("Main effects", names.map((n) => [n])),
-    ...group("Two-factor interactions", combinations(names, 2)),
-    ...group("Three-factor interactions", combinations(names, 3)),
-    ...group("Squares", squared(factors)),
-  ];
+  const interactions = screensOnly(names.length)
+    ? group("Interactions you name", named.filter((term) => term.length > 1 && term[0] !== term[1] && term.every((n) => names.includes(n))))
+    : [...group("Two-factor interactions", combinations(names, 2)), ...group("Three-factor interactions", combinations(names, 3))];
+  return [...group("Main effects", names.map((n) => [n])), ...interactions, ...group("Squares", squared(factors))];
 }
+
+/** The interaction of two factors as a term, its factors in the design's order; null for a factor and itself. */
+export const interactionOf = (a, b, names) => (a === b ? null : [a, b].sort((x, y) => names.indexOf(x) - names.indexOf(y)));
 
 /** The squares a model may hold: one per numeric factor, since a categorical one is +1 at both its levels. */
 const squared = (factors) => factors.filter((f) => !isCategorical(f)).map((f) => [f.name, f.name]);
@@ -558,15 +599,42 @@ export function powerScale(info) {
 /** A variable name, as Python's str.isidentifier reads one: a letter or _, then letters, digits and _. */
 const IDENTIFIER = /^[\p{ID_Start}_][\p{ID_Continue}]*$/u;
 
+/** Python's keywords (keyword.kwlist), which a model formula cannot name a factor with. */
+const KEYWORDS = new Set(
+  ("False None True and as assert async await break class continue def del elif else except finally for from global "
+    + "if import in is lambda nonlocal not or pass raise return try while with yield").split(" "),
+);
+
+/** Symbols that names often hold, as words, so that a suggested name keeps their meaning. */
+const SYMBOL_WORDS = { "%": "pct", "°": "deg", "#": "num" };
+
+/** A character a suggested name keeps: one the library's \w and Python's identifiers both take after a letter. */
+const KEPT = /^(?=[\p{L}\p{N}_])\p{ID_Continue}$/u;
+
+/**
+ * A name close to ``name`` that a model can hold, made as the library's suggest_identifier makes it:
+ * "Water %" gives Water_pct, "Temp (°C)" Temp_deg_C, "2nd stage" x2nd_stage and "lambda" lambda_.
+ */
+export function suggestName(name) {
+  let text = String(name ?? "");
+  for (const [symbol, word] of Object.entries(SYMBOL_WORDS)) text = text.replaceAll(symbol, ` ${word} `);
+  text = [...text].map((char) => (KEPT.test(char) ? char : " ")).join("");
+  text = text.replace(/[ _]+/g, "_").replace(/^_|_$/g, "");
+  if (!/^[A-Za-z]/.test(text)) text = `x${text}`;
+  return KEYWORDS.has(text) ? `${text}_` : text;
+}
+
 /**
  * What a factor's name needs, in a sentence the page shows as the reader types; "" when it is ready.
- * The rules are those bootstrap.py applies: a variable name, unlike every other factor's, and unlike
- * ``taken``, the run sheet's other columns a factor renamed on it cannot take (its results, its blocks).
+ * The rules are those bootstrap.py applies: a variable name and not a Python keyword, unlike every
+ * other factor's, and unlike ``taken``, the run sheet's other columns a factor renamed on it cannot take
+ * (its results, its blocks). A name that breaks the first rule comes with one that keeps it.
  */
 export function nameProblem(name, others = [], place = 1, taken = []) {
   const n = String(name ?? "").trim();
   if (!n) return `Factor ${place} needs a name.`;
-  if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as Temp_2.`;
+  if (!IDENTIFIER.test(n)) return `${n}: a name is letters, digits and _, and starts with a letter, such as ${suggestName(n)}.`;
+  if (KEYWORDS.has(n)) return `${n}: Python keeps this word for itself, so a model cannot name it; try ${suggestName(n)}.`;
   if (others.includes(n)) return `${n}: two factors cannot share a name.`;
   if (taken.includes(n)) return `${n}: the run sheet has a ${n} column already.`;
   return "";
@@ -1080,6 +1148,100 @@ export function severalSentence(comparison, { response }) {
     : `These runs do not show that the averages of ${response} at the ${k} levels differ by more than their noise: ${p}.`;
 }
 
+/**
+ * The checks of what the one-way analysis of variance assumes, as a comparison of three levels or more lists them
+ * (``several.checks``): each check's name, its glossary entry and what it reads, as for ``COMPARISON_TESTS``.
+ */
+export const LEVEL_CHECKS = {
+  bartlett: { name: "Bartlett's test", key: "bartlett", how: "whether each level's runs spread alike" },
+  kruskal_wallis: { name: "Kruskal-Wallis test", key: "kruskal-wallis", how: "the order of the results" },
+};
+
+/**
+ * What each check of a comparison of three levels or more means for its one-way analysis of variance, a sentence a
+ * check, at the 5% level: whether the levels' runs spread alike, as the noise pooled from them all takes them to,
+ * and whether the ranks of the results, which assume no normal noise, say what the averages say. A sentence says
+ * when Bartlett's test is left out. No sentence without a comparison of three levels or more.
+ */
+export function checkSentences(comparison) {
+  const several = comparison?.several;
+  if (!several?.checks) return [];
+  const found = Object.fromEntries(several.checks.map((check) => [check.test, check.p_value < 0.05]));
+  const sentences = [];
+  if (!("bartlett" in found)) {
+    sentences.push("Bartlett's test needs two runs or more at each level, and results at each level that are not all alike.");
+  } else {
+    const pooled = "the one-way analysis of variance, Tukey's intervals and Dunnett's intervals";
+    sentences.push(
+      found.bartlett
+        ? `Bartlett's test finds that the runs at some levels spread more than at others: ${pooled} pool one noise ` +
+            "from every level, so their p-values and intervals are approximate here."
+        : "Bartlett's test does not show that the runs at some levels spread more than at others, so these runs are " +
+            `consistent with the one noise that ${pooled} pool from every level.`,
+    );
+  }
+  if (!("kruskal_wallis" in found)) return sentences;
+  const lead = "The Kruskal-Wallis test, which ranks the results and so does not assume normal noise,";
+  const anova = "the one-way analysis of variance";
+  const said = {
+    "true,true": "also finds that the levels differ.",
+    "true,false":
+      `finds that the levels differ, though ${anova} does not: one result far from the others widens the noise ` +
+      "more than it moves the ranks.",
+    "false,true":
+      `does not show that the levels differ, though ${anova} does: the ranks keep the order of the results, not ` +
+      "how far apart they are.",
+    "false,false": `does not show that the levels differ, nor does ${anova}.`,
+  };
+  sentences.push(`${lead} ${said[`${found.kruskal_wallis},${several.test.p_value < 0.05}`]}`);
+  return sentences;
+}
+
+// ---------------------------------------------------------------- the readings repeated at a setting
+/** Taguchi's signal-to-noise ratios in words, by the names bootstrap.SN_KINDS gives each goal's. */
+export const SN_WORDS = { larger: "larger is better", smaller: "smaller is better", nominal: "nominal is best" };
+
+/**
+ * What the readings repeated at each setting say (the analysis's ``spread``), in sentences: which factor moves the
+ * spread most, and at which level the spread is smallest; the level of each factor with the highest signal-to-noise
+ * ratio, as Taguchi's first step sets them, the factor that moves the ratio most first; for a target, the adjustment
+ * factor his second step moves the mean with; and the runs left out. ``factorUnits`` gives each factor's units.
+ */
+export function spreadSentences(spread, { response, units = "", factorUnits = {} }) {
+  const num = (x) => String(Number(Number(x).toPrecision(3)));
+  const after = (u) => (!u ? "" : u === "%" ? "%" : ` ${u}`); // no space before a percent sign
+  const at = (f, level) => `${f.name} at ${level}${after(factorUnits[f.name])}`;
+  const lines = [];
+  const spreads = spread.factors.find((f) => f.rank.ln_std_dev === 1 && f.best.ln_std_dev !== undefined);
+  if (spreads) {
+    const each = listNames(spreads.levels.map((l) => `${num(l.ln_std_dev)} at ${l.level}${after(factorUnits[spreads.name])}`));
+    lines.push(
+      `${spreads.name} moves the spread of ${response} most, its ln s ${each}: the spread is smallest with ` +
+        `${at(spreads, spreads.best.ln_std_dev)}.`,
+    );
+  }
+  const ratio = spread.factors.filter((f) => f.best.sn !== undefined).sort((a, b) => a.rank.sn - b.rank.sn);
+  if (spread.kind && ratio.length) {
+    lines.push(
+      `The signal-to-noise ratio (${SN_WORDS[spread.kind]}) is highest with ${listNames(ratio.map((f) => at(f, f.best.sn)))}` +
+        `${ratio.length > 1 ? ", the factor that moves it most first" : ""}.`,
+    );
+  }
+  const adjusts = spread.factors.find((f) => f.name === spread.adjustment);
+  if (adjusts) {
+    lines.push(
+      `To move the mean to the target, ${adjusts.name} is the adjustment factor: it moves the mean most for its ` +
+        `effect on the spread, by ${num(adjusts.delta.mean)}${after(units)} over its levels and ln s by ` +
+        `${num(adjusts.delta.ln_std_dev)}.`,
+    );
+  }
+  const out = spread.left_out;
+  if (out.length) {
+    lines.push(`${out.length === 1 ? "Run" : "Runs"} ${listNames(out.map(String))}, read once at ${out.length === 1 ? "its setting, is" : "their settings, are"} left out.`);
+  }
+  return lines;
+}
+
 // ---------------------------------------------------------------- results pasted from a spreadsheet
 /** The headings, in lower case, a pasted column of run numbers may have: the run sheet's own, and the usual others. */
 export const RUN_HEADINGS = ["run order", "run", "run number", "run no.", "run #"];
@@ -1391,6 +1553,15 @@ export const FILTER_CORNERS_FROM = 5;
 /** The most rows of corners shown at once; more come on request. */
 export const CORNERS_SHOWN = 32;
 
+/** The most numeric factors whose corners the table lists for marking; mirrors bootstrap.PROBE_FACTORS. */
+export const PROBE_FACTORS = 8;
+
+/** What the panel says in place of the table of corners for more numeric factors than it lists; "" for fewer. */
+export const cornersBeyond = (k) =>
+  k > PROBE_FACTORS
+    ? `The table of corners to mark lists up to ${PROBE_FACTORS} numeric factors: your ${k} have ${(2 ** k).toLocaleString("en")} corners, too many to mark one by one.`
+    : "";
+
 /**
  * The rows of the table of corners a reader's filters leave: each factor ``"low"``, ``"high"`` or
  * ``"any"`` (the default), by column. The centre is no corner, and is left to the caller.
@@ -1562,4 +1733,34 @@ export function printedLike(value, printed) {
   const [, whole, decimals, exponent] = digits;
   if (exponent !== undefined) return value.toExponential(Math.min(8, (whole + decimals).replace(/^0+/, "").length));
   return value.toFixed(Math.min(8, decimals.length + 1));
+}
+
+/** A plan above this share of a field's experiments is larger than most, below its complement smaller than most. */
+const MOST = 0.75;
+
+/**
+ * How a plan, ``{factors, runs}``, compares with a field's published experiments (``points``, each
+ * ``[factors, runs, kind, how many]``), in a sentence: by its runs once it has a design, else by its factors. ""
+ * without a plan or a field.
+ */
+export function planVerdict(points, plan) {
+  if (!plan?.factors || !points?.length) return "";
+  const mine = plan.runs ?? plan.factors;
+  let below = 0;
+  let above = 0;
+  let total = 0;
+  for (const [factors, runs, , count] of points) {
+    const theirs = plan.runs ? runs : factors;
+    total += count;
+    if (theirs < mine) below += count;
+    else if (theirs > mine) above += count;
+  }
+  if (plan.runs) {
+    if (below >= MOST * total) return "Your plan is larger than most here.";
+    if (above >= MOST * total) return "Your plan is smaller than most here.";
+    return "Your plan is a typical size here.";
+  }
+  if (below >= MOST * total) return "You have more factors than most experiments here.";
+  if (above >= MOST * total) return "You have fewer factors than most experiments here.";
+  return "Experiments here often have as many factors as yours.";
 }

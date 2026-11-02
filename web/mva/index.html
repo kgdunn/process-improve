@@ -40,6 +40,7 @@
       <div class="toolbar">
         <label>Model <select id="kind"><option>PCA</option><option>PLS</option></select></label>
         <label>Components <input type="number" id="components" min="1" max="20" value="3" style="width: 4.5em"></label>
+        <button type="button" id="cross-validate" disabled>Cross-validate</button>
         <span class="count" id="model-summary"></span>
       </div>
       <div id="scores" role="img" aria-label="Score plot"></div>
@@ -58,6 +59,13 @@
     <section class="panel" aria-labelledby="t2-title">
       <h2 id="t2-title">Hotelling's T², in run order</h2>
       <div id="t2" role="img" aria-label="Hotelling's T-squared chart"></div>
+    </section>
+
+    <section class="panel wide" id="cv-panel" aria-labelledby="cv-title" hidden>
+      <h2 id="cv-title">How many components?</h2>
+      <p class="hint" id="cv-sentence"></p>
+      <div id="cv" role="img" aria-label="R² and Q² per number of components" aria-describedby="cv-sentence"></div>
+      <p class="hint">Click a bar to use that number of components.<span id="cv-notes"></span></p>
     </section>
 
     <section class="panel wide explanation" id="explanation" aria-labelledby="explanation-title" hidden>

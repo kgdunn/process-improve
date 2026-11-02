@@ -11,9 +11,11 @@ import {
   CORNERS_SHOWN,
   FILTER_CORNERS_FROM,
   alsoRuledOut,
+  cornersBeyond,
   cornersWords,
   cutWords,
   filterCorners,
+  isCategorical,
   limitEffect,
   listNames,
   settingLabel,
@@ -92,6 +94,7 @@ export function renderCorners(result, factors) {
   drawn = result?.probes ? result : null;
   factorsDrawn = factors;
   $("#corners").hidden = !drawn;
+  say($("#corners-many"), result && !drawn ? cornersBeyond(factors.filter((f) => !isCategorical(f)).length) : "");
   if (!drawn) return;
   renderFilters(drawn.probes);
   renderTable(drawn.probes);

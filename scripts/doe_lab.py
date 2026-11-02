@@ -96,7 +96,7 @@ class Lab:
         self._write({"event": "start", "case": case.name, "seed": seed, "budget": budget})
 
     def _write(self, record: dict[str, Any]) -> None:
-        with self.log.open("a") as out:
+        with self.log.open("a", encoding="utf-8") as out:
             out.write(json.dumps({"time": time.time(), **record}) + "\n")
 
     def problem(self) -> dict[str, Any]:
@@ -192,7 +192,7 @@ def _handler(lab: Lab) -> type[BaseHTTPRequestHandler]:
 
 def score(log: Path) -> dict[str, Any]:
     """Return how the agent in a lab log did: runs used, its answer's true response, and the shortfall."""
-    records = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
     start = next(r for r in records if r["event"] == "start")
     case = next(c for c in CASES if c.name == start["case"])
     runs = sum(len(r["runs"]) for r in records if r["event"] == "runs")

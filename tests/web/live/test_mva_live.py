@@ -2,8 +2,9 @@
 
 ``tests/web/e2e/test_mva_page.py`` answers the page's Python natively; this is the page as a
 reader gets it: Pyodide started in ``mva/worker.js``, the app's one wheel installed from the
-app's ``wheels/manifest.json``, and ``mva/bootstrap.py`` answering. It is not a smoke test, so
-a fault here does not hold back the designed-experiments page's deploy.
+app's ``wheels/manifest.json``, and ``mva/bootstrap.py`` answering, through to a
+cross-validation. It is not a smoke test, so a fault here does not hold back the
+designed-experiments page's deploy.
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ def mva(chromium: Any, app_url: str, request: pytest.FixtureRequest) -> Iterator
     context.close()
 
 
-def test_the_built_page_fits_excludes_and_explains_under_pyodide(mva) -> None:
+def test_the_built_page_fits_excludes_explains_and_cross_validates_under_pyodide(mva) -> None:
     page, console = mva
     assert page.text_content("#status").startswith("Ready: process-improve")
     page.click("#open-example")
@@ -59,4 +60,8 @@ def test_the_built_page_fits_excludes_and_explains_under_pyodide(mva) -> None:
     page.click("#explain")
     page.wait_for_selector("#explanation:not([hidden])", timeout=60_000)
     assert page.text_content("#summary tr:nth-child(2) td:first-child") == "z2"
+
+    page.click("#cross-validate")
+    page.wait_for_function("document.getElementById('cv').data?.length === 2", timeout=120_000)
+    assert page.text_content("#cv-sentence").startswith("Recommended: ")
     assert console.unexpected() == []

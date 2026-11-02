@@ -5,7 +5,6 @@ Each test reproduces a reviewer's failure scenario and checks the corrected beha
 
 from __future__ import annotations
 
-import logging
 from typing import ClassVar
 
 import numpy as np
@@ -46,15 +45,14 @@ class TestAutoSelectFallsBackWhenNoSupersaturatedDesignExists:
 @pytest.mark.usefixtures("no_pyoptex")
 class TestFixedRunsThatCannotSupportTheModel:
     @pytest.mark.parametrize("design_type", ["d_optimal", "i_optimal", "a_optimal", "e_optimal"])
-    def test_budget_rises_to_cover_the_missing_rank(self, design_type: str, caplog: pytest.LogCaptureFixture) -> None:
-        """Three identical centre runs span 1 of 6 quadratic coefficients: 5 free runs are needed, not 3."""
+    def test_a_budget_short_of_the_missing_rank_is_refused(self, design_type: str) -> None:
+        """Three identical centre runs span 1 of 6 quadratic coefficients: 5 free runs are needed, not 3 (#957)."""
         centre = pd.DataFrame({"X1": [0.0] * 3, "X2": [0.0] * 3})
-        with caplog.at_level(logging.WARNING):
-            result = generate_design(
-                _continuous(2), design_type=design_type, model_type="quadratic", budget=6, fixed_runs=centre
-            )
+        options = {"design_type": design_type, "model_type": "quadratic", "fixed_runs": centre}
+        with pytest.raises(ValueError, match=r"span only 1 of the 6 model coefficients.*budget >= 8, not 6"):
+            generate_design(_continuous(2), budget=6, **options)
+        result = generate_design(_continuous(2), budget=8, **options)
         assert result.n_runs == 8
-        assert "span only 1 of the 6 model coefficients" in caplog.text
         x = result.design[["X1", "X2"]].to_numpy(dtype=float)
         model = np.column_stack([np.ones(len(x)), x, x[:, 0] * x[:, 1], x**2])
         assert np.linalg.matrix_rank(model) == 6

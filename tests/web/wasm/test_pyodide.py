@@ -68,6 +68,24 @@ def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, des
     assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
 
 
+@pytest.mark.parametrize("design_type", ["plackett_burman", "dsd"])
+@pytest.mark.parametrize("k", [13, 24, 40])
+def test_a_screening_design_of_many_factors_and_its_analysis_agree_with_native_python(pyodide, api, design_type, k):
+    """Past 12 factors, as the page makes them: the design, its runs as given, and their main effects."""
+    spec = {"design_type": design_type, "factors": factors_named(*(f"X{i + 1}" for i in range(k)))}
+    under, native = pyodide.ok("api_make_design", spec), api.ok("api_make_design", spec)
+    assert (under["columns"], under["n_runs"], under["model"]) == (native["columns"], native["n_runs"], native["model"])
+    np.testing.assert_allclose(numbers(under["rows"]), numbers(native["rows"]), atol=1e-9)
+    assert under["facts"] == native["facts"]
+    request = {**held_of(under), "responses": known(run_sheet(under)).tolist()}
+    fitted, expected = pyodide.ok("api_analyze_runs", request), api.ok("api_analyze_runs", request)
+    assert fitted["model"] == expected["model"] == "main_effects"
+    for got, want in zip(fitted["coefficients"], expected["coefficients"], strict=True):
+        assert got["coefficient"] == pytest.approx(want["coefficient"], rel=1e-6, abs=1e-9), got["term"]
+    given = {**spec, "design_type": "given", "runs": numbers(under["rows"])[:, 2:].tolist()}
+    assert pyodide.ok("api_make_design", given)["facts"] == api.ok("api_make_design", given)["facts"]
+
+
 def test_blocks_labels_replicates_and_chosen_terms_agree_with_native_python(pyodide, api):
     """Two replicates in two blocks, a factor whose levels are labels, and a three-factor interaction to find."""
     factors = [*FACTORS[:2], SUPPLIER]

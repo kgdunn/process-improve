@@ -175,6 +175,7 @@
           <button type="button" id="add-factor" class="link">+ Add <span class="term" data-term="factor">factor</span></button>
           <button type="button" id="add-categorical" class="link">+ Add <span class="term"
             data-term="categorical">categorical factor</span></button>
+          <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
         <details id="limits" class="known limits">
@@ -225,6 +226,8 @@
             </p>
             <div id="limit-proposals" class="proposals" aria-live="polite"></div>
           </div>
+          <!-- In place of the corners past bootstrap.PROBE_FACTORS numeric factors: why there is no table to mark. -->
+          <p id="corners-many" class="hint" hidden></p>
         </details>
       </section>
 
@@ -268,13 +271,13 @@
               <select id="design-type" autocomplete="off">
                 <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="1" data-max-factors="7"
                   data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
-                <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="11"
+                <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="24"
                   data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
-                <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
+                <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
                   data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
-                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="12"
-                  data-hint="Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
-                <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
+                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="40"
+                  data-hint="Main effects in a standard array of 4 to 81 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
+                <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="40"
                   data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
                 <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
                   data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
@@ -286,7 +289,7 @@
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
                 <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
-                <option value="given" data-options="" data-min-factors="1" data-max-factors="12" hidden
+                <option value="given" data-options="" data-min-factors="1" data-max-factors="40" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
                 <optgroup label="Mixtures: proportions that sum to 1">
@@ -380,6 +383,31 @@
             <span id="plan-note" class="hint" hidden></span>
           </p>
         </div>
+
+        <!-- What others in the reader's field have run (catalog/fields.json, written by the build), with the plan
+             marked on the chart field-chart.js draws. Shown once the build's file is read. -->
+        <section id="like-yours" class="like-yours" aria-labelledby="h-like-yours" hidden>
+          <h3 id="h-like-yours">Experiments like yours</h3>
+          <label class="like-yours__field">Your field
+            <select id="field" autocomplete="off">
+              <option value="">Choose your field</option>
+            </select>
+          </label>
+          <div id="like-yours-body" hidden>
+            <p id="like-yours-sentence"></p>
+            <svg id="like-yours-chart" class="field-chart__svg" role="img"
+              aria-label="The published experiments in your field, by their number of factors and of runs, with your plan"></svg>
+            <ul class="field-chart__legend">
+              <li><span class="field-key field-key--full" aria-hidden="true"></span>Full factorial</li>
+              <li><span class="field-key field-key--screening" aria-hidden="true"></span>Fractional factorial or screening</li>
+              <li><span class="field-key field-key--surface" aria-hidden="true"></span>Central composite or Box-Behnken</li>
+              <li><span class="field-key field-key--mixture" aria-hidden="true"></span>Mixture</li>
+              <li><span class="field-key field-key--other" aria-hidden="true"></span>Other designs</li>
+            </ul>
+            <p id="like-yours-verdict" class="like-yours__verdict"></p>
+            <p class="actions"><a id="like-yours-link" class="button" href="catalog/fields/">See them in the catalog</a></p>
+          </div>
+        </section>
         <details class="python" id="py-design" hidden>
           <summary>Show the Python code</summary>
           <p class="hint">The process-improve code for this design. Copy it and it runs as it is.</p>
@@ -498,10 +526,18 @@
             </select>
           </label>
         </div>
+        <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors: why the models with every interaction are not offered. -->
+        <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
+          <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors, the list holds the interactions the reader names here. -->
+          <p id="term-adder" class="term-adder" hidden>Name an interaction:
+            <select id="term-first" aria-label="The interaction's first factor"></select> ·
+            <select id="term-second" aria-label="The interaction's second factor"></select>
+            <button type="button" id="add-term" class="link">Add it to the model</button>
+          </p>
         </fieldset>
         <div id="analysis" hidden></div>
         <!-- The numbers a catalog study's source prints for the model fitted, beside the page's own (app.js renderPrinted). -->
@@ -586,6 +622,17 @@
           <div id="what-if-settings" class="what-if-settings"></div>
           <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
           <div id="what-if-out"></div>
+          <!-- Settings kept with the study under a name (its what_if), each predicted again from the results each time
+               the list is drawn, so a result changed since changes what it shows. -->
+          <form id="what-if-keep" class="actions what-if-keep">
+            <label for="what-if-keep-name">Name these settings</label>
+            <input type="text" id="what-if-keep-name" maxlength="80" autocomplete="off">
+            <button type="submit" class="button">Keep these settings</button>
+          </form>
+          <div id="what-if-kept" hidden>
+            <h4 id="h-what-if-kept">Settings kept with the study</h4>
+            <ol id="what-if-kept-list" class="what-if-kept" aria-labelledby="h-what-if-kept"></ol>
+          </div>
           <details class="python" id="py-what-if" hidden>
             <summary>Show the Python code of these predictions</summary>
             <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>

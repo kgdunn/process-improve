@@ -317,14 +317,12 @@ class UniformSampler:
             t_lo = np.maximum(t_lo, np.where(rate < 0, limit, -np.inf).max(axis=1))
         return np.minimum(t_lo, 0.0), np.maximum(t_hi, 0.0)
 
-    def _step(self, x: np.ndarray, rng: np.random.Generator, shape: np.ndarray | None = None) -> np.ndarray:
+    def _step(self, x: np.ndarray, rng: np.random.Generator, shape: np.ndarray) -> np.ndarray:
         """Move every chain once: a random direction, a uniform point on its chord, shrinking on a miss.
 
-        Directions are Gaussian with covariance ``shape @ shape.T`` (isotropic by default).
+        Directions are Gaussian with covariance ``shape @ shape.T`` (see :meth:`_direction_shape`).
         """
-        d = rng.standard_normal(x.shape)
-        if shape is not None:
-            d = d @ shape.T
+        d = rng.standard_normal(x.shape) @ shape.T
         if self.on_simplex:
             d -= d.mean(axis=1, keepdims=True)  # stay on the plane where the proportions sum to 1
         d /= np.linalg.norm(d, axis=1, keepdims=True)

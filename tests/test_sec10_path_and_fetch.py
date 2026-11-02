@@ -43,7 +43,7 @@ class TestLoadYamlSizeCap:
     def test_oversize_yaml_rejected(self, tmp_path, monkeypatch) -> None:
         # Point the loader at a tmp data dir holding a single very large file.
         bomb = tmp_path / "bomb.yaml"
-        bomb.write_text("x: " + ("y" * (2 * 1024 * 1024)))  # ~2 MB
+        bomb.write_text("x: " + ("y" * (2 * 1024 * 1024)), encoding="utf-8")  # ~2 MB
         monkeypatch.setattr(engine, "_DATA_DIR", tmp_path)
         monkeypatch.setattr(engine, "_MAX_YAML_BYTES", 1024 * 1024)  # 1 MB cap
 

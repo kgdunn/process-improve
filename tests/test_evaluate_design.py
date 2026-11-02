@@ -1685,3 +1685,38 @@ class TestSplitPlotInformation:
         )
         assert "error" not in result
         assert "random_effects" in result["notes"]
+
+
+class TestAFactorNamedLikeAFunction:
+    """A factor named I hides patsy's I() in every square term; it is evaluated under a stand-in, named I (#986)."""
+
+    @staticmethod
+    def _evaluate(name: str, model: str, **options: object) -> dict:
+        factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
+        runs = generate_design(factors, design_type="box_behnken", random_state=1).design[["A", "B", "C"]]
+        return evaluate_design(runs.set_axis([name, "B", "C"], axis=1), model=model.format(name), **options)
+
+    @pytest.mark.parametrize(
+        ("model", "options"),
+        [
+            pytest.param("quadratic", {"metric": ["vif", "power", "alias_matrix"], "effect_size": 2.0}, id="quadratic"),
+            pytest.param("interactions", {"metric": "alias_matrix", "alias_terms": "quadratic"}, id="alias-squares"),
+            pytest.param("{0} * B + C + I({0} ** 2)", {"metric": ["vif", "information_matrix"]}, id="formula"),
+        ],
+    )
+    def test_the_metrics_are_those_of_the_same_factor_named_otherwise(self, model: str, options: dict) -> None:
+        from process_improve.experiments._lm import real_names
+
+        named_i = self._evaluate("I", model, **options)
+        named_x = self._evaluate("X", model, **options)
+        assert named_i == real_names(named_x, {"I": "X"})  # X read as I wherever it stands as a name
+        assert "I(I ** 2)" in repr(named_i)
+
+    def test_a_region_that_names_the_factors_keeps_the_refusal(self) -> None:
+        """A region's limits name the factors too, so the stand-in is not used there; the error offers a rename."""
+        from process_improve.experiments.models import UnsafeFormulaError
+
+        region = DesignRegion([Factor(name=n, low=-1, high=1) for n in ("I", "B")], constraints=["I + B <= 1"])
+        runs = pd.DataFrame({"I": [-1.0, 1.0, -1.0, 0.0, 0.0, -1.0], "B": [-1.0, -1.0, 1.0, 0.0, 1.0, 0.0]})
+        with pytest.raises(UnsafeFormulaError, match=r"\.rename\(columns=\{'I': 'I_'\}\)"):
+            evaluate_design(runs, model="quadratic", metric="d_efficiency", region=region)

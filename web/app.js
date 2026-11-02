@@ -81,8 +81,11 @@ import {
   withUnit,
   withoutConfirmationRuns,
   columnsAt,
+  keptAs,
   predictAt,
+  scenarioProblem,
   settingsFit,
+  settingsWords,
   sliderStep,
   whatIfRows,
   whatIfSentences,
@@ -95,11 +98,14 @@ import {
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
+  LEVEL_CHECKS,
   PAIRED_TESTS,
   CHOSEN_TERMS,
   FULL,
   GIVEN,
   GOALS,
+  INTERACTION_MODELS,
+  MAX_FACTORS,
   MAX_LEVEL_RUNS,
   MAX_REPLICATES,
   MAX_RESPONSES,
@@ -132,6 +138,7 @@ import {
   comparedRow,
   comparisonOrder,
   comparisonSentence,
+  checkSentences,
   severalSentence,
   completeRuns,
   componentProblem,
@@ -145,7 +152,9 @@ import {
   fittedFormula,
   fmt,
   fractionRuns,
+  highestResolution,
   infoOf,
+  interactionOf,
   isBlank,
   categoricalFactor,
   isCategorical,
@@ -161,6 +170,7 @@ import {
   mixtureProblem,
   nTerms,
   nameProblem,
+  planVerdict,
   modelKey,
   modelTermsWords,
   namedModelTerms,
@@ -194,11 +204,15 @@ import {
   responsesOf,
   responsesTitle,
   runBadge,
+  screeningSentence,
+  screensOnly,
   showsVif,
   splitResults,
+  spreadSentences,
   standouts,
   STANDOUT_TIE,
   storedResponses,
+  tradeOffBeyond,
   tradeOffCell,
   withResponses,
   withUnits,
@@ -208,6 +222,7 @@ import {
   BOOK_PARAM,
   EXAMPLE_PARAM,
   LINK_KEY,
+  SCENARIOS_HELD,
   WORKED,
   bookName,
   campaignDone,
@@ -240,6 +255,7 @@ import {
   setLimits,
 } from "./limits.js";
 import { redrawRuns } from "./picture.js";
+import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
@@ -389,6 +405,7 @@ const state = {
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
+  scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
   goals: {}, // what the reader set of each response's goal in the balance, by its column: low, high, importance, shape
@@ -1221,12 +1238,16 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
+  // The what-if fits, and any still on their way, name the old factors: the analysis below fits them again.
+  clearWhatIf();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
   for (const [name, model] of Object.entries(state.models)) {
     if (model && typeof model === "object") state.models[name] = { terms: renameTerms(model.terms, names) }; // each response's terms
   }
+  const renamed = (settings) => Object.fromEntries(Object.entries(settings).map(([factor, v]) => [names[factor] ?? factor, v]));
+  state.scenarios = state.scenarios.map((s) => ({ ...s, settings: renamed(s.settings) }));
   renderDesign();
   renderRuns();
   renderTruth();
@@ -1252,14 +1273,20 @@ function setAim(aim) {
 
 function showAim() {
   const factors = readFactors();
+  // Past MAX_INTERACTION_FACTORS factors a study aims at the main effects alone, and the aim moves there.
+  const many = screensOnly(factors.length);
+  if (many && currentAim() !== "main_effects") {
+    setAim("main_effects");
+    return;
+  }
   const aim = currentAim();
   const p = aimTerms(factors, aim);
-  const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM;
+  const screening = !aimChosen && aim === "main_effects" && factors.length >= SCREEN_FROM && !many;
   const box = $("#aim-terms");
   box.replaceChildren();
   // A mixture's model is a Scheffé model of its blends, which its design sets: the aims are for factors with ranges.
   const mixture = mixturePlanned();
-  for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture;
+  for (const radio of document.querySelectorAll('input[name="aim"]')) radio.disabled = mixture || (many && radio.value !== "main_effects");
   if (mixture) {
     box.append(
       "A mixture is analysed with a Scheffé model of its blends, which its design sets: these aims are for factors with ranges.",
@@ -1269,6 +1296,7 @@ function showAim() {
   if (!factors.length) return;
   box.append(`${p} `, term("coefficients", { key: "coefficient", alone: true }), ", the intercept included.");
   if (screening) box.append(` With ${SCREEN_FROM} factors or more, a study starts by finding which matter.`);
+  if (many) box.append(` ${screeningSentence(factors.length, "brief")}`);
 }
 
 // ---------------------------------------------------------------- the design
@@ -1347,6 +1375,9 @@ function setDesignForm(spec) {
  */
 function refreshDesign() {
   const k = factorCount();
+  const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
+  for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
+  $("#factors-full").hidden = !full;
   const select = $("#design-type");
   const labelled = readFactors().filter(isCategorical).map((f) => f.name);
   const several = readFactors().filter(isSeveral);
@@ -1370,9 +1401,10 @@ function refreshDesign() {
   const alpha = axialDistance($("#alpha").value, $("#alpha_value").value);
   $("#alpha-distance").hidden = !allowed.includes("alpha") || $("#alpha").value !== AXIAL_DISTANCE;
 
-  // Resolution IV unless the reader chose another; three factors allow only III.
+  // Resolution IV unless the reader chose another; three factors allow only III, and past MAX_INTERACTION_FACTORS
+  // factors, whose interactions the page does not model, a fraction stops at IV.
   const resolution = $("#resolution");
-  for (const choice of resolution.options) choice.disabled = Number(choice.value) > k;
+  for (const choice of resolution.options) choice.disabled = Number(choice.value) > highestResolution(k);
   if (!resolutionEdited || resolution.selectedOptions[0].disabled) resolution.value = String(defaultResolution(k));
 
   // A design in one factor runs each level as often as its replicates say: more of them than a design of more factors.
@@ -1434,6 +1466,64 @@ function refreshDesign() {
   showAim();
   markPicked();
   markStale();
+  showLikeYours();
+}
+
+// ---------------------------------------------------------------- experiments like yours
+// What others in the reader's field have run, from catalog/fields.json (written by the build), with the plan marked
+// on the chart: its factors, and its runs once it has a design. The field chosen is kept in this browser; a field's
+// page in the catalog chooses one through ?field=.
+const FIELD_KEY = "factorial-field";
+let fields = null; // the fields the build wrote, once read
+
+function keptField() {
+  try {
+    return localStorage.getItem(FIELD_KEY) ?? "";
+  } catch {
+    return ""; // storage refused
+  }
+}
+
+function keepField(slug) {
+  try {
+    if (slug) localStorage.setItem(FIELD_KEY, slug);
+    else localStorage.removeItem(FIELD_KEY);
+  } catch {
+    /* storage refused: the choice lasts as long as the page */
+  }
+}
+
+/** Read the fields the build wrote, list them, and choose the one the address or this browser names. */
+async function loadFields() {
+  try {
+    const response = await fetch("catalog/fields.json");
+    fields = response.ok ? (await response.json()).fields : null;
+  } catch {
+    fields = null; // a page served without its catalog shows no panel
+  }
+  if (!fields) return;
+  const named = Object.entries(fields).sort(([, a], [, b]) => a.label.localeCompare(b.label));
+  $("#field").append(...named.map(([slug, field]) => new Option(field.label, slug)));
+  const asked = new URLSearchParams(location.search).get("field") ?? "";
+  if (Object.hasOwn(fields, asked)) keepField(asked);
+  const chosen = keptField();
+  $("#field").value = Object.hasOwn(fields, chosen) ? chosen : "";
+  showLikeYours();
+}
+
+/** Show the chosen field's experiments beside the plan: a sentence, the chart with the plan, and how they compare. */
+function showLikeYours() {
+  $("#like-yours").hidden = !fields;
+  const slug = $("#field").value;
+  const field = fields?.[slug];
+  $("#like-yours-body").hidden = !field;
+  if (!field) return;
+  const k = state.design ? state.design.spec.factors.length : factorCount();
+  const plan = k ? { factors: k, runs: state.design ? runCount() : null } : null;
+  $("#like-yours-sentence").textContent = field.sentence;
+  drawFieldChart($("#like-yours-chart"), field.points, plan);
+  $("#like-yours-verdict").textContent = planVerdict(field.points, plan);
+  $("#like-yours-link").href = `catalog/fields/${encodeURIComponent(slug)}/`;
 }
 
 // ---------------------------------------------------------------- the trade-off grid
@@ -1502,7 +1592,7 @@ function drawTradeOff(k, picking) {
   }
   $("#trade-off-table").replaceChildren(head, body);
   const move = "Add or remove a factor in the brief to move across.";
-  $("#trade-off-hint").textContent = TRADE_OFF_FACTORS.includes(k) ? `The column of your ${k} factors takes a pick. ${move}` : move;
+  $("#trade-off-hint").textContent = TRADE_OFF_FACTORS.includes(k) ? `The column of your ${k} factors takes a pick. ${move}` : tradeOffBeyond(k) || move;
 }
 
 /** Take a cell of the grid into the plan: its resolution, or the full factorial. */
@@ -1725,6 +1815,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
+  state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
   clearBalance();
@@ -1732,6 +1823,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
+  showLikeYours();
   if ($("#model").value === CHOSEN_TERMS) setModel(CHOSEN_TERMS); // the terms of the new factors
   clearAnalysis();
   renderPicker();
@@ -1854,8 +1946,9 @@ function renderCandidates(busy = null) {
   const mixture = mixturePlanned() && factorCount() >= 2;
   const current = Boolean(c) && c.key === candidateKey() && !busy && !mixture;
   $("#compare").disabled = !current || !c.result;
-  // Nothing to compare in detail before the brief's first designs, or for one factor, whose design is its two levels.
-  $("#compare").hidden = !c?.result || mixture || Boolean(c.levels);
+  // Nothing to compare in detail before the brief's first designs, or for one factor, whose design is its two levels;
+  // nor for designs scored on their power alone (bootstrap._powers), whose list already shows all there is.
+  $("#compare").hidden = !c?.result || mixture || Boolean(c.levels) || !c.result.measures.length;
   $("#search").hidden = !current || !c.waiting?.length;
   let note = null;
   const holding = limitsHold();
@@ -2480,10 +2573,15 @@ function pasteResults(e) {
  */
 function showChoicesFor(design) {
   const mixture = isMixture(design.spec.design_type);
+  // Past MAX_INTERACTION_FACTORS factors, Learn offers no model with every two-factor interaction, and says why.
+  const k = design.spec.factors.length;
+  for (const option of $("#model").options) option.disabled = screensOnly(k) && INTERACTION_MODELS.includes(option.value);
+  $("#model-many").textContent = screeningSentence(k, "learn");
+  $("#model-many").hidden = !screensOnly(k);
   for (const [id, fallback] of [["#scenario", mixture ? "blend" : "reactor"], ["#model", ""]]) {
     const select = $(id);
     for (const option of select.options) option.hidden = option.value !== "" && mixture !== ("mixture" in option.dataset);
-    if (select.selectedOptions[0]?.hidden) select.value = fallback;
+    if (select.selectedOptions[0]?.hidden || select.selectedOptions[0]?.disabled) select.value = fallback;
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
   $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
@@ -2602,6 +2700,7 @@ async function downloadWorkbook() {
     simulated: someSimulated() ? state.simulation : null,
     model: modelOf(first),
     ...(Object.keys(models).length ? { models } : {}),
+    ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -2767,12 +2866,18 @@ async function learnSections() {
   return sections;
 }
 
-/** The sections a report ends with, after the analysis: the balance of the responses, the next step and the code. */
+/**
+ * The sections a report ends with, after the analysis: the balance of the responses, the settings kept with the study,
+ * the next step and the code.
+ */
 async function closingSections() {
   const sections = [];
   if (!$("#balance").hidden && state.balance) {
     const html = [reportCopy($("#balance-out")), chartsHtml(await chartsWithin($("#balance")))];
     sections.push({ heading: $("#h-balance").textContent, html: html.join("\n") });
+  }
+  if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
+    sections.push({ heading: $("#h-what-if-kept").textContent, html: reportCopy($("#what-if-kept-list")) });
   }
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
@@ -2947,6 +3052,7 @@ async function readUpload(file) {
   setModel(r.spec.analysis_model ?? $("#model").value);
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
+  state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
   renderDesign(reply.warnings);
@@ -3010,10 +3116,14 @@ function analysisRequest(name = state.shown) {
   };
 }
 
-/** Whether an analysis compares one factor's levels, which its code then does too, and the control Dunnett's take. */
+/**
+ * Whether an analysis compares one factor's levels, and the control Dunnett's take, and whether it sums up readings
+ * repeated at a setting: its code then does the same.
+ */
 const comparedOf = (analysis) => ({
   compared: Boolean(analysis?.comparison?.difference || analysis?.comparison?.several),
   control: analysis?.comparison?.several?.control ?? null,
+  spread: Boolean(analysis?.spread),
 });
 
 /** The control the reader picked for Dunnett's intervals, while it is a level of the study's one categorical factor. */
@@ -3193,7 +3303,66 @@ function renderAnalysis(reply) {
       ),
     );
   }
+  parts.push(...spreadParts(r.spread));
   out.replaceChildren(...parts);
+}
+
+/**
+ * The results read more than once at a setting (``spread``, as the analysis gives it): what they say, in sentences;
+ * the response table, each summary averaged at each level of each factor; how much each factor moves each summary, and
+ * at which level the spread is smallest and the signal-to-noise ratio highest; and each setting's readings summed up.
+ * Nothing unless two settings were read twice or more.
+ */
+function spreadParts(spread) {
+  if (!spread) return [];
+  const { label, units } = responseWords(shownSpec());
+  const factorUnits = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const ratio = spread.kind ? ["S/N"] : []; // the sentence above names the ratio: larger, smaller or nominal
+  const tableHeading = el("h4", "", "");
+  tableHeading.append(term("Response table", { key: "response-table", alone: true }));
+  const moved = (f, key) => (f.rank[key] === null ? "" : `${fmt(f.delta[key])} (${f.rank[key]})`); // null: no setting gave it
+  const best = (f, key) => (f.best[key] === undefined ? "" : String(f.best[key]));
+  return [
+    el("h3", "", "The spread of the readings at each setting"),
+    ...spreadSentences(spread, { response: label, units, factorUnits }).map((line) => said("", line)),
+    tableHeading,
+    table(
+      ["Factor", "Level", "Settings", "Mean", "ln s", ...ratio],
+      spread.factors.flatMap((f) =>
+        f.levels.map((l) => [f.name, String(l.level), l.n, fmt(l.mean), fmt(l.ln_std_dev), ...(spread.kind ? [fmt(l.sn)] : [])]),
+      ),
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
+    ),
+    el("h4", "", "Each factor's delta, and its rank"),
+    table(
+      ["Factor", "Mean", "ln s", ...ratio, "Least spread at", ...(spread.kind ? ["Best S/N at"] : [])],
+      spread.factors.map((f) => [
+        f.name,
+        moved(f, "mean"),
+        moved(f, "ln_std_dev"),
+        ...(spread.kind ? [moved(f, "sn")] : []),
+        best(f, "ln_std_dev"),
+        ...(spread.kind ? [best(f, "sn")] : []),
+      ]),
+    ),
+    said("hint", "A factor's delta is its largest average less its smallest; the factor of the largest has rank 1, in brackets."),
+    el("h4", "", "Each setting's readings"),
+    table(
+      ["Setting", "Runs", "Readings", "Mean", "Std. dev.", "ln s", ...ratio],
+      spread.settings.map((s) => [
+        Object.entries(s.settings)
+          .map(([name, level]) => `${name} ${level}`)
+          .join(", "),
+        s.runs.join(", "),
+        s.n,
+        fmt(s.mean),
+        fmt(s.std_dev),
+        fmt(s.ln_std_dev),
+        ...(spread.kind ? [fmt(s.sn)] : []),
+      ]),
+      { "ln s": "ln-s", "S/N": "signal-to-noise" },
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------- the numbers a catalog study's source prints
@@ -3324,7 +3493,8 @@ function comparisonParts(r) {
     return parts;
   }
   const named = d.paired ? PAIRED_TESTS : COMPARISON_TESTS;
-  const tests = table(
+  const tests = testTable(
+    named,
     ["Test", "95% interval", "p-value"],
     d.tests.map((t) => [
       `${named[t.test].name}: ${named[t.test].how}`,
@@ -3333,7 +3503,18 @@ function comparisonParts(r) {
     ]),
     { "95% interval": "interval", "p-value": "p-value" },
   );
-  // Each test's name opens what the test is; the words after it say what it rests on.
+  const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
+  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
+  parts.push(heading, tests, ...noteList(comparisonNotes(r)));
+  return parts;
+}
+
+/**
+ * A table of tests, each row's first cell a test's name and what it rests on (``name: how``), as ``named`` lists
+ * them: each name opens what the test is, and the words after it say what it rests on.
+ */
+function testTable(named, columns, rows, terms) {
+  const tests = table(columns, rows, terms);
   const body = tests.querySelector("table");
   body._cell = (row, col) => {
     if (col !== 0) return null;
@@ -3342,10 +3523,7 @@ function comparisonParts(r) {
     return `<span class="term" data-term="${key}">${escape(name)}</span>: ${escape(how)}`;
   };
   fillBody(body, body._rows);
-  const ways = d.paired ? `within each of the ${d.paired} pairs, tested three ways` : "tested four ways";
-  const heading = el("h4", "", `The difference, ${d.to} less ${d.from}, ${ways}`);
-  parts.push(heading, tests, ...noteList(comparisonNotes(r)));
-  return parts;
+  return tests;
 }
 
 /** The words of a comparison that open their definition. */
@@ -3370,6 +3548,7 @@ function severalParts(c) {
     parts.push(said("hint", "The levels are compared once a level has two runs or more, to measure the noise."));
     return parts;
   }
+  parts.push(...checkParts(c));
   const interval = (x) => `${fmt(x.ci_low)} to ${fmt(x.ci_high)}`;
   const heading = (text, word, key) => {
     const h = el("h4", "", text);
@@ -3403,6 +3582,20 @@ function severalParts(c) {
     ),
   );
   return parts;
+}
+
+/** What the one-way analysis of variance assumes, checked: a row a check (``c.several.checks``), and what each means. */
+function checkParts(c) {
+  const rows = (c.several.checks ?? []).map((x) => {
+    const check = LEVEL_CHECKS[x.test];
+    return [`${check.name}: ${check.how}`, fmt(x.statistic), x.df, pval(x.p_value)];
+  });
+  const terms = { df: "df", "p-value": "p-value" };
+  return [
+    el("h4", "", "Checks of what the analysis of variance assumes"),
+    ...(rows.length ? [testTable(LEVEL_CHECKS, ["Check", "Statistic", "df", "p-value"], rows, terms)] : []),
+    ...noteList(checkSentences(c)),
+  ];
 }
 
 /** Each level's runs summarised, a row a level: how many, their average, standard deviation and the average's interval. */
@@ -3554,7 +3747,11 @@ const tickedTerms = () => [...document.querySelectorAll("#term-list input:checke
 function renderTermList(ticked) {
   const chosen = new Set(ticked.map((term) => JSON.stringify(term)));
   const groups = new Map();
-  for (const { term, label, group } of candidateTerms(state.design.spec.factors)) {
+  const factors = state.design.spec.factors;
+  // Past MAX_INTERACTION_FACTORS factors the list holds the interactions the reader names, with the boxes to name one.
+  $("#term-adder").hidden = !screensOnly(factors.length);
+  if (screensOnly(factors.length)) fillTermAdder(factors.map((f) => f.name));
+  for (const { term, label, group } of candidateTerms(factors, ticked)) {
     const tick = el("input", "", "");
     tick.type = "checkbox";
     tick.value = JSON.stringify(term);
@@ -3571,6 +3768,30 @@ function renderTermList(ticked) {
       return [el("h4", "", group), row];
     }),
   );
+}
+
+/** List the factors in the two boxes that name an interaction, keeping each box's factor when it is still there. */
+function fillTermAdder(names) {
+  for (const [id, start] of [["#term-first", names[0]], ["#term-second", names[1]]]) {
+    const select = $(id);
+    const before = select.value;
+    select.replaceChildren(...names.map((name) => Object.assign(el("option", "", name), { value: name })));
+    select.value = names.includes(before) ? before : start;
+  }
+  showTermAdder();
+}
+
+/** A factor has no interaction with itself: the button adds one only when the two boxes name different factors. */
+const showTermAdder = () => ($("#add-term").disabled = $("#term-first").value === $("#term-second").value);
+
+/** Add the interaction the two boxes name to the terms ticked, and fit the model with it. */
+function addNamedTerm() {
+  const names = state.design.spec.factors.map((f) => f.name);
+  const term = interactionOf($("#term-first").value, $("#term-second").value, names);
+  if (!term) return;
+  const ticked = tickedTerms().filter((t) => JSON.stringify(t) !== JSON.stringify(term));
+  renderTermList([...ticked, term]);
+  $("#term-list").dispatchEvent(new Event("change"));
 }
 
 /** Start the list of terms from the model chosen before, or the one the design was made for. */
@@ -4231,10 +4452,12 @@ function showWhatIf(result) {
   const { factors, responses } = result;
   const kept = state.whatIf?.settings;
   const settings = settingsFit(factors, kept) ? kept : whatIfStart(factors, state.balance, state.best).settings;
-  state.whatIf = { factors, responses, settings, broken: [] };
+  state.whatIf = { factors, responses, settings, broken: [], keptBroken: new Map() };
   renderWhatIfControls();
   renderWhatIf();
+  renderKept();
   checkWhatIfLimits();
+  checkKeptLimits();
 }
 
 /** Build a control for each factor, once a study: a slider and a number box over a numeric factor's range, a list of a categorical one's levels. */
@@ -4283,28 +4506,38 @@ function showWhatIfSettings() {
   }
 }
 
+/** The what-if table's columns, and the glossary entry of each whose heading is a term. */
+const WHAT_IF_COLUMNS = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
+const WHAT_IF_TERMS = {
+  "95% confidence interval": "confidence-interval",
+  "95% prediction interval": "prediction-interval",
+  "Leverage, against the runs' largest": "leverage",
+};
+
+/** Each response at the columns of some settings (best.js columnsAt), as best.js predicts it from the fits Python sent. */
+const predictedAt = (w, columns) => w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, columns) } : r));
+
 /**
  * Show every response at the panel's settings, as best.js predicts it from the fits Python sent: the table, the limits
- * the settings break, the models they lean on beyond their runs, and the code that makes the same predictions.
+ * the settings break, the models they lean on beyond their runs, and the code that makes the same predictions, at the
+ * settings kept with the study too.
  */
 function renderWhatIf() {
   const w = state.whatIf;
   const at = columnsAt(w.factors, w.settings);
-  const responses = w.responses.map((r) => (r.terms ? { ...r, at: predictAt(r, at) } : r));
+  const responses = predictedAt(w, at);
   const start = whatIfStart(w.factors, state.balance, state.best);
   $("#what-if").hidden = false;
   showWhatIfSettings();
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
-  const columns = ["Response", "Prediction", "95% confidence interval", "95% prediction interval", "Leverage, against the runs' largest"];
-  const terms = {
-    "95% confidence interval": "confidence-interval",
-    "95% prediction interval": "prediction-interval",
-    "Leverage, against the runs' largest": "leverage",
-  };
-  $("#what-if-out").replaceChildren(table(columns, whatIfRows(responses), terms), ...noteList(whatIfSentences(responses, w.broken), "warnings"));
+  $("#what-if-out").replaceChildren(
+    table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS),
+    ...noteList(whatIfSentences(responses, w.broken), "warnings"),
+  );
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
-  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings));
+  const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
+  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
 }
 
 /** The reader moved a setting: every response follows at once, and the limits it breaks a moment later. */
@@ -4343,6 +4576,113 @@ function whatIfBack() {
   state.whatIf.settings = whatIfStart(state.whatIf.factors, state.balance, state.best).settings;
   renderWhatIf();
   checkWhatIfLimits();
+}
+
+// ---------------------------------------------------------------- what if: settings kept with the study
+// The reader keeps the panel's settings under a name, and they go with the study (its what_if), through this browser,
+// its file, its link and its workbook. Only the settings are kept: each response there is predicted again from the
+// fits of the latest analysis whenever the list is drawn, so it follows the results.
+
+/** Why the models do not predict at kept settings now, in a sentence, or null (best.js scenarioProblem). */
+const keptProblem = (w, s, units = {}) => scenarioProblem(w.factors, s.settings, units, w.keptBroken.get(JSON.stringify(s.settings)) ?? []);
+
+/** The settings a confirmation run at kept settings is made at: each factor's, and nothing else they hold. */
+const keptAt = (s) => Object.fromEntries(state.whatIf.factors.map((f) => [f.name, s.settings[f.name]]));
+
+/** Keep the panel's settings with the study, under the name typed or the next "Settings N", and list them. */
+function keepWhatIf(e) {
+  e.preventDefault();
+  const w = state.whatIf;
+  if (!w) return;
+  const box = $("#what-if-keep-name");
+  const { name, problem } = keptAs(box.value, state.scenarios, SCENARIOS_HELD);
+  if (problem) {
+    toast(problem, "error");
+    return;
+  }
+  state.scenarios = [...state.scenarios, { name, settings: { ...w.settings } }];
+  box.value = "";
+  renderWhatIf();
+  renderKept();
+  checkKeptLimits();
+  scheduleSave();
+  toast(`Kept these settings as ${name}.`);
+}
+
+/** List the settings kept with the study below the panel, each with every response there, or why there is none. */
+function renderKept() {
+  const w = state.whatIf;
+  $("#what-if-kept").hidden = !w || !state.scenarios.length;
+  if ($("#what-if-kept").hidden) return;
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  $("#what-if-kept-list").replaceChildren(...state.scenarios.map((s) => keptItem(w, s, units)));
+}
+
+/** One kept setting in the list: its name and settings, each response there as the panel's table shows it, and its buttons. */
+function keptItem(w, s, units) {
+  const item = el("li", "", "");
+  const head = el("p", "", "");
+  head.append(el("strong", "", s.name), `: ${settingsWords(w.factors, s.settings, units)}`);
+  item.append(head);
+  const actions = el("p", "actions", "");
+  const problem = keptProblem(w, s, units);
+  if (problem) {
+    item.append(said("hint", problem));
+  } else {
+    const responses = predictedAt(w, columnsAt(w.factors, s.settings));
+    item.append(table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS), ...noteList(whatIfSentences(responses), "warnings"));
+    const runs = `Add ${CONFIRMATION_RUNS} confirmation runs`;
+    if (!confirmedAt(state.design, keptAt(s))) {
+      actions.append(keptButton("confirm", s.name, runs, "button", `${runs} at the settings kept as ${s.name}`)); // none there yet
+    }
+  }
+  actions.append(keptButton("delete", s.name, "Delete", "link", `Delete the settings kept as ${s.name}`));
+  item.append(actions);
+  return item;
+}
+
+/** A button of the kept settings ``name``; its accessible name, ``label``, starts with its ``text`` and names them. */
+function keptButton(action, name, text, cls, label) {
+  const button = el("button", cls, text);
+  button.type = "button";
+  Object.assign(button.dataset, { action, kept: name });
+  button.setAttribute("aria-label", label);
+  return button;
+}
+
+/** A button of a kept setting was pressed: make confirmation runs at the settings, or delete them. */
+function keptPressed(e) {
+  const button = e.target.closest("button[data-kept]");
+  const s = button && state.whatIf ? state.scenarios.find((one) => one.name === button.dataset.kept) : null;
+  if (!s) return;
+  if (button.dataset.action === "confirm") {
+    addConfirmationRuns(keptAt(s), `the settings kept as ${s.name}`);
+    return;
+  }
+  state.scenarios = state.scenarios.filter((one) => one !== s);
+  renderWhatIf();
+  renderKept();
+  scheduleSave();
+  $("#what-if-keep-name").focus(); // the button went with the settings
+  toast(`Deleted the settings kept as ${s.name}.`);
+}
+
+/** Ask Python, once for each, which limits on the settings the kept settings break; a study without limits breaks none. */
+async function checkKeptLimits() {
+  const w = state.whatIf;
+  if (!w || !(state.design.spec.constraints ?? []).length) return;
+  const mine = whatIfTicket;
+  for (const s of state.scenarios) {
+    const key = JSON.stringify(s.settings);
+    if (w.keptBroken.has(key) || keptProblem(w, s)) continue;
+    w.keptBroken.set(key, []); // asked, so not asked again while the reply is on its way
+    const reply = await call("api_outside_limits", { spec: state.design.spec, settings: s.settings });
+    if (mine !== whatIfTicket) return; // another analysis gave the panel new fits
+    if (!reply.ok || !reply.result.broken.length) continue;
+    w.keptBroken.set(key, reply.result.broken);
+    renderWhatIf();
+    renderKept();
+  }
 }
 
 // ---------------------------------------------------------------- the next step
@@ -4679,6 +5019,7 @@ function newStudy() {
     shown: null,
     models: {},
     goals: {},
+    scenarios: [],
     simulation: null,
     analysis: null,
     next: null,
@@ -4788,7 +5129,7 @@ function readDraft() {
   const responses = (Array.isArray(draft.responses) ? draft.responses.slice(0, MAX_RESPONSES - 1) : [])
     .filter((one) => one && typeof one === "object")
     .map((one) => fields(one, ["label", "units", "goal", "target"]));
-  const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, 12) : [])
+  const factors = (Array.isArray(draft.factors) ? draft.factors.slice(0, MAX_FACTORS) : [])
     .filter((f) => f && typeof f === "object")
     .map((f) =>
       f.type === "categorical" && Array.isArray(f.levels)
@@ -4855,7 +5196,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec),
+    v: studyFormat(spec, state.scenarios),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -4865,6 +5206,7 @@ function currentCampaign() {
     ...(more.length ? { more_models: Object.fromEntries(more.map((name) => [name, modelOf(name)])) } : {}),
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
+    ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
   };
 }
 
@@ -5102,6 +5444,7 @@ async function openCampaign(c, record, message) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
+  state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
   state.simulation = c.simulation;
@@ -5553,6 +5896,11 @@ for (const radio of document.querySelectorAll('input[name="aim"]')) {
     saveDraft();
   };
 }
+$("#field").addEventListener("change", () => {
+  keepField($("#field").value);
+  showLikeYours();
+});
+
 $("#design-type").onchange = () => {
   designChosen = true;
   refreshDesign();
@@ -5622,6 +5970,8 @@ $("#what-if-settings").addEventListener("change", (e) => {
   if (e.target.name === "number" && row && state.whatIf) e.target.value = num(state.whatIf.settings[row.dataset.factor]);
 });
 $("#what-if-back").onclick = whatIfBack;
+$("#what-if-keep").addEventListener("submit", keepWhatIf);
+$("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {
   state.goals = {};
   scheduleSave();
@@ -5658,6 +6008,9 @@ $("#term-list").onchange = () => {
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
+$("#term-first").onchange = showTermAdder;
+$("#term-second").onchange = showTermAdder;
+$("#add-term").onclick = addNamedTerm;
 for (const button of document.querySelectorAll("details.python .copy")) {
   button.onclick = async () => {
     const code = button.parentElement.querySelector("code");
@@ -5725,6 +6078,7 @@ refreshDesign();
 renderStudyBar();
 readManifest();
 start();
+loadFields();
 
 call("api_catalogue").then((reply) => {
   if (!reply.ok) {

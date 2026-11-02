@@ -75,9 +75,11 @@ from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
 from ._common import DataMatrix, epsqrt
+from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import _kernel_pls, _sign_align
+from ._pca import _opposes_convention
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 
@@ -116,11 +118,7 @@ def _kernel_pca(kernel: np.ndarray, n_components: int) -> tuple[np.ndarray, np.n
     order = np.argsort(eigenvalues)[::-1][:n_components]
     loadings = eigenvectors[:, order]
     values = np.clip(eigenvalues[order], a_min=0.0, a_max=None)
-    for a in range(loadings.shape[1]):
-        max_el_idx = int(np.argmax(np.abs(loadings[:, a])))
-        if loadings[max_el_idx, a] < 0:
-            loadings[:, a] *= -1.0
-    return loadings, values
+    return np.where(_opposes_convention(loadings), -loadings, loadings), values
 
 
 def _subspace_distance(reference: np.ndarray, current: np.ndarray) -> float:
@@ -145,6 +143,95 @@ def _subspace_distance(reference: np.ndarray, current: np.ndarray) -> float:
     """
     cross = reference.T @ current
     return float(np.trace(cross @ cross.T))
+
+
+def _scores_and_spe(
+    x: np.ndarray, direct: np.ndarray, guide: np.ndarray, loadings: np.ndarray
+) -> tuple[np.ndarray, float]:
+    """Return the scores and the SPE of one scaled row, ``NaN`` where a value is missing.
+
+    A complete row's scores are ``x @ direct`` and its residual ``x - loadings @ scores``.
+    A row with missing values is projected one component at a time (single-component
+    projection; Nelson, Taylor and MacGregor, 1996): each score is the observed part of
+    the row on the observed part of its ``guide`` column, over that part's squared length,
+    and the row is deflated by the observed part of its loading. PCA guides by its
+    loadings, PLS by its weights. The SPE is the length of what is left of the observed
+    entries.
+
+    Parameters
+    ----------
+    x : np.ndarray of shape (n_features,)
+        The row, centred and scaled.
+    direct, guide, loadings : np.ndarray of shape (n_features, n_components)
+        The direct weights ``R`` (scores of a complete row), the columns each score is
+        read along in a row with missing values, and the loadings ``P``.
+
+    Returns
+    -------
+    scores : np.ndarray of shape (n_components,)
+    spe : float
+    """
+    missing = np.isnan(x)
+    if not missing.any():
+        scores = x @ direct
+        residual = x - loadings @ scores
+        return scores, float(np.sqrt(residual @ residual))
+    deflate = np.where(missing, 0.0, x)
+    scores = np.zeros(guide.shape[1])
+    for a in range(guide.shape[1]):
+        along = np.where(missing, 0.0, guide[:, a])
+        denom = float(along @ along)
+        # A column with (almost) nothing observed gives no score.
+        observed = denom > epsqrt  # pragma: no mutate - >= differs only at a denom of exactly epsqrt
+        scores[a] = float(deflate @ along) / denom if observed else 0.0
+        deflate = deflate - scores[a] * np.where(missing, 0.0, loadings[:, a])
+    return scores, float(np.sqrt(deflate @ deflate))
+
+
+def _as_rows(X: DataMatrix) -> tuple[pd.Index, np.ndarray]:
+    """Return the row labels of ``X`` (0, 1, ... for an array) and its values as floats.
+
+    ``to_numpy(dtype=float)`` reads a missing value of a nullable column as NaN and a
+    flag as 0 or 1, in a frame of mixed column types as in any other.
+    """
+    frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+    return frame.index, frame.to_numpy(dtype=float)
+
+
+def _ewma_step(
+    centre: np.ndarray, scale: np.ndarray, value: np.ndarray, factor_centre: np.ndarray, factor_scale: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Move an EWMA centring and scaling vector one observation toward ``value``.
+
+    Equations 1a and 2a of the method: the scale tracks the squared deviation from
+    the centre before this step, then the centre moves toward the value. A variable
+    with a zero factor is frozen, and one whose value is missing moves neither its
+    centre nor its scale.
+
+    Parameters
+    ----------
+    centre, scale : np.ndarray of shape (n_variables,)
+        The current centring and scaling vectors.
+    value : np.ndarray of shape (n_variables,)
+        The new raw observation, ``NaN`` where missing.
+    factor_centre, factor_scale : np.ndarray of shape (n_variables,)
+        The EWMA factors of the centre (lambda) and of the scale (alpha).
+
+    Returns
+    -------
+    centre, scale : np.ndarray of shape (n_variables,)
+        The vectors after this step. A scale of exactly 0 (a scale factor of 1 and a
+        value at the centre) is set to 1, as :class:`MCUVScaler` scales a column of
+        equal values; a scale in small units is kept, in any units.
+    """
+    deviation = value - centre
+    observed = ~np.isnan(deviation)
+    spread = np.sqrt((1.0 - factor_scale) * scale**2 + factor_scale * deviation**2)
+    spread = np.where(spread > 0.0, spread, 1.0)
+    # (1 - lambda) m + lambda x, written as m + lambda (x - m): the same value, but exact
+    # when x equals m, so an observation at the centre leaves it unchanged to the last bit.
+    moved = centre + factor_centre * deviation
+    return np.where(observed, moved, centre), np.where(observed, spread, scale)
 
 
 # -----------------------------------------------------------------------------
@@ -182,14 +269,17 @@ class _AdaptiveModel(_LatentVariableModel):
         _sx0: np.ndarray
         _last_injection: float
         _last_kernel_norm: float
+        XtX0_: np.ndarray
+        XtX_: np.ndarray
+        _norm_xx0: float
 
     # ---- helpers used by both subclasses -----------------------------------
 
     @staticmethod
     def _as_vector(value: float | np.ndarray, size: int, name: str) -> np.ndarray:
         """Broadcast a scalar or validate a per-variable vector of forgetting factors."""
-        arr = np.broadcast_to(np.asarray(value, dtype=float), (size,)).astype(float).copy()
-        if np.any(arr < 0) or np.any(arr > 1):
+        arr = np.broadcast_to(np.asarray(value, dtype=float), (size,)).copy()
+        if not np.all((arr >= 0.0) & (arr <= 1.0)):  # a NaN is refused too
             raise ValueError(f"{name} must lie in [0, 1]; got values outside that range.")
         return arr
 
@@ -205,10 +295,62 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_scale_shift: list[float] = []
         self._hist_injection: list[float] = []
         self._hist_kernel_norm: list[float] = []
-        self._n_updates_ = 0
 
-    def _record_state_drift(self, updated: bool) -> None:
-        """Append the per-observation preprocessing-drift and kernel-update magnitudes.
+    def _start_limits(self, training_spe: np.ndarray) -> None:
+        """Set the T2 limit, the training SPE limit, and the rolling window of squared SPEs it starts from."""
+        A, N = self.n_components_, self.n_samples_
+        self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
+        self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
+        self._min_spe_window = max(20, A + 2)
+        self._spe_buffer: deque[float] = deque((training_spe**2).tolist(), maxlen=int(self.spe_limit_window))
+
+    def _monitor(self, x0: np.ndarray, t2: float, spe: float) -> tuple[float, bool, bool]:
+        """Return the SPE limit, whether the row is in control, and whether it updates the model.
+
+        A row with no observed value is out of control and updates nothing. An in-control
+        row's squared SPE joins the rolling window, after its own limit was taken.
+        """
+        spe_limit = self._current_spe_limit()
+        observed = not np.isnan(x0).all()
+        below_t2 = t2 <= self._t2_limit_0  # pragma: no mutate - < differs only at a T2 exactly on its limit
+        below_spe = spe <= spe_limit  # pragma: no mutate - < differs only at an SPE exactly on its limit
+        in_control = below_t2 and below_spe and observed
+        if in_control:
+            self._spe_buffer.append(spe**2)
+        return spe_limit, in_control, (in_control or self.update_when_out_of_control) and observed
+
+    def _ewma_update_x(self, x0: np.ndarray) -> np.ndarray:
+        """Advance the X-space EWMA centre and scale by one observation, and return it scaled by them.
+
+        The monitoring statistics used the vectors before this step; the kernel takes the
+        observation scaled with the moved ones, a missing value at the centre, 0.
+        """
+        self.mx_, self.sx_ = _ewma_step(self.mx_, self.sx_, x0, self.lambda_center_, self.alpha_scale_)
+        return np.nan_to_num((x0 - self.mx_) / self.sx_)
+
+    def _update_kernel_xx(self, x_scaled: np.ndarray) -> None:
+        """Mix one scaled observation into ``X'X``, with the injection term, at the training trace.
+
+        Records the injection weight and the relative size of the change to ``X'X`` for
+        the drift diagnostics.
+        """
+        mu = self.forgetting_factor
+        prev_xx = self.XtX_
+        update_xx = mu * np.outer(x_scaled, x_scaled)
+        # Nuclear norm (= trace for the PSD X'X) throughout, for consistency with the
+        # re-scale below; the rank-1 update's trace equals its Frobenius norm.
+        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
+        new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
+        norm_xx = float(np.trace(new_xx))
+        if norm_xx > epsqrt:  # pragma: no mutate - >= differs only at a trace of exactly epsqrt
+            new_xx = new_xx * (self._norm_xx0 / norm_xx)
+        self._last_injection = f_x
+        denom = float(np.linalg.norm(prev_xx))
+        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
+        self.XtX_ = new_xx
+
+    def _record(self, scores: np.ndarray, t2: float, spe: float, updated: bool, label: object) -> float:
+        """Append one observation's statistics and the model's drift to the history; return the distance.
 
         ``center_shift`` is how far the X-centering vector has migrated from the
         training data, in training standard-deviation units; ``scale_shift`` is the
@@ -216,26 +358,27 @@ class _AdaptiveModel(_LatentVariableModel):
         term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
         change to ``X'X``; both are zero on observations that did not update.
         """
+        distance = self._distance()
+        self._hist_scores.append(scores)
+        self._hist_t2.append(t2)
+        self._hist_spe.append(spe)
+        self._hist_distance.append(distance)
         self._hist_center_shift.append(float(np.linalg.norm((self.mx_ - self._mx0) / self._sx0)))
         self._hist_scale_shift.append(float(np.mean(np.abs(self.sx_ / self._sx0 - 1.0))))
         self._hist_injection.append(self._last_injection if updated else 0.0)
         self._hist_kernel_norm.append(self._last_kernel_norm if updated else 0.0)
+        self._hist_index.append(label if label is not None else len(self._hist_index))
+        return distance
 
-    def _ewma_update_x(self, x0: np.ndarray) -> None:
-        """Advance the X-space EWMA centering and scaling vectors by one observation.
+    def _update_scaling_factor(self) -> None:
+        """Recompute the per-score standard deviations used for Hotelling's T2."""
+        self.scaling_factor_for_scores_ = pd.Series(
+            np.sqrt(self.explained_variance_), index=self._component_names, name="Standard deviation per score"
+        )
 
-        Uses the pre-update centre for both steps (equations 1a / 2a of the
-        method): the scaling tracks the squared deviation from the current
-        centre, then the centre itself moves toward the new value. Frozen
-        variables (a zero forgetting factor) are left untouched.
-        """
-        # Scaling first, referencing the not-yet-updated centre.
-        self.sx_ = np.sqrt((1.0 - self.alpha_scale_) * self.sx_**2 + self.alpha_scale_ * (x0 - self.mx_) ** 2)
-        # Guard against a scale collapsing to zero on a frozen / constant tag.
-        self.sx_ = np.where(self.sx_ < epsqrt, 1.0, self.sx_)
-        # (1 - lambda) m + lambda x, written as m + lambda (x - m): the same value, but exact
-        # when x equals m, so an observation at the centre leaves it unchanged to the last bit.
-        self.mx_ = self.mx_ + self.lambda_center_ * (x0 - self.mx_)
+    def _hotellings_t2(self, scores: np.ndarray) -> float:
+        """Return one row's Hotelling's T2, leaving out a component with no spread as PCA and PLS do."""
+        return float(np.sum((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
 
     def _current_spe_limit(self) -> float:
         """Return the SPE limit: rolling-window adaptive, or the fixed training limit."""
@@ -251,8 +394,8 @@ class _AdaptiveModel(_LatentVariableModel):
         X : array-like of shape (n_samples, n_features)
             New observations, processed one row at a time.
         Y : array-like of shape (n_samples, n_targets), optional
-            Matching responses (PLS only). Rows whose response is entirely
-            missing update the X-space model but not the regression part, which
+            Matching responses (PLS only). A row whose response has a missing
+            value updates the X-space model but not the regression part, which
             mirrors an infrequently-sampled laboratory measurement.
 
         Returns
@@ -260,15 +403,18 @@ class _AdaptiveModel(_LatentVariableModel):
         self : _AdaptiveModel
         """
         check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        Y_df = None
-        if Y is not None:
-            Y_df = Y if isinstance(Y, pd.DataFrame) else pd.DataFrame(np.asarray(Y))
-        for pos in range(X_df.shape[0]):
-            idx = X_df.index[pos]
-            y_row = None if Y_df is None else Y_df.iloc[pos].to_numpy(dtype=float)
-            self.update(X_df.iloc[pos].to_numpy(dtype=float), y_row=y_row, label=idx)
+        labels, rows = _as_rows(X)
+        y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
+        for pos, label in enumerate(labels):
+            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label)
         return self
+
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
+        """Project data onto the *current* model, returning the X scores (no update)."""
+        check_is_fitted(self, "mx_")
+        labels, rows = _as_rows(X)
+        scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
+        return pd.DataFrame(scores, index=labels, columns=self._component_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
 
@@ -332,6 +478,10 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         return pd.Series(self._hist_kernel_norm, index=self._hist_index, name="Kernel update (relative)")
 
+    def _channels_to_plot(self) -> pd.DataFrame | None:
+        """Return the prediction channels, and the regression change, the adaptation plot shows: none here."""
+        return None
+
     def adaptation_plot(self, valid: np.ndarray | None = None) -> object:
         """Plot the adaptation as preprocessing vs kernel channels and state drift.
 
@@ -357,41 +507,32 @@ class _AdaptiveModel(_LatentVariableModel):
         from plotly.subplots import make_subplots  # noqa: PLC0415
 
         x = list(self._hist_index)
-        cen = np.asarray(self._hist_center_shift, dtype=float)
-        sca = np.asarray(self._hist_scale_shift, dtype=float)
-        rot = self.n_components - np.asarray(self._hist_distance, dtype=float)
-        has_channels = bool(getattr(self, "_hist_static", [])) and getattr(self, "n_targets_", None) == 1
+        rot = self.n_components - np.asarray(self._hist_distance)
+        channels = self._channels_to_plot()
 
-        if has_channels:
+        if channels is not None:
             fig = make_subplots(
-                rows=3,
-                cols=1,
+                rows=3,  # in one column, the default
                 shared_xaxes=True,
                 vertical_spacing=0.07,
-                specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]],
+                specs=[[{"secondary_y": True}], [{}], [{}]],
                 subplot_titles=["Prediction departure from static, by channel", "Preprocessing drift", "Kernel drift"],
             )
-            ch = self.prediction_channels_
-            prep = ch["preprocessing"].to_numpy(dtype=float)
-            kern = ch["kernel"].to_numpy(dtype=float)
+            prep = channels["preprocessing"].to_numpy()
+            kern = channels["kernel"].to_numpy()
             if valid is not None:
-                keep = np.asarray(valid, dtype=bool)
-                prep = np.where(keep, prep, np.nan)
-                kern = np.where(keep, kern, np.nan)
+                prep = np.where(valid, prep, np.nan)
+                kern = np.where(valid, kern, np.nan)
             total = prep + kern
-            span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) if len(prep) else 1.0
-            span = span or 1.0
+            # A history of one row or more; a frozen model's channels are all 0.
+            span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) or 1.0
             fig.add_trace(
-                go.Scatter(x=x, y=prep, name="Centering + scaling", line=dict(color="#1f4e79", width=1)),
-                row=1,
-                col=1,
-                secondary_y=False,
+                go.Scatter(x=x, y=prep, name="Centering + scaling", line=dict(color="#1f4e79", width=1)), row=1, col=1
             )
             fig.add_trace(
                 go.Scatter(x=x, y=kern, name="Kernel (subspace/regression)", line=dict(color="#c55a11", width=1)),
                 row=1,
                 col=1,
-                secondary_y=False,
             )
             fig.add_trace(
                 go.Scatter(x=x, y=total, name="Total (right axis)", line=dict(color="#222222", width=1)),
@@ -399,13 +540,14 @@ class _AdaptiveModel(_LatentVariableModel):
                 col=1,
                 secondary_y=True,
             )
-            fig.update_yaxes(title_text="Channel", range=[-1.05 * span, 1.05 * span], row=1, col=1, secondary_y=False)
-            fig.update_yaxes(title_text="Total", range=[-2.1 * span, 2.1 * span], row=1, col=1, secondary_y=True)
+            fig.update_layout(
+                yaxis={"title_text": "Channel", "range": [-1.05 * span, 1.05 * span]},
+                yaxis2={"title_text": "Total", "range": [-2.1 * span, 2.1 * span]},
+            )
             r_pre, r_ker = 2, 3
         else:
             fig = make_subplots(
-                rows=2,
-                cols=1,
+                rows=2,  # in one column, the default
                 shared_xaxes=True,
                 vertical_spacing=0.09,
                 subplot_titles=["Preprocessing drift", "Kernel drift"],
@@ -413,12 +555,22 @@ class _AdaptiveModel(_LatentVariableModel):
             r_pre, r_ker = 1, 2
 
         fig.add_trace(
-            go.Scatter(x=x, y=cen, name="Centre migration [training SD]", line=dict(color="#1f4e79", width=1)),
+            go.Scatter(
+                x=x,
+                y=self._hist_center_shift,
+                name="Centre migration [training SD]",
+                line=dict(color="#1f4e79", width=1),
+            ),
             row=r_pre,
             col=1,
         )
         fig.add_trace(
-            go.Scatter(x=x, y=sca, name="Scale change [fraction]", line=dict(color="#2e75b6", width=1, dash="dash")),
+            go.Scatter(
+                x=x,
+                y=self._hist_scale_shift,
+                name="Scale change [fraction]",
+                line=dict(color="#2e75b6", width=1, dash="dash"),
+            ),
             row=r_pre,
             col=1,
         )
@@ -427,11 +579,11 @@ class _AdaptiveModel(_LatentVariableModel):
             row=r_ker,
             col=1,
         )
-        if has_channels:
+        if channels is not None:
             fig.add_trace(
                 go.Scatter(
                     x=x,
-                    y=self._hist_beta_shift,
+                    y=channels["regression"],
                     name="Regression change",
                     line=dict(color="#e0912f", width=1, dash="dash"),
                 ),
@@ -439,7 +591,9 @@ class _AdaptiveModel(_LatentVariableModel):
                 col=1,
             )
         fig.update_layout(
-            height=270 * (3 if has_channels else 2), margin=dict(l=70, r=70, t=40, b=40), legend=dict(font=dict(size=9))
+            height=270 * (2 if channels is None else 3),
+            margin=dict(l=70, r=70, t=40, b=40),
+            legend=dict(font=dict(size=9)),
         )
         return fig
 
@@ -564,14 +718,13 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)
-        self.mx_ = self._scaler.center_.to_numpy(dtype=float).copy()
-        self.sx_ = self._scaler.scale_.to_numpy(dtype=float).copy()
+        self.mx_ = self._scaler.center_.to_numpy().copy()
+        self.sx_ = self._scaler.scale_.to_numpy().copy()
         self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
         self._sx0 = self.sx_.copy()
-        self._last_injection = 0.0
-        self._last_kernel_norm = 0.0
 
-        Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
+        # A missing cell is 0: at the centre, it adds nothing to X'X.
+        Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy())
         self.XtX0_ = Xs.T @ Xs
         self.XtX_ = self.XtX0_.copy()
         # Nuclear norm of the kernel. For a symmetric PSD matrix this is the sum
@@ -586,20 +739,13 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         loadings, eigenvalues = _kernel_pca(self.XtX0_, A)
         self.loadings0_ = loadings.copy()
         self._loadings = loadings.copy()
-        self.explained_variance_ = eigenvalues / max(1, N - 1)
+        self.explained_variance_ = eigenvalues / (N - 1)  # MCUVScaler refused fewer than 2 rows
         self._update_scaling_factor()
 
-        # Initialise the limits, and the rolling SPE window, from the training SPE
-        # computed with the training loadings on the scaled data.
-        self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
-        scores = Xs @ self._loadings
-        residual = Xs - scores @ self._loadings.T
-        training_spe = np.sqrt(np.sum(residual**2, axis=1))
-        self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
-        self._min_spe_window = max(20, A + 2)
-        self._spe_buffer: deque[float] = deque(maxlen=int(self.spe_limit_window))
-        self._spe_buffer.extend((training_spe**2).tolist())
-
+        # The limits, and the rolling SPE window, start from the training SPE, computed
+        # with the training loadings on the scaled data.
+        residual = Xs - Xs @ self._loadings @ self._loadings.T
+        self._start_limits(np.sqrt(np.sum(residual**2, axis=1)))
         self._init_history()
         return self
 
@@ -608,68 +754,27 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         """The current loadings ``P`` as a DataFrame (features x components)."""
         return pd.DataFrame(self._loadings, index=self._feature_names, columns=self._component_names)
 
-    def _update_scaling_factor(self) -> None:
-        """Recompute the per-score standard deviations used for Hotelling's T2."""
-        var = self.explained_variance_
-        self.scaling_factor_for_scores_ = pd.Series(
-            np.sqrt(np.clip(var, a_min=epsqrt**2, a_max=None)),
-            index=self._component_names,
-            name="Standard deviation per score",
-        )
+    def _project(self, x0: np.ndarray) -> tuple[np.ndarray, float, float]:
+        """Project one raw observation onto the current model: its scores, Hotelling's T2 and SPE.
 
-    def _project(self, x0: np.ndarray) -> tuple[np.ndarray, float, float, np.ndarray]:
-        """Project one raw observation onto the current model.
-
-        Returns the scores, Hotelling's T2, SPE (on the residual scale) and the
-        scaled observation. Missing entries are handled by single-component
-        projection (Nelson, Taylor and MacGregor, 1996): scores use only the
-        observed elements of each loading and the residual is taken over the
-        observed entries only.
+        Missing entries are handled by single-component projection along the loadings.
         """
-        x = (x0 - self.mx_) / self.sx_
         P = self._loadings
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
-        missing = np.isnan(x)
-        if not missing.any():
-            t = x @ P
-            residual = x - P @ t
-            spe = float(np.sqrt(residual @ residual))
-        else:
-            x_obs = np.where(missing, 0.0, x)
-            deflate = x_obs.copy()
-            t = np.zeros(P.shape[1])
-            for a in range(P.shape[1]):
-                p_a = np.where(missing, 0.0, P[:, a])
-                denom = float(p_a @ p_a)
-                t[a] = float(deflate @ p_a) / denom if denom > epsqrt else 0.0
-                deflate = deflate - t[a] * p_a
-            spe = float(np.sqrt(deflate @ deflate))
-        t2 = float(np.sum((t / s) ** 2))
-        return t, t2, spe, x
+        t, spe = _scores_and_spe((x0 - self.mx_) / self.sx_, P, P, P)
+        return t, self._hotellings_t2(t), spe
+
+    def _distance(self) -> float:
+        """Return the overlap of the current loadings with the training ones, in components."""
+        return _subspace_distance(self.loadings0_, self._loadings)
 
     def _recompute(self, x_scaled: np.ndarray) -> None:
         """Update the kernel with one scaled observation and recompute the loadings."""
-        mu = self.forgetting_factor
-        prev_xx = self.XtX_
-        update_xx = mu * np.outer(x_scaled, x_scaled)
-        # Nuclear norm (= trace for PSD) throughout, for consistency with the
-        # re-scale below; the rank-1 update's trace equals its Frobenius norm.
-        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
-        new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.trace(new_xx))
-        if norm_xx > epsqrt:
-            new_xx = new_xx * (self._norm_xx0 / norm_xx)
-        # Diagnostics: injection weight and the relative size of this step's change.
-        self._last_injection = f_x
-        denom = float(np.linalg.norm(prev_xx))
-        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
-        self.XtX_ = new_xx
-
+        self._update_kernel_xx(x_scaled)
         loadings, eigenvalues = _kernel_pca(self.XtX_, self.n_components)
         signs = _sign_align(loadings, self._loadings)
-        loadings *= signs
+        loadings *= signs  # pragma: no mutate - the signs are +1 and -1, which / reads the same
         self._loadings = loadings
-        self.explained_variance_ = eigenvalues / max(1, self.n_samples_ - 1)
+        self.explained_variance_ = eigenvalues / (self.n_samples_ - 1)
         self._update_scaling_factor()
 
     def update(
@@ -698,48 +803,21 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self, "mx_")
         x0 = np.asarray(x_row, dtype=float).ravel()
-        t, t2, spe, _x_scaled = self._project(x0)
-        spe_limit = self._current_spe_limit()
-        in_control = (t2 <= self._t2_limit_0) and (spe <= spe_limit) and not np.isnan(x0).all()
-
-        updated = False
-        if (in_control or self.update_when_out_of_control) and not np.isnan(x0).all():
-            self._ewma_update_x(x0)
-            # Convention: advance the EWMA centering/scaling vectors first, then
-            # scale this same observation with the updated (i+1) vectors for the
-            # kernel contribution. The monitoring statistics above used the
-            # pre-update (i) vectors via _project; the kernel uses i+1.
-            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
-            self._recompute(x_for_kernel)
-            if in_control:
-                self._spe_buffer.append(spe**2)
-            self._n_updates_ += 1
-            updated = True
-
-        distance = _subspace_distance(self.loadings0_, self._loadings)
-        self._hist_scores.append(t)
-        self._hist_t2.append(t2)
-        self._hist_spe.append(spe)
-        self._hist_distance.append(distance)
-        self._record_state_drift(updated)
-        self._hist_index.append(label if label is not None else len(self._hist_index))
+        t, t2, spe = self._project(x0)
+        spe_limit, in_control, updated = self._monitor(x0, t2, spe)
+        if updated:
+            self._recompute(self._ewma_update_x(x0))
+        distance = self._record(t, t2, spe, updated, label)
         return Bunch(
             scores=t,
             hotellings_t2=t2,
             spe=spe,
             spe_limit=spe_limit,
             hotellings_t2_limit=self._t2_limit_0,
-            in_control=bool(in_control),
+            in_control=in_control,
             updated=updated,
             distance=distance,
         )
-
-    def transform(self, X: DataMatrix) -> pd.DataFrame:
-        """Project data onto the *current* model, returning the scores (no update)."""
-        check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        out = np.array([self._project(row.to_numpy(dtype=float))[0] for _, row in X_df.iterrows()])
-        return pd.DataFrame(out.reshape(-1, self.n_components), index=X_df.index, columns=self._component_names)
 
 
 # -----------------------------------------------------------------------------
@@ -890,17 +968,19 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.lambda_center_y_ = self._as_vector(self.lambda_center_y, M, "lambda_center_y")
         self.alpha_scale_y_ = self._as_vector(self.alpha_scale_y, M, "alpha_scale_y")
 
-        # Initialise preprocessing and the batch model, matching PLS(scale=True).
+        # Initialise preprocessing and the batch model, matching PLS(scale=True), its default.
         self._x_scaler = MCUVScaler().fit(X_df)
         self._y_scaler = MCUVScaler().fit(Y_df)
-        self.mx_ = self._x_scaler.center_.to_numpy(dtype=float).copy()
-        self.sx_ = self._x_scaler.scale_.to_numpy(dtype=float).copy()
-        self.my_ = self._y_scaler.center_.to_numpy(dtype=float).copy()
-        self.sy_ = self._y_scaler.scale_.to_numpy(dtype=float).copy()
-        training_model = PLS(n_components=A, scale=True).fit(X_df, Y_df)
+        self.mx_ = self._x_scaler.center_.to_numpy().copy()
+        self.sx_ = self._x_scaler.scale_.to_numpy().copy()
+        self.my_ = self._y_scaler.center_.to_numpy().copy()
+        self.sy_ = self._y_scaler.scale_.to_numpy().copy()
+        # It refuses a block with no X'Y covariance, so _norm_xy0 and _beta0 below are not 0.
+        training_model = PLS(n_components=A).fit(X_df, Y_df)
 
-        Xs = np.nan_to_num(self._x_scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
-        Ys = np.nan_to_num(self._y_scaler.transform(Y_df).to_numpy(dtype=float), nan=0.0)
+        # A missing cell is 0: at the centre, it adds nothing to X'X or X'Y.
+        Xs = np.nan_to_num(self._x_scaler.transform(X_df).to_numpy())
+        Ys = np.nan_to_num(self._y_scaler.transform(Y_df).to_numpy())
         self.XtX0_ = Xs.T @ Xs
         self.XtY0_ = Xs.T @ Ys
         self.XtX_ = self.XtX0_.copy()
@@ -925,17 +1005,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._my0 = self.my_.copy()
         self._sy0 = self.sy_.copy()
         self._beta0 = self._beta_scaled.copy()
-        self._norm_beta0 = float(np.linalg.norm(self._beta0)) or 1.0
-        self._last_injection = 0.0
-        self._last_kernel_norm = 0.0
+        self._norm_beta0 = float(np.linalg.norm(self._beta0))
 
-        self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
-        training_spe = training_model.spe_.iloc[:, A - 1].to_numpy(dtype=float)
-        self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
-        self._min_spe_window = max(20, A + 2)
-        self._spe_buffer: deque[float] = deque(maxlen=int(self.spe_limit_window))
-        self._spe_buffer.extend((training_spe**2).tolist())
-
+        self._start_limits(training_model.spe_.iloc[:, A - 1].to_numpy())
         self._hist_pred: list[np.ndarray] = []
         self._hist_static = []
         self._hist_prep = []
@@ -944,11 +1016,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._init_history()
         return self
 
-    def _channel_split(self, x0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _channel_split(self, x0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Split the current model's prediction for one raw row into a static baseline and two channels.
 
-        Returns ``(static, preprocessing, kernel, adaptive)`` prediction vectors,
-        each of length ``M``, where ``adaptive = static + preprocessing + kernel``:
+        Returns ``(static, preprocessing, kernel)`` prediction vectors, each of length
+        ``M``, whose sum is the adaptive prediction:
 
         - ``static``: the frozen training model's prediction (training centering/scaling
           and training regression);
@@ -961,33 +1033,26 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         state, so streamed on each observation it attributes the departure from
         the static model to the two mechanisms.
         """
-        xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
-        xs_static = np.nan_to_num((x0 - self._mx0) / self._sx0, nan=0.0)
+        xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_)  # a missing value at the centre
+        xs_static = np.nan_to_num((x0 - self._mx0) / self._sx0)
         y_static = self._my0 + self._sy0 * (self._beta0.T @ xs_static)
         y_prep = self.my_ + self.sy_ * (self._beta0.T @ xs_cur)
         y_full = self.my_ + self.sy_ * (self._beta_scaled.T @ xs_cur)
-        return y_static, y_prep - y_static, y_full - y_prep, y_full
+        return y_static, y_prep - y_static, y_full - y_prep
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:
         """Recompute W, P, R, C and beta from the current kernels; sign-align if asked."""
         W, P, R, C, score_ssq = _kernel_pls(self.XtX_, self.XtY_, self.n_components)
         if align_to is not None:
             signs = _sign_align(P, align_to)
-            W *= signs
-            P *= signs
-            R *= signs
-            C *= signs
+            W, P, R, C = (part * signs for part in (W, P, R, C))  # pragma: no mutate - signs are +1, -1: / is *
         self._weights = W
         self._loadings = P
         self._direct = R
         self._y_loadings = C
         self._beta_scaled = R @ C.T  # (K, M) mapping scaled X to scaled Y
-        self.explained_variance_ = score_ssq / max(1, self.n_samples_ - 1)
-        self.scaling_factor_for_scores_ = pd.Series(
-            np.sqrt(np.clip(self.explained_variance_, a_min=epsqrt**2, a_max=None)),
-            index=self._component_names,
-            name="Standard deviation per score",
-        )
+        self.explained_variance_ = score_ssq / (self.n_samples_ - 1)  # MCUVScaler refused fewer than 2 rows
+        self._update_scaling_factor()
 
     # ---- current-parameter DataFrame views ---------------------------------
 
@@ -1012,59 +1077,31 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         beta_raw = self._beta_scaled * (self.sy_[np.newaxis, :] / self.sx_[:, np.newaxis])
         return pd.DataFrame(beta_raw, index=self._feature_names, columns=self._target_names)
 
-    def _project(self, x0: np.ndarray) -> tuple[np.ndarray, float, float, np.ndarray, np.ndarray]:
-        """Project one raw observation; return scores, T2, SPE, raw prediction, scaled obs."""
-        x = (x0 - self.mx_) / self.sx_
-        P = self._loadings
-        R = self._direct
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
-        missing = np.isnan(x)
-        if not missing.any():
-            t = x @ R
-            residual = x - P @ t
-            spe = float(np.sqrt(residual @ residual))
-        else:
-            x_obs = np.where(missing, 0.0, x)
-            deflate = x_obs.copy()
-            t = np.zeros(P.shape[1])
-            for a in range(P.shape[1]):
-                w_a = np.where(missing, 0.0, self._weights[:, a])
-                denom = float(w_a @ w_a)
-                t[a] = float(deflate @ w_a) / denom if denom > epsqrt else 0.0
-                deflate = deflate - t[a] * np.where(missing, 0.0, P[:, a])
-            spe = float(np.sqrt(deflate @ deflate))
-        t2 = float(np.sum((t / s) ** 2))
-        y_scaled_hat = t @ self._y_loadings.T
-        y_hat = y_scaled_hat * self.sy_ + self.my_
-        return t, t2, spe, y_hat, x
+    def _project(self, x0: np.ndarray) -> tuple[np.ndarray, float, float, np.ndarray]:
+        """Project one raw observation: its scores, Hotelling's T2, SPE and predicted response.
+
+        Missing entries are handled by single-component projection along the weights.
+        """
+        t, spe = _scores_and_spe((x0 - self.mx_) / self.sx_, self._direct, self._weights, self._loadings)
+        y_hat = (t @ self._y_loadings.T) * self.sy_ + self.my_
+        return t, self._hotellings_t2(t), spe, y_hat
+
+    def _distance(self) -> float:
+        """Return the overlap of the current weights with the training ones, in components."""
+        return _subspace_distance(self.weights0_, self._weights)
 
     def _recompute(self, x_scaled: np.ndarray, y_scaled: np.ndarray | None) -> None:
         """Update the kernels with one scaled observation and recompute the model."""
-        mu = self.forgetting_factor
-        # Nuclear norm (= trace for the PSD X'X, = sum of singular values for the
-        # cross-kernel X'Y) is used consistently in the injection ratio and the
-        # re-scale; the rank-1 update terms are norm-choice invariant.
-        prev_xx = self.XtX_
-        update_xx = mu * np.outer(x_scaled, x_scaled)
-        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
-        new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.trace(new_xx))
-        if norm_xx > epsqrt:
-            new_xx = new_xx * (self._norm_xx0 / norm_xx)
-        # Diagnostics: injection weight and relative size of this step's X'X change.
-        self._last_injection = f_x
-        denom = float(np.linalg.norm(prev_xx))
-        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
-        self.XtX_ = new_xx
-
-        if y_scaled is not None and self._norm_xy0 > 0:
-            update_xy = mu * np.outer(x_scaled, y_scaled)
-            f_y = self.gamma * float(np.linalg.norm(update_xy, "nuc")) / self._norm_xy0
-            self.XtY_ = (1.0 - mu) * self.XtY_ + update_xy + f_y * self.XtY0_
+        self._update_kernel_xx(x_scaled)
+        if y_scaled is not None:
+            mu = self.forgetting_factor
+            # The nuclear norm (the sum of singular values) throughout, as for X'X: the rank-1
+            # update's is mu ||x|| ||y||, as are its Frobenius and spectral norms.
+            f_y = self.gamma * mu * float(np.linalg.norm(x_scaled) * np.linalg.norm(y_scaled)) / self._norm_xy0
+            self.XtY_ = (1.0 - mu) * self.XtY_ + mu * np.outer(x_scaled, y_scaled) + f_y * self.XtY0_
             norm_xy = float(np.linalg.norm(self.XtY_, "nuc"))
-            if norm_xy > epsqrt:
+            if norm_xy > epsqrt:  # pragma: no mutate - >= differs only at a norm of exactly epsqrt
                 self.XtY_ *= self._norm_xy0 / norm_xy
-
         self._recompute_from_kernels(align_to=self._loadings)
 
     def update(self, x_row: np.ndarray, y_row: np.ndarray | None = None, *, label: object = None) -> Bunch:
@@ -1089,50 +1126,27 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         """
         check_is_fitted(self, "mx_")
         x0 = np.asarray(x_row, dtype=float).ravel()
-        t, t2, spe, y_hat, _ = self._project(x0)
+        t, t2, spe, y_hat = self._project(x0)
         # Attribution of this (deployed) prediction to the two adaptation channels,
-        # using the pre-update state so it is consistent with y_hat above.
-        static_ch, prep_ch, kernel_ch, _ = self._channel_split(x0)
-        spe_limit = self._current_spe_limit()
-        all_missing = bool(np.isnan(x0).all())
-        in_control = (t2 <= self._t2_limit_0) and (spe <= spe_limit) and not all_missing
-
-        updated = False
-        if (in_control or self.update_when_out_of_control) and not all_missing:
-            # Convention: advance the EWMA centering/scaling vectors first (X here,
-            # Y below), then scale this same observation with the updated (i+1)
-            # vectors for the kernel contributions. The monitoring statistics above
-            # used the pre-update (i) vectors via _project.
-            self._ewma_update_x(x0)
+        # using the state before the update, as y_hat does.
+        static_ch, prep_ch, kernel_ch = self._channel_split(x0)
+        spe_limit, in_control, updated = self._monitor(x0, t2, spe)
+        if updated:
+            x_scaled = self._ewma_update_x(x0)
             y_scaled = None
             if y_row is not None:
                 y0 = np.asarray(y_row, dtype=float).ravel()
                 if not np.isnan(y0).any():
-                    self.sy_ = np.sqrt(
-                        (1.0 - self.alpha_scale_y_) * self.sy_**2 + self.alpha_scale_y_ * (y0 - self.my_) ** 2
-                    )
-                    self.sy_ = np.where(self.sy_ < epsqrt, 1.0, self.sy_)
-                    self.my_ = self.my_ + self.lambda_center_y_ * (y0 - self.my_)  # exact at y0 == my_, as for X
-                    y_scaled = (y0 - self.my_) / self.sy_  # uses updated (i+1) Y vectors
-            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)  # updated (i+1) X vectors
-            self._recompute(x_for_kernel, y_scaled)
-            if in_control:
-                self._spe_buffer.append(spe**2)
-            self._n_updates_ += 1
-            updated = True
+                    self.my_, self.sy_ = _ewma_step(self.my_, self.sy_, y0, self.lambda_center_y_, self.alpha_scale_y_)
+                    y_scaled = (y0 - self.my_) / self.sy_  # with the moved vectors, as for X
+            self._recompute(x_scaled, y_scaled)
 
-        distance = _subspace_distance(self.weights0_, self._weights)
-        self._hist_scores.append(t)
-        self._hist_t2.append(t2)
-        self._hist_spe.append(spe)
+        distance = self._record(t, t2, spe, updated, label)
         self._hist_pred.append(y_hat)
-        self._hist_distance.append(distance)
         self._hist_static.append(static_ch)
         self._hist_prep.append(prep_ch)
         self._hist_kern.append(kernel_ch)
         self._hist_beta_shift.append(float(np.linalg.norm(self._beta_scaled - self._beta0)) / self._norm_beta0)
-        self._record_state_drift(updated)
-        self._hist_index.append(label if label is not None else len(self._hist_index))
         return Bunch(
             scores=t,
             prediction=y_hat,
@@ -1140,7 +1154,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             spe=spe,
             spe_limit=spe_limit,
             hotellings_t2_limit=self._t2_limit_0,
-            in_control=bool(in_control),
+            in_control=in_control,
             updated=updated,
             distance=distance,
         )
@@ -1164,29 +1178,26 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         ``kernel`` and ``adaptive`` (their sum). For several responses the columns
         are a two-level ``(target, channel)`` index.
         """
-        static_a = np.asarray(static, dtype=float).reshape(-1, self.n_targets_)
-        prep_a = np.asarray(prep, dtype=float).reshape(-1, self.n_targets_)
-        kern_a = np.asarray(kern, dtype=float).reshape(-1, self.n_targets_)
-        adaptive_a = static_a + prep_a + kern_a
+        shape = (len(index), self.n_targets_)
+        parts = {"static": np.reshape(static, shape), "preprocessing": np.reshape(prep, shape)}
+        parts["kernel"] = np.reshape(kern, shape)
+        parts["adaptive"] = parts["static"] + parts["preprocessing"] + parts["kernel"]
         if self.n_targets_ == 1:
-            return pd.DataFrame(
-                {
-                    "static": static_a[:, 0],
-                    "preprocessing": prep_a[:, 0],
-                    "kernel": kern_a[:, 0],
-                    "adaptive": adaptive_a[:, 0],
-                },
-                index=index,
-            )
-        data: dict[tuple[object, str], np.ndarray] = {}
-        for j, name in enumerate(self._target_names):
-            data[(name, "static")] = static_a[:, j]
-            data[(name, "preprocessing")] = prep_a[:, j]
-            data[(name, "kernel")] = kern_a[:, j]
-            data[(name, "adaptive")] = adaptive_a[:, j]
+            return pd.DataFrame({channel: values[:, 0] for channel, values in parts.items()}, index=index)
+        data = {
+            (name, channel): values[:, j]
+            for j, name in enumerate(self._target_names)
+            for channel, values in parts.items()
+        }
         frame = pd.DataFrame(data, index=index)
-        frame.columns = pd.MultiIndex.from_tuples(list(data.keys()), names=["target", "channel"])
+        frame.columns = pd.MultiIndex.from_tuples(list(data), names=["target", "channel"])
         return frame
+
+    def _channels_to_plot(self) -> pd.DataFrame | None:
+        """Return the channels of a single response, and the regression change, once there is a history."""
+        if self._hist_static and self.n_targets_ == 1:
+            return self.prediction_channels_.assign(regression=self._hist_beta_shift)
+        return None
 
     @property
     def beta_shift_(self) -> pd.Series:
@@ -1230,25 +1241,13 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             several responses.
         """
         check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        s_list, p_list, k_list = [], [], []
-        for _, row in X_df.iterrows():
-            st, pr, kr, _ = self._channel_split(row.to_numpy(dtype=float))
-            s_list.append(st)
-            p_list.append(pr)
-            k_list.append(kr)
-        return self._channels_frame(s_list, p_list, k_list, X_df.index)
-
-    def transform(self, X: DataMatrix) -> pd.DataFrame:
-        """Project data onto the *current* model, returning the X scores (no update)."""
-        check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        out = np.array([self._project(row.to_numpy(dtype=float))[0] for _, row in X_df.iterrows()])
-        return pd.DataFrame(out.reshape(-1, self.n_components), index=X_df.index, columns=self._component_names)
+        labels, rows = _as_rows(X)
+        split = np.reshape([self._channel_split(row) for row in rows], (len(labels), 3, self.n_targets_))
+        return self._channels_frame(split[:, 0], split[:, 1], split[:, 2], labels)
 
     def predict(self, X: DataMatrix) -> pd.DataFrame:
         """Predict the response with the *current* model (no update)."""
         check_is_fitted(self, "mx_")
-        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
-        out = np.array([self._project(row.to_numpy(dtype=float))[3] for _, row in X_df.iterrows()])
-        return pd.DataFrame(out.reshape(-1, self.n_targets_), index=X_df.index, columns=self._target_names)
+        labels, rows = _as_rows(X)
+        predictions = np.reshape([self._project(row)[3] for row in rows], (len(labels), self.n_targets_))
+        return pd.DataFrame(predictions, index=labels, columns=self._target_names)

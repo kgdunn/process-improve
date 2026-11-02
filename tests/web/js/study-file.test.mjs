@@ -1,9 +1,13 @@
 // web/study-file.js: studies written to a file and read back, the file checked as text anyone could write.
 
 import assert from "node:assert/strict";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, test } from "node:test";
+import { pathToFileURL } from "node:url";
 
-import { CAMPAIGN_VERSION, checkCampaign } from "../../../web/campaign.js";
+import { CAMPAIGN_VERSION, LEVELS_FORMAT, MANY_FACTORS_FORMAT, WHAT_IF_FORMAT, checkCampaign, packCampaign, shareable } from "../../../web/campaign.js";
 import { canonicalJson, sha256 } from "../../../web/report.js";
 import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, studyFile, studyOf } from "../../../web/study-file.js";
 
@@ -13,7 +17,7 @@ function record(id = "study-1", title = "Full factorial (2-level) in T and Suppl
     id,
     created: Date.UTC(2026, 9, 19, 12, 0),
     updated: Date.UTC(2026, 9, 21, 8, 29, 41),
-    v: CAMPAIGN_VERSION,
+    v: 1, // the format a study of this design is saved in
     title,
     design: {
       spec: {
@@ -88,11 +92,11 @@ describe("the study file", () => {
     const file = await written([record()]);
     file.stacked_on = ["an earlier file"];
     file.studies[0].builds_on = [{ id: "study-0", sha256: "ab" }];
-    file.studies[0].study.what_if = { T: 175 };
+    file.studies[0].study.inverse = { target: 63 };
     const { studies, refused } = await readStudyFile(JSON.stringify(file));
     assert.deepEqual(refused, []);
     assert.equal(studies.length, 1);
-    assert.equal(studies[0].study.what_if, undefined, "what this page does not know, it does not keep");
+    assert.equal(studies[0].study.inverse, undefined, "what this page does not know, it does not keep");
     assert.equal(studies[0].changed, true, "the study holds a key it was not saved with");
   });
 
@@ -136,6 +140,66 @@ describe("the study file", () => {
     assert.equal(study.id, null);
     assert.equal(study.created, now);
     assert.equal(study.updated, now, "updated falls back to created");
+  });
+
+  for (const k of [13, 24, 40]) {
+    test(`writes a screening study of ${k} factors and reads it back whole, in the format that holds it`, async () => {
+      const names = Array.from({ length: k }, (_, i) => `X${i + 1}`);
+      const study = record("many", `Plackett-Burman screening in ${k} factors`);
+      study.design.spec = { ...study.design.spec, design_type: "plackett_burman", model: "main_effects" };
+      study.design.spec.factors = names.map((name) => ({ name, low: 0, high: 10, units: "u" }));
+      study.design.columns = ["Std order", "Run order", ...names, "y"];
+      study.design.rows = [1, 2, 3, 4].map((run) => [run, run, ...names.map((_, j) => ((run + j) % 2 ? 10 : 0)), null]);
+      study.design.model = "main_effects";
+      study.v = MANY_FACTORS_FORMAT;
+      const { studies, refused } = await readStudyFile(await asText([study]));
+      assert.deepEqual(refused, []);
+      assert.equal(studies[0].study.v, MANY_FACTORS_FORMAT);
+      assert.deepEqual(studies[0].study.design.spec.factors.map((f) => f.name), names);
+      assert.equal(studies[0].changed, false);
+      assert.ok(MANY_FACTORS_FORMAT > LEVELS_FORMAT, "a page of format 3 refuses it as saved by a later Factorial");
+    });
+  }
+
+  test("writes the settings kept from the what-if panel and reads them back, in the format that holds them", async () => {
+    const kept = [
+      { name: "Cooler, more pressure", settings: { T: 175, Supplier: "B" } },
+      { name: "Hot", settings: { T: 200, Supplier: "A" } },
+    ];
+    const study = { ...record("kept"), v: WHAT_IF_FORMAT, what_if: kept };
+    const { studies, refused } = await readStudyFile(await asText([study, record("none", "Without")]));
+    assert.deepEqual(refused, []);
+    assert.deepEqual(studies[0].study.what_if, kept, "no prediction is kept: each is worked out from the results");
+    assert.equal(studies[0].study.v, WHAT_IF_FORMAT);
+    assert.equal(studies[0].changed, false);
+    assert.equal(studies[1].study.what_if, undefined);
+    assert.equal(studies[1].study.v, 1, "a study without kept settings keeps the format it had");
+  });
+
+  test("an earlier Factorial, of format 4, refuses a study with kept settings as saved by a later one", async () => {
+    // The page as it was before format 5: these modules, reading formats 1 to 4. Its study file and its links
+    // refuse a study by its format, so it never opens one only to drop the kept settings on its next save.
+    const dir = mkdtempSync(join(tmpdir(), "factorial-format-4-"));
+    try {
+      const web = new URL("../../../web/", import.meta.url);
+      for (const name of ["study-file.js", "report.js", "logic.js"]) copyFileSync(new URL(name, web), join(dir, name));
+      const source = readFileSync(new URL("campaign.js", web), "utf8");
+      const earlier = source.replace("export const CAMPAIGN_VERSION = 5;", "export const CAMPAIGN_VERSION = 4;");
+      assert.notEqual(earlier, source);
+      writeFileSync(join(dir, "campaign.js"), earlier);
+      const before = await import(pathToFileURL(join(dir, "study-file.js")).href);
+      const linked = await import(pathToFileURL(join(dir, "campaign.js")).href);
+      const study = { ...record("kept", "Kept"), v: WHAT_IF_FORMAT, what_if: [{ name: "Hot", settings: { T: 200, Supplier: "A" } }] };
+      const { studies, refused } = await before.readStudyFile(await asText([study, record("none", "Without")]));
+      assert.deepEqual(refused, [
+        { title: "Kept", reason: "it was saved by a later Factorial, in study format 5; reload the page for the latest Factorial" },
+      ]);
+      assert.deepEqual(studies.map((s) => s.id), ["none"], "the other studies in the file open");
+      const link = await packCampaign(shareable(checkCampaign(studyOf(study)), true));
+      await assert.rejects(linked.unpackCampaign(link), /it was saved in format 5, and this page reads formats 1 to 4/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("names its file from the study's title", () => {

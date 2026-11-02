@@ -193,7 +193,7 @@ def test_cross_process_determinism(sim: BioreactorSimulator) -> None:
         "print(repr(BioreactorSimulator().simulate_batch(random_state=42).titer))"
     )
     result = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=300
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=300, encoding="locale"
     )
     assert float(result.stdout.strip()) == sim.simulate_batch(random_state=42).titer
 
@@ -937,6 +937,7 @@ def test_evaluate_batch_control_policy_tool_runs_end_to_end() -> None:
         "evaluate_batch_control_policy", {"n_train": 30, "n_test": 5, "dead_band": 0.0, "random_state": 0}
     )
     assert "error" not in out
+    assert "library_warnings" not in out
     assert set(out["summary_titer_g_L"]) == {"replay", "midcourse"}
     assert out["n_corrected"] == len(out["corrected_batches"]) > 0
     for row in out["corrected_batches"]:

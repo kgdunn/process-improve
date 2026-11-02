@@ -369,7 +369,7 @@ function scaleLines(spec, names) {
  * is its column then. ``vifModel``, the terms fitted as a formula, is given when the page shows their
  * VIFs: the code then works them out from the same runs, as the page's VIF column has them.
  */
-export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null } = {}) {
+export function analyseCode(model, complete = true, spec = null, vifModel = null, { compared = false, control = null, spread = false } = {}) {
   const transform = transformOf(spec);
   const fitted = complete ? `X, ${onScale("y", transform)}` : `X[done], ${onScale("y[done]", transform)}`;
   const own = Boolean(spec?.response) && spec.response !== responseNames(spec)[0];
@@ -396,7 +396,45 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
     'print(analysis["coefficients"])',
     ...vif,
     ...(compared ? comparedCode(spec, complete, control) : []),
+    ...(spread ? spreadCode(spec) : []),
   ].join("\n");
+}
+
+/** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */
+export const SN_KINDS = { maximize: "larger", minimize: "smaller", target: "nominal" };
+
+/** Each signal-to-noise ratio of the readings ``v`` at one setting, as Python writes it, and its name. */
+const SN_FORMULAS = {
+  larger: ["-10 * np.log10((1 / v**2).mean())", "larger is better"],
+  smaller: ["-10 * np.log10((v**2).mean())", "smaller is better"],
+  nominal: ["10 * np.log10(v.mean() ** 2 / v.var())", "nominal is best"],
+};
+
+/**
+ * The results read more than once at a setting (``spread``, as the page's analysis sums them up): each setting's
+ * readings summed up, with the signal-to-noise ratio of the response's goal, and the response table, each summary's
+ * average at each level of each factor and its delta. A setting read once, and a summary a setting cannot give, such
+ * as the ln s of readings that do not vary, are left out, as the page leaves them out.
+ */
+function spreadCode(spec) {
+  const kind = SN_KINDS[spec?.response_info?.goal];
+  const summaries = ["mean", "ln_std_dev", ...(kind ? ["sn"] : [])];
+  return [
+    "",
+    "# The results read more than once at a setting: each setting's readings summed up, and the response table.",
+    "import numpy as np",
+    "",
+    `factors = ${repr(spec.factors.map((f) => f.name))}`,
+    'readings = runs[factors].assign(y=y).dropna(subset=["y"]).groupby(factors)["y"]',
+    'settings = readings.agg(n="count", mean="mean", std_dev="std")',
+    'settings["ln_std_dev"] = np.log(settings["std_dev"].where(settings["std_dev"] > 0))',
+    ...(kind ? [`settings["sn"] = readings.agg(lambda v: ${SN_FORMULAS[kind][0]})  # ${SN_FORMULAS[kind][1]}`] : []),
+    'settings = settings[settings["n"] > 1].replace([np.inf, -np.inf], np.nan)  # a setting read once has no spread',
+    "print(settings)",
+    "for factor in factors:  # each summary's average at each of the factor's levels, and its delta",
+    `    table = settings.groupby(level=factor)[${repr(summaries)}].mean()`,
+    '    print(table, (table.max() - table.min()).rename("delta"), sep="\\n")',
+  ];
 }
 
 /** The arrangements the randomization test counts at most, drawing that many at random beyond: bootstrap.ARRANGEMENTS. */
@@ -465,7 +503,8 @@ function comparisonCode(spec, complete) {
  * with scipy, which the library is built on. The one-way analysis of variance asks whether the averages differ at all,
  * Tukey's intervals compare every pair of levels, and Dunnett's each level with the control, the level the page
  * compares them with. Dunnett's intervals are the page's when each level has the same runs; with unequal runs the
- * page takes the comparisons' average correlation, and scipy each one's own.
+ * page takes the comparisons' average correlation, and scipy each one's own. The library's Bartlett's test and
+ * Kruskal-Wallis test then check what the analysis of variance assumes, as the page checks it.
  */
 function severalCode(spec, complete, control) {
   const f = spec.factors[0];
@@ -476,6 +515,7 @@ function severalCode(spec, complete, control) {
     "",
     `# The ${levels.length} levels of ${f.name} compared: whether their averages differ at all, every pair of levels by`,
     `# Tukey's intervals, and each level against the control, ${base}, by Dunnett's intervals.`,
+    "from process_improve.univariate import bartlett_test, kruskal_wallis_test",
     "from scipy import stats",
     "",
     `levels, control = ${repr(levels)}, ${repr(base)}`,
@@ -486,7 +526,11 @@ function severalCode(spec, complete, control) {
     "# scipy integrates Dunnett's distribution by randomized quasi-Monte Carlo: seeded, it is the same on every run.",
     "others = (g for level, g in groups.items() if level != control)",
     "dunnett = stats.dunnett(*others, control=groups[control], random_state=1)",
-    'print(anova, tukey, dunnett, sep="\\n")',
+    "# The checks of what the analysis of variance assumes: whether each level's runs spread alike, which needs two",
+    "# different results or more at each level, and the analysis of variance of the results' ranks.",
+    "spread = bartlett_test(*groups.values()) if all(g.nunique() > 1 for g in groups.values()) else None",
+    "ranks = kruskal_wallis_test(*groups.values())",
+    'print(anova, tukey, dunnett, spread, ranks, sep="\\n")',
   ];
 }
 
@@ -733,7 +777,7 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
  * study of several responses; ``version`` pins the release the page ran, when known.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, version, url, best = null, analyses = null, balance = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, spread = false, version, url, best = null, analyses = null, balance = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -751,10 +795,10 @@ export function notebook({ title, design, responses, sources, simulation, model,
     codeCell("results", resultsCode(design, results, simulated ? simulation : null)),
   ];
   // Each response's analysis, and its best settings when it has a goal: the first's alone for a study of one response.
-  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared, control }] : []);
+  const each = analyses ?? (model !== null && model !== undefined ? [{ response: names[0], model, best, vifModel, compared, control, spread }] : []);
   const fitted = fittedRuns(design);
   let step = 3;
-  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false, control: base = null } of each) {
+  for (const { response, model: fittedModel, best: found, vifModel: vifTerms = null, compared: levels = false, control: base = null, spread: repeated = false } of each) {
     if (fittedModel === null || fittedModel === undefined) continue;
     const spec = forResponse(design.spec, response);
     const values = results[response] ?? [];
@@ -763,7 +807,7 @@ export function notebook({ title, design, responses, sources, simulation, model,
     const id = names.length > 1 ? `-${names.indexOf(response) + 1}` : ""; // a cell's id is ASCII, as nbformat asks
     cells.push(
       markdownCell(`analysis-step${id}`, names.length > 1 ? `## ${step}. The analysis of ${words}` : `## ${step}. The analysis`),
-      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base })),
+      codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base, spread: repeated })),
     );
     step += 1;
     if (found?.settings) {
@@ -856,15 +900,30 @@ export function balanceCode(balance, spec) {
  * What if: each response's prediction at the reader's settings, from its own model fitted to the runs that have its
  * result, with its 95% confidence interval for the mean and prediction interval for one new run. ``formulas`` holds
  * each response's model as bootstrap.predictors fitted it, by its column; ``at`` the settings as the columns of ``X``
- * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. It builds on the design and its results.
+ * (best.js columnsAt), and ``settings`` as the reader set them, for the comment. ``kept`` holds the settings kept with
+ * the study that the models predict at, each its ``name`` and its columns ``at``: each response is predicted at them
+ * too. It builds on the design and its results.
  */
-export function whatIfCode(spec, formulas, at, settings) {
+export function whatIfCode(spec, formulas, at, settings, kept = []) {
   const words = spec.factors.map((f) =>
     labelled(f) ? `${f.name} at ${settings[f.name]}` : `${f.name} = ${Number(settings[f.name].toPrecision(4))}${f.units ? ` ${f.units}` : ""}`,
   );
   const models = Object.values(formulas).join(" + ");
   const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(models, f).map(({ name }) => name))]);
+  const only = (columns) => Object.fromEntries(Object.entries(columns).filter(([name]) => used.has(name)));
   const scale = scaleLines(spec, Object.keys(formulas));
+  const keptLines = [
+    "",
+    "# The settings kept with the study, by their names, and each response's prediction at each.",
+    `kept = pd.DataFrame(${repr(kept.map((k) => only(k.at)))}, index=${repr(kept.map((k) => k.name))})`,
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    prediction = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="prediction", new_points=kept)`,
+    '    for scenario, predicted in zip(kept.index, prediction["predictions"], strict=True):',
+    scale.lines.length
+      ? `        print(f"{name}, {scenario}:", {key: float(${scale.back("v")}) for key, v in predicted.items()})  # in its units`
+      : '        print(f"{name}, {scenario}:", predicted)',
+  ];
   return [
     "import pandas as pd",
     "from process_improve.experiments import analyze_experiment",
@@ -872,7 +931,7 @@ export function whatIfCode(spec, formulas, at, settings) {
     ...scale.lines,
     ...indicatorLines(spec, models),
     `# The settings, ${words.join(", ")}, in coded units as the columns of X.`,
-    `at = pd.DataFrame([${repr(Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name))))}])`,
+    `at = pd.DataFrame([${repr(only(at))}])`,
     "# Each response's prediction there, from its own model fitted to the runs that have its result, with its 95%",
     "# confidence interval for the mean (ci_low to ci_high) and prediction interval for one new run (pi_low to pi_high).",
     `for name, model in ${repr(formulas)}.items():`,
@@ -881,5 +940,6 @@ export function whatIfCode(spec, formulas, at, settings) {
     scale.lines.length
       ? `    print(name, {key: float(${scale.back("v")}) for key, v in prediction["predictions"][0].items()})  # in its units`
       : '    print(name, prediction["predictions"][0])',
+    ...(kept.length ? keptLines : []),
   ].join("\n");
 }

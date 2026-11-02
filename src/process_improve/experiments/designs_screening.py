@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import math
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -22,6 +23,8 @@ from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAME
 from process_improve.experiments.designs_utils import categorical_codes
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
     from process_improve.experiments.factor import DesignResult, Factor
 
 # Minimum-aberration 2^(k-p) fractional factorials for 5 to 11 factors, keyed by the number of
@@ -77,6 +80,7 @@ def dispatch_fractional_factorial(
     factors: list[Factor],
     resolution: int | None = None,
     generators: list[str] | None = None,
+    n_runs: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a 2-level fractional factorial design.
 
@@ -93,6 +97,9 @@ def dispatch_fractional_factorial(
     generators : list[str] or None
         Explicit generator strings, e.g. ``["D=ABC", "E=AC"]``.  When given,
         these are translated into ``fracfact`` generator notation.
+    n_runs : int or None
+        Runs of the fraction, a power of two: the minimum-aberration fraction of that size
+        (#956). With *resolution*, the fraction must reach it. Ignored with *generators*.
 
     Returns
     -------
@@ -108,7 +115,9 @@ def dispatch_fractional_factorial(
     ------
     ValueError
         If fewer than 3 factors are given without generators, if *resolution* is below 3
-        or above the number of factors, or if *generators* fall short of *resolution*.
+        or above the number of factors, if *generators* or the *n_runs* fraction fall short
+        of *resolution*, or if no minimum-aberration fraction of *n_runs* runs is tabulated or
+        quick to search.
     """
     factor_names = [f.name for f in factors]
     k = len(factors)
@@ -127,14 +136,23 @@ def dispatch_fractional_factorial(
                 f"A fractional factorial in {k} factors has a resolution from 3 to {k} (the half fraction); "
                 f"got resolution={resolution}. Use a full factorial for more."
             )
-        # Without a resolution, the half fraction.
-        parsed = [(k - 1, list(range(k - 1)))] if resolution is None else _minimum_aberration_generators(k, resolution)
+        if n_runs is not None:
+            parsed = _fraction_of_size(k, n_runs)
+        elif resolution is None:  # the half fraction
+            parsed = [(k - 1, list(range(k - 1)))]
+        else:
+            parsed = _minimum_aberration_generators(k, resolution)
         signs = [1] * len(parsed)
         coded_matrix = _fracfact_from_indices(k, [lhs for lhs, _ in parsed], [(rhs, False) for _, rhs in parsed])
         generators_used = [f"{factor_names[lhs]}={''.join(factor_names[i] for i in rhs)}" for lhs, rhs in parsed]
 
     words = _defining_word_masks(parsed, signs)
     achieved = min(mask.bit_count() for mask, _ in words)
+    if not generators and n_runs is not None and resolution is not None and achieved < resolution:
+        raise ValueError(
+            f"The {n_runs}-run fraction of {k} factors reaches resolution {achieved}, below the "
+            f"resolution={resolution} asked for. Give a larger budget or a lower resolution."
+        )
     if generators and resolution is not None and achieved < resolution:
         raise ValueError(
             f"The generators {list(generators)} give a resolution-{achieved} design, below the resolution={resolution} "
@@ -234,6 +252,38 @@ def _minimum_aberration_generators(k: int, resolution: int) -> list[_Generator]:
     return half_fraction
 
 
+def _fraction_of_size(k: int, n_runs: int) -> list[_Generator]:
+    """Return the minimum-aberration fraction of *k* factors in *n_runs* runs (a power of two).
+
+    The half fraction is the one with a single generator; other sizes come from the
+    minimum-aberration table up to 11 factors, else from the generator search of
+    :func:`~process_improve.experiments.trade_off.minimum_aberration_generators`, which raises
+    a ``ValueError`` naming the size of the search when it is too large.
+    """
+    trade_off = _trade_off()
+    if n_runs == 2 ** (k - 1):
+        return [(k - 1, list(range(k - 1)))]
+    entry = _MIN_ABERRATION.get(k, {}).get(n_runs)
+    if entry is not None:
+        return [(_TABLE_LETTERS.index(g[0]), [_TABLE_LETTERS.index(c) for c in g[2:]]) for g in entry]
+    if k > len(trade_off._FACTOR_NAMES):
+        raise ValueError(f"No minimum-aberration fraction of {k} factors is searched; supply the generators.")
+    return _as_indices(trade_off.minimum_aberration_generators(n_runs, k))
+
+
+def _trade_off() -> ModuleType:
+    """Return :mod:`~process_improve.experiments.trade_off`, imported here because it imports this module."""
+    from process_improve.experiments import trade_off  # noqa: PLC0415
+
+    return trade_off
+
+
+def _as_indices(generators: tuple[str, ...]) -> list[_Generator]:
+    """Turn generators such as ``("D=AB",)`` from the minimum-aberration search into column indices."""
+    names = _trade_off()._FACTOR_NAMES
+    return [(names.index(g[0]), [names.index(c) for c in g[2:]]) for g in generators]
+
+
 def _strongest_at_size(k: int, found: list[_Generator]) -> list[_Generator]:
     """Return the best fraction with as many runs as *found*.
 
@@ -243,17 +293,11 @@ def _strongest_at_size(k: int, found: list[_Generator]) -> list[_Generator]:
     the generator search reaches at that size: 16 factors in 32 runs are resolution IV,
     though resolution III was asked for.
     """
-    from process_improve.experiments.trade_off import (  # noqa: PLC0415 - trade_off imports this module
-        _FACTOR_NAMES,
-        SearchLimitError,
-        minimum_aberration_generators,
-    )
-
+    trade_off = _trade_off()
     n_base = k - len(found)
-    if k <= len(_FACTOR_NAMES):
-        with contextlib.suppress(SearchLimitError):
-            chosen = minimum_aberration_generators(2**n_base, k)
-            return [(_FACTOR_NAMES.index(g[0]), [_FACTOR_NAMES.index(c) for c in g[2:]]) for g in chosen]
+    if k <= len(trade_off._FACTOR_NAMES):
+        with contextlib.suppress(trade_off.SearchLimitError):
+            return _as_indices(trade_off.minimum_aberration_generators(2**n_base, k))
     reached = min(mask.bit_count() for mask, _ in _defining_word_masks(found))
     for stronger in range(n_base + 1, reached, -1):  # a generator's word has at most n_base + 1 letters
         better = _search_at_size(k, n_base, stronger)
@@ -457,8 +501,8 @@ def plackett_burman_runs(n_factors: int) -> int:
     """Return the number of runs in the Plackett-Burman design for ``n_factors`` factors.
 
     The smallest multiple of 4 above ``n_factors`` for which a Hadamard matrix is
-    built here (every order up to 200 except 92, 116, 156, 172, 184 and 188, which
-    step up to the next multiple of 4).
+    built here: every order up to 232. The first gaps are 236, 260 and 268, which
+    step up to the next multiple of 4.
     """
     n = 4 * (n_factors // 4 + 1)
     while hadamard_matrix(n) is None:
@@ -475,10 +519,12 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     48, ... runs) the design is Paley's cyclic one, which is what Plackett and Burman
     (1946) printed for 12, 20, 24 and 44 runs; for 36 runs it is their own generating
     row. Powers of 2 are the classical construction (Sylvester's doubling), and the other
-    orders (28, 40, 52, ...) come from the finite-field constructions in
-    :mod:`process_improve.experiments._finite_fields`, checked against ``H'H = N I``. A
-    doubled design is used only where no cyclic one is built: it aliases some products of
-    three columns completely with the intercept.
+    orders (28, 40, 52, ..., and the Goethals-Seidel arrays at 92, 116, 156, 172 and 188)
+    come from the constructions in :mod:`process_improve.experiments._finite_fields`,
+    checked against ``H'H = N I``. A doubled design is used only where no cyclic one is
+    built: it aliases some products of three columns completely with the intercept. A
+    ``UserWarning`` names both run counts when ``N`` is above the smallest multiple of 4
+    above ``k`` because that order is not built here.
 
     Parameters
     ----------
@@ -492,6 +538,12 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """
     k = len(factors)
     n = plackett_burman_runs(k)
+    if n > (smallest := 4 * (k // 4 + 1)):
+        warnings.warn(
+            f"No {smallest}-run Plackett-Burman design is built here, so the design for {k} factors has {n} runs.",
+            UserWarning,
+            stacklevel=2,
+        )
     if n in _PB_CYCLIC_ROWS:
         return _cyclic_design(_PB_CYCLIC_ROWS[n])[:, :k], {
             "construction": f"cyclic_row_{n}",

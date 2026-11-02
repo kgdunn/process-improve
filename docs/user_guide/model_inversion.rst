@@ -188,8 +188,142 @@ swept lines fill out a **multivariate specification region**. Bounding it by the
    limit. Treat per-input limits as a summary of the region, not as the
    specification.
 
+Inversion as an optimisation: cost, ingredients and safety limits
+-----------------------------------------------------------------
+
+A specification region says which inputs are acceptable; a product developer
+then has to choose one. Jaeckle and MacGregor chose by hand, "the most
+economical or most energy-efficient" point of the window.
+:meth:`~process_improve.multivariate.methods.PLS.optimal_inversion` makes that
+choice an optimisation, for PLS and TPLS models alike:
+
+.. math::
+
+    \begin{aligned}
+    \min_{\mathbf{x}} \quad & \mathbf{c}^T \mathbf{x}
+        \;\text{ or }\; \textstyle\sum_k |\hat{y}_k - y_k^*| / s_k \\
+    \text{subject to} \quad & \text{each } \hat{y}_k \text{ within its window} \\
+    & \text{linear rules on } \mathbf{x}
+        \text{ (a mixture that sums to 1, a safety or legal limit)} \\
+    & T^2(\mathbf{x}) \le T^2_{\text{lim}}, \quad
+      \text{SPE}(\mathbf{x}) \le \text{SPE}_{\text{lim}} \\
+    & \text{at most } k \text{ inputs of a group, each at a minimum amount when used.}
+    \end{aligned}
+
+The :math:`T^2` and SPE limits play the part of "inside the tested region": the
+answer must look like the data the model was built from. A latent-variable
+model's scores, predictions and residuals are affine in its inputs, so
+:func:`~process_improve.multivariate.methods.affine_model` reads them once,
+exactly, and checks them against the model's own ``diagnose``. Everything is
+then linear except :math:`T^2`, a convex quadratic, and SPE, the length of an
+affine map: without the counting rules the problem is convex and its optimum is
+global. With them, outer approximation alternates a mixed-integer master, which
+chooses the inputs used, with the convex search for each choice, until the
+master's bound meets the best answer: the answer is *proven* optimal.
+
+.. code-block:: python
+
+    from process_improve.multivariate import InversionRules, LinearRule
+
+    rules = InversionRules(
+        costs={"Acetic": 1.0, "H2S": 3.0, "Lactic": 8.0},  # per unit of each input
+        windows={"Taste": (20.0, 30.0)},  # an acceptable taste
+        rules=(LinearRule("sulfide limit", {"H2S": 1.0}, upper=8.0),),
+    )
+    result = pls.optimal_inversion(rules)
+
+    result.x_new  # the cheapest inputs the model vouches for
+    result.objective  # their cost
+    result.constraints  # every rule, with its shadow price
+
+For a mixture, give the total as a rule (``LinearRule("mixture", {...: 1.0},
+lower=1.0, upper=1.0)``) and each ingredient bounds of 0 to 1. The number of
+ingredients is a counting rule: ``groups={"all": names}``,
+``max_count={"all": 3}``, ``min_amount={"all": 0.05}``. A TPLS model's
+materials are groups already, and each material's lot fractions sum to 1 unless
+``closure=False``. With ``targets`` instead of ``costs`` the answer is the
+closest point to the targets; equally close points fill the null space, and the
+one returned is the most typical of them, the one of least :math:`T^2`.
+
+Reading the model costs one ``diagnose`` call; to solve many problems on one
+model, read it once with :func:`~process_improve.multivariate.methods.affine_model`
+and pass the maps in place of the model. ``AffineModel.to_dict`` stores them as
+plain JSON, and ``AffineModel.from_dict`` reads them back, so a search can run
+later without the fitted model.
+
+When no inputs meet the rules, ``result.message`` says why: either the windows
+cannot be met within the inputs' bounds at all, or they can only far from the
+data, and then by how many times each limit would be exceeded.
+
+Alternatives: the next best answers, each with other inputs
+-----------------------------------------------------------
+
+A product developer rarely wants one answer. Alternatives that use different
+inputs protect against an input that becomes unavailable or restricted, and
+they make a more informative next round of experiments than several points near
+one optimum. With counting rules, ``alternatives`` asks for them:
+
+.. code-block:: python
+
+    rules = InversionRules(
+        costs=costs, windows=windows, rules=(mixture_total,),
+        groups={"all": names}, max_count={"all": 3}, min_amount={"all": 0.05},
+    )
+    result = pls.optimal_inversion(rules, alternatives=2, leave_out=1)
+
+    result.used  # the inputs of the best answer
+    [r.used for r in result.alternatives]  # each alternative's inputs, best first
+    [r.objective - result.objective for r in result.alternatives]  # what each one costs extra
+
+Each alternative is found by a *no-good cut* on the master problem: if an answer
+uses the counted inputs :math:`S`, every later answer must meet
+
+.. math::
+
+    \sum_{i \in S} u_i \le |S| - \ell,
+
+where :math:`u_i` is 1 when input :math:`i` is used and :math:`\ell` is
+``leave_out``: it leaves out at least :math:`\ell` of :math:`S`, and may add
+others. The tangent planes found so far stay valid for any choice of inputs,
+and every choice already solved keeps its best point, so each alternative takes
+a few more rounds of the same search, and its ``proven_optimal`` means that no
+choice of inputs the earlier answers allow does better. The list ends early,
+with a result whose ``message`` says why, when no further choice meets the rules.
+
+Give a ``min_amount``: it is what "used" means, so that a trace of an input
+does not count as using it.
+
+Sensitivity: what each rule costs
+---------------------------------
+
+The ``constraints`` table gives each rule's **shadow price**, read from the
+optimality conditions at the answer: the change in the optimal objective per
+unit increase of the bound it sits at, and per 1% of that bound. A rule that
+does not bind has a price of 0. The prices answer the question a constrained
+answer always raises: which rule is expensive, and what would relaxing it be
+worth?
+
+:func:`~process_improve.multivariate.methods.inversion_sensitivity` checks the
+prices and goes further:
+
+.. code-block:: python
+
+    report = pls.inversion_sensitivity(rules, front=("T²", [4.0, 6.0, 8.0]), prices=["Lactic"])
+
+    report.checked  # each binding rule moved 1% and solved again: forecast and actual change
+    report.front  # the optimal cost as the T² limit moves
+    report.counts  # one input more or fewer per counted group
+    report.prices  # how far each cost can move before the answer changes shape
+
+A shadow price is a slope: it holds while the same rules bind. ``front`` traces
+the objective over a range of one limit, where the slope may change, and
+``prices`` gives the range of each cost over which the answer keeps its shape,
+the same inputs used and the same rules binding.
+
 See also
 --------
 
 - :class:`~process_improve.multivariate.methods.PLS`
 - :class:`~process_improve.multivariate.methods.OPLS`
+- :func:`~process_improve.multivariate.methods.optimal_inversion`
+- :func:`~process_improve.multivariate.methods.inversion_sensitivity`

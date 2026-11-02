@@ -10,15 +10,22 @@ from __future__ import annotations
 import inspect
 import itertools
 import pathlib
+import warnings
+from fractions import Fraction
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.optimize import brentq
+from scipy.special import softmax
+from scipy.stats import norm
 from sklearn.base import clone, is_classifier, is_regressor
-from sklearn.model_selection import cross_val_score
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.exceptions import NotFittedError
+from sklearn.model_selection import KFold, StratifiedKFold, check_cv, cross_val_score
 from sklearn.pipeline import Pipeline
 
-from process_improve.multivariate._plsda import _bayes_threshold
+from process_improve.multivariate._plsda import _bayes_threshold, _gaussian_log_density, _mean_and_sd
 from process_improve.multivariate.methods import (
     PLS,
     PLSDA,
@@ -239,6 +246,18 @@ def test_plsda_rejects_input_it_cannot_use() -> None:
         PLSDA(n_components=2).fit(X, np.array(["same"] * len(y)))
     with pytest.raises(ValueError, match=r"X has 20 rows but y has 5 labels"):
         PLSDA(n_components=2).fit(X, y[:5])
+    # A missing label, as None or NaN, names no class: it used to fail on a KeyError or on sorting.
+    for missing in (None, np.nan):
+        gappy = y.astype(object)
+        gappy[[3, 17]] = missing
+        with pytest.raises(ValueError, match=r"^y has no label in 2 of its rows; every row needs a class\.$"):
+            PLSDA(n_components=2).fit(X, gappy)
+        with pytest.raises(ValueError, match=r"^y has no label in 2 of its rows; every row needs a class\.$"):
+            PLSDA.compare_cv_criteria(X, gappy)
+    numbers = np.where(y == "low", 0.0, 1.0)
+    numbers[0] = np.nan
+    with pytest.raises(ValueError, match=r"^y has no label in 1 of its rows"):
+        PLSDA(n_components=2).fit(X, numbers)
 
 
 @pytest.mark.slow
@@ -338,7 +357,9 @@ def test_plsda_permutation_test_refuses_when_no_draw_can_be_fitted(monkeypatch: 
     model = PLSDA(n_components=2).fit(X, y)
     _null_fits_that_fail(monkeypatch, every=1)
     with pytest.raises(
-        RuntimeError, match=r"^Every one of the 10 permutations failed to fit at n_components=2\..*fewer components"
+        RuntimeError,
+        match=r"^Every one of the 10 permutations failed to fit at n_components=2\. There is no null distribution "
+        r"to compare against; refit with fewer components, or with more samples per fold\.$",
     ):
         model.permutation_test(X, y, n_permutations=10, cv=None, random_state=0)
 
@@ -556,3 +577,506 @@ def test_plsda_on_the_cheddar_cheese_data() -> None:
     # H2S is the strongest single predictor of taste in this dataset, which the regression
     # write-up also finds; VIP should rank it top.
     assert model.vip().idxmax() == "H2S"
+
+
+# ---------------------------------------------------------------------------
+# Checked by hand: each number against a calculation that does not use PLSDA
+# ---------------------------------------------------------------------------
+
+_FLOOR = float(np.sqrt(np.finfo(float).eps))
+
+
+def _assert_near(actual: object, expected: object, rtol: float = 1e-7) -> None:
+    """Assert agreement to ``rtol`` of each value, or of the largest one for a value near 0.
+
+    Two iterative fits, ours and sklearn's, agree to their convergence tolerances; the
+    absolute floor is that tolerance scaled to the largest value compared.
+    """
+    expected = np.asarray(expected, dtype=float)
+    finite = np.abs(expected[np.isfinite(expected)])
+    floor = rtol * (float(finite.max()) if finite.size else 0.0)
+    np.testing.assert_allclose(np.asarray(actual, dtype=float), expected, rtol=rtol, atol=floor)
+
+
+def _sklearn_indicators(x_train: np.ndarray, labels: np.ndarray, x_new: np.ndarray, n_components: int) -> np.ndarray:
+    """Predicted one-hot indicators from sklearn's PLSRegression, autoscaled as PLSDA is, converged tightly."""
+    classes = np.unique(labels)
+    indicators = (labels[:, None] == classes[None, :]).astype(float)
+    model = PLSRegression(n_components=n_components, scale=True, tol=1e-14, max_iter=10_000)
+    return model.fit(np.asarray(x_train), indicators).predict(np.asarray(x_new))
+
+
+def _crossing(mean_in: float, sd_in: float, mean_out: float, sd_out: float, prior: float) -> float:
+    """Where prior * N_in(t) == (1 - prior) * N_out(t) between the means, by bracketing; else the midpoint."""
+    sd_in, sd_out = max(sd_in, _FLOOR), max(sd_out, _FLOOR)
+
+    def excess(t: float) -> float:
+        return np.log(prior) + norm.logpdf(t, mean_in, sd_in) - np.log1p(-prior) - norm.logpdf(t, mean_out, sd_out)
+
+    lo, hi = sorted((mean_in, mean_out))
+    if excess(lo) * excess(hi) > 0:  # no crossing between the means
+        return 0.5 * (lo + hi)
+    return float(brentq(excess, lo, hi, xtol=1e-15, rtol=1e-15, maxiter=500))
+
+
+def _class_statistics_by_hand(fitted: np.ndarray, labels: np.ndarray, priors: np.ndarray) -> pd.DataFrame:
+    """Fit the Gaussians of the decision layer to the in-sample indicators: sample sd, 0 for one member."""
+    classes = np.unique(labels)
+    rows = []
+    for position, klass in enumerate(classes):
+        inside = labels == klass
+        member, other = fitted[inside, position], fitted[~inside, position]
+        sd_in = float(np.std(member, ddof=1)) if member.size > 1 else 0.0
+        sd_out = float(np.std(other, ddof=1)) if other.size > 1 else 0.0
+        rows.append(
+            {
+                "mean_in": member.mean(),
+                "sd_in": max(sd_in, _FLOOR),
+                "mean_out": other.mean(),
+                "sd_out": max(sd_out, _FLOOR),
+                "prior": priors[position],
+                "threshold": _crossing(member.mean(), sd_in, other.mean(), sd_out, priors[position]),
+            }
+        )
+    return pd.DataFrame(rows, index=pd.Index(classes, name="class"))
+
+
+def _log_evidence_by_hand(values: np.ndarray, stats: pd.DataFrame) -> np.ndarray:
+    """log(prior) plus the log ratio of the in-class to the out-of-class normal density, per column."""
+    return np.column_stack(
+        [
+            np.log(row.prior)
+            + norm.logpdf(values[:, g], row.mean_in, row.sd_in)
+            - norm.logpdf(values[:, g], row.mean_out, row.sd_out)
+            for g, row in enumerate(stats.itertuples())
+        ]
+    )
+
+
+def _confusion_by_hand(truth: np.ndarray, predicted: np.ndarray, classes: np.ndarray) -> pd.DataFrame:
+    counts = np.array([[int(np.sum((truth == a) & (predicted == b))) for b in classes] for a in classes])
+    return pd.DataFrame(counts, index=pd.Index(classes, name="true"), columns=pd.Index(classes, name="predicted"))
+
+
+def _three_classes(seed: int = 21) -> tuple[pd.DataFrame, np.ndarray]:
+    """Three overlapping classes of 7, 6 and 2 rows, in no sorted order, with rows labelled by name."""
+    rng = np.random.default_rng(seed)
+    sizes = {"c": 7, "a": 6, "b": 2}
+    centres = {"a": [1.0, 0.0, 0.5, 0.0], "b": [0.0, 1.5, 0.0, -0.5], "c": [-1.0, -0.5, 0.0, 0.5]}
+    blocks = [rng.standard_normal((n, 4)) + centres[name] for name, n in sizes.items()]
+    labels = np.concatenate([[name] * n for name, n in sizes.items()])
+    order = rng.permutation(labels.size)
+    X = pd.DataFrame(
+        np.vstack(blocks)[order], columns=["p", "q", "r", "s"], index=[f"row{i}" for i in range(labels.size)]
+    )
+    return X, labels[order]
+
+
+@pytest.mark.parametrize("rule", ["max", "bayes"])
+def test_plsda_fit_matches_sklearn_and_the_decision_layer_by_hand(rule: str) -> None:
+    """Every fitted number, from sklearn's PLSRegression on the one-hot labels and the formulas written out."""
+    X, labels = _three_classes()
+    model = PLSDA(n_components=2, decision_rule=rule).fit(X, labels)
+    classes = np.array(["a", "b", "c"])
+    fitted = _sklearn_indicators(X, labels, X, 2)
+    priors = np.array([6, 2, 7]) / 15
+
+    np.testing.assert_array_equal(model.classes_, classes)
+    assert model.n_classes_ == 3
+    _assert_near(model.priors_, priors, rtol=1e-15)
+    # The one-hot block PLS is fitted to: a column per class, named for it, rows as X's.
+    assert model.y_loadings_.index.tolist() == ["a", "b", "c"]
+    assert model.predictions_.index.equals(X.index)
+    assert model.y_scores_.index.equals(X.index)
+    _assert_near(model.predictions_, fitted, rtol=1e-6)
+
+    stats = _class_statistics_by_hand(fitted, labels, priors)
+    pd.testing.assert_frame_equal(model.class_statistics_, stats, rtol=1e-6)
+    pd.testing.assert_series_equal(model.thresholds_, stats["threshold"], rtol=1e-6)
+    # Class b has two members: its spread is their sample sd, not the floor of a lone member.
+    assert model.class_statistics_.loc["b", "sd_in"] > 100 * _FLOOR
+
+    evidence = _log_evidence_by_hand(fitted, stats)
+    by_max, by_bayes = classes[fitted.argmax(axis=1)], classes[evidence.argmax(axis=1)]
+    assert (by_max != by_bayes).any()  # the two rules disagree somewhere on this fixture
+    predicted = by_max if rule == "max" else by_bayes
+
+    pd.testing.assert_frame_equal(model.confusion_matrix_, _confusion_by_hand(labels, predicted, classes))
+    assert model.accuracy_ == pytest.approx((predicted == labels).mean(), abs=1e-15)
+    actual = np.array([np.sum(labels == k) for k in classes])
+    hits = np.array([np.sum((labels == k) & (predicted == k)) for k in classes])
+    false_alarms = np.array([np.sum((labels != k) & (predicted == k)) for k in classes])
+    index = pd.Index(classes, name="class")
+    pd.testing.assert_series_equal(model.sensitivity_, pd.Series(hits / actual, index=index, name="sensitivity"))
+    expected_specificity = (len(labels) - actual - false_alarms) / (len(labels) - actual)
+    pd.testing.assert_series_equal(model.specificity_, pd.Series(expected_specificity, index=index, name="specificity"))
+
+    scores = model.decision_function(X)
+    pd.testing.assert_index_equal(scores.columns, pd.Index(classes, name="class"))
+    assert scores.index.equals(X.index)
+    _assert_near(scores, fitted, rtol=1e-6)
+    np.testing.assert_array_equal(model.predict(X), predicted)
+    _assert_near(model.predict_proba(X), softmax(evidence, axis=1), rtol=1e-5)
+
+
+def test_plsda_predict_proba_survives_evidence_that_would_overflow() -> None:
+    """A row far out along a class gives log evidence past 709, where exp overflows to inf.
+
+    Each row's evidence is shifted by its own largest value before exp, so that row is one-hot,
+    and the ordinary row beside it keeps its own posteriors.
+    """
+    X, y = _separable(n_per_class=12, n_features=3, separation=2.0, seed=31)
+    model = PLSDA(n_components=2).fit(X, y)
+    far = X.iloc[[0, 1]].copy()
+    far.iloc[0] = 60.0 * X.iloc[0]
+    stats = _class_statistics_by_hand(_sklearn_indicators(X, y, X, 2), y, np.array([0.5, 0.5]))
+    evidence = _log_evidence_by_hand(_sklearn_indicators(X, y, far, 2), stats)
+    assert np.abs(evidence[0]).min() > np.log(np.finfo(float).max)  # exp of either is inf or 0
+    proba = model.predict_proba(far)
+    assert np.isfinite(proba).all()
+    _assert_near(proba, softmax(evidence, axis=1), rtol=1e-5)
+
+
+def test_gaussian_log_density_and_the_class_spread_by_hand() -> None:
+    """The log density drops only the constant 0.5 log(2 pi); one value has a spread of 0."""
+    x = np.array([-1.5, 0.25, 4.0])
+    _assert_near(_gaussian_log_density(x, 0.75, 1.6), norm.logpdf(x, 0.75, 1.6) + 0.5 * np.log(2 * np.pi), rtol=1e-14)
+    assert _mean_and_sd(np.array([2.5])) == (2.5, 0.0)
+    assert _mean_and_sd(np.array([1.0, 4.0])) == pytest.approx((2.5, np.sqrt(4.5)), rel=1e-15)
+    assert _mean_and_sd(np.array([1.0, 2.0, 6.0])) == pytest.approx((3.0, np.sqrt(7.0)), rel=1e-15)
+
+
+@pytest.mark.parametrize(
+    ("mean_in", "sd_in", "mean_out", "sd_out", "prior"),
+    [
+        (3.0, 0.2, 1.5, 0.6, 0.3),  # the in-class spread is the smaller: the first root is between
+        (3.0, 0.6, 1.5, 0.2, 0.3),  # the larger: the second root is between
+        (1.5, 0.3, 3.0, 0.5, 0.7),  # the class sits below the rest
+        (-2.0, 0.4, 0.5, 0.25, 0.55),
+        (1.0, 0.5, 0.0, 1.0, 0.2),
+    ],
+)
+def test_bayes_threshold_is_the_crossing_of_the_weighted_densities(
+    mean_in: float, sd_in: float, mean_out: float, sd_out: float, prior: float
+) -> None:
+    assert _bayes_threshold(mean_in, sd_in, mean_out, sd_out, prior) == pytest.approx(
+        _crossing(mean_in, sd_in, mean_out, sd_out, prior), abs=1e-12
+    )
+
+
+def test_bayes_threshold_at_its_edges() -> None:
+    """The midpoint, the linear root and the floor, each checked by hand."""
+    # Equal spreads: one root, t = midpoint + sd^2 ln((1 - p) / p) / (m_in - m_out).
+    expected = 2.0 + 0.36 * np.log(0.7 / 0.3) / 2.0
+    assert _bayes_threshold(3.0, 0.6, 1.0, 0.6, 0.3) == pytest.approx(expected, rel=1e-14)
+    # Equal spreads and equal means: nothing separates the classes, so the midpoint, the mean.
+    assert _bayes_threshold(2.5, 0.4, 2.5, 0.4, 0.3) == 2.5
+    # A prior so small the weighted densities never cross: the midpoint, and no warning.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert _bayes_threshold(3.0, 0.1, 1.0, 1.0, 1e-6) == 2.0
+        assert _bayes_threshold(1.0, 0.1, 3.0, 1.0, 1e-6) == 2.0
+    # A spread of 0 is read as the floor sqrt(eps), as a lone class member's is.
+    assert _bayes_threshold(1.0, 0.0, 0.0, 0.3, 0.4) == _bayes_threshold(1.0, _FLOOR, 0.0, 0.3, 0.4)
+    assert _bayes_threshold(1.0, 0.3, 0.0, 0.0, 0.4) == _bayes_threshold(1.0, 0.3, 0.0, _FLOOR, 0.4)
+
+
+def test_bayes_threshold_takes_the_linear_root_while_the_quadratic_term_is_rounding() -> None:
+    """|quad| <= sqrt(eps) * max(|lin|, 1) is read as equal spreads, and the root is -const / lin.
+
+    With spreads equal to 1e-10, lin = 1e4 and quad = -1e-6: the quadratic formula would lose
+    1.5e-7 of the crossing to cancellation, the linear root keeps it to 3e-11.
+    """
+    near_equal = (1.0, 0.01, 0.0, 0.01 * (1 + 1e-10), 0.3)
+    assert _bayes_threshold(*near_equal) == pytest.approx(_crossing(*near_equal), abs=1e-9)
+    # With lin near 1 and quad = 1.5 sqrt(eps), past the bound, the quadratic root is the crossing
+    # to 1e-9; the linear root would be 1.9e-7 away from it.
+    past_bound = (3.0, 1.0, 2.0, float(np.sqrt(1 / (2 * (0.5 + 1.5 * _FLOOR)))), 0.4)
+    assert _bayes_threshold(*past_bound) == pytest.approx(_crossing(*past_bound), abs=2e-8)
+    # At exactly the bound: an sd_out whose quad is 2**-26 to the bit, with |lin| < 1. The rule
+    # includes the bound, so the root is -const / lin, which the quadratic formula misses by 1.3e-7.
+    sd_out = 0.9999999850988391
+    a, b = 1.0 / (2.0 * sd_out**2), 0.5
+    assert a - b == 2.0**-26
+    lin = 2.0 * (b * 1.5 - a * 1.0)
+    const = a * 1.0 - b * 2.25 + np.log(sd_out) + np.log(0.4 / 0.6)
+    assert _bayes_threshold(1.5, 1.0, 1.0, sd_out, 0.4) == pytest.approx(-const / lin, rel=1e-15)
+    # |lin| of exactly sqrt(eps) still reads as no slope at all, so the midpoint, not -const / lin = 2.7e7.
+    assert _bayes_threshold(2.0**-26, 1.0, 0.0, 1.0, 0.4) == 2.0**-27
+
+
+def test_bayes_threshold_counts_a_crossing_exactly_on_a_mean_as_between() -> None:
+    """With sd ratio 2, equal priors and the means sqrt(ln(2) / 2) apart, the crossing is a mean.
+
+    delta squares to ln(2) / 2 to the bit, so the constant term is 0 exactly and one root is 0.
+    """
+    delta = np.float64(0.5887050112577373)
+    assert delta * delta == np.log(2.0) / 2
+    assert _bayes_threshold(delta, 0.5, np.float64(0.0), 1.0, 0.5) == 0.0  # at mean_out, the lower mean
+    assert _bayes_threshold(np.float64(0.0), 1.0, -delta, 0.5, 0.5) == 0.0  # at mean_in, the upper mean
+
+
+def test_plsda_scores_and_rates_on_held_out_rows_by_hand() -> None:
+    """Weighted accuracy, and the rates of a class absent from the rows and of the only class in them."""
+    X, labels = _three_classes()
+    model = PLSDA(n_components=2).fit(X, labels)
+    predicted = np.array(["a", "b", "c"])[_sklearn_indicators(X, labels, X, 2).argmax(axis=1)]
+    weights = np.linspace(0.5, 2.0, len(labels))
+    assert model.score(X, labels, sample_weight=weights) == pytest.approx(
+        np.sum(weights * (predicted == labels)) / weights.sum(), rel=1e-14
+    )
+
+    only_a = labels == "a"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # 0 / 0 is the NaN of a rate with no rows to count
+        held_out = model.confusion(X[only_a], labels[only_a])
+    classes = np.array(["a", "b", "c"])
+    pd.testing.assert_frame_equal(held_out.matrix, _confusion_by_hand(labels[only_a], predicted[only_a], classes))
+    index = pd.Index(classes, name="class")
+    a_hits = np.mean(predicted[only_a] == "a")
+    pd.testing.assert_series_equal(
+        held_out.sensitivity, pd.Series([a_hits, np.nan, np.nan], index=index, name="sensitivity")
+    )
+    b_kept = np.mean(predicted[only_a] != "b")
+    c_kept = np.mean(predicted[only_a] != "c")
+    pd.testing.assert_series_equal(
+        held_out.specificity, pd.Series([np.nan, b_kept, c_kept], index=index, name="specificity")
+    )
+    assert held_out.accuracy == pytest.approx(a_hits, abs=1e-15)
+    # One row against two labels: refused, not truncated to the one row.
+    with pytest.raises(ValueError, match="zip"):
+        model.confusion(X.iloc[:1], labels[:2])
+
+
+def test_plsda_roc_auc_by_hand() -> None:
+    """The AUC is the share of (positive, negative) pairs the indicator ranks the right way round."""
+    X, y = _separable(n_per_class=15, separation=0.5, seed=17)
+    model = PLSDA(n_components=2).fit(X, y)
+    column = _sklearn_indicators(X, y, X, 2)[:, 1]  # classes_[1], "low", is the default positive class
+    positive, negative = column[y == "low"], column[y == "high"]
+    pairs = positive[:, None] - negative[None, :]
+    auc = float(np.mean(pairs > 0) + 0.5 * np.mean(pairs == 0))
+    assert 0.5 < auc < 1.0
+    assert model.roc_auc(X, y) == pytest.approx(auc, abs=1e-15)
+
+    X3, y3 = _separable(n_per_class=10, classes=("a", "b", "c"), seed=9)
+    three = PLSDA(n_components=2).fit(X3, y3)
+    with pytest.raises(
+        ValueError,
+        match=r"^roc_auc needs `positive_class` when there are 3 classes: "
+        r"the result is one class against all the others\.$",
+    ):
+        three.roc_auc(X3, y3)
+
+
+def _cv_accuracy_by_hand(X: np.ndarray, labels: np.ndarray, splits: list, n_components: int) -> float:
+    correct = 0
+    for train, test in splits:
+        indicators = _sklearn_indicators(X[train], labels[train], X[test], n_components)
+        correct += int(np.sum(np.unique(labels[train])[indicators.argmax(axis=1)] == labels[test]))
+    return correct / len(labels)
+
+
+@pytest.mark.slow
+def test_plsda_permutation_test_at_its_defaults_by_hand() -> None:
+    """99 shuffles, 5 stratified folds each: the observed accuracy, the null and the p-value by hand.
+
+    The accuracies are multiples of 1/16, so some shuffles tie the observed one, and a tie counts
+    against it.
+    """
+    X, y = _separable(n_per_class=8, n_features=3, separation=0.6, seed=41)
+    values = X.to_numpy()
+    model = PLSDA(n_components=1).fit(X, y)
+    result = model.permutation_test(X, y, random_state=5)
+
+    def cv_accuracy(target: np.ndarray) -> float:
+        return _cv_accuracy_by_hand(values, target, list(StratifiedKFold(5).split(values, target)), 1)
+
+    rng = np.random.default_rng(5)
+    null = np.array([cv_accuracy(rng.permutation(y)) for _ in range(99)])
+    observed = cv_accuracy(y)
+    assert (null == observed).any()  # ties, which count as at least as good
+    assert result.observed == observed
+    np.testing.assert_array_equal(result.null, null)
+    assert result.p_value == (1 + np.sum(null >= observed)) / 100
+    assert (result.n_permutations, result.n_failed) == (99, 0)
+
+
+def test_plsda_permutation_test_with_its_other_splitters_by_hand() -> None:
+    """Three stratified folds, a KFold given as a splitter, an array X, and no cross-validation."""
+    X, y = _separable(n_per_class=6, n_features=3, separation=0.8, seed=43)
+    values = X.to_numpy()
+    model = PLSDA(n_components=1).fit(X, y)
+
+    def by_hand(splitter: object, seed: int) -> tuple[float, np.ndarray]:
+        def accuracy(target: np.ndarray) -> float:
+            return _cv_accuracy_by_hand(values, target, list(splitter.split(values, target)), 1)
+
+        rng = np.random.default_rng(seed)
+        null = np.array([accuracy(rng.permutation(y)) for _ in range(4)])
+        return accuracy(y), null
+
+    for cv, splitter in [
+        (3, StratifiedKFold(3)),
+        (KFold(3, shuffle=True, random_state=2), KFold(3, shuffle=True, random_state=2)),
+    ]:
+        observed, null = by_hand(splitter, seed=1)
+        for data in (X, values):
+            result = model.permutation_test(data, y, n_permutations=4, cv=cv, random_state=1)
+            assert result.observed == observed
+            np.testing.assert_array_equal(result.null, null)
+
+    # cv=None: the training accuracy of a fit to all rows, for the labels and for each shuffle.
+    rng = np.random.default_rng(3)
+
+    def training_accuracy(target: np.ndarray) -> float:
+        return float(
+            np.mean(np.unique(target)[_sklearn_indicators(values, target, values, 1).argmax(axis=1)] == target)
+        )
+
+    null = np.array([training_accuracy(rng.permutation(y)) for _ in range(4)])
+    result = model.permutation_test(values, y, n_permutations=4, cv=None, random_state=3)
+    assert result.observed == training_accuracy(y)
+    np.testing.assert_array_equal(result.null, null)
+
+
+def test_plsda_sklearn_tags_and_defaults_are_a_classifiers_on_pls_settings() -> None:
+    """No regressor tags left behind, one output, and every PLS setting defaulting as PLS's does."""
+    tags = PLSDA(n_components=2).__sklearn_tags__()
+    assert tags.estimator_type == "classifier"
+    assert tags.regressor_tags is None
+    assert tags.target_tags.multi_output is False
+    params = PLSDA(n_components=2).get_params()
+    for name, parameter in inspect.signature(PLS.__init__).parameters.items():
+        if parameter.default is not inspect.Parameter.empty:
+            assert params[name] == parameter.default, name
+
+
+def test_plsda_refuses_every_question_until_fitted() -> None:
+    X, y = _separable(n_per_class=5)
+    model = PLSDA(n_components=1)
+    for ask in (
+        model.decision_function,
+        model.predict,
+        model.predict_proba,
+        lambda rows: model.confusion(rows, y),
+        lambda rows: model.roc_auc(rows, y),
+        lambda rows: model.permutation_test(rows, y, n_permutations=1),
+    ):
+        with pytest.raises(NotFittedError, match="This PLSDA instance is not fitted yet"):
+            ask(X)
+
+
+def test_plsda_fits_with_sample_weights_as_pls_does_on_the_indicators() -> None:
+    X, labels = _three_classes()
+    weights = np.linspace(0.2, 3.0, len(labels))
+    indicators = pd.DataFrame((labels[:, None] == np.array(["a", "b", "c"])).astype(float), index=X.index)
+    weighted = PLSDA(n_components=2).fit(X, labels, sample_weight=weights)
+    reference = PLS(n_components=2).fit(X, indicators, sample_weight=weights)
+    _assert_near(weighted.predictions_, reference.predictions_, rtol=1e-9)
+    assert not np.allclose(weighted.predictions_, PLSDA(n_components=2).fit(X, labels).predictions_)
+
+
+def test_plsda_priors_by_hand() -> None:
+    """Exact fractions are read as floats; a prior of 0 or below is refused even when they sum to 1."""
+    X, y = _separable(n_per_class=10, classes=("a", "b", "c"), seed=3)
+    model = PLSDA(n_components=2, priors=[Fraction(1, 6), Fraction(1, 3), Fraction(1, 2)]).fit(X, y)
+    assert model.priors_.dtype == np.float64
+    np.testing.assert_array_equal(model.priors_, [1 / 6, 1 / 3, 1 / 2])
+    with pytest.raises(ValueError, match=r"^priors must be positive and sum to 1; got \[0\.0, 0\.5, 0\.5\]\.$"):
+        PLSDA(n_components=2, priors=[0.0, 0.5, 0.5]).fit(X, y)
+    with pytest.raises(ValueError, match=r"^priors must be positive and sum to 1; got \[-0\.5, 0\.75, 0\.75\]\.$"):
+        PLSDA(n_components=2, priors=[-0.5, 0.75, 0.75]).fit(X, y)
+
+
+def _indicator_frame(labels: np.ndarray, index: pd.Index) -> pd.DataFrame:
+    """Build the one-hot class indicators, a column per sorted class named as text."""
+    classes = np.unique(labels)
+    return pd.DataFrame(
+        (labels[:, None] == classes[None, :]).astype(float), index=index, columns=[str(c) for c in classes]
+    )
+
+
+def _assert_same_splits(got: list, expected: list) -> None:
+    assert len(got) == len(expected)
+    for (train, test), (train_expected, test_expected) in zip(got, expected, strict=True):
+        np.testing.assert_array_equal(train, train_expected)
+        np.testing.assert_array_equal(test, test_expected)
+
+
+def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
+    """PLS's cross-validation methods take PLSDA's labels and run on the one-hot indicators it fits.
+
+    They used to read the labels as the numeric response: text labels could not be read as
+    floats, and labels 0 and 1 gave a shape error against the two indicator columns.
+    """
+    X, y = _separable(n_per_class=8, n_features=4, separation=1.0, classes=("a", "b", "c"), seed=51)
+    indicators = _indicator_frame(y, X.index)
+    settings = {"max_components": 2, "n_permutations": 9, "n_cv_permutations": 0, "random_state": 0}
+
+    got, expected = PLSDA.compare_cv_criteria(X, y, **settings), PLS.compare_cv_criteria(X, indicators, **settings)
+    pd.testing.assert_frame_equal(got.table, expected.table)
+    pd.testing.assert_frame_equal(got.recommendations, expected.recommendations)
+    _assert_same_splits(got.cv_splits, expected.cv_splits)
+    assert type(got.global_model) is PLS
+
+    pv = PLSDA.pseudo_validation_set(X, y, n_components=2, random_state=0)
+    pd.testing.assert_frame_equal(pv.Y_pv, indicators)
+    pd.testing.assert_frame_equal(
+        pv.X_pv, PLS.pseudo_validation_set(X, indicators, n_components=2, random_state=0).X_pv
+    )
+
+    selection = {"max_components": 3, "n_repeats": 2, "random_state": 0}
+    chosen = PLSDA.select_n_components(X, y, **selection)
+    reference = PLS.select_n_components(X, indicators, **selection)
+    assert chosen.n_components == reference.n_components
+    pd.testing.assert_frame_equal(chosen.rmsecv, reference.rmsecv)
+
+    nesting = {"max_components": 2, "inner_cv": 3, "n_inner_repeats": 1, "random_state": 0}
+    pd.testing.assert_series_equal(PLSDA.nested_cv(X, y, **nesting).q2y, PLS.nested_cv(X, indicators, **nesting).q2y)
+
+    resampling = {"cv": 3, "random_state": 0, "show_progress": False}
+    classifier = PLSDA(n_components=2, decision_rule="bayes", priors="uniform", scale=True)
+    resampled = classifier.cross_validate(X, y, **resampling)
+    expected_resampling = PLS(n_components=2).fit(X, indicators).cross_validate(X, indicators, **resampling)
+    pd.testing.assert_frame_equal(resampled.beta_mean, expected_resampling.beta_mean)
+    pd.testing.assert_series_equal(resampled.q_squared, expected_resampling.q_squared)
+    # This model's own PLS settings reach the fit: one component, not PLS's two above.
+    one = PLSDA(n_components=1).cross_validate(X, y, **resampling)
+    pd.testing.assert_frame_equal(
+        one.beta_mean, PLS(n_components=1).fit(X, indicators).cross_validate(X, indicators, **resampling).beta_mean
+    )
+
+    with pytest.raises(ValueError, match=r"^X has 24 rows but y has 23 labels\.$"):
+        PLSDA.compare_cv_criteria(X, y[:-1], **settings)
+
+
+def test_plsda_cross_validation_gives_a_splitter_the_labels() -> None:
+    """A stratified splitter splits by class; given the indicators it refuses them as multilabel.
+
+    Labels 0 and 1, X as an array: the indicator columns are "0" and "1", rows numbered from 0.
+    """
+    X, y = _separable(n_per_class=9, n_features=4, separation=1.0, seed=52)
+    values, labels = X.to_numpy(), (y == "low").astype(int)
+    indicators = _indicator_frame(labels, pd.RangeIndex(len(labels)))
+    assert indicators.columns.tolist() == ["0", "1"]
+    splitter = StratifiedKFold(3, shuffle=True, random_state=4)
+    splits = list(splitter.split(values, labels))
+    settings = {"max_components": 2, "n_permutations": 9, "n_cv_permutations": 0, "random_state": 0}
+
+    got = PLSDA.compare_cv_criteria(values, labels, cv=splitter, **settings)
+    _assert_same_splits(got.cv_splits, splits)
+    pd.testing.assert_frame_equal(got.table, PLS.compare_cv_criteria(values, indicators, cv=splits, **settings).table)
+
+    pv = PLSDA.pseudo_validation_set(values, labels, n_components=1, cv=splitter, random_state=0)
+    _assert_same_splits(pv.cv_splits, splits)
+    pd.testing.assert_frame_equal(pv.Y_pv, indicators)
+
+    chosen = PLSDA.select_n_components(values, labels, max_components=2, cv=splitter, random_state=0)
+    reference = PLS.select_n_components(values, indicators, max_components=2, cv=splits, random_state=0)
+    pd.testing.assert_frame_equal(chosen.rmsecv, reference.rmsecv)
+
+    nesting = {"max_components": 2, "inner_cv": 3, "n_inner_repeats": 1, "random_state": 0}
+    nested = PLSDA.nested_cv(values, labels, outer_cv=splitter, **nesting)
+    reference_nested = PLS.nested_cv(values, indicators, outer_cv=check_cv(splits), **nesting)
+    pd.testing.assert_series_equal(nested.q2y, reference_nested.q2y)

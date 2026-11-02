@@ -34,7 +34,7 @@ _SCRIPT = textwrap.dedent(
 @pytest.mark.slow
 def test_designs_build_without_pydoe3() -> None:
     result = subprocess.run(  # noqa: S603 - fixed interpreter and test-controlled code
-        [sys.executable, "-c", _SCRIPT], capture_output=True, text=True, check=True, timeout=300
+        [sys.executable, "-c", _SCRIPT], capture_output=True, text=True, check=True, timeout=300, encoding="locale"
     )
     lines = dict(line.split(" ", 1) for line in result.stdout.strip().splitlines())
     assert lines == {

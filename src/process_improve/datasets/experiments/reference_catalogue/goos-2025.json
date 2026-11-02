@@ -894,7 +894,8 @@
       "quote": "runs 35–37 are all performed at one given factor level combination, while runs 38–40 are all performed at another"
      },
      "check": {
-      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 35, 36 and 37 are identical, and evaluate_design's degrees_of_freedom gives 4 pure-error degrees of freedom for the two triplicates)"
+      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 35, 36 and 37 are identical, and evaluate_design's degrees_of_freedom gives 4 pure-error degrees of freedom for the two triplicates)",
+      "cause": "check_gap"
      }
     },
     {
@@ -909,7 +910,8 @@
       "quote": "runs 35–37 are all performed at one given factor level combination, while runs 38–40 are all performed at another"
      },
      "check": {
-      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 38, 39 and 40 are identical)"
+      "manual": "run labels of replicated test combinations; no check kind finds replicates (the transcription's runs 38, 39 and 40 are identical)",
+      "cause": "check_gap"
      }
     },
     {
@@ -924,7 +926,8 @@
       "quote": "The three-level design obtained by dropping the four two-level factors is a uniform-precision three-level 6-factor OMARS design."
      },
      "check": {
-      "manual": "a property of the projection onto x1-x6, and a design_metric check evaluates all of an entry's factors; omars_properties() on those six columns gives n_factors 6 and is_omars True, with sixteen 0s in every column (uniform precision)"
+      "manual": "a property of the projection onto x1-x6, and a design_metric check evaluates all of an entry's factors; omars_properties() on those six columns gives n_factors 6 and is_omars True, with sixteen 0s in every column (uniform precision)",
+      "cause": "check_gap"
      }
     }
    ]
@@ -1276,7 +1279,8 @@
       "quote": "Table 5 shows five orthogonal blocking arrangements of a 24-run mixed-level OMARS design"
      },
      "check": {
-      "manual": "printed in words (five), which no check can compare as digits; the columns A to E of Table 5"
+      "manual": "printed in words (five), which no check can compare as digits; the columns A to E of Table 5",
+      "cause": "check_gap"
      }
     },
     {
@@ -1747,7 +1751,8 @@
       "quote": "There exist, however, multiple three-level strong OMARS designs with 40 runs only"
      },
      "check": {
-      "manual": "a result of Goos and Núñez Ares (2025), cited without the designs; the library builds foldover OMARS designs (generate_omars) but has no strong-OMARS constraint (two-factor interactions orthogonal to each other and to the quadratics), so it cannot confirm that one exists"
+      "manual": "a result of Goos and Núñez Ares (2025), cited without the designs; the library builds foldover OMARS designs (generate_omars) but has no strong-OMARS constraint (two-factor interactions orthogonal to each other and to the quadratics), so it cannot confirm that one exists",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -1929,7 +1934,8 @@
       "quote": "found the following numbers of uniform-precision OMARS designs: five 3-factor designs, 41 4-factor designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1944,7 +1950,8 @@
       "quote": "five 3-factor designs, 41 4-factor designs, 5399 5-factor designs, 1406 6-factor designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1959,7 +1966,8 @@
       "quote": "five 3-factor designs, 41 4-factor designs, 5399 5-factor designs, 1406 6-factor designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1974,7 +1982,8 @@
       "quote": "5399 5-factor designs, 1406 6-factor designs, and 1082 7-factor designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1989,7 +1998,8 @@
       "quote": "5399 5-factor designs, 1406 6-factor designs, and 1082 7-factor designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2004,7 +2014,8 @@
       "quote": "they found 20,019 7-factor uniform-precision OMARS designs with 30 runs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2019,7 +2030,8 @@
       "quote": "31 8-factor uniform-precision OMARS designs with 32 runs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2034,7 +2046,8 @@
       "quote": "a total of 5399 5-factor uniform-precision OMARS designs were reported. More than 99% of these have an even number of runs."
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent with the counts printed beside it, 5373 of 5399 being 99.5%"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent with the counts printed beside it, 5373 of 5399 being 99.5%",
+      "cause": "library_gap"
      }
     },
     {
@@ -2049,7 +2062,8 @@
       "quote": "there are 5373 designs with an even number of runs, 5350 of which are foldover designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5350 + 23 = 5373"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5350 + 23 = 5373",
+      "cause": "library_gap"
      }
     },
     {
@@ -2064,7 +2078,8 @@
       "quote": "5350 of which are foldover designs and 23 of which are not foldover designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2079,7 +2094,8 @@
       "quote": "5350 of which are foldover designs and 23 of which are not foldover designs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2094,7 +2110,8 @@
       "quote": "Only 26 5-factor uniform-precision OMARS designs reported by Núñez Ares and Goos (2020) have an odd number of runs."
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5373 + 26 = 5399"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes); consistent: 5373 + 26 = 5399",
+      "cause": "library_gap"
      }
     },
     {
@@ -2109,7 +2126,8 @@
       "quote": "there are about 55 million three-level 7-factor OMARS designs involving 30 runs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2124,7 +2142,8 @@
       "quote": "and 100,000 8-factor OMARS designs involving 32 runs"
      },
      "check": {
-      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)"
+      "manual": "a count of non-isomorphic designs from the enumeration of Núñez Ares and Goos (2020) and their later catalogue, reported here without the designs; the library cannot enumerate non-isomorphic OMARS designs (generate_omars searches for one foldover design, and its exhaustive mode counts selections, not isomorphism classes)",
+      "cause": "library_gap"
      }
     },
     {
@@ -2139,7 +2158,8 @@
       "quote": "a catalog of millions of OMARS designs with up to two dozen factors and 48 runs"
      },
      "check": {
-      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design"
+      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2154,7 +2174,8 @@
       "quote": "a catalog of millions of OMARS designs with up to two dozen factors and 48 runs"
      },
      "check": {
-      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design"
+      "manual": "a description of a commercial catalogue (EFFEX), not a property of a printed design",
+      "cause": "not_a_result"
      }
     }
    ]

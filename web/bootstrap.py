@@ -23,11 +23,14 @@ from __future__ import annotations
 import ast
 import base64
 import contextlib
+import functools
 import io
 import itertools
 import json
+import keyword
 import logging
 import math
+import operator
 import platform
 import re
 import sys
@@ -52,14 +55,18 @@ from process_improve.experiments import (
     generate_design,
     rename_factors,
     separating_constraint,
+    signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
 from process_improve.univariate import (
+    bartlett_test,
     dunnett_value,
+    kruskal_wallis_test,
     least_favourable_means,
     one_way_power,
     one_way_sample_size,
@@ -72,7 +79,7 @@ from process_improve.univariate import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterator
+    from collections.abc import Callable, Collection, Iterable, Iterator
 
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
@@ -90,6 +97,26 @@ CONFIRMATION = "Confirmation run"
 #: What that column holds for a confirmation run; a run of the design leaves it blank.
 CONFIRMS = "yes"
 
+#: The most factors a study has on this page: a screening design's, made to find the few factors that matter among
+#: many, such as Plackett-Burman's 44 runs in 40 factors, or the catalog's largest, 40 factors in 81 runs.
+#: logic.js and campaign.js mirror it.
+MAX_FACTORS = 40
+
+#: The most factors the page models the interactions of: 12 factors have 66 two-factor interactions, and 23 have
+#: 253, more than a screening design has runs. With more, a study aims to learn the main effects, a fraction is
+#: made at resolution III or IV, and Learn fits the main effects, or the terms the reader chooses. logic.js mirrors it.
+MAX_INTERACTION_FACTORS = 12
+
+#: The most factors the page compares designs for on every measure. G, the worst prediction, is searched for at
+#: every corner of the ranges, 2^k of them: a million at 20 factors. With more, the designs are scored as for a
+#: factor of several levels: their runs, their spare runs and their power (see :func:`_powers`).
+MAX_COMPARED_FACTORS = 12
+
+#: The most factors the page works out the next step for. The step weighs runs for every factor whose effect
+#: stands out, and in a screening design of many factors and few spare runs many do: natively it takes 7 s at
+#: 24 factors, and from 30 s to 3 minutes at 40, and the browser is slower again.
+MAX_NEXT_STEP_FACTORS = 24
+
 #: Design types the page offers. Each one is pure numpy / scipy, so it runs
 #: under WebAssembly. Excluded: ``omars_ilp`` (its HiGHS multistart needs
 #: scipy >= 1.15, newer than Pyodide's, and takes too long for a page).
@@ -98,7 +125,9 @@ CONFIRMS = "yes"
 #: sheet readable and the page responsive: a full factorial in 8 factors has 256
 #: runs, a Box-Behnken design jumps from 59 to 115 runs at 8 factors, and an
 #: I-optimal design for a quadratic in 6 factors already takes up to 20 s under
-#: WebAssembly.
+#: WebAssembly. The screening designs whose construction is quick at any size take
+#: :data:`MAX_FACTORS`; a fraction stops at 24, since past it the library's search for
+#: its generators takes from seconds to minutes.
 DESIGNS: dict[str, dict[str, Any]] = {
     "full_factorial": {
         "label": "Full factorial (2-level)",
@@ -114,7 +143,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "model": "main_effects",
         "options": ["n_center_points", "resolution", "n_replicates", "n_blocks"],
         "min_factors": 3,
-        "max_factors": 11,
+        "max_factors": 24,
     },
     "plackett_burman": {
         "label": "Plackett-Burman screening",
@@ -125,18 +154,18 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "model": "main_effects",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 2,
-        "max_factors": 11,
+        "max_factors": MAX_FACTORS,
     },
     "taguchi": {
         "label": "Taguchi orthogonal array",
         "hint": (
-            "Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; "
+            "Main effects in a standard array of 4 to 81 runs, and at three levels each numeric factor's square; "
             "interactions are aliased with them. A categorical factor stays at its two levels."
         ),
         "model": "main_effects",
         "options": ["n_levels", "n_replicates", "n_blocks"],
         "min_factors": 2,
-        "max_factors": 12,
+        "max_factors": MAX_FACTORS,
     },
     "dsd": {
         "label": "Definitive screening (DSD)",
@@ -144,7 +173,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "model": "main_effects",
         "options": ["n_center_points", "n_replicates", "n_blocks"],
         "min_factors": 3,
-        "max_factors": 12,
+        "max_factors": MAX_FACTORS,
     },
     "box_behnken": {
         "label": "Box-Behnken",
@@ -215,7 +244,7 @@ GIVEN_INFO: dict[str, Any] = {
     "label": "Runs as given",
     "hint": "The runs of a design you have already, such as one a book prints: the page takes them as they are.",
     "min_factors": 1,
-    "max_factors": 12,
+    "max_factors": MAX_FACTORS,
 }
 
 #: The most runs a design of given runs may have: as many as a study the page holds (campaign.js).
@@ -428,6 +457,9 @@ VIF_HIGH = 5.0
 ALIASES_SHOWN = 4
 #: The words of a defining relation the design's note lists before it counts the rest: a 2^(k-3) fraction's whole one.
 RELATION_SHOWN = 7
+#: The most words of the defining relation of runs as given that the design's facts list, as the library lists a
+#: fraction's: ten generators' worth. A relation with more, as of a 2^(15-11) fraction, has its shortest words named.
+RELATION_LISTED = 1023
 
 #: A coefficient within this fraction of the largest result is round-off, not an estimate: an
 #: orthogonal design whose results make a term exactly zero estimates it as 1e-16, and the page
@@ -443,6 +475,10 @@ ROMAN = {3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 #: The only models an uploaded workbook may request. Mapped by name, never
 #: parsed from the file, so a workbook cannot smuggle a patsy formula in.
 MODELS = ("main_effects", "interactions", "quadratic")
+
+#: The models of those with every two-factor interaction, which a study of more than
+#: :data:`MAX_INTERACTION_FACTORS` factors is not fitted with.
+INTERACTION_MODELS = ("interactions", "quadratic")
 
 #: What the reader wants of the response, as the library's ``ResponseGoal`` names it, or ``learn``:
 #: to see how the factors act on it, with no setting to aim for.
@@ -642,7 +678,8 @@ def _listening() -> Iterator[list[str]]:
     records would otherwise reach the browser console as errors. The logger's handlers are
     swapped for the duration and restored after, so an enclosing block (or a test's log
     capture) is not affected. Warnings raised inside numpy, scipy, statsmodels or pandas
-    are left out.
+    are left out, and so is an ``EncodingWarning``, which Python raises only when a developer
+    asks (``PYTHONWARNDEFAULTENCODING``, as the tests run): it is about code, not the reader's runs.
     """
     heard: list[str] = []
     logger = logging.getLogger("process_improve")
@@ -654,7 +691,9 @@ def _listening() -> Iterator[list[str]]:
             yield heard
     finally:
         logger.handlers, logger.propagate = saved
-    heard.extend(str(w.message) for w in caught if not _foreign(w.filename))
+    heard.extend(
+        str(w.message) for w in caught if not _foreign(w.filename) and not issubclass(w.category, EncodingWarning)
+    )
 
 
 def _foreign(filename: str) -> bool:
@@ -679,12 +718,19 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
-    if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
-        raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
+    unfit = [name for name in names if not name.isidentifier() or keyword.iskeyword(name)]
+    if unfit:
+        tries = ", ".join(f"{suggest_identifier(name)!r} for {name!r}" for name in unfit)
+        raise ValueError(
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            f"try {tries}."
+        )
+    if len(set(names)) != len(names):
+        raise ValueError("Factor names must be unique.")
     return names
 
 
@@ -1384,7 +1430,7 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     if design_type in SPACE_FILLING:
@@ -1450,10 +1496,10 @@ def _given_design(spec: dict) -> dict:
         if len(names) == 1
         else _aliasing_sentence(groups)
     )
-    relation = _relation_of_runs(coded, names) if len(names) > 1 else []
+    relation, words = _relation_of_runs(coded, names) if len(names) > 1 else ([], 0)
     notes = [
         GIVEN_NOTE,
-        *([_relation_sentence(relation)] if relation else []),
+        *([_relation_sentence(relation, words)] if relation else []),
         said,
         *([_blocks_sentence(coded, blocks, stored)] if blocks else []),
     ]
@@ -1462,7 +1508,7 @@ def _given_design(spec: dict) -> dict:
     facts = {
         "resolution": min(w.lstrip("-").count("·") + 1 for w in relation) if relation else None,
         "generators": [],
-        "defining_relation": [f"I = {w}" for w in relation],
+        "defining_relation": [f"I = {w}" for w in relation] if len(relation) == words else [],
         "aliases": groups,
         "center_runs": int(np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1).sum()),
         "notes": notes,
@@ -1489,7 +1535,7 @@ def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
             continue
         values = [_number(v) for v in runs[f.name]]
         if None in values:
@@ -1725,7 +1771,11 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
 
 def _response_name(response: str, factors: list[Factor]) -> str:
     """Check the response's name: a variable name, unlike every factor's and the run sheet's blocks column."""
-    if not response.isidentifier() or response in {f.name for f in factors}:
+    if not response.isidentifier():
+        raise ValueError(
+            f"The response name must be a variable name (letters, digits, _): try {suggest_identifier(response)!r}."
+        )
+    if response in {f.name for f in factors}:
         raise ValueError("The response name must be a variable name different from every factor.")
     if response == BLOCK:
         raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")
@@ -2070,12 +2120,19 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     """Read the runs of a design that takes a number of them, or give its own (logic.js's ``defaultBudget``).
 
     A space-filling design has :func:`_space_filling_runs`; an optimal one the reader's number, else the
-    coefficients of the model it is made for and :data:`SPARE_RUNS` more.
+    coefficients of the model it is made for and :data:`SPARE_RUNS` more. A number below the coefficients
+    is refused, as the library refuses it, rather than enlarged.
     """
     if design_type in SPACE_FILLING:
         return _space_filling_runs(spec, k)
     budget = spec.get("budget")
-    return int(budget) if budget else _n_terms(k, model_type) + SPARE_RUNS
+    n_terms = _n_terms(k, model_type)
+    if budget and int(budget) < n_terms:
+        model = model_type.replace("_", " ")
+        raise ValueError(
+            f"The {model} model in {k} factors has {n_terms} coefficients, so it needs at least {n_terms} runs."
+        )
+    return int(budget) if budget else n_terms + SPARE_RUNS
 
 
 def _space_filling_runs(spec: dict, k: int) -> int:
@@ -2185,8 +2242,14 @@ def _needs_center_run(design_type: str, alpha: str | float | None, n_factors: in
 
 
 def _resolution(spec: dict, n_factors: int) -> int:
-    """Read the resolution asked for, which can be at most the number of factors."""
+    """Read the resolution asked for, which can be at most the number of factors.
+
+    Past :data:`MAX_INTERACTION_FACTORS` factors it is at most IV: the page models no interactions there, and a
+    fraction of resolution V is made to estimate them.
+    """
     highest = min(max(RESOLUTIONS), n_factors)
+    if n_factors > MAX_INTERACTION_FACTORS:
+        highest = min(highest, INTERACTIONS_CLEAR_FROM - 1)
     resolution = int(spec.get("resolution") or min(DEFAULT_RESOLUTION, highest))
     if not min(RESOLUTIONS) <= resolution <= highest:
         allowed = " to ".join(dict.fromkeys(ROMAN[r] for r in (min(RESOLUTIONS), highest)))
@@ -2224,15 +2287,6 @@ def _design_facts(result: Any, coded: np.ndarray, factors: list[dict], kwargs: d
         # A word confounded with the blocks takes its aliases with it (in a 2^(4-1), C·D goes with A·B).
         confounded = list(dict.fromkeys(t for w in words for t in next((g for g in groups if w in g), [w])))
         notes.append(_blocking_sentence(sizes, confounded))
-    asked = kwargs.get("budget")
-    if asked and len(coded) > asked * replicates:
-        model = kwargs["model_type"]
-        made = len(coded) // replicates
-        notes.append(
-            f"You asked for {asked} runs; the {model.replace('_', ' ')} model in {len(names)} factors has "
-            f"{_n_terms(len(names), model)} coefficients, so the design has {made} runs"
-            f"{' before it is replicated' if replicates > 1 else ''}."
-        )
     return {
         "resolution": result.resolution,
         "generators": [_spaced(g, names) for g in result.generators or []],
@@ -2310,38 +2364,94 @@ def _levels_sentence(factor: dict, coded: np.ndarray, *, given: bool = False) ->
     return f"The runs compare {factor['name']} at {shown[0]} and at {shown[1]}{units}: {each}{centre}{order}."
 
 
-def _relation_of_runs(coded: np.ndarray, names: list[str]) -> list[str]:
-    """Return the defining relation of runs that make a regular two-level fraction, shortest word first; else [].
+def _relation_of_runs(coded: np.ndarray, names: list[str]) -> tuple[list[str], int]:
+    """Return the defining relation of runs that make a regular two-level fraction, and its number of words.
 
     Each run must be a corner of the cube or its centre. The corners make a regular fraction 2^(k-p) when they
     are 2^(k-p) distinct runs on which the product of some of the factors' columns is the same run for run:
     each such product is a word of the relation, ``A·B·C·D``, or ``-A·B·C·D`` where it is -1 on every run, and
     there are 2^p - 1 of them. A full factorial has none, and nor has a design that is no such fraction, such
-    as a Plackett-Burman design.
+    as a Plackett-Burman design: for those, ``([], 0)``.
+
+    The words come shortest first, and in the order of their factors: all of them, up to :data:`RELATION_LISTED`,
+    else the :data:`RELATION_SHOWN` shortest. With a bit per factor, set where a run is at -1, a word is a set of
+    factors with an even number of bits set in each run's difference from the first: the relation is the null space
+    of those differences over GF(2), read by elimination, since the 2^k sets of factors are too many to try one by one.
     """
     corner = np.all(np.isclose(np.abs(coded), 1.0), axis=1)
     centre = np.all(np.abs(coded) < ALIAS_TOLERANCE, axis=1)
     k = len(names)
     if k < 3 or not np.all(corner | centre):
-        return []
+        return [], 0
     distinct = np.unique(np.sign(coded[corner]), axis=0)
     n = len(distinct)
     if n < 4 or n >= 2**k or n & (n - 1):
-        return []
-    words = []
-    for size in range(1, k + 1):
-        for subset in itertools.combinations(range(k), size):
-            product = np.prod(distinct[:, list(subset)], axis=1)
-            if np.all(product == product[0]):
-                words.append(("-" if product[0] < 0 else "") + "·".join(names[j] for j in subset))
-    return words if len(words) == 2 ** (k - int(math.log2(n))) - 1 else []
+        return [], 0
+    low = [sum(1 << j for j in range(k) if run[j] < 0) for run in distinct]
+    rows = _reduced(v ^ low[0] for v in low)
+    if 2 ** len(rows) != n:  # the runs are no coset of a subspace: not a regular fraction
+        return [], 0
+    count = 2 ** (k - len(rows)) - 1
+    masks = _null_space(rows, k) if count <= RELATION_LISTED else _shortest_words(rows, k, RELATION_SHOWN)
+    factors = {mask: [j for j in range(k) if mask >> j & 1] for mask in masks}
+    words = [
+        ("-" if (mask & low[0]).bit_count() % 2 else "") + "·".join(names[j] for j in factors[mask])
+        for mask in sorted(masks, key=lambda mask: (mask.bit_count(), factors[mask]))
+    ]
+    return words, count
 
 
-def _relation_sentence(words: list[str]) -> str:
+def _reduced(vectors: Iterable[int]) -> list[tuple[int, int]]:
+    """Reduce vectors over GF(2), each an integer with a bit per factor, to the rows of their reduced echelon form.
+
+    Each row comes with its pivot, the bit that is set in that row alone.
+    """
+    rows: list[tuple[int, int]] = []
+    for given in vectors:
+        vector = given
+        for pivot, row in rows:
+            if vector >> pivot & 1:
+                vector ^= row
+        if vector:
+            pivot = vector.bit_length() - 1
+            rows = [(p, row ^ vector if row >> pivot & 1 else row) for p, row in rows]
+            rows.append((pivot, vector))
+    return rows
+
+
+def _null_space(rows: list[tuple[int, int]], k: int) -> list[int]:
+    """Return every nonzero vector over GF(2) of ``k`` bits orthogonal to the rows of a reduced echelon form."""
+    pivots = {pivot for pivot, _ in rows}
+    basis = [
+        1 << free | sum(1 << pivot for pivot, row in rows if row >> free & 1) for free in range(k) if free not in pivots
+    ]
+    vectors = [0]
+    for vector in basis:
+        vectors += [v ^ vector for v in vectors]
+    return vectors[1:]
+
+
+def _shortest_words(rows: list[tuple[int, int]], k: int, most: int) -> list[int]:
+    """Return the ``most`` shortest nonzero vectors orthogonal to the rows, in the order of their bits.
+
+    A set of factors is orthogonal when each row has an even number of its bits: when the factors' columns of the
+    rows, each an integer with a bit per row, add to 0.
+    """
+    columns = [sum((row >> j & 1) << i for i, (_, row) in enumerate(rows)) for j in range(k)]
+    words = (
+        sum(1 << j for j in subset)
+        for size in range(1, k + 1)
+        for subset in itertools.combinations(range(k), size)
+        if not functools.reduce(operator.xor, (columns[j] for j in subset))
+    )
+    return list(itertools.islice(words, most))
+
+
+def _relation_sentence(words: list[str], count: int) -> str:
     """Say the resolution and the defining relation of runs given as a regular fraction, its first words listed."""
     resolution = min(w.lstrip("-").count("·") + 1 for w in words)
     shown = " = ".join(words[:RELATION_SHOWN])
-    more = f", and {len(words) - RELATION_SHOWN} more words" if len(words) > RELATION_SHOWN else ""
+    more = f", and {count - RELATION_SHOWN} more words" if count > RELATION_SHOWN else ""
     return f"Resolution {ROMAN.get(resolution, resolution)}: the runs make the defining relation I = {shown}{more}."
 
 
@@ -2557,6 +2667,7 @@ def _analysis(
         "comparison": comparison,
         "transform": transform,
         "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
+        "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
     }
 
 
@@ -2829,8 +2940,8 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
     each pair of levels, hold every difference between pairs together 95% of the time, from the
     studentized range of the k averages (Tukey and Kramer's, for levels of unequal runs). Dunnett's
     intervals (``versus``) compare each level with the control alone, so there are fewer of them and
-    each is narrower; the control is the level named, the first unless another is. None when the
-    runs leave no degree of freedom for the error.
+    each is narrower; the control is the level named, the first unless another is. ``checks`` test what
+    they assume (:func:`_level_checks`). None when the runs leave no degree of freedom for the error.
     """
     groups = [np.array([r["value"] for r in level["runs"]]) for level in levels]
     names = [level["level"] for level in levels]
@@ -2884,7 +2995,25 @@ def _several_levels(levels: list[dict], control: object = None) -> dict[str, Any
                 "differs": bool(abs(difference) > d * se),
             }
         )
-    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d}
+    checks = _level_checks(groups)
+    return {"test": test, "pairs": pairs, "control": names[c], "versus": versus, "q": q, "d": d, "checks": checks}
+
+
+def _level_checks(groups: list[np.ndarray]) -> list[dict[str, Any]]:
+    """Check what the one-way analysis of variance assumes: Bartlett's test, then the Kruskal-Wallis test.
+
+    Bartlett's test asks whether the runs at every level spread alike, as the noise pooled from them all
+    takes them to; a level with one run, or with every result alike, has no spread to test, and leaves it
+    out. The Kruskal-Wallis test is the analysis of variance of the results' ranks, which does not assume
+    normal noise; results all alike leave it out too.
+    """
+    checks = []
+    if all(len(np.unique(g)) > 1 for g in groups):
+        checks.append({"test": "bartlett", **bartlett_test(*groups)})
+    with contextlib.suppress(ValueError):  # every result alike: the ranks do not vary
+        checks.append({"test": "kruskal_wallis", **kruskal_wallis_test(*groups)})
+    keep = ("test", "statistic", "df", "p_value")
+    return [{k: check[k] for k in keep} for check in checks]
 
 
 def _dunnett_critical(runs: np.ndarray, control_runs: int, df: int) -> float:
@@ -2975,6 +3104,117 @@ def _difference(low: np.ndarray, high: np.ndarray, factor: dict, seed: int) -> d
 def _snapped(value: float | None, zero: float) -> float | None:
     """Return 0 for a value no larger than ``zero``, the fit's round-off, and the value otherwise."""
     return 0.0 if value is not None and abs(value) <= zero else value
+
+
+# --------------------------------------------------------------------------- the readings repeated at a setting
+#: The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three; to learn has none.
+SN_KINDS = {"maximize": "larger", "minimize": "smaller", "target": "nominal"}
+
+#: What each setting's readings are summed up as, and whether the higher (1) or the lower (-1) of it is the better.
+SUMMARIES = {"mean": 0, "ln_std_dev": -1, "sn": 1}
+
+
+def _spread(coded: pd.DataFrame, y: np.ndarray, spec: dict, order: list[int] | None) -> dict[str, Any] | None:
+    """Sum up the results read more than once at a setting, and how each factor's levels move them.
+
+    The runs at one setting, whatever their blocks, are readings of it. Each setting read twice or
+    more gives its readings' ``mean``, standard deviation, its natural logarithm ``ln_std_dev`` and,
+    for a response with a goal, Taguchi's signal-to-noise ratio ``sn`` (see :data:`SN_KINDS`). The
+    response table, ``factors``, averages each summary over the settings at each level of a factor; a
+    factor's ``delta`` of a summary is its largest average less its smallest, ``rank`` orders the
+    factors by it (1 the largest), and ``best`` names the level of the smallest spread and of the
+    highest ratio. For a target, ``adjustment`` names the factor that moves the mean most for its
+    effect on the spread, each as a share of the largest; Taguchi's second step moves the mean to the
+    target with it. A setting read once is left out, and ``left_out`` lists its runs. None unless two
+    settings are read twice or more, and None for a study of one factor, whose comparison of its levels
+    gives each level's mean and spread. A summary a setting cannot give, such as the ln s of readings
+    that do not vary, is left out of the averages.
+    """
+    names = list(coded.columns)
+    if len(names) < 2:
+        return None
+    runs = np.array(order if order is not None else range(1, len(y) + 1))
+    kind = SN_KINDS.get((spec.get("response_info") or {}).get("goal", ""))
+    groups = list(coded.round(9).groupby(names, sort=True).indices.values())  # equal settings agree to round-off
+    kept = [rows for rows in groups if len(rows) > 1]
+    if len(kept) < 2:
+        return None
+    summaries = [key for key in SUMMARIES if key != "sn" or kind]
+    settings = [_readings_at(coded.iloc[rows[0]], y[rows], runs[rows], spec, kind) for rows in kept]
+    frame = pd.DataFrame(
+        [{**dict(zip(names, coded.iloc[rows[0]], strict=True)), **s} for rows, s in zip(kept, settings, strict=True)]
+    )
+    frame[summaries] = frame[summaries].astype(float)  # a summary a setting cannot give is NaN, left out of means
+    zero = ROUND_OFF * frame[summaries].abs().max()  # a delta no larger is round-off: the levels tie
+    factors = [_level_table(frame, f, summaries, zero) for f in spec["factors"]]
+    ranks = pd.DataFrame([f["delta"] for f in factors]).rank(ascending=False, method="min")
+    for f, (_, rank) in zip(factors, ranks.iterrows(), strict=True):
+        f["rank"] = {key: None if pd.isna(r) else int(r) for key, r in rank.items()}
+    return {
+        "kind": kind,
+        "settings": settings,
+        "left_out": sorted(int(r) for rows in groups if len(rows) == 1 for r in runs[rows]),
+        "factors": factors,
+        "adjustment": _adjustment(factors) if kind == "nominal" else None,
+    }
+
+
+def _readings_at(at: pd.Series, values: np.ndarray, runs: np.ndarray, spec: dict, kind: str | None) -> dict[str, Any]:
+    """Sum up the readings at one setting: where it is, its runs, and its readings' mean, spread and ratio."""
+    s = float(values.std(ddof=1))
+    ratio = None if kind is None else float(signal_to_noise(values, kind))  # type: ignore[arg-type]
+    return {
+        "settings": {f["name"]: _level_name(f, at[f["name"]]) for f in spec["factors"]},
+        "runs": runs.tolist(),
+        "n": len(values),
+        "mean": float(values.mean()),
+        "std_dev": s,
+        "ln_std_dev": math.log(s) if s > 0 else None,
+        "sn": ratio if ratio is not None and math.isfinite(ratio) else None,
+    }
+
+
+def _level_name(factor: dict, coded: float) -> object:
+    """Name a factor's level at its coded setting: a category's label, or a number in the factor's own units."""
+    return _level_at(factor, coded) if _categorical(factor) else _actual(factor, coded)
+
+
+def _level_table(frame: pd.DataFrame, factor: dict, summaries: list[str], zero: pd.Series) -> dict[str, Any]:
+    """Return a factor's row of the response table: each summary's average at each of its levels, delta and best.
+
+    A delta no larger than ``zero``, the round-off of its summary, is 0, and levels that tie have no best.
+    """
+    by_level = frame.groupby(factor["name"], sort=True)
+    means = by_level[summaries].mean()
+    delta = means.max() - means.min()
+    delta = delta.where(delta > zero, 0.0)
+    best = {
+        key: _level_name(factor, means[key].idxmax() if SUMMARIES[key] > 0 else means[key].idxmin())
+        for key in summaries
+        if SUMMARIES[key] and delta[key] > 0
+    }
+    return {
+        "name": factor["name"],
+        "levels": [
+            {"level": _level_name(factor, coded), "coded": float(coded), "n": int(by_level.size()[coded]), **row}
+            for coded, row in means.to_dict("index").items()
+        ],
+        "delta": delta.to_dict(),
+        "best": best,
+    }
+
+
+def _adjustment(factors: list[dict]) -> str | None:
+    """Name the factor that moves the mean most for its effect on the spread, or None when none moves the mean more.
+
+    Each factor's delta of the mean and of ln s is taken as a share of the largest of its kind, so the two
+    compare in no units, and the factor of the largest share of the mean less its share of the spread is
+    the one; none when that is not above 0.
+    """
+    deltas = pd.DataFrame([f["delta"] for f in factors], index=[f["name"] for f in factors])[["mean", "ln_std_dev"]]
+    shares = (deltas / deltas.max()).fillna(0.0)  # a delta of 0 over a largest of 0 is no share
+    score = shares["mean"] - shares["ln_std_dev"]
+    return str(score.idxmax()) if score.max() > 0 else None
 
 
 # --------------------------------------------------------------------------- the analysis of a mixture
@@ -3295,7 +3535,8 @@ def _checked_model(model: object, names: list[str], categorical: tuple[str, ...]
     """Read the model to fit: the name of one in :data:`MODELS`, or ``{"terms": [...]}``, the terms a reader chose.
 
     A design can also be made for :data:`MAIN_QUADRATIC`, which the reader does not choose by name: it
-    is fitted as the list of its terms, the main effects and each numeric factor's square.
+    is fitted as the list of its terms, the main effects and each numeric factor's square. Past
+    :data:`MAX_INTERACTION_FACTORS` factors, a model with every two-factor interaction is refused.
     """
     if isinstance(model, dict) and set(model) == {"terms"}:
         return _chosen_terms(model["terms"], names, categorical)
@@ -3303,6 +3544,11 @@ def _checked_model(model: object, names: list[str], categorical: tuple[str, ...]
         return _model_terms(MAIN_QUADRATIC, names, categorical)
     if model not in MODELS:
         raise ValueError(f"Model must be one of {', '.join(MODELS)}.")
+    if model in INTERACTION_MODELS and (k := len(names)) > MAX_INTERACTION_FACTORS:
+        raise ValueError(
+            f"Past {MAX_INTERACTION_FACTORS} factors, the page fits the main effects, or the terms you choose: "
+            f"{k} factors have {k * (k - 1) // 2} two-factor interactions."
+        )
     return str(model)
 
 
@@ -3544,7 +3790,8 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
             _mixture_model(one)
         else:
             _checked_model(one, names, labelled)
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms")
+    # read_workbook checks what_if itself.
+    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if")
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)
@@ -3646,27 +3893,38 @@ def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
     """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
-    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+    return pd.DataFrame({f["name"]: _coded_column(runs, f) for f in factors})
 
 
-def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+def _coded_column(runs: pd.DataFrame, factor: dict) -> pd.Series:
     """Code one factor's settings; a categorical factor's runs must each be at one of its levels.
 
     A categorical factor of k levels is coded as the library codes it, its levels spread evenly from
     -1 to +1 in their order (``categorical_codes``): -1 and +1 for two, -1, 0 and +1 for three.
     """
+    column = runs[factor["name"]]
     if not _categorical(factor):
         return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
     codes = np.linspace(-1.0, 1.0, len(_levels_of(factor)))
-    return pd.Series(codes[_level_indices(column, factor)], index=column.index)
+    return pd.Series(codes[_level_indices(runs, factor)], index=column.index)
 
 
-def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
-    """Return which level each run of a categorical factor is at, refusing a run at none of them."""
+def _level_indices(runs: pd.DataFrame, factor: dict) -> np.ndarray:
+    """Return which level each run of a categorical factor is at, refusing a run at none of them.
+
+    A blank setting is named by its run, never by the ``nan`` that pandas reads it as (#1006).
+    """
     levels = _levels_of(factor)
+    column = runs[factor["name"]]
     found = [_level_index(v, levels) for v in column]
     if None in found:
-        other = column.iloc[found.index(None)]
+        at = found.index(None)
+        other = column.iloc[at]
+        if pd.isna(other) or (isinstance(other, str) and not other.strip()):
+            run = runs["Run order"].iloc[at] if "Run order" in runs.columns else at + 1
+            raise ValueError(
+                f"Factor {factor['name']}: run {int(run)} has no setting; each run must be at {_listed(levels, 'or')}."
+            )
         raise ValueError(f"Factor {factor['name']}: each run must be at {_listed(levels, 'or')}, not {other!r}.")
     return np.array(found, dtype=int)
 
@@ -3681,13 +3939,13 @@ def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
         if _several(f):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             at = frame.columns.get_loc(f["name"])
             frame = frame.drop(columns=f["name"])
             for j, name in enumerate(_contrast_names(f)):
                 frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
         if _categorical(f) and set(_indicator_names(f)) & set(columns):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             for j, name in enumerate(_indicator_names(f)):
                 frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
@@ -3967,7 +4225,8 @@ def read_workbook(request: dict) -> dict:
 
     The first response's results and their sources are ``responses`` and ``sources``, as for a study of
     one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
-    A run the workbook marks as simulated has every result it holds marked so.
+    A run the workbook marks as simulated has every result it holds marked so. ``what_if`` holds the settings
+    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`).
     """
     runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
@@ -3999,7 +4258,52 @@ def read_workbook(request: dict) -> dict:
     if len(names) > 1:
         reply["more_responses"] = {name: results[name][0] for name in names[1:]}
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
+    if stored.get("what_if"):
+        reply["what_if"] = _kept_settings(stored["what_if"])
     return reply
+
+
+#: The most settings a study keeps from the what-if panel, and the most characters of the name each is kept under:
+#: as ``SCENARIOS_HELD`` in web/campaign.js holds them (tests/web/page/test_parity.py keeps the two in step).
+SCENARIOS_HELD = {"count": 20, "name": 80}
+
+
+def _kept_settings(value: object) -> list[dict[str, Any]]:
+    """Check the settings the reader kept from the what-if panel, each under a name, as ``checkCampaign`` checks them.
+
+    Only their shape is checked: a name of one line, each name once, and each setting a number or a
+    level, by its factor's name. Whether they still fit the factors is judged where the page lists
+    them, so a workbook edited since still opens; what they predict is worked out from its results.
+    """
+    if (
+        not isinstance(value, list)
+        or len(value) > SCENARIOS_HELD["count"]
+        or not all(map(_kept_one, value))
+        or len({one["name"] for one in value}) < len(value)  # each name once
+    ):
+        raise ValueError("The page sent kept settings this page did not write.")
+    return [{"name": one["name"], "settings": dict(one["settings"])} for one in value]
+
+
+def _kept_one(one: object) -> bool:
+    """Say whether one kept setting is a name of one line and a number or a level for each factor it names."""
+    if not isinstance(one, dict) or not isinstance(one.get("name"), str) or not isinstance(one.get("settings"), dict):
+        return False
+    name, settings = one["name"], one["settings"]
+    return (
+        bool(name.strip())
+        and len(name) <= SCENARIOS_HELD["name"]
+        and not any(unicodedata.category(ch) == "Cc" for ch in name)
+        and len(settings) <= MAX_FACTORS
+        and all(isinstance(k, str) and len(k) <= LABEL_MOST and _kept_value(v) for k, v in settings.items())
+    )
+
+
+def _kept_value(value: object) -> bool:
+    """Say whether a kept setting is a finite number or a level's label."""
+    if isinstance(value, str):
+        return len(value) <= LABEL_MOST
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _marks_column(runs: pd.DataFrame, spec: dict) -> str | None:
@@ -4018,7 +4322,8 @@ def workbook(request: dict) -> dict:
     holds each later response's, by its column, kept as ``analysis_models``.
 
     A run is marked simulated when every result it holds is: ``sources`` holds the first
-    response's sources, and ``more_sources`` each later response's, by its column.
+    response's sources, and ``more_sources`` each later response's, by its column. The settings the
+    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
@@ -4043,6 +4348,8 @@ def workbook(request: dict) -> dict:
     simulated = request.get("simulated")
     if simulated:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
+    if request.get("what_if"):
+        spec = {**spec, "what_if": _kept_settings(request["what_if"])}
     return {"xlsx_base64": _to_workbook(runs, spec)}
 
 
@@ -4547,9 +4854,10 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     parts; the others name none, and stay as they are.
     """
 
-    def spaced(word: str) -> str:
+    def spaced(word: str, *, identity: bool = False) -> str:
+        # The defining relation's I is the identity, a generator's is a factor: a factor may be named I.
         left, _, right = word.partition(" = ")
-        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+        return f"{left if identity else _renamed_word(left, names)} = {_renamed_word(right, names)}"
 
     generators = [spaced(g) for g in facts.get("generators") or []]
     groups = _aliased_groups(coded, list(names.values()))
@@ -4566,7 +4874,7 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     return {
         **facts,
         "generators": generators,
-        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "defining_relation": [spaced(w, identity=True) for w in facts.get("defining_relation") or []],
         "aliases": groups,
         "notes": notes,
     }
@@ -4654,6 +4962,11 @@ def compare_plan(request: dict) -> dict:
     if limits:
         _region_refusal(factors, _region(factors, [limit["expression"] for limit in limits]))
     k = len(factors)
+    if k > MAX_INTERACTION_FACTORS and model != MODELS[0]:
+        raise ValueError(
+            f"Past {MAX_INTERACTION_FACTORS} factors, a study aims to find which factors matter, and the designs are "
+            f"compared for their main effects: {k} factors have {k * (k - 1) // 2} two-factor interactions."
+        )
     names = {f.name for f in factors}
     candidates = [str(request.get("response") or "").strip(), "y", *(f"y{i}" for i in range(1, k + 1))]
     response = next(name for name in candidates if name.isidentifier() and name not in names)
@@ -4926,6 +5239,14 @@ def _group_power(b: np.ndarray, block: np.ndarray, df: int) -> float:
 SEARCH_FROM = 5
 
 
+def _compared_sentence(k: int) -> str:
+    """Say how designs in more than :data:`MAX_COMPARED_FACTORS` factors are compared, and why."""
+    return (
+        f"Past {MAX_COMPARED_FACTORS} factors, the designs are compared on their runs, spare runs and power alone: "
+        f"the other measures search every corner of the ranges, and {k} factors have {2**k:,} of them."
+    )
+
+
 def candidates(request: dict) -> dict:
     """Make and score, in one call, every design the page offers for these factors and this aim.
 
@@ -4935,7 +5256,9 @@ def candidates(request: dict) -> dict:
     finding. A design that cannot be made is left out, with a note saying why. With
     :data:`SEARCH_FROM` factors or more and a model beyond main effects, the optimal designs
     are left out unless ``search`` is true, and listed in ``waiting``; with limits on the
-    settings they are the only designs, so then ``made`` can be empty and ``result`` null.
+    settings they are the only designs, so then ``made`` can be empty and ``result`` null. Past
+    :data:`MAX_COMPARED_FACTORS` factors the designs are scored as for a factor of several levels
+    (see :func:`_powers`), and a note says why.
     """
     plan = compare_plan(request)
     k = len(request.get("factors") or [])
@@ -4959,7 +5282,9 @@ def candidates(request: dict) -> dict:
     scored = [{"label": m["label"], **{key: m["design"][key] for key in ("spec", "columns", "rows")}} for m in made]
     asked = {"model": plan["model"], "designs": scored, **{k: info.get(k) for k in ("noise", "smallest_change")}}
     several = made and any(_several(f) for f in made[0]["design"]["spec"]["factors"])
-    result = (_powers(asked) if several else compare(asked)) if made else None
+    if k > MAX_COMPARED_FACTORS:
+        notes.append(_compared_sentence(k))
+    result = (_powers(asked) if several or k > MAX_COMPARED_FACTORS else compare(asked)) if made else None
     return {
         "model": plan["model"],
         "made": made,
@@ -5547,6 +5872,10 @@ AT_EDGE = 1e-5
 SEARCHED_LEVELS = 3
 LEVEL_SAMPLE = 64
 
+#: The most combinations of the categorical factors' levels judged one by one: every combination of 12 factors of two
+#: levels. Past it the levels are chosen a factor at a time (see :func:`_searched_levels`): 40 factors have 2^40.
+LEVEL_COMBINATIONS = 4096
+
 #: The most corners of the numeric factors' ranges each combination of levels is judged at: all of them up to 8 factors.
 LEVEL_CORNERS = 256
 
@@ -5809,11 +6138,35 @@ def _spec_region(spec: dict) -> DesignRegion | None:
     return _region(_factors(spec), [limit["expression"] for limit in limits]) if limits else None
 
 
-def _level_combinations(spec: dict, in_model: set[str]) -> list[dict[str, float]]:
-    """List every combination of the levels of the categorical factors in the model, each level by its code."""
+def _searched_levels(
+    spec: dict, in_model: set[str], score: Callable[[dict[str, float]], float]
+) -> list[dict[str, float]]:
+    """Return the combinations of the levels of the categorical factors in the model to search in full, by their codes.
+
+    Up to :data:`LEVEL_COMBINATIONS` combinations, every one is listed, and past :data:`SEARCHED_LEVELS` of them
+    the best by ``score`` are kept. With more, as 13 factors of two levels have, one combination is built a factor
+    at a time: each takes its best level, the others held, until none moves.
+    """
     labelled = [f for f in spec["factors"] if _categorical(f) and f["name"] in in_model]
+    names = [f["name"] for f in labelled]
     codes = [np.linspace(-1.0, 1.0, len(_levels_of(f))).tolist() for f in labelled]
-    return [dict(zip([f["name"] for f in labelled], levels, strict=True)) for levels in itertools.product(*codes)]
+    if math.prod(len(c) for c in codes) <= LEVEL_COMBINATIONS:
+        every = [dict(zip(names, levels, strict=True)) for levels in itertools.product(*codes)]
+        if len(every) <= SEARCHED_LEVELS:
+            return every
+        scores = [score(levels) for levels in every]
+        return [every[i] for i in sorted(range(len(every)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    # shortcut: a factor at a time finds the best of a model whose categorical factors do not interact with each
+    # other, and a good combination otherwise; search jointly if studies of so many interacting factors appear.
+    chosen = {name: levels[0] for name, levels in zip(names, codes, strict=True)}
+    moved = True
+    while moved:
+        moved = False
+        for name, levels in zip(names, codes, strict=True):
+            best = max(levels, key=lambda v, name=name: score({**chosen, name: v}))
+            if score({**chosen, name: best}) > score(chosen) * (1 + 1e-12) + 1e-12:
+                chosen[name], moved = best, True
+    return [chosen]
 
 
 def _held_at(coefficients: list[dict], held: dict[str, float]) -> list[dict]:
@@ -5911,19 +6264,13 @@ def _search(
     if not in_model or all(c["coefficient"] == 0 for c in coefficients if _parts(c["term"])):
         return None
     blocks = {c["term"]: 0.0 for c in coefficients if _block_contrast(c["term"], _model_columns(spec))}
-    combinations = _level_combinations(spec, in_model)
-    if len(combinations) > SEARCHED_LEVELS:
-        points = _sample(len(numeric), region)
-        scores = [
-            max(
-                _objective(goal, v, target)
-                for v in _predict(
-                    _held_at(coefficients, {**blocks, **_held_columns(levels, spec)}), numeric_names, points
-                )
-            )
-            for levels in combinations
-        ]
-        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    points = _sample(len(numeric), region)
+
+    def score(levels: dict[str, float]) -> float:
+        held = _held_at(coefficients, {**blocks, **_held_columns(levels, spec)})
+        return max(_objective(goal, v, target) for v in _predict(held, numeric_names, points))
+
+    combinations = _searched_levels(spec, in_model, score)
     best: dict[str, Any] | None = None
     for levels in combinations:
         held = {**blocks, **_held_columns(levels, spec)}
@@ -6790,7 +7137,6 @@ def _balance_search(
     in_model = set().union(*(_factors_in(c, spec) for c in coefficients.values()))
     columns = _model_columns(spec)
     blocks = {c["term"]: 0.0 for cs in coefficients.values() for c in cs if _block_contrast(c["term"], columns)}
-    combinations = _level_combinations(spec, in_model)
     desirable = [_desirability_of(g) for g in goals]
     weights = [g["importance"] for g in goals]
 
@@ -6802,10 +7148,8 @@ def _balance_search(
         each = [[individual_desirability(float(v), g) for v in p] for p, g in zip(predicted, desirable, strict=True)]
         return np.array([composite_desirability(list(d), weights) for d in zip(*each, strict=True)])
 
-    if len(combinations) > SEARCHED_LEVELS:
-        points = _sample(len(numeric), region)
-        scores = [float(overall(held_models(levels), points).max()) for levels in combinations]
-        combinations = [combinations[i] for i in sorted(range(len(scores)), key=lambda i: -scores[i])[:SEARCHED_LEVELS]]
+    points = _sample(len(numeric), region)
+    combinations = _searched_levels(spec, in_model, lambda levels: float(overall(held_models(levels), points).max()))
     best: dict[str, Any] | None = None
     for levels in combinations:
         models = held_models(levels)
@@ -7330,15 +7674,23 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
     """Return recommend_next_step's reply for the run sheet, or why it has none: a sentence for the page, or None.
 
     None is for a study the step does not apply to: a goal of learning, a target not yet typed, a
-    mixture, or a request that sends no results.
+    mixture, or a request that sends no results. A study of more than :data:`MAX_INTERACTION_FACTORS` factors
+    is judged on its main effects, as Learn fits them: judging every term its runs can test, the step would
+    write a formula of hundreds of interactions, deeper than Python's recursion limit lets patsy read. A
+    study of more than :data:`MAX_NEXT_STEP_FACTORS` factors has no step worked out, and the sentence says why.
     """
     spec = _for_response(whole, request.get("response"))
     info = spec.get("response_info") or {}
     goal, target = info.get("goal", "learn"), info.get("target")
-    if goal not in AIMED or (goal == "target" and target is None) or _mixture(spec):
+    sent = request.get("responses") is not None or bool(request.get("more_responses"))
+    if goal not in AIMED or (goal == "target" and target is None) or _mixture(spec) or not sent:
         return None
-    if request.get("responses") is None and not request.get("more_responses"):
-        return None
+    if (k := len(spec["factors"])) > MAX_NEXT_STEP_FACTORS:
+        return (
+            f"Past {MAX_NEXT_STEP_FACTORS} factors, the page does not work out what to run next: it weighs runs for "
+            f"every factor whose effect stands out, and with {k} factors that can take minutes here. The factors whose "
+            "effects stand out are the ones to study next."
+        )
     try:
         from process_improve.experiments.next_step import recommend_next_step  # noqa: PLC0415 - not in older releases
     except ImportError:
@@ -7361,10 +7713,12 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
         earlier = earlier.assign(**{BLOCK: design[BLOCK].dropna().iloc[-1]})  # made after every run of the design
     history = ["widen_ranges"] if spec.get("options", {}).get(WIDENED) else []
     history += ["confirm"] * math.ceil(len(confirmations) / CONFIRMATION_RUNS)
+    factors = _factors(whole)
+    mains = [f.name for f in factors] if len(factors) > MAX_INTERACTION_FACTORS else None
     try:
         with _listening() as heard:
             found = recommend_next_step(
-                _factors(whole),
+                factors,
                 pd.concat([design, earlier.drop(columns=[CONFIRMATION], errors="ignore")], ignore_index=True),
                 response,
                 goal=goal,  # type: ignore[arg-type]
@@ -7373,6 +7727,7 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
                 n_confirmation_runs=CONFIRMATION_RUNS,
                 history=history,
                 block=block,
+                model_terms=mains,
             )
         _relay(heard)
     except ValueError as exc:
@@ -7605,7 +7960,10 @@ def _largest_model(coded: np.ndarray, kinds: list[str], blocks: list[int] | None
     """Return the largest of :data:`MODELS` the runs estimate in full, as a design of runs as given is analysed.
 
     Runs in blocks estimate a model beside the blocks' effects, which take a column for each block after the first.
+    Past :data:`MAX_INTERACTION_FACTORS` factors it is the main effects model, as the page models no interactions there.
     """
+    if coded.shape[1] > MAX_INTERACTION_FACTORS:
+        return MODELS[0]
     fits = estimable_models(coded, kinds)
     labels = sorted(set(blocks or []))
     if len(labels) > 1:
@@ -7650,8 +8008,13 @@ def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | 
             "said": "Runs {first} to {last} fold the design over: each is a run made before, every setting switched.",
         }
     elif kind == "axial":
-        fits = estimable_models(coded, kinds)
-        if not numeric or not two_level or len(names) < 2 or not fits.get("interactions") or fits.get("quadratic"):
+        # Past MAX_INTERACTION_FACTORS factors the page fits no full quadratic model, so the runs are not looked at.
+        fits = (
+            estimable_models(coded, kinds)
+            if numeric and two_level and 2 <= len(names) <= MAX_INTERACTION_FACTORS
+            else {}
+        )
+        if not fits.get("interactions") or fits.get("quadratic"):
             return None
         result = augment_design(frame, "upgrade_to_rsm", alpha="face_centered", factor_names=names)
         n_axial, n_center = 2 * len(names), len(result["new_runs"]) - 2 * len(names)
@@ -7684,7 +8047,8 @@ def _extension(spec: dict, design: pd.DataFrame, kind: str) -> dict[str, Any] | 
     elif kind == "optimal":
         if not numeric or spec.get("constraints"):  # the exchange takes every factor as numeric, and knows no limits
             return None
-        aim = spec.get("aim") or spec["model"]
+        # A study of more than MAX_INTERACTION_FACTORS factors aims at the main effects, whatever its spec says.
+        aim = (spec.get("aim") or spec["model"]) if len(names) <= MAX_INTERACTION_FACTORS else MODELS[0]
         target = aim if aim in MODEL_WORDS else spec["model"] if spec["model"] in MODEL_WORDS else MODELS[0]
         n_terms, rank = _model_rank(coded, kinds, target)
         if rank == n_terms:

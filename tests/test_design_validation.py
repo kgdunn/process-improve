@@ -118,12 +118,27 @@ def test_resolution_without_design_type_chooses_a_fraction() -> None:
 
 
 @pytest.mark.parametrize(
-    ("design_type", "k", "budget"), [("fractional_factorial", 7, 16), ("ccd", 5, 20), ("full_factorial", 3, 10)]
+    ("design_type", "k", "budget"), [("plackett_burman", 11, 8), ("ccd", 5, 20), ("full_factorial", 3, 10)]
 )
 def test_fixed_size_design_above_the_budget_raises(design_type: str, k: int, budget: int) -> None:
-    """The budget was ignored: a 7-factor half fraction came back with 67 runs for a budget of 16."""
     with pytest.raises(ValueError, match=f"more than budget={budget}"):
         generate_design(_factors(k), design_type, budget=budget)
+
+
+def test_a_fraction_from_generators_above_the_budget_raises() -> None:
+    """Generators fix the fraction's size, so the budget is a ceiling: 8 runs and 3 centre runs exceed 10."""
+    with pytest.raises(ValueError, match="more than budget=10"):
+        generate_design(_factors(4), "fractional_factorial", generators=["D=ABC"], budget=10)
+
+
+def test_a_fraction_without_generators_keeps_to_the_budget() -> None:
+    """The budget was ignored: a 7-factor half fraction came back with 67 runs for a budget of 16 (#956).
+
+    The 13 runs left after 3 centre runs hold the 8-run fraction, with a warning that rounds down.
+    """
+    with pytest.warns(UserWarning, match="13 run"):
+        result = generate_design(_factors(7), "fractional_factorial", budget=16)
+    assert result.n_runs == 8 + 3
 
 
 def test_fixed_size_design_within_the_budget_is_built() -> None:

@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog, minimize, nnls
 
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._region_geometry import round_significant
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.factor import Constraint, Factor, FactorType
@@ -139,7 +140,10 @@ def _box(factors: Sequence[Factor]) -> _Box:
                 f"Factor {factor.name!r} is {factor.type.value}: a limit is proposed over continuous factors only."
             )
         if not factor.name.isidentifier() or keyword.iskeyword(factor.name):
-            raise ValueError(f"Factor {factor.name!r} cannot be named in a limit: its name is not a valid identifier.")
+            raise ValueError(
+                f"Factor {factor.name!r} cannot be named in a limit: its name is not a valid identifier. "
+                f"Try {suggest_identifier(factor.name)!r}."
+            )
         names.append(factor.name)
     if len(set(names)) < len(names):
         raise ValueError(f"The factors must have different names; got {names}.")
@@ -576,7 +580,9 @@ def separating_constraint(
     ----------
     factors : Sequence[Factor]
         The continuous factors the settings are given for; their ranges set the coded
-        units, and their names are written into the limit.
+        units, and their names are written into the limit. A categorical factor is
+        refused: for settings at one level, propose the limit over the continuous factors
+        and write it with that level, as ``not (K == "B" and T + 25 * P > 250)``.
     cannot : np.ndarray, pandas.DataFrame, or a sequence of sequences or of mappings
         The settings that cannot be run, in actual units: one row per setting with a value
         per factor in factor order (a 2-D array or a list of lists), a pandas DataFrame

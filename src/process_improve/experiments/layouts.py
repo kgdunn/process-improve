@@ -18,7 +18,7 @@ import statsmodels.formula.api as smf
 from scipy import stats
 from statsmodels.stats.anova import anova_lm
 
-from process_improve.experiments._lm import validate_formula_is_safe
+from process_improve.experiments._lm import validate_contrast_levels, validate_formula_is_safe
 
 __all__ = ["estimate_missing", "tukey_nonadditivity"]
 
@@ -31,6 +31,7 @@ def _fit(design_matrix: pd.DataFrame, formula: str) -> Any:  # noqa: ANN401 - a 
     if "~" not in formula:
         raise ValueError(f"The formula must name the response, as 'y ~ ...'; got {formula!r}.")
     validate_formula_is_safe(formula, design_matrix.columns, allow_transforms=True)
+    validate_contrast_levels(formula, design_matrix)
     return smf.ols(formula, data=design_matrix).fit()
 
 

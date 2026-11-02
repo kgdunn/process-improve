@@ -45,44 +45,48 @@ def _rotation(source: np.ndarray, target: np.ndarray) -> np.ndarray:
     return left @ right_t
 
 
-def _optimal_scaling(rotated: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+def _optimal_scaling(rotated: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return ten Berge's (1977) scaling factors for unit-size configurations, and their signs.
 
     For a fixed total size, the consensus is largest (and the residual smallest) when the
-    factors follow the leading eigenvector of the configurations' inner products. A
-    negative entry means that configuration fits better turned inside out; that is an
-    orthogonal transformation too, so its sign is returned for the rotation to absorb.
+    factors follow the leading eigenvector of the configurations' inner products, taken in
+    the orientation whose entries sum to more than zero. A negative entry means that
+    configuration fits better turned inside out; that is an orthogonal transformation
+    too, so its sign is returned for the rotation to absorb.
     """
     inner = np.array([[np.sum(a * b) for b in rotated] for a in rotated])
     _, vectors = np.linalg.eigh(inner)
-    leading = vectors[:, -1] * (1.0 if vectors[:, -1].sum() >= 0 else -1.0)
+    leading = vectors[:, -1]
+    if np.signbit(leading.sum()):  # a sum of a unit vector's entries is never -0.0
+        leading = -leading
     signs = np.where(leading < 0, -1.0, 1.0)
     return np.sqrt(len(rotated)) * np.abs(leading), signs
 
 
-def _residual_ss(aligned: list[np.ndarray]) -> float:
+def _residual_ss(aligned: np.ndarray) -> float:
     """Return the summed squared distance of every aligned configuration from their mean."""
     consensus = sum(aligned) / len(aligned)
     return float(sum(np.sum((config - consensus) ** 2) for config in aligned))
 
 
-def _consensus_share(aligned: list[np.ndarray]) -> float:
+def _consensus_share(aligned: np.ndarray) -> float:
     """Return the share of the aligned configurations' total sum of squares that their mean accounts for."""
     consensus = sum(aligned) / len(aligned)
     return float(len(aligned) * np.sum(consensus**2) / sum(np.sum(config**2) for config in aligned))
 
 
-def _align(configs: list[np.ndarray], *, scale: bool, tol: float, max_iter: int) -> Bunch:
+def _align(configs: np.ndarray, *, scale: bool, tol: float, max_iter: int) -> Bunch:
     """Alternate rotations and (optionally) scalings until the residual sum of squares stops falling.
 
+    ``configs`` stacks the configurations, of shape (count, n_objects, n_dimensions).
     Each configuration in turn is rotated onto the sum of all the others (Gower, 1975),
     which cannot increase the residual; so cannot the scaling step. The loop therefore
     descends monotonically, and stops once a round gains less than ``tol`` of the total.
     """
     count = len(configs)
-    rotations = [np.eye(configs[0].shape[1]) for _ in configs]
+    rotations = np.array([np.eye(configs.shape[2])] * count)
     factors = np.ones(count)
-    total = sum(float(np.sum(config**2)) for config in configs)
+    threshold = tol * float(np.sum(configs**2))
     loss, converged, n_iter = np.inf, False, 0
     while n_iter < max_iter and not converged:
         n_iter += 1
@@ -90,20 +94,17 @@ def _align(configs: list[np.ndarray], *, scale: bool, tol: float, max_iter: int)
             others = sum(factors[j] * configs[j] @ rotations[j] for j in range(count) if j != k)
             rotations[k] = _rotation(configs[k], others)
         if scale:
-            factors, signs = _optimal_scaling(
-                [config @ rotation for config, rotation in zip(configs, rotations, strict=True)]
-            )
-            rotations = [rotation * sign for rotation, sign in zip(rotations, signs, strict=True)]
-        aligned = [
-            factor * config @ rotation for factor, config, rotation in zip(factors, configs, rotations, strict=True)
-        ]
+            factors, signs = _optimal_scaling(configs @ rotations)
+            rotations *= signs[:, np.newaxis, np.newaxis]  # pragma: no mutate - dividing by 1 or -1 is multiplying
+        aligned = factors[:, np.newaxis, np.newaxis] * configs @ rotations
         previous, loss = loss, _residual_ss(aligned)
-        converged = previous - loss <= tol * total
-    return Bunch(aligned=aligned, rotations=rotations, factors=factors, loss=loss, n_iter=n_iter, converged=converged)
+        gain = previous - loss
+        converged = gain <= threshold  # pragma: no mutate - < differs only at a gain of exactly the threshold
+    return Bunch(aligned=aligned, rotations=rotations, factors=factors, n_iter=n_iter, converged=converged)
 
 
 def _check_configurations(X: Mapping[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Return the configurations as frames, refusing any that do not describe the same objects."""
+    """Return the configurations as frames of floats, refusing any that do not describe the same objects."""
     if not isinstance(X, Mapping):
         raise TypeError(
             f"GPA takes a dict of configurations, name to DataFrame (as MBPCA takes blocks); got {type(X).__name__}."
@@ -119,7 +120,7 @@ def _check_configurations(X: Mapping[str, pd.DataFrame]) -> dict[str, pd.DataFra
             raise ValueError(f"Configuration {name!r} has non-numeric columns.")
         if frame.isna().to_numpy().any():
             raise ValueError(f"Configuration {name!r} has missing values; impute or drop those objects first.")
-    return frames
+    return {name: frame.astype(float) for name, frame in frames.items()}  # pragma: no mutate - astype(None) is float64
 
 
 def _padded(values: np.ndarray, width: int) -> np.ndarray:
@@ -248,11 +249,9 @@ class GPA(BaseEstimator):
         missing = [column for column in needed if column not in frame.columns]
         if missing:
             raise ValueError(f"The table lacks the columns {missing}.")
-        table = frame.pivot_table(index=[configuration, objects], columns=variables, values=values, aggfunc="mean")
-        return {
-            str(name): group.droplevel(0).dropna(axis=1, how="all")
-            for name, group in table.groupby(level=0, sort=False)
-        }
+        # pivot_table averages (its default aggfunc) and sorts the configurations by name.
+        table = frame.pivot_table(index=[configuration, objects], columns=variables, values=values)
+        return {str(name): group.droplevel(0).dropna(axis=1, how="all") for name, group in table.groupby(level=0)}
 
     def fit(self, X: Mapping[str, pd.DataFrame], y: object = None) -> GPA:  # noqa: ARG002
         """Align the configurations and find their consensus.
@@ -292,26 +291,25 @@ class GPA(BaseEstimator):
                 "can be turned onto each other, so there would be nothing to compare."
             )
         for name, frame in frames.items():
-            values = frame.to_numpy(dtype=float)
+            values = frame.to_numpy()
             # Relative to the data's own size, so tiny units are not mistaken for no spread.
             if np.linalg.norm(values - values.mean(axis=0)) <= _NULL_SPREAD * np.linalg.norm(values):
                 raise ValueError(f"Configuration {name!r} puts every object at the same point.")
         self.n_dimensions_ = max(frame.shape[1] for frame in frames.values())
-        self._centres = {name: frame.mean().to_numpy(dtype=float) for name, frame in frames.items()}
+        self._centres = {name: frame.mean().to_numpy() for name, frame in frames.items()}
         self._columns = {name: list(frame.columns) for name, frame in frames.items()}
-        centred = [
-            _padded(frame.to_numpy(dtype=float) - self._centres[name], self.n_dimensions_)
-            for name, frame in frames.items()
-        ]
-        sizes = np.array([np.linalg.norm(config) for config in centred])
+        centred = np.array(
+            [_padded(frame.to_numpy() - self._centres[name], self.n_dimensions_) for name, frame in frames.items()]
+        )
+        sizes = np.linalg.norm(centred, axis=(1, 2))
         # Unit size for the iterations when scaling, so the factors start equal.
-        self._configs = [config / size for config, size in zip(centred, sizes, strict=True)] if self.scale else centred
+        self._configs = centred / sizes[:, np.newaxis, np.newaxis] if self.scale else centred
         fitted = _align(self._configs, scale=self.scale, tol=self.tol, max_iter=self.max_iter)
         if not fitted.converged:
             warnings.warn(
                 f"GPA stopped after max_iter={self.max_iter} rounds before the residual settled; raise max_iter.",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
             )
         self.n_iter_ = fitted.n_iter
         # Back to the data's own size: the aligned configurations keep the centred total sum of squares.
@@ -322,35 +320,36 @@ class GPA(BaseEstimator):
     def _finish(
         self,
         frames: dict[str, pd.DataFrame],
-        centred: list[np.ndarray],
+        centred: np.ndarray,
         factors: np.ndarray,
-        rotations: list[np.ndarray],
+        rotations: np.ndarray,
     ) -> None:
         """Turn everything to the consensus's principal axes and store the fitted results."""
+        names = list(frames)
         objects = next(iter(frames.values())).index
         dimensions = list(range(1, self.n_dimensions_ + 1))
-        consensus = sum(f * c @ r for f, c, r in zip(factors, centred, rotations, strict=True)) / len(frames)
-        _, singular, axes_t = np.linalg.svd(consensus)
+        # The sum of the aligned configurations: the consensus times their count, which
+        # changes neither its axes nor the shares of its singular values.
+        combined = sum(factors[:, np.newaxis, np.newaxis] * centred @ rotations)
+        _, singular, axes_t = np.linalg.svd(combined)
         axes = axes_t.T
         # Deterministic signs: each axis points towards the object furthest along it.
-        turned = consensus @ axes
-        axes *= np.where(turned[np.abs(turned).argmax(axis=0), range(axes.shape[1])] < 0, -1.0, 1.0)
+        turned = combined @ axes
+        furthest = turned[np.abs(turned).argmax(axis=0), range(axes.shape[1])]
+        flipped = furthest < 0  # pragma: no mutate - <= differs only on an axis where every object is at 0
+        axes[:, flipped] = -axes[:, flipped]
 
-        self.scale_factors_ = pd.Series(factors, index=list(frames), name="scale factor")
-        self.rotations_ = {name: rotation @ axes for name, rotation in zip(frames, rotations, strict=True)}
-        aligned = {
-            name: factor * config @ self.rotations_[name]
-            for name, factor, config in zip(frames, factors, centred, strict=True)
-        }
+        rotations = rotations @ axes
+        aligned = factors[:, np.newaxis, np.newaxis] * centred @ rotations
+        consensus = aligned.mean(axis=0)
+        self.scale_factors_ = pd.Series(factors, index=names, name="scale factor")
+        self.rotations_ = {name: rotations[k] for k, name in enumerate(names)}
         self.aligned_ = {
-            name: pd.DataFrame(values, index=objects, columns=dimensions) for name, values in aligned.items()
+            name: pd.DataFrame(aligned[k], index=objects, columns=dimensions) for k, name in enumerate(names)
         }
-        self.consensus_ = pd.DataFrame(sum(aligned.values()) / len(aligned), index=objects, columns=dimensions)
-        self.residuals_ = pd.DataFrame(
-            {name: ((values - self.consensus_.to_numpy()) ** 2).sum(axis=1) for name, values in aligned.items()},
-            index=objects,
-        )
-        self.consensus_share_ = _consensus_share(list(aligned.values()))
+        self.consensus_ = pd.DataFrame(consensus, index=objects, columns=dimensions)
+        self.residuals_ = pd.DataFrame(((aligned - consensus) ** 2).sum(axis=2).T, index=objects, columns=names)
+        self.consensus_share_ = _consensus_share(aligned)
         spread = np.zeros(self.n_dimensions_)
         spread[: len(singular)] = singular**2
         self.explained_variance_ratio_ = spread / spread.sum()
@@ -374,7 +373,7 @@ class GPA(BaseEstimator):
         ValueError
             If a configuration is missing or unexpected, or its columns differ from the fit.
         """
-        check_is_fitted(self, "consensus_")
+        check_is_fitted(self)
         frames = _check_configurations(X)
         if set(frames) != set(self.rotations_):
             raise ValueError(f"Expected the configurations {sorted(self.rotations_)}; got {sorted(frames)}.")
@@ -384,7 +383,7 @@ class GPA(BaseEstimator):
                 raise ValueError(
                     f"Configuration {name!r} has columns {list(frame.columns)}; expected {self._columns[name]}."
                 )
-            centred = _padded(frame.to_numpy(dtype=float) - self._centres[name], self.n_dimensions_)
+            centred = _padded(frame.to_numpy() - self._centres[name], self.n_dimensions_)
             positions.append(self.scale_factors_[name] * centred @ self.rotations_[name])
         objects = next(iter(frames.values())).index
         return pd.DataFrame(sum(positions) / len(positions), index=objects, columns=self.consensus_.columns)
@@ -419,16 +418,19 @@ class GPA(BaseEstimator):
         ValueError
             If ``n_permutations`` is below 1.
         """
-        check_is_fitted(self, "consensus_")
+        check_is_fitted(self)
         if int(n_permutations) < 1:
             raise ValueError(f"n_permutations must be at least 1; got {n_permutations}.")
         rng = check_random_state(random_state)
         null = np.empty(int(n_permutations))
         for index in range(len(null)):
-            shuffled = [self._configs[0]] + [config[rng.permutation(len(config))] for config in self._configs[1:]]
+            shuffled = self._configs.copy()
+            for k in range(1, len(shuffled)):
+                shuffled[k] = shuffled[k][rng.permutation(shuffled.shape[1])]
             refit = _align(shuffled, scale=self.scale, tol=self.tol, max_iter=self.max_iter)
             null[index] = _consensus_share(refit.aligned)
-        p_value = (1 + int(np.sum(null >= self.consensus_share_))) / (1 + len(null))
+        reached = null >= self.consensus_share_  # pragma: no mutate - > differs only at an exact tie
+        p_value = (1 + int(np.sum(reached))) / (1 + len(null))
         return Bunch(consensus_share=self.consensus_share_, null_shares=null, p_value=p_value)
 
     def map_plot(self, axis_x: int = 1, axis_y: int = 2, settings: dict | None = None) -> go.Figure:
@@ -454,7 +456,7 @@ class GPA(BaseEstimator):
         ValueError
             If an axis is outside 1 to ``n_dimensions_``.
         """
-        check_is_fitted(self, "consensus_")
+        check_is_fitted(self)
 
         class Settings(BaseModel):
             """Validated display settings for the GPA consensus map."""
@@ -473,8 +475,11 @@ class GPA(BaseEstimator):
         for name, aligned in self.aligned_.items():
             ends = aligned[[axis_x, axis_y]].to_numpy()
             # One trace per configuration: a spoke per object, separated by gaps.
-            spokes = np.stack([centre, ends, np.full_like(centre, np.nan)], axis=1).reshape(-1, 2)
-            fig.add_trace(go.Scatter(x=spokes[:, 0], y=spokes[:, 1], mode="lines", name=name, opacity=0.6))
+            gap = np.full_like(centre, np.nan)  # pragma: no mutate - plotly breaks a line at None as at NaN
+            spokes = np.stack([centre, ends, gap], axis=1)
+            fig.add_trace(
+                go.Scatter(x=spokes[..., 0].ravel(), y=spokes[..., 1].ravel(), mode="lines", name=name, opacity=0.6)
+            )
         fig.add_trace(
             go.Scatter(
                 x=centre[:, 0],

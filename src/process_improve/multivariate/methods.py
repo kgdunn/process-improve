@@ -60,6 +60,14 @@ from ._null import (
     count_discoveries_under_null,
 )
 from ._opls import OPLS
+from ._optimal_inversion import (
+    AffineModel,
+    InversionRules,
+    LinearRule,
+    affine_model,
+    inversion_sensitivity,
+    optimal_inversion,
+)
 from ._pca import PCA
 from ._pls import PLS, compare_cv_criteria, pseudo_validation_set
 from ._plsda import PLSDA
@@ -103,14 +111,18 @@ __all__ = [
     "TPLS",
     "AdaptivePCA",
     "AdaptivePLS",
+    "AffineModel",
     "BlockSet",
     "DataFrameDict",
+    "InversionRules",
+    "LinearRule",
     "MCUVScaler",
     "NotEnoughVarianceError",
     "Plot",
     "Resampler",
     "SpecificationWarning",
     "UncentredDataWarning",
+    "affine_model",
     "center",
     "check_predictive_signal",
     "check_random_state",
@@ -130,6 +142,7 @@ __all__ = [
     "group_contributions",
     "hotellings_t2_limit",
     "internal_pls_nipals_fit_one_pc",
+    "inversion_sensitivity",
     "loading_plot",
     "make_tpls_scorer",
     "meda",
@@ -138,6 +151,7 @@ __all__ = [
     "observation_contributions",
     "omeda",
     "omeda_plot",
+    "optimal_inversion",
     "predictions_vs_observed_plot",
     "project_variables",
     "pseudo_validation_set",

@@ -271,6 +271,7 @@ class _AnalyzeInput(BaseModel):
     ),
     input_model=_AnalyzeInput,
     category="sensory",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
 )
 def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
     """Validate then analyse; see tool spec for details."""

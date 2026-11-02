@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -53,6 +51,14 @@ class TestExtremeVertices:
     def test_full_simplex_has_the_pure_components_as_vertices(self) -> None:
         vertices = extreme_vertices(*mixture_inequalities(FULL, None))
         assert {tuple(v) for v in vertices} == {(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)}
+
+    def test_one_component_has_its_single_blend_as_the_vertex_when_the_limits_allow_it(self) -> None:
+        """#999: with one component the only blend is x1 = 1; a limit keeps it or leaves no vertex."""
+        one = [Factor(name="x1", type="mixture")]
+        np.testing.assert_array_equal(extreme_vertices(*mixture_inequalities(one, None)), [[1.0]])
+        kept = extreme_vertices(*mixture_inequalities(one, [Constraint(expression="x1 <= 1")]))
+        np.testing.assert_array_equal(kept, [[1.0]])
+        assert extreme_vertices(*mixture_inequalities(one, [Constraint(expression="x1 <= 0.5")])).shape == (0, 1)
 
     @pytest.mark.parametrize("constraints", [None, [CAP], [CAP, Constraint(expression="x1 >= 2*x3")]])
     def test_every_linear_optimum_is_attained_at_a_vertex(self, constraints: list[Constraint] | None) -> None:
@@ -193,13 +199,12 @@ class TestDesigns:
         assert np.linalg.matrix_rank(scheffe_matrix(design, model)) == scheffe_matrix(design[:1], model).shape[1]
         assert meta["constraints_enforced"] is True
 
-    def test_budget_below_the_model_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
-        with caplog.at_level(logging.WARNING):
-            design, _ = constrained_mixture_design(
-                BOUNDED, 3, None, ConstrainedOptions("scheffe_quadratic"), random_state=0
-            )
-        assert len(design) == 6
-        assert "raising the budget to 6" in caplog.text
+    def test_budget_below_the_model_is_refused(self) -> None:
+        """A budget the caller gave is a limit: 3 runs for a 6-term model raise instead of growing (#957)."""
+        with pytest.raises(
+            ValueError, match=r"budget=3 run\(s\) cannot estimate the scheffe_quadratic model, which has 6"
+        ):
+            constrained_mixture_design(BOUNDED, 3, None, ConstrainedOptions("scheffe_quadratic"), random_state=0)
 
     def test_generate_design_picks_the_constrained_path_for_bounded_components(self) -> None:
         result = generate_design(BOUNDED)

@@ -54,7 +54,7 @@ def test_one_factor_s_runs_as_given_at_several_settings_are_said_as_levels(api):
 
 @pytest.mark.parametrize(
     ("design_type", "counts"),
-    [("plackett_burman", "2 to 11"), ("ccd", "2 to 7"), ("box_behnken", "3 to 7")],
+    [("plackett_burman", "2 to 40"), ("ccd", "2 to 7"), ("box_behnken", "3 to 7")],
 )
 def test_the_other_designs_still_say_the_factors_they_take(api, design_type, counts):
     error = api.error("api_make_design", {"design_type": design_type, "factors": FACTORS[:1]})

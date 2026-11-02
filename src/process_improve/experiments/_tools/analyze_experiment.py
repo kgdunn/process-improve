@@ -22,7 +22,8 @@ class AnalyzeExperimentInput(BaseModel):
         min_length=2,
         description=(
             "List of dicts, one per run. Must contain factor columns and "
-            "optionally the response column. Example: "
+            "optionally the response column. A RunOrder column, the order the runs were made in, is not a factor; "
+            "residual_diagnostics checks the residuals for serial dependence in that order. Example: "
             "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
         ),
     )
@@ -63,7 +64,8 @@ class AnalyzeExperimentInput(BaseModel):
         "auto",
         description=(
             "Scale of the coefficients and confidence_intervals. 'auto' (default; null means the same): 'coded', "
-            "but 'actual' for a mixture model. 'actual': the factors as given. 'coded': refitted with each factor "
+            "but 'actual' for a mixture model and for an I() term such as I(x ** 0.5) that has no coded scale. "
+            "'actual': the factors as given. 'coded': refitted with each factor "
             "from -1 at its lowest value to +1 at its highest. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, "
             "that map to -1 and +1, such as a central composite design's cube levels rather than its axial runs. "
             "Coded coefficients are what optimize_responses needs, since it evaluates models at coded settings "
@@ -74,7 +76,10 @@ class AnalyzeExperimentInput(BaseModel):
     )
     new_points: list[dict[str, Any]] | None = Field(
         None,
-        description="New factor settings for prediction or confirmation.",
+        description=(
+            "New factor settings for prediction or confirmation. In a blocked design, a 'Block' key predicts in "
+            "that block; without one, the prediction is for the average block."
+        ),
     )
     observed_at_new: list[float] | None = Field(
         None,
@@ -137,7 +142,9 @@ class AnalyzeExperimentInput(BaseModel):
     description=(
         "Fit a model to experimental data and run statistical analyses. "
         "Supports ANOVA, effects, coefficients with p-values, significance testing, "
-        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
+        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance, and, when design_matrix "
+        "has a RunOrder column, the residuals' lag-1 autocorrelation in run order with a note when successive runs "
+        "look serially dependent), "
         "lack-of-fit test, curvature test (center points vs factorial points), "
         "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "

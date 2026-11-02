@@ -694,7 +694,8 @@
       "quote": "(1) gives B = R_max = 4 and (B1) yields Σw = 14"
      },
      "check": {
-      "manual": "equation (B1), 2^(p-1) k: the word lengths of every 2^(7-2) in which all seven factors appear add to 14, as each of Table 1's patterns does (checked above)"
+      "manual": "equation (B1), 2^(p-1) k: the word lengths of every 2^(7-2) in which all seven factors appear add to 14, as each of Table 1's patterns does (checked above)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -707,7 +708,8 @@
       "quote": "The only word length patterns satisfying both of these conditions are {4, 4, 6} and {4, 5, 5}."
      },
      "check": {
-      "manual": "a step of the paper's algorithm, which the library does not run; designs (b) and (c) of Table 1 have these patterns (checked above)"
+      "manual": "a step of the paper's algorithm, which the library does not run; designs (b) and (c) of Table 1 have these patterns (checked above)",
+      "cause": "library_gap"
      }
     },
     {
@@ -720,7 +722,8 @@
       "quote": "From (B3) and (B5) we calculate Σt = 7 and Σt^2 = 17"
      },
      "check": {
-      "manual": "a step of the paper's algorithm: the numbers of letters in the cells of the generators, which the library does not compute"
+      "manual": "a step of the paper's algorithm: the numbers of letters in the cells of the generators, which the library does not compute",
+      "cause": "library_gap"
      }
     },
     {
@@ -1262,7 +1265,8 @@
       "k": 12,
       "generators": ["H=ABC", "J=ABD", "K=ACD", "L=BCD", "M=ABE"],
       "printed": "V",
-      "disagreement": "no 2^(12-5) reaches resolution V: an exhaustive search over every set of five generators (the base factors being interchangeable) finds none, and the binary [12, 5] codes have minimum distance at most 4. R_max is 4, which the design checked here reaches. The printed 5 is the paper's bound (3), which no design attains here, so the row should carry the asterisk"
+      "disagreement": "no 2^(12-5) reaches resolution V: an exhaustive search over every set of five generators (the base factors being interchangeable) finds none, and the binary [12, 5] codes have minimum distance at most 4. R_max is 4, which the design checked here reaches. The printed 5 is the paper's bound (3), which no design attains here, so the row should carry the asterisk",
+      "cause": "source_error"
      }
     },
     {
@@ -1399,7 +1403,8 @@
       "k": 13,
       "generators": ["J=ABCD", "K=ABEF", "L=ACEG", "M=BDFG", "N=BCEH"],
       "printed": "IV",
-      "disagreement": "a 2^(13-5) of resolution V exists (these generators; none reaches VI), so R_max is 5. The printed 4 also contradicts the table's own row for 2^(14-6), R_max = 5 in the same 256 runs: removing a factor from that design leaves a 2^(13-5) of at least resolution V"
+      "disagreement": "a 2^(13-5) of resolution V exists (these generators; none reaches VI), so R_max is 5. The printed 4 also contradicts the table's own row for 2^(14-6), R_max = 5 in the same 256 runs: removing a factor from that design leaves a 2^(13-5) of at least resolution V",
+      "cause": "source_error"
      }
     },
     {
@@ -1434,7 +1439,8 @@
       "k": 13,
       "generators": ["L=ABCDEF", "M=ABCGHJ", "N=ADEGHK"],
       "printed": "VI",
-      "disagreement": "a 2^(13-3) of resolution VII exists (these generators), so R_max is 7. The paper's own equation (1) gives 7 here (13 = 1 x 7 + 6, so 4 x 1 + [6/2]), where the table prints 6 for bound (1) and bound (3) alike"
+      "disagreement": "a 2^(13-3) of resolution VII exists (these generators), so R_max is 7. The paper's own equation (1) gives 7 here (13 = 1 x 7 + 6, so 4 x 1 + [6/2]), where the table prints 6 for bound (1) and bound (3) alike",
+      "cause": "source_error"
      }
     },
     {
@@ -1554,7 +1560,8 @@
       "k": 14,
       "generators": ["K=ABCDE", "L=ABCFG", "M=ABDFH", "N=ACEGH", "O=ACDFJ"],
       "printed": "V",
-      "disagreement": "a 2^(14-5) of resolution VI exists (these generators), so R_max is 6 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold"
+      "disagreement": "a 2^(14-5) of resolution VI exists (these generators), so R_max is 6 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold",
+      "cause": "source_error"
      }
     },
     {
@@ -1572,7 +1579,8 @@
       "k": 14,
       "generators": ["L=ABCDEF", "M=ABCGHJ", "N=ADEGHK", "O=BDFGJK"],
       "printed": "VI",
-      "disagreement": "a 2^(14-4) of resolution VII exists (these generators), so R_max is 7 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold"
+      "disagreement": "a 2^(14-4) of resolution VII exists (these generators), so R_max is 7 and equals the bound (3) printed beside it; the asterisk, saying the bound is not attained, does not hold",
+      "cause": "source_error"
      }
     },
     {
@@ -1590,7 +1598,8 @@
       "k": 14,
       "generators": ["M=ABCDEFG", "N=ABCDHJK", "O=ABEFHJL"],
       "printed": "VII",
-      "disagreement": "a 2^(14-3) of resolution VIII exists: two factors in each of the seven cells of three generators, every word of length 8. R_max is 8, as the paper's own equation (1) gives (14 = 2 x 7, so 4 x 2), where the table prints 7 for bound (1), bound (3) and R_max alike"
+      "disagreement": "a 2^(14-3) of resolution VIII exists: two factors in each of the seven cells of three generators, every word of length 8. R_max is 8, as the paper's own equation (1) gives (14 = 2 x 7, so 4 x 2), where the table prints 7 for bound (1), bound (3) and R_max alike",
+      "cause": "source_error"
      }
     },
     {

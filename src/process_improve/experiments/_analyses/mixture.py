@@ -33,14 +33,26 @@ from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 
 def _linear_names(ols_result: RegressionResultsWrapper, components: list[str]) -> list[str]:
+    """Return the linear blending terms: the components, or else the terms that add up to the constant.
+
+    A formula can blend pseudo-components, as ``I(x1 + x2 + x3) + x4``, whose terms are not the
+    components themselves. Its linear blending terms are then the ones that carry a weight near 1
+    in the least-squares combination of the terms that gives the constant; a non-linear blending
+    term carries a weight near 0.
+    """
     names = [str(n) for n in ols_result.params.index]
-    return [c for c in components if c in names]
+    if all(c in names for c in components):
+        return list(components)
+    exog = np.asarray(ols_result.model.exog, dtype=float)
+    weights = np.linalg.lstsq(exog, np.ones(len(exog)), rcond=None)[0]
+    return [name for name, weight in zip(names, weights, strict=True) if abs(weight) > 0.5]
 
 
-def _linear_block_test(ols_result: RegressionResultsWrapper, components: list[str]) -> dict[str, Any]:
-    """F-test of ``beta_1 = ... = beta_q`` over the linear blending coefficients."""
+def _linear_block_test(ols_result: RegressionResultsWrapper, linear: list[str]) -> dict[str, Any] | None:
+    """F-test of ``beta_1 = ... = beta_q`` over the linear blending coefficients; None for one term alone."""
+    if len(linear) < 2:
+        return None
     names = [str(n) for n in ols_result.params.index]
-    linear = _linear_names(ols_result, components)
     restrictions = np.zeros((len(linear) - 1, len(names)))
     last = names.index(linear[-1])
     for row, component in enumerate(linear[:-1]):
@@ -59,8 +71,7 @@ def _linear_block_test(ols_result: RegressionResultsWrapper, components: list[st
     }
 
 
-def _nonlinear_terms(ols_result: RegressionResultsWrapper, components: list[str]) -> list[str]:
-    linear = set(components)
+def _nonlinear_terms(ols_result: RegressionResultsWrapper, linear: list[str]) -> list[str]:
     return [str(n) for n in ols_result.params.index if str(n) not in linear]
 
 
@@ -69,8 +80,10 @@ def run_mixture_anova(ols_result: RegressionResultsWrapper, components: list[str
     if ols_result.df_resid <= 0:
         return {"anova_table": [], "anova_note": "Saturated model - no residual degrees of freedom for ANOVA."}
     mse = float(ols_result.mse_resid)
-    rows = [_linear_block_test(ols_result, components)]
-    for term in _nonlinear_terms(ols_result, components):
+    linear = _linear_names(ols_result, components)
+    block = _linear_block_test(ols_result, linear)
+    rows = [] if block is None else [block]
+    for term in _nonlinear_terms(ols_result, linear):
         t = float(ols_result.tvalues[term])
         rows.append(
             {
@@ -105,8 +118,9 @@ def run_mixture_significance(
     ols_result: RegressionResultsWrapper, components: list[str], alpha: float = 0.05
 ) -> dict[str, Any]:
     """Significant non-linear blending terms, and whether the components blend differently at all."""
-    linear = _linear_block_test(ols_result, components) if ols_result.df_resid > 0 else None
-    nonlinear = _nonlinear_terms(ols_result, components)
+    terms = _linear_names(ols_result, components)
+    linear = _linear_block_test(ols_result, terms) if ols_result.df_resid > 0 else None
+    nonlinear = _nonlinear_terms(ols_result, terms)
     pvals = ols_result.pvalues
     return {
         "significant_terms": [t for t in nonlinear if pvals[t] < alpha],
@@ -147,7 +161,8 @@ def run_mixture_effects(ols_result: RegressionResultsWrapper, components: list[s
     takes in the design, so a constrained region is not extrapolated beyond. The effect
     is the fitted response at the end of that span minus the response at its start.
     """
-    linear = _linear_names(ols_result, components)
+    # The components themselves, so that a formula of pseudo-components is moved along them too.
+    linear = list(components)
     blends = ols_result.model.data.frame[linear].astype(float)
     distinct = blends.round(10).drop_duplicates().to_numpy()
     total = distinct.sum(axis=1, keepdims=True)

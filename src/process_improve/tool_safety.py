@@ -37,6 +37,7 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -360,13 +361,27 @@ def _validate_against_model(tool_name: str, tool_input: dict[str, Any], model_cl
 # ---------------------------------------------------------------------------
 
 
+def _address_space_in_use() -> int:
+    """Return the bytes of address space this process has mapped; 0 where ``/proc`` does not say (macOS)."""
+    try:
+        return int(Path("/proc/self/statm").read_text(encoding="ascii").split()[0]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError):
+        return 0
+
+
 def _apply_memory_limit(memory_mb: int) -> None:
-    """Apply an address-space limit to the current process (POSIX)."""
+    """Allow the current process ``memory_mb`` more of address space than it has mapped (POSIX).
+
+    ``RLIMIT_AS`` counts address space reserved, not memory in use, and an allocator may
+    reserve far ahead: the free-threaded build's maps about 1.5 GiB on importing the package
+    while using about 250 MiB. A cap of ``memory_mb`` alone was then below what the worker
+    already had, and every new mapping failed, however small.
+    """
     try:
         import resource  # noqa: PLC0415  POSIX-only
     except ImportError:
         return  # Windows: no-op
-    limit_bytes = memory_mb * 1024 * 1024
+    limit_bytes = _address_space_in_use() + memory_mb * 1024 * 1024
     # Some sandboxes disallow raising the hard limit; ignore silently.
     with contextlib.suppress(ValueError, OSError):
         resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
@@ -514,9 +529,9 @@ def safe_execute_tool_call(  # noqa: PLR0913
     max_cells, max_string, max_depth:
         Input-size limits. See :func:`validate_input`.
     memory_mb:
-        RSS cap applied to the worker subprocess via ``RLIMIT_AS`` (POSIX).
-        On overrun the subprocess dies and :class:`ToolMemoryExceededError`
-        is raised.
+        Address space the worker subprocess may map beyond what its imports
+        mapped, applied via ``RLIMIT_AS`` (POSIX). On overrun the subprocess
+        dies and :class:`ToolMemoryExceededError` is raised.
     executor:
         Optional caller-provided pool. When *None* (default) a PRIVATE pool
         is created for this call and torn down afterwards, so each call runs

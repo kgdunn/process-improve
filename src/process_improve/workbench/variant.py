@@ -11,7 +11,8 @@ a suspect batch would fall in a model that never saw it.
 
 :meth:`Variant.fit` returns a :class:`Fit`, and :meth:`Fit.explain_group` answers the
 question a cluster on a score plot asks: what do these rows have in common that the
-others do not?
+others do not? :meth:`Variant.cross_validate` answers the one before it: how many
+components does the data support?
 """
 
 from __future__ import annotations
@@ -84,6 +85,25 @@ class Variant:
         x_block = table[x_cols].astype(float)
         return x_block, (table[y_cols].astype(float) if y_cols else None)
 
+    def included(self, table: pd.DataFrame) -> pd.Index:
+        """Return the rows of ``table`` the model is fitted to: every row the variant does not exclude.
+
+        Raises
+        ------
+        ValueError
+            If an excluded row is not in the table, or too few rows remain to fit
+            ``n_components`` components.
+        """
+        unknown = [r for r in self.excluded if r not in table.index]
+        if unknown:
+            raise ValueError(f"The excluded rows {', '.join(map(str, unknown))} are not in the table.")
+        included = table.index.difference(pd.Index(list(self.excluded)), sort=False)
+        if len(included) <= self.n_components:
+            raise ValueError(
+                f"{len(included)} rows remain after the exclusions, too few for {self.n_components} components."
+            )
+        return included
+
     def fit(self, table: pd.DataFrame) -> Fit:
         """Fit the variant to ``table``, then project its excluded rows through the model.
 
@@ -94,14 +114,7 @@ class Variant:
             ``n_components`` components.
         """
         x_all, y_all = self.blocks(table)
-        unknown = [r for r in self.excluded if r not in table.index]
-        if unknown:
-            raise ValueError(f"The excluded rows {', '.join(map(str, unknown))} are not in the table.")
-        included = table.index.difference(pd.Index(list(self.excluded)), sort=False)
-        if len(included) <= self.n_components:
-            raise ValueError(
-                f"{len(included)} rows remain after the exclusions, too few for {self.n_components} components."
-            )
+        included = self.included(table)
         scaler_x = MCUVScaler().fit(x_all.loc[included])
         x_scaled = scaler_x.transform(x_all)
         if self.kind == "PLS":
@@ -122,6 +135,52 @@ class Variant:
             x_scaled=x_scaled,
             y_scaled=y_scaled,
             scalers=(scaler_x, scaler_y),
+        )
+
+    def cross_validate(self, table: pd.DataFrame, *, random_state: int = 0) -> CrossValidation:
+        """Cross-validate every number of components on the fitted rows, to choose ``n_components``.
+
+        The library's own selectors do the work, with their defaults: PCA holds out single
+        cells and predicts each from a model that never saw it
+        (:meth:`PCA.select_n_components`, element-wise k-fold), and PLS holds out whole
+        rows, in shuffled folds repeated ten times (:meth:`PLS.select_n_components`).
+        Both fit the centring and scaling inside every fold, so they are given the raw
+        blocks. The answer does not depend on this variant's ``n_components``.
+
+        Parameters
+        ----------
+        table : pd.DataFrame
+            The recipe's table; the variant's excluded rows are left out, as in :meth:`fit`.
+        random_state : int, default 0
+            Seed of the fold assignment, so that the same table gives the same answer.
+
+        Returns
+        -------
+        CrossValidation
+        """
+        x_all, y_all = self.blocks(table)
+        x = x_all.loc[self.included(table)]
+        if self.kind == "PLS":
+            y = cast("pd.DataFrame", y_all).loc[x.index]
+            # Y in units of its own standard deviation, so the prediction error is pooled over the targets
+            # with the equal weights the model gives them; in its own units, a target with large numbers (a
+            # molecular weight) would decide the count alone. The folds re-centre and re-scale it as before.
+            result = PLS.select_n_components(x, y / y.std(), random_state=random_state)
+            q2, held_out, folds = result.r2y_validated["total"], "rows", result.per_fold_rmsecv.shape[1]
+        else:
+            result = PCA.select_n_components(x, random_state=random_state)
+            q2, held_out, folds = result.q2, "cells", result.per_fold_press.shape[1]
+        largest = dataclasses.replace(self, n_components=len(q2)).fit(table)
+        return CrossValidation(
+            variant=self,
+            r2=largest.model.r2_cumulative_.rename("R2"),
+            q2=q2.rename("Q2"),
+            q2_se=result.q2_se.rename("Q2 standard error"),
+            n_components=int(result.n_components),
+            rule=str(result.selection_rule),
+            held_out=held_out,
+            folds=int(folds),
+            random_state=random_state,
         )
 
     def to_python(self, frame: str = "df") -> str:
@@ -288,6 +347,60 @@ class Fit:
             top=top_variables,
             summary=summary,
             evidence=raw[top_variables].assign(in_group=index.isin(group_ids), in_reference=index.isin(reference_ids)),
+        )
+
+
+@dataclass(frozen=True)
+class CrossValidation:
+    """How well each number of components predicts values the model was not fitted to.
+
+    Attributes
+    ----------
+    variant : Variant
+        The variant that was cross-validated; its ``n_components`` plays no part.
+    r2 : pd.Series
+        Cumulative R² of the fitted rows per number of components, indexed ``1..A``:
+        R²X for PCA, R²Y for PLS. It only rises as components are added.
+    q2 : pd.Series
+        The same quantity measured on held-out values, Q², on the same index. It falls
+        once a component fits noise, which is what separates it from ``r2``.
+    q2_se : pd.Series
+        One standard error of ``q2``, from the spread over the folds.
+    n_components : int
+        The number of components the selector's rule recommends.
+    rule : str
+        That rule: ``"min"`` (the lowest prediction error) or ``"1se"`` (the fewest
+        components within one standard error of it).
+    held_out : {"cells", "rows"}
+        What a fold holds out: single cells (PCA) or whole rows (PLS).
+    folds : int
+        The number of fold fits behind each number of components, over all repeats.
+    random_state : int
+        The seed of the fold assignment.
+    """
+
+    variant: Variant
+    r2: pd.Series
+    q2: pd.Series
+    q2_se: pd.Series
+    n_components: int
+    rule: str
+    held_out: str
+    folds: int
+    random_state: int
+
+    def to_python(self) -> str:
+        """Return the code that repeats this cross-validation, after the variant's code defines ``X`` and ``Y``."""
+        seed = f"random_state={self.random_state}"
+        if self.variant.kind == "PLS":
+            return (
+                "y_fit = Y.loc[included]\n"
+                f"cv = PLS.select_n_components(X.loc[included], y_fit / y_fit.std(), {seed})  # targets weighed alike\n"
+                'q2 = cv.r2y_validated["total"]  # Q2 per number of components; cv.n_components is the one to use\n'
+            )
+        return (
+            f"cv = PCA.select_n_components(X.loc[included], {seed})\n"
+            "q2 = cv.q2  # Q2 per number of components; cv.n_components is the one to use\n"
         )
 
 

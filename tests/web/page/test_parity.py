@@ -304,6 +304,35 @@ def test_the_most_responses_a_study_measures_is_bootstrap_s(bootstrap, node):
     assert f"A study measures at most {bootstrap.MAX_RESPONSES} responses." in source("index.html")
 
 
+def test_the_most_factors_a_study_has_is_bootstrap_s(bootstrap, node):
+    """The page, the studies it reads and its words hold as many factors as bootstrap.py takes, as runs as given do."""
+    (page_most,) = javascript(node, source("logic.js"), [("MAX_FACTORS", [])])
+    (campaign_most,) = javascript(node, source("campaign.js"), [("FACTORS_HELD", [])])
+    assert page_most == campaign_most == bootstrap.MAX_FACTORS == bootstrap.GIVEN_INFO["max_factors"] == 40
+    assert max(info["max_factors"] for info in bootstrap.DESIGNS.values()) == bootstrap.MAX_FACTORS
+    assert page().ids["factors-full"]["tag"] == "span"
+    assert f"A study has at most {bootstrap.MAX_FACTORS} factors." in source("index.html")
+
+
+def test_past_the_factors_whose_interactions_the_page_models_both_sides_keep_to_main_effects(bootstrap, node):
+    """The page and bootstrap.py agree on how many factors' interactions are modelled, and on the highest resolution."""
+    held = javascript(node, source("logic.js"), [("MAX_INTERACTION_FACTORS", []), ("INTERACTION_MODELS", [])])
+    assert held == [bootstrap.MAX_INTERACTION_FACTORS, list(bootstrap.INTERACTION_MODELS)]
+    counts = [3, 4, 5, 12, 13, 24]
+    highest = javascript(node, source("logic.js"), [("highestResolution", [k]) for k in counts])
+    for k, most in zip(counts, highest, strict=True):
+        assert bootstrap._resolution({"resolution": most}, k) == most, k
+        if most < max(bootstrap.RESOLUTIONS):
+            with pytest.raises(ValueError, match=f"in {k} factors can have resolution"):
+                bootstrap._resolution({"resolution": most + 1}, k)
+
+
+def test_the_most_numeric_factors_whose_corners_are_listed_is_bootstrap_s(bootstrap, node):
+    (most,) = javascript(node, source("logic.js"), [("PROBE_FACTORS", [])])
+    assert most == bootstrap.PROBE_FACTORS
+    assert page().ids["corners-many"]["tag"] == "p"
+
+
 @pytest.mark.parametrize(
     "labels",
     [["Yield", "Cost", "Purity"], ["Yield", "Yield", "yield"], ["", "Cost"], ["T", "Cost ($/kg)", "Cost"]],
@@ -471,10 +500,16 @@ def library_cell(label: str, full: str) -> int | str | None:
     return None
 
 
-def test_the_trade_off_grid_spans_the_fractions_the_page_makes(bootstrap, node):
+def test_the_trade_off_grid_spans_the_fractions_the_library_holds_a_table_of(bootstrap, node):
+    """The grid's columns are the fractions of 3 to 11 factors; past them the page makes fractions the library finds."""
+    from process_improve.experiments.designs_screening import _MAX_TABULATED_FACTORS
+
     runs, factors, _cells, _full = trade_off_grid(node)
     fraction = bootstrap.DESIGNS["fractional_factorial"]
-    assert factors == list(range(fraction["min_factors"], fraction["max_factors"] + 1))
+    assert factors == list(range(fraction["min_factors"], _MAX_TABULATED_FACTORS + 1))
+    assert fraction["max_factors"] > factors[-1], "past the grid's last column, its hint says so"
+    (beyond,) = javascript(node, source("logic.js"), [("tradeOffBeyond", [fraction["max_factors"]])])
+    assert beyond.startswith(f"The grid shows fractions in 3 to {_MAX_TABULATED_FACTORS} factors;")
     assert runs == [4, 8, 16, 32, 64, 128]
     assert javascript(node, source("logic.js"), [("RESOLUTIONS", [])]) == [list(bootstrap.RESOLUTIONS)]
 
@@ -579,6 +614,14 @@ def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
         assert "\u2014" not in text, key
 
 
+def test_each_goal_reads_its_readings_by_the_ratio_bootstrap_reads_them_by(bootstrap, node):
+    """The page's words for each signal-to-noise ratio, and the code's goal for each, are bootstrap's."""
+    [words] = javascript(node, source("logic.js"), [("SN_WORDS", [])])
+    [kinds] = javascript(node, source("python.js"), [("SN_KINDS", [])])
+    assert kinds == bootstrap.SN_KINDS
+    assert set(words) == set(bootstrap.SN_KINDS.values())
+
+
 def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):
     """The run sheet's column, its mark, how many runs the page adds, and how far each factor moves for the chart."""
     asked = ["CONFIRMATION", "CONFIRMS", "CONFIRMATION_RUNS", "NUDGE"]
@@ -609,6 +652,15 @@ def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, 
         "note": bootstrap.NOTE_LENGTH,
     }
     assert javascript(node, source("campaign.js"), [("LIMITS_HELD", [])]) == [held], "a saved study is checked alike"
+
+
+def test_the_settings_kept_from_the_what_if_panel_are_held_as_bootstrap_holds_them(bootstrap, node):
+    """A study and its workbook keep as many, under names as long; the box for a name takes no more."""
+    held = bootstrap.SCENARIOS_HELD
+    assert javascript(node, source("campaign.js"), [("SCENARIOS_HELD", [])]) == [held]
+    box = re.search(r'<input[^>]*id="what-if-keep-name"[^>]*>', source("index.html"))
+    assert box, "the box the reader names the settings in"
+    assert f'maxlength="{held["name"]}"' in box.group(0)
 
 
 def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
@@ -668,10 +720,17 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
     """The replicates the page offers, more for one factor's levels, and the format a one-factor study is saved in."""
     held = javascript(node, source("logic.js"), [("MAX_REPLICATES", []), ("MAX_LEVEL_RUNS", [])])
     assert held == [bootstrap.MAX_REPLICATES, bootstrap.MAX_LEVEL_RUNS]
-    names = [("CAMPAIGN_VERSION", []), ("ONE_FACTOR_FORMAT", []), ("LEVELS_FORMAT", [])]
-    formats = javascript(node, source("campaign.js"), names)
-    assert formats == [build_script.CAMPAIGN_VERSION, build_script.ONE_FACTOR_FORMAT, build_script.LEVELS_FORMAT]
+    each = ["ONE_FACTOR_FORMAT", "LEVELS_FORMAT", "MANY_FACTORS_FORMAT", "WHAT_IF_FORMAT"]
+    names = ["CAMPAIGN_VERSION", *each, "FEW_FACTORS"]
+    formats = javascript(node, source("campaign.js"), [(name, []) for name in names])
+    assert formats == [getattr(build_script, name) for name in names]
     assert build_script.study_format({"factors": [{"name": "S"}]}) == build_script.ONE_FACTOR_FORMAT
     assert build_script.study_format({"factors": [{"name": "S"}, {"name": "T"}]}) == 1
     lot = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3"]}
     assert build_script.study_format({"factors": [{"name": "S"}, lot]}) == build_script.LEVELS_FORMAT
+    for k in (12, 13, 24, 40):
+        factors = [{"name": f"X{i}"} for i in range(k)]
+        expected = build_script.MANY_FACTORS_FORMAT if k > build_script.FEW_FACTORS else 1
+        assert build_script.study_format({"factors": factors}) == expected, k
+        (page_format,) = javascript(node, source("campaign.js"), [("studyFormat", [{"factors": factors}])])
+        assert page_format == expected, k

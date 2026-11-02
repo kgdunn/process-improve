@@ -255,7 +255,8 @@
       "kind": "coefficient",
       "term": "time",
       "model": "methanol + ethanol + pH + time",
-      "disagreement": "the least squares coefficient is 5.2158, which rounds to 5.22, as Table 2.5 prints it; the equation prints 5.21"
+      "disagreement": "the least squares coefficient is 5.2158, which rounds to 5.22, as Table 2.5 prints it; the equation prints 5.21",
+      "cause": "source_rounding"
      }
     },
     {
@@ -268,7 +269,8 @@
       "quote": "x1 = (Methanol − 5)/5"
      },
      "check": {
-      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it"
+      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -281,7 +283,8 @@
       "quote": "x2 = (Ethanol − 5)/5"
      },
      "check": {
-      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it"
+      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -294,7 +297,8 @@
       "quote": "x5 = (pH − 7.5)/1.5"
      },
      "check": {
-      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it"
+      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -307,7 +311,8 @@
       "quote": "x6 = (time − 1.5)/0.5"
      },
      "check": {
-      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it"
+      "manual": "the factor's coding, its centre and half its range: the low and high settings this entry gives the factor, from which every fit here codes it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1116,7 +1121,8 @@
       "kind": "t_value",
       "term": "pH",
       "model": "methanol + ethanol + propanol + butanol + pH + time",
-      "disagreement": "the t ratio is the estimate over its standard error, -2.4758/0.7130 = -3.47, whose p value on 5 residual degrees of freedom is the 0.0178 the table prints; a t ratio of -4.29 would have a p value of 0.0078"
+      "disagreement": "the t ratio is the estimate over its standard error, -2.4758/0.7130 = -3.47, whose p value on 5 residual degrees of freedom is the 0.0178 the table prints; a t ratio of -4.29 would have a p value of 0.0078",
+      "cause": "source_error"
      }
     },
     {
@@ -1177,7 +1183,8 @@
       "kind": "t_value",
       "term": "time",
       "model": "methanol + ethanol + propanol + butanol + pH + time",
-      "disagreement": "the t ratio is the estimate over its standard error, 5.2158/0.7130 = 7.32, whose p value on 5 residual degrees of freedom is the 0.0007 the table prints; a t ratio of 8.37 would have a p value of 0.0004"
+      "disagreement": "the t ratio is the estimate over its standard error, 5.2158/0.7130 = 7.32, whose p value on 5 residual degrees of freedom is the 0.0007 the table prints; a t ratio of 8.37 would have a p value of 0.0004",
+      "cause": "source_error"
      }
     },
     {
@@ -2199,7 +2206,8 @@
       "quote": "The variances of the main-effect estimates of all the factors except for ethanol and propanol increase by 20%."
      },
      "check": {
-      "manual": "their VIF of 1.2 less one, the VIF being checked in Table 2.10"
+      "manual": "their VIF of 1.2 less one, the VIF being checked in Table 2.10",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2212,7 +2220,8 @@
       "quote": "This implies roughly a 10% increase in the standard error of these estimates"
      },
      "check": {
-      "manual": "the square root of their VIF, √1.2 = 1.095, less one; the VIF is checked in Table 2.10"
+      "manual": "the square root of their VIF, √1.2 = 1.095, less one; the VIF is checked in Table 2.10",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2242,7 +2251,8 @@
       "quote": "Thus, the variance of this coefficient is 80% larger than it would be if there were a 12- run orthogonal design available"
      },
      "check": {
-      "manual": "its VIF of 1.8 less one, the VIF being checked in Table 2.10"
+      "manual": "its VIF of 1.8 less one, the VIF being checked in Table 2.10",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -3827,7 +3837,8 @@
       "quote": "Table 3.2 Recommended factor settings obtained from the nine competing models in Table 3.1 to maximize yield ... Consensus + + − + − +"
      },
      "check": {
-      "manual": "the setting most of the nine models recommend, checked model by model above: every model that holds a factor recommends the consensus setting, except model 5 (propanol +) and model 3 (butanol −)"
+      "manual": "the setting most of the nine models recommend, checked model by model above: every model that holds a factor recommends the consensus setting, except model 5 (propanol +) and model 3 (butanol −)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -3869,7 +3880,8 @@
       "quote": "If you add the block effect that Peter mentioned earlier, you have seven effects that we did not include in the a priori model of our original screening experiment."
      },
      "check": {
-      "manual": "six two-factor interactions and the block effect: the 14 terms of Equation 3.5, checked below, less the main-effects model's 7"
+      "manual": "six two-factor interactions and the block effect: the 14 terms of Equation 3.5, checked below, less the main-effects model's 7",
+      "cause": "not_a_result"
      }
     },
     {
@@ -3898,7 +3910,8 @@
       "quote": "Table 3.4 Relative variances of the factor-effect estimates obtained from the 12 original runs and the eight additional runs ... Intercept 0.058 0.930"
      },
      "check": {
-      "manual": "the library's power leaves out the intercept; its relative variance, 0.058, is the block's, whose power of 0.930 is checked"
+      "manual": "the library's power leaves out the intercept; its relative variance, 0.058, is the block's, whose power of 0.930 is checked",
+      "cause": "library_gap"
      }
     },
     {
@@ -5152,7 +5165,8 @@
       "kind": "t_value",
       "term": "Intercept",
       "model": "methanol + ethanol + propanol + butanol + pH + time + ethanol:propanol + block",
-      "disagreement": "the estimate over its standard error, 27.1822/0.2524, is 107.71; the table's other t ratios, to two decimals, are the estimate over the standard error"
+      "disagreement": "the estimate over its standard error, 27.1822/0.2524, is 107.71; the table's other t ratios, to two decimals, are the estimate over the standard error",
+      "cause": "unexplained"
      }
     },
     {
@@ -5453,7 +5467,8 @@
       "kind": "t_value",
       "term": "pH",
       "model": "methanol + ethanol + propanol + butanol + pH + time + ethanol:propanol + block",
-      "disagreement": "the estimate over its standard error, -3.0783/0.2437, is -12.63; -12.60 would need a standard error of 0.2443"
+      "disagreement": "the estimate over its standard error, -3.0783/0.2437, is -12.63; -12.60 would need a standard error of 0.2443",
+      "cause": "unexplained"
      }
     },
     {
@@ -5976,7 +5991,8 @@
       "kind": "residual_std_error",
       "model": "methanol + ethanol + propanol + butanol + pH + time + ethanol:propanol + block",
       "printed": ">1.5",
-      "disagreement": "the reduced model of Table 3.7, fitted to the 20 runs, has an RMSE of 1.07; the RMSE above one and a half is that of the model fitted to the 12 original runs (Table 3.6), 1.56"
+      "disagreement": "the reduced model of Table 3.7, fitted to the 20 runs, has an RMSE of 1.07; the RMSE above one and a half is that of the model fitted to the 12 original runs (Table 3.6), 1.56",
+      "cause": "source_error"
      }
     },
     {
@@ -7257,7 +7273,8 @@
       "printed": [
        ["2", "0", "4", "0", "0", "4", "2", "2", "0", "2", "4", "0", "0", "20"]
       ],
-      "disagreement": "the block's row of X'X is the products of the block column with each column of Equation 3.13, which that equation prints: 4 2 2 -2 2 2 0 0 2 0 2 -2 2 20; the first entry is the 12 original runs at +1 less the 8 follow-up runs at -1. The printed row and column differ from these in every entry but the diagonal, by 2"
+      "disagreement": "the block's row of X'X is the products of the block column with each column of Equation 3.13, which that equation prints: 4 2 2 -2 2 2 0 0 2 0 2 -2 2 20; the first entry is the 12 original runs at +1 less the 8 follow-up runs at -1. The printed row and column differ from these in every entry but the diagonal, by 2",
+      "cause": "source_error"
      }
     },
     {
@@ -7275,7 +7292,8 @@
       "model": "methanol + ethanol + propanol + butanol + pH + time + methanol:butanol + methanol:time + ethanol:propanol + ethanol:time + propanol:time + butanol:time + block",
       "key": "determinant",
       "printed": "6.5541e17",
-      "disagreement": "|X'X| for the runs of Equation 3.13 is 6.9243e17, and Table 3.10's variances are its inverse's diagonal; the matrix printed in Equation 3.14, whose block row is wrong, has the determinant 6.5246e17, so 6.5541e17 is the determinant of neither"
+      "disagreement": "|X'X| for the runs of Equation 3.13 is 6.9243e17, and Table 3.10's variances are its inverse's diagonal; the matrix printed in Equation 3.14, whose block row is wrong, has the determinant 6.5246e17, so 6.5541e17 is the determinant of neither",
+      "cause": "source_error"
      }
     },
     {
@@ -8041,7 +8059,8 @@
       "kind": "coefficient",
       "term": "C(supplier)[3]:speed",
       "model": "0 + C(supplier) + pressure + C(supplier):speed",
-      "disagreement": "the least-squares coefficient is -0.00789, which rounds to -0.0079 at the four decimals printed; -0.0080 is it rounded to three decimals, -0.008"
+      "disagreement": "the least-squares coefficient is -0.00789, which rounds to -0.0079 at the four decimals printed; -0.0080 is it rounded to three decimals, -0.008",
+      "cause": "source_rounding"
      }
     },
     {
@@ -8208,7 +8227,8 @@
       "quote": "If we ran the entire Box–Behnken design for each supplier, it would take 45 runs at a minimum."
      },
      "check": {
-      "manual": "three suppliers times the 15 runs of the Box-Behnken design, checked above"
+      "manual": "three suppliers times the 15 runs of the Box-Behnken design, checked above",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -8328,7 +8348,8 @@
       "quote": "Does your usual reaction run for 540 seconds at 525 K? ... That setting is at the center of the design."
      },
      "check": {
-      "manual": "the midpoints of 430 and 650 s and of 500 and 550 K: arithmetic"
+      "manual": "the midpoints of 430 and 650 s and of 500 and 550 K: arithmetic",
+      "cause": "not_a_result"
      }
     },
     {
@@ -8777,7 +8798,8 @@
       "quote": "A further good feature of that run was that the reaction was 110 seconds shorter. The other was at the same temperature we normally use, but 110 seconds longer."
      },
      "check": {
-      "manual": "540 - 430 and 650 - 540 s: arithmetic"
+      "manual": "540 - 430 and 650 - 540 s: arithmetic",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -9021,7 +9043,8 @@
       "quote": "That’s a 20% improvement over the yields they were getting."
      },
      "check": {
-      "manual": "62.1% against the 49.6% of the standard settings (goos-jones-yield-original, run 5) is 25% more, 12.5 percentage points; the text does not say which yields it compares with"
+      "manual": "62.1% against the 49.6% of the standard settings (goos-jones-yield-original, run 5) is 25% more, 12.5 percentage points; the text does not say which yields it compares with",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10326,7 +10349,8 @@
       "quote": "Note that we cannot increase the time beyond 586 seconds when the temperature is 535 K, because that would violate the second constraint that Gray imposed on the factor settings."
      },
      "check": {
-      "manual": "(587.8 - 535)/0.09 = 586.7 s, the upper limit at 535 K: arithmetic; the book gives the whole seconds below it, 586"
+      "manual": "(587.8 - 535)/0.09 = 586.7 s, the upper limit at 535 K: arithmetic; the book gives the whole seconds below it, 586",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10683,7 +10707,8 @@
       "quote": "the maximum possible value for x1, given that x2 takes the value 0.3, is 0.7"
      },
      "check": {
-      "manual": "x1 <= 1 - x2 = 1 - 0.3 under the constraint x1 + x2 <= 1 (Equation 5.1): arithmetic; the next sentence writes 'when x1 = 0.3' for x2"
+      "manual": "x1 <= 1 - x2 = 1 - 0.3 under the constraint x1 + x2 <= 1 (Equation 5.1): arithmetic; the next sentence writes 'when x1 = 0.3' for x2",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -10793,7 +10818,8 @@
       "quote": "I see that, if you sum the settings of the mill factors for every row, you always get one."
      },
      "check": {
-      "manual": "each row of Table 6.2 is 0.1 + 0.8 + 0.1, 0.1 + 0.45 + 0.45 or 0.1 + 0.1 + 0.8 in some order: arithmetic"
+      "manual": "each row of Table 6.2 is 0.1 + 0.8 + 0.1, 0.1 + 0.45 + 0.45 or 0.1 + 0.1 + 0.8 in some order: arithmetic",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11320,7 +11346,8 @@
       "quote": "There is a theoretical result stating that for this number of runs and this model, two-thirds is the minimum value that the worst relative variance of prediction can have."
      },
      "check": {
-      "manual": "the number of terms over the number of runs, p/n = 8/12, the 8 terms of the model checked below"
+      "manual": "the number of terms over the number of runs, p/n = 8/12, the 8 terms of the model checked below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11351,7 +11378,8 @@
       "quote": "The average relative variance of prediction is a little less than a half."
      },
      "check": {
-      "manual": "an average over the simplex of the mills' pseudocomponents and the two levels of each process variable, which the library's regions (a mixture or a box) do not hold together; sampled with 400,000 points it is 0.483, and 0.372 with the process variables continuous between -1 and +1"
+      "manual": "an average over the simplex of the mills' pseudocomponents and the two levels of each process variable, which the library's regions (a mixture or a box) do not hold together; sampled with 400,000 points it is 0.483, and 0.372 with the process variables continuous between -1 and +1",
+      "cause": "library_gap"
      }
     },
     {
@@ -14786,7 +14814,8 @@
        "moisture": 0.4306633333333328,
        "speed": -0.9914707999999997
       },
-      "disagreement": "the models of Table 7.9, which reproduce to every printed digit, predict 12.019 and 3.994 at the settings Figure 7.1 shows; no fit gives 11.99991 and 4.001671 there, by least squares or with the days as fixed or random effects. At 300 rpm the cross-sectional model is least, 3.993, near a moisture content of 22.3%, so it reaches 4 at 22.05% and 22.64% only"
+      "disagreement": "the models of Table 7.9, which reproduce to every printed digit, predict 12.019 and 3.994 at the settings Figure 7.1 shows; no fit gives 11.99991 and 4.001671 there, by least squares or with the days as fixed or random effects. At 300 rpm the cross-sectional model is least, 3.993, near a moisture content of 22.3%, so it reaches 4 at 22.05% and 22.64% only",
+      "cause": "unexplained"
      }
     },
     {
@@ -14811,7 +14840,8 @@
        "moisture": 0.4306633333333328,
        "speed": -0.9914707999999997
       },
-      "disagreement": "the models of Table 7.9, which reproduce to every printed digit, predict 12.019 and 3.994 at the settings Figure 7.1 shows; no fit gives 11.99991 and 4.001671 there, by least squares or with the days as fixed or random effects. At 300 rpm the cross-sectional model is least, 3.993, near a moisture content of 22.3%, so it reaches 4 at 22.05% and 22.64% only"
+      "disagreement": "the models of Table 7.9, which reproduce to every printed digit, predict 12.019 and 3.994 at the settings Figure 7.1 shows; no fit gives 11.99991 and 4.001671 there, by least squares or with the days as fixed or random effects. At 300 rpm the cross-sectional model is least, 3.993, near a moisture content of 22.3%, so it reaches 4 at 22.05% and 22.64% only",
+      "cause": "unexplained"
      }
     },
     {
@@ -14824,7 +14854,8 @@
       "quote": "Figure 7.1 ... Desirability 0.999993"
      },
      "check": {
-      "manual": "JMP's desirability functions for a target, whose limits the book does not give; the two predictions it combines, 11.99991 and 4.001671, are checked"
+      "manual": "JMP's desirability functions for a target, whose limits the book does not give; the two predictions it combines, 11.99991 and 4.001671, are checked",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -14870,7 +14901,8 @@
       "quote": "This would give us 28 runs: the duplicated factorial portion would give us 16 runs, and we would have six center runs plus six axial runs."
      },
      "check": {
-      "manual": "16 + 6 + 6: arithmetic"
+      "manual": "16 + 6 + 6: arithmetic",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -17909,7 +17941,8 @@
       "quote": "You can immediately see that the selected samples are those near the boundaries of the square"
      },
      "check": {
-      "manual": "read off Figure 9.2"
+      "manual": "read off Figure 9.2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -17922,7 +17955,8 @@
       "quote": "we will use 1000 sccm and 2000 sccm as the levels of the flow rate, 500 Watts (W) and 2000 W for the power, and 2 and 15 minutes for the reaction time."
      },
      "check": {
-      "manual": "the factors' levels, held as the entry's factors and its runs"
+      "manual": "the factors' levels, held as the entry's factors and its runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -17971,7 +18005,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "ethylene",
-      "disagreement": "the runs of Table 9.2 give 0.34919, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.4730 = 1.3545 x 0.34919, where 0.3491 would give 0.4728"
+      "disagreement": "the runs of Table 9.2 give 0.34919, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.4730 = 1.3545 x 0.34919, where 0.3491 would give 0.4728",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17988,7 +18023,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "eva",
-      "disagreement": "the runs of Table 9.2 give 0.24359, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.3299 = 1.3545 x 0.24359, where 0.2435 would give 0.3298"
+      "disagreement": "the runs of Table 9.2 give 0.24359, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.3299 = 1.3545 x 0.24359, where 0.2435 would give 0.3298",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18037,7 +18073,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "time",
-      "disagreement": "the runs of Table 9.2 give 0.24006, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.3252 = 1.3545 x 0.24006, where 0.2400 would give 0.3251"
+      "disagreement": "the runs of Table 9.2 give 0.24006, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.3252 = 1.3545 x 0.24006, where 0.2400 would give 0.3251",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18086,7 +18123,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "key": "max",
-      "disagreement": "the runs of Table 9.2 give 0.34919, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.4730 = 1.3545 x 0.34919, where 0.3491 would give 0.4728"
+      "disagreement": "the runs of Table 9.2 give 0.34919, and Table 9.6's standard errors, the root mean squared error 1.3545 times these, are those of the printed runs to all four decimals: Table 9.6 prints 0.4730 = 1.3545 x 0.34919, where 0.3491 would give 0.4728",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18099,7 +18137,8 @@
       "quote": "the smallest signal-to-noise ratio I came across was larger than three"
      },
      "check": {
-      "manual": "from Peter's earlier reports, not from these data"
+      "manual": "from Peter's earlier reports, not from these data",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -18914,7 +18953,8 @@
       "quote": "Since the lowest value for the proportion of EPDM in your data was 1% and the highest value was 10%, that means you need to increase the proportion of EPDM by 9%"
      },
      "check": {
-      "manual": "the range of the EPDM proportions in Table 9.5, 0.01 to 0.10, the factor's levels"
+      "manual": "the range of the EPDM proportions in Table 9.5, 0.01 to 0.10, the factor's levels",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19685,7 +19725,8 @@
       "quote": "So, the prediction intervals are about 3.5 mN/m wide."
      },
      "check": {
-      "manual": "the two intervals printed are 3.63 and 3.41 mN/m wide, 3.52 on average"
+      "manual": "the two intervals printed are 3.63 and 3.41 mN/m wide, 3.52 on average",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19698,7 +19739,8 @@
       "quote": "The prediction intervals that you computed were about 3.5 mN/m wide, so the lower prediction limit is about 1.75 mN/m lower than the point prediction."
      },
      "check": {
-      "manual": "half of the rounded 3.5; the half widths of the two confidence intervals are 1.82 and 1.71 mN/m"
+      "manual": "half of the rounded 3.5; the half widths of the two confidence intervals are 1.82 and 1.71 mN/m",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19711,7 +19753,8 @@
       "quote": "You know, Peter, that we like the surface tension to be 32 mN/m or higher."
      },
      "check": {
-      "manual": "a specification, not a result"
+      "manual": "a specification, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19724,7 +19767,8 @@
       "quote": "As a result, we have to look at the contour line corresponding to a surface tension of 33.75 mN/m."
      },
      "check": {
-      "manual": "32 plus the rounded half width 1.75"
+      "manual": "32 plus the rounded half width 1.75",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19784,7 +19828,8 @@
       "quote": "So, the equation for the contour line is Ethylene proportion = 0.06 + 1.5 EPDM proportion."
      },
      "check": {
-      "manual": "the line through the two points read off Figure 9.4(a); its slope (0.15 - 0.06)/0.06"
+      "manual": "the line through the two points read off Figure 9.4(a); its slope (0.15 - 0.06)/0.06",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19843,7 +19888,8 @@
       "quote": "The equation of that contour line is Ethylene proportion = 1.5 EPDM proportion."
      },
      "check": {
-      "manual": "the line through the origin and (0.10, 0.15)"
+      "manual": "the line through the origin and (0.10, 0.15)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19856,7 +19902,8 @@
       "quote": "This procedure is based on the lower limit of 95% prediction intervals. Therefore, you will get about 97.5% conforming products and 2.5% nonconforming ones."
      },
      "check": {
-      "manual": "the share of a normal distribution above the lower limit of a two-sided 95% prediction interval; the limits used are those of the mean's 95% confidence interval, narrower than a new run's prediction interval (±3.56 mN/m), so fewer than 97.5% of samples on the line would conform"
+      "manual": "the share of a normal distribution above the lower limit of a two-sided 95% prediction interval; the limits used are those of the mean's 95% confidence interval, narrower than a new run's prediction interval (±3.56 mN/m), so fewer than 97.5% of samples on the line would conform",
+      "cause": "not_a_result"
      }
     },
     {
@@ -19940,7 +19987,8 @@
       "quote": "Whenever possible, we would like to use just 2 minutes because this allows us to process 7.5 times more products per unit of time."
      },
      "check": {
-      "manual": "15 minutes over 2"
+      "manual": "15 minutes over 2",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -20202,7 +20250,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.Intercept",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.4471: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.4471: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20269,7 +20318,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.yaw",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20292,7 +20342,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.grille",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20337,7 +20388,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.frh:yaw",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20360,7 +20412,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.frh:grille",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20383,7 +20436,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.rrh:yaw",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20406,7 +20460,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.rrh:grille",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20429,7 +20484,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.yaw:grille",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20452,7 +20508,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.I(frh ** 2)",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5242: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5242: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20475,7 +20532,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.I(rrh ** 2)",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5235: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.5235: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20498,7 +20556,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.I(yaw ** 2)",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1001: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1001: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20521,7 +20580,8 @@
       },
       "groups": ["setting"],
       "key": "coefficient_variances.I(grille ** 2)",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1050: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1050: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20570,7 +20630,8 @@
       "key": "coefficient_variances",
       "terms": "(?!Intercept).*",
       "reduce": "mean",
-      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1614: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+      "disagreement": "the I-optimal design printed in Table 10.2 gives 0.1614: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+      "cause": "source_error"
      }
     },
     {
@@ -20633,7 +20694,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.yaw",
        "printed": "0.032",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0340: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -20647,7 +20709,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.grille",
        "printed": "0.032",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0333: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       }
      ]
     },
@@ -20697,7 +20760,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.frh:yaw",
        "printed": "0.046",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0485: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -20711,7 +20775,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.frh:grille",
        "printed": "0.046",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0466: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -20725,7 +20790,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.rrh:yaw",
        "printed": "0.046",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0487: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -20739,7 +20805,8 @@
        "groups": ["setting"],
        "key": "coefficient_variances.rrh:grille",
        "printed": "0.046",
-       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column"
+       "disagreement": "the I-optimal design printed in Table 10.2 gives 0.0468: Table 10.3's I-optimal column, symmetric in the two ride heights and in the two easy-to-change factors, is not that of the printed design, which reproduces its own average prediction variance 0.512 (p. 231); a coordinate-exchange search finds many I-optimal split-plot designs with this master design and an average prediction variance of 0.5125 to 0.513, whose variances differ in the third decimal, and no single changed run of Table 10.2 gives the column",
+       "cause": "source_error"
       }
      ]
     },
@@ -20843,7 +20910,8 @@
       "versus": "goos-jones-wind-tunnel-second-option",
       "gain": true,
       "printed": "12.1",
-      "disagreement": "the designs of Figure 10.2 and Table 10.2 give a relative D-efficiency of 91.4%, 9.4% more information for the I-optimal design; like Table 10.3's I-optimal column, the 89.2% belongs to an I-optimal design other than the one printed"
+      "disagreement": "the designs of Figure 10.2 and Table 10.2 give a relative D-efficiency of 91.4%, 9.4% more information for the I-optimal design; like Table 10.3's I-optimal column, the 89.2% belongs to an I-optimal design other than the one printed",
+      "cause": "source_error"
      }
     },
     {
@@ -20889,7 +20957,8 @@
       "groups": ["setting"],
       "key": ["quantiles", "0.5"],
       "printed": "0.47",
-      "disagreement": "the design printed in Table 10.2 has a median prediction variance of 0.475 over 100,000 uniform points of the cube, which rounds to 0.48; the text reads it off Figure 10.4"
+      "disagreement": "the design printed in Table 10.2 has a median prediction variance of 0.475 over 100,000 uniform points of the cube, which rounds to 0.48; the text reads it off Figure 10.4",
+      "cause": "method"
      }
     },
     {
@@ -21014,7 +21083,8 @@
       "quote": "Our fourth response, the lift over drag ratio or the efficiency, was derived from the other three"
      },
      "check": {
-      "manual": "a definition; the efficiencies printed agree with it to the rounding of the three coefficients, within 0.0033"
+      "manual": "a definition; the efficiencies printed agree with it to the rounding of the three coefficients, within 0.0033",
+      "cause": "not_a_result"
      }
     },
     {
@@ -22758,7 +22828,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -22933,7 +23004,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23108,7 +23180,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23283,7 +23356,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23458,7 +23532,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23633,7 +23708,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23808,7 +23884,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -23983,7 +24060,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -24158,7 +24236,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -24333,7 +24412,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -24508,7 +24588,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -24683,7 +24764,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -24858,7 +24940,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -25033,7 +25116,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -25208,7 +25292,8 @@
       "kind": "residual_df",
       "model": "frh + rrh + yaw + grille + frh:rrh + frh:yaw + frh:grille + rrh:yaw + rrh:grille + yaw:grille + I(frh ** 2) + I(rrh ** 2) + I(yaw ** 2) + I(grille ** 2)",
       "response": "efficiency",
-      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)"
+      "disagreement": "the full quadratic model has 15 parameters, so ordinary least squares on the 50 runs leaves 35 residual degrees of freedom; the table's p values are those of 35 (the t ratio 0.93 of β12 has p 0.3592 on 35 and 0.3575 on 45)",
+      "cause": "source_error"
      }
     },
     {
@@ -26485,7 +26570,8 @@
       "model": "frh + rrh + yaw + grille + frh:yaw + rrh:yaw + rrh:grille + yaw:grille + I(yaw ** 2)",
       "key": "p_value.yaw:grille",
       "response": "drag",
-      "disagreement": "the Kenward-Roger t test gives p = 0.00136 (t = -3.495 on 33.4 degrees of freedom), which rounds to 0.0014; the estimate, its standard error and the other 128 numbers of Table 10.8 agree"
+      "disagreement": "the Kenward-Roger t test gives p = 0.00136 (t = -3.495 on 33.4 degrees of freedom), which rounds to 0.0014; the estimate, its standard error and the other 128 numbers of Table 10.8 agree",
+      "cause": "unexplained"
      }
     },
     {
@@ -28304,7 +28390,8 @@
       "quote": "setting the front and the rear ride height to their lowest and highest possible values, respectively (i.e., 3.0 inches for the front ride height and 36 inches for the rear ride height), setting the yaw angle to +1.0 and using 100% of grille tape coverage seems a reasonable thing to do"
      },
      "check": {
-      "manual": "a compromise between minimizing the drag and the total lift and maximizing the efficiency, which Peter judges from the five models; no single criterion is stated"
+      "manual": "a compromise between minimizing the drag and the total lift and maximizing the efficiency, which Peter judges from the five models; no single criterion is stated",
+      "cause": "not_a_result"
      }
     },
     {
@@ -28356,7 +28443,8 @@
        ["0", "0"],
        ["1", "1"]
       ],
-      "disagreement": "the first run of whole plot 6 has yaw angle 1, whose square is 1; the table prints 0"
+      "disagreement": "the first run of whole plot 6 has yaw angle 1, whose square is 1; the table prints 0",
+      "cause": "source_error"
      }
     },
     {
@@ -28369,7 +28457,8 @@
       "quote": "Moreover, in each of the three whole plots displayed, one of the two levels appears four times, while the other appears only once."
      },
      "check": {
-      "manual": "true of every square column of the three whole plots but the yaw angle's in whole plot 6, which has two runs at 1 and three at 0 once its first run's square is corrected to 1"
+      "manual": "true of every square column of the three whole plots but the yaw angle's in whole plot 6, which has two runs at 1 and three at 0 once its first run's square is corrected to 1",
+      "cause": "not_a_result"
      }
     },
     {
@@ -28397,7 +28486,8 @@
       "quote": "In total, we thus need at least seven whole plots in the wind tunnel experiment."
      },
      "check": {
-      "manual": "five whole-plot effects (β1, β2, β12, β11 and β22), one resetting for the whole-plot variance and one for the intercept"
+      "manual": "five whole-plot effects (β1, β2, β12, β11 and β22), one resetting for the whole-plot variance and one for the intercept",
+      "cause": "not_a_result"
      }
     },
     {
@@ -28410,7 +28500,8 @@
       "quote": "Nine of the effects in that model involve at least one hard-to-change factor"
      },
      "check": {
-      "manual": "two main effects, their interaction, two quadratic effects and four interactions with an easy-to-change factor, counted from the model"
+      "manual": "two main effects, their interaction, two quadratic effects and four interactions with an easy-to-change factor, counted from the model",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -29306,7 +29397,8 @@
       "quote": "One group of effects has a variance of about 0.085."
      },
      "check": {
-      "manual": "the ten row-factor effects have variances 0.0859 (the four main effects) and 0.0833 (their six interactions), 0.0843 on average"
+      "manual": "the ten row-factor effects have variances 0.0859 (the four main effects) and 0.0833 (their six interactions), 0.0843 on average",
+      "cause": "not_a_result"
      }
     },
     {
@@ -29397,7 +29489,8 @@
       "quote": "1/48 is around 0.021."
      },
      "check": {
-      "manual": "arithmetic: 1/48 = 0.0208"
+      "manual": "arithmetic: 1/48 = 0.0208",
+      "cause": "not_a_result"
      }
     },
     {
@@ -29460,7 +29553,8 @@
       "quote": "Out of a total of 22 × 21/2 pairs, which is 231."
      },
      "check": {
-      "manual": "arithmetic: the pairs of 22 estimates"
+      "manual": "arithmetic: the pairs of 22 estimates",
+      "cause": "not_a_result"
      }
     },
     {
@@ -29635,7 +29729,8 @@
       "quote": "A correlation of roughly 1/3 is definitely no cause for alarm."
      },
      "check": {
-      "manual": "0.371, read as about a third"
+      "manual": "0.371, read as about a third",
+      "cause": "not_a_result"
      }
     },
     {
@@ -29648,7 +29743,8 @@
       "quote": "Because there is no orthogonal two-way split-plot design with 48 runs, 16 rows, and six columns that gives independent estimates for all main effects and all two-factor interaction effects."
      },
      "check": {
-      "manual": "a claim about every design of this size, not about these runs"
+      "manual": "a claim about every design of this size, not about these runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30828,7 +30924,8 @@
       "quote": "there were OCV values as low as five I believe."
      },
      "check": {
-      "manual": "Hermans's recollection; Peter answers that the lowest is four"
+      "manual": "Hermans's recollection; Peter answers that the lowest is four",
+      "cause": "not_a_result"
      }
     },
     {
@@ -31376,7 +31473,8 @@
       "quote": "We managed to reduce the production line defective rate to 1%. That was an improvement of about 80%."
      },
      "check": {
-      "manual": "the confirmation, reported, not in the data"
+      "manual": "the confirmation, reported, not in the data",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -31389,7 +31487,8 @@
       "quote": "The response, OCV, in the table is the average OCV coded by (Volts − 1.175) × 1000 per sublot."
      },
      "check": {
-      "manual": "the response's coding, as recorded"
+      "manual": "the response's coding, as recorded",
+      "cause": "not_a_result"
      }
     },
     {
@@ -31402,7 +31501,8 @@
       "quote": "split randomly each of these lots into four sublots of 500 batteries each"
      },
      "check": {
-      "manual": "the size of a sublot, not in the data"
+      "manual": "the size of a sublot, not in the data",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -33827,7 +33927,8 @@
       "quote": "The balanced design results in a variance of 1.667, which is 25% higher than the variance of 1.333"
      },
      "check": {
-      "manual": "the ratio of the balanced design's variance to the optimal one's, 1.667/1.333 = 1.25, the reciprocal of the balanced design's efficiency of 80.0%, which is checked"
+      "manual": "the ratio of the balanced design's variance to the optimal one's, 1.667/1.333 = 1.25, the reciprocal of the balanced design's efficiency of 80.0%, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -37029,7 +37130,8 @@
       "model": "x1 + x2 + x3 + x4 + x5 + x6 + x2:x3",
       "times_runs": true,
       "key": "coefficient_variances.Intercept",
-      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+      "cause": "source_error"
      }
     },
     {
@@ -37064,7 +37166,8 @@
       "model": "x1 + x2 + x3 + x4 + x5 + x6 + x2:x3",
       "times_runs": true,
       "key": "coefficient_variances.x2",
-      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+      "cause": "source_error"
      }
     },
     {
@@ -37082,7 +37185,8 @@
       "model": "x1 + x2 + x3 + x4 + x5 + x6 + x2:x3",
       "times_runs": true,
       "key": "coefficient_variances.x3",
-      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+      "cause": "source_error"
      }
     },
     {
@@ -37151,7 +37255,8 @@
       "model": "x1 + x2 + x3 + x4 + x5 + x6 + x2:x3",
       "times_runs": true,
       "key": "coefficient_variances.x2:x3",
-      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+      "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+      "cause": "source_error"
      }
     },
     {
@@ -37215,7 +37320,8 @@
        "times_runs": true,
        "key": "coefficient_variances.Intercept",
        "printed": "1.25",
-       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -37224,7 +37330,8 @@
        "times_runs": true,
        "key": "coefficient_variances.x2",
        "printed": "1.25",
-       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -37233,7 +37340,8 @@
        "times_runs": true,
        "key": "coefficient_variances.x3",
        "printed": "1.25",
-       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+       "cause": "source_error"
       },
       {
        "kind": "design_metric",
@@ -37242,7 +37350,8 @@
        "times_runs": true,
        "key": "coefficient_variances.x2:x3",
        "printed": "1.25",
-       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too"
+       "disagreement": "Table 2.11's runs give 12 × 3/32 = 1.125: the runs at the four combinations of x2 and x3 number 4, 4, 2 and 2, and the intercept, x2, x3 and x2 x3, orthogonal to the other four columns, each have the variance (1/16)(1/4 + 1/4 + 1/2 + 1/2) = 3/32 in units of σ². A coordinate exchange from 3,000 random starts finds no 12-run design with a larger |X'X| for this model than Table 2.11's 339,738,624, and that best design's VIFs are 1.125 too",
+       "cause": "source_error"
       }
      ]
     }
@@ -38159,7 +38268,8 @@
       "model": "temperature + pressure + speed + temperature:pressure + temperature:speed + pressure:speed + I(temperature ** 2) + I(pressure ** 2) + I(speed ** 2) + C(supplier, Sum) + C(supplier, Sum):temperature + C(supplier, Sum):pressure + C(supplier, Sum):speed",
       "key": "determinant",
       "printed": "1.5121e20",
-      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828"
+      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828",
+      "cause": "source_error"
      }
     },
     {
@@ -38177,7 +38287,8 @@
       "model": "temperature + pressure + speed + temperature:pressure + temperature:speed + pressure:speed + I(temperature ** 2) + I(pressure ** 2) + I(speed ** 2) + C(supplier, Sum) + C(supplier, Sum):temperature + C(supplier, Sum):pressure + C(supplier, Sum):speed",
       "versus": "goos-jones-peel-strength-d-optimal",
       "printed": "0.93",
-      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828"
+      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828",
+      "cause": "source_error"
      }
     },
     {
@@ -38194,7 +38305,8 @@
       "criterion": "d",
       "model": "temperature + pressure + speed + temperature:pressure + temperature:speed + pressure:speed + I(temperature ** 2) + I(pressure ** 2) + I(speed ** 2) + C(supplier, Sum) + C(supplier, Sum):temperature + C(supplier, Sum):pressure + C(supplier, Sum):speed",
       "versus": "goos-jones-peel-strength-d-optimal",
-      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828"
+      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828",
+      "cause": "source_error"
      }
     },
     {
@@ -38232,7 +38344,8 @@
       },
       "key": ["curve", "prediction_variance", "35"],
       "printed": "0.40",
-      "disagreement": "in the library's sample of the region (seed 1) the I-optimal design's prediction variance is 0.40 or less over 32% of the region, and its 35th percentile is 0.407; the book reads 'about 35%' off Figure 4.1"
+      "disagreement": "in the library's sample of the region (seed 1) the I-optimal design's prediction variance is 0.40 or less over 32% of the region, and its 35th percentile is 0.407; the book reads 'about 35%' off Figure 4.1",
+      "cause": "method"
      }
     },
     {
@@ -38254,7 +38367,8 @@
       },
       "key": ["quantiles", "0.5"],
       "printed": "0.42",
-      "disagreement": "the library's sample of the region (seed 1) has the median 0.448; the book reads 'about 0.42' off Figure 4.1"
+      "disagreement": "the library's sample of the region (seed 1) has the median 0.448; the book reads 'about 0.42' off Figure 4.1",
+      "cause": "method"
      }
     },
     {
@@ -38267,7 +38381,8 @@
       "quote": "So, the I-optimal design gives better predictions over 98% of the region."
      },
      "check": {
-      "manual": "a comparison of the two designs' FDS curves fraction by fraction, which no check reads; the library's curves (1001 fractions, seed 1) have the I-optimal design's below the D-optimal design's over 99.5% of the region"
+      "manual": "a comparison of the two designs' FDS curves fraction by fraction, which no check reads; the library's curves (1001 fractions, seed 1) have the I-optimal design's below the D-optimal design's over 99.5% of the region",
+      "cause": "check_gap"
      }
     }
    ]
@@ -38812,7 +38927,8 @@
       "model": "temperature + pressure + speed + temperature:pressure + temperature:speed + pressure:speed + I(temperature ** 2) + I(pressure ** 2) + I(speed ** 2) + C(supplier, Sum) + C(supplier, Sum):temperature + C(supplier, Sum):pressure + C(supplier, Sum):speed",
       "key": "determinant",
       "printed": "5.3467e20",
-      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828"
+      "disagreement": "the designs of Tables 4.2 and 4.3, whose relative variances Table 4.4 prints, have determinants in the ratio 0.4113 under any coding of the supplier (D-optimal 5.0672e18 and I-optimal 2.0843e18 with the supplier coded +1, 0 and -1 as here; 4.1045e20 and 1.6883e20 with JMP's orthonormal coding), so the relative D-efficiency is 0.952; the printed determinants are in the ratio 0.2828",
+      "cause": "source_error"
      }
     },
     {
@@ -38888,7 +39004,8 @@
        "fds_resolution": 101
       },
       "key": ["quantiles", "0.5"],
-      "disagreement": "the library's sample of the region (seed 1) has the median 0.636; the book reads 0.65 off Figure 4.1, at the dashed line it draws, while its average prediction variance, 0.66, agrees with the library's"
+      "disagreement": "the library's sample of the region (seed 1) has the median 0.636; the book reads 0.65 off Figure 4.1, at the dashed line it draws, while its average prediction variance, 0.66, agrees with the library's",
+      "cause": "method"
      }
     }
    ]
@@ -39037,7 +39154,8 @@
       "quote": "All together I am supposed to remove 2.4 units of thickness, but there is only 1.1 to start with."
      },
      "check": {
-      "manual": "0.8 + 0.8 + 0.8 for the first run's three mills: arithmetic; a melt 1.1 units thick finished at 0.1 unit leaves 1.0 to remove"
+      "manual": "0.8 + 0.8 + 0.8 for the first run's three mills: arithmetic; a melt 1.1 units thick finished at 0.1 unit leaves 1.0 to remove",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -39739,7 +39857,8 @@
       "quote": "What is even more depressing is that, even if I double the number of runs to 64, I still cannot estimate all the main effects, two-factor interaction effects, and block effects independently."
      },
      "check": {
-      "manual": "the 2^6 factorial in 16 blocks of four confounds 15 effects with the blocks, the nonzero words of a [6, 4] binary code; such a code has a word of weight 2 at most, a main effect or a two-factor interaction"
+      "manual": "the 2^6 factorial in 16 blocks of four confounds 15 effects with the blocks, the nonzero words of a [6, 4] binary code; such a code has a word of weight 2 at most, a main effect or a two-factor interaction",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -41841,7 +41960,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 0.016 0.019"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41854,7 +41974,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x2 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41867,7 +41988,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x3 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41880,7 +42002,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x4 0.016 0.020"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41893,7 +42016,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x5 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41906,7 +42030,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x6 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41919,7 +42044,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 x2 0.031 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41932,7 +42058,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 x3 0.016 0.021"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41945,7 +42072,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 x4 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41958,7 +42086,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 x5 0.016 0.020"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41971,7 +42100,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x1 x6 0.031 0.019"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41984,7 +42114,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x2 x3 0.031 0.020"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -41997,7 +42128,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x2 x4 0.016 0.019"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42010,7 +42142,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x2 x5 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42023,7 +42156,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x2 x6 0.016 0.020"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42036,7 +42170,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x3 x4 0.031 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42049,7 +42184,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x3 x5 0.016 0.019"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42062,7 +42198,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x3 x6 0.016 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42075,7 +42212,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x4 x5 0.031 0.017"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42088,7 +42226,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x4 x6 0.016 0.020"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42101,7 +42240,8 @@
       "quote": "Table 8.8 Variances of factor-effect estimates for the replicated 2^(6−1) design in Table 8.6 and the D-optimal design in Table 8.7. ... x5 x6 0.031 0.018"
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42114,7 +42254,8 @@
       "quote": "the smallest variance is 0.017 and the largest one is 0.021."
      },
      "check": {
-      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's"
+      "manual": "a variance of the D-optimal 64-run design, which the book does not print: the design printed as Table 8.7 holds the same 64 runs as Table 8.6, blocked the same way, and its variances are 0.016 and 0.031, as Table 8.6's",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -42132,7 +42273,8 @@
       "model": "x1 + x2 + x3 + x4 + x5 + x6 + x1:x2 + x1:x3 + x1:x4 + x1:x5 + x1:x6 + x2:x3 + x2:x4 + x2:x5 + x2:x6 + x3:x4 + x3:x5 + x3:x6 + x4:x5 + x4:x6 + x5:x6 + C(block)",
       "versus": "goos-jones-stability-replicated-half-fraction",
       "printed": "1.03",
-      "disagreement": "the design printed as Table 8.7 holds the same 64 runs as Table 8.6, in another order: its blocks 1 to 8 confound x1 x2, x3 x4 and x5 x6 and its blocks 9 to 16 x1 x6, x2 x3 and x4 x5, as Peter's construction does, so the two have the same |X'X| and a relative D-efficiency of 1"
+      "disagreement": "the design printed as Table 8.7 holds the same 64 runs as Table 8.6, in another order: its blocks 1 to 8 confound x1 x2, x3 x4 and x5 x6 and its blocks 9 to 16 x1 x6, x2 x3 and x4 x5, as Peter's construction does, so the two have the same |X'X| and a relative D-efficiency of 1",
+      "cause": "source_error"
      }
     }
    ]
@@ -42289,7 +42431,8 @@
       "quote": "The polypropylene I am interested in right now involves between 0% and 10% of polypropylene and between 0% and 15% of ethylene."
      },
      "check": {
-      "manual": "the range of the formulations Marc processes, not of the samples; the text says polypropylene where it means EPDM, which Brad repeats a few lines later as 0% to 10% for EPDM"
+      "manual": "the range of the formulations Marc processes, not of the samples; the text says polypropylene where it means EPDM, which Brad repeats a few lines later as 0% to 10% for EPDM",
+      "cause": "not_a_result"
      }
     },
     {
@@ -42302,7 +42445,8 @@
       "quote": "The polypropylene I am interested in right now involves between 0% and 10% of polypropylene and between 0% and 15% of ethylene."
      },
      "check": {
-      "manual": "the range of the formulations Marc processes; the samples' ethylene runs from 0.00 to 0.15"
+      "manual": "the range of the formulations Marc processes; the samples' ethylene runs from 0.00 to 0.15",
+      "cause": "not_a_result"
      }
     },
     {
@@ -42315,7 +42459,8 @@
       "quote": "About half the time, it contains 0.5% of EVA."
      },
      "check": {
-      "manual": "a property of the formulations, not in the table, which says only whether a sample contains EVA"
+      "manual": "a property of the formulations, not in the table, which says only whether a sample contains EVA",
+      "cause": "not_a_result"
      }
     },
     {
@@ -42328,7 +42473,8 @@
       "quote": "We believe we can afford 18 runs, so we need a subset of 18 samples."
      },
      "check": {
-      "manual": "the budget; the 18 samples chosen are those of Table 9.2"
+      "manual": "the budget; the 18 samples chosen are those of Table 9.2",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -42685,7 +42831,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "Intercept",
-      "disagreement": "every column of Table 9.3 is balanced (nine runs at each level, six with each gas), so the intercept is orthogonal to the other columns and its relative standard error is 1/sqrt(18) = 0.23570; no single changed setting of the printed runs gives the table's values"
+      "disagreement": "every column of Table 9.3 is balanced (nine runs at each level, six with each gas), so the intercept is orthogonal to the other columns and its relative standard error is 1/sqrt(18) = 0.23570; no single changed setting of the printed runs gives the table's values",
+      "cause": "unexplained"
      }
     },
     {
@@ -42701,7 +42848,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "epdm",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -42717,7 +42865,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "ethylene",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -42733,7 +42882,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "eva",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -42749,7 +42899,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "flow",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -42765,7 +42916,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "power",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -42781,7 +42933,8 @@
       "kind": "unit_std_error",
       "model": "epdm + ethylene + eva + flow + power + time + C(gas, Sum(omit=1))",
       "term": "time",
-      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together"
+      "disagreement": "the printed runs give 0.24091 for each of the six two-level factors; no single changed setting of the runs gives the table's 0.2408 and 0.2358 together",
+      "cause": "unexplained"
      }
     },
     {
@@ -43052,7 +43205,8 @@
       "quote": "Because the eight time points in this example are fixed, the design in Table 9.8 is D-optimal as well as Dβ -optimal."
      },
      "check": {
-      "manual": "an argument: with the time points fixed, |Z'Z| is fixed and the two criteria coincide (Equations 9.13 and 9.16)"
+      "manual": "an argument: with the time points fixed, |Z'Z| is fixed and the two criteria coincide (Equations 9.13 and 9.16)",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -43456,7 +43610,8 @@
       "quote": "the 2² factorial design for the yaw angle and the grill coverage only has four runs, and, in our split-plot design, we need five runs at each setting of the hard-to-change factors."
      },
      "check": {
-      "manual": "the size of the design's parts, which its runs hold"
+      "manual": "the size of the design's parts, which its runs hold",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -43998,7 +44153,8 @@
       "quote": "However, I don't know where you got the idea for the five runs at the center of the 3² design."
      },
      "check": {
-      "manual": "Brad's first reading of Figure 10.2, whose centre square draws two whole plots of five centre runs as one; Dr. Cavendish corrects it to ten"
+      "manual": "Brad's first reading of Figure 10.2, whose centre square draws two whole plots of five centre runs as one; Dr. Cavendish corrects it to ten",
+      "cause": "not_a_result"
      }
     },
     {
@@ -44048,7 +44204,8 @@
       "quote": "Your ten center points mean that you are spending only 80% of your experimental resources on the estimation of things you are interested in, the factor effects."
      },
      "check": {
-      "manual": "40 of the 50 runs"
+      "manual": "40 of the 50 runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -44073,7 +44230,8 @@
       "groups": ["setting"],
       "versus": "goos-jones-wind-tunnel",
       "percent": true,
-      "disagreement": "the designs of Figure 10.2 and Table 10.2 give a relative D-efficiency of 91.4%, 9.4% more information for the I-optimal design; like Table 10.3's I-optimal column, the 89.2% belongs to an I-optimal design other than the one printed"
+      "disagreement": "the designs of Figure 10.2 and Table 10.2 give a relative D-efficiency of 91.4%, 9.4% more information for the I-optimal design; like Table 10.3's I-optimal column, the 89.2% belongs to an I-optimal design other than the one printed",
+      "cause": "source_error"
      }
     },
     {
@@ -44154,7 +44312,8 @@
       "quote": "That means that your design gives a smaller prediction variance than the I-optimal in 20% of the experimental region."
      },
      "check": {
-      "manual": "the two designs' FDS curves cross at a fraction of 0.20 of the cube (100,000 uniform points, the designs of Figure 10.2 and Table 10.2); an evaluation of one design does not compare two curves"
+      "manual": "the two designs' FDS curves cross at a fraction of 0.20 of the cube (100,000 uniform points, the designs of Figure 10.2 and Table 10.2); an evaluation of one design does not compare two curves",
+      "cause": "check_gap"
      }
     }
    ]
@@ -44783,7 +44942,8 @@
       "quote": "Sixty-four times 5 gives you 320 days in total."
      },
      "check": {
-      "manual": "64 curing cycles of 5 days"
+      "manual": "64 curing cycles of 5 days",
+      "cause": "not_a_result"
      }
     },
     {
@@ -44990,7 +45150,8 @@
       "quote": "This would require as few as four curing cycles. Times five gives us 20 days."
      },
      "check": {
-      "manual": "four curing cycles of 5 days"
+      "manual": "four curing cycles of 5 days",
+      "cause": "not_a_result"
      }
     },
     {
@@ -45021,7 +45182,8 @@
       "quote": "Using six curing cycles increases the time required to run the experiment from 20 to 30 days. Using eight curing cycles doubles the run time of the experiment."
      },
      "check": {
-      "manual": "six or eight curing cycles of 5 days"
+      "manual": "six or eight curing cycles of 5 days",
+      "cause": "not_a_result"
      }
     },
     {
@@ -45034,7 +45196,8 @@
       "quote": "That means eight sublots of 500 batteries instead of 16."
      },
      "check": {
-      "manual": "4000 batteries in the smallest chamber, in sublots of 500"
+      "manual": "4000 batteries in the smallest chamber, in sublots of 500",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -45241,7 +45404,8 @@
       "quote": "An alternative representation of that design, which is D-optimal for estimating a main-effects model, is shown in Table 11.9."
      },
      "check": {
-      "manual": "a property of the design among all designs of its size, which the library's optimal design search does not cover for two crossed random effects"
+      "manual": "a property of the design among all designs of its size, which the library's optimal design search does not cover for two crossed random effects",
+      "cause": "library_gap"
      }
     },
     {
@@ -45254,7 +45418,8 @@
       "quote": "The optimal designs shown in Tables 11.2 and 11.8 were generated assuming that σγ2/σε2 = σδ2/σε2 = 1, but they are optimal for any values of these ratios between 0.1 and 10."
      },
      "check": {
-      "manual": "a property found by searching for each ratio"
+      "manual": "a property found by searching for each ratio",
+      "cause": "library_gap"
      }
     },
     {
@@ -45267,7 +45432,8 @@
       "quote": "The fifth element in the first row of V, for instance, is the covariance between the responses of the first and the fifth run. These runs belong to the same column according to Table 11.8, which is why their covariance is σδ2."
      },
      "check": {
-      "manual": "the symbolic V = σγ2 Z1 Z1' + σδ2 Z2 Z2' + σε2 I; its pattern is that of Z1 and Z2, which are checked"
+      "manual": "the symbolic V = σγ2 Z1 Z1' + σδ2 Z2 Z2' + σε2 I; its pattern is that of Z1 and Z2, which are checked",
+      "cause": "not_a_result"
      }
     }
    ]

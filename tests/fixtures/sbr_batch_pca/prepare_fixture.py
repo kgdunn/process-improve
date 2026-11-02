@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         "loadings_layout": "time-major: MATLAB row k * 9 + j is tag j at sample k",
         "generated_at": datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S+0000"),
     }
-    METADATA_JSON.write_text(json.dumps(metadata, indent=2) + "\n")
+    METADATA_JSON.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     write_workbook(melted, quality, args.workbook)
 
     print(f"wrote {SCORES_CSV} {scores.shape}, {LOADINGS_CSV} {loadings.shape}, {METADATA_JSON}")

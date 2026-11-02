@@ -153,7 +153,7 @@ def test_singular_values_match_mixomics_eigenvalues(canonical_matrix) -> None:
     agree up to sign and scale, and the scale factor itself is what
     mixOmics calls the eigenvalue.
     """
-    metadata = json.loads(REFERENCE_METADATA_JSON.read_text())
+    metadata = json.loads(REFERENCE_METADATA_JSON.read_text(encoding="utf-8"))
     ref_eig = np.asarray(metadata["eigenvalues"], dtype=float)
 
     model = PCA(n_components=len(ref_eig), algorithm="nipals").fit(canonical_matrix)

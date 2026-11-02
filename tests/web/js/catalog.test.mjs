@@ -32,6 +32,8 @@ import {
   generatorsLine,
   familyMarks,
   largestSecondOrderR,
+  MAP_TERMS_FACTORS,
+  mapTermsSentence,
   markInSource,
   nextSteps,
   projected,
@@ -619,9 +621,21 @@ describe("designs side by side", () => {
     assert.equal(compareRefusal(catalog, ["a"], "b"), "");
     assert.match(compareRefusal(catalog, ["a"], "c"), /have 3 factors, and this one has 4/);
     assert.match(compareRefusal(catalog, [], "d"), /all numeric/);
+    assert.match(compareRefusal(catalog, [], "d"), /at most 12 factors and 1000 runs, since it scores each on models up to the full quadratic/);
     assert.match(compareRefusal(catalog, ["a", "b", "a", "b"], "b"), new RegExp(`${COMPARE_MOST} designs at most`));
     assert.deepEqual(toggled(["a", "b"], "a"), ["b"]);
     assert.deepEqual(toggled(["b"], "a"), ["b", "a"]);
+  });
+
+  test("a design of more factors than the correlation map draws says so, with its terms", () => {
+    assert.equal(MAP_TERMS_FACTORS, 12);
+    assert.equal(mapTermsSentence(12), "");
+    assert.equal(
+      mapTermsSentence(13),
+      "The map of the correlations between a design's terms is drawn for up to 12 factors: this design's 13 have 104 terms, too many to read in one map.",
+    );
+    assert.match(mapTermsSentence(40), /this design's 40 have 860 terms/);
+    assert.equal(correlationMap([[1, -1], [-1, 1], [1, 1]], ["A", "B"]).terms.length, 5, "its main effects, squares and interactions");
   });
 
   test("the comparison opens on the largest model every design fits", () => {

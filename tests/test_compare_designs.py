@@ -411,7 +411,9 @@ def test_the_coefficients_are_read_only():
 
 
 # --------------------------------------------------------------------------- without a region: as before
-GOLDEN = json.loads((pathlib.Path(__file__).parent / "fixtures" / "compare_designs_golden" / "golden.json").read_text())
+GOLDEN = json.loads(
+    (pathlib.Path(__file__).parent / "fixtures" / "compare_designs_golden" / "golden.json").read_text(encoding="utf-8")
+)
 
 
 def _assert_same(got, recorded, path="result"):

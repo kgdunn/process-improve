@@ -78,6 +78,19 @@ def _foreign_file(_: Example) -> dict:
     return {"xlsx_base64": base64.b64encode(b"not a workbook").decode()}
 
 
+def _many(k: int) -> list[dict]:
+    """Return ``k`` factors, X1 to Xk, each from 0 to 1."""
+    return [{"name": f"X{i + 1}", "low": 0, "high": 1, "units": ""} for i in range(k)]
+
+
+def _screening(k: int, **request: object) -> dict:
+    """Return 16 two-level runs in ``k`` factors as the page holds a screening design, a result each, and more."""
+    spec = {"version": 1, "design_type": "plackett_burman", "factors": _many(k), "response": "y"}
+    rows = [[run, run, *((run >> j % 4) & 1 for j in range(k)), None] for run in range(16)]
+    columns = ["Std order", "Run order", *(f["name"] for f in _many(k)), "y"]
+    return {"spec": spec, "columns": columns, "rows": rows, "responses": [float(r % 5) for r in range(16)], **request}
+
+
 #: A 2^2 factorial in a temperature and a supplier, A or B, as the page holds its runs.
 SUPPLIED = {
     "spec": {
@@ -179,12 +192,23 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "repeated name": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "T"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        "Factor names must be unique.",
     ),
     "name with a space": (
         "api_make_design",
         _make(factors=[FACTORS[0], {**FACTORS[1], "name": "a b"}]),
-        "Factor names must be unique and look like variable names (letters, digits, _).",
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'a_b' for 'a b'."
+        ),
+    ),
+    "names with a percent sign and a keyword": (
+        "api_make_design",
+        _make(factors=[{**FACTORS[0], "name": "Water %"}, {**FACTORS[1], "name": "lambda"}, FACTORS[2]]),
+        (
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            "try 'Water_pct' for 'Water %', 'lambda_' for 'lambda'."
+        ),
     ),
     "low above high": (
         "api_make_design",
@@ -274,6 +298,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_analyze_runs",
         _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, "C", None]]),
         "Factor S: each run must be at A or B, not 'C'.",
+    ),
+    "a run with no label": (
+        "api_analyze_runs",
+        _supplied(rows=[*SUPPLIED["rows"][:3], [4, 4, 200, None, None]]),
+        "Factor S: run 4 has no setting; each run must be at A or B.",
     ),
     "the square of a categorical factor": (
         "api_analyze_runs",
@@ -415,12 +444,12 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "too few factors for the design": (
         "api_make_design",
         lambda _: {"design_type": "dsd", "factors": factors_named("A", "B")},
-        "The Definitive screening (DSD) design takes 3 to 12 factors on this page; you have 2.",
+        "The Definitive screening (DSD) design takes 3 to 40 factors on this page; you have 2.",
     ),
     "more factors than a Taguchi array on this page takes": (
         "api_make_design",
-        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(13)))},
-        "The Taguchi orthogonal array design takes 2 to 12 factors on this page; you have 13.",
+        lambda _: {"design_type": "taguchi", "factors": factors_named(*(f"X{i}" for i in range(41)))},
+        "The Taguchi orthogonal array design takes 2 to 40 factors on this page; you have 41.",
     ),
     "a Taguchi array at levels the page does not offer": (
         "api_make_design",
@@ -508,6 +537,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _make(design_type="maximin_lhs", budget=12.5),
         "A space-filling design in 3 factors has 4 to 200 runs.",
     ),
+    "an optimal design with fewer runs than its model has coefficients": (
+        "api_make_design",
+        _make(design_type="d_optimal", model_type="quadratic", budget=6),
+        "The quadratic model in 3 factors has 10 coefficients, so it needs at least 10 runs.",
+    ),
     "unknown model to design for": (
         "api_make_design",
         _make(design_type="d_optimal", model_type="cubic"),
@@ -536,6 +570,37 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda _: {"design_type": "fractional_factorial", "factors": factors_named(*"ABCDEF"), "resolution": 6},
         "A fractional factorial in 6 factors can have resolution III to V on this page, not VI.",
     ),
+    "resolution V past the factors whose interactions the page models": (
+        "api_make_design",
+        lambda _: {"design_type": "fractional_factorial", "factors": _many(13), "resolution": 5},
+        "A fractional factorial in 13 factors can have resolution III to IV on this page, not V.",
+    ),
+    "a fraction past 24 factors": (
+        "api_make_design",
+        lambda _: {"design_type": "fractional_factorial", "factors": _many(25)},
+        "The Fractional factorial (2-level) design takes 3 to 24 factors on this page; you have 25.",
+    ),
+    "a screening design past 40 factors": (
+        "api_make_design",
+        lambda _: {"design_type": "plackett_burman", "factors": _many(41)},
+        "The Plackett-Burman screening design takes 2 to 40 factors on this page; you have 41.",
+    ),
+    "the interactions of more than 12 factors": (
+        "api_analyze_runs",
+        lambda _: _screening(13, model="interactions"),
+        (
+            "Past 12 factors, the page fits the main effects, or the terms you choose: 13 factors have 78 two-factor "
+            "interactions."
+        ),
+    ),
+    "a comparison past 12 factors aimed at more than main effects": (
+        "api_candidates",
+        lambda _: {"factors": _many(13), "model": "main_quadratic"},
+        (
+            "Past 12 factors, a study aims to find which factors matter, and the designs are compared for their main "
+            "effects: 13 factors have 78 two-factor interactions."
+        ),
+    ),
     # The runs the page sends back.
     "a design the page did not make": (
         "api_simulate",
@@ -545,7 +610,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
     "response that is not a name": (
         "api_analyze_runs",
         lambda ex: {**_spec(response="__import__('os')")(ex), "responses": ex["simulated"]["responses"]},
-        "The response name must be a variable name different from every factor.",
+        "The response name must be a variable name (letters, digits, _): try 'import_os'.",
     ),
     "unknown model to analyse with": (
         "api_analyze_runs",
@@ -571,6 +636,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_read_workbook",
         _workbook(_stored(analysis_model="y ~ __import__('os').getcwd()")),
         "Model must be one of main_effects, interactions, quadratic.",
+    ),
+    "kept settings that are not settings": (
+        "api_workbook",
+        lambda ex: {**ex["held"], "what_if": [{"name": "Hot", "settings": {"T": [200]}}]},
+        "The page sent kept settings this page did not write.",
+    ),
+    "a workbook keeping two settings under one name": (  # edited by hand: its kept settings are checked as data
+        "api_read_workbook",
+        _workbook(_stored(what_if=[{"name": "Hot", "settings": {"T": 200}}, {"name": "Hot", "settings": {"T": 150}}])),
+        "The page sent kept settings this page did not write.",
     ),
     "a transform the page does not offer": (
         "api_analyze_runs",
@@ -686,13 +761,14 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "The page sent best settings this page did not write.",
     ),
     "no noise": ("api_simulate", _runs(sigma=0), "The noise standard deviation must be a number above 0."),
-    "no design for these factors": (  # 13 factors, one more than any design on the page takes
+    "no design for these factors": (  # 41 factors, one more than any design on the page takes
         "api_candidates",
         lambda _: {
             "factors": [
-                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(12)),
+                *({"name": f"X{i}", "low": -1, "high": 1} for i in range(40)),
                 {"name": "S", "low": "A", "high": "B"},
             ],
+            "model": "main_effects",
         },
         "None of the designs this page offers can be made for these factors.",
     ),
@@ -947,10 +1023,10 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_make_design",
         _make(
             design_type="given",
-            factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(13)],
-            runs=[[0] * 13],
+            factors=[{"name": f"X{i}", "low": 0, "high": 1} for i in range(41)],
+            runs=[[0] * 41],
         ),
-        "Runs as given take 1 to 12 factors on this page; you have 13.",
+        "Runs as given take 1 to 40 factors on this page; you have 41.",
     ),
     "given: a block short": (
         "api_make_design",

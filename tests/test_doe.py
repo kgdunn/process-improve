@@ -315,6 +315,17 @@ def test_model_summary_output() -> None:
     assert len(smry.tables) >= 2
 
 
+def test_model_summary_leaves_out_the_time_of_the_call() -> None:
+    """Two summaries of one fit are the same text: statsmodels' Date and Time cells are left out (#952)."""
+    expt = gather(A=c(-1, +1, -1, +1), B=c(-1, -1, +1, +1), y=c(52, 74, 62, 80, name="yield"))
+    text = str(lm("y ~ A + B", expt).summary())
+    assert "Date:" not in text
+    assert "Time:" not in text
+    # The cells beside and below them are kept.
+    for label in ("Prob (F-statistic):", "Log-Likelihood:", "No. Observations:", "Residual std error", "BIC:"):
+        assert label in text
+
+
 def test_model_summary_with_name() -> None:
     """Model.summary() with a model name should include it in the title."""
     A = c(-1, +1, -1, +1)

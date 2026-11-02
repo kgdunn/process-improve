@@ -5,18 +5,31 @@ In a robust-design study (Taguchi; Montgomery, *Design and Analysis of Experimen
 *inner array* sets the factors that will be controlled in production, and the *outer array* the noise
 factors, which can be controlled only during the experiment. Crossing the two runs every inner run at
 every outer run, so each inner run gives as many readings as the outer array has runs, and their mean
-and variance show how the controllable settings fare across the noise.
+and variance show how the controllable settings fare across the noise. :func:`signal_to_noise` sums up
+each inner run's readings as one of Taguchi's signal-to-noise ratios.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
 
 from process_improve.experiments._analyses._shared import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments.factor import DesignResult
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from numpy.typing import ArrayLike
+
+#: Taguchi's signal-to-noise ratios, in decibels, of each row of readings; a blank reading is left out.
+_RATIOS: dict[str, Callable[[pd.DataFrame], ArrayLike]] = {
+    "larger": lambda y: -10 * np.log10((1 / y**2).mean(axis=1)),
+    "smaller": lambda y: -10 * np.log10((y**2).mean(axis=1)),
+    "nominal": lambda y: 10 * np.log10(y.mean(axis=1) ** 2 / y.var(axis=1, ddof=1)),
+}
 
 
 def cross_arrays(
@@ -114,3 +127,58 @@ def _factors(design: DesignResult | pd.DataFrame, which: str, units: str) -> pd.
         msg = f"The {which} array has no runs or no factors."
         raise ValueError(msg)
     return frame
+
+
+def signal_to_noise(readings: ArrayLike, kind: Literal["larger", "smaller", "nominal"]) -> float | np.ndarray:
+    """Return Taguchi's signal-to-noise ratio of repeated readings, in decibels: the higher, the better.
+
+    Parameters
+    ----------
+    readings : array_like
+        The readings at one setting, or a table of them with one row for each setting (each
+        inner run of a crossed array) and one column for each reading. A blank (NaN) reading
+        is left out.
+    kind : {"larger", "smaller", "nominal"}
+        What makes a reading good. ``"larger"`` (larger is better) is -10 log10 of the mean of
+        1/y^2, ``"smaller"`` (smaller is better) is -10 log10 of the mean of y^2, and
+        ``"nominal"`` (nominal is best) is 10 log10 of the squared mean over the variance.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        The ratio of the readings, or one ratio for each row of a table.
+
+    Raises
+    ------
+    ValueError
+        If ``kind`` is not one of the three, or ``readings`` is not one or two dimensional.
+
+    Notes
+    -----
+    Larger is better for a reading of 0 is -inf, and nominal is best for readings that do not vary
+    is +inf. Nominal is best needs two readings for the variance: with fewer it is NaN.
+
+    For nominal is best, Taguchi's two-step optimisation then picks the settings with the highest
+    ratio and moves the mean to the target with a factor that changes the mean but not the ratio.
+
+    Examples
+    --------
+    Schmidt and Launsby's signal-to-noise example: the first two settings of a 2^(3-1) design, each
+    read twice.
+
+    >>> from process_improve.experiments import signal_to_noise
+    >>> signal_to_noise([[20, 30], [9, 11]], "nominal").round(2)
+    array([10.97, 16.99])
+    >>> round(signal_to_noise([20, 30], "larger"), 2)
+    27.43
+    """
+    if kind not in _RATIOS:
+        msg = f"kind must be 'larger', 'smaller' or 'nominal', not {kind!r}."
+        raise ValueError(msg)
+    values = np.asarray(readings, dtype=float)
+    if values.ndim not in (1, 2):
+        msg = f"readings must be one setting's readings or a table of them, not an array of {values.ndim} dimensions."
+        raise ValueError(msg)
+    with np.errstate(divide="ignore"):
+        ratios = np.asarray(_RATIOS[kind](pd.DataFrame(np.atleast_2d(values))), dtype=float)
+    return float(ratios[0]) if values.ndim == 1 else ratios

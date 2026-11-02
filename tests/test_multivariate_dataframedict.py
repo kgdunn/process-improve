@@ -102,6 +102,17 @@ class TestDataFrameDictConstruction:
         assert only_f["Z"] == {}
         assert only_f["Y"] == {}
 
+    def test_shape_is_the_samples_by_the_three_blocks(self) -> None:
+        """scikit-learn counts the samples of a DataFrameDict through ``shape[0]``, as it does an array's."""
+        assert _make(1.0, n=6).shape == (6, 3)
+        assert DataFrameDict({"F": {"g": pd.DataFrame(np.ones((5, 2)))}}).shape == (5, 3)
+
+    def test_every_block_is_checked_whatever_the_order_given(self) -> None:
+        """A malformed group is refused in Z and in Y as in F, wherever it sits in the dict given."""
+        good = pd.DataFrame(np.ones((4, 2)))
+        with pytest.raises(TypeError, match=r"^Expected a DataFrame for block Z, group 'z'; got list\.$"):
+            DataFrameDict({"Y": {"y": good}, "Z": {"z": [1.0]}, "F": {"f": good}})
+
     def test_repr_lists_the_groups_of_each_block(self) -> None:
         """The repr counts the samples and names the groups in every block."""
         assert repr(_make(1.0)) == (
@@ -145,8 +156,11 @@ class TestDataFrameDictItemAccess:
         changed = _make(1.0)
         changed["Z"] = frame
         assert changed["Z"] is frame
-        # A bare frame is a different kind of value from a dict of frames, so never equal.
+        # A bare frame is a different kind of value from a dict of frames, so never equal,
+        # whichever side of the comparison it is on.
         assert changed != _make(1.0)
+        assert _make(1.0) != changed
+        assert (changed == _make(1.0)) is False
 
     @pytest.mark.parametrize(
         ("lookup", "rows"),

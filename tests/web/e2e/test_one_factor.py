@@ -8,6 +8,7 @@ in place of the response surface.
 from __future__ import annotations
 
 from tests.web.e2e._page import headers, name_response, practise, run_sheet, set_factors, settled
+from tests.web.e2e.test_report import download_report, opened
 
 SUPPLIER = {"name": "Supplier", "low": "A", "high": "B"}
 
@@ -118,8 +119,8 @@ def test_learn_compares_four_levels_every_pair_and_each_against_the_control_pick
     assert "Whether the levels of Catalyst differ" in analysis.text_content()
     words = analysis.locator(".term").all_text_contents()
     assert {"one-way analysis of variance", "Tukey's intervals", "Dunnett's intervals"} <= set(words)
-    tables = analysis.locator("table")
-    pairs = tables.nth(1).locator("tbody td:first-child").all_text_contents()
+    tables = analysis.locator("table")  # each level's runs, the checks, Tukey's pairs, and Dunnett's
+    pairs = tables.nth(2).locator("tbody td:first-child").all_text_contents()
     assert pairs == [
         "Nickel less Copper",
         "Platinum less Copper",
@@ -129,10 +130,40 @@ def test_learn_compares_four_levels_every_pair_and_each_against_the_control_pick
         "Zinc less Platinum",
     ], "every pair of the four levels, in their order"
     assert page.input_value("#control") == "Copper", "the first level is the control until another is picked"
-    assert tables.nth(2).locator("tbody td:first-child").all_text_contents() == ["Nickel", "Platinum", "Zinc"]
+    assert tables.nth(3).locator("tbody td:first-child").all_text_contents() == ["Nickel", "Platinum", "Zinc"]
     page.select_option("#control", "Platinum")
     settled(page)
     assert page.input_value("#control") == "Platinum"
-    assert tables.nth(2).locator("tbody td:first-child").all_text_contents() == ["Copper", "Nickel", "Zinc"]
+    assert tables.nth(3).locator("tbody td:first-child").all_text_contents() == ["Copper", "Nickel", "Zinc"]
     sent = [c["payload"].get("control") for c in page.evaluate("window.__pi.calls") if c["fn"] == "api_analyze_runs"]
     assert sent[-1] == "Platinum"
+
+
+def test_three_levels_are_checked_for_what_the_analysis_of_variance_assumes_in_learn_its_code_and_its_report(
+    fresh_page,
+):
+    """Bartlett's test and the Kruskal-Wallis test, each with a sentence, beside the analysis of variance."""
+    page = fresh_page  # a new study, its brief empty
+    set_factors(page, [{"name": "Catalyst", "levels": ["Copper", "Nickel", "Zinc"]}])
+    page.wait_for_selector("#candidates .levels-plan tbody tr")
+    settled(page)
+    page.click("#generate")
+    settled(page)
+    practise(page)
+    page.click("#go-learn")
+    analysis = page.locator("#analysis")
+    checks = analysis.locator("h4:text-is('Checks of what the analysis of variance assumes') + .scroll tbody tr")
+    assert checks.locator("td:first-child .term").all_text_contents() == ["Bartlett's test", "Kruskal-Wallis test"]
+    assert checks.locator("td:nth-child(3)").all_text_contents() == ["2", "2"], "a degree of freedom per level but one"
+    said = analysis.locator("h4:text-is('Checks of what the analysis of variance assumes') ~ ul.facts").first
+    sentences = said.locator("li").all_text_contents()
+    assert len(sentences) == 2, "a sentence for each check"
+    assert sentences[0].startswith("Bartlett's test ")
+    assert sentences[1].startswith("The Kruskal-Wallis test, which ranks the results and so does not assume normal")
+    code = page.text_content("#py-analyse code")
+    assert "spread = bartlett_test(" in code
+    assert "ranks = kruskal_wallis_test(" in code, "the Python panel checks them too"
+    _, html = download_report(page, "#learn-report-button")
+    report = opened(page, html)
+    assert "Checks of what the analysis of variance assumes" in report.locator("h4").all_text_contents()
+    assert sentences[1] in report.text_content("body"), "the report holds the checks, as Learn shows them"

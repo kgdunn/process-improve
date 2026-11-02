@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -107,6 +108,42 @@ def test_an_uploaded_file_opens_with_its_read_options(glue) -> None:
     assert table["columns"][0]["values"] == [1.5, 3.5]
 
 
+@pytest.mark.dataset
+def test_cross_validation_scores_every_number_of_components_on_the_fitted_rows(glue) -> None:
+    recipe = opened(glue)["recipe"]
+    result = ask(glue, "api_cross_validate", {"recipe": recipe, "variant": variant()})
+    assert result["components"] == list(range(1, 15))
+    assert len(result["r2"]) == len(result["q2"]) == len(result["q2se"]) == 14
+    assert result["recommended"] in result["components"]
+    assert (result["heldOut"], result["block"], result["rule"]) == ("cells", "X", "the lowest prediction error")
+    assert "PCA.select_n_components(X.loc[included], random_state=0)" in result["code"]
+
+
+@pytest.mark.dataset
+def test_choosing_another_number_of_components_reuses_the_cross_validation(glue) -> None:
+    recipe = opened(glue)["recipe"]
+    first = ask(glue, "api_cross_validate", {"recipe": recipe, "variant": variant(n_components=2)})
+    again = ask(glue, "api_cross_validate", {"recipe": recipe, "variant": variant(n_components=5)})
+    assert again == first
+    assert glue._cross_validation.cache_info().hits == 1
+    ask(glue, "api_cross_validate", {"recipe": recipe, "variant": variant(excluded=[])})
+    assert glue._cross_validation.cache_info().misses == 2
+
+
+@pytest.mark.dataset
+def test_a_warning_from_the_folds_is_said_once_under_the_chart(glue, monkeypatch) -> None:
+    original = glue.Variant.cross_validate
+
+    def warns(self, table, **kwargs):
+        for _fold in range(3):
+            warnings.warn("component 5 did not converge", UserWarning, stacklevel=1)
+        return original(self, table, **kwargs)
+
+    monkeypatch.setattr(glue.Variant, "cross_validate", warns)
+    result = ask(glue, "api_cross_validate", {"recipe": opened(glue)["recipe"], "variant": variant()})
+    assert result["notes"] == ["component 5 did not converge"]
+
+
 @pytest.mark.parametrize(
     ("fn", "payload", "message"),
     [
@@ -157,6 +194,7 @@ def test_rows_whose_ids_read_alike_as_text_are_refused(glue) -> None:
     [
         ("api_explain", {"variant": variant(), "group": "52"}, "must be a list of row ids"),
         ("api_save", {"variants": [], "selections": ["Upset"]}, "must be a mapping"),
+        ("api_cross_validate", {"variant": ["PCA"]}, "'variant' must be a mapping"),
     ],
 )
 @pytest.mark.dataset

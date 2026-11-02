@@ -85,7 +85,7 @@ def coerce_observed_mask(observed: object, feature_names: Iterable[Hashable]) ->
     or a collection of feature labels to treat as observed; anything else, a
     wrong length, or an unknown label raises ``ValueError``.
     """
-    names = feature_names if isinstance(feature_names, pd.Index) else pd.Index(list(feature_names))
+    names = pd.Index(list(feature_names))
     arr = np.asarray(observed)
     if arr.dtype == bool:
         if arr.shape != (len(names),):
@@ -119,10 +119,10 @@ def _residual_inner(x_residuals: np.ndarray | None, observed: np.ndarray, g_obs:
             "trimmed score regression. Pass the fitted model's residual block, or ask for method='pmp' "
             "explicitly.",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
         return np.zeros((A, A))
-    residuals = np.asarray(x_residuals, dtype=float)
+    residuals = np.asarray(x_residuals)
     if residuals.ndim != 2 or residuals.shape[1] != observed.shape[0]:
         raise ValueError(
             f"x_residuals must be (n_train, {observed.shape[0]}) over the model's features; "
@@ -140,7 +140,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     score_variances: np.ndarray,
     observed: np.ndarray,
     *,
-    method: str = "tsr",
+    method: str = "tsr",  # pragma: no mutate - _validate_method lowercases it, so "TSR" is the same default
     ridge: float = 0.0,
     x_weights: np.ndarray | None = None,
     x_residuals: np.ndarray | None = None,
@@ -216,7 +216,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
 
     p_obs = x_loadings[observed, :]
     g_obs = guide[observed, :]
-    weights = x_loadings if x_weights is None else np.asarray(x_weights, dtype=float)
+    weights = x_loadings if x_weights is None else np.asarray(x_weights)
     if weights.shape != x_loadings.shape:
         raise ValueError(f"x_weights must have the shape of x_loadings {x_loadings.shape}; got {weights.shape}.")
     w_obs = weights[observed, :]
@@ -227,7 +227,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         condition = float(np.linalg.cond(gram))
         matrix = safe_inverse(gram, what="(P_observed' @ P_observed)") @ p_obs.T
     elif method == "tsr":
-        theta = np.diag(np.asarray(score_variances, dtype=float))
+        theta = np.diag(score_variances)
         # Arteaga and Ferrer (2002): t_hat = Theta P*' G* [G*' S** G*]^-1 G*' z*,
         # with S** the covariance of the observed columns in the training data.
         # S** is the model plane plus the residual spread around it; the second
@@ -248,7 +248,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
             w_a = w_obs[:, a]  # project onto the weights (NIPALS's own score step) ...
             denom = float(w_a @ w_a)
             full = float(weights[:, a] @ weights[:, a])
-            if denom > _EPS:
+            if denom > _EPS:  # pragma: no mutate - differs from >= only at exact equality
                 worst = max(worst, full / denom)
                 row = (w_a @ deflate) / denom
             else:
@@ -267,7 +267,7 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     score_variances: np.ndarray,
     x_scaled: np.ndarray,
     *,
-    method: str = "tsr",
+    method: str = "tsr",  # pragma: no mutate - _validate_method lowercases it, so "TSR" is the same default
     ridge: float = 0.0,
     x_weights: np.ndarray | None = None,
     x_residuals: np.ndarray | None = None,

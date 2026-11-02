@@ -122,6 +122,32 @@ def test_excluded_rows_are_refitted_out_and_drawn_hollow_where_the_model_project
 
 
 @pytest.mark.dataset
+def test_cross_validation_runs_when_asked_and_a_bar_sets_the_number_of_components(page) -> None:
+    open_ldpe(page)
+    assert page.is_hidden("#cv-panel"), "cross-validation fits the model many times, so it waits to be asked"
+    page.click("#cross-validate")
+    page.wait_for_function("document.getElementById('cv').data?.length === 2")
+    ready(page)
+    assert page.text_content("#cv-sentence").startswith("Recommended: ")
+    assert "PCA.select_n_components(X.loc[included], random_state=0)" in page.text_content("#code")
+
+    # The R² bar of five components: a click on it refits with five, and the chart outlines it.
+    # Plotly takes the click on its drag layer, above the bars, as a reader's click; hence force.
+    page.locator("#cv .trace.bars").first.locator(".point").nth(4).click(force=True)
+    page.wait_for_function("window.__mva.state.fit.scores.length === 5")
+    assert page.input_value("#components") == "5"
+    page.wait_for_function("document.getElementById('cv').data[0].marker.line.width[4] === 2")
+    assert not page.text_content("#cv-sentence").startswith("The model has changed")
+
+    # Excluding rows changes the model: the cross-validation is marked stale, not run again.
+    page.evaluate("ids => window.__mva.store.select('rows', ids)", UPSET)
+    page.click("#exclude")
+    page.wait_for_function("document.getElementById('cv-sentence').textContent.startsWith('The model has changed')")
+    assert page.evaluate("document.getElementById('cv').data[1].marker.opacity") < 1
+    assert "select_n_components" not in page.text_content("#code")
+
+
+@pytest.mark.dataset
 def test_why_are_these_rows_different_ranks_the_variables_with_their_evidence(page) -> None:
     open_ldpe(page)
     page.evaluate("cols => window.__mva.store.select('cols', cols)", ["Conv", "Mn", "Mw", "LCB", "SCB"])

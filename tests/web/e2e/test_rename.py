@@ -17,6 +17,7 @@ from tests.web.e2e._page import (
     calls,
     candidates_done,
     choose,
+    enter_results,
     generate,
     headers,
     practise,
@@ -186,6 +187,37 @@ def test_a_renamed_study_is_kept_renamed(context, blank_page):
     assert headers(again) == headers(page)
     assert run_sheet(again) == sheet
     assert "Temperature" in words(again.text_content("#analysis p.equation"))
+
+
+def test_the_what_if_fits_asked_for_before_a_rename_are_dropped(page):
+    """A race: the what-if panel's fits, asked for under the old names, come back after the rename is taken.
+
+    The panel shows no factor by its old name, and opens again with the fits under the new names.
+    """
+    asked = len(calls(page, "api_predictors"))
+    page.evaluate("window.__pi.hold('api_predictors')")
+    enter_results(page, {0: 70})  # an analysis under the old names, its what-if fits held on the way back
+    page.wait_for_function(f"window.__pi.count('api_predictors') > {asked}")
+
+    analysed = len(calls(page, "api_analyze_runs"))
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    box = factor_box(page, 0)
+    box.fill("Temperature")
+    box.press("Tab")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {analysed}")  # the rename is taken
+    replied = "window.__pi.replies.filter((r) => r.fn === 'api_predictors').length"
+    before = page.evaluate(replied)
+    page.evaluate("window.__pi.release('api_predictors')")
+    page.wait_for_function(f"{replied} > {before}")
+    assert page.locator('#what-if:not([hidden]) [data-factor="T"]').count() == 0, "no factor by its old name"
+
+    page.evaluate("window.__pi.release('api_analyze_runs')")
+    settled(page)
+    reveal(page, "#what-if")
+    named = page.locator("#what-if-settings [data-factor]").evaluate_all("rows => rows.map((r) => r.dataset.factor)")
+    assert named == ["Temperature", "P", "F"]
+    assert "Temperature" in words(page.text_content("#py-what-if code"))
+    assert "T" not in words(page.text_content("#py-what-if code"))
 
 
 def test_a_changed_level_is_a_new_design_and_waits_for_its_run_sheet(page):

@@ -117,12 +117,13 @@ def impute_low_rank(
     rounds, shift, converged = 0, 0.0, False
     while rounds < max_iter:
         rounds += 1
-        centre, spread = completed.mean(axis=0), completed.std(axis=0, ddof=1)
-        centre = np.where(constant, highest, centre)
-        spread = np.where(~constant & (spread > 0), spread, 1.0)
-        standardised = (completed - centre) / spread
+        centre = np.where(constant, highest, completed.mean(axis=0))
+        spread = completed.std(axis=0, ddof=1)
+        # A column with no spread sits at its centre in every cell, so it standardises to 0, not 0 / 0.
+        standardised = np.divide(completed - centre, spread, out=np.zeros_like(completed), where=spread > 0)
         components = _leading_components(standardised, n_components)
-        covariance = standardised.T @ standardised / max(1, standardised.shape[0] - 1)
+        # TSR is unchanged by any multiple of this matrix, so it is not divided by n - 1.
+        covariance = standardised.T @ standardised
 
         updated = standardised.copy()
         for observed, rows in patterns:
@@ -160,8 +161,11 @@ def _group_by_pattern(missing: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]
 
 def _leading_components(standardised: np.ndarray, n_components: int) -> np.ndarray:
     """Return the leading right singular vectors as columns, shape (n_columns, n_components)."""
-    _, _, vt = np.linalg.svd(standardised, full_matrices=False)
-    return vt.T[:, : min(n_components, vt.shape[0])]
+    _, _, vt = np.linalg.svd(  # pragma: no mutate - svd reads full_matrices=None as False
+        standardised,
+        full_matrices=False,
+    )
+    return vt.T[:, :n_components]
 
 
 def _estimate_missing(
@@ -182,7 +186,8 @@ def _estimate_missing(
     components : np.ndarray of shape (n_columns, n_components)
         The current principal components.
     covariance : np.ndarray of shape (n_columns, n_columns)
-        The current covariance of the standardised completed matrix.
+        The cross-product of the standardised completed matrix: its covariance up to the
+        factor ``n - 1``, which the estimates do not depend on.
     method : {"tsr", "pmp"}
 
     Returns

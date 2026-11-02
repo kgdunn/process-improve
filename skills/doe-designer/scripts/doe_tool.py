@@ -78,7 +78,7 @@ def _read_input(raw: str | None) -> dict[str, Any]:
         if not raw.lstrip().startswith("{"):
             if not candidate.is_file():
                 sys.exit(f"Input file not found: {raw}")
-            raw = candidate.read_text()
+            raw = candidate.read_text(encoding="utf-8")
 
     if not raw.strip():
         return {}
@@ -95,7 +95,7 @@ def _emit(payload: Any, output: str | None) -> None:
     """Write the result to a file or to stdout."""
     text = json.dumps(payload, indent=2, default=str)
     if output:
-        Path(output).write_text(text)
+        Path(output).write_text(text, encoding="utf-8")
         print(f"Wrote {output}")
     else:
         print(text)

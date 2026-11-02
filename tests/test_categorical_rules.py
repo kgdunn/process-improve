@@ -9,7 +9,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import Constraint, DesignRegion, Factor, evaluate_design, generate_design
+from process_improve.experiments import (
+    Constraint,
+    DesignRegion,
+    Factor,
+    augment_design,
+    compare_designs,
+    evaluate_design,
+    generate_design,
+)
 from process_improve.experiments._rules import MAX_CLAUSES, compile_rules
 from process_improve.experiments.designs_constrained import (
     _FEASIBILITY_TOL,
@@ -385,3 +393,34 @@ class TestOtherEntryPoints:
 
         with pytest.raises(ValueError, match=r"region\.given\(catalyst='A', solvent='X'\)"):
             _search_space(["T", "P"], None, region, np.random.default_rng(0), 3)
+
+
+# ---------------------------------------------------------------------------
+# compare_designs and augment_design work over one region of numeric settings (#783)
+# ---------------------------------------------------------------------------
+
+_SQUARE = pd.DataFrame({"T": [-1.0, 1, -1, 1, 0], "P": [-1.0, -1, 1, 1, 0]})
+_THIN = pd.DataFrame({"T": [-1.0, 0.2, -1, 0.2], "P": [-1.0, -1, 1, 1]})
+
+
+def test_compare_designs_refuses_a_region_with_rules_and_names_the_region_of_one_level():
+    """The designs are numeric, so they hold no level to choose a region by: the message says how to compare."""
+    region = DesignRegion([TEMP, PRESSURE, CATALYST], [B_UP_TO_180])
+    with pytest.raises(ValueError, match=r"limits on \['catalyst'\].*region\.given\(catalyst='A'\)"):
+        compare_designs({"square": _SQUARE, "thin": _THIN}, "main_effects", region=region)
+
+
+def test_the_region_of_one_level_is_compared_as_its_numeric_limits_are():
+    """At catalyst B the rule leaves T <= 180, and the comparison over that region is the one over the limit itself."""
+    region = DesignRegion([TEMP, PRESSURE, CATALYST], [B_UP_TO_180])
+    designs = {"square": _SQUARE, "thin": _THIN}
+    at_b = compare_designs(designs, "main_effects", region=region.given(catalyst="B")).to_dict()
+    plain = compare_designs(designs, "main_effects", region=DesignRegion([TEMP, PRESSURE], ["T <= 180"])).to_dict()
+    assert at_b == plain
+
+
+def test_augment_design_refuses_a_region_with_rules_and_names_the_region_of_one_level():
+    """augment_design works in coded numeric factors; its message points to the region at one level."""
+    region = DesignRegion([TEMP, PRESSURE, CATALYST], [B_UP_TO_180])
+    with pytest.raises(ValueError, match=r"are categorical\. Augment the runs at one level, over region\.given\("):
+        augment_design(_SQUARE, "add_center_points", region=region)

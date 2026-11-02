@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from process_improve.experiments import design_catalog
 from tests.web._browser import REPORTS, launch
 from tests.web._build import build
-from tests.web._support import BUILD_SCRIPT, WEB, Api, held_of, load_module
+from tests.web._support import BUILD_SCRIPT, REPRODUCTION_SAMPLE, WEB, Api, held_of, load_module, no_bytecode
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -78,6 +79,19 @@ def api(bootstrap: ModuleType) -> Api:
 def build_script() -> ModuleType:
     """Load ``scripts/build_web_app.py``, which assembles the app for the documentation site."""
     return load_module("build_web_app", BUILD_SCRIPT)
+
+
+@pytest.fixture(scope="session")
+def reproduction_file(build_script: ModuleType, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Write ``catalog/reproduction.json`` as the build does, for the sources of ``REPRODUCTION_SAMPLE``."""
+    out = tmp_path_factory.mktemp("reproduction")
+    every = design_catalog.catalog_reproduction
+    with pytest.MonkeyPatch.context() as patch, no_bytecode():
+        patch.setattr(
+            design_catalog, "catalog_reproduction", lambda: [c for s in REPRODUCTION_SAMPLE for c in every(s)]
+        )
+        build_script.write_reproduction(out)
+    return out / "catalog" / "reproduction.json"
 
 
 @pytest.fixture(scope="session")

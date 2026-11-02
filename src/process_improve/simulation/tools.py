@@ -177,6 +177,8 @@ class CreateSimulatorInput(BaseModel):
         "or paraphrase it yourself."
     ),
     input_model=CreateSimulatorInput,
+    # No default_seed: with no seed the tool draws a 63-bit one (SEC-28), so the hidden model cannot be guessed.
+    rng={"uses_rng": True, "seed_param": "seed"},
     examples="""
     # "Simulate a Ni flotation vessel with flow, pH, surfactant and the known
     #  negative pH*surfactant interaction; recovery and grade as outputs."
@@ -686,7 +688,8 @@ class CorrectBatchMidcourseInput(BaseModel):
         le=10.0,
         description=(
             "No-correction dead band in half-widths of the prediction interval at the decision point: 1.0 corrects "
-            "only when the whole interval falls short of the target (Yabuki and MacGregor's no-control region); "
+            "only when the whole interval falls short of the target (the role of Yabuki and MacGregor's no-control "
+            "region); "
             "0 corrects every below-target batch."
         ),
     )
@@ -808,9 +811,8 @@ class EvaluateBatchControlPolicyInput(BaseModel):
         "(the nominal schedule; the floor), mid-course correction (per-feed-class PLS models, corrected at a "
         "decision point, every corrected schedule re-simulated with the identical disturbances), and "
         "optionally the perfect-feedforward ceiling and the oracle-from-the-decision-point ceiling. Reports "
-        "realised mean/sd titers per policy and the per-batch outcomes, closing the gap the literature "
-        "leaves: published mid-course gains are usually model predictions, never executed validations. "
-        "Requires the 'control' extra (osqp)."
+        "realised mean/sd titers per policy and the per-batch outcomes, so each gain is an executed same-batch "
+        "counterfactual rather than a model prediction. Requires the 'control' extra (osqp)."
     ),
     input_model=EvaluateBatchControlPolicyInput,
     examples="""

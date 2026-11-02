@@ -19,6 +19,10 @@ checked against their defining property before use:
 - **Hadamard matrices.** ``I + C`` for an antisymmetric conference matrix (Paley I
   and its doublings), ``[[C + I, C - I], [C - I, -C - I]]`` for a symmetric one
   (Paley II), and Sylvester doubling ``[[H, H], [H, -H]]``.
+- **Goethals-Seidel array.** Four circulant matrices ``A, B, C, D`` of order ``t``
+  with ``AA' + BB' + CC' + DD' = 4t I`` fill the array of Goethals and Seidel (1967)
+  to give a Hadamard matrix of order ``4t``. Their first rows are kept for the orders
+  that no construction above reaches: 92, 116, 156, 172 and 188 (184 is 92 doubled).
 
 No conference matrix exists at orders 22, 34, 58, ... (Belevitch: ``m - 1`` must be
 a sum of two squares when ``m = 2 (mod 4)``), and a few other orders need
@@ -32,6 +36,15 @@ Physics*, 12, 311-320.
 
 Belevitch, V. (1950). Theorem of 2n-terminal networks with application to
 conference telephony. *Electrical Communication*, 27, 231-244.
+
+Baumert, L., Golomb, S. W. and Hall, M. (1962). Discovery of an Hadamard matrix of
+order 92. *Bulletin of the American Mathematical Society*, 68, 237-238.
+
+Goethals, J. M. and Seidel, J. J. (1967). Orthogonal matrices with zero diagonal.
+*Canadian Journal of Mathematics*, 19, 1001-1010.
+
+Djokovic, D. Z. (2008). Skew-Hadamard matrices of orders 188 and 388 exist.
+*International Mathematical Forum*, 3, 1063-1068.
 """
 
 from __future__ import annotations
@@ -196,6 +209,56 @@ def conference_order_at_least(m: int) -> int:
     raise ValueError(f"No conference matrix of order between {m} and {MAX_ORDER} can be built here.")
 
 
+#: First rows of the circulants ``A, B, C, D`` for the Goethals-Seidel array, keyed by their order ``t``
+#: (the Hadamard matrix has order ``4t``). For t = 23, 29, 39 and 43 they are Williamson matrices (symmetric
+#: rows): t = 23 is the one of Baumert, Golomb and Hall (1962). No Williamson matrices of order 47 exist, so
+#: t = 47 uses Djokovic's (2008) rows. ``hadamard_matrix`` checks every result against ``H'H = 4t I``.
+_GOETHALS_SEIDEL_ROWS = {
+    23: ("++---+---+-++-+---+---+", "+-++-++--++++++--++-++-", "+++---++-+-++-+-++---++", "+++-+++-+------+-+++-++"),
+    29: (
+        "+++---++--+-+----+-+--++---++",
+        "+-+---++--+-++++++-+--++---+-",
+        "++++-++-+---++++++---+-++-+++",
+        "++--+--+-+++-++++-+++-+--+--+",
+    ),
+    39: (
+        "+++--+-+-----+--++----++--+-----+-+--++",
+        "+++--++-+---+-+--+----+--+-+---+-++--++",
+        "++++---+--++----+-+--+-+----++--+---+++",
+        "+---++-+-+-----+++-++-+++-----+-+-++---",
+    ),
+    43: (
+        "++---++++-+--+--++--------++--+--+-++++---+",
+        "+++-+-++--+-+-++++-+----+-++++-+-+--++-+-++",
+        "++-++++++----+-+--++-++-++--+-+----++++++-+",
+        "+---++--++++-+-+++-++--++-+++-+-++++--++---",
+    ),
+    47: (
+        "+----+----++-+-+---++-++--+--+++-+-+--++++-++++",
+        "++--+---+------++------++-+-++--+-+-+----+---++",
+        "+-+-++---++-+---+++---++-++-++-++-+++++-+-+----",
+        "+++-++-+-+---+-+++++--+-----++---+--+++++--++-+",
+    ),
+}
+
+
+def _goethals_seidel(rows: tuple[str, str, str, str]) -> np.ndarray:
+    """Hadamard matrix of order ``4t`` from the first rows (``+``/``-`` strings of length ``t``) of four circulants."""
+    a, b, c, d = (
+        np.array([np.roll([1 if sign == "+" else -1 for sign in row], shift) for shift in range(len(row))])
+        for row in rows
+    )
+    r = np.eye(len(rows[0]), dtype=int)[::-1]  # the back-diagonal matrix
+    return np.block(
+        [
+            [a, b @ r, c @ r, d @ r],
+            [-b @ r, a, -d.T @ r, c.T @ r],
+            [-c @ r, d.T @ r, a, -b.T @ r],
+            [-d @ r, -c.T @ r, b.T @ r, a],
+        ]
+    )
+
+
 @cache
 def _hadamard(n: int) -> tuple[np.ndarray, str] | None:
     """Build a Hadamard matrix of order ``n``; return it with its construction name, or ``None``."""
@@ -214,7 +277,8 @@ def _hadamard(n: int) -> tuple[np.ndarray, str] | None:
     if (inner := _hadamard(half)) is not None:
         h = inner[0]
         return np.block([[h, h], [h, -h]]), f"sylvester({inner[1]})"
-    return None
+    rows = _GOETHALS_SEIDEL_ROWS.get(n // 4)
+    return None if rows is None else (_goethals_seidel(rows), f"goethals_seidel_t={n // 4}")
 
 
 def hadamard_matrix(n: int) -> tuple[np.ndarray, str] | None:

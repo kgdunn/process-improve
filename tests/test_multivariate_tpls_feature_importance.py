@@ -18,8 +18,7 @@ import pytest
 from process_improve.multivariate.methods import TPLS, DataFrameDict
 
 
-@pytest.fixture
-def tpls_pyphi_data() -> dict[str, dict[str, pd.DataFrame]]:
+def _pyphi_data() -> dict[str, dict[str, pd.DataFrame]]:
     """Load the pyphi TPLS example dataset (Z, D, F, Y blocks)."""
     folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "tpls-pyphi"
     properties = {
@@ -40,10 +39,22 @@ def tpls_pyphi_data() -> dict[str, dict[str, pd.DataFrame]]:
 
 
 @pytest.fixture
-def fitted_tpls(tpls_pyphi_data: dict) -> TPLS:
-    d_matrix = tpls_pyphi_data.pop("D")
+def tpls_pyphi_data() -> dict[str, dict[str, pd.DataFrame]]:
+    """Return the pyphi TPLS example dataset, a fresh copy for each test."""
+    return _pyphi_data()
+
+
+@pytest.fixture(scope="module")
+def fitted_tpls() -> TPLS:
+    """One fit for the module's tests, which only read it.
+
+    Fitted once, a change to TPLS that slows the fit (one that keeps a component from
+    converging, say) costs the mutation run one slow fit here rather than one per test.
+    """
+    data = _pyphi_data()
+    d_matrix = data.pop("D")
     model = TPLS(n_components=2, d_matrix=d_matrix)
-    model.fit(DataFrameDict(tpls_pyphi_data))
+    model.fit(DataFrameDict(data))
     return model
 
 
@@ -78,7 +89,7 @@ class TestTPLSFeatureImportance:
         assert fitted_tpls.vip("F") is fitted_tpls.feature_importance["F"]
 
     def test_vip_rejects_unknown_block(self, fitted_tpls: TPLS) -> None:
-        with pytest.raises(ValueError, match="block must be"):
+        with pytest.raises(ValueError, match=r"^block must be 'D', 'F', or None; got 'Z'\.$"):
             fitted_tpls.vip("Z")
 
     def test_vip_before_fit_raises(self, tpls_pyphi_data: dict) -> None:
@@ -125,7 +136,7 @@ class TestTPLSFeatureImportance:
         assert fitted_tpls.vip("D") is fitted_tpls.feature_importance["D"]
 
     def test_vip_rejects_unknown_method(self, fitted_tpls: TPLS) -> None:
-        with pytest.raises(ValueError, match="method must be"):
+        with pytest.raises(ValueError, match=r"^method must be 'vip' or 'deflated'; got 'bogus'\.$"):
             fitted_tpls.vip(method="bogus")
 
 

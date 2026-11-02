@@ -122,6 +122,7 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.f_statistic: number?",
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
+        "spread: dict?",
         "transform: str?",
         "box_cox: dict?",
     ],
@@ -132,6 +133,31 @@ READS: dict[str, list[str]] = {
         "box_cox.ci[]: number",
         "box_cox.suggests: str?",
         "box_cox.current: str?",
+    ],
+    "analysis of readings repeated at each setting": [
+        "spread.kind: str",
+        "spread.settings[].settings{}: any",
+        "spread.settings[].runs[]: int",
+        "spread.settings[].n: int",
+        "spread.settings[].mean: number",
+        "spread.settings[].std_dev: number",
+        "spread.settings[].ln_std_dev: number?",
+        "spread.settings[].sn: number?",
+        "spread.left_out[]: int",
+        "spread.factors[].name: str",
+        "spread.factors[].levels[].level: any",
+        "spread.factors[].levels[].n: int",
+        "spread.factors[].levels[].mean: number?",
+        "spread.factors[].levels[].ln_std_dev: number?",
+        "spread.factors[].levels[].sn: number?",
+        "spread.factors[].delta.mean: number?",
+        "spread.factors[].delta.ln_std_dev: number?",
+        "spread.factors[].delta.sn: number?",
+        "spread.factors[].rank.mean: int?",
+        "spread.factors[].rank.ln_std_dev: int?",
+        "spread.factors[].rank.sn: int?",
+        "spread.factors[].best: dict",
+        "spread.adjustment: str?",
     ],
     "saturated analysis": [
         "summary.r_squared_pred: number?",
@@ -232,6 +258,10 @@ READS: dict[str, list[str]] = {
         "more{}.inactive: list",
         "more{}.sigma: number",
         "more{}.seed: int",
+    ],
+    "upload with kept settings": [
+        "what_if[].name: str",
+        "what_if[].settings: dict",
     ],
     "upload of several responses": [
         "spec.responses[].name: str",
@@ -530,6 +560,12 @@ READS: dict[str, list[str]] = {
         "waiting[].label: str",
         "waiting[].design_type: str",
     ],
+    # Past 12 factors, scored on power alone: the page hides "Compare them in detail" for no measures.
+    "candidates of many factors": [
+        "result.measures: list",
+        "result.values{}.power_main: number?",
+        "notes[]: str",
+    ],
     "design with limits": [
         "spec.constraints[].expression: str",
         "spec.constraints[].type: str",
@@ -693,6 +729,13 @@ READS: dict[str, list[str]] = {
         "factors[].levels[]: str",
         "factors[].columns[].{}: number",
     ],
+    "analysis of one factor's levels": [
+        "comparison.several.test.p_value: number",
+        "comparison.several.checks[].test: str",
+        "comparison.several.checks[].statistic: number",
+        "comparison.several.checks[].df: int",
+        "comparison.several.checks[].p_value: number",
+    ],
     "transformed predictors": ["responses[].transform: str"],
     "nothing to predict yet": ["responses[].waiting: bool"],
     "predictors refused": ["responses[].error: str"],
@@ -706,6 +749,7 @@ ENTRY_POINTS = {
     "design": "api_make_design",
     "simulation": "api_simulate",
     "analysis": "api_analyze_runs",
+    "analysis of readings repeated at each setting": "api_analyze_runs",
     "transformed analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
@@ -717,6 +761,7 @@ ENTRY_POINTS = {
     "design of several responses": "api_make_design",
     "simulation of several responses": "api_simulate",
     "upload of several responses": "api_read_workbook",
+    "upload with kept settings": "api_read_workbook",
     "relabel of several responses": "api_relabel",
     "balance": "api_balance",
     "balance confirmed": "api_balance",
@@ -734,11 +779,13 @@ ENTRY_POINTS = {
     "candidates": "api_candidates",
     "candidates with designs left out": "api_candidates",
     "slow candidates": "api_candidates",
+    "candidates of many factors": "api_candidates",
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
     "predictors": "api_predictors",
     "transformed predictors": "api_predictors",
     "predictors of levels": "api_predictors",
+    "analysis of one factor's levels": "api_analyze_runs",
     "nothing to predict yet": "api_predictors",
     "predictors refused": "api_predictors",
     "mixture predictors": "api_predictors",
@@ -919,6 +966,29 @@ def levels(api) -> dict:
     return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
 
 
+def one_factor_levels(api) -> dict:
+    """Return a full factorial in one catalyst of three levels, three runs at each, every result different."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [catalyst], "n_replicates": 3, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    return {**held, "responses": [float(i) for i in range(len(held["rows"]))]}
+
+
+def repeated(api) -> dict:
+    """Return Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
+    factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+    runs = [s for s in ([1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]) for _ in range(2)]
+    info = {"goal": "target", "target": 20}
+    design = api.ok(
+        "api_make_design", {"design_type": "given", "factors": factors, "runs": runs, "response_info": info}
+    )
+    return {**held_of(design), "responses": [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]}
+
+
+#: Settings the reader kept from the what-if panel, as a workbook keeps them.
+KEPT = [{"name": "Hot", "settings": {"T": 190, "P": 2.5, "F": 12}}]
+
+
 def logged(analysed: dict) -> dict:
     """Analyse the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
     spec = {**analysed["spec"], "analysis_transforms": {analysed["spec"]["response"]: "log"}}
@@ -986,6 +1056,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "simulation": lambda: {**held, "seed": 2},
         "analysis": lambda: analysed,
         "transformed analysis": lambda: logged(analysed),
+        "analysis of readings repeated at each setting": lambda: repeated(api),
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
@@ -1007,9 +1078,14 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "workbook": lambda: analysed,
         "relabel": relabel,
         "upload": upload,
+        "upload with kept settings": lambda: api.ok("api_workbook", {**analysed, "what_if": KEPT}),
         "candidates": lambda: {"factors": FACTORS, "model": "main_quadratic"},
         "candidates with designs left out": lambda: {"factors": FACTORS[:2], "model": "main_effects"},
         "slow candidates": slow,
+        "candidates of many factors": lambda: {
+            "factors": [{"name": f"X{i}", "low": -1, "high": 1} for i in range(13)],
+            "model": "main_effects",
+        },
         "design with limits": lambda: {"design_type": "d_optimal", "factors": FACTORS, "constraints": LIMITS},
         **next_steps(api),
         "next runs called for": lambda: analysed,
@@ -1043,6 +1119,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "predictors": several_responses(api)["balance"],
         "transformed predictors": lambda: logged(analysed),
         "predictors of levels": lambda: levels(api),
+        "analysis of one factor's levels": lambda: one_factor_levels(api),
         "nothing to predict yet": lambda: {**held, "responses": [None] * len(held["rows"])},
         "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},
         "mixture predictors": lambda: blend(3),

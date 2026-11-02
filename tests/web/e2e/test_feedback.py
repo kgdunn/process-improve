@@ -345,17 +345,20 @@ def test_the_report_is_copied_as_text(context, page, relay, site, console):
     assert "reader@example.com" not in copied
 
 
-def test_a_copy_at_another_address_sends_nothing_itself(context, relay, plotly_js):
+def test_a_copy_at_another_address_sends_nothing_itself(context, relay, plotly_js, catalog_files):
     """It never posts and takes no screenshot: a reader's report never reaches another server than factori.al's."""
     asked: list[str] = []
 
     def serve(route: Any) -> None:  # noqa: ANN401 - a Playwright Route
         name = urlsplit(route.request.url).path.lstrip("/") or "index.html"
         asked.append(name)
+        built = catalog_files / name.removeprefix("catalog/")  # a copy is built as the app is, with its catalog
         if name == "wheels/manifest.json":
             route.fulfill(json={"plotly_js": plotly_js[0]})
         elif (WEB / name).is_file():
             route.fulfill(path=WEB / name)
+        elif name.startswith("catalog/") and built.is_file():
+            route.fulfill(path=built)
         else:
             route.fulfill(status=404, body="Not Found")
 

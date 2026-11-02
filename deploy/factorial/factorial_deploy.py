@@ -268,7 +268,7 @@ def status(root: Path) -> str:
 @contextlib.contextmanager
 def locked(root: Path) -> Iterator[None]:
     """Hold the site's lock, so two switches never run at once."""
-    with (root / ".lock").open("a") as handle:
+    with (root / ".lock").open("a", encoding="utf-8") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)  # released when the file closes
         yield
 

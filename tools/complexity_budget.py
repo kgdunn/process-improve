@@ -38,6 +38,12 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 32: #1029 fitted the in-fold centre and scale of PCA's element-wise
+    # cross-validation with MCUVScaler, taking `_pca_ekf_press` under C901.
+    # 33: #1026 built PCA.fit's Hotelling's T² as one cumulative sum through the
+    # rule diagnose and project share, taking it under C901.
+    # 34: #1025 read OPLS.fit's response through one pd.DataFrame call and folded
+    # its two scaler checks into one factor, taking it under C901.
     # 35: 2.0.0 removed `optimize_responses`' deprecated `desirability_weights` branch,
     # taking it under C901.
     # 36: #680 replaced the chain of variant branches in `ControlChart.calculate_limits`
@@ -55,12 +61,20 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 35,
+    "C901": 32,
+    # 17: #1028 merged with #981 scored every Z group of `TPLS.diagnose`, none or
+    # several, in one loop, which needs no branch for a model without Z and takes
+    # that function under PLR0912.
+    # 18: #1029 took `_pca_ekf_press` under PLR0912 (see C901).
+    # 19: #1027 built PLS.cross_validate's resamples first and fitted them in one
+    # loop, taking it under PLR0912.
+    # 20: #1026 built PCA.select_n_components' result once after its scheme
+    # branches rather than in each, taking it under PLR0912.
     # 21: #678's Plotly change took `_add_annotation` under PLR0912. 22: #513 took
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 21,
+    "PLR0912": 17,
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
     # the simulation (the designs, the hypothesised process, the goal and its
@@ -101,13 +115,17 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
+    # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
+    # arrays) and in #981 (each Z group scored on its own) alike.
+    # 27: #1027 scored PLS.nested_cv's outer folds through the helper
+    # select_n_components uses, taking it under PLR0915.
     # 28: #513 (see C901). 29 before that.
     # 30: #541 moved the SPE validity gate and the no-change prediction out of
     # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 28,
+    "PLR0915": 26,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.
@@ -177,7 +195,7 @@ def measure(package: Path = PACKAGE) -> list[Offender]:
         "--no-cache",
     ]
     try:
-        completed = subprocess.run(argv, capture_output=True, text=True, check=False)  # noqa: S603 - fixed argv
+        completed = subprocess.run(argv, capture_output=True, text=True, check=False, encoding="utf-8")  # noqa: S603 - fixed argv
     except OSError as exc:  # pragma: no cover - only when the interpreter itself is broken
         msg = f"could not run ruff: {exc}"
         raise RuntimeError(msg) from exc

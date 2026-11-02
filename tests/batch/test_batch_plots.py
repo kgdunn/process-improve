@@ -196,17 +196,17 @@ def test_unfolded_contribution_plot_unknown_batch_id(spe_contributions: pd.DataF
 
 
 def test_time_varying_loading_plot_accepts_a_plain_pca_on_unfolded_data(aligned_nylon: dict) -> None:
-    """A multivariate PCA fitted on a dict_to_wide matrix (columns re-attached) plots like BatchPCA."""
+    """A multivariate PCA fitted on a scaled dict_to_wide matrix plots like BatchPCA: MCUVScaler keeps the labels."""
     wide = dict_to_wide(aligned_nylon)
     scaled = MCUVScaler().fit_transform(wide)
-    scaled.columns = wide.columns  # MCUVScaler drops the 2-level labels
+    pd.testing.assert_index_equal(scaled.columns, wide.columns)
     pca = PCA(n_components=2).fit(scaled)
     fig = time_varying_loading_plot(pca, component=2)
     assert len(fig.data) == len(wide.columns.get_level_values("tag").unique())
     assert len(fig.data[0].x) == wide.columns.get_level_values("sequence").nunique()
     assert "loadings" in fig.layout.title.text
 
-    flat = PCA(n_components=2).fit(MCUVScaler().fit_transform(wide))  # labels lost: rejected with guidance
+    flat = PCA(n_components=2).fit(scaled.to_numpy())  # no labels: rejected with guidance
     with pytest.raises(ValueError, match="2-level"):
         time_varying_loading_plot(flat)
 

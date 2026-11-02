@@ -19,6 +19,7 @@ import base64
 import functools
 import json
 import math
+import warnings
 from importlib.metadata import PackageNotFoundError, version
 from importlib.resources import files
 from typing import TYPE_CHECKING, Any
@@ -42,6 +43,12 @@ MAX_SOURCE_BYTES = 64 * 2**20
 
 #: What the worker keeps between calls: the source file's bytes.
 SOURCE: dict[str, bytes] = {}
+
+#: The component-count selectors' rules, in words, for the sentence under the chart.
+RULES = {
+    "min": "the lowest prediction error",
+    "1se": "the fewest components within one standard error of the lowest prediction error",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +124,33 @@ def _table(recipe_json: str) -> pd.DataFrame:
     return Recipe.from_dict(json.loads(recipe_json)).run(_source())
 
 
+def _variant(table: pd.DataFrame, variant_json: str) -> Variant:
+    raw = json.loads(variant_json)
+    raw["excluded"] = _rows(raw.get("excluded", []), _labels(table.index), "excluded rows")
+    return Variant.from_dict(raw)
+
+
 @functools.lru_cache(maxsize=8)
 def _fit(recipe_json: str, variant_json: str) -> Any:  # noqa: ANN401 - a workbench Fit
     table = _table(recipe_json)
-    raw = json.loads(variant_json)
-    labels = _labels(table.index)
-    raw["excluded"] = _rows(raw.get("excluded", []), labels, "excluded rows")
-    return Variant.from_dict(raw).fit(table)
+    return _variant(table, variant_json).fit(table)
+
+
+@functools.lru_cache(maxsize=8)
+def _cross_validation(recipe_json: str, variant_json: str) -> tuple[Any, list[str]]:
+    table = _table(recipe_json)
+    variant = _variant(table, variant_json)
+    # A fold that did not converge is said once, under the chart, rather than in the browser's console.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = variant.cross_validate(table)
+    return result, sorted({str(w.message) for w in caught})
+
+
+def _clear() -> None:
+    _table.cache_clear()
+    _fit.cache_clear()
+    _cross_validation.cache_clear()
 
 
 def _key(value: object) -> str:
@@ -155,8 +182,7 @@ def _open(name: str, content: bytes, options: dict[str, Any]) -> dict[str, Any]:
     fmt = "excel" if name.lower().endswith((".xlsx", ".xls")) else "csv"
     recipe = Recipe(SourceFile.of(name, content, format=fmt, **options))
     SOURCE["content"] = content
-    _table.cache_clear()
-    _fit.cache_clear()
+    _clear()
     return _table_payload(recipe)
 
 
@@ -237,6 +263,29 @@ def explain(request: dict) -> dict:
     }
 
 
+def cross_validate(request: dict) -> dict:
+    """Score every number of components on held-out values: R² and Q² with its standard error, and a recommendation."""
+    recipe = Recipe.from_dict(request["recipe"])
+    given = request["variant"]
+    if not isinstance(given, dict):
+        raise TypeError("'variant' must be a mapping.")
+    # The answer does not depend on the number of components, so choosing another one reuses it.
+    result, notes = _cross_validation(_key(recipe.to_dict()), _key({**given, "n_components": 1}))
+    return {
+        "components": [int(a) for a in result.q2.index],
+        "r2": result.r2.tolist(),
+        "q2": result.q2.tolist(),
+        "q2se": result.q2_se.tolist(),
+        "recommended": result.n_components,
+        "rule": RULES.get(result.rule, result.rule),
+        "heldOut": result.held_out,
+        "folds": result.folds,
+        "block": "Y" if result.variant.kind == "PLS" else "X",
+        "notes": notes,
+        "code": result.to_python(),
+    }
+
+
 def save(request: dict) -> dict:
     """Return the project file, in base64: the open file, its recipe, the variants and the saved selections."""
     recipe = Recipe.from_dict(request["recipe"])
@@ -262,8 +311,7 @@ def load(request: dict) -> dict:
     """Open a project file (base64): its table, variants and selections, and whether its fits reproduce."""
     opened = Project.open(base64.b64decode(request["content"], validate=True))
     SOURCE["content"] = opened.project.source
-    _table.cache_clear()
-    _fit.cache_clear()
+    _clear()
     payload = _table_payload(opened.project.recipe)
     return {
         **payload,
@@ -308,6 +356,11 @@ def api_fit(payload: str) -> str:
 def api_explain(payload: str) -> str:
     """Explain a group of rows."""
     return _reply(explain, payload)
+
+
+def api_cross_validate(payload: str) -> str:
+    """Cross-validate the model's number of components."""
+    return _reply(cross_validate, payload)
 
 
 def api_save(payload: str) -> str:

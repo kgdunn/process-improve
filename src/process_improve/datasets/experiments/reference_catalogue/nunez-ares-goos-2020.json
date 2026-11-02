@@ -423,7 +423,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
      "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (4,6)"
+      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (4,6)",
+      "cause": "library_gap"
      }
     },
     {
@@ -464,7 +465,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
      "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (6,8)"
+      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (6,8)",
+      "cause": "library_gap"
      }
     },
     {
@@ -504,7 +506,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 5 42, (8,10) 26, (8,10) 40, (24,36) 12, (2,4)"
      },
      "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (8,10)"
+      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (8,10)",
+      "cause": "check_gap"
      }
     },
     {
@@ -544,7 +547,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 6 76, (10,12) 44, (10,12) 48, (24,32&40) 12, (2,4)"
      },
      "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (10,12)"
+      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (10,12)",
+      "cause": "check_gap"
      }
     },
     {
@@ -584,7 +588,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 7 142, (12,14) 78, (12,14) 56, (32,48) 16, (2,4)"
      },
      "check": {
-      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (12,14)"
+      "manual": "the pair (n0ME, n0IE): the number of zeros in a main-effect column and in an interaction column, centre runs left out; no check kind counts zeros, and generate_design makes no SCCD for 3 or 4 factors; a half-fraction cube has no zeros and each of the 2k axial runs has k - 1 factors at 0, which gives (12,14)",
+      "cause": "check_gap"
      }
     },
     {
@@ -1000,7 +1005,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 3 14, (4,6) 10, (4,6) 12, (4,8) 8, (2,4)"
      },
      "check": {
-      "manual": "generate_design('dsd') always includes the design's centre run: it makes 9 runs for 3 factors, the printed 8 plus that centre run"
+      "manual": "generate_design('dsd') always includes the design's centre run: it makes 9 runs for 3 factors, the printed 8 plus that centre run",
+      "cause": "library_gap"
      }
     },
     {
@@ -1053,7 +1059,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 4 24, (6,8) 16, (6,8) 24, (12,20) 8, (2,4)"
      },
      "check": {
-      "manual": "generate_design('dsd') always includes the design's centre run: it makes 9 runs for 4 factors, the printed 8 plus that centre run"
+      "manual": "generate_design('dsd') always includes the design's centre run: it makes 9 runs for 4 factors, the printed 8 plus that centre run",
+      "cause": "library_gap"
      }
     },
     {
@@ -1106,7 +1113,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 5 42, (8,10) 26, (8,10) 40, (24,36) 12, (2,4)"
      },
      "check": {
-      "manual": "generate_design('dsd') always includes the design's centre run: it makes 13 runs for 5 factors, the printed 12 plus that centre run"
+      "manual": "generate_design('dsd') always includes the design's centre run: it makes 13 runs for 5 factors, the printed 12 plus that centre run",
+      "cause": "library_gap"
      }
     },
     {
@@ -1159,7 +1167,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 6 76, (10,12) 44, (10,12) 48, (24,32&40) 12, (2,4)"
      },
      "check": {
-      "manual": "generate_design('dsd') always includes the design's centre run: it makes 13 runs for 6 factors, the printed 12 plus that centre run"
+      "manual": "generate_design('dsd') always includes the design's centre run: it makes 13 runs for 6 factors, the printed 12 plus that centre run",
+      "cause": "library_gap"
      }
     },
     {
@@ -1212,7 +1221,8 @@
       "quote": "Table 1 ... #factors CCD SCCD BB DSD ... 7 142, (12,14) 78, (12,14) 56, (32,48) 16, (2,4)"
      },
      "check": {
-      "manual": "generate_design('dsd') always includes the design's centre run: it makes 17 runs for 7 factors, the printed 16 plus that centre run"
+      "manual": "generate_design('dsd') always includes the design's centre run: it makes 17 runs for 7 factors, the printed 16 plus that centre run",
+      "cause": "library_gap"
      }
     },
     {
@@ -1282,7 +1292,8 @@
       "quote": "we construct a database of 55,531 such RSDs for 3–7 factors"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); it is 7 times the 7933 basic designs, each with 0 to 6 centre runs added"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); it is 7 times the 7933 basic designs, each with 0 to 6 centre runs added",
+      "cause": "library_gap"
      }
     },
     {
@@ -1297,7 +1308,8 @@
       "quote": "At the moment of writing this article, we have identified 7933 basic designs with 3–7 factors."
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); it is the sum of the totals of Table 2"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); it is the sum of the totals of Table 2",
+      "cause": "library_gap"
      }
     },
     {
@@ -1312,7 +1324,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 n 8–14 8–24 12–44 12–50 14–70"
      },
      "check": {
-      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result"
+      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1327,7 +1340,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd even n Foldover 5 41 5350 1349 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1342,7 +1356,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Total 5 41 5399 1406 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1357,7 +1372,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 n 8–14 8–24 12–44 12–50 14–70"
      },
      "check": {
-      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result"
+      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1372,7 +1388,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd even n Foldover 5 41 5350 1349 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1387,7 +1404,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Total 5 41 5399 1406 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1402,7 +1420,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 n 8–14 8–24 12–44 12–50 14–70"
      },
      "check": {
-      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result"
+      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1417,7 +1436,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd even n Foldover 5 41 5350 1349 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1432,7 +1452,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Not foldover – – 23 49 –"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1447,7 +1468,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd odd n – – 26 8 –"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1462,7 +1484,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Total 5 41 5399 1406 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1477,7 +1500,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 n 8–14 8–24 12–44 12–50 14–70"
      },
      "check": {
-      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result"
+      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1492,7 +1516,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd even n Foldover 5 41 5350 1349 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1507,7 +1532,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Not foldover – – 23 49 –"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1522,7 +1548,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd odd n – – 26 8 –"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1537,7 +1564,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Total 5 41 5399 1406 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1552,7 +1580,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 n 8–14 8–24 12–44 12–50 14–70"
      },
      "check": {
-      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result"
+      "manual": "the range of run sizes the authors chose to enumerate, a setting of the enumeration, not a result",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1567,7 +1596,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... #bd even n Foldover 5 41 5350 1349 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1582,7 +1612,8 @@
       "quote": "Table 2. Numbers of basic designs enumerated. m 3 4 5 6 7 ... Total 5 41 5399 1406 1082"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1597,7 +1628,8 @@
       "quote": "There are 9842 6-factor designs in our catalog (1406 basic designs, each of which can be augmented with 0–6 center runs)."
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); 1406 x 7 = 9842"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); 1406 x 7 = 9842",
+      "cause": "library_gap"
      }
     },
     {
@@ -1612,7 +1644,8 @@
       "quote": "There are 9842 6-factor designs in our catalog (1406 basic designs"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the six-factor total of Table 2"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the six-factor total of Table 2",
+      "cause": "library_gap"
      }
     },
     {
@@ -1627,7 +1660,8 @@
       "quote": "In that case, 60 designs survive the satisficing stage."
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed",
+      "cause": "library_gap"
      }
     },
     {
@@ -1642,7 +1676,8 @@
       "quote": "we end up with 10 designs, whose values for the 6 attributes in AD are displayed in Table 13"
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed",
+      "cause": "library_gap"
      }
     },
     {
@@ -1657,7 +1692,8 @@
       "quote": "Then, instead of 60 designs, we get 44 designs after satisficing."
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); the filter runs over the catalogue's characterisation, which is not distributed",
+      "cause": "library_gap"
      }
     },
     {
@@ -1672,7 +1708,8 @@
       "quote": "adding just one center run has a positive impact on the estimability of a full SOE model for more than 10% of the basic designs."
      },
      "check": {
-      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); a share of the whole catalogue"
+      "manual": "a count from the authors' integer-programming enumeration of their catalogue; the library does not enumerate the catalogue (generate_design('omars_ilp') searches the foldover family for one design); a share of the whole catalogue",
+      "cause": "library_gap"
      }
     }
    ]
@@ -1780,7 +1817,8 @@
       "quote": "Table 3. General morphology of Design 1. ... basic.design.id 154"
      },
      "check": {
-      "manual": "a label the authors gave the design in their catalogue"
+      "manual": "a label the authors gave the design in their catalogue",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1795,7 +1833,8 @@
       "quote": "Table 3. General morphology of Design 1. ... n.factors 5"
      },
      "check": {
-      "manual": "the number of columns of the printed matrix, which defines this entry's factors"
+      "manual": "the number of columns of the printed matrix, which defines this entry's factors",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1900,7 +1939,8 @@
       "quote": "Table 3. General morphology of Design 1. ... n.isomorphisms 240"
      },
      "check": {
-      "manual": "no library function counts isomorphic copies; applying all 5! x 2^5 = 3840 permutations and sign switches to the printed matrix gives 240 distinct designs (numpy, while cataloguing)"
+      "manual": "no library function counts isomorphic copies; applying all 5! x 2^5 = 3840 permutations and sign switches to the printed matrix gives 240 distinct designs (numpy, while cataloguing)",
+      "cause": "library_gap"
      }
     },
     {
@@ -1915,7 +1955,8 @@
       "quote": "Table 3. General morphology of Design 1. ... foldover.design True"
      },
      "check": {
-      "manual": "a yes/no property, not a number; every printed run's mirror image is also a run"
+      "manual": "a yes/no property, not a number; every printed run's mirror image is also a run",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1930,7 +1971,8 @@
       "quote": "Table 3. General morphology of Design 1. ... 4th.order.moments False"
      },
      "check": {
-      "manual": "a yes/no property, not a number; the interaction columns sum to zero, so the nonzero correlations between them that evaluate_design's correlation metric gives (Table 7: st,uv at least 0.333) are nonzero fourth-order moments"
+      "manual": "a yes/no property, not a number; the interaction columns sum to zero, so the nonzero correlations between them that evaluate_design's correlation metric gives (Table 7: st,uv at least 0.333) are nonzero fourth-order moments",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1965,7 +2007,8 @@
       "kind": "design_metric",
       "metric": "a_efficiency",
       "model": "main_effects",
-      "disagreement": "The exact value is 76.190476, which rounds to 76.190; the paper's 76.191 is what rounding first to four decimals (76.1905) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree."
+      "disagreement": "The exact value is 76.190476, which rounds to 76.190; the paper's 76.191 is what rounding first to four decimals (76.1905) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2000,7 +2043,8 @@
       "kind": "design_metric",
       "metric": "a_efficiency",
       "model": "interactions",
-      "disagreement": "The exact value is 19.865494, which rounds to 19.865; the paper's 19.866 is what rounding first to four decimals (19.8655) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree."
+      "disagreement": "The exact value is 19.865494, which rounds to 19.865; the paper's 19.866 is what rounding first to four decimals (19.8655) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2015,7 +2059,8 @@
       "quote": "Table 4. Estimation efficiencies of Design 1. ... SOE Model not estimable"
      },
      "check": {
-      "manual": "a statement, not a number: evaluate_design returns no D-efficiency for the quadratic model and notes the design is rank-deficient for it (rank 16 of 21 columns)"
+      "manual": "a statement, not a number: evaluate_design returns no D-efficiency for the quadratic model and notes the design is rank-deficient for it (rank 16 of 21 columns)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2142,7 +2187,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.963: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.963: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2206,7 +2252,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.912: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.912: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2270,7 +2317,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.967: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.967: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2334,7 +2382,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.899: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.899: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2398,7 +2447,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.498: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.498: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2420,7 +2470,8 @@
       "options": {
        "effect_size": 2
       },
-      "disagreement": "evaluate_design gives 0.974: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.974: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2456,7 +2507,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=1) gives 0.328 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=1) gives 0.328 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2478,7 +2530,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.241: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.241: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2493,7 +2546,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=1) gives 0.411 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=1) gives 0.411 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2508,7 +2562,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=2) gives 0.826 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=2) gives 0.826 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2530,7 +2585,8 @@
       "options": {
        "effect_size": 2
       },
-      "disagreement": "evaluate_design gives 0.697: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.697: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2545,7 +2601,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=2) gives 0.927 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=2) gives 0.927 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2560,7 +2617,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=3) gives 0.984 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key averages the interaction terms alone (the power dict holds the main effects too); evaluate_design(model='interactions', metric='power', effect_size=3) gives 0.984 as the interactions' average, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2582,7 +2640,8 @@
       "options": {
        "effect_size": 3
       },
-      "disagreement": "evaluate_design gives 0.956: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.956: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -2597,7 +2656,8 @@
       "quote": "Table 6 ... β_ij = 0 ME+IE 0.322 0.242 0.398 0.790 0.661 0.896 0.972 0.931 0.997"
      },
      "check": {
-      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=3) gives 0.999 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)"
+      "manual": "no key takes the maximum over the interaction terms alone (the main effects' power is larger); evaluate_design(model='interactions', metric='power', effect_size=3) gives 0.999 as the interactions' maximum, an exact power that does not agree with the paper's (see the disagreements of the other power cells)",
+      "cause": "check_gap"
      }
     },
     {
@@ -2666,7 +2726,8 @@
       "quote": "Table 7. Average, minimum, and maximum correlations between two types of second-order effects for Design 1. ... qq,st 0.295 0.000 0.553"
      },
      "check": {
-      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.295 as the average absolute correlation over the 30 pairs of this type"
+      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.295 as the average absolute correlation over the 30 pairs of this type",
+      "cause": "check_gap"
      }
     },
     {
@@ -2717,7 +2778,8 @@
       "quote": "Table 7. Average, minimum, and maximum correlations between two types of second-order effects for Design 1. ... qs,qt 0.178 0.000 0.333"
      },
      "check": {
-      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.178 as the average absolute correlation over the 30 pairs of this type"
+      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.178 as the average absolute correlation over the 30 pairs of this type",
+      "cause": "check_gap"
      }
     },
     {
@@ -2768,7 +2830,8 @@
       "quote": "Table 7. Average, minimum, and maximum correlations between two types of second-order effects for Design 1. ... st,uv 0.367 0.333 0.500"
      },
      "check": {
-      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.367 as the average absolute correlation over the 15 pairs of this type"
+      "manual": "no key averages one type of pair; evaluate_design(model='quadratic', metric='correlation') gives 0.367 as the average absolute correlation over the 15 pairs of this type",
+      "cause": "check_gap"
      }
     },
     {
@@ -2822,7 +2885,8 @@
       "kind": "design_metric",
       "metric": "g_efficiency",
       "model": "main_effects",
-      "disagreement": "The exact value is 76.190476, which rounds to 76.190; the paper's 76.191 is what rounding first to four decimals (76.1905) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree."
+      "disagreement": "The exact value is 76.190476, which rounds to 76.190; the paper's 76.191 is what rounding first to four decimals (76.1905) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2840,7 +2904,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "main_effects",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1496, and the exact average, 1/22 + 5/(3 x 16), is 0.1496. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1496, and the exact average, 1/22 + 5/(3 x 16), is 0.1496. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -2859,7 +2924,8 @@
       "metric": "fds",
       "key": "quantiles.0",
       "model": "main_effects",
-      "disagreement": "The smallest prediction variance in the library's 100,000-point sample is 0.0463, near the exact minimum at the centre of the cube, 1/22 = 0.0455; the paper's 0.048 is the smallest value in its own, presumably smaller, sample."
+      "disagreement": "The smallest prediction variance in the library's 100,000-point sample is 0.0463, near the exact minimum at the centre of the cube, 1/22 = 0.0455; the paper's 0.048 is the smallest value in its own, presumably smaller, sample.",
+      "cause": "method"
      }
     },
     {
@@ -2912,7 +2978,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "interactions",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5149. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5149. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -2931,7 +2998,8 @@
       "metric": "fds",
       "key": "quantiles.0",
       "model": "interactions",
-      "disagreement": "The smallest prediction variance in the library's 100,000-point sample is 0.0463, near the exact minimum at the centre of the cube, 1/22 = 0.0455 (the intercept's variance; every column is orthogonal to the intercept's); the paper's 0.049 is the smallest value in its own, presumably smaller, sample."
+      "disagreement": "The smallest prediction variance in the library's 100,000-point sample is 0.0463, near the exact minimum at the centre of the cube, 1/22 = 0.0455 (the intercept's variance; every column is orthogonal to the intercept's); the paper's 0.049 is the smallest value in its own, presumably smaller, sample.",
+      "cause": "method"
      }
     },
     {
@@ -2964,7 +3032,8 @@
       "quote": "Table 8. Precision of prediction of Design 1. ... SOE Model not estimable"
      },
      "check": {
-      "manual": "a statement, not a number: the quadratic model is rank-deficient (rank 16 of 21 columns), and evaluate_design returns no G-efficiency for it"
+      "manual": "a statement, not a number: the quadratic model is rank-deficient (rank 16 of 21 columns), and evaluate_design returns no G-efficiency for it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -3578,7 +3647,8 @@
       "kind": "design_metric",
       "metric": "g_efficiency",
       "model": "(X1 + X3 + X4)**2",
-      "disagreement": "The exact value is 45.634459, which rounds to 45.634; the paper's 45.635 is what rounding first to four decimals (45.6345) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree."
+      "disagreement": "The exact value is 45.634459, which rounds to 45.634; the paper's 45.635 is what rounding first to four decimals (45.6345) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -3635,7 +3705,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X2 + X5)**2",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1370. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1370. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3653,7 +3724,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X3 + X4)**2",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1410. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.1410. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3746,7 +3818,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X2 + X4)**2 + I(X1 ** 2) + I(X2 ** 2) + I(X4 ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3037. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3037. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3764,7 +3837,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X2 + X4 + X5)**2 + I(X2 ** 2) + I(X4 ** 2) + I(X5 ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3621. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3621. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3818,7 +3892,8 @@
       "kind": "design_metric",
       "metric": "g_efficiency",
       "model": "(X1 + X3 + X4 + X5)**2",
-      "disagreement": "The exact value is 29.714453, which rounds to 29.714; the paper's 29.715 is what rounding first to four decimals (29.7145) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree."
+      "disagreement": "The exact value is 29.714453, which rounds to 29.714; the paper's 29.715 is what rounding first to four decimals (29.7145) and then to three gives. The paper's 76.191 (twice), 19.866, 45.635 and 29.715 all differ from the exact values this way, and its other efficiencies, which this double rounding does not change, agree.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -3841,7 +3916,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.2234; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.2234; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     },
     {
@@ -3876,7 +3952,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X2 + X3 + X5)**2",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2655. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2655. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3896,7 +3973,8 @@
       "model": "quadratic",
       "metric": ["g_efficiency"],
       "key": "averages.g_efficiency",
-      "disagreement": "the library's sample of each four-factor cube gives an average of 10.282, and its searched maxima (max_search='optimize') 9.910: the largest prediction variance of a projection lies inside the cube, where a sample can miss it. The paper's 10.307 is a sample's value too; the library's sample of the five-factor cube, with the fifth factor out of the model, happens to give it"
+      "disagreement": "the library's sample of each four-factor cube gives an average of 10.282, and its searched maxima (max_search='optimize') 9.910: the largest prediction variance of a projection lies inside the cube, where a sample can miss it. The paper's 10.307 is a sample's value too; the library's sample of the five-factor cube, with the fifth factor out of the model, happens to give it",
+      "cause": "method"
      }
     },
     {
@@ -3953,7 +4031,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.8523; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.8523; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     },
     {
@@ -3971,7 +4050,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X2 + X3 + X5)**2 + I(X1 ** 2) + I(X2 ** 2) + I(X3 ** 2) + I(X5 ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5364. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5364. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -3989,7 +4069,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(X1 + X3 + X4 + X5)**2 + I(X1 ** 2) + I(X3 ** 2) + I(X4 ** 2) + I(X5 ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.9308. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.9308. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     }
    ]
@@ -4174,7 +4255,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "main_effects",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3628, and the exact average, 1/14 + 7/(3 x 8), is 0.3631. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3628, and the exact average, 1/14 + 7/(3 x 8), is 0.3631. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -4196,7 +4278,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.738: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.738: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4218,7 +4301,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.368: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.368: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4240,7 +4324,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.325: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.325: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4301,7 +4386,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.6238; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.6238; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     },
     {
@@ -4319,7 +4405,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(A + E + F)**2 + I(A ** 2) + I(E ** 2) + I(F ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.6719. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.6719. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -4543,7 +4630,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "main_effects",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3580, and the exact average, 1/15 + 7/(3 x 8), is 0.3583. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3580, and the exact average, 1/15 + 7/(3 x 8), is 0.3583. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -4565,7 +4653,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.744: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.744: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4587,7 +4676,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.391: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.391: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4609,7 +4699,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.370: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.370: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4670,7 +4761,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.5542; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.5542; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     },
     {
@@ -4688,7 +4780,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(A + E + F)**2 + I(A ** 2) + I(E ** 2) + I(F ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5981. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5981. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     }
    ]
@@ -4876,7 +4969,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "main_effects",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3538, and the exact average, 1/16 + 7/(3 x 8), is 0.3542. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.3538, and the exact average, 1/16 + 7/(3 x 8), is 0.3542. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -4898,7 +4992,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.749: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.749: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4920,7 +5015,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.408: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.408: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -4942,7 +5038,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.408: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.408: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5003,7 +5100,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.5226; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.5226; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     },
     {
@@ -5021,7 +5119,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(A + E + F)**2 + I(A ** 2) + I(E ** 2) + I(F ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5651. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5651. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -5228,7 +5327,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "main_effects",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2290, and the exact average, 1/16 + 7/(3 x 14), is 0.2292. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2290, and the exact average, 1/16 + 7/(3 x 14), is 0.2292. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -5250,7 +5350,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.935: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.935: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5272,7 +5373,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.842: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.842: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5294,7 +5396,8 @@
       "options": {
        "effect_size": 1
       },
-      "disagreement": "evaluate_design gives 0.209: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.209: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5333,7 +5436,8 @@
       "model": "quadratic",
       "metric": ["g_efficiency"],
       "key": "averages.g_efficiency",
-      "disagreement": "the library's sample gives an average of 26.511 and its searched maxima 26.490; the paper's 26.56 implies smaller largest prediction variances than either finds"
+      "disagreement": "the library's sample gives an average of 26.511 and its searched maxima 26.490; the paper's 26.56 implies smaller largest prediction variances than either finds",
+      "cause": "method"
      }
     },
     {
@@ -5373,7 +5477,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "(D + E + G)**2 + I(D ** 2) + I(E ** 2) + I(G ** 2)",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 1.2533. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 1.2533. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -5582,7 +5687,8 @@
         "n_center_points": 1
        }
       },
-      "disagreement": "evaluate_design gives 0.937: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.937: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5611,7 +5717,8 @@
         "n_center_points": 1
        }
       },
-      "disagreement": "evaluate_design gives 0.857: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.857: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5640,7 +5747,8 @@
         "n_center_points": 1
        }
       },
-      "disagreement": "evaluate_design gives 0.284: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.284: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5693,7 +5801,8 @@
         "n_center_points": 1
        }
       },
-      "disagreement": "the library's sample gives an average of 63.433 and its searched maxima 62.575; the paper's 66.20 implies smaller largest prediction variances than the cube's vertices and centre already give (63.49 over the three-level grid)"
+      "disagreement": "the library's sample gives an average of 63.433 and its searched maxima 62.575; the paper's 66.20 implies smaller largest prediction variances than the cube's vertices and centre already give (63.49 over the three-level grid)",
+      "cause": "method"
      }
     },
     {
@@ -5747,7 +5856,8 @@
         "n_center_points": 1
        }
       },
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5332. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.5332. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     }
    ]
@@ -5892,7 +6002,8 @@
         "n_center_points": 2
        }
       },
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2220, and the exact average, 1/18 + 7/(3 x 14), is 0.2222. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.2220, and the exact average, 1/18 + 7/(3 x 14), is 0.2222. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -5921,7 +6032,8 @@
         "n_center_points": 2
        }
       },
-      "disagreement": "evaluate_design gives 0.939: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.939: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5950,7 +6062,8 @@
         "n_center_points": 2
        }
       },
-      "disagreement": "evaluate_design gives 0.868: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.868: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -5979,7 +6092,8 @@
         "n_center_points": 2
        }
       },
-      "disagreement": "evaluate_design gives 0.351: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it."
+      "disagreement": "evaluate_design gives 0.351: the exact power of the two-sided t-test of the coefficient at alpha 0.05 (noncentral F on 1 and n - p degrees of freedom, noncentrality (beta/sigma)^2 / c_jj with c = (X'X)^-1). The paper does not say how it computes power. Its values are mostly above these exact ones, but below them in most cells of Design 1's ME+IE model (0.878 against 0.912 for a main effect), so no single change of alpha, degrees of freedom or noncentrality reproduces them; a simulation, or a different test, would explain it.",
+      "cause": "method"
      }
     },
     {
@@ -6032,7 +6146,8 @@
         "n_center_points": 2
        }
       },
-      "disagreement": "the library's sample gives an average of 61.469 and its searched maxima 60.625; the paper's 64.11 implies smaller largest prediction variances than the cube's vertices and centre already give (61.75 over the three-level grid)"
+      "disagreement": "the library's sample gives an average of 61.469 and its searched maxima 60.625; the paper's 64.11 implies smaller largest prediction variances than the cube's vertices and centre already give (61.75 over the three-level grid)",
+      "cause": "method"
      }
     },
     {
@@ -6538,7 +6653,8 @@
       "kind": "design_metric",
       "metric": "g_efficiency",
       "model": "quadratic",
-      "disagreement": "evaluate_design gives 24.24 for the SOE model (p = 28 parameters), from a largest prediction variance of 3.122, the 3.12 the paper prints for this design; 100 x 28 / (37 x 3.12) = 24.3, so 'around 25%' is a rounded reading of Figure 7, where Design 4 is marked by an arrow."
+      "disagreement": "evaluate_design gives 24.24 for the SOE model (p = 28 parameters), from a largest prediction variance of 3.122, the 3.12 the paper prints for this design; 100 x 28 / (37 x 3.12) = 24.3, so 'around 25%' is a rounded reading of Figure 7, where Design 4 is marked by an arrow.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -7001,7 +7117,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "interactions",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.4922. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.4922. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -7062,7 +7179,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.4909; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.4909; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     }
    ]
@@ -7228,7 +7346,8 @@
       "kind": "design_metric",
       "metric": "average_prediction_variance",
       "model": "interactions",
-      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.4914. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees."
+      "disagreement": "The library's average over 100,000 uniform points of the cube (seed 42) is 0.4914. The paper's average comes from its own sample of the region, which it does not describe; its averages of the prediction variance differ from the library's by up to 0.04 (Tables 8, 11, 12 and 13), mostly above, while every exact D-, A- and G-efficiency agrees.",
+      "cause": "method"
      }
     },
     {
@@ -7289,7 +7408,8 @@
       "options": {
        "integration": "exact"
       },
-      "disagreement": "the exact average over the cube, by quadrature, is 0.4493; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones"
+      "disagreement": "the exact average over the cube, by quadrature, is 0.4493; the paper's averages of the prediction variance come from its own sample of the region, which it does not describe, and lie up to 0.016 above the exact ones",
+      "cause": "method"
      }
     }
    ]

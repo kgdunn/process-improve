@@ -48,9 +48,8 @@ def dispatch_mixture(
     cubic model is sized by the {q, 3} simplex lattice, every blend in thirds, plus
     the overall centroid when it is not one of them (four or more components). A
     *budget* smaller than that design gives a D-optimal subset of the candidate
-    blends instead (see below), so the design never exceeds the budget unless the
-    budget is below the number of model terms; that budget is raised to the term
-    count, with a warning, and recorded in ``metadata["budget_requested"]``.
+    blends instead (see below), so the design never exceeds the budget. A budget below
+    the number of model terms raises a ``ValueError``.
 
     When any component has a bound inside (0, 1), or *constraints* are given, the
     region is a polytope inside the simplex and the design comes from

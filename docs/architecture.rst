@@ -114,6 +114,17 @@ In ``experiments/`` the tools and analyses are split one-per-module
 (``_tools/<tool>.py``, ``_analyses/<analysis>.py``) with ``tools.py`` acting as
 the ordered aggregator (ENG-02). To add a tool, see :doc:`development/tool_authoring`.
 
+The tools keep no state between calls: safe mode runs each call in its own process. An
+analysis that proceeds step by step therefore carries its state in the calls. The
+multivariate session tools (``workbench/tools.py``: ``mva_open``, ``mva_fit``,
+``mva_explain``, ``mva_predict``, ``mva_script``) take a *session*, a JSON document with the
+source, the recipe that reads it and every model so far, and return it with one step added.
+Each model names the model it grew from and why, and keeps all of its own recipe steps and
+its workbench ``Variant``. A model grown from another changes one thing at a time: rows left
+out of the fit (still projected), rows fitted again, a transform, the number of components.
+``mva_script`` writes the Python that rebuilds each model, the record of the analysis outside
+MCP.
+
 Where to make a change
 ----------------------
 

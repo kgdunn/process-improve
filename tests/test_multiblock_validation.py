@@ -7,6 +7,7 @@ run once per class. Everything fits a 10-row, two-block set in milliseconds.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 import numpy as np
@@ -15,7 +16,7 @@ import plotly.graph_objects as go
 import pytest
 
 from process_improve.multivariate._limits import spe_calculation
-from process_improve.multivariate.methods import MBPCA, MBPLS
+from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning, randomization_test_mbpls
 
 MultiblockModel = MBPCA | MBPLS
 
@@ -79,11 +80,24 @@ def test_fit_refuses_malformed_blocks(
         ({"max_iter": 0}, r"^max_iter must be positive; got 0\.$"),
         ({"algorithm": "nipals", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
         ({"algorithm": "nipals", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
+        ({"algorithm": "dense", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
+        ({"algorithm": "dense", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
     ],
-    ids=["no-components", "no-iterations", "tol-too-large", "tol-below-precision"],
+    ids=[
+        "no-components",
+        "no-iterations",
+        "tol-too-large",
+        "tol-below-precision",
+        "dense-tol-too-large",
+        "dense-tol-below-precision",
+    ],
 )
 def test_invalid_settings_are_refused(cls: type[MultiblockModel], arguments: dict, message: str) -> None:
-    """Counts must be positive, and the NIPALS tolerance must sit between machine precision and 10."""
+    """Counts must be positive, and the tolerance must sit between machine precision and 10.
+
+    The dense path iterates too, so it checks its tolerance as the masked path does: it used to
+    take any, and one above about 1 stopped the loop before its first pass (#1028).
+    """
     blocks, y = _blocks()
     with pytest.raises(ValueError, match=message):
         _fit(cls, blocks, y, **arguments)
@@ -196,6 +210,106 @@ def test_spe_limits_follow_the_last_component_spe(cls: type[MultiblockModel]) ->
     # With one block, the merged SPE is that block's SPE, so the two limits agree.
     one_block = _fit(cls, {"a": blocks["a"]}, y)
     assert one_block.super_spe_limit(0.95) == pytest.approx(one_block.block_spe_limit("a", 0.95))
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_block_t2_is_scaled_as_the_super_t2_is(cls: type[MultiblockModel]) -> None:
+    """#513: block and super T² both scale each component by its second moment about zero.
+
+    Scaled that way, one component's T² sums to n - 1 over the n rows that have a score,
+    so the last column sums to A (n - 1). The block T² was scaled by the variance about
+    the scores' own mean instead. That differs once missing cells leave the scores
+    off-centre, and a row with no score in the block, which MBPLS allows, made it NaN, so
+    every row's T² in that block went unscaled.
+    """
+    blocks, y = _blocks(n=20)
+    gappy = {**blocks, "a": blocks["a"].copy()}
+    gappy["a"].iloc[[1, 5, 9], 0] = np.nan
+    cases = [gappy]
+    if cls is MBPLS:
+        no_score = {**gappy, "a": gappy["a"].copy()}
+        no_score["a"].iloc[3] = np.nan
+        cases.append(no_score)
+
+    for data in cases:
+        model = _fit(cls, data, y)
+        n_components = model.n_components_
+        for name in data:
+            t2 = model.block_hotellings_t2_[name].iloc[:, -1]
+            assert t2.sum() == pytest.approx(n_components * (t2.notna().sum() - 1)), name
+        assert model.super_hotellings_t2_.iloc[:, -1].sum() == pytest.approx(n_components * (len(y) - 1))
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_a_tolerance_above_1_still_runs_one_pass(cls: type[MultiblockModel]) -> None:
+    """The first pass always runs (#1028).
+
+    A centred seed moves by about its own size in the first pass, so a tolerance of 2 is met
+    at once: each component is that one pass, as with ``max_iter=1``. The loop used to test the
+    tolerance before the first pass, so it never began, and fit raised KeyError for want of a
+    block loading.
+    """
+    blocks, y = _blocks()
+    loose = _fit(cls, blocks, y, tol=2.0)
+    np.testing.assert_array_equal(loose.fitting_info_["iterations"], [1, 1])
+    with pytest.warns(SpecificationWarning, match="did not converge within max_iter=1"):
+        one_pass = _fit(cls, blocks, y, max_iter=1)
+    np.testing.assert_array_equal(loose.super_scores_, one_pass.super_scores_)
+    for name in blocks:
+        np.testing.assert_array_equal(loose.block_scores_[name], one_pass.block_scores_[name])
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+def test_display_results_prints_the_iterations_as_integers(cls: type[MultiblockModel]) -> None:
+    """Under numpy 2 the list of iteration counts printed as ``[np.int64(3), ...]``."""
+    blocks, y = _blocks()
+    lines = _fit(cls, blocks, y).display_results().splitlines()
+    assert re.fullmatch(r"  Iterations per PC: \[\d+, \d+\]", lines[-2]), lines[-2]
+
+
+def _assert_same(after: object, before: object) -> None:
+    """Assert two diagnose results, or parts of them, equal: frames, series, and dicts of either."""
+    if isinstance(before, dict):
+        assert isinstance(after, dict)
+        assert list(after) == list(before)
+        for key, value in before.items():
+            _assert_same(after[key], value)
+    elif isinstance(before, pd.DataFrame):
+        pd.testing.assert_frame_equal(after, before)
+    else:
+        pd.testing.assert_series_equal(after, before)
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+@pytest.mark.parametrize("n_components", [1, 3])
+def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_says(
+    cls: type[MultiblockModel], n_components: int
+) -> None:
+    """``set_params(n_components=...)`` without a refit leaves a fitted model as it was (#1028).
+
+    scikit-learn's convention: what a fitted model does depends on its fitted attributes only.
+    The projections, the plots, the summary and the contributions read the constructor's
+    ``n_components`` instead of ``n_components_``, so on a two-component fit 3 indexed past the
+    fitted weights (IndexError), and 1 failed in MBPLS's projection and scored MBPCA's new rows
+    on one component.
+    """
+    blocks, y = _blocks()
+    model = _fit(cls, blocks, y)
+    result, summary = model.diagnose(blocks), model.display_results()
+    contributions = model.score_contributions(blocks, component=2)
+    bar_plot = "super_loadings_bar_plot" if cls is MBPCA else "super_weights_bar_plot"
+
+    model.set_params(n_components=n_components)
+    _assert_same(dict(model.diagnose(blocks)), dict(result))
+    pd.testing.assert_frame_equal(model.transform(blocks), result.super_scores)
+    assert model.display_results() == summary
+    _assert_same(model.score_contributions(blocks, component=2), contributions)
+    assert model.super_score_plot(2, 1).layout.title.text.endswith("PC2 vs PC1")
+    assert getattr(model, bar_plot)(2).layout.title.text.endswith("component 2")
+    if cls is MBPLS:
+        pd.testing.assert_frame_equal(model.predict(blocks), result.predictions)
+        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, seed=0)
+        assert list(risk.index) == [1, 2]
 
 
 def test_mbpca_with_one_component_reports_its_r2_as_both_increment_and_total() -> None:

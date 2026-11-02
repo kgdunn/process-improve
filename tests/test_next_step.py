@@ -242,8 +242,9 @@ class TestLackOfFit:
     def _context(significant: bool, judged: dict[str, float]) -> SimpleNamespace:
         return SimpleNamespace(
             lack_of_fit={"tested": True, "significant": significant, "p_value": 0.004},
-            model=SimpleNamespace(judged=judged),
+            model=SimpleNamespace(judged=judged, misses={}),
             study=SimpleNamespace(names=["x0", "x1", "x2"], numeric=[True, True, True]),
+            active=["x0"],
             active_factors=[0],
             name="ABC".__getitem__,
         )
@@ -261,6 +262,84 @@ class TestLackOfFit:
         assert asked == [[0, 1]]  # B (p = 0.15) joins A; C and B:C show nothing
         assert step.action == "add_runs_for_model"
         assert "B shows some evidence of an effect" in step.reasons[0]
+
+    @staticmethod
+    def _interacting() -> tuple[_Study, dict]:
+        """Return a 2^4 factorial with centre runs, A large and A:D, judged in the main effects model, which misses."""
+        factors = _factors("ABCD")
+        runs = generate_design(factors, design_type="full_factorial", n_center_points=5).design_actual
+        x = runs[list("ABCD")].astype(float).to_numpy()
+        y = 50 + 5 * x[:, 0] + 3 * x[:, 0] * x[:, 3] + np.random.default_rng(1).normal(0, 0.3, len(x))
+        study = _Study(factors, _with_blocks(_code(factors, runs[list("ABCD")].assign(y=y), "y")), "y")
+        judged = _t_tests(study.data, study.names, [], "t-tests of the main effects", 0.05)
+        judged["considered"] = set(study.names)
+        return study, judged
+
+    def test_a_model_that_misses_tests_the_interactions_of_its_active_factors_with_the_others(self) -> None:
+        """A:D averages out of D's main effect; the second look finds it once the model is seen to miss."""
+        study, judged = self._interacting()
+        judged = _against_pure_error(study, judged, 0.05)
+        assert judged["misses"]["significant"]
+        active = ["x0"]
+        next_step._second_look(study, judged, active, [], 0.05)
+        assert active == ["x0", "x0:x3"]
+        assert judged["judged"]["x0:x1"] > 0.05  # Holm's method across A:B, A:C and A:D
+        assert "Holm" in judged["method"]
+        assert "misses" not in judged  # the model now holds a term the judging model lacked
+
+    def test_a_model_that_fits_keeps_strong_heredity(self) -> None:
+        """Without a lack of fit, only interactions of two active factors are looked at: none here."""
+        study, judged = self._interacting()
+        active = ["x0"]
+        next_step._second_look(study, judged, active, [], 0.05)
+        assert active == ["x0"]
+        assert "x0:x3" not in judged["judged"]
+
+    @staticmethod
+    def _fraction_context(misses: dict) -> SimpleNamespace:
+        """Return a 2^(4-1) fraction with centre runs, A and B active: A:C shares its column with B:D, A:D with B:C."""
+        factors = _factors("ABCD")
+        runs = generate_design(factors, design_type="fractional_factorial", resolution=4, n_center_points=3)
+        runs = runs.design_actual[list("ABCD")].astype(float)
+        study = _Study(factors, _with_blocks(_code(factors, runs.assign(y=0.0), "y")), "y")
+        return SimpleNamespace(
+            study=study,
+            active=["x0", "x1"],
+            active_factors=[0, 1],
+            model=SimpleNamespace(
+                judged={"x0": 0.0, "x1": 0.0, "x2": 0.5, "x3": 0.5}, misses=misses, terms=["x0", "x1"]
+            ),
+            lack_of_fit={"tested": True, "significant": True, "p_value": 0.01},
+            seed=0,
+            name="ABCD".__getitem__,
+        )
+
+    def test_runs_are_added_for_the_interactions_the_runs_cannot_test(self) -> None:
+        """The runs chosen let every interaction of A or B with another factor be estimated beside the main effects."""
+        ctx = self._fraction_context(misses={"tested": True, "significant": True, "p_value": 0.01})
+        rhs = "x0 + x1 + x2 + x3 + x0:x1 + x0:x2 + x0:x3 + x1:x2 + x1:x3"
+        before = ctx.study.data[ctx.study.names]
+        assert np.linalg.matrix_rank(np.asarray(next_step.dmatrix(rhs, before))) < 10
+        step = next_step._interaction_runs(ctx)
+        assert step.action == "add_runs_for_model"
+        assert "interactions of A, B with the other factors" in step.headline
+        assert np.abs(step.runs).max() <= 1
+        after = pd.concat([before, pd.DataFrame(step.runs, columns=ctx.study.names)], ignore_index=True)
+        assert np.linalg.matrix_rank(np.asarray(next_step.dmatrix(rhs, after))) == 10
+
+    def test_no_interaction_runs_when_the_judging_model_fits(self) -> None:
+        assert next_step._interaction_runs(self._fraction_context(misses={})) is None
+
+    def test_the_judging_models_lack_of_fit_holds_for_the_smaller_model(self) -> None:
+        """A model of some of the judged terms misses the repeats when the judging model does, whatever its own test."""
+        study = self._study(three_factor=0)
+        fit = next_step._ols(study.data, ["x0", "x1"])
+        model = SimpleNamespace(fit=fit, error_df=4, misses={})
+        own = next_step._lack_of_fit(study, model, 0.05)
+        assert own["tested"]
+        assert not own["significant"]
+        model.misses = {"tested": True, "significant": True, "p_value": 0.03}
+        assert next_step._lack_of_fit(study, model, 0.05) == model.misses
 
     @pytest.mark.parametrize(
         ("significant", "judged"),
@@ -574,6 +653,21 @@ class TestBudget:
         assert step["headline"] == "Stop: 2 run(s) are left, fewer than the next step needs."
 
 
+class TestAlternatives:
+    @pytest.mark.slow  # the D-optimal search it compares against
+    def test_the_alternatives_count_runs_as_the_search_would_choose_them(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The alternatives skip the D-optimal search, most of a screening study's time, and count the same runs."""
+        truth = TrueProcess({"Intercept": 50, "A": 5, "C": -4, "F": 3}, sigma=1)
+        factors = _factors("ABCDEFG")
+        runs = _runs(factors, truth, 3, design_type="plackett_burman", n_center_points=3)
+        counted = recommend_next_step(factors, runs, "y")["alternatives"]
+        search = next_step._d_optimal_runs
+        monkeypatch.setattr(next_step, "_d_optimal_runs", lambda *args: search(*args[:-1], True))
+        searched = recommend_next_step(factors, runs, "y")["alternatives"]
+        assert counted == searched
+        assert ("augment_to_rsm", 15) in [(a["action"], a["n_runs"]) for a in counted]
+
+
 class TestBlocks:
     """A process that drifts between rounds: each round a block, its shift fitted and kept out of the effects."""
 
@@ -601,6 +695,37 @@ class TestBlocks:
         made = _made(step, CURVED, 4).assign(y=lambda d: d["y"] + 8.0)
         done = recommend_next_step(factors, runs, "y", ranges_can_move=False, block="Round", confirmation_runs=made)
         assert done["action"] == "stop"
+
+    @pytest.mark.parametrize(
+        "design",
+        [
+            {"design_type": "full_factorial"},  # judged by t-tests in the interactions model
+            {"design_type": "fractional_factorial", "resolution": 5},  # by Lenth's method on the two-level runs
+        ],
+    )
+    def test_centre_runs_in_a_block_of_their_own_do_not_show_the_shift_as_curvature(self, design: dict) -> None:
+        """Corners in round 1, centre runs in round 2: the shift between the rounds is not curvature (#998)."""
+        factors = _factors("ABC" if design["design_type"] == "full_factorial" else "ABCDE")
+        truth = TrueProcess({"Intercept": 50, "A": 5, "B": 3}, sigma=0.5)  # linear: no curvature at all
+        corners = _runs(factors, truth, 1, n_center_points=0, **design).assign(Round=1)
+        centre = pd.DataFrame(0.0, index=range(3), columns=[f.name for f in factors])
+        centre = centre.assign(y=truth.simulate(centre, random_state=2).to_numpy(), Round=2)
+        runs = pd.concat([corners, centre], ignore_index=True)
+
+        # The centre runs' column is a combination of the intercept and the blocks: no fit can tell the two apart
+        blocks = np.column_stack([np.ones(len(runs)), runs["Round"].eq(2)])
+        at_centre = (runs[[f.name for f in factors]] == 0).all(axis=1).to_numpy(dtype=float)
+        assert np.linalg.matrix_rank(np.column_stack([blocks, at_centre])) == np.linalg.matrix_rank(blocks)
+
+        shifted = [runs.assign(y=runs["y"] + shift * runs["Round"].eq(2)) for shift in (0.0, 8.0)]  # a new batch, say
+        steps = [recommend_next_step(factors, r, "y", ranges_can_move=False, block="Round") for r in shifted]
+        for step in steps:
+            assert step["evidence"]["curvature"] == {"source": None, "significant": False, "terms": []}
+            assert step["action"] == "confirm"
+            assert any("share no block with a corner run" in reason for reason in step["reasons"])
+        # A block's shift is a constant within the block, which its contrast absorbs: nothing the decision reads moves
+        pd.testing.assert_frame_equal(pd.DataFrame(steps[1]["runs"]), pd.DataFrame(steps[0]["runs"]))
+        assert steps[1]["model"]["judged"] == pytest.approx(steps[0]["model"]["judged"], nan_ok=True)
 
     def test_a_missing_block_column_is_refused(self, drifted: tuple) -> None:
         factors, runs = drifted
@@ -638,6 +763,8 @@ class TestInputs:
             recommend_next_step(factors, runs.drop(columns="B"), "y")
         with pytest.raises(ValueError, match="no response column"):
             recommend_next_step(factors, runs, "z")
+        with pytest.raises(ValueError, match="no response column None"):
+            recommend_next_step(factors, runs, None)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="At least two runs"):
             recommend_next_step(factors, runs.head(1), "y")
         with pytest.raises(ValueError, match="mixture component"):

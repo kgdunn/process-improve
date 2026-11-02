@@ -89,7 +89,7 @@ def test_the_project_carries_a_script_that_rebuilds_its_table(tmp_path) -> None:
     with zipfile.ZipFile(io.BytesIO(project.to_bytes())) as archive:
         (tmp_path / "LDPE.csv").write_bytes(archive.read("source/LDPE.csv"))
         script = archive.read("recipe.py").decode()
-    (tmp_path / "recipe.py").write_text(script + "\ndf.to_pickle('built.pkl')\n")
+    (tmp_path / "recipe.py").write_text(script + "\ndf.to_pickle('built.pkl')\n", encoding="utf-8")
     subprocess.run([sys.executable, "recipe.py"], cwd=tmp_path, check=True)
     pd.testing.assert_frame_equal(pd.read_pickle(tmp_path / "built.pkl"), project.table(), check_exact=True)  # noqa: S301
 

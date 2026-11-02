@@ -211,6 +211,44 @@ def test_the_comparison_code_reproduces_the_page_s_table(api, node):
         assert namespace["comparison"].table[label].tolist() == compared["display"][label], label
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("goal", ["target", "maximize", "minimize", "learn"])
+def test_the_spread_code_reproduces_the_page_s_settings_and_response_table(api, node, goal):
+    """Schmidt and Launsby's 2^(3-1) read twice a setting, a reading still to do: the code sums up as the page does."""
+    settings = [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]]
+    factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+    spec = {
+        "design_type": "given",
+        "factors": factors,
+        "runs": [s for s in settings for _ in range(2)],
+        "response": "y",
+    }
+    held = held_of(api.ok("api_make_design", {**spec, "response_info": {"goal": goal, "target": 20}}))
+    responses = [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    spread = analysis["spread"]
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], False, held["spec"], None, {"spread": True}]),
+    )
+    namespace = run(code)
+    shown = namespace["settings"].reset_index()
+    assert len(shown) == len(spread["settings"]) == 3, "the setting read once is left out"
+    for s in spread["settings"]:
+        row = shown[(shown[["A", "B", "C"]] == [s["settings"][n] for n in "ABC"]).all(axis=1)].iloc[0]
+        for key in ("n", "mean", "std_dev", "ln_std_dev", "sn"):
+            if key in row:
+                assert row[key] == pytest.approx(s[key]), (key, s["settings"])
+    assert ("sn" in shown) == (goal != "learn")
+    last = spread["factors"][-1]
+    table = namespace["table"]  # the last factor's, C's
+    for level in last["levels"]:
+        for key in table.columns:
+            assert table.loc[level["level"], key] == pytest.approx(level[key]), (key, level["level"])
+
+
 #: Limits on the worked example's settings: a straight one, and a curved one.
 LIMITS = [{"expression": "T + 25 * P <= 250", "note": "the product chars"}, {"expression": "T * F <= 3600"}]
 
@@ -927,6 +965,10 @@ def test_the_code_for_one_factor_of_four_levels_tests_them_as_the_page_does(api,
         assert tukey.statistic[j, i] == pytest.approx(pair["estimate"])
         assert [low_high.low[j, i], low_high.high[j, i]] == pytest.approx([pair["ci_low"], pair["ci_high"]])
         assert tukey.pvalue[j, i] == pytest.approx(pair["p_value"], abs=1e-6)
+    checks = {check["test"]: check for check in several["checks"]}
+    for name, check in (("spread", checks["bartlett"]), ("ranks", checks["kruskal_wallis"])):
+        found = [shown[name]["statistic"], shown[name]["p_value"]]
+        assert found == pytest.approx([check["statistic"], check["p_value"]]), name
     if not blank:  # with the same runs at each level, Dunnett's intervals are the page's, to scipy's integration
         intervals = shown["dunnett"].confidence_interval(0.95)
         for x, low, high in zip(several["versus"], intervals.low, intervals.high, strict=True):
@@ -1032,3 +1074,34 @@ def test_the_what_if_code_sets_a_factor_of_several_levels_as_its_contrasts(api, 
     code, shown = what_if_panel(node, held, {"y": y}, reply, {"Catalyst": "B", "T": 160.0})
     assert '"Catalyst_L1": 0, "Catalyst_L2": 1' in code, "level B as its contrasts"
     assert_same_predictions(printed_predictions(code, list(shown)), shown)
+
+
+def test_the_what_if_code_predicts_at_each_kept_setting_as_the_list_shows_it(api, node):
+    held, simulation = three_responses(api)
+    results = by_name(simulation)
+    reply = api.ok("api_predictors", {**held, **sent_of(results)})
+    module = source("best.js")
+    settings = {"Cooler, more pressure": {"T": 160.0, "P": 2.5, "F": 12.0}, "Hot": {"T": 200.0, "P": 1.0, "F": 18.0}}
+    kept = [
+        {"name": name, "at": javascript(node, module, [("columnsAt", [reply["factors"], one])])[0]}
+        for name, one in settings.items()
+    ]
+    fits = [r for r in reply["responses"] if "terms" in r]
+    formulas = {fit["name"]: fit["formula"] for fit in fits}
+    [columns] = javascript(node, module, [("columnsAt", [reply["factors"], settings["Hot"]])])
+    code = panel(
+        node,
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, results]),
+        ("whatIfCode", [held["spec"], formulas, columns, settings["Hot"], kept]),
+    )
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(code, {})  # noqa: S102 - the page's own code, the subject of this test
+    printed = dict(line.split(": ", 1) for line in out.getvalue().splitlines() if ", " in line.split(" {", 1)[0])
+    for one in kept:
+        shown = javascript(node, module, [("predictAt", [fit, one["at"]]) for fit in fits])
+        for fit, at in zip(fits, shown, strict=True):
+            p = ast.literal_eval(printed[f"{fit['name']}, {one['name']}"])
+            assert p["predicted"] == pytest.approx(at["predicted"], abs=1e-9), (fit["name"], one["name"])
+            assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9)

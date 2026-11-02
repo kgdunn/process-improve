@@ -56,25 +56,23 @@ __all__ = [
 ]
 
 
-def _as_frame(values: pd.DataFrame | pd.Series | np.ndarray, like: pd.DataFrame) -> pd.DataFrame:
-    """Coerce a callable's return value to a frame with ``like``'s labels."""
-    if isinstance(values, pd.DataFrame):
-        return values
-    array = np.asarray(values, dtype=float)
+def _as_predictions(values: pd.DataFrame | pd.Series | np.ndarray, like: pd.DataFrame) -> np.ndarray:
+    """Return a callable's predictions as an array of ``like``'s shape, compared with it position by position."""
+    array = np.asarray(values)
     if array.ndim == 1:
-        array = array.reshape(-1, 1)
+        array = array[:, np.newaxis]
     if array.shape != like.shape:
         raise ValueError(
             f"fit_predict returned predictions of shape {array.shape}, but the response block is "
             f"{like.shape}. It must return one out-of-sample prediction per row and per attribute."
         )
-    return pd.DataFrame(array, index=like.index, columns=like.columns)
+    return array
 
 
-def _q2_per_column(observed: pd.DataFrame, predicted: pd.DataFrame) -> np.ndarray:
+def _q2_per_column(observed: pd.DataFrame, predicted: np.ndarray) -> np.ndarray:
     """Return 1 - PRESS / TSS per column, NaN where a column has no variance."""
     truth = observed.to_numpy(dtype=float)
-    fitted = predicted.to_numpy(dtype=float)
+    fitted = np.asarray(predicted, dtype=float)  # None, as a missing prediction, reads as NaN
     usable = np.isfinite(truth) & np.isfinite(fitted)
     out = np.full(truth.shape[1], np.nan)
     for position in range(truth.shape[1]):
@@ -104,9 +102,10 @@ def _permute_rows(y: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
 def _loo_fit_predict(n_components: int) -> Callable:
     """Return the default ``fit_predict``: leave-one-out cross-validated PLS.
 
-    The **raw** blocks are handed to :class:`PLS` with ``scale=True``, so each
-    leave-one-out fold derives its own centring and scaling constants from the
-    training rows only (:meth:`PLS.cross_validate` refits a clone per fold).
+    The **raw** blocks are handed to :class:`PLS`, which scales by default, so
+    each leave-one-out fold (:meth:`PLS.cross_validate`'s default) derives its own
+    centring and scaling constants from the training rows only (it refits a clone
+    per fold).
     Scaling the blocks *before* calling this leaks the held-out row's mean and
     spread into the fold, which is the trap the ``fit_predict`` documentation
     warns about, so do not pre-scale.
@@ -116,8 +115,13 @@ def _loo_fit_predict(n_components: int) -> Callable:
         # PLS needs at least one component and cannot use more than the block
         # supports; leave-one-out also costs a row.
         a = max(1, min(int(n_components), x.shape[1], x.shape[0] - 2))
-        model = PLS(n_components=a, scale=True).fit(x, y)
-        return model.cross_validate(x, y, cv="loo", show_progress=False).y_hat_cv
+        model = PLS(n_components=a).fit(x, y)
+        result = model.cross_validate(
+            x,
+            y,
+            show_progress=False,  # pragma: no mutate - None hides tqdm's bar as False does
+        )
+        return result.y_hat_cv
 
     return fit_predict
 
@@ -253,13 +257,13 @@ def check_predictive_signal(  # noqa: PLR0913
     if fit_predict is None:
         fit_predict = _loo_fit_predict(n_components)
 
-    observed = _q2_per_column(y, _as_frame(fit_predict(x, y), y))
+    observed = _q2_per_column(y, _as_predictions(fit_predict(x, y), y))
 
     rng = np.random.default_rng(seed)
     null = np.full((int(n_perm), y.shape[1]), np.nan)
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
-        null[index, :] = _q2_per_column(y_perm, _as_frame(fit_predict(x, y_perm), y_perm))
+        null[index, :] = _q2_per_column(y_perm, _as_predictions(fit_predict(x, y_perm), y_perm))
 
     rows: list[dict[str, object]] = []
     for position, attribute in enumerate(y.columns):
@@ -389,11 +393,11 @@ def count_discoveries_under_null(
             "the empirical FDR cannot be read as a property of the data. Seed the selector (or "
             "make it deterministic) and re-run.",
             SpecificationWarning,
-            stacklevel=2,
+            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
 
     rng = np.random.default_rng(seed)
-    counts = np.empty(int(n_perm), dtype=float)
+    counts = np.empty(int(n_perm))
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
         counts[index] = len(_names(select(x, y_perm)))
@@ -402,7 +406,7 @@ def count_discoveries_under_null(
     null_mean = float(counts.mean())
     # Deliberately unclipped: a ratio above 1 says shuffling beat the real
     # response, and that is the reading most worth surfacing.
-    ratio = float(null_mean / observed) if observed else float("nan")
+    ratio = float(null_mean / observed) if observed else np.nan
     return {
         "observed": observed,
         "null_mean": null_mean,
@@ -502,7 +506,7 @@ def class_enrichment(
     in_top = len(matched)
 
     if class_size == 0 or n_drawn == 0:
-        p_value = float("nan")
+        p_value = np.nan
     else:
         p_value = float(hypergeom.sf(in_top - 1, len(names), class_size, n_drawn))
 

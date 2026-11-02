@@ -53,6 +53,7 @@ import {
   describeResponse,
   holds,
   nameProblem,
+  planVerdict,
   percent,
   pickCandidate,
   pickSentence,
@@ -123,6 +124,16 @@ import {
   printedLike,
   printedValue,
   termPart,
+  INTERACTION_MODELS,
+  MAX_FACTORS,
+  MAX_INTERACTION_FACTORS,
+  PROBE_FACTORS,
+  cornersBeyond,
+  highestResolution,
+  interactionOf,
+  screeningSentence,
+  screensOnly,
+  tradeOffBeyond,
 } from "../../../web/logic.js";
 
 describe("the design's settings", () => {
@@ -228,6 +239,72 @@ describe("the trade-off grid of a fraction", () => {
         assert.equal(fractionRuns(k, picked.resolution), runs, `${k} factors, resolution ${r}`);
       }
     }
+  });
+});
+
+describe("a study of more factors than the page models the interactions of", () => {
+  const factors = (k) => Array.from({ length: k }, (_, i) => ({ name: `X${i + 1}`, low: 0, high: 1, units: "" }));
+
+  test("past 12 factors, of the 40 a study can have, a study keeps to its main effects", () => {
+    assert.equal(MAX_FACTORS, 40);
+    assert.equal(MAX_INTERACTION_FACTORS, 12);
+    assert.deepEqual([12, 13, 24, 40].map(screensOnly), [false, true, true, true]);
+    assert.deepEqual(INTERACTION_MODELS, ["interactions", "quadratic"]);
+  });
+
+  test("a fraction stops at resolution IV past 12 factors, and at V before, as it can", () => {
+    assert.deepEqual([3, 4, 5, 12, 13, 24, 40].map(highestResolution), [3, 4, 5, 5, 4, 4, 4]);
+  });
+
+  test("the brief and Learn each say why, with the interactions the factors have", () => {
+    assert.equal(screeningSentence(12, "brief"), "");
+    assert.equal(
+      screeningSentence(13, "brief"),
+      "Past 12 factors, a study finds which factors matter, and a fraction is made at resolution III or IV: 13 factors have 78 two-factor interactions, more than a screening design has runs.",
+    );
+    assert.equal(
+      screeningSentence(40, "learn"),
+      "Past 12 factors, Learn fits the main effects, or the terms you choose: 40 factors have 780 two-factor interactions, more than a screening design has runs.",
+    );
+  });
+
+  for (const k of [13, 24, 40]) {
+    test(`the terms to tick in ${k} factors are the main effects, the squares and the interactions named`, () => {
+      const named = [["X1"], ["X2", "X5"], ["X3", "X3"], ["X1", "X2", "X4"], ["X1", "Z"]];
+      const groups = Object.groupBy(candidateTerms(factors(k), named), (t) => t.group);
+      assert.deepEqual(Object.keys(groups), ["Main effects", "Interactions you name", "Squares"]);
+      assert.equal(groups["Main effects"].length, k);
+      assert.equal(groups.Squares.length, k);
+      assert.deepEqual(
+        groups["Interactions you name"].map((t) => t.label),
+        ["X2·X5", "X1·X2·X4"],
+        "a main effect and a square are listed in their own groups, and a factor the design lacks nowhere",
+      );
+    });
+  }
+
+  test("12 factors list every interaction of two and three, as before", () => {
+    const groups = Object.groupBy(candidateTerms(factors(12)), (t) => t.group);
+    assert.equal(groups["Two-factor interactions"].length, 66);
+    assert.equal(groups["Three-factor interactions"].length, 220);
+  });
+
+  test("an interaction is named with its factors in the design's order, and not with itself", () => {
+    const names = factors(13).map((f) => f.name);
+    assert.deepEqual(interactionOf("X9", "X2", names), ["X2", "X9"]);
+    assert.equal(interactionOf("X4", "X4", names), null);
+  });
+
+  test("the trade-off grid says where its columns stop", () => {
+    assert.equal(tradeOffBeyond(11), "");
+    assert.equal(tradeOffBeyond(24), "The grid shows fractions in 3 to 11 factors; the page finds the fraction in your 24 when it makes the design.");
+  });
+
+  test("the table of corners says where it stops", () => {
+    assert.equal(PROBE_FACTORS, 8);
+    assert.equal(cornersBeyond(8), "");
+    assert.equal(cornersBeyond(9), "The table of corners to mark lists up to 8 numeric factors: your 9 have 512 corners, too many to mark one by one.");
+    assert.match(cornersBeyond(40), /your 40 have 1,099,511,627,776 corners/);
   });
 });
 
@@ -589,6 +666,17 @@ describe("a factor's name", () => {
     assert.match(nameProblem("a b"), /^a b: a name is letters, digits and _/);
     assert.match(nameProblem("2x"), /^2x: /);
     assert.match(nameProblem("x-y"), /^x-y: /);
+  });
+
+  test("comes with a name that keeps the rules, when it breaks them", () => {
+    assert.match(nameProblem("Water %"), /such as Water_pct\.$/);
+    assert.match(nameProblem("Temp (°C)"), /such as Temp_deg_C\.$/);
+    assert.match(nameProblem("2nd stage"), /such as x2nd_stage\.$/);
+  });
+
+  test("is not a Python keyword, which a model cannot name", () => {
+    assert.equal(nameProblem("lambda"), "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_.");
+    for (const name of ["match", "case", "type"]) assert.equal(nameProblem(name), "", `${name} is only a soft keyword`);
   });
 
   test("is given, and is no other factor's", () => {
@@ -1414,5 +1502,27 @@ describe("what Box-Cox makes of the response", () => {
 
   test("each transform has its words", () => {
     assert.deepEqual(Object.keys(TRANSFORM_WORDS), ["log", "sqrt", "inverse"]);
+  });
+});
+
+describe("a plan beside a field's experiments", () => {
+  // Twelve experiments: two small, eight of 16 runs, two large; all with 3 factors but two with 6.
+  const points = [[3, 8, "full", 2], [3, 16, "full", 6], [6, 16, "screening", 2], [3, 64, "surface", 2]];
+
+  test("compares a design's runs once it has one", () => {
+    assert.equal(planVerdict(points, { factors: 3, runs: 128 }), "Your plan is larger than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 4 }), "Your plan is smaller than most here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: 16 }), "Your plan is a typical size here.");
+  });
+
+  test("compares the factors alone before a design is made", () => {
+    assert.equal(planVerdict(points, { factors: 8, runs: null }), "You have more factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 1, runs: null }), "You have fewer factors than most experiments here.");
+    assert.equal(planVerdict(points, { factors: 3, runs: null }), "Experiments here often have as many factors as yours.");
+  });
+
+  test("says nothing without a plan or a field", () => {
+    assert.equal(planVerdict(points, null), "");
+    assert.equal(planVerdict([], { factors: 3, runs: 8 }), "");
   });
 });

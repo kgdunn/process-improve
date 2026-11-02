@@ -81,6 +81,15 @@ def records() -> list[dict]:
         ("regression on one variable", "comparison"),
         ("single-factor random effects design", "comparison"),
         ("steps along a path of steepest ascent", "comparison"),
+        ("one factor at five equally spaced levels", "comparison"),
+        ("extreme vertices design, four components", "mixture"),
+        ("component-amount design in two orthogonal blocks", "mixture"),
+        ("exact approximation to a measure design", "optimal"),
+        ("symmetric designs for a straight line (m3 = 0)", "comparison"),
+        ("confirmatory runs", "comparison"),
+        ("observational data", "comparison"),
+        ("five factors in 16 runs", "fractional_factorial"),
+        ("designs for main effects and two-factor interactions", "fractional_factorial"),
         ("other", "other"),
     ],
 )
@@ -97,8 +106,12 @@ def test_every_published_entry_has_a_family_and_few_have_none(records):
     assert {r["family"] for r in records} <= set(FAMILIES)
     unknown = [r["design_text"] for r in published if r["family"] == "other"]
     # pid-book's 19 "other", two projections, and three response surface designs no family holds:
-    # an equiradial hexagon, a hybrid design and a sphere-packing design
-    assert len(unknown) <= 24, f"a rule is needed for: {sorted(set(unknown))}"
+    # an equiradial hexagon, a hybrid design and a sphere-packing design. Box and Draper's 49: 23 entries
+    # that print no design (a fitted equation, an exercise in algebra, a table of values), five Koshal designs,
+    # and 21 response surface designs no family holds (a hexagon, a dodecahedron, an all-bias design,
+    # third-order and three-level designs). McMullen and Jurica's 1: runs chosen round by round by SNOBFIT,
+    # an optimiser, not by a design
+    assert len(unknown) <= 74, f"a rule is needed for: {sorted(set(unknown))}"
 
 
 def test_every_family_with_a_year_names_the_work_that_published_it():
@@ -655,7 +668,15 @@ def test_the_catalogue_tells_its_designs_from_single_samples_and_facts_about_des
         5,
     )
     assert published["montgomery-2-7-2-choices"]["runs_from"] is None, "three fractions compared, none made"
-    assert sum(bool(r["runs_from"]) for r in published.values()) == 42
+    assert sum(bool(r["runs_from"]) for r in published.values()) == 49
+
+
+def test_a_table_of_effects_printed_beside_a_fraction_named_by_its_generators_is_no_run_s_results(records):
+    """Box and Draper's Exercise 5.14 prints the 15 effects of a 2^(5-1) it names by E = ABCD, not its 16 runs."""
+    exercise = next(r for r in records if r["id"] == "box-draper-5-exercise-5-14")
+    assert (exercise["runs_from"], len(exercise["coded_runs"])) == (["E=ABCD"], 16)
+    assert exercise["response_values"] == {}
+    assert not exercise["has_responses"]
 
 
 # --------------------------------------------------------------------------- generated designs
@@ -921,6 +942,84 @@ def test_every_number_known_not_to_reproduce_is_an_erratum_with_its_reason():
 )
 def test_where_an_erratum_is_printed_is_said_in_a_few_words(where, said):
     assert design_catalog._errata_where(where) == said
+
+
+# --------------------------------------------------------------------------- how closely each case reproduces
+@pytest.mark.parametrize(
+    ("printed", "found", "error"),
+    [
+        ("12.0", "14.9717", 0.24764),
+        ("13,075", "13075", 0.0),  # a thousands separator
+        ("99.9%", "100", 0.001),
+        ("< 0.05", "0.051", 0.02),  # a bound is held to its number
+        ("IV", "5", 0.25),  # a resolution as a Roman numeral
+        ([[1.0, 2.0], [4.0, 8.0]], "[[1.0, 2.0],\n [4.0, 8.4]]", 0.05),  # a matrix: its worst entry
+        ([1.0, 2.0], "[1.0, 2.0, 3.0]", None),  # another shape
+        ("WC, RP, WC", "AM, PR", None),  # an alias chain is no number
+        ("0", "0.004", None),  # a printed zero leaves no scale
+    ],
+)
+def test_a_difference_is_a_fraction_of_the_printed_number(printed, found, error):
+    got = design_catalog._relative_error(printed, found)
+    assert got == pytest.approx(error, abs=1e-5) if error is not None else got is None
+
+
+def test_a_number_printed_as_arithmetic_is_worked_out():
+    assert design_catalog._relative_error("(57 + 83) / 2", "77", expression=True) == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize(
+    ("errors", "tier"),
+    [
+        ([], "reproduced"),
+        ([0.0], "within_1"),  # a difference below the six figures the library reports still differs
+        ([0.01], "within_1"),
+        ([0.002, 0.03], "within_5"),
+        ([0.002, 0.06], "not_reproduced"),
+        ([0.002, None], "not_reproduced"),
+    ],
+)
+def test_a_case_falls_in_the_best_tier_that_holds_its_worst_number(errors, tier):
+    assert design_catalog._tier(errors) == tier
+
+
+def test_a_source_s_form_is_read_from_what_the_catalogue_records_of_it():
+    sources = reference_sources()
+    forms = {key: design_catalog.source_form(source) for key, source in sources.items()}
+    assert set(forms.values()) == set(design_catalog.SOURCE_FORMS)
+    assert forms["montgomery-2013"] == forms["pid-book"] == "book"
+    assert forms["fries-hunter-1980"] == forms["goos-2025"] == "paper"
+    assert forms["ullmann-doe-2012"] == forms["nist-ehandbook-ch5"] == forms["efi-mooc-quizzes"] == "other"
+
+
+def test_each_case_says_how_closely_it_reproduces_and_why_a_number_differs():
+    cases = {case["id"]: case for case in design_catalog.catalog_reproduction("lenth-1989")}
+    assert {case["source"] for case in cases.values()} == {"lenth-1989"}
+    isatin, tensile = cases["lenth-example-iv-isatin-yield"], cases["lenth-example-ii-tensile-strength"]
+    assert (isatin["tier"], isatin["worst"], isatin["differs"]) == ("reproduced", 0.0, [])
+    # The paper misprints an alias chain and the ME of a footnote: both stay listed, and neither holds the case back.
+    causes = {number["what"]: number["cause"] for number in tensile["differs"]}
+    assert causes == {
+        "aliases": "source_error",
+        "ME": "source_error",
+        ".495th quantile of |C|, in units of tau": "source_rounding",
+    }
+    assert tensile["tier"] == "within_1"
+    assert tensile["worst"] == pytest.approx(0.00247, abs=1e-5), (
+        "the quantile's rounded label, the only difference held"
+    )
+    me = next(number for number in tensile["differs"] if number["what"] == "ME")
+    assert (me["printed"], me["where"]) == (".56", "p. 471")
+    assert me["error"] == pytest.approx(0.0328, abs=1e-4)
+    assert "misprint" in me["reason"]
+    assert tensile["unchecked"] == {"not_a_result": 7}
+    assert tensile["missing"] == []
+    assert (
+        len(tensile["differs"])
+        == printed_checks(next(e for e in reference_experiments("lenth-1989") if e["name"] == tensile["id"]))[
+            "explained"
+        ]
+    )
 
 
 def test_the_feed_is_atom_with_an_entry_per_source_newest_first():

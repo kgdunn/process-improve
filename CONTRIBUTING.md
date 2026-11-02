@@ -43,7 +43,7 @@ pytest tests/test_multivariate.py -v -o "addopts="
 ```
 
 Only the tests your branch can affect, judged from a static import graph of
-`src/` and `tests/` (see `tests/_selection.py`):
+`src/`, `tests/`, `web/` and `scripts/` (see `tests/_selection.py`):
 
 ```bash
 pytest --no-cov --affected-since=origin/main
@@ -51,13 +51,15 @@ pytest --no-cov --affected-since=origin/main
 
 It counts committed, staged, unstaged and untracked changes since the merge
 base. A test reaches a changed file through `import` statements, module names
-in string literals, and Python snippets held in strings; a changed data file or
-document affects the code that names it. A change to `pyproject.toml`,
-`pytest.ini` or `.coveragerc`, or a deleted file, runs everything. It is a tool
-for fast local feedback: the analysis is static and cannot see every import-time
-side effect, so CI does not use it. CI runs the whole suite on every platform
-and Python it tests, split into duration-balanced shards: two for each `test`
-and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
+and Python file names in string literals, and Python snippets held in strings;
+a changed data file or document affects the code that names it. A change to
+`pyproject.toml`, `pytest.ini` or `.coveragerc`, or a deleted file, runs
+everything. The analysis is static and cannot see every import-time side
+effect, so CI uses it only where a full run backs it up: on a pull request, the
+`test` and `test-free-threaded` rows run the affected tests, and the `coverage`
+job runs the whole suite. A push to `main` and the nightly run test everything
+on every row. Each job is split into duration-balanced shards: two for each
+`test` and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
 runs under `python -O` (`PYTHONOPTIMIZE=1`), to catch validation that an
 `assert` would lose:
 
@@ -117,6 +119,38 @@ import pytest
 @pytest.mark.dataset
 def test_loads_real_data(): ...
 ```
+
+### Mutation testing
+
+Coverage says a line ran; mutation testing says a test would notice if that line were wrong.
+[mutmut](https://github.com/boxed/mutmut) changes one operator, constant or argument at a time in
+the modules listed under `[tool.mutmut]` in `pyproject.toml`, reruns the tests that reach the
+change, and reports each change no test fails as "survived". The nightly
+`.github/workflows/mutation.yml` fails on any survivor and shows its diff in the run summary.
+It runs the modules in parallel jobs, one per group of modules, each naming its mutants by
+pattern (a mutant is called `<module>.x_<function>__mutmut_<n>`, or
+`<module>.xǁ<class>ǁ<method>__mutmut_<n>` for a method). A module added to `[tool.mutmut]`
+needs every function matched by exactly one group, which `tests/test_tooling_versions.py`
+checks; a large module can be split between groups by function, as `_pls.py` is.
+
+```bash
+rm -rf mutants                                        # start fresh after editing the source
+uv run --with mutmut==3.8.1 mutmut run --max-children 4
+uv run --with mutmut==3.8.1 mutmut results            # the survivors
+uv run --with mutmut==3.8.1 mutmut show <mutant>      # one survivor's diff
+uv run --with mutmut==3.8.1 mutmut run --max-children 4 "process_improve.multivariate._pca.*"  # one module's mutants
+```
+
+A survivor is either an assertion to add, checked against a value derived independently of the
+code, or an equivalent change that no test can see (`float("INF")` for `float("inf")`). Mark an
+equivalent change on its line with `# pragma: no mutate - <why>`, so a reviewer can judge the
+reason. Start each new module from a fresh `mutants/` directory: a rerun after editing the source
+can report a mutant as killed when it was not.
+
+A mutant whose tests run past mutmut's time limit (about 30 times their usual CPU time) counts as
+caught, as in mutmut's own score: the change made the code loop or slow down, and the tests saw it.
+Whether a mutant times out depends on the machine, so one that timed out on CI may fail its tests
+locally instead; either way it is caught.
 
 ### The README is tested
 
@@ -222,6 +256,22 @@ covers the server: its one-time setup, what it logs, and how to roll back.
   `tests/web/_support.py` (a mixture design in `ALL_MIXTURES`), so the tests that run over every one
   include it.
 
+### Writing for the browser app
+
+The page is read on a phone first, so each screen carries one idea that a reader takes in at a glance.
+
+- **One or two numbers per screen,** and only those that answer the reader's question. "Experiments
+  here usually have about 3 factors and a dozen runs" is a whole screen's worth.
+- **Counts become words:** most, usually, a few, about a dozen. Write "Most are full factorials",
+  not "81 of 126 are full factorials".
+- **Spread and share become a picture:** a dot chart, a bar, a sketch of a design's runs, with a
+  legend in words.
+- **Exact numbers go behind a "Show the numbers" link,** and on the page a reader opens to check
+  them, such as a case's printed values next to Factorial's.
+- **Use the names the reader knows:** a book, a field, an example. Do not use the catalogue's own
+  terms (tier, cause, check).
+- **Claim no more than the data hold.** Where a difference has no known cause, say so.
+
 ## Linting and formatting
 
 ```bash
@@ -261,6 +311,12 @@ the pin in `pyproject.toml` too.
   data before fitting models.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
+- **Text encoding:** pass `encoding="utf-8"` to every `open`, `read_text`,
+  `write_text` and text-mode `subprocess.run`; for a Python child process, which
+  writes in the locale's encoding, pass `encoding="locale"`. Windows defaults to
+  cp1252 otherwise (#994). CI runs the tests with `PYTHONWARNDEFAULTENCODING=1`,
+  and `tests/conftest.py` fails the run on such a call in the repository's own
+  code; run `PYTHONWARNDEFAULTENCODING=1 pytest` to see them locally.
 
 ### Complexity budget
 
@@ -333,6 +389,14 @@ change; a divergence introduced quietly is expensive to find later.
   carrying the `pi_*` metadata above. The abbreviation predates the rest of
   the package's spell-out-everything convention; it is retained for backwards
   compatibility.
+- **Name arguments and result keys for what they are, not by a letter or a
+  source's label.** Sources label the same thing differently: Box and Draper's
+  "B canonical form" is the surface centred on the stationary point, while
+  earlier notes here used "B" for the ridge form, and the key `b_canonical`
+  held neither. So the forms are `canonical_axes` and `ridge_form`, and each
+  docstring gives the source's label with its citation. A retired name is not
+  reused for something else: a caller still reading it would get other
+  numbers with no error.
 
 ## Adding new methods to PCA / PLS
 
@@ -350,6 +414,69 @@ change; a divergence introduced quietly is expensive to find later.
 4. If the method belongs on both PCA and PLS, implement it on both with the
    same API signature.
 5. Verify with `pytest tests/test_multivariate.py -v -o "addopts="`.
+
+## Adding a case to the reference catalogue
+
+A case is an experiment or a design in one of the source files of
+`src/process_improve/datasets/experiments/reference_catalogue/`. It holds the
+source's runs as printed and every number the source prints for them, each with
+where it is printed (a page and a short quotation) and a `check` that says how
+to recompute it.
+
+**Every number that is not recomputed, and every recomputed number that does not
+agree with its source, records its cause.** Put a `"cause"` key in the same
+check, right after the reason:
+
+- A check without a `kind` gives the reason in `manual` and a cause from
+  `reference_catalogue.UNCHECKED_CAUSES`:
+  - `library_gap`: the library has no function for it yet. The page
+    *Reproduced from the books* lists these as what the library lacks, so the
+    reason names the missing method in a clause that starts "the library has
+    no ...".
+  - `check_gap`: the library computes it, but no check kind reads it yet.
+  - `data_not_printed`: the source does not print the data it is worked from.
+  - `not_a_result`: there is nothing to recompute: a statement in words, an
+    input or a choice, a reading off a plot, a unit conversion, or arithmetic
+    on numbers that are checked.
+- A check whose number does not agree gives the reason in `disagreement` and a
+  cause from `reference_catalogue.DISAGREEMENT_CAUSES`:
+  - `source_error`: the source misprints the number or works it out wrongly,
+    and the library's value follows from the source's own data. The reason
+    shows how.
+  - `incorrect_option`: a quiz option that the answer key marks incorrect
+    (`where.answer_key` is `"incorrect"`). Use it then, and only then.
+  - `source_rounding`: the source works from values it has already rounded,
+    or it is one unit off in its last digit.
+  - `method`: the source uses another convention, definition, model or
+    software.
+  - `library`: a bug or a limitation of the library.
+  - `unexplained`: the cause is not known yet.
+
+`source_error` and `incorrect_option` do not count against the case on the
+page: the library's value is the right one. So when two causes fit, choose
+the one that does not clear the library (`unexplained` or `method` before
+`source_error`).
+
+A number that agrees has no `cause`. `tests/test_reference_catalogue.py` fails
+on a case that breaks these rules. Run it before you push:
+
+```bash
+uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
+```
+
+**A response measured as a curve** (a time course, a profile or a spectrum per run) is one
+response, named for the whole curve, with a `curve` key. Its points are columns of the run table,
+one row per run as for every other response. `curve.columns` lists them in order along the curve,
+and `curve.argument` says where each is read: its `name` and `units`, and either `values` (the
+points every run shares) or `columns` (the run table's columns that hold each run's own times, so
+runs may be sampled at different times or a different number of times, with `null` for a point a
+run lacks). A check that names no `response` is about the first response that is not a curve.
+For example, the colour-development case of the book:
+
+```json
+{"name": "colour", "units": "absorbance", "description": "...",
+ "curve": {"columns": ["t0", "t1", "t2"], "argument": {"name": "time point", "units": "", "values": [0, 1, 2]}}}
+```
 
 ## Submitting changes
 

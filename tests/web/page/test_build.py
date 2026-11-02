@@ -72,6 +72,10 @@ def test_the_built_worked_example_includes_the_comparison(built_example):
 #: Files the build writes beside the page, rather than copying from web/.
 BUILT = {"demo.json", "wheels/manifest.json"}
 
+#: What ``write_catalog`` writes that the page loads: the fields of the planning panel and their list
+#: (``tests/web/page/test_field_pages.py`` checks it writes them).
+CATALOG_WRITES = {"catalog/fields.json", "catalog/fields/index.html"}
+
 
 def _local(references: list[str]) -> set[str]:
     """Keep the references to files of the app itself: not other sites, not data: URLs.
@@ -96,7 +100,7 @@ def test_every_file_the_page_loads_is_published(build_script):
     loaded |= _local(re.findall(r'import\("\./([^"]+)"\)', source("feedback.js")))
     assert {"style.css", "app.js", "worker.js", "bootstrap.py", "demo.json"} <= loaded, "the search found the loads"
     assert "vendor/modern-screenshot.mjs" in loaded
-    assert loaded - BUILT <= set(build_script.APP_FILES)
+    assert loaded - BUILT - CATALOG_WRITES <= set(build_script.APP_FILES)
     assert all((WEB / name).is_file() for name in build_script.APP_FILES)
 
 
@@ -123,8 +127,13 @@ def test_a_change_to_any_file_of_the_app_runs_every_test_here(monkeypatch):
 def _stand_in_catalog(out: Path) -> None:
     """Write the catalog's files as ``write_catalog`` lays them out, without describing 783 designs."""
     (out / "catalog" / "detail").mkdir(parents=True)
-    (out / "catalog" / "index.json").write_text("{}")
-    (out / "catalog" / "detail" / "generated.json").write_text("{}")
+    (out / "catalog" / "index.json").write_text("{}", encoding="utf-8")
+    (out / "catalog" / "detail" / "generated.json").write_text("{}", encoding="utf-8")
+
+
+def _stand_in_reproduction(out: Path) -> None:
+    """Write ``catalog/reproduction.json`` where ``write_reproduction`` does, without recomputing every source."""
+    (out / "catalog" / "reproduction.json").write_text("{}", encoding="utf-8")
 
 
 def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_path, monkeypatch):
@@ -145,6 +154,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     monkeypatch.setattr(build_script, "book_example", lambda entry: {"name": entry["name"], "title": "", "book": ""})
     monkeypatch.setattr(build_script, "published_example", lambda entry: {"name": entry["name"], "title": ""})
     monkeypatch.setattr(build_script, "write_catalog", _stand_in_catalog)
+    monkeypatch.setattr(build_script, "write_reproduction", _stand_in_reproduction)
     out = tmp_path / "app"
     (out / "stale").mkdir(parents=True)
     assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
@@ -153,18 +163,18 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
     examples = [*build_script.book_examples(), *build_script.published_examples()]
     book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in examples)}
-    catalog = {"catalog/index.json", "catalog/detail/generated.json"}
+    catalog = {"catalog/index.json", "catalog/detail/generated.json", "catalog/reproduction.json"}
     assert published == {*build_script.APP_FILES, *BUILT, *book, *catalog, f"wheels/{wheel}"}, "and nothing from before"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
-    manifest = json.loads((out / "wheels" / "manifest.json").read_text())
+    manifest = json.loads((out / "wheels" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest == {
         "wheel": wheel,
         "commit": build_script.commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
     }
-    assert json.loads((out / "demo.json").read_text()) == {"the": "worked example"}
+    assert json.loads((out / "demo.json").read_text(encoding="utf-8")) == {"the": "worked example"}
 
 
 def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict:
@@ -177,8 +187,9 @@ def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict
     monkeypatch.setattr(build_script, "worked_example", dict)
     monkeypatch.setattr(build_script, "write_book", lambda _out: None)
     monkeypatch.setattr(build_script, "write_catalog", lambda _out: None)
+    monkeypatch.setattr(build_script, "write_reproduction", lambda _out: None)
     build_script.assemble(out)
-    return json.loads((out / "wheels" / "manifest.json").read_text())
+    return json.loads((out / "wheels" / "manifest.json").read_text(encoding="utf-8"))
 
 
 def test_each_build_s_wheel_has_a_url_of_its_own(build_script, tmp_path, monkeypatch):
@@ -227,7 +238,7 @@ def test_the_index_names_every_example_and_its_page_in_the_book(build_script, bo
 
     The examples of other published sources follow the book's, each with its source in place of a page.
     """
-    index = json.loads((book / "index.json").read_text())["examples"]
+    index = json.loads((book / "index.json").read_text(encoding="utf-8"))["examples"]
     from_book = [entry["name"] for entry in build_script.book_examples()]
     names = [*from_book, *(entry["name"] for entry in build_script.published_examples())]
     assert [e["name"] for e in index] == names
@@ -256,7 +267,7 @@ def test_two_examples_with_one_name_stop_the_build(build_script, monkeypatch, tm
 
 def test_the_page_reads_each_example_as_the_build_wrote_it(node, book):
     """Each file passes the page's own check, ``checkBookExample``, and keeps every run, result and setting."""
-    written = {p.stem: json.loads(p.read_text()) for p in book.glob("*.json") if p.name != "index.json"}
+    written = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in book.glob("*.json") if p.name != "index.json"}
     checked = javascript(node, source("campaign.js"), [("checkBookExample", [e, name]) for name, e in written.items()])
     for (name, example), read in zip(written.items(), checked, strict=True):
         campaign, opened = example["campaign"], read["campaign"]

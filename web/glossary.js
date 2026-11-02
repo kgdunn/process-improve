@@ -118,6 +118,12 @@ export const GLOSSARY = {
     "Dunnett's intervals: one for each level's difference from a single level, the control, made wider so that " +
     "together they hold their true differences 95% of the time. There are fewer of them than pairs, so each is " +
     "narrower than Tukey's.",
+  bartlett:
+    "Bartlett's test of whether the runs at every level spread alike, as the one-way analysis of variance takes " +
+    "them to. Noise that is not normal can look like unequal spread to it.",
+  "kruskal-wallis":
+    "The one-way analysis of variance of the results' ranks, all the runs ranked together. One wild result moves " +
+    "it little; its p-value is approximate with few runs at each level.",
   "rank-sum":
     "Wilcoxon's test: the runs are ranked together, and one level's sum of ranks is compared with every way the " +
     "ranks could be split. It reads the order of the results, so one wild result moves it little.",
@@ -152,6 +158,18 @@ export const GLOSSARY = {
   "pure-error":
     "The spread among runs repeated at the same settings: the run-to-run variability of the system, without " +
     "reference to any model.",
+  "signal-to-noise":
+    "Taguchi's summary of the readings at one setting, in decibels, higher being better. Larger is better: " +
+    "-10 log10 of the mean of 1/y². Smaller is better: -10 log10 of the mean of y². Nominal is best: 10 log10(ȳ²/s²).",
+  "ln-s":
+    "The natural logarithm of the standard deviation of the readings at one setting. Its averages show which " +
+    "factors move the spread, apart from the mean.",
+  "response-table":
+    "Each summary of the readings averaged over the settings at each level of a factor. A factor's delta is its " +
+    "largest average less its smallest; its rank orders the factors by it, 1 the largest.",
+  "adjustment-factor":
+    "A factor that moves the mean but not the spread. Once the other factors are set for the smallest spread, " +
+    "Taguchi's second step moves the mean to the target with it.",
   "response-surface":
     "The fitted model drawn over two factors, as contours of the predicted response, with the other factors at " +
     "their centers.",
@@ -223,6 +241,10 @@ export const MARKED = {
   "Residual degrees of freedom": "residual-df",
   "Lack of fit": "lack-of-fit",
   "pure error": "pure-error",
+  "signal-to-noise ratio": "signal-to-noise",
+  "ln s": "ln-s",
+  "response table": "response-table",
+  "adjustment factor": "adjustment-factor",
   "variance inflation factor": "vif",
   PSE: "pse",
   ME: "me",
@@ -246,4 +268,6 @@ export const MARKED = {
   "one-way analysis of variance": "one-way-anova",
   "Tukey's intervals": "tukey",
   "Dunnett's intervals": "dunnett",
+  "Bartlett's test": "bartlett",
+  "Kruskal-Wallis test": "kruskal-wallis",
 };
