@@ -55,7 +55,11 @@
         WebAssembly; in a worker, a long computation leaves the page free to scroll and type in. The page sends it
         each request as JSON, and <code>web/bootstrap.py</code> answers with the same process-improve functions you
         would call in Python: <code>generate_design</code>, <code>compare_designs</code>, <code>TrueProcess</code>
-        and <code>analyze_experiment</code>.</li>
+        and <code>analyze_experiment</code>. A study of one factor also compares its levels with the package's
+        tests: <code>one_way_sample_size</code> sizes it; <code>ttest_independent</code>, <code>ttest_paired</code>,
+        <code>randomization_test</code> and <code>rank_sum_test</code> compare two levels; and
+        <code>studentized_range_value</code> (Tukey's intervals), <code>dunnett_value</code>,
+        <code>bartlett_test</code> and <code>kruskal_wallis_test</code> compare three or more.</li>
       <li><strong>The charts</strong> are process-improve's own Plotly figures, drawn in the page with
         <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly.js</a>.</li>
       <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, every one of them, and a

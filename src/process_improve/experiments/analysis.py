@@ -41,6 +41,7 @@ from process_improve.experiments._analyses._shared import (
     _sums_of_squares,
     _without_blocks,
     average_fitted_variance,
+    precision_note,
     with_prior_sigma,
 )
 from process_improve.experiments._analyses.aliasing import alias_chains_of, chain_reduced_fit
@@ -1053,15 +1054,35 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
+def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
+    """Give each new point the block contrasts of the block its ``Block`` column names.
+
+    A point that names no block (no ``Block`` column, or a missing value in it) and does not give
+    the contrast columns itself has them at zero: it is predicted for the average over the blocks.
+    """
+    if not fit.blocks or BLOCK_COL not in points:
+        return points.assign(**{b: 0.0 for b in fit.blocks if b not in points})
+    levels = sorted(fit.df[BLOCK_COL].unique(), key=str)  # in the order _add_block_term coded them
+    named = points[BLOCK_COL]
+    unknown = sorted({str(v) for v in named.dropna() if v not in set(levels)})
+    if unknown:
+        raise ValueError(
+            f"new_points names the blocks {unknown}, which the runs do not have: {list(map(str, levels))}."
+        )
+    in_block = {
+        name: np.where(named == level, 1.0, np.where(named == levels[-1], -1.0, 0.0))
+        for name, level in zip(fit.blocks, levels[:-1], strict=True)
+    }
+    return points.assign(**in_block)
+
+
 def _handlers(
     fit: _Fit,
     new_points: pd.DataFrame | None,
     observed_at_new: list[float] | None,
 ) -> dict[str, Callable[[], dict[str, Any]]]:
     """Every analysis, keyed by analysis type, each run only when requested."""
-
-    # Block contrasts a new point does not give are zero: the average over the blocks.
-    points = None if new_points is None else new_points.assign(**{b: 0.0 for b in fit.blocks if b not in new_points})
+    points = None if new_points is None else _in_blocks(new_points, fit)
 
     def prediction() -> dict[str, Any]:
         if points is None:
@@ -1339,8 +1360,10 @@ def analyze_experiment(  # noqa: PLR0913
         the ``low`` and ``high`` that map to -1 and +1 for each factor not already coded.
     new_points : DataFrame or None
         For prediction or confirmation testing, and for the predictions of
-        ``"split_plot"`` and ``"glm"``. In a blocked model, points without the block
-        contrast columns are predicted for the average block.
+        ``"split_plot"`` and ``"glm"``. In a blocked model, a point is predicted in the
+        block its ``Block`` column names, one of the runs' blocks; a point that names no
+        block (no ``Block`` column, or a missing value in it), and does not give the block
+        contrast columns, is predicted for the average block.
     observed_at_new : list[float] or None
         Observed values at *new_points* (for confirmation testing), one per row.
     response_column : str or None
@@ -1406,9 +1429,11 @@ def analyze_experiment(  # noqa: PLR0913
         - ``r_squared`` - R^2 of the fit.
         - ``r_squared_adj`` - adjusted R^2.
         - ``r_squared_pred`` - prediction R^2 (leave-one-out style).
-        - ``adequate_precision`` - signal-to-noise ratio (>= 4 is
-          considered adequate): the range of the fitted values over the square root of
-          ``average_fitted_variance``.
+        - ``adequate_precision`` - signal-to-noise ratio: the range of the fitted values
+          over the square root of ``average_fitted_variance``. Box and Wetz's check reads a
+          fitted surface only when its fitted values change by several standard errors;
+          below 4, Design-Expert's threshold for this ratio, ``model_note`` says the surface
+          is not estimated precisely enough to read its contours or its optimum.
         - ``average_fitted_variance`` - the average variance of the fitted values over the
           runs, p s²/n with s² the residual mean square (p sigma²/n with a ``sigma``): the
           runs' leverages sum to p, the number of terms the model estimates, whatever the
@@ -1447,6 +1472,9 @@ def analyze_experiment(  # noqa: PLR0913
           and ``r_squared_without_blocks``, ``r_squared_adj_without_blocks`` and
           ``r_squared_pred_without_blocks``: the three R-squared values over the total less
           the blocks' sum of squares, as Design-Expert reports them.
+        - ``model_note``, only when there is something to say: how the default model was
+          changed to one the design can estimate (see ``model``), and that
+          ``adequate_precision`` is below 4.
 
         Notes from individual analyses are kept apart, as ``anova_note``,
         ``effects_note``, ``lenth_note``, ``significance_note`` and
@@ -1562,11 +1590,13 @@ def analyze_experiment(  # noqa: PLR0913
         # So the result can be passed to optimize_responses as a fitted model as it is.
         "response_name": reported_response,
         "factor_names": list(factor_cols),
-        "model_summary": _model_summary(ols_result, formula, reported_response, model, transform_info)
-        | _without_blocks(ols_result, blocks)
-        | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
-        | ({"model_note": model_note} if model_note else {})
-        | _fitted_noise(ols_result, sigma),
+        "model_summary": _with_model_note(
+            _model_summary(ols_result, formula, reported_response, model, transform_info)
+            | _without_blocks(ols_result, blocks)
+            | _estimability(ols_result, _design_rank(df, rhs, factor_cols, model))
+            | _fitted_noise(ols_result, sigma),
+            model_note,
+        ),
     }
 
     fit = _Fit(
@@ -1629,6 +1659,16 @@ def _fitted_noise(ols_result: RegressionResultsWrapper, sigma: float | None) -> 
         "adequate_precision": _compute_adequate_precision(ols_result, variance),
         "average_fitted_variance": average_fitted_variance(ols_result, variance),
     }
+
+
+def _with_model_note(summary: dict[str, Any], model_note: str | None) -> dict[str, Any]:
+    """Return the model summary with its ``model_note``: why the default model changed, and a fit too imprecise to read.
+
+    The second is :func:`precision_note` of the summary's ``adequate_precision`` (#797 R1), read
+    against the prior sigma when one is given.
+    """
+    notes = [note for note in (model_note, precision_note(summary["adequate_precision"])) if note]
+    return summary | ({"model_note": " ".join(notes)} if notes else {})
 
 
 def _check_options(df_method: str, sigma: float | None) -> None:

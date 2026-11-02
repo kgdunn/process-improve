@@ -1,9 +1,11 @@
-"""Significance plots: Pareto, half-normal, and Daniel (normal QQ).
+"""Significance plots: Pareto, half-normal, Daniel (normal QQ), and the reference distribution of averages.
 
-These plots help identify which effects are statistically significant in
+The first three help identify which effects are statistically significant in
 unreplicated or replicated factorial experiments.  They consume the
 ``effects`` and/or ``lenth_method`` keys from
-:func:`~process_improve.experiments.analysis.analyze_experiment`.
+:func:`~process_improve.experiments.analysis.analyze_experiment`. The reference
+distribution judges a factor's averages, from
+:func:`~process_improve.experiments.least_squares_means`.
 """
 
 from __future__ import annotations
@@ -442,3 +444,76 @@ class DanielPlot(BasePlot):
             title="Daniel Plot (Normal Q-Q of Effects)",
             plot_type="daniel",
         )
+
+
+# ---------------------------------------------------------------------------
+# Reference distribution for a set of averages (Box, Hunter and Hunter)
+# ---------------------------------------------------------------------------
+
+
+@register_plot("reference_distribution")
+class ReferenceDistributionPlot(BasePlot):
+    r"""The averages of a factor's levels under the t distribution they would scatter about by chance.
+
+    Box, Hunter and Hunter (1978, sections 6.4 and 8D) draw the averages as a dot plot and slide
+    under it a t distribution on the residual degrees of freedom, scaled by ``reference_scale``
+    (:math:`s/\sqrt{n}` for *n* runs a level). Averages that cannot all sit under it at once are
+    unlikely to differ by chance alone. The plot centres the distribution at the mean of the
+    averages; the reader slides it along the axis by eye.
+
+    Data sources
+    ------------
+    Requires ``analysis_results`` from
+    :func:`~process_improve.experiments.least_squares_means`: its ``means``,
+    ``reference_scale`` and ``df``.
+    """
+
+    def to_spec(self) -> ChartSpec:
+        """Build the reference-distribution ChartSpec.
+
+        Returns
+        -------
+        ChartSpec
+        """
+        means = self.analysis_results.get("means") or []
+        scale, df = self.analysis_results.get("reference_scale"), self.analysis_results.get("df")
+        if not means or scale is None or df is None or not scale > 0 or not df > 0:
+            return ChartSpec(title="Reference Distribution - no least-squares means")
+
+        values = [float(row["mean"]) for row in means]
+        centre = sum(values) / len(values)
+        reach = max(4.0 * scale, *(abs(v - centre) + scale for v in values))
+        grid = [centre - reach + 2 * reach * i / 200 for i in range(201)]
+        density = [float(stats.t.pdf((x - centre) / scale, df) / scale) for x in grid]
+
+        dots = [{"mean": v, "height": 0.0, "text": str(row["level"])} for v, row in zip(values, means, strict=True)]
+        x_title = self.response_column or "Average"
+        layers = [
+            LayerSpec(
+                mark=MarkType.line,
+                data=[{"mean": x, "height": h} for x, h in zip(grid, density, strict=True)],
+                x=Encoding(field="mean", title=x_title),
+                y=Encoding(field="height", title="Density"),
+                name=f"t on {df:g} df, scale {scale:.3g}",
+                color=DOE_PALETTE["zero_line"],
+            ),
+            LayerSpec(
+                mark=MarkType.scatter,
+                data=dots,
+                x=Encoding(field="mean"),
+                y=Encoding(field="height"),
+                name="Averages",
+                style={"size": 10, "hover_field": "text"},
+            ),
+            LayerSpec(
+                mark=MarkType.text,
+                data=dots,
+                x=Encoding(field="mean"),
+                y=Encoding(field="height"),
+                name="Levels",
+                style={"size": 11},
+            ),
+        ]
+        title = "Averages and their Reference Distribution"
+        panel = PanelSpec(layers=layers, title=title, x_title=x_title, y_title="Density")
+        return ChartSpec(panels=[panel], title=title, plot_type="reference_distribution")
