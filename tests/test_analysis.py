@@ -2542,6 +2542,35 @@ class TestNoCodedScale:
         )
         assert result["coding"] == "coded"
 
+    @pytest.mark.parametrize("analysis", ["effects", "lenth_method"])
+    @pytest.mark.parametrize("model", ["I(xi ** 0.5)", "I(1 / xi)"])
+    def test_effects_are_refused(self, model: str, analysis: str) -> None:
+        """Coded, xi runs from -1 to +1: the square root was NaN, so two runs were dropped, and 1 / 0 failed."""
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(self.DATA, response_column="Y", model=model, analysis_type=analysis)
+
+    def test_effects_of_a_term_that_mixes_factors_are_refused(self) -> None:
+        """Box and Draper (2007) Table 3.6: once z2 is centred, I(z2 - 0.2 * z1) is another column."""
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(data, response_column="y", model="z1 + I(z2 - 0.2 * z1) - 1", analysis_type="effects")
+
+    def test_a_polynomial_keeps_its_effects(self) -> None:
+        """Twice the coefficient on the coded xi; the square's column runs from 0 to 1, so its coefficient."""
+        result = analyze_experiment(self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="effects")
+        coded = (self.DATA["xi"] - 2.5) / 2.0
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(pd.concat([coded, coded**2], axis=1))).fit().params
+        assert result["effects"] == pytest.approx({"xi": 2 * expected.iloc[1], "I(xi ** 2)": expected.iloc[2]})
+        assert result["effects_coding"] == {"xi": {"low": 0.5, "high": 4.5}}
+
+    def test_factors_already_coded_keep_their_effects(self) -> None:
+        """Nothing is refitted, so the term keeps its meaning: its coefficient times its column's span of 3."""
+        data = pd.DataFrame({"x": [-1.0, 0, 1, -1, 0, 1], "y": [3.0, 1, 4, 2.5, 1.2, 4.4]})
+        result = analyze_experiment(data, response_column="y", model="x + I(3 * x ** 2 - 2)", analysis_type="effects")
+        fit = smf.ols("y ~ x + I(3 * x ** 2 - 2)", data=data).fit()
+        assert result["effects"]["I(3 * x ** 2 - 2)"] == pytest.approx(3 * fit.params["I(3 * x ** 2 - 2)"])
+        assert "effects_coding" not in result
+
 
 class TestStandardisedCoefficients:
     """Each coefficient's ``standardised_coefficient``: the coefficient times s(its column) / s(response)."""
