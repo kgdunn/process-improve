@@ -243,7 +243,10 @@ along the regression vector :math:`b` for the chosen attribute: the weight is
 :math:`j` is the ratio of its explained to its residual sum of squares on that
 single component,
 :math:`\text{SR}_j = \text{SS}_{\text{explained},j} / \text{SS}_{\text{residual},j}`,
-so it is large only for descriptors aligned with the predictive direction. Two
+so it is large only for descriptors aligned with the predictive direction. A
+descriptor that the single component reproduces exactly has no residual, and its
+ratio is infinite (``inf``; the JSON tool output, which cannot carry infinity,
+reports it as ``null``). Two
 collinear descriptors carry near-identical selectivity ratios, which is why the
 clustering step is needed alongside it.
 
