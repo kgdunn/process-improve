@@ -275,6 +275,15 @@ class TestStationaryPointRegion:
         assert region["contains"]([[5.0, 5.0], [-20.0, -20.0]]).all()
         assert not region["contains"]([2.0, -2.0])
 
+    def test_a_rising_ridge_has_no_stationary_point(self) -> None:
+        """80 + 2 (x1 + x2) - 1.5 (x1 - x2)^2 climbs along x1 = x2 for ever, so nothing there is stationary."""
+        runs = _composite_runs().assign(y=lambda d: 80 + 2 * (d["x1"] + d["x2"]) - 1.5 * (d["x1"] - d["x2"]) ** 2)
+        region = stationary_point_region(runs, "y", ["x1", "x2"], sigma=1.0)
+        assert region["classification"] == "rising_ridge"
+        assert region["stationary_point"] is None
+        assert region["std_error"] is None
+        assert not region["contains"]([0.0, 0.0]), "the gradient at the centre is clearly not zero"
+
     def test_a_grid_gives_a_mask_of_its_shape_and_the_units_do_not_move_the_region(self) -> None:
         """A temperature in degC and a pressure in pascals, 1e5 from zero: the region is the coded one, mapped."""
         runs = _composite_runs().assign(y=lambda d: _surface(d.to_numpy(), _SADDLE) + _NOISE)
