@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.utils import Bunch
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
@@ -68,8 +68,9 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         (with :class:`MCUVScaler`). Predictions and ``beta_coefficients_`` are
         returned on the original data scale. Set ``False`` when the inputs are
         already scaled.
-    copy : bool, default=True
-        Whether to copy X and y before fitting.
+    copy : None
+        Deprecated since 2.4.0 and removed in 3.0; it has no effect. OPLS never
+        modifies the X or Y it is given, so there is nothing to copy.
 
     Attributes (after fitting)
     --------------------------
@@ -144,7 +145,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         n_orthogonal_components: int,
         *,
         scale: bool = True,
-        copy: bool = True,
+        copy: bool | None = None,
     ):
         self.n_orthogonal_components = n_orthogonal_components
         self.scale = scale
@@ -179,10 +180,20 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
         Raises
         ------
+        ValueError
+            If Y has more than one column, has a different number of rows from X,
+            or holds a missing or infinite value.
         NotEnoughVarianceError
             If X has no variance left for a component, as when there are more
             components than the rank of the centred X.
         """
+        if self.copy is not None:
+            warnings.warn(
+                "process_improve.multivariate.methods.OPLS.copy is deprecated since 2.4.0 and will be removed in "
+                "3.0; no replacement. copy has no effect: OPLS never modifies the X or Y it is given, so leave it out.",
+                DeprecationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2)
@@ -191,8 +202,13 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         Y = pd.DataFrame(Y)
         if Y.shape[1] != 1:
             raise ValueError(f"OPLS supports a single response only; Y has {Y.shape[1]} columns.")
-
         self.n_samples_, n_features = X.shape
+        if Y.shape[0] != self.n_samples_:
+            raise ValueError(
+                f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Y.shape[0]}."
+            )
+        # Missing and infinite cells refused as validate_data refuses them in X, and the response read as floats.
+        Y = pd.DataFrame(check_array(Y, input_name="Y"), columns=Y.columns)
         self.n_targets_ = 1
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
