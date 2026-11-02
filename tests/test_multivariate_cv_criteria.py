@@ -458,7 +458,7 @@ def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int
     """X and Y must pair up row for row, and each fold must keep enough rows to fit a component."""
     X, Y = _two_component_data(n=30)
     with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2)
+        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2, random_state=0)
 
 
 # --- The fold models' own space, and the T2 rule (#1029) -----------------------------------

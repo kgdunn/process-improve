@@ -1366,7 +1366,7 @@ def test_pca_select_n_components_rule_dispatch() -> None:
     assert 1 <= res_q2.n_components <= 6
 
     with pytest.raises(ValueError, match="Unknown cv_scheme"):
-        PCA.select_n_components(X, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
+        PCA.select_n_components(X, max_components=3, cv=3, cv_scheme="bogus", random_state=0)  # type: ignore[arg-type]
 
 
 @pytest.mark.slow
@@ -1403,7 +1403,7 @@ def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     np.testing.assert_allclose(many.per_fold_press.to_numpy(), again.per_fold_press.to_numpy())
 
     with pytest.raises(ValueError, match="n_repeats must be >= 1"):
-        PCA.select_n_components(X, max_components=3, cv=3, n_repeats=0)
+        PCA.select_n_components(X, max_components=3, cv=3, n_repeats=0, random_state=0)
 
 
 def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
@@ -2637,7 +2637,7 @@ _PLS_QUICK_NESTED = {"inner_cv": 3, "n_inner_repeats": 1, "max_components": 2, "
             r"^The X and Y arrays must have the same number of rows: X has 10 and Y has 9\.$",
         ),
         (
-            lambda X, y: PLS.select_n_components(X.iloc[:2], y.iloc[:2], cv=2),
+            lambda X, y: PLS.select_n_components(X.iloc[:2], y.iloc[:2], cv=2, random_state=0),
             ValueError,
             r"^No components can be evaluated; the data or folds are too small\.$",
         ),
@@ -4392,7 +4392,7 @@ def test_pls_select_n_components_ldpe(
     n_targets = Y.shape[1]
 
     max_comp = 6
-    result = PLS.select_n_components(X, Y, max_components=max_comp, cv=5)
+    result = PLS.select_n_components(X, Y, max_components=max_comp, cv=5, random_state=0)
 
     assert 1 <= result.n_components <= max_comp
     assert result.rmsecv.shape == (max_comp, n_targets + 1)
@@ -4456,9 +4456,9 @@ def test_pls_select_n_components_argument_validation() -> None:
     X = pd.DataFrame(rng.standard_normal((20, 4)), columns=[f"x{i}" for i in range(4)])
     Y = pd.DataFrame(rng.standard_normal((20, 1)), columns=["y"])
     with pytest.raises(ValueError, match=">= 2"):
-        PLS.select_n_components(X, Y, cv=1)
+        PLS.select_n_components(X, Y, cv=1, random_state=0)
     with pytest.raises(ValueError, match="n_repeats must be >= 1"):
-        PLS.select_n_components(X, Y, cv=5, n_repeats=0)
+        PLS.select_n_components(X, Y, cv=5, n_repeats=0, random_state=0)
 
 
 @pytest.mark.slow
@@ -4583,7 +4583,7 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
 
     # Unknown rule -> ValueError from the dispatcher.
     with pytest.raises(ValueError, match="Unknown selection_rule"):
-        PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
+        PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus", random_state=0)  # type: ignore[arg-type]
 
 
 @pytest.mark.slow
@@ -4743,7 +4743,7 @@ def test_pls_nested_cv_validates_outer_cv() -> None:
     X = pd.DataFrame(rng.standard_normal((20, 4)))
     Y = pd.DataFrame(rng.standard_normal((20, 1)))
     with pytest.raises(ValueError, match=">= 2"):
-        PLS.nested_cv(X, Y, max_components=2, outer_cv=1, inner_cv=3, n_inner_repeats=1)
+        PLS.nested_cv(X, Y, max_components=2, outer_cv=1, inner_cv=3, n_inner_repeats=1, random_state=0)
 
 
 def test_pls_nested_cv_scale_inside_folds_false() -> None:
@@ -5730,7 +5730,7 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     scores = cross_val_score(
         estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
         X=blocks,
-        cv=5,
+        cv=KFold(5),
         n_jobs=1,
     )
     scores = np.asarray(scores)
@@ -5740,12 +5740,12 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     # small T-shaped block, and here it is, so do not assert a positive floor.
     assert (scores <= 1.0).all()
 
-    # Deterministic: KFold without shuffling gives the same folds, so the same scores.
+    # Deterministic: unshuffled KFold gives the same folds, so the same scores.
     repeat = np.asarray(
         cross_val_score(
             estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
             X=blocks,
-            cv=5,
+            cv=KFold(5),
             n_jobs=1,
         )
     )
@@ -5759,7 +5759,7 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
         cross_val_score(
             estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
             X=blocks,
-            cv=5,
+            cv=KFold(5),
             scoring=make_tpls_scorer("r2"),
             n_jobs=1,
         )
@@ -5961,7 +5961,7 @@ def test_tpls_score_empty_y_raises(fixture_tpls_example: dict) -> None:
 
 def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2") -> np.ndarray:
     """Perform manual cross-validation for a TPLS model."""
-    kfold = KFold(n_splits=cv, shuffle=True)
+    kfold = KFold(n_splits=cv, shuffle=True, random_state=0)
     n_samples = len(full_datadict)
     scores = []
 
@@ -8365,7 +8365,7 @@ def test_cell_schemes_refuse_a_block_with_missing_cells() -> None:
     X.iloc[0, 0] = np.nan
     for scheme in ("ek", "sacv", "gcv"):
         with pytest.raises(ValueError, match="missing cells"):
-            PCA.select_n_components(X, max_components=3, cv=5, cv_scheme=scheme)
+            PCA.select_n_components(X, max_components=3, cv=5, cv_scheme=scheme, random_state=0)
     # The default scheme does take it, which is the reason to reach for it.
     assert PCA.select_n_components(X, max_components=3, cv=5, random_state=0).q2.notna().all()
 
@@ -8381,12 +8381,12 @@ def test_the_missing_cell_refusal_says_how_many_and_where() -> None:
     X.iloc[:9, 2] = np.nan
     X.iloc[0, 0] = np.nan
     with pytest.raises(ValueError, match=r"10 of 240, 9 of them in column 2"):
-        PCA.select_n_components(X, max_components=3, cv=5, cv_scheme="sacv")
+        PCA.select_n_components(X, max_components=3, cv=5, cv_scheme="sacv", random_state=0)
 
     scattered = _known_rank_block(n=40, k=6).copy()
     scattered.iloc[0, 0] = scattered.iloc[1, 3] = scattered.iloc[2, 5] = np.nan
     with pytest.raises(ValueError, match=r"3 of 240, spread over 3 columns"):
-        PCA.select_n_components(scattered, max_components=3, cv=5, cv_scheme="ek")
+        PCA.select_n_components(scattered, max_components=3, cv=5, cv_scheme="ek", random_state=0)
 
 
 def test_ek_warns_when_the_folds_cannot_reach_the_requested_components() -> None:
@@ -10972,7 +10972,8 @@ def test_pls_pseudo_validation_set_passes_its_settings_on(monkeypatch: pytest.Mo
     X, Y = _pls_block()
     PLS.pseudo_validation_set(X, Y, n_components=2)
     PLS.pseudo_validation_set(X, Y, n_components=3, cv=4, scope="local", random_state=5, max_iter=50)
-    pseudo_validation_set(X, Y, n_components=1, cv=3, tol=1e-6)
+    folds = KFold(3)  # an integer cv would draw unseeded folds; this call checks the default random_state
+    pseudo_validation_set(X, Y, n_components=1, cv=folds, tol=1e-6)
     (cls, x, y, given, kwargs), (_, _, _, chosen, more), (function_cls, x2, y2, again, other) = calls
     assert cls is PLS
     assert function_cls is PLS
@@ -10984,7 +10985,7 @@ def test_pls_pseudo_validation_set_passes_its_settings_on(monkeypatch: pytest.Mo
     assert kwargs == {}
     assert chosen == _PseudoValidationSettings(n_components=3, cv=4, scope="local", random_state=5)
     assert more == {"max_iter": 50}
-    assert again == _PseudoValidationSettings(n_components=1, cv=3, scope="global", random_state=None)
+    assert again == _PseudoValidationSettings(n_components=1, cv=folds, scope="global", random_state=None)
     assert other == {"tol": 1e-6}
 
 
@@ -11154,9 +11155,9 @@ def test_pls_nested_cv_hands_both_blocks_to_its_splitter_and_needs_two_folds(mon
     ((x, y),) = splitter.seen
     pd.testing.assert_frame_equal(x, X)
     pd.testing.assert_frame_equal(y, Y)
-    assert PLS.nested_cv(X, Y, outer_cv=2).selected_components_per_fold == [1, 1]
+    assert PLS.nested_cv(X, Y, outer_cv=2, random_state=0).selected_components_per_fold == [1, 1]
     with pytest.raises(ValueError, match=r"^outer_cv must be >= 2 when given as an int; got 1\.$"):
-        PLS.nested_cv(X, Y, outer_cv=1)
+        PLS.nested_cv(X, Y, outer_cv=1, random_state=0)
     _stand_in_selection(monkeypatch, [1] * 5)
     assert PLS.nested_cv(X, Y).selected_components_per_fold == [1] * 5  # five outer folds by default
 
@@ -11948,7 +11949,8 @@ def test_pls_select_n_components_hands_the_scored_counts_to_van_der_voet(monkeyp
         pd.Series([0.004, 0.3], index=pd.Index([1, 2], name="n_components"), name="p-value (Van der Voet)"),
     )
     assert result.selection_distribution is None
-    PLS.select_n_components(X, Y, cv=4, n_repeats=1, max_components=2, selection_rule="randomization")
+    # Fixed folds, since an integer cv without a random_state would draw unseeded ones; the call checks the defaults.
+    PLS.select_n_components(X, Y, cv=KFold(4), max_components=2, selection_rule="randomization")
     assert {key: calls[1][1][key] for key in settings} == {"n_permutations": 999, "alpha": 0.01, "random_state": None}
 
 
@@ -12051,12 +12053,15 @@ def test_pls_select_n_components_refuses_and_warns_in_full() -> None:
     """Fewer than two folds or one repeat are refused; an X that arrives autoscaled is warned about."""
     X, Y = _pls_block(n=12)
     with pytest.raises(ValueError, match=r"^cv must be >= 2 when given as an int; got 1\.$"):
-        PLS.select_n_components(X, Y, cv=1)
+        PLS.select_n_components(X, Y, cv=1, random_state=0)
     with pytest.raises(ValueError, match=r"^n_repeats must be >= 1; got 0\.$"):
         PLS.select_n_components(X, Y, n_repeats=0)
-    assert PLS.select_n_components(X, Y, cv=2, n_repeats=1, max_components=1).per_fold_rmsecv.shape == (1, 2)
+    assert PLS.select_n_components(X, Y, cv=2, n_repeats=1, max_components=1, random_state=0).per_fold_rmsecv.shape == (
+        1,
+        2,
+    )
     with pytest.warns(SpecificationWarning, match=r"re-standardises inside every CV fold.* comparison of their RMSECV"):
-        PLS.select_n_components(_autoscaled(X.to_numpy()), Y, cv=3, n_repeats=1, max_components=1)
+        PLS.select_n_components(_autoscaled(X.to_numpy()), Y, cv=3, n_repeats=1, max_components=1, random_state=0)
 
 
 def test_pls_select_n_components_reads_arrays_and_a_series() -> None:
