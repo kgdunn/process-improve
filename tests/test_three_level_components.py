@@ -88,6 +88,14 @@ def test_an_interaction_s_components_add_up_to_its_sum_of_squares(dyestuff):
     assert table["sum_of_squares"].sum() == pytest.approx(anova["sum_sq"].drop("Residual").sum())
 
 
+@pytest.mark.dataset
+def test_the_runs_may_come_in_any_order(dyestuff):
+    """The catalogue holds the dyestuff runs by treatment; shuffled, they give the same components."""
+    shuffled = dyestuff.sample(frac=1, random_state=3)
+    found, expected = (interaction_components(runs, "Yield", ["C", "V", "N"]) for runs in (shuffled, dyestuff))
+    pd.testing.assert_frame_equal(found, expected)
+
+
 def test_yates_names_follow_the_exponents():
     runs = pd.DataFrame(list(itertools.product(range(3), repeat=3)), columns=list("ABC"))
     runs["y"] = np.random.default_rng(0).normal(size=len(runs))
@@ -133,6 +141,7 @@ def test_the_docstring_example_prints_what_it_shows():
     ("data", "factors", "message"),
     [
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["B"], r"missing \['B'\]"),
+        (pd.DataFrame({"A": [0, 1, 2], "z": [1.0, 2.0, 3.0]}), ["A"], r"missing \['y'\]"),
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["A", "A"], "distinct factors"),
         (pd.DataFrame({"A": [0, 1, 0], "y": [1.0, 2.0, 3.0]}), ["A"], "exactly three settings"),
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, np.nan, 3.0]}), ["A"], "finite number in every run"),
