@@ -1626,6 +1626,15 @@ class TestBlocks:
         assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
         assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
 
+    def test_a_reference_level_written_as_a_string_names_the_integer_levels(self) -> None:
+        """Blocks numbered 1 and 2 have the integer levels; ``Treatment('1')`` names a string (follow-up to #1043)."""
+        message = (
+            "C(Block, Treatment('1')) asks for the level '1', which column 'Block' does not have: its levels are "
+            "[1, 2]. Write the level as the column holds it, as in C(Block, Treatment(1))."
+        )
+        with pytest.raises(ValueError, match=re.escape(message)):
+            analyze_experiment(self._blocked(), response_column="y", model="y ~ C(Block, Treatment('1')) + A + B + C")
+
     def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
         """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
         df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})

@@ -36,7 +36,13 @@ from scipy import stats
 
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
-from process_improve.experiments._lm import real_names, stand_ins_for, validate_identifiers_are_safe, with_stand_ins
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    validate_contrast_levels,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
 from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
 from process_improve.experiments.designs_mixture_process import ReducedRank, category_levels, mixture_process_model
@@ -247,6 +253,7 @@ def _build_model_matrix(
     # Patsy evaluates each term as Python, so a custom ``model`` is a code-
     # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
     validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
+    validate_contrast_levels(rhs, design_df)
     dm = dmatrix(rhs, _patsy_data(design_df, categorical_coding, reduced_rank), return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)

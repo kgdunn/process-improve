@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import ModelDesc
+from patsy.categorical import CategoricalSniffer
+from patsy.missing import NAAction
 from statsmodels.regression.linear_model import OLS
 
 if TYPE_CHECKING:
@@ -558,6 +560,78 @@ def _check_literal_or_container(node: ast.AST) -> None:
     raise UnsafeFormulaError("categorical-contrast arguments must be column names, contrast helpers, or literals.")
 
 
+#: The contrasts that name a level of their factor, and the keyword that names it.
+_LEVEL_ARGUMENTS = {"Treatment": "reference", "Sum": "omit"}
+
+
+def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
+    """Refuse a contrast that names a level its column does not have, where patsy would, but naming the levels.
+
+    ``C(Block, Treatment('1'))`` asks for the level ``'1'``, a string, and a ``Block`` column of integers
+    has the level ``1``: patsy fails with "specified level '1' not found". This raises the same failure
+    for the reference level of ``Treatment`` and the omitted level of ``Sum``, with the column's levels and
+    a spelling that works. Patsy reads an integer that is not a level as the position of one
+    (``Treatment(0)`` is the first level), so an integer is refused only past the last position.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or its right-hand side, as :func:`validate_formula_is_safe` passed it.
+    data : DataFrame
+        The data the formula is fitted on.
+
+    Raises
+    ------
+    ValueError
+        If a contrast names a level that its column does not have.
+    """
+    for side in formula.split("~"):
+        tree = _parsed_side(side)
+        for node in ast.walk(tree) if tree else ():
+            named = _named_level(node)
+            if named is None or named[0] not in data.columns:
+                continue
+            column, contrast, level = named
+            sniffer = CategoricalSniffer(NAAction())  # the levels as patsy finds them
+            sniffer.sniff(data[column])
+            levels = list(sniffer.levels_contrast()[0])
+            if not levels or level in levels or (isinstance(level, int) and -len(levels) <= level < len(levels)):
+                continue
+            spelling = next((value for value in levels if str(value) == str(level)), levels[0])
+            raise ValueError(
+                f"{ast.unparse(node)} asks for the level {level!r}, which column {column!r} does not have: its "
+                f"levels are {levels!r}. Write the level as the column holds it, as in "
+                f"C({column}, {contrast}({spelling!r}))."
+            )
+
+
+def _named_level(node: ast.AST) -> tuple[str, str, object] | None:
+    """Return the column, contrast and level of ``C(column, Treatment(level))`` or ``Sum(level)``; else None."""
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "C"):
+        return None
+    column, contrast = _argument(node, 0, "data"), _argument(node, 1, "contrast")
+    if (
+        not isinstance(column, ast.Name)
+        or not isinstance(contrast, ast.Call)
+        or not isinstance(contrast.func, ast.Name)
+        or contrast.func.id not in _LEVEL_ARGUMENTS
+        or _argument(node, 2, "levels") is not None  # patsy reads the level among the levels given, not the data's
+    ):
+        return None
+    level = _argument(contrast, 0, _LEVEL_ARGUMENTS[contrast.func.id])
+    try:
+        return (column.id, contrast.func.id, ast.literal_eval(level)) if level is not None else None
+    except ValueError:  # not a literal: validate_formula_is_safe refuses it
+        return None
+
+
+def _argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    """Return the argument of *call* at *position*, or the one passed as *keyword*; None when there is neither."""
+    if len(call.args) > position:
+        return call.args[position]
+    return next((kw.value for kw in call.keywords if kw.arg == keyword), None)
+
+
 def forg(x: float, prec: int = 3) -> str:
     """Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
 
@@ -840,6 +914,7 @@ def lm(
     fit_spec = with_stand_ins(model_spec, stand_ins)
     fit_data = data.rename(columns=stand_ins) if stand_ins else data
     validate_formula_is_safe(fit_spec, fit_data.columns, allow_transforms=True, allow_numpy=True)
+    validate_contrast_levels(model_spec, data)
 
     pre_model = smf.ols(fit_spec, data=fit_data)
     # SEC-19 (#268): a formula like ``y ~ (A+B+C+D+E)**5`` expands to
