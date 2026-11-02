@@ -92,6 +92,24 @@ def _refuse_missing_labels(data: pd.DataFrame, columns: dict[str, Any]) -> None:
             )
 
 
+def _refuse_labels_alike_but_for_spaces(long_df: pd.DataFrame) -> None:
+    """Raise ``ValueError`` when two labels differ only in surrounding whitespace.
+
+    The reshape strips each label (:func:`_label`), which would merge ``"P1"`` and ``"P1 "``
+    into one panelist: silently when their means agree, and otherwise through a round-trip
+    failure that blames the column mapping (#1003).
+    """
+    for col, role in (("panelist_id", "panelist"), ("product", "product"), ("attribute", "attribute")):
+        first: dict[str, str] = {}
+        for label in long_df[col].astype(str).unique():
+            other = first.setdefault(label.strip(), label)
+            if other != label:
+                raise ValueError(
+                    f"The {role} labels {other!r} and {label!r} differ only in surrounding whitespace, so they "
+                    f"would be merged into one {role}. Write them alike if they are one {role}, or apart if not."
+                )
+
+
 def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
     data: pd.DataFrame,
     *,
@@ -243,6 +261,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         long_df["session"] = 1
     if "replicate" not in long_df.columns:
         long_df["replicate"] = 1
+    _refuse_labels_alike_but_for_spaces(long_df)
     for col in ("panelist_id", "product", "attribute"):
         long_df[col] = long_df[col].astype(str).str.strip()
     long_df["score"] = pd.to_numeric(long_df["score"], errors="coerce").astype("float64")

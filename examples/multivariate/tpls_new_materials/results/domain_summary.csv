@@ -1,0 +1,5 @@
+scenario,beyond T2 limit,beyond SPE limit,"Spearman(error, T2)"
+hidden trait,0.071,0.31,0.15
+ideal mixing,0.071,0.31,0.307
+non-ideal mixing,0.071,0.31,0.194
+uneven usage,0.071,0.31,0.258

@@ -122,6 +122,42 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.f_statistic: number?",
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
+        "spread: dict?",
+        "transform: str?",
+        "box_cox: dict?",
+    ],
+    "transformed analysis": [
+        "transform: str",
+        "coefficients[].ratio: number?",
+        "box_cox.lambda: number",
+        "box_cox.ci[]: number",
+        "box_cox.suggests: str?",
+        "box_cox.current: str?",
+    ],
+    "analysis of readings repeated at each setting": [
+        "spread.kind: str",
+        "spread.settings[].settings{}: any",
+        "spread.settings[].runs[]: int",
+        "spread.settings[].n: int",
+        "spread.settings[].mean: number",
+        "spread.settings[].std_dev: number",
+        "spread.settings[].ln_std_dev: number?",
+        "spread.settings[].sn: number?",
+        "spread.left_out[]: int",
+        "spread.factors[].name: str",
+        "spread.factors[].levels[].level: any",
+        "spread.factors[].levels[].n: int",
+        "spread.factors[].levels[].mean: number?",
+        "spread.factors[].levels[].ln_std_dev: number?",
+        "spread.factors[].levels[].sn: number?",
+        "spread.factors[].delta.mean: number?",
+        "spread.factors[].delta.ln_std_dev: number?",
+        "spread.factors[].delta.sn: number?",
+        "spread.factors[].rank.mean: int?",
+        "spread.factors[].rank.ln_std_dev: int?",
+        "spread.factors[].rank.sn: int?",
+        "spread.factors[].best: dict",
+        "spread.adjustment: str?",
     ],
     "saturated analysis": [
         "summary.r_squared_pred: number?",
@@ -683,6 +719,7 @@ READS: dict[str, list[str]] = {
         "factors[].levels[]: str",
         "factors[].columns[].{}: number",
     ],
+    "transformed predictors": ["responses[].transform: str"],
     "nothing to predict yet": ["responses[].waiting: bool"],
     "predictors refused": ["responses[].error: str"],
     "mixture predictors": ["mixture: bool", "factors: list", "responses: list"],
@@ -695,6 +732,8 @@ ENTRY_POINTS = {
     "design": "api_make_design",
     "simulation": "api_simulate",
     "analysis": "api_analyze_runs",
+    "analysis of readings repeated at each setting": "api_analyze_runs",
+    "transformed analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
     "charts": "api_plots",
     "charts through the best settings": "api_plots",
@@ -725,6 +764,7 @@ ENTRY_POINTS = {
     "design with limits": "api_make_design",
     "next runs": "api_next_runs",
     "predictors": "api_predictors",
+    "transformed predictors": "api_predictors",
     "predictors of levels": "api_predictors",
     "nothing to predict yet": "api_predictors",
     "predictors refused": "api_predictors",
@@ -906,6 +946,23 @@ def levels(api) -> dict:
     return {**held, "responses": [float(i % 4) for i in range(len(held["rows"]))]}
 
 
+def repeated(api) -> dict:
+    """Return Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
+    factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
+    runs = [s for s in ([1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]) for _ in range(2)]
+    info = {"goal": "target", "target": 20}
+    design = api.ok(
+        "api_make_design", {"design_type": "given", "factors": factors, "runs": runs, "response_info": info}
+    )
+    return {**held_of(design), "responses": [20.0, 30.0, 9.0, 11.0, 26.0, 24.0, 15.0, None]}
+
+
+def logged(analysed: dict) -> dict:
+    """Analyse the worked example's yield on the log scale, its main effects only, so Box-Cox has a fit to judge."""
+    spec = {**analysed["spec"], "analysis_transforms": {analysed["spec"]["response"]: "log"}}
+    return {**analysed, "spec": spec, "model": "main_effects"}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -966,6 +1023,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "design": lambda: worked_example["demo"]["design"],
         "simulation": lambda: {**held, "seed": 2},
         "analysis": lambda: analysed,
+        "transformed analysis": lambda: logged(analysed),
+        "analysis of readings repeated at each setting": lambda: repeated(api),
         "saturated analysis": saturated,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
@@ -1021,6 +1080,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
             "slice": {"x": "T", "y": "F", "at": {"P": 2}},
         },
         "predictors": several_responses(api)["balance"],
+        "transformed predictors": lambda: logged(analysed),
         "predictors of levels": lambda: levels(api),
         "nothing to predict yet": lambda: {**held, "responses": [None] * len(held["rows"])},
         "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},

@@ -30,12 +30,10 @@ pytestmark = [pytest.mark.dataset, pytest.mark.slow]
 
 @pytest.fixture(scope="module")
 def fitted() -> PCA:
-    """PCA(2) on the MCUV-scaled unfolded trajectories, all nine tags, columns re-labelled."""
+    """PCA(2) on the MCUV-scaled unfolded trajectories, all nine tags."""
     sbr = load_or_skip(lambda: load_sbr(url=SBR_URL_OVERRIDE))
     wide = dict_to_wide(sbr.X)
-    scaled = MCUVScaler().fit_transform(wide)
-    scaled.columns = wide.columns  # MCUVScaler drops the 2-level labels
-    return PCA(n_components=2).fit(scaled)
+    return PCA(n_components=2).fit(MCUVScaler().fit_transform(wide))
 
 
 def _sign_aligned(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
@@ -47,7 +45,7 @@ def _sign_aligned(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
 
 def test_r2_matches_legacy_matlab(fitted: PCA) -> None:
     """The per-component R2 the legacy unit test asserts to five decimals."""
-    metadata = json.loads((FIXTURE_DIR / "reference_metadata.json").read_text())
+    metadata = json.loads((FIXTURE_DIR / "reference_metadata.json").read_text(encoding="utf-8"))
     np.testing.assert_allclose(fitted.r2_per_component_.to_numpy(), metadata["legacy_r2_per_component"], atol=1e-5)
 
 

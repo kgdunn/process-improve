@@ -216,6 +216,16 @@ def test_the_models_to_analyse_with_are_bootstrap_s_after_as_designed(bootstrap,
     assert kept == ["", *bootstrap.MODELS, *bootstrap.MIXTURE_MODELS], "a saved study's model is one of these"
 
 
+def test_the_transforms_to_analyse_with_are_bootstrap_s_after_as_measured(bootstrap, node):
+    """The page offers each transform bootstrap fits, names it as bootstrap does, and a saved study keeps those."""
+    assert page().values("transform") == ["", *bootstrap.TRANSFORMS]
+    assert page().selected("transform") == ""
+    (words,) = javascript(node, source("logic.js"), [("TRANSFORM_WORDS", [])])
+    assert words == {name: t["words"] for name, t in bootstrap.TRANSFORMS.items()}
+    (kept,) = javascript(node, source("campaign.js"), [("TRANSFORMS", [])])
+    assert kept == list(bootstrap.TRANSFORMS), "a saved study's transform is one of these"
+
+
 @pytest.mark.parametrize("categorical", [(), ("S",)], ids=["numeric factors", "a categorical factor"])
 def test_the_terms_to_tick_are_the_terms_bootstrap_fits(bootstrap, node, categorical):
     """Each term the page lists is one bootstrap reads, labelled as its fit labels it; a named model's are its own."""
@@ -567,6 +577,14 @@ def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
         assert text.endswith("."), key
         assert len(text.split()) <= 40, key
         assert "\u2014" not in text, key
+
+
+def test_each_goal_reads_its_readings_by_the_ratio_bootstrap_reads_them_by(bootstrap, node):
+    """The page's words for each signal-to-noise ratio, and the code's goal for each, are bootstrap's."""
+    [words] = javascript(node, source("logic.js"), [("SN_WORDS", [])])
+    [kinds] = javascript(node, source("python.js"), [("SN_KINDS", [])])
+    assert kinds == bootstrap.SN_KINDS
+    assert set(words) == set(bootstrap.SN_KINDS.values())
 
 
 def test_confirmation_runs_are_marked_and_counted_as_bootstrap_marks_and_counts_them(bootstrap, node):

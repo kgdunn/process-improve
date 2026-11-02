@@ -155,7 +155,7 @@ def cache_downloads(context: Any, directory: Path) -> None:  # noqa: ANN401 - a 
         key = hashlib.sha256(route.request.url.encode()).hexdigest()
         body, meta = directory / key, directory / f"{key}.json"
         if body.is_file() and meta.is_file():
-            route.fulfill(status=200, headers=json.loads(meta.read_text()), body=body.read_bytes())
+            route.fulfill(status=200, headers=json.loads(meta.read_text(encoding="utf-8")), body=body.read_bytes())
             return
         response = route.fetch()
         if response.ok:
@@ -163,7 +163,7 @@ def cache_downloads(context: Any, directory: Path) -> None:  # noqa: ANN401 - a 
             partial.write_bytes(response.body())
             partial.replace(body)
             kept = {k: v for k, v in response.headers.items() if k.lower() in KEPT_HEADERS}
-            meta.write_text(json.dumps(kept))
+            meta.write_text(json.dumps(kept), encoding="utf-8")
         route.fulfill(response=response)
 
     for pattern in IMMUTABLE:

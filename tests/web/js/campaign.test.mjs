@@ -513,6 +513,16 @@ describe("a campaign of several responses", () => {
     refused((c) => (c.simulation = { truth: [], sigma: 1, seed: 1, more: { Colour: { truth: [], sigma: 1, seed: 2 } } }), /simulation names a response/);
   });
 
+  test("a study keeps each response's transform, drops one of a response it no longer measures, refuses one it does not know", () => {
+    const c = three();
+    c.design.spec.analysis_transforms = { Cost: "log", Gone: "sqrt" };
+    assert.deepEqual(checkCampaign(c).design.spec.analysis_transforms, { Cost: "log" });
+    c.design.spec.analysis_transforms = { Gone: "sqrt" };
+    assert.equal(checkCampaign(c).design.spec.analysis_transforms, undefined);
+    c.design.spec.analysis_transforms = { Cost: "exp" };
+    assert.throws(() => checkCampaign(c), /the transform "exp" is unknown/);
+  });
+
   test("each response's simulated process travels with its noise and seed", () => {
     const c = three();
     const process = (seed) => ({ truth: [{ term: "Intercept", coefficient: 50 }], sigma: 1, seed, equation: "y = 50", inactive: ["T"] });

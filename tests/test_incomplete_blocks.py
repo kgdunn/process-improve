@@ -37,7 +37,8 @@ def as_fractions(values: dict[str, float], denominator: int) -> list[Fraction]:
 # --------------------------------------------------------------------------- Montgomery's Example 4.5
 def test_the_design_is_montgomery_s(catalyst):
     """Four catalysts in four blocks of three: a = 4, b = 4, k = 3, r = 3, lambda = 2 and N = 12."""
-    assert [catalyst[key] for key in ("a", "b", "k", "r", "lambda", "n")] == [4, 4, 3, 3, 2, 12]
+    keys = ("n_treatments", "n_blocks", "block_size", "replicates", "concurrences", "n_runs")
+    assert [catalyst[key] for key in keys] == [4, 4, 3, 3, 2, 12]
 
 
 def test_the_adjusted_totals_and_the_intrablock_estimates(catalyst):
@@ -89,7 +90,7 @@ def test_the_intrablock_estimates_are_the_sum_coded_coefficients(catalyst):
 def test_davies_tyre_road_test():
     """Four compounds on four tyres of three: the total 61,603 and the tyres unadjusted 39,123; C's effect 30.9."""
     found = bibd_analysis(runs("davies-1956", "davies-tyre-road-test"), "Compound", "Tyre", "Wear")
-    assert (found["k"], found["r"], found["lambda"]) == (3, 3, 2)
+    assert (found["block_size"], found["replicates"], found["concurrences"]) == (3, 3, 2)
     assert round(found["sums_of_squares"]["total"]) == 61603
     assert round(found["sums_of_squares"]["blocks_unadjusted"]) == 39123
     assert round(found["intrablock_effects"]["C"], 1) == 30.9
@@ -98,7 +99,7 @@ def test_davies_tyre_road_test():
 def test_davies_rubber_youden_square_as_a_bibd():
     """Five materials in five runs of four (lambda = 3); the total 8478.0."""
     found = bibd_analysis(runs("davies-1956", "davies-rubber-youden-square"), "Material", "Run", "Loss")
-    assert (found["a"], found["k"], found["lambda"]) == (5, 4, 3)
+    assert (found["n_treatments"], found["block_size"], found["concurrences"]) == (5, 4, 3)
     assert found["sums_of_squares"]["total"] == pytest.approx(8478.0)
 
 
@@ -140,7 +141,8 @@ def test_the_symmetric_design_of_seven_treatments_in_blocks_of_three():
         columns=["treatment", "block", "y"],
     )
     found = bibd_analysis(table, "treatment", "block", "y")
-    assert (found["a"], found["b"], found["k"], found["r"], found["lambda"]) == (7, 7, 3, 3, 1)
+    design = ("n_treatments", "n_blocks", "block_size", "replicates", "concurrences")
+    assert tuple(found[key] for key in design) == (7, 7, 3, 3, 1)
     assert list(found["intrablock_effects"].values()) == pytest.approx(list(effects.values()))
     assert list(found["interblock_effects"].values()) == pytest.approx(list(effects.values()))
     assert found["sums_of_squares"]["error"] == pytest.approx(0.0, abs=1e-9)

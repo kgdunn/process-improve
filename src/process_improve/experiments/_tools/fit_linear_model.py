@@ -98,10 +98,7 @@ def fit_linear_model(spec: FitLinearModelInput) -> dict[str, Any]:
         model = lm(spec.formula, expt_data)
 
         params = model.get_parameters(drop_intercept=True)
-        if isinstance(params, pd.Series):
-            coefficients = [{"name": str(name), "estimate": float(value)} for name, value in params.items()]
-        else:
-            coefficients = params.to_dict(orient="records")
+        coefficients = [{"name": str(name), "estimate": float(value)} for name, value in params.items()]
 
         r2 = float(model._OLS.rsquared)
 

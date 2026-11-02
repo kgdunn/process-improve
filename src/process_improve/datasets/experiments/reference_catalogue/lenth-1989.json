@@ -595,7 +595,8 @@
       "factors": ["T", "W", "C", "R", "P", "M", "A", "O", "H"],
       "generators": ["P=WCR", "M=-TWCR", "A=-TR", "O=-TC", "H=TCR"],
       "up_to": 2,
-      "disagreement": "the defining relation of P = WCR, M = -TWCR, A = -TR, O = -TC and H = TCR makes WC = RP = MA, so the printed chain 'WC, RP, WC' has WC twice where MA belongs; every other chain of Table 3 agrees as printed"
+      "disagreement": "the defining relation of P = WCR, M = -TWCR, A = -TR, O = -TC and H = TCR makes WC = RP = MA, so the printed chain 'WC, RP, WC' has WC twice where MA belongs; every other chain of Table 3 agrees as printed",
+      "cause": "source_error"
      }
     },
     {
@@ -779,7 +780,8 @@
       "quote": "s0 = 1.5 x .30 = .45"
      },
      "check": {
-      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -792,7 +794,8 @@
       "quote": "s0 = 1.5 x .30 = .45"
      },
      "check": {
-      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -805,7 +808,8 @@
       "quote": "excluding the two contrasts that exceed 2.5s0 = 1.13"
      },
      "check": {
-      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -818,7 +822,8 @@
       "quote": "obtaining PSE = 1.5 x .15 = .225"
      },
      "check": {
-      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below"
+      "manual": "an intermediate of Lenth's method; the library returns the PSE it leads to, checked below",
+      "cause": "not_a_result"
      }
     },
     {
@@ -878,7 +883,8 @@
      "check": {
       "kind": "lenth_me",
       "model": "T*W*C*R",
-      "disagreement": "the text works it out as ME = 2.57 x .225 = .58, which agrees; the footnote's .56 is a misprint"
+      "disagreement": "the text works it out as ME = 2.57 x .225 = .58, which agrees; the footnote's .56 is a misprint",
+      "cause": "source_error"
      }
     },
     {
@@ -1114,7 +1120,8 @@
       "quote": "Since the median of |C| is about .675τ"
      },
      "check": {
-      "manual": "an approximation the text marks with 'about' or '≈': the median of |C| for C normal is z(.75) = 0.6745 tau"
+      "manual": "an approximation the text marks with 'about' or '≈': the median of |C| for C normal is z(.75) = 0.6745 tau",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1127,7 +1134,8 @@
       "quote": "s0 is a consistent estimate of 1.5 Med|C| ≈ 1.01τ"
      },
      "check": {
-      "manual": "an approximation the text marks with 'about' or '≈': 1.5 x 0.6745 = 1.012"
+      "manual": "an approximation the text marks with 'about' or '≈': 1.5 x 0.6745 = 1.012",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1140,7 +1148,8 @@
       "quote": "since Pr(|C| > 2.5τ) ≈ .01"
      },
      "check": {
-      "manual": "an approximation the text marks with 'about' or '≈': the probability is 0.0124"
+      "manual": "an approximation the text marks with 'about' or '≈': the probability is 0.0124",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1157,7 +1166,8 @@
       "kind": "library_value",
       "function": "z_value",
       "args": [0.7475],
-      "disagreement": "the .495th quantile of |C| is z(.7475) = 0.6666; the printed .665 is the quantile at .5(1 - .0124) = .4938, the share of |C| below its median once the 1.24% beyond 2.5 tau is trimmed (Pr(|Z| > 2.5) = .0124), z(.7469) = 0.6648, of which '.495' is the rounded label"
+      "disagreement": "the .495th quantile of |C| is z(.7475) = 0.6666; the printed .665 is the quantile at .5(1 - .0124) = .4938, the share of |C| below its median once the 1.24% beyond 2.5 tau is trimmed (Pr(|Z| > 2.5) = .0124), z(.7469) = 0.6648, of which '.495' is the rounded label",
+      "cause": "source_rounding"
      }
     }
    ],
@@ -1507,7 +1517,8 @@
       "quote": "In example IV, we obtain s0 = PSE = .114 (nothing is excluded in the second step)"
      },
      "check": {
-      "manual": "an intermediate of Lenth's method, here equal to the PSE checked below: no contrast exceeds 2.5 s0"
+      "manual": "an intermediate of Lenth's method, here equal to the PSE checked below: no contrast exceeds 2.5 s0",
+      "cause": "not_a_result"
      }
     },
     {

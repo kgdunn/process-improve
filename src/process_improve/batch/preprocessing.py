@@ -582,6 +582,10 @@ _HUBER_CUTOFF = 1.345
 #: Smallest batch weight :func:`_batch_weights` will return, so no batch is ever silenced.
 _MIN_BATCH_WEIGHT = 1e-3
 
+#: Iterations of :func:`batch_dtw` that align every batch to the ``reference_batch``. Each later
+#: iteration aligns to the average trajectory of the iteration before it.
+_ITERATIONS_ON_THE_REFERENCE_BATCH = 3
+
 
 def _batch_weights(aligned_batches: dict, batch_weighting: str) -> np.ndarray:
     """
@@ -818,6 +822,11 @@ def batch_dtw(  # noqa: PLR0915
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
             }
 
+        Every batch is aligned to ``reference_batch`` in the first three iterations. From
+        the fourth iteration on, the reference is the average trajectory of the iteration
+        before, so the result depends less on which batch was chosen as the reference. The
+        number three is fixed, not a setting.
+
         The default settings resample the time axis to 100 points, starting at 0 and ending
         at 99, so each point is one percent of the batch's duration however long the batch
         actually ran. Lower the delta for a finer axis (``0.5`` gives 200 points, ``0.25``
@@ -932,7 +941,12 @@ def batch_dtw(  # noqa: PLR0915
     average_batch = None
     delta_weight: np.floating | np.ndarray = np.linalg.norm(weight_vector)
     iter_step = 0
-    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
+    # The first iteration runs whatever the tolerance: it is the one that aligns the batches,
+    # and everything after the loop reads its results. A tolerance at or above the norm of
+    # the unit weights (the square root of the number of columns) used to skip it entirely.
+    while iter_step == 0 or (
+        (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"])
+    ):
         if settings["show_progress"]:
             print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
 
@@ -946,7 +960,7 @@ def batch_dtw(  # noqa: PLR0915
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
-        if iter_step > 3:
+        if iter_step > _ITERATIONS_ON_THE_REFERENCE_BATCH:
             refbatch_sc = average_batch
 
         aligned_batches, average_batch = one_iteration_dtw(
@@ -1029,9 +1043,10 @@ def batch_dtw(  # noqa: PLR0915
         result.synced = synced_interpolated
         aligned_df_collection.append(synced_interpolated)
 
-    # Make the batch_id label consistent
+    # Each frame's batch_id column already holds its own dictionary key. Casting the whole
+    # column to the type of the last key turned an integer key into a string one whenever
+    # the keys were of mixed types, so the caller could no longer look its batch up.
     aligned_df = pd.concat(aligned_df_collection)
-    aligned_df["batch_id"] = aligned_df["batch_id"].astype(type(batch_id))
 
     last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
@@ -1083,6 +1098,12 @@ def resample_to_reference(
     -------
     dict
         Batch data, in the standard format.
+
+    Raises
+    ------
+    ValueError
+        If a batch, the reference among them, has fewer than 2 rows: there is nothing to
+        interpolate between.
     """
     default_settings = {
         "interpolate_kind": "cubic",  # must be a valid "scipy.interpolate.interp1d" `kind`
@@ -1090,6 +1111,14 @@ def resample_to_reference(
     if settings:
         default_settings.update(settings)
     settings = default_settings
+    # Each batch's time axis is scaled to [0, 1] by dividing by its last row number, which is
+    # 0 for a single row: the division gave NaN and scipy then refused an "all-nan" axis.
+    too_short = {batch_id: batch.shape[0] for batch_id, batch in batches.items() if batch.shape[0] < 2}
+    if too_short:
+        raise ValueError(
+            f"resample_to_reference needs at least 2 rows in every batch, to interpolate between; "
+            f"these batches have fewer (batch: rows): {too_short}."
+        )
     out = {}
     target_time = np.arange(0, batches[reference_batch].shape[0])
     target_time = target_time / target_time[-1]

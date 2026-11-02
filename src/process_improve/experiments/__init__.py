@@ -5,11 +5,12 @@ from process_improve.experiments._moment_aberration import (
     NotTwoLevelError,
     moment_aberration,
 )
+from process_improve.experiments.across_blocks import BlockedFit, fit_across_blocks
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.compare import DesignComparison, compare_designs
-from process_improve.experiments.crossed_arrays import cross_arrays
+from process_improve.experiments.crossed_arrays import cross_arrays, signal_to_noise
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.designs_factorial import full_factorial
@@ -76,6 +77,7 @@ from process_improve.experiments.visualization import main_effects_plot, visuali
 from process_improve.experiments.yates import reverse_yates, yates_table
 
 __all__ = [
+    "BlockedFit",
     "Column",
     "Comparisons",
     "Constraint",
@@ -116,6 +118,7 @@ __all__ = [
     "evaluate_projections",
     "expand_grid",
     "expected_mean_squares",
+    "fit_across_blocks",
     "fit_gaussian_process",
     "from_pseudocomponents",
     "full_factorial",
@@ -154,6 +157,7 @@ __all__ = [
     "run_sheet",
     "sampling_scheme_variance",
     "separating_constraint",
+    "signal_to_noise",
     "simulate_design_performance",
     "steepest_path",
     "summary",

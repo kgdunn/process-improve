@@ -25,6 +25,7 @@ rule is how they drift apart.
 | Logging conventions | `docs/development/logging.rst` |
 | Writing a new `@tool_spec` tool | `docs/development/tool_authoring.rst` |
 | sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
+| Adding a case to the reference catalogue, and the `cause` each number records | [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-a-case-to-the-reference-catalogue) |
 | The browser app in `web/`: its tests, and what a change to it adds to them | [`CONTRIBUTING.md`](CONTRIBUTING.md#the-browser-app-is-tested) |
 | factori.al: how the app is deployed and rolled back, and the server's one-time setup | [`deploy/factorial/README.md`](deploy/factorial/README.md) |
 
@@ -149,6 +150,9 @@ below are the ones most often got wrong in an agent session.
   / `scale()` for preparing data before fitting.
 - `N` = samples, `K` = features, `M` = targets, `A` = components as local
   variables; stored as `n_samples_`, `n_features_in_`, `n_targets_`.
+- Name arguments and result keys for what they are, never by a letter or a source's
+  label, and never reuse a retired name for something else: see
+  [`CONTRIBUTING.md`](CONTRIBUTING.md#naming-conventions).
 - **No em-dashes** (U+2014) anywhere: docs, docstrings, comments, commit messages,
   PR descriptions, Markdown, reStructuredText or YAML prose. Use a hyphen, a
   semicolon, or split the sentence.
@@ -193,6 +197,9 @@ different number. That is the scope. Extra features are not.
   missing values, a constant column, a single sample, one component.
 - A shortcut with a known limit carries a comment of this form:
   `shortcut: <the limit>, <when to upgrade>`.
+- A new case in the reference catalogue records a `cause` for every number it does not
+  recompute and every number that does not agree with its source; the tests fail without it. The
+  causes and how to choose one: [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-a-case-to-the-reference-catalogue).
 
 Never cut: validation at trust boundaries (`@tool_spec` inputs, `mcp_server.py`,
 `tool_safety.py`), error handling that prevents data loss, security, the browser
@@ -211,8 +218,9 @@ uv run pytest -k "pls" --no-cov                      # by keyword
 uv run pytest --no-cov --affected-since=origin/main  # only tests your branch can affect
 ```
 
-`--affected-since` is for fast local iteration before pushing; CI always runs
-the whole suite. How it selects tests is in `CONTRIBUTING.md`.
+`--affected-since` is for fast local iteration before pushing. On a pull request
+CI uses it for the `test` and `test-free-threaded` rows, while the `coverage` job
+runs the whole suite. How it selects tests is in `CONTRIBUTING.md`.
 
 Install with `uv sync --dev --all-extras`. Without the extras a large part of
 the suite fails on `ImportError` rather than skipping.
@@ -266,17 +274,21 @@ Workflows in `.github/workflows/`:
   (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `test`
   (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
   the lowest release of each dependency that `pyproject.toml` allows; a pull request runs
-  ubuntu only, and pushes to main, the nightly schedule and manual runs add
-  windows and macos at 3.11 and 3.13; ubuntu/3.13 is the `coverage` job
+  ubuntu at 3.11 and 3.12 and windows and macos at 3.13, and pushes to main, the nightly
+  schedule and manual runs add windows and macos at 3.11; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
   diff-cover patch gate), `test-under-dash-O` (the suite with
   `PYTHONOPTIMIZE=1`, to catch load-bearing asserts; plain `python -O` would not
-  reach the xdist workers), and `test-free-threaded`. Every job runs the whole
-  suite; `--affected-since` is for local iteration only. `CI passed` is the one
+  reach the xdist workers), and `test-free-threaded`. On a pull request the
+  `test` and `test-free-threaded` rows run only the affected tests
+  (`--affected-since`); every other run, and the `coverage` job always, runs the
+  whole suite. `CI passed` is the one
   check to require in branch protection: it fails unless every other job except
   `coverage-report` succeeded. All jobs install with `uv sync --dev --all-extras`.
+- **mutation.yml**: nightly; mutmut on the modules in `[tool.mutmut]`; fails on any surviving
+  mutant and opens an issue. See CONTRIBUTING.md "Mutation testing".
 - **main-status.yml**: the README badge; passes or fails as the latest run of
   the tests on main that was not cancelled. Merges to main share one
   concurrency group, so a merge that lands while one run goes and another waits
@@ -350,6 +362,9 @@ when they want one.
   Avoid unnecessary synonyms: use one term for one thing.
 - End a report with one or two lines: what you skipped or did not check, and any
   risk the user must know.
+- Every PR named in chat carries its full link, in this repository or another,
+  never a bare number:
+  [process-improve #958](https://github.com/kgdunn/process-improve/pull/958).
 
 ## Updating this file (CLAUDE.md)
 

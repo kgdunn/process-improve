@@ -6,6 +6,10 @@ papers), recorded so that software can be checked against them. Each entry holds
 exactly as printed (factors, responses, runs) and every number the source prints for it, as the
 text printed, with where it is printed. A number also carries a check, saying how to recompute
 it (the kind of result, the term, the model, the runs it uses), or why it is not recomputed.
+A number known not to reproduce records why (its ``disagreement``) and the cause of the
+difference, one of :data:`DISAGREEMENT_CAUSES`; a number not recomputed records the cause too, one
+of :data:`UNCHECKED_CAUSES`, which tells a number the library cannot compute yet from one with
+nothing to compute.
 
 :func:`reproduce_reference_catalogue` recomputes every checked number with this library and
 reports, row by row, the printed text, the value found, whether they agree to within the
@@ -67,6 +71,7 @@ from process_improve.experiments._desirability import composite_desirability, in
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.allocation import allocate_runs
 from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.crossed_arrays import signal_to_noise
 from process_improve.experiments.design_measures import (
     design_structure,
     projectivity,
@@ -208,7 +213,10 @@ def reference_experiments(source: str | None = None, topic: str | None = None) -
         ``where``, ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does
         not print them, and ``data_source`` then says where they come from), ``expected`` and
         ``notes``. Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed
-        text), ``where`` (a file and line, or a page, with a quotation) and ``check``.
+        text), ``where`` (a file and line, or a page, with a quotation) and ``check``. A response
+        measured as a curve, not as one number, also has ``curve``: its ``columns`` in the run
+        table, in order along the curve, and its ``argument`` (``name`` and ``units``, and either
+        ``values``, the points every run shares, or ``columns``, where each run records its own).
 
     Raises
     ------
@@ -335,13 +343,10 @@ _STATISTICS: dict[str, Callable[[pd.DataFrame], pd.Series]] = {
     "sqrt": lambda readings: np.sqrt(readings.iloc[:, 0]),
     "arcsin_sqrt": lambda readings: np.arcsin(np.sqrt(readings.iloc[:, 0])),
     "freeman_tukey_sqrt": lambda readings: (np.sqrt(readings.iloc[:, 0]) + np.sqrt(readings.iloc[:, 0] + 1)) / 2,
-    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and
-    # nominal is best in the form 10 log10(mean^2 / variance)
-    "sn_larger": lambda readings: -10 * np.log10((1 / readings**2).mean(axis=1)),
-    "sn_smaller": lambda readings: -10 * np.log10((readings**2).mean(axis=1)),
-    "sn_nominal": lambda readings: pd.Series(
-        10 * np.log10(readings.mean(axis=1) ** 2 / readings.var(axis=1, ddof=1)), index=readings.index
-    ),
+    # Taguchi's signal-to-noise ratios, in decibels: larger is better, smaller is better, and nominal is best
+    "sn_larger": lambda readings: pd.Series(signal_to_noise(readings, "larger"), readings.index),
+    "sn_smaller": lambda readings: pd.Series(signal_to_noise(readings, "smaller"), readings.index),
+    "sn_nominal": lambda readings: pd.Series(signal_to_noise(readings, "nominal"), readings.index),
 }
 
 
@@ -356,8 +361,9 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     ``"sn_nominal"`` (10 log10 of the squared mean over the variance). Of one column, a count c or a
     proportion p, ``"sqrt"`` and ``"arcsin_sqrt"`` are the variance-stabilizing transforms and
     ``"freeman_tukey_sqrt"`` ([sqrt(c) + sqrt(c + 1)]/2) and ``"freeman_tukey_arcsin"`` (the two arcsines
-    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's. A source
-    that rounds each
+    of np/(n + 1) and (np + 1)/(n + 1), averaged, for ``summary["n"]`` trials) Freeman and Tukey's;
+    ``"angular_degrees"`` is arcsin (m/n)^1/2 in degrees of a count m of ``summary["n"]``, with the source's
+    ``summary["ends"]`` at m = 0 and m = n (Bartlett's values, say). A source that rounds each
     run's value before averaging it gives ``summary["round"]``, the decimals it keeps. A source
     that prints its readings in one unit and works the statistic in another gives
     ``summary["scale"]``, the factor the readings are multiplied by first (1e17 for readings
@@ -367,6 +373,11 @@ def _summarised(table: pd.DataFrame, summary: dict) -> pd.DataFrame:
     if summary["statistic"] == "freeman_tukey_arcsin":  # [arcsin sqrt(np/(n + 1)) + arcsin sqrt((np + 1)/(n + 1))]/2
         n, p = float(summary["n"]), readings.iloc[:, 0]
         values = (np.arcsin(np.sqrt(n * p / (n + 1))) + np.arcsin(np.sqrt((n * p + 1) / (n + 1)))) / 2
+    elif summary["statistic"] == "angular_degrees":  # arcsin (m/n)^1/2 in degrees, a source's own values at 0 and n
+        n, m = float(summary["n"]), readings.iloc[:, 0]
+        values = pd.Series(np.degrees(np.arcsin(np.sqrt(m / n))), index=readings.index)
+        at_zero, at_n = summary.get("ends", (0.0, 90.0))  # Bartlett's 1/(4n) correction, say, for m = 0 and m = n
+        values = values.where(m > 0, at_zero).where(m < n, at_n)
     else:
         values = _STATISTICS[summary["statistic"]](readings)
     if summary.get("round") is not None:
@@ -451,6 +462,15 @@ def _coded_runs(
         return pd.DataFrame(settings), _summarised(table, summary)
     names = [r["name"] for r in experiment["responses"] if r["name"] in table.columns]
     return pd.DataFrame(settings), table[names].astype(float)
+
+
+def _first_scalar_response(experiment: dict) -> str:
+    """Return the first response measured as one number: a check that names none is about it, never a curve."""
+    name = next((r["name"] for r in experiment["responses"] if "curve" not in r), None)
+    if name is None:
+        msg = f"{experiment.get('name', 'The experiment')}: every response is a curve, so the check must name one."
+        raise ValueError(msg)
+    return name
 
 
 def _changed(settings: pd.DataFrame, changes: list | None) -> pd.DataFrame:
@@ -699,18 +719,22 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
     model, as RS/Discover splits a quadratic's regression into its linear and non-linear parts.
     """
 
-    def explained(model: str | None) -> tuple[float, int]:
+    def explained(model: str | None) -> tuple[float, int, int | None]:
         if not model:
-            return 0.0, 0
+            return 0.0, 0, None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitted = analyze_experiment(out["settings"], out["y"], model=model, analysis_type="anova")
         ss, _, df = _anova_sums({**fitted, "y": out["y"]})
-        return ss, df
+        return ss, df, fitted["model_summary"]["df_residual"]
 
-    ss_part, df_part = explained(check.get("part", check["model"]))
-    ss_after, df_after = explained(check.get("after"))
-    ss, df = ss_part - ss_after, df_part - df_after
+    ss_part, df_part, resid_part = explained(check.get("part", check["model"]))
+    ss_after, df_after, resid_after = explained(check.get("after"))
+    # The extra df is the residual df the part takes up beyond the after model. Counting ANOVA rows
+    # fails when only one of the two is read as a mixture: z1 + z2 + z3 - 1 holds the constant and
+    # has one 2-df blend row, z1 + z2 - 1 does not and keeps a row per term.
+    df_extra = df_part - df_after if resid_after is None or resid_part is None else resid_after - resid_part
+    ss, df = ss_part - ss_after, df_extra
     f_ratio = ss / df / out["model_summary"]["mse_residual"]
     p_value = float(f_distribution.sf(f_ratio, df, out["model_summary"]["df_residual"]))
     return {"sum_sq": ss, "mean_sq": ss / df, "F": f_ratio, "p_value": p_value}
@@ -801,7 +825,7 @@ def _prediction_error(predicted: float, check: dict, experiment: dict) -> float:
     check's ``"deviation"``, the run's value less the prediction.
     """
     runs = experiment["runs"]
-    column = check.get("observed") or check.get("response") or experiment["responses"][0]["name"]
+    column = check.get("observed") or check.get("response") or _first_scalar_response(experiment)
     observed = float(runs["rows"][check["run"] - 1][runs["columns"].index(column)])
     error = predicted - observed
     return 100 * error / observed if check["error"] == "percent" else error
@@ -1302,6 +1326,14 @@ _FIT_KINDS: dict[str, Callable[[dict, dict, dict], float]] = {
     "residual_quantile": lambda out, c, _e: float(np.quantile(_residuals(out)[1], c["q"])),
     "f_statistic": lambda out, _c, _e: out["model_summary"]["f_statistic"],
     "f_p_value": lambda out, _c, _e: out["model_summary"]["f_p_value"],
+    # a source's analysis of variance about zero, uncorrected for the mean: Σy², nȳ², Σŷ² and its df, the model's rank
+    "ss_total_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_total_uncorrected"],
+    "ss_mean": lambda out, _c, _e: out["model_summary"]["ss_mean"],
+    "ss_regression_uncorrected": lambda out, _c, _e: out["model_summary"]["ss_model_uncorrected"],
+    "df_model_uncorrected": lambda out, _c, _e: float(len(out["y"]) - out["model_summary"]["df_residual"]),
+    "ms_regression_uncorrected": lambda out, _c, _e: (
+        out["model_summary"]["ss_model_uncorrected"] / (len(out["y"]) - out["model_summary"]["df_residual"])
+    ),
     "f_uncorrected": lambda out, _c, _e: _f_uncorrected(out)[0],
     "f_uncorrected_p": lambda out, _c, _e: _f_uncorrected(out)[1],
     "log_likelihood": lambda out, _c, _e: out["model_summary"]["log_likelihood"],
@@ -2329,9 +2361,15 @@ def _library_value(check: dict) -> float:
     For a number the library computes directly, such as the run count of the OMARS estimability
     frontier, without building a design to read it from, or the canonical analysis of a fitted
     equation a source prints without its data. ``"squared": true`` returns the square of the number read,
-    and ``"root": true`` its square root, a standard deviation from a variance.
+    and ``"root": true`` its square root, a standard deviation from a variance. An eigenvector's sign is
+    arbitrary: ``"abs": true`` reads its size only, and ``check["sign_of"]`` names the element the source
+    prints positive, as for :func:`_optimum`.
     """
-    found = _read(_library_result(check), check.get("key"))
+    result = _library_result(check)
+    found = _read(result, check.get("key"))
+    if check.get("sign_of"):
+        found *= math.copysign(1.0, _read(result, check["sign_of"]))
+    found = abs(found) if check.get("abs") else found
     found = math.sqrt(found) if check.get("root") else found
     return found**2 if check.get("squared") else found
 
@@ -3168,7 +3206,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
-    y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    y = table[check.get("response") or _first_scalar_response(experiment)].to_numpy(dtype=float)
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
@@ -3517,6 +3555,7 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     found = found**2 if check.get("squared") else found  # a variance, from the standard error read
     found = 1 - found if check.get("complement") else found  # a confidence 1 - p, as some software prints it
     found = math.exp(found) if check.get("exp") else found  # a model of ln(s²) read back as a variance
+    found = 10.0**found if check.get("exp10") else found  # a fit to common logs read back, as antilogs print it
     found = found / math.log(10) if check.get("log10") else found  # a natural log printed as a common one
     if check.get("back_transform") == "freeman_tukey_sqrt":  # t = [√y + √(y + 1)]/2 read back as y
         found = (found - 1 / (4 * found)) ** 2
@@ -3528,6 +3567,30 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     return f"{found:.6g}", _agrees(
         nearest, str(printed), expression=expression, of_rounded=of_rounded, decimals=check.get("decimals")
     )
+
+
+#: Why a recomputed number differs from its source, as a disagreement's ``cause`` records it. In the first two
+#: the library's value is the right one: the source is in error, or the number is an option of a quiz that its
+#: answer key marks incorrect, as the library finds it to be.
+DISAGREEMENT_CAUSES: dict[str, str] = {
+    "source_error": "The source misprints the number or works it out wrongly; the library's value follows from "
+    "the source's own data.",
+    "incorrect_option": "An option of a quiz that its answer key marks incorrect, as the library finds it to be.",
+    "source_rounding": "The source works the number from values it has already rounded or truncated, or prints "
+    "fewer digits than it carries.",
+    "method": "The source uses another convention, definition, model or software than the library.",
+    "library": "A bug or a limitation of the library.",
+    "unexplained": "The cause is not known yet.",
+}
+
+#: Why a printed number is not recomputed, as its check's ``cause`` records it beside the reason (``manual``).
+UNCHECKED_CAUSES: dict[str, str] = {
+    "library_gap": "The library has no function for it yet.",
+    "check_gap": "The library computes it, but no check of the catalogue reads it yet.",
+    "data_not_printed": "The source does not print the data the number is worked from.",
+    "not_a_result": "Nothing to recompute: a statement in words, an input or a choice, a reading by eye, a unit "
+    "conversion or an intermediate of a number that is checked.",
+}
 
 
 def _checks(expected: dict) -> list[dict]:
@@ -3594,7 +3657,9 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
         One row per check, with columns ``source``, ``experiment``, ``what``, ``term``,
         ``printed`` (the text compared), ``found`` (the value recomputed, as text), ``checked``,
         ``agrees`` (``None`` where not checked), ``reason`` (why a number is not recomputed, or
-        the error raised recomputing it), ``disagreement`` (for a number known not to reproduce,
+        the error raised recomputing it), ``cause`` (why a number is not recomputed, one of
+        :data:`UNCHECKED_CAUSES`, or why it differs, one of :data:`DISAGREEMENT_CAUSES`),
+        ``disagreement`` (for a number known not to reproduce,
         the explanation of why) and ``where``.
 
     Raises
@@ -3621,6 +3686,7 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
             "checked": "kind" in check,
             "agrees": None,
             "reason": check.get("manual"),
+            "cause": check.get("cause"),
             "disagreement": check.get("disagreement"),
             "where": json.dumps(expected["where"], ensure_ascii=False),
         }

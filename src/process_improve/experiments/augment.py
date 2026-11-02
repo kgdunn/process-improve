@@ -33,16 +33,24 @@ from patsy import dmatrix
 
 from process_improve._random import check_random_state
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    validate_contrast_levels,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
 from process_improve.experiments.designs_response_surface import blocking_alpha, orthogonal_alpha
 from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _roman,
-    _word_to_str,
+    _signed_defining_relation,
+    _signed_word_str,
     evaluate_design,
 )
 from process_improve.experiments.factor import FactorType
-from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.experiments.region import DesignRegion
 
 if TYPE_CHECKING:
@@ -261,22 +269,23 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
     generators_after = None
     resolution_after: int | str | None = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
         # Negating every factor flips the sign of every odd-length word in the second
         # half, so the odd words no longer hold in the combined design (each is now
-        # confounded with the contrast between the two halves). Even-length words hold
-        # in both halves and survive: the 2FI chains they create are still aliased.
-        surviving = [w for w in words if len(w) % 2 == 0]
+        # confounded with the contrast between the two halves). Even-length words hold,
+        # with the same sign, in both halves and survive: the 2FI chains they create are
+        # still aliased.
+        surviving = [(w, s) for w, s in words if len(w) % 2 == 0]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
             notes.append(f"New defining relation: {', '.join(generators_after)}.")
-            resolution_after = min(len(w) for w in surviving)
+            resolution_after = min(len(w) for w, _ in surviving)
         else:
             resolution_after = "full"
 
-        eliminated = [w for w in words if len(w) % 2 != 0]
+        eliminated = [(w, s) for w, s in words if len(w) % 2 != 0]
         if eliminated:
-            eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
+            eliminated_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in eliminated]
             notes.append(f"Eliminated defining words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
@@ -319,20 +328,20 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
     notes: list[str] = [f"Folded on factor: {fold_factor}."]
     generators_after = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
         # The added half repeats half of the runs with the fold factor's sign switched.
-        # A word without it holds in every run and survives. A word containing it holds
-        # in the original runs and is reversed in the added ones, so it no longer holds
-        # anywhere: effects aliased through it become partially aliased (Mee and Peralta,
-        # 2000), correlated rather than independent, and the combined design is not a
-        # regular fraction.
-        surviving = [w for w in words if fold_idx not in w]
-        broken = [w for w in words if fold_idx in w]
+        # A word without it holds, with its sign, in every run and survives. A word
+        # containing it holds in the original runs and is reversed in the added ones, so
+        # it no longer holds anywhere: effects aliased through it become partially aliased
+        # (Mee and Peralta, 2000), correlated rather than independent, and the combined
+        # design is not a regular fraction.
+        surviving = [(w, s) for w, s in words if fold_idx not in w]
+        broken = [(w, s) for w, s in words if fold_idx in w]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
             notes.append(f"Defining words that still hold in every run: {', '.join(generators_after)}.")
         if broken:
-            broken_strs = [_word_to_str(w, ctx.factor_names) for w in broken]
+            broken_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in broken]
             notes.append(
                 f"Words containing {fold_factor} ({', '.join(broken_strs)}) now hold in only part of the runs: "
                 "effects aliased through them are partially de-aliased, not independent. The combined design is "
@@ -692,8 +701,7 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     The returned RHS is validated before it can reach ``patsy.dmatrix`` so a
     custom ``model`` string cannot smuggle in arbitrary Python (SEC-14).
     """
-    for name in factor_names:
-        validate_identifier_is_safe(name)
+    validate_identifiers_are_safe(factor_names)
 
     joined = " + ".join(factor_names)
     if model == "main_effects":
@@ -706,8 +714,23 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     else:
         rhs = model
 
-    validate_formula_is_safe(rhs, factor_names, allow_transforms=True)
+    stand_ins = stand_ins_for(rhs, factor_names)  # as _model_matrix fits it
+    validate_formula_is_safe(
+        with_stand_ins(rhs, stand_ins), [stand_ins.get(name, name) for name in factor_names], allow_transforms=True
+    )
     return rhs
+
+
+def _model_matrix(rhs: str, frame: pd.DataFrame) -> pd.DataFrame:
+    """Return patsy's model matrix of ``rhs`` over ``frame``, with the terms under the factors' own names.
+
+    A factor whose name the formula calls, as ``I`` in a square term, is fitted under a stand-in
+    name (see :func:`~process_improve.experiments._lm.stand_ins_for`, #986).
+    """
+    validate_contrast_levels(rhs, frame)
+    stand_ins = stand_ins_for(rhs, frame.columns)
+    matrix = dmatrix(with_stand_ins(rhs, stand_ins), frame.rename(columns=stand_ins), return_type="dataframe")
+    return matrix.set_axis(real_names(list(matrix.columns), stand_ins), axis=1)
 
 
 def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candidates: np.ndarray) -> tuple:
@@ -717,7 +740,7 @@ def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candi
     (``center(A)``, say) on a single scale.
     """
     stacked = pd.concat([existing, pd.DataFrame(candidates, columns=factor_names)], ignore_index=True)
-    rows = np.asarray(dmatrix(rhs, stacked, return_type="dataframe"), dtype=float)
+    rows = np.asarray(_model_matrix(rhs, stacked), dtype=float)
     return rows[: len(existing)], rows[len(existing) :]
 
 
@@ -797,7 +820,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     (see ``select_runs``). Unlike a one-run-at-a-time greedy search, the exchange can
     start from a design that cannot yet estimate the target model, as every screening
     design aimed at a quadratic model is. When the requested runs cannot supply the
-    rank the existing runs lack, more are added, and the explanation says so.
+    rank the existing runs lack, a ``ValueError`` says how many are needed.
     Candidates may repeat, which replicates a run where the criterion wants it.
     With a region, the candidates and the polish keep to its limits, as for a design
     ``generate_design`` makes inside them.
@@ -807,7 +830,7 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         CandidatePool,
         Criterion,
         PolishLattice,
-        _budget_for_fixed_runs,
+        _missing_rank,
         build_candidates,
         polish_levels,
         select_runs,
@@ -830,8 +853,14 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         where = "settings the region allows" if region.inequalities else "candidate grid"
         raise ValueError(f"The {where} cannot support the {model!r} model; use a simpler target_model.")
 
-    total = _budget_for_fixed_runs(f_fixed, n_parameters, len(df) + ctx.n_additional_runs)
-    n_new = total - len(df)
+    missing = _missing_rank(f_fixed, n_parameters)
+    if ctx.n_additional_runs < missing:
+        raise ValueError(
+            f"The {len(df)} existing run(s) span only {n_parameters - missing} of the {n_parameters} coefficients of "
+            f"the {model} model, so at least {missing} new run(s) are needed; n_additional_runs="
+            f"{ctx.n_additional_runs} is too few. Use n_additional_runs >= {missing} or a simpler target_model."
+        )
+    n_new = ctx.n_additional_runs
     levels = polish_levels(counts)
     lattice = None
     if levels is not None and (grid_model == "quadratic" or region.inequalities):  # the box's corners need no polish
@@ -851,12 +880,6 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     if ctx.region is not None and ctx.region.constraints:
         limits = "; ".join(c.expression for c in ctx.region.constraints)
         notes.append(f"The new runs keep to the region's limits: {limits}.")
-    if n_new > ctx.n_additional_runs:
-        notes.append(
-            f"The {len(df)} existing run(s) span only {int(np.linalg.matrix_rank(f_fixed))} of the "
-            f"{n_parameters} coefficients of the {model} model, so {n_new} runs were needed rather than "
-            f"the {ctx.n_additional_runs} requested."
-        )
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
@@ -899,7 +922,7 @@ def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) ->
     combination of their columns is zero on every run, so they are aliased.
     """
     rhs = _build_model_rhs(factor_names, model)
-    frame = dmatrix(rhs, design[factor_names].astype(float), return_type="dataframe")
+    frame = _model_matrix(rhs, design[factor_names].astype(float))
     x = frame.to_numpy(dtype=float)
     _u, singular, vt = np.linalg.svd(x, full_matrices=True)
     rank = int((singular > singular.max() * max(x.shape) * np.finfo(float).eps).sum())
@@ -1078,6 +1101,8 @@ def _checked_region(region: DesignRegion | dict[str, Any] | None, factor_names: 
     categorical = [f.name for f in region.factors if f.type == FactorType.categorical]
     if categorical:
         msg = f"augment_design works on numeric factors in coded units; the region's {categorical} are categorical."
+        if region.rules is not None:
+            msg += f" Augment the runs at one level, over {region._given_example()}."
         raise ValueError(msg)
     missing = [n for n in factor_names if n not in region.names]
     extra = [n for n in region.names if n not in factor_names]
