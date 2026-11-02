@@ -654,6 +654,15 @@ def test_the_limits_on_the_settings_are_held_as_bootstrap_holds_them(bootstrap, 
     assert javascript(node, source("campaign.js"), [("LIMITS_HELD", [])]) == [held], "a saved study is checked alike"
 
 
+def test_the_settings_kept_from_the_what_if_panel_are_held_as_bootstrap_holds_them(bootstrap, node):
+    """A study and its workbook keep as many, under names as long; the box for a name takes no more."""
+    held = bootstrap.SCENARIOS_HELD
+    assert javascript(node, source("campaign.js"), [("SCENARIOS_HELD", [])]) == [held]
+    box = re.search(r'<input[^>]*id="what-if-keep-name"[^>]*>', source("index.html"))
+    assert box, "the box the reader names the settings in"
+    assert f'maxlength="{held["name"]}"' in box.group(0)
+
+
 def test_a_limit_s_key_is_the_same_as_typed_and_as_python_writes_it(api, node):
     """A run sheet is keyed to its limits as typed; the text Python gives back for each must key the same."""
     typed = [
@@ -711,7 +720,8 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
     """The replicates the page offers, more for one factor's levels, and the format a one-factor study is saved in."""
     held = javascript(node, source("logic.js"), [("MAX_REPLICATES", []), ("MAX_LEVEL_RUNS", [])])
     assert held == [bootstrap.MAX_REPLICATES, bootstrap.MAX_LEVEL_RUNS]
-    names = ["CAMPAIGN_VERSION", "ONE_FACTOR_FORMAT", "LEVELS_FORMAT", "MANY_FACTORS_FORMAT", "FEW_FACTORS"]
+    each = ["ONE_FACTOR_FORMAT", "LEVELS_FORMAT", "MANY_FACTORS_FORMAT", "WHAT_IF_FORMAT"]
+    names = ["CAMPAIGN_VERSION", *each, "FEW_FACTORS"]
     formats = javascript(node, source("campaign.js"), [(name, []) for name in names])
     assert formats == [getattr(build_script, name) for name in names]
     assert build_script.study_format({"factors": [{"name": "S"}]}) == build_script.ONE_FACTOR_FORMAT
