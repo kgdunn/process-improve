@@ -37,7 +37,7 @@ def doe_lab() -> ModuleType:
 
 
 def _records(log: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in log.read_text().splitlines()]
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
 
 
 def test_the_problem_names_the_factors_and_keeps_the_process_to_itself(doe_lab: ModuleType, tmp_path: Path) -> None:

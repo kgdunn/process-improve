@@ -117,11 +117,12 @@ def test_optimal_design_leaves_degrees_of_freedom_for_error_by_default(api, desi
     assert api.ok("api_make_design", spec)["n_runs"] == 21 + 4
 
 
-def test_a_raised_budget_is_reported(api):
+def test_a_budget_below_the_model_is_refused(api):
+    """The page used to enlarge the design and say so; like the library (#957), it now refuses the budget."""
     spec = {"design_type": "d_optimal", "factors": SIX, "model_type": "quadratic", "budget": 16}
-    result = api.ok("api_make_design", spec)
-    assert result["n_runs"] == 28
-    assert any("16 runs" in note and "28 coefficients" in note for note in result["facts"]["notes"])
+    assert api.error("api_make_design", spec) == (
+        "The quadratic model in 6 factors has 28 coefficients, so it needs at least 28 runs."
+    )
 
 
 @pytest.mark.parametrize(("design_type", "extra"), [("box_behnken", {}), ("ccd", {"alpha": "rotatable"})])
@@ -265,13 +266,10 @@ def test_replicates_give_the_pure_error_for_a_lack_of_fit_test(api):
 
 
 def test_an_optimal_design_s_runs_are_counted_before_it_is_replicated(api):
-    """The budget is the runs of one replicate: replicating it does not say the budget was raised."""
+    """The budget is the runs of one replicate, so it is checked against the model before replicating."""
     spec = {"design_type": "d_optimal", "factors": FACTORS, "model_type": "interactions", "budget": 10}
-    result = api.ok("api_make_design", {**spec, "n_replicates": 2})
-    assert result["n_runs"] == 20
-    assert not any("You asked for" in note for note in result["facts"]["notes"])
-    raised = api.ok("api_make_design", {**spec, "budget": 5, "n_replicates": 2})
-    assert any("so the design has 7 runs before it is replicated" in note for note in raised["facts"]["notes"])
+    assert api.ok("api_make_design", {**spec, "n_replicates": 2})["n_runs"] == 20
+    assert "needs at least 7 runs" in api.error("api_make_design", {**spec, "budget": 5, "n_replicates": 2})
 
 
 # --------------------------------------------------------------------------- a CCD's axial distance as a number

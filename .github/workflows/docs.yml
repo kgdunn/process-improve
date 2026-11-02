@@ -53,6 +53,16 @@ jobs:
         run: >-
           uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
           --web-app=docs/_build/html/app --cdn-cache=off --no-cov
+      # A pull request's build, kept for its reviewer to try: download the artifact, unzip it,
+      # `python -m http.server -d <the folder>`, and open http://localhost:8000/ or /mva/.
+      - name: Keep the app built from this pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-app-pr-${{ github.event.pull_request.number }}
+          path: docs/_build/html/app
+          if-no-files-found: error
+          retention-days: 7
       # factori.al gets this same build, the one the smoke tests above just passed.
       - name: Keep the app for factori.al
         if: github.ref == 'refs/heads/main' && vars.FACTORIAL_KNOWN_HOSTS != ''

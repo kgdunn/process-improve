@@ -67,7 +67,7 @@ Designed Experiments
    :show-inheritance:
 
 .. automodule:: process_improve.experiments.crossed_arrays
-   :members: cross_arrays
+   :members: cross_arrays, signal_to_noise
 
 .. automodule:: process_improve.experiments.designs_three_level
    :members: dispatch_three_level_fraction
@@ -131,6 +131,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.gaussian_process
    :members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.across_blocks
+   :members: fit_across_blocks, BlockedFit
 
 .. automodule:: process_improve.experiments.augment
    :members:

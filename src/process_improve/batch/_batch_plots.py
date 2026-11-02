@@ -42,8 +42,7 @@ if typing.TYPE_CHECKING:
 
 _UNFOLDED_INDEX_ERROR = (
     "needs the 2-level (tag, sequence) index that process_improve.batch.dict_to_wide produces. "
-    "When scaling the unfolded matrix yourself, re-attach ``wide.columns`` after MCUVScaler, "
-    "which drops the multi-level labels."
+    "Fit the model to that matrix, or to MCUVScaler's output of it, which keeps the index."
 )
 
 
@@ -203,8 +202,7 @@ def unfolded_contribution_plot(
         ``t2_contributions`` on :class:`process_improve.batch.BatchPCA` or
         :class:`process_improve.batch.BatchPLS`, or of the standalone
         :mod:`process_improve.multivariate` functions on a model fitted to a
-        :func:`process_improve.batch.dict_to_wide` matrix whose column index
-        was re-attached after scaling.
+        :func:`process_improve.batch.dict_to_wide` matrix, scaled or not.
     batch_id : Hashable, optional
         Which batch (row) to plot. Defaults to the first row.
     by_tag : bool, default=False

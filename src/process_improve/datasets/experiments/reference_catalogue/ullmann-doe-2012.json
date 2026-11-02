@@ -1425,7 +1425,8 @@
      "what": "n_runs",
      "value": "7",
      "check": {
-      "manual": "the library generates no axial simplex design"
+      "manual": "the library generates no axial simplex design",
+      "cause": "library_gap"
      },
      "where": {
       "page": 197,
@@ -1506,7 +1507,8 @@
      "value": "44",
      "value_kind": "derived",
      "check": {
-      "manual": "the library generates no crossed inner and outer arrays; 11 inner runs times 4 outer runs, as Table 8 lays them out"
+      "manual": "the library generates no crossed inner and outer arrays; 11 inner runs times 4 outer runs, as Table 8 lays them out",
+      "cause": "library_gap"
      },
      "where": {
       "page": 200,

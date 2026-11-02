@@ -374,6 +374,40 @@ def test_discrimination_of_perfectly_separated_products_is_one():
     assert _eta_squared(pd.Series([1.0, 1.0, 3.0, 3.0]), pd.Series(list("XXYY"))) == pytest.approx(1.0)
 
 
+def _two_panelist_panel() -> pd.DataFrame:
+    """Return two panelists scoring three products on two attributes, with different rankings."""
+    scores = {"P1": [2.0, 5.0, 8.0, 3.0, 4.0, 9.0], "P2": [3.0, 7.0, 6.0, 6.0, 2.0, 8.0]}
+    cells = [(product, attribute) for attribute in ("sweet", "sour") for product in ("X", "Y", "Z")]
+    rows = [
+        {"panelist_id": pid, "product": product, "attribute": attribute, "session": 1, "replicate": 1, "score": score}
+        for pid, values in scores.items()
+        for (product, attribute), score in zip(cells, values, strict=True)
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_scorecard_agreement_leaves_the_panelist_out_of_the_consensus():
+    """With two panelists the consensus for each is the other one, so both agree by corr(P1, P2) (#513).
+
+    A consensus that included the panelist gave 0.928 and 0.896 here.
+    """
+    panel = _two_panelist_panel()
+    own = panel.pivot_table(index=["product", "attribute"], columns="panelist_id", values="score")
+    expected = own["P1"].corr(own["P2"])
+
+    table = panel_scorecard(panel).table
+    assert table.loc["P1", "agreement"] == pytest.approx(expected)
+    assert table.loc["P2", "agreement"] == pytest.approx(expected)
+    assert expected == pytest.approx(0.6650, abs=1e-4)
+
+
+def test_scorecard_a_panel_of_one_has_no_agreement():
+    """Nobody is left to agree with: NaN, where the panelist's own mean gave it 1.0 (#513)."""
+    panel = _two_panelist_panel()
+    alone = panel[panel["panelist_id"] == "P1"]
+    assert np.isnan(panel_scorecard(alone).table.loc["P1", "agreement"])
+
+
 def test_relative_outliers_need_four_panelists():
     """The ESD outlier test runs only from four panelists up: the same low value is ignored below that."""
     agreement = pd.Series([0.1, 0.9, 0.95, 0.92], index=["P1", "P2", "P3", "P4"])
@@ -1056,6 +1090,21 @@ def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, cl
         assert (mam.scaling["beta"] == 1.0).all()
 
 
+def test_mam_f_tests_are_nan_with_a_warning_when_a_cell_is_missing():
+    """The closed-form sums of squares need every cell: NaN F-tests and a pointer to the REML fit (#513)."""
+    panel = _scaling_panel()
+    complete = mixed_assessor_model(panel).ftests.iloc[0]
+    assert np.isfinite(complete["f_product_mam"])
+
+    one_missing = panel[~((panel["panelist_id"] == "P3") & (panel["product"] == "prod2"))]
+    with pytest.warns(RuntimeWarning, match=r"\['A'\] a panelist did not score.*mixed_assessor_model_reml"):
+        mam = mixed_assessor_model(one_missing)
+    ftest = mam.ftests.iloc[0]
+    for column in ("f_product_mam", "p_product_mam", "f_product_classical", "p_product_classical"):
+        assert np.isnan(ftest[column]), column
+    assert np.isfinite(mam.scaling["beta"]).all()
+
+
 def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
@@ -1401,6 +1450,46 @@ def test_reshape_strips_stray_spaces_from_labels(case, column, label):
     assert checks["ok"]
     assert label in set(long_df[column])
     assert not long_df[column].str.contains(" ").any()
+
+
+@pytest.mark.parametrize("second_salty", [1.0, 5.0], ids=["equal-means", "different-means"])
+def test_reshape_refuses_panelists_alike_but_for_spaces(second_salty):
+    """'P1' and 'P1 ' are two labels: stripping merged them, silently when their means agree (#1003)."""
+    data = pd.DataFrame(
+        {
+            "Assessor": ["P1", "P1 ", "P2", "P2"],
+            "Sample": ["A", "B", "A", "B"],
+            "Salty": [1.0, second_salty, 2.0, 3.0],
+        }
+    )
+    with pytest.raises(ValueError, match=r"panelist labels 'P1' and 'P1 ' differ only in surrounding whitespace"):
+        reshape_to_long(data, layout="wide_by_attribute", mapping={"panelist_id": "Assessor", "product": "Sample"})
+
+
+@pytest.mark.parametrize(
+    ("layout", "data", "message"),
+    [
+        (
+            "wide_by_attribute",
+            pd.DataFrame({"Assessor": ["P1", "P2"], "Sample": ["A", "A"], "Salty": [1.0, 2.0], "Salty ": [3.0, 4.0]}),
+            "attribute labels 'Salty' and 'Salty '",
+        ),
+        (
+            "long",
+            pd.DataFrame(
+                {"panelist_id": ["P1"] * 2, "product": ["A", " A"], "attribute": ["Salty"] * 2, "score": [1.0, 2.0]}
+            ),
+            "product labels 'A' and ' A'",
+        ),
+    ],
+    ids=["attribute-headers", "long-products"],
+)
+def test_reshape_refuses_products_and_attributes_alike_but_for_spaces(layout, data, message):
+    """A product or an attribute label is refused alike, in a header as in a long table's column."""
+    mapping = {"panelist_id": "Assessor", "product": "Sample"} if layout == "wide_by_attribute" else {}
+    mapping = mapping or {name: name for name in ("panelist_id", "product", "attribute", "score")}
+    with pytest.raises(ValueError, match=re.escape(message)):
+        reshape_to_long(data, layout=layout, mapping=mapping)
 
 
 def test_validate_hash_is_order_independent():

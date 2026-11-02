@@ -270,9 +270,11 @@ class TestRunEstimation:
         assert estimate_screening_runs(22, "dsd") == 49
 
     def test_pb_runs_match_generated_design(self):
-        # 24 factors need 28 runs, which pyDOE3 cannot build; 89 factors step past 92 to 96.
+        # 24 factors need 28 runs, which pyDOE3 cannot build; 89 factors take 92 (issue #967), and
+        # 233 factors step past 236, which no construction here reaches, to 240.
         assert estimate_screening_runs(24, "plackett_burman") == 28
-        assert estimate_screening_runs(89, "plackett_burman") == 96
+        assert estimate_screening_runs(89, "plackett_burman") == 92
+        assert estimate_screening_runs(233, "plackett_burman") == 240
 
     def test_full_factorial_runs(self):
         runs = estimate_screening_runs(3, "full_factorial")

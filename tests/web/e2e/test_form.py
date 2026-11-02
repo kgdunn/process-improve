@@ -178,8 +178,11 @@ def test_a_factor_s_name_is_checked_as_it_is_typed(page):
     """Python takes a variable name, unlike every other factor's: the page says so before Python is asked."""
     name = page.locator("#factors tbody tr").first.locator("[name=name]")
     name.fill("a b")
-    assert problems(page) == "a b: a name is letters, digits and _, and starts with a letter, such as Temp_2."
+    assert problems(page) == "a b: a name is letters, digits and _, and starts with a letter, such as a_b."
     assert name.get_attribute("aria-invalid") is not None
+    assert page.is_disabled("#generate")
+    name.fill("lambda")
+    assert problems(page) == "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_."
     assert page.is_disabled("#generate")
     name.fill("P")
     assert problems(page) == "P: two factors cannot share a name."

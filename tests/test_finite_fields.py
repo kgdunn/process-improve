@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -53,7 +55,7 @@ def test_conference_order_steps_up(m: int, expected: int) -> None:
     assert ff.conference_order_at_least(m) == expected
 
 
-@pytest.mark.parametrize("n", [n for n in range(4, 201, 4) if n not in {92, 116, 156, 172, 184, 188}])
+@pytest.mark.parametrize("n", range(4, 233, 4))
 def test_hadamard_matrices(n: int) -> None:
     found = ff.hadamard_matrix(n)
     assert found is not None
@@ -163,5 +165,43 @@ def test_plackett_burman_beyond_pydoe3(k: int) -> None:
     factors = [Factor(name=f"x{i}", low=0, high=1) for i in range(k)]
     result = generate_design(factors, "plackett_burman", n_center_points=0)
     x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
-    assert len(x) == 4 * (k // 4 + 1) if k < 88 else len(x) == 96
+    assert len(x) == 4 * (k // 4 + 1)
     np.testing.assert_array_equal(x.T @ x, len(x) * np.eye(k))
+
+
+@pytest.mark.parametrize(
+    ("n", "construction"),
+    [
+        (92, "goethals_seidel_t=23"),
+        (116, "goethals_seidel_t=29"),
+        (156, "goethals_seidel_t=39"),
+        (172, "goethals_seidel_t=43"),
+        (184, "sylvester(goethals_seidel_t=23)"),
+        (188, "goethals_seidel_t=47"),
+    ],
+)
+def test_goethals_seidel_orders(n: int, construction: str) -> None:
+    """The orders no finite-field construction reaches come from the Goethals-Seidel array (issue #967)."""
+    matrix, built_by = ff.hadamard_matrix(n)  # type: ignore[misc]
+    assert built_by == construction
+    np.testing.assert_array_equal(matrix.T @ matrix, n * np.eye(n))
+
+
+@pytest.mark.parametrize(("k", "n_runs"), [(91, 92), (115, 116), (155, 156), (171, 172), (183, 184), (187, 188)])
+def test_plackett_burman_at_goethals_seidel_orders(k: int, n_runs: int) -> None:
+    """88 to 91 factors give the 92-run design, not 96, with orthogonal columns and no warning (issue #967)."""
+    factors = [Factor(name=f"x{i}", low=0, high=1) for i in range(k)]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        result = generate_design(factors, "plackett_burman", n_center_points=0)
+    x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+    assert len(x) == n_runs
+    np.testing.assert_array_equal(x.T @ x, n_runs * np.eye(k))
+
+
+def test_plackett_burman_warns_when_it_steps_up() -> None:
+    """No 236-run design is built, so 235 factors take 240 runs, and the user is told."""
+    factors = [Factor(name=f"x{i}", low=0, high=1) for i in range(235)]
+    with pytest.warns(UserWarning, match=r"No 236-run Plackett-Burman design .* 235 factors has 240 runs"):
+        result = generate_design(factors, "plackett_burman", n_center_points=0)
+    assert result.n_runs == 240

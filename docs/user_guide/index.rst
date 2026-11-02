@@ -18,6 +18,7 @@ User Guide
    region_limits
    screening_and_space_filling
    split_plot_analysis
+   blocked_models
    glm_analysis
    sensory_panel
    sensory_diagnostics

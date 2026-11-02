@@ -160,11 +160,15 @@ Tracking and rollout
   exist; they currently raise rather than warn. Migrating them
   to emit ``DeprecationWarning`` is in scope for the next
   Wave-7 PR (`ENG-22 <https://github.com/kgdunn/process-improve/issues/304>`_).
-- A ``tools/check_deprecations.py`` script will be added to
-  list everything currently deprecated and its scheduled
-  removal version. The script is run in CI; a deprecation
-  past its removal version fails the build, so we cannot
-  forget to delete the shim.
+- ``tests/test_deprecation_policy.py`` reads every
+  ``warnings.warn(..., DeprecationWarning)`` call in ``src/``
+  and checks its message against the format above, so the
+  message is written as a string literal (an f-string is
+  fine) where the call is made. It also
+  compares the removal version with the ``version`` in
+  ``pyproject.toml``: once the package reaches it, the test
+  fails, so we cannot forget to delete the shim. The test
+  runs in CI with the rest of the suite.
 
 Cross-references
 ----------------

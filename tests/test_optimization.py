@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -1629,7 +1630,7 @@ class TestCodedHandoff:
 
 
 class TestCanonicalForms:
-    """The A and B canonical forms re-express the fitted quadratic exactly; the B form keeps the ridge's slope."""
+    """Box and Draper's B form and their ridge form re-express the quadratic exactly; the ridge form keeps its slope."""
 
     @staticmethod
     def _bhh() -> list[dict]:
@@ -1651,9 +1652,9 @@ class TestCanonicalForms:
         return linear + c["I(A ** 2)"] * a**2 + c["I(B ** 2)"] * b**2 + c.get("A:B", 0.0) * a * b
 
     @pytest.mark.parametrize("coefficients", [_quadratic_2f_coeffs(), _saddle_2f_coeffs(), _bhh()])
-    def test_b_canonical_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
+    def test_the_ridge_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
         result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
-        form, vectors = result["b_canonical"], np.array(result["eigenvectors"])
+        form, vectors = result["ridge_form"], np.array(result["eigenvectors"])
         origin = np.array(list(form["origin"].values()))
         for x in np.random.default_rng(1).uniform(-2, 2, size=(5, 2)):
             axes = vectors @ (x - origin)
@@ -1662,9 +1663,9 @@ class TestCanonicalForms:
             assert value == pytest.approx(self._predict(coefficients, x))
         assert np.allclose(vectors @ origin, -np.array(form["offsets"]))
 
-    def test_b_canonical_form_of_a_ridge(self) -> None:
+    def test_the_ridge_form_of_a_ridge(self) -> None:
         """BHH's ridge: the origin nearest the centre, 87.38, and a slope of 1.31 along the ridge."""
-        form = _canonical_analysis(self._bhh(), FACTOR_NAMES_2F)["b_canonical"]
+        form = _canonical_analysis(self._bhh(), FACTOR_NAMES_2F)["ridge_form"]
         assert form["origin_response"] == pytest.approx(87.377, abs=5e-4)
         assert abs(form["linear"]) == pytest.approx(1.309, abs=5e-4)
         assert abs(form["offsets"][0]) == pytest.approx(0.058, abs=5e-4)
@@ -1693,4 +1694,23 @@ class TestCanonicalForms:
         ]
         result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
         assert "canonical_axes" not in result
-        assert result["b_canonical"]["linear"] == pytest.approx(1.0)  # the ridge keeps rising, at slope 1
+        assert result["ridge_form"]["linear"] == pytest.approx(1.0)  # the ridge keeps rising, at slope 1
+
+    @staticmethod
+    def _two_flat_axes(slope_x3: float) -> list[dict]:
+        """Box and Draper's Table 11.1 (F), and (G) with a slope along X3: eigenvalues -2, 0 and 0."""
+        terms = [("Intercept", 0.0), ("X1", 0.0), ("X2", 0.0), ("X3", slope_x3)]
+        terms += [("I(X1 ** 2)", -2.0), ("I(X2 ** 2)", 0.0), ("I(X3 ** 2)", 0.0)]
+        return [{"term": term, "coefficient": coefficient} for term, coefficient in terms]
+
+    @pytest.mark.parametrize(("slope_x3", "classification"), [(0.0, "stationary_ridge"), (1.0, "rising_ridge")])
+    def test_two_zero_eigenvalues_give_a_finite_origin(self, slope_x3: float, classification: str) -> None:
+        """#965: the origin leaves out every flat axis, so two zero eigenvalues no longer divide by zero."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = _canonical_analysis(self._two_flat_axes(slope_x3), ["X1", "X2", "X3"])
+        form = result["ridge_form"]
+        assert result["classification"] == classification
+        assert form["origin"] == pytest.approx({"X1": 0.0, "X2": 0.0, "X3": 0.0})
+        assert form["origin_response"] == pytest.approx(0.0)
+        assert form["offsets"] == pytest.approx([0.0, 0.0, 0.0])

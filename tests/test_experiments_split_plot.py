@@ -190,7 +190,7 @@ class TestAgainstLmerTest:
     @pytest.fixture(scope="class")
     def reference(self) -> dict:
         """Return the R results written by the fixture's ``reference.R``."""
-        return json.loads((_LMER_FIXTURE / "reference.json").read_text())
+        return json.loads((_LMER_FIXTURE / "reference.json").read_text(encoding="utf-8"))
 
     @pytest.fixture(scope="class")
     def unbalanced(self) -> dict:

@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import ast
+import itertools
+import keyword
 import re
 import warnings
 from collections import defaultdict
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import ModelDesc
+from patsy.categorical import CategoricalSniffer
+from patsy.missing import NAAction
 from statsmodels.regression.linear_model import OLS
 
 if TYPE_CHECKING:
@@ -102,14 +106,98 @@ def validate_identifier_is_safe(name: object) -> None:
         If *name* is not a string, contains ``__``, or is not a plain identifier.
     """
     if not isinstance(name, str):
-        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}.")
+        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}. Try {suggest_identifier(name)!r}.")
     if "__" in name:
-        raise UnsafeFormulaError(f"name {name!r} may not contain '__' (dunder access is forbidden).")
+        raise UnsafeFormulaError(
+            f"name {name!r} may not contain '__' (dunder access is forbidden). Try {suggest_identifier(name)!r}."
+        )
     if not _IDENTIFIER_RE.match(name):
         raise UnsafeFormulaError(
             f"name {name!r} is not a plain identifier; only letters, digits and '_' are allowed "
-            f"(and it may not start with a digit)."
+            f"(and it may not start with a digit). Try {suggest_identifier(name)!r}."
         )
+
+
+def validate_identifiers_are_safe(names: Iterable[object]) -> None:
+    """Apply :func:`validate_identifier_is_safe` to each name, and refuse all the unsafe ones in one error.
+
+    The error maps each refused name to a :func:`suggest_identifier` suggestion. A suggestion that another
+    name already has gains ``_2``, ``_3``, ..., so the map can go straight into ``DataFrame.rename``.
+
+    Parameters
+    ----------
+    names : Iterable[object]
+        The candidate column or factor names.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If any name is not a plain identifier.
+    """
+    names = list(names)
+    refused = []
+    for name in names:
+        try:
+            validate_identifier_is_safe(name)
+        except UnsafeFormulaError:
+            refused.append(name)
+    if not refused:
+        return
+    taken = {str(name) for name in names}
+    renames = {}
+    for name in refused:
+        renames[name] = _unused_name(suggest_identifier(name), taken)
+        taken.add(renames[name])
+    raise UnsafeFormulaError(
+        f"{refused!r} cannot go in a model formula: a name there is letters, digits and '_', does not start "
+        f"with a digit and does not hold '__'. Rename them, for example with .rename(columns={renames!r})."
+    )
+
+
+def _unused_name(stem: str, taken: set[str]) -> str:
+    """Return *stem*, or the first of ``stem_2``, ``stem_3``, ... that is not in *taken*."""
+    new, count = stem, 1
+    while new in taken:
+        count += 1
+        new = f"{stem.rstrip('_')}_{count}"
+    return new
+
+
+#: Symbols that column names often hold, as words, so that a suggested name keeps their meaning.
+_SYMBOL_WORDS = {"%": "pct", "°": "deg", "#": "num"}
+
+
+def suggest_identifier(name: object) -> str:
+    """Suggest a name close to *name* that :func:`validate_identifier_is_safe` and Python both accept.
+
+    ``%``, ``°`` and ``#`` become ``pct``, ``deg`` and ``num``. Each run of other characters that a name
+    cannot hold becomes one ``_``, and an ``_`` at either end is removed. A name that then does not start
+    with a letter gets an ``x`` in front, and a Python keyword gets an ``_`` after it.
+
+    Parameters
+    ----------
+    name : object
+        The refused name. A name that is not a string is read as its ``str``.
+
+    Returns
+    -------
+    str
+        The suggested name.
+
+    Examples
+    --------
+    >>> [suggest_identifier(name) for name in ["Water %", "Temp (°C)", "2nd stage", "lambda", 0]]
+    ['Water_pct', 'Temp_deg_C', 'x2nd_stage', 'lambda_', 'x0']
+    """
+    text = str(name)
+    for symbol, word in _SYMBOL_WORDS.items():
+        text = text.replace(symbol, f" {word} ")
+    # The guard's \w takes "²", which Python does not, and Python takes "·", which \w does not: keep neither.
+    kept = "".join(char if _IDENTIFIER_RE.match(f"x{char}") and f"x{char}".isidentifier() else " " for char in text)
+    text = re.sub(r"[ _]+", "_", kept).strip("_")
+    if not _IDENTIFIER_RE.match(text):  # empty, or it starts with a digit or a letter outside A-Z
+        text = f"x{text}"
+    return f"{text}_" if keyword.iskeyword(text) else text
 
 
 def validate_formula_is_safe(
@@ -160,7 +248,8 @@ def validate_formula_is_safe(
     ------
     UnsafeFormulaError
         If *formula* is not a string, contains a ``__`` dunder, or references a
-        token / construct outside the permitted subset.
+        token / construct outside the permitted subset; or if a column has the name
+        of a function the formula calls, such as ``I`` in ``I(P ** 2)``.
     """
     if not isinstance(formula, str):
         raise UnsafeFormulaError(f"formula must be a string, got {type(formula).__name__}.")
@@ -206,6 +295,153 @@ def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool)
         except SyntaxError as exc:
             raise UnsafeFormulaError(f"formula side {side.strip()!r} is not a valid expression.") from exc
         _check_formula_node(tree.body, allowed, allow_numpy=allow_numpy)
+        _check_no_column_hides_a_call(tree, allowed)
+
+
+def _called_names(tree: ast.AST) -> list[ast.Name]:
+    """Return the names a parsed formula side calls: ``I`` in ``I(A ** 2)``, ``np``, and ``Sum`` in ``C(A, Sum)``."""
+    called = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func.value if isinstance(node.func, ast.Attribute) else node.func  # np.log(A) calls np
+        if isinstance(func, ast.Name):
+            called.append(func)
+        if isinstance(node.func, ast.Name) and node.func.id == "C":  # the contrast in C(A, Sum) is called too
+            called += [arg for arg in node.args[1:] if isinstance(arg, ast.Name)]
+    return called
+
+
+def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
+    """Refuse a column that has the name of a function the formula calls.
+
+    Patsy looks a name up in the data before its own functions, so a column named ``I``
+    turns every ``I(P ** 2)`` into a call of the column, and a column named ``C`` does the
+    same to ``C(A, Sum)``. Each fails with "'Series' object is not callable". The library's
+    own entry points fit such a column under a stand-in name (:func:`stand_ins_for`).
+    """
+    hidden = sorted({node.id for node in _called_names(tree)} & columns)
+    if hidden:
+        renames = {name: _unused_name(f"{name}_", columns) for name in hidden}
+        raise UnsafeFormulaError(
+            f"The formula calls {', '.join(f'{name}()' for name in hidden)}, and a column has the same name, "
+            f"which patsy finds first and tries to call. Rename the column, for example with "
+            f".rename(columns={renames!r})."
+        )
+
+
+def _parsed_side(side: str) -> ast.Expression | None:
+    """Parse one side of a formula as Python, or return None when it does not parse.
+
+    ``:`` becomes ``*`` as in :func:`_validate_formula_ast`, and the side is parsed in parentheses, so it may
+    start with a space or run over lines. Every name keeps its place in ``side``, one byte on in its first line.
+    """
+    try:
+        return ast.parse(f"({side.replace(':', '*')})".encode(), mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+
+
+def stand_ins_for(formula: str, columns: Iterable[str]) -> dict[str, str]:
+    """Map each column whose name *formula* calls to a name no column has: ``I`` to ``I_``, or ``I_2`` if that is taken.
+
+    Patsy finds a column before its own function of the same name (see :func:`_check_no_column_hides_a_call`).
+    The model is fitted with the column under its stand-in (:func:`with_stand_ins`), and the results are
+    reported under its real name (:func:`real_names`), so a factor can be named ``I`` in a model with squares,
+    or ``C`` in one with contrasts. A column the formula only names, as ``I`` in ``y ~ I + P``, keeps its name.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or one side of it. One that does not parse maps nothing, and
+        :func:`validate_formula_is_safe` then refuses it.
+    columns : Iterable[str]
+        The names of the data columns.
+
+    Returns
+    -------
+    dict[str, str]
+        Each hidden column's name, mapped to its stand-in; empty when the formula hides none.
+    """
+    if not isinstance(formula, str):
+        return {}
+    taken = {str(name) for name in columns}
+    called = {node.id for side in formula.split("~") if (tree := _parsed_side(side)) for node in _called_names(tree)}
+    stand_ins = {}
+    for name in sorted(called & taken):
+        stand_ins[name] = _unused_name(f"{name}_", taken)
+        taken.add(stand_ins[name])
+    return stand_ins
+
+
+def with_stand_ins(formula: str, stand_ins: Mapping[str, str]) -> str:
+    """Write *formula* with each column in *stand_ins* under its stand-in; the functions it calls keep their names.
+
+    ``y ~ I + I(I ** 2)`` with ``{"I": "I_"}`` becomes ``y ~ I_ + I(I_ ** 2)``.
+    """
+    if not stand_ins:
+        return formula
+    return "~".join(_side_with_stand_ins(side, stand_ins) for side in formula.split("~"))
+
+
+def _side_with_stand_ins(side: str, stand_ins: Mapping[str, str]) -> str:
+    """Write one side of a formula with each column in *stand_ins* under its stand-in (see :func:`with_stand_ins`)."""
+    tree = _parsed_side(side)
+    if tree is None:
+        return side
+    called = {id(node) for node in _called_names(tree)}
+    text = side.encode()  # the parser counts columns in bytes
+    starts = list(itertools.accumulate((len(line) + 1 for line in text.split(b"\n")), initial=0))
+    columns = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in called]
+    for node in sorted(columns, key=lambda node: (node.lineno, node.col_offset), reverse=True):
+        if node.id in stand_ins and node.end_lineno is not None and node.end_col_offset is not None:
+            start = starts[node.lineno - 1] + node.col_offset - (node.lineno == 1)  # less the "(" around the side
+            end = starts[node.end_lineno - 1] + node.end_col_offset - (node.end_lineno == 1)
+            text = text[:start] + stand_ins[node.id].encode() + text[end:]
+    return text.decode()
+
+
+_Value = TypeVar("_Value")
+
+
+def real_names(value: _Value, stand_ins: Mapping[str, str]) -> _Value:
+    """Return *value* with each stand-in of *stand_ins* read as the name it stands for.
+
+    A stand-in is replaced where it stands as a name of its own, so ``I(I_ ** 2)`` reads
+    ``I(I ** 2)`` and ``I_:P`` reads ``I:P``. A column really named ``I_`` keeps its name, since a
+    stand-in is a name that no column has (:func:`stand_ins_for`), and so does a level label
+    after patsy's ``[T.``.
+
+    Parameters
+    ----------
+    value : str, dict, list or tuple
+        The results: strings, and dicts, lists and tuples of them, nested to any depth. Keys are
+        read as well as values; anything else is returned as it is.
+    stand_ins : Mapping[str, str]
+        Each real name, mapped to its stand-in.
+
+    Returns
+    -------
+    str, dict, list or tuple
+        The same structure, under the real names.
+    """
+    if not stand_ins:
+        return value
+    real = {stand_in: name for name, stand_in in stand_ins.items()}
+    pattern = re.compile(rf"(?<![\w.])({'|'.join(map(re.escape, real))})(?!\w)")
+
+    def read(item: object) -> object:
+        if isinstance(item, str):
+            return pattern.sub(lambda match: real[match.group(1)], item)
+        if isinstance(item, dict):
+            return {read(key): read(entry) for key, entry in item.items()}
+        if type(item) is list:
+            return [read(entry) for entry in item]
+        if type(item) is tuple:
+            return tuple(read(entry) for entry in item)
+        return item
+
+    return cast("_Value", read(value))
 
 
 def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
@@ -324,6 +560,78 @@ def _check_literal_or_container(node: ast.AST) -> None:
     raise UnsafeFormulaError("categorical-contrast arguments must be column names, contrast helpers, or literals.")
 
 
+#: The contrasts that name a level of their factor, and the keyword that names it.
+_LEVEL_ARGUMENTS = {"Treatment": "reference", "Sum": "omit"}
+
+
+def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
+    """Refuse a contrast that names a level its column does not have, where patsy would, but naming the levels.
+
+    ``C(Block, Treatment('1'))`` asks for the level ``'1'``, a string, and a ``Block`` column of integers
+    has the level ``1``: patsy fails with "specified level '1' not found". This raises the same failure
+    for the reference level of ``Treatment`` and the omitted level of ``Sum``, with the column's levels and
+    a spelling that works. Patsy reads an integer that is not a level as the position of one
+    (``Treatment(0)`` is the first level), so an integer is refused only past the last position.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or its right-hand side, as :func:`validate_formula_is_safe` passed it.
+    data : DataFrame
+        The data the formula is fitted on.
+
+    Raises
+    ------
+    ValueError
+        If a contrast names a level that its column does not have.
+    """
+    for side in formula.split("~"):
+        tree = _parsed_side(side)
+        for node in ast.walk(tree) if tree else ():
+            named = _named_level(node)
+            if named is None or named[0] not in data.columns:
+                continue
+            column, contrast, level = named
+            sniffer = CategoricalSniffer(NAAction())  # the levels as patsy finds them
+            sniffer.sniff(data[column])
+            levels = list(sniffer.levels_contrast()[0])
+            if not levels or level in levels or (isinstance(level, int) and -len(levels) <= level < len(levels)):
+                continue
+            spelling = next((value for value in levels if str(value) == str(level)), levels[0])
+            raise ValueError(
+                f"{ast.unparse(node)} asks for the level {level!r}, which column {column!r} does not have: its "
+                f"levels are {levels!r}. Write the level as the column holds it, as in "
+                f"C({column}, {contrast}({spelling!r}))."
+            )
+
+
+def _named_level(node: ast.AST) -> tuple[str, str, object] | None:
+    """Return the column, contrast and level of ``C(column, Treatment(level))`` or ``Sum(level)``; else None."""
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "C"):
+        return None
+    column, contrast = _argument(node, 0, "data"), _argument(node, 1, "contrast")
+    if (
+        not isinstance(column, ast.Name)
+        or not isinstance(contrast, ast.Call)
+        or not isinstance(contrast.func, ast.Name)
+        or contrast.func.id not in _LEVEL_ARGUMENTS
+        or _argument(node, 2, "levels") is not None  # patsy reads the level among the levels given, not the data's
+    ):
+        return None
+    level = _argument(contrast, 0, _LEVEL_ARGUMENTS[contrast.func.id])
+    try:
+        return (column.id, contrast.func.id, ast.literal_eval(level)) if level is not None else None
+    except ValueError:  # not a literal: validate_formula_is_safe refuses it
+        return None
+
+
+def _argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    """Return the argument of *call* at *position*, or the one passed as *keyword*; None when there is neither."""
+    if len(call.args) > position:
+        return call.args[position]
+    return next((kw.value for kw in call.keywords if kw.arg == keyword), None)
+
+
 def forg(x: float, prec: int = 3) -> str:
     """Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
 
@@ -345,6 +653,8 @@ class Model(OLS):
     data: Expt | None
     aliasing: dict | None
     name: str | None
+    #: Each column fitted under a stand-in name, mapped to it (see :func:`stand_ins_for`); set by ``lm()``.
+    _stand_ins: dict[str, str]
 
     def __init__(
         self,
@@ -369,6 +679,7 @@ class Model(OLS):
         # Will be replaced by the "lm()" function
         self.data = None
         self.aliasing = aliasing
+        self._stand_ins = {}
 
     def __str__(self) -> str:
         """Return the model specification as a string."""
@@ -380,7 +691,9 @@ class Model(OLS):
 
         The returned object is the statsmodels summary instance, with the
         underlying ``self._OLS.summary()`` adjusted to label the residual
-        standard error row. The method does NOT print anything by itself;
+        standard error row and to leave out the date and time of the call,
+        so that the same fit gives the same summary. The method does NOT
+        print anything by itself;
         the top-level :func:`summary` wrapper handles screen output via its
         own ``show`` flag. The ``alpha`` and ``print_to_screen`` arguments
         are unused and kept for backwards compatibility.
@@ -411,10 +724,20 @@ class Model(OLS):
             # smry.tables[0][7][0].data = se
             # smry.tables[0][7][1].data = se
 
+            # The time of the call is no fact about the model, and it made two summaries of one fit differ
+            # (#952): leave out the Date and Time cells, move the left-hand cells below them up, and drop
+            # the row that leaves empty.
+            top = smry.tables[0]
+            left = [(row[0].data, row[1].data) for row in top if row[0].data not in ("Date:", "Time:")]
+            for row, (label, value) in zip(top, left + [("", "")] * (len(top) - len(left)), strict=True):
+                row[0].data, row[1].data = label, value
+            while not "".join(str(cell.data) for cell in top[-1]).strip():
+                top.pop()
+
         return smry
 
-    def get_parameters(self, drop_intercept: bool = True) -> pd.DataFrame:
-        """Get the parameter values; return them in a Pandas dataframe."""
+    def get_parameters(self, drop_intercept: bool = True) -> pd.Series:
+        """Get the parameter values; return them in a pandas Series indexed by term."""
 
         params = self._OLS.params.copy()
         try:
@@ -500,7 +823,7 @@ class Model(OLS):
 
 def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
     """Make predictions from the model."""
-    return model._OLS.predict(exog=dict(kwargs))
+    return model._OLS.predict(exog={model._stand_ins.get(name, name): value for name, value in kwargs.items()})
 
 
 #: Correlation beyond which two model columns are exact aliases: one, up to rounding.
@@ -564,7 +887,8 @@ def lm(
     Parameters
     ----------
     model_spec : str
-        The model formula, e.g. ``"y ~ A * B"``.
+        The model formula, e.g. ``"y ~ A * B"``. A column named like a function the formula
+        calls, as ``I`` in ``I(P ** 2)``, is fitted under a stand-in name and reported under its own.
     data : Expt
         The data; a plain ``Expt`` or DataFrame works too.
     name : str or None
@@ -586,9 +910,13 @@ def lm(
     # ``model_spec`` is a code-execution vector. Allow only a safe Wilkinson
     # formula over the data columns, optionally with I()/Q() and a curated set of
     # element-wise numpy transforms (the public textbook API relies on these).
-    validate_formula_is_safe(model_spec, data.columns, allow_transforms=True, allow_numpy=True)
+    stand_ins = stand_ins_for(model_spec, data.columns)
+    fit_spec = with_stand_ins(model_spec, stand_ins)
+    fit_data = data.rename(columns=stand_ins) if stand_ins else data
+    validate_formula_is_safe(fit_spec, fit_data.columns, allow_transforms=True, allow_numpy=True)
+    validate_contrast_levels(model_spec, data)
 
-    pre_model = smf.ols(model_spec, data=data)
+    pre_model = smf.ols(fit_spec, data=fit_data)
     # SEC-19 (#268): a formula like ``y ~ (A+B+C+D+E)**5`` expands to
     # 2**5 terms; combined with a wide ``data`` this is a CPU sink.
     # Cap the expanded term count after patsy parses the RHS.
@@ -614,7 +942,11 @@ def lm(
         aliasing, drop_columns = _find_aliases(pre_model.exog, column_terms, alias_threshold)
         drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
-    post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
+    post_model = smf.ols(fit_spec, data=fit_data, drop_cols=drop_column_names)
+    if stand_ins:  # the coefficients, the summary and the aliases are read under the real names
+        post_model.data.xnames = real_names(post_model.data.xnames, stand_ins)
+        post_model.data.ynames = real_names(post_model.data.ynames, stand_ins)
+        aliasing = real_names(aliasing, stand_ins)
 
     name = name or getattr(data, "pi_title", None)
     out = Model(
@@ -624,6 +956,7 @@ def lm(
         name=name,
     )
     out.data = data
+    out._stand_ins = stand_ins
 
     return out
 
@@ -663,7 +996,9 @@ __all__ = [
     "forg",
     "lm",
     "predict",
+    "suggest_identifier",
     "summary",
     "validate_formula_is_safe",
     "validate_identifier_is_safe",
+    "validate_identifiers_are_safe",
 ]
