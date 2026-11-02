@@ -201,6 +201,17 @@ class TestThroughTheTools:
         assert back["n_runs"] == len(runs)
         assert pd.read_excel(io.BytesIO(base64.b64decode(out["xlsx_base64"]))).shape == (len(runs), 5)
 
+    def test_openpyxl_reads_the_workbook_cell_for_cell(self, design: object) -> None:
+        """The workbook, its dates fixed so the bytes repeat, holds the cells the CSV sheet holds."""
+        openpyxl = pytest.importorskip("openpyxl")
+        runs = design.design_actual.drop(columns="RunOrder").to_dict(orient="records")  # type: ignore[attr-defined]
+        request = {"runs": runs, "factors": self._factors(), "responses": ["Hardness", "Colour"]}
+        as_csv = pd.read_csv(io.StringIO(execute_tool_call("write_run_sheet", request)["csv"]))
+        xlsx = execute_tool_call("write_run_sheet", {**request, "file_format": "xlsx"})["xlsx_base64"]
+        header, *rows = openpyxl.load_workbook(io.BytesIO(base64.b64decode(xlsx)))["Runs"].values
+        read = pd.DataFrame(rows, columns=list(header)).astype(as_csv.dtypes.to_dict())
+        pd.testing.assert_frame_equal(read, as_csv)
+
     def test_the_sheet_is_given_once(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="Give the run sheet once"):
             execute_tool_call("read_run_sheet", {"csv_text": "a\n1", "xlsx_base64": "", "factors": self._factors()})

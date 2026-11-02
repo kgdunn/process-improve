@@ -14,7 +14,10 @@ whose input takes a seed that its ``rng=`` does not declare fails ``test_every_t
 
 from __future__ import annotations
 
+import base64
+import io
 import json
+import zipfile
 from collections.abc import Callable
 from typing import Any
 
@@ -301,6 +304,21 @@ def test_the_tool_gives_the_same_output_twice(tool: str, simulator_state: dict[s
         # Otherwise the seed may not reach the RNG, or the sample input may not draw from it at all.
         other_seed = {**tool_input, rng["seed_param"]: rng["default_seed"] + 1}
         assert _output(tool, other_seed, simulator_state) != first, f"{tool}'s output does not depend on its seed"
+
+
+def test_the_run_sheet_workbook_gives_the_same_bytes_twice(simulator_state: dict[str, Any]) -> None:
+    """The workbook holds no time of day: its zip members and its created / modified dates are fixed."""
+    openpyxl = pytest.importorskip("openpyxl")
+    tool_input = {**SAMPLE_INPUTS["write_run_sheet"], "file_format": "xlsx"}
+    first = _output("write_run_sheet", tool_input, simulator_state)
+    assert _output("write_run_sheet", tool_input, simulator_state) == first
+    # Two calls in the same second agree whether or not the clock is in the file; these checks do not.
+    data = base64.b64decode(json.loads(first)["xlsx_base64"])
+    fixed = (1980, 1, 1, 0, 0, 0)
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert {info.date_time for info in archive.infolist()} == {fixed}
+    properties = openpyxl.load_workbook(io.BytesIO(data)).properties
+    assert properties.created.timetuple()[:6] == properties.modified.timetuple()[:6] == fixed
 
 
 def test_the_simulator_seed_fixes_all_but_the_id_and_the_time() -> None:
