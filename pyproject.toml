@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "2.1.0"
+version = "2.2.2"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -449,3 +449,91 @@ docstring-quotes = "double"
 
 [tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]
+
+# Mutation testing: see "Mutation testing" in CONTRIBUTING.md. Modules join `only_mutate` one at a
+# time, each with no survivor, starting with those whose numbers users act on; the tests listed
+# are those that reach them.
+[tool.mutmut]
+source_paths = ["src"]
+only_mutate = [
+    "src/process_improve/multivariate/_limits.py",
+    "src/process_improve/monitoring/metrics.py",
+    "src/process_improve/monitoring/evop.py",
+    "src/process_improve/monitoring/control_charts.py",
+    "src/process_improve/multivariate/_nipals.py",
+    "src/process_improve/multivariate/_preprocessing.py",
+    "src/process_improve/multivariate/_projection.py",
+    "src/process_improve/multivariate/_impute.py",
+    "src/process_improve/multivariate/_robust.py",
+    "src/process_improve/multivariate/_diagnostics.py",
+    "src/process_improve/multivariate/_resampling.py",
+    "src/process_improve/multivariate/_null.py",
+    "src/process_improve/multivariate/_procrustes.py",
+    "src/process_improve/multivariate/_prm.py",
+    "src/process_improve/multivariate/_opls.py",
+    "src/process_improve/multivariate/_pca.py",
+    "src/process_improve/multivariate/_pls.py",
+    "src/process_improve/multivariate/_mbpca.py",
+    "src/process_improve/multivariate/_mbpls.py",
+    "src/process_improve/multivariate/_tpls.py",
+    "src/process_improve/multivariate/_cv_criteria.py",
+    "src/process_improve/multivariate/_plsda.py",
+    "src/process_improve/multivariate/_asca.py",
+    "src/process_improve/multivariate/_categorical.py",
+    "src/process_improve/multivariate/_adaptive.py",
+]
+# The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
+pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
+pytest_add_cli_args_test_selection = [
+    "tests/test_multivariate_limits.py",
+    "tests/test_multivariate.py",
+    "tests/test_audit_regressions_multivariate.py",
+    "tests/test_multiblock_validation.py",
+    "tests/test_multivariate_introspection.py",
+    "tests/test_monitoring.py",
+    "tests/test_monitoring_helpers.py",
+    "tests/test_audit_regressions_univariate_monitoring.py",
+    "tests/test_evop.py",
+    "tests/test_control_chart_cusum.py",
+    "tests/test_control_chart_ewma.py",
+    "tests/test_control_chart_hw_golden.py",
+    "tests/test_nipals_quick_regress.py",
+    "tests/test_multivariate_adaptive.py",
+    "tests/test_multivariate_centring_traps.py",
+    "tests/test_multivariate_projection.py",
+    "tests/test_multivariate_pls_missing.py",
+    "tests/test_multivariate_prm.py",
+    "tests/test_contributions_missing_cells.py",
+    "tests/test_multivariate_contribution_plots.py",
+    "tests/test_multivariate_meda.py",
+    "tests/test_multivariate_resampler.py",
+    "tests/test_multivariate_null.py",
+    "tests/test_multivariate_gpa.py",
+    "tests/test_multivariate_opls.py",
+    "tests/test_multivariate_tsr.py",
+    "tests/test_pca_nipals_mixomics_crosscheck.py",
+    "tests/test_multivariate_nipals_seed.py",
+    "tests/test_r2_per_variable_cumulative.py",
+    "tests/test_multivariate_sample_weight.py",
+    "tests/test_multivariate_inversion.py",
+    "tests/test_multivariate_inversion_worked_example.py",
+    "tests/test_multivariate_feature_names.py",
+    "tests/test_sklearn_compat.py",
+    "tests/test_multivariate_robustness.py",
+    "tests/test_tool_spec.py",
+    "tests/test_multiblock_reference.py",
+    # Its FMC case study reads a script from docs/, which mutmut does not copy, and its data from the web.
+    "--deselect",
+    "tests/test_multiblock_reference.py::TestFMCReference",
+    "tests/test_multiblock_weighting.py",
+    "tests/test_multivariate_categorical.py",
+    "tests/test_mbpls_cross_validation.py",
+    "tests/test_mbpls_regressor.py",
+    "tests/test_multivariate_tpls_validation.py",
+    "tests/test_multivariate_tpls_display.py",
+    "tests/test_multivariate_tpls_feature_importance.py",
+    "tests/test_multivariate_dataframedict.py",
+    "tests/test_multivariate_cv_criteria.py",
+    "tests/test_multivariate_plsda.py",
+    "tests/test_multivariate_asca.py",
+]

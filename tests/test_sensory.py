@@ -1452,6 +1452,46 @@ def test_reshape_strips_stray_spaces_from_labels(case, column, label):
     assert not long_df[column].str.contains(" ").any()
 
 
+@pytest.mark.parametrize("second_salty", [1.0, 5.0], ids=["equal-means", "different-means"])
+def test_reshape_refuses_panelists_alike_but_for_spaces(second_salty):
+    """'P1' and 'P1 ' are two labels: stripping merged them, silently when their means agree (#1003)."""
+    data = pd.DataFrame(
+        {
+            "Assessor": ["P1", "P1 ", "P2", "P2"],
+            "Sample": ["A", "B", "A", "B"],
+            "Salty": [1.0, second_salty, 2.0, 3.0],
+        }
+    )
+    with pytest.raises(ValueError, match=r"panelist labels 'P1' and 'P1 ' differ only in surrounding whitespace"):
+        reshape_to_long(data, layout="wide_by_attribute", mapping={"panelist_id": "Assessor", "product": "Sample"})
+
+
+@pytest.mark.parametrize(
+    ("layout", "data", "message"),
+    [
+        (
+            "wide_by_attribute",
+            pd.DataFrame({"Assessor": ["P1", "P2"], "Sample": ["A", "A"], "Salty": [1.0, 2.0], "Salty ": [3.0, 4.0]}),
+            "attribute labels 'Salty' and 'Salty '",
+        ),
+        (
+            "long",
+            pd.DataFrame(
+                {"panelist_id": ["P1"] * 2, "product": ["A", " A"], "attribute": ["Salty"] * 2, "score": [1.0, 2.0]}
+            ),
+            "product labels 'A' and ' A'",
+        ),
+    ],
+    ids=["attribute-headers", "long-products"],
+)
+def test_reshape_refuses_products_and_attributes_alike_but_for_spaces(layout, data, message):
+    """A product or an attribute label is refused alike, in a header as in a long table's column."""
+    mapping = {"panelist_id": "Assessor", "product": "Sample"} if layout == "wide_by_attribute" else {}
+    mapping = mapping or {name: name for name in ("panelist_id", "product", "attribute", "score")}
+    with pytest.raises(ValueError, match=re.escape(message)):
+        reshape_to_long(data, layout=layout, mapping=mapping)
+
+
 def test_validate_hash_is_order_independent():
     wide = _wide_panel()
     long_df, _ = reshape_to_long(

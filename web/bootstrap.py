@@ -26,6 +26,7 @@ import contextlib
 import io
 import itertools
 import json
+import keyword
 import logging
 import math
 import platform
@@ -55,6 +56,7 @@ from process_improve.experiments import (
     signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._lm import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
@@ -645,7 +647,8 @@ def _listening() -> Iterator[list[str]]:
     records would otherwise reach the browser console as errors. The logger's handlers are
     swapped for the duration and restored after, so an enclosing block (or a test's log
     capture) is not affected. Warnings raised inside numpy, scipy, statsmodels or pandas
-    are left out.
+    are left out, and so is an ``EncodingWarning``, which Python raises only when a developer
+    asks (``PYTHONWARNDEFAULTENCODING``, as the tests run): it is about code, not the reader's runs.
     """
     heard: list[str] = []
     logger = logging.getLogger("process_improve")
@@ -657,7 +660,9 @@ def _listening() -> Iterator[list[str]]:
             yield heard
     finally:
         logger.handlers, logger.propagate = saved
-    heard.extend(str(w.message) for w in caught if not _foreign(w.filename))
+    heard.extend(
+        str(w.message) for w in caught if not _foreign(w.filename) and not issubclass(w.category, EncodingWarning)
+    )
 
 
 def _foreign(filename: str) -> bool:
@@ -682,12 +687,19 @@ def _number(value: object) -> float | None:
 
 
 def _factor_names(raw: list) -> list[str]:
-    """Read and check the factors' names: one at least, each a variable name, none twice."""
+    """Read and check the factors' names: one at least, each a variable name a model can hold, none twice."""
     if not raw:
         raise ValueError("Enter at least one factor.")
     names = [str(f.get("name", "")).strip() for f in raw]
-    if len(set(names)) != len(names) or not all(n.isidentifier() for n in names):
-        raise ValueError("Factor names must be unique and look like variable names (letters, digits, _).")
+    unfit = [name for name in names if not name.isidentifier() or keyword.iskeyword(name)]
+    if unfit:
+        tries = ", ".join(f"{suggest_identifier(name)!r} for {name!r}" for name in unfit)
+        raise ValueError(
+            "Factor names must look like variable names (letters, digits, _) and cannot be Python keywords: "
+            f"try {tries}."
+        )
+    if len(set(names)) != len(names):
+        raise ValueError("Factor names must be unique.")
     return names
 
 
@@ -1387,7 +1399,7 @@ def _made_runs(result: Any, factors: list[Factor], design_type: str, kwargs: dic
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
     if BLOCK in result.design_actual.columns:  # the runs are listed block by block
         runs.insert(0, BLOCK, result.design_actual[BLOCK].to_numpy())
     if design_type in SPACE_FILLING:
@@ -1492,7 +1504,7 @@ def _given_settings(rows: list[list], factors: list[Factor]) -> pd.DataFrame:
     for f in factors:
         if f.type == "categorical":
             levels = [str(v) for v in f.levels or []]
-            runs[f.name] = [levels[i] for i in _level_indices(runs[f.name], {"name": f.name, "levels": levels})]
+            runs[f.name] = [levels[i] for i in _level_indices(runs, {"name": f.name, "levels": levels})]
             continue
         values = [_number(v) for v in runs[f.name]]
         if None in values:
@@ -1728,7 +1740,11 @@ def _region_refusal(factors: list[Factor], region: DesignRegion, design_type: st
 
 def _response_name(response: str, factors: list[Factor]) -> str:
     """Check the response's name: a variable name, unlike every factor's and the run sheet's blocks column."""
-    if not response.isidentifier() or response in {f.name for f in factors}:
+    if not response.isidentifier():
+        raise ValueError(
+            f"The response name must be a variable name (letters, digits, _): try {suggest_identifier(response)!r}."
+        )
+    if response in {f.name for f in factors}:
         raise ValueError("The response name must be a variable name different from every factor.")
     if response == BLOCK:
         raise ValueError(f"The response cannot be named {BLOCK}: a blocked design's run sheet has a {BLOCK} column.")
@@ -3777,27 +3793,38 @@ def _design_runs(runs: pd.DataFrame) -> pd.DataFrame:
 
 def _coded(runs: pd.DataFrame, factors: list[dict]) -> pd.DataFrame:
     """Code each factor's settings to -1 at its low value and +1 at its high value, a category's labels too."""
-    return pd.DataFrame({f["name"]: _coded_column(runs[f["name"]], f) for f in factors})
+    return pd.DataFrame({f["name"]: _coded_column(runs, f) for f in factors})
 
 
-def _coded_column(column: pd.Series, factor: dict) -> pd.Series:
+def _coded_column(runs: pd.DataFrame, factor: dict) -> pd.Series:
     """Code one factor's settings; a categorical factor's runs must each be at one of its levels.
 
     A categorical factor of k levels is coded as the library codes it, its levels spread evenly from
     -1 to +1 in their order (``categorical_codes``): -1 and +1 for two, -1, 0 and +1 for three.
     """
+    column = runs[factor["name"]]
     if not _categorical(factor):
         return (column - (factor["high"] + factor["low"]) / 2) / ((factor["high"] - factor["low"]) / 2)
     codes = np.linspace(-1.0, 1.0, len(_levels_of(factor)))
-    return pd.Series(codes[_level_indices(column, factor)], index=column.index)
+    return pd.Series(codes[_level_indices(runs, factor)], index=column.index)
 
 
-def _level_indices(column: pd.Series, factor: dict) -> np.ndarray:
-    """Return which level each run of a categorical factor is at, refusing a run at none of them."""
+def _level_indices(runs: pd.DataFrame, factor: dict) -> np.ndarray:
+    """Return which level each run of a categorical factor is at, refusing a run at none of them.
+
+    A blank setting is named by its run, never by the ``nan`` that pandas reads it as (#1006).
+    """
     levels = _levels_of(factor)
+    column = runs[factor["name"]]
     found = [_level_index(v, levels) for v in column]
     if None in found:
-        other = column.iloc[found.index(None)]
+        at = found.index(None)
+        other = column.iloc[at]
+        if pd.isna(other) or (isinstance(other, str) and not other.strip()):
+            run = runs["Run order"].iloc[at] if "Run order" in runs.columns else at + 1
+            raise ValueError(
+                f"Factor {factor['name']}: run {int(run)} has no setting; each run must be at {_listed(levels, 'or')}."
+            )
         raise ValueError(f"Factor {factor['name']}: each run must be at {_listed(levels, 'or')}, not {other!r}.")
     return np.array(found, dtype=int)
 
@@ -3812,13 +3839,13 @@ def _design_frame(runs: pd.DataFrame, spec: dict, columns: list[str] | tuple[str
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
         if _several(f):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             at = frame.columns.get_loc(f["name"])
             frame = frame.drop(columns=f["name"])
             for j, name in enumerate(_contrast_names(f)):
                 frame.insert(at + j, name, _contrasts(index, len(_levels_of(f)))[:, j])
         if _categorical(f) and set(_indicator_names(f)) & set(columns):
-            index = _level_indices(runs[f["name"]], f)
+            index = _level_indices(runs, f)
             for j, name in enumerate(_indicator_names(f)):
                 frame[name] = _indicators(index, len(_levels_of(f)))[:, j]
     if _blocked(spec):
@@ -4678,9 +4705,10 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     parts; the others name none, and stay as they are.
     """
 
-    def spaced(word: str) -> str:
+    def spaced(word: str, *, identity: bool = False) -> str:
+        # The defining relation's I is the identity, a generator's is a factor: a factor may be named I.
         left, _, right = word.partition(" = ")
-        return f"{left if left == 'I' else _renamed_word(left, names)} = {_renamed_word(right, names)}"
+        return f"{left if identity else _renamed_word(left, names)} = {_renamed_word(right, names)}"
 
     generators = [spaced(g) for g in facts.get("generators") or []]
     groups = _aliased_groups(coded, list(names.values()))
@@ -4697,7 +4725,7 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
     return {
         **facts,
         "generators": generators,
-        "defining_relation": [spaced(w) for w in facts.get("defining_relation") or []],
+        "defining_relation": [spaced(w, identity=True) for w in facts.get("defining_relation") or []],
         "aliases": groups,
         "notes": notes,
     }

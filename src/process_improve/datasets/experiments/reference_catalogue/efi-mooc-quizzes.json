@@ -149,6 +149,7 @@
       },
       {
        "manual": "the distance between the cube plot's two water temperatures, 30 - 20 = 10 °C: the factor's range, a setting rather than a result",
+       "cause": "not_a_result",
        "printed": "10"
       }
      ],
@@ -252,7 +253,8 @@
       "term": "T",
       "model": "F*T",
       "printed": "-1",
-      "disagreement": "the answer key marks this option incorrect: the rating is 1 point lower at 10 h than at 16 h, not higher; the effect of time, 10 to 16 h, is +1"
+      "disagreement": "the answer key marks this option incorrect: the rating is 1 point lower at 10 h than at 16 h, not higher; the effect of time, 10 to 16 h, is +1",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -275,7 +277,8 @@
       "term": "T",
       "model": "F*T",
       "printed": "3",
-      "disagreement": "the answer key marks this option incorrect: the effect of time, 10 to 16 h, is +1 point, not 3"
+      "disagreement": "the answer key marks this option incorrect: the effect of time, 10 to 16 h, is +1 point, not 3",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -342,7 +345,8 @@
       "term": "F",
       "model": "F*T",
       "printed": "1",
-      "disagreement": "the answer key marks this option incorrect: the effect of fat content, 0 to 2%, is +3 points"
+      "disagreement": "the answer key marks this option incorrect: the effect of fat content, 0 to 2%, is +3 points",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -438,7 +442,8 @@
       "quote": "This is the correct answer; improved taste is at high levels of factor A and factor B."
      },
      "check": {
-      "manual": "a direction read off the option's image, an arrow on the square of A and B; toward high A and high B. The fit of A*B has coefficients +1 (A) and +1.5 (B), both positive, and the best run, 9, is at high A and high B"
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; toward high A and high B. The fit of A*B has coefficients +1 (A) and +1.5 (B), both positive, and the best run, 9, is at high A and high B",
+      "cause": "not_a_result"
      }
     },
     {
@@ -456,7 +461,8 @@
       "quote": "This direction does not increase taste."
      },
      "check": {
-      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, low B toward low A, high B. The explanation is wrong: along it taste rises from 6 (run 2) to 7 (run 3), +0.5 per coded unit in the fit of A*B; the option is rightly keyed incorrect only because the arrow toward high A and high B rises faster"
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, low B toward low A, high B. The explanation is wrong: along it taste rises from 6 (run 2) to 7 (run 3), +0.5 per coded unit in the fit of A*B; the option is rightly keyed incorrect only because the arrow toward high A and high B rises faster",
+      "cause": "not_a_result"
      }
     },
     {
@@ -474,7 +480,8 @@
       "quote": "This direction does not increase taste."
      },
      "check": {
-      "manual": "a direction read off the option's image, an arrow on the square of A and B; from low A, high B toward high A, low B; along it taste falls from 7 (run 3) to 6 (run 2)"
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from low A, high B toward high A, low B; along it taste falls from 7 (run 3) to 6 (run 2)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -492,7 +499,8 @@
       "quote": "This direction does not increase taste."
      },
      "check": {
-      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, high B toward low A, low B; along it taste falls from 9 (run 4) to 4 (run 1)"
+      "manual": "a direction read off the option's image, an arrow on the square of A and B; from high A, high B toward low A, low B; along it taste falls from 9 (run 4) to 4 (run 1)",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -591,7 +599,8 @@
       "term": "B",
       "model": "A*B",
       "printed": "12",
-      "disagreement": "the answer key marks this option incorrect: going from standing to sitting increases the time by 12 min; the effect of B, sitting to standing, is -12"
+      "disagreement": "the answer key marks this option incorrect: going from standing to sitting increases the time by 12 min; the effect of B, sitting to standing, is -12",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -613,7 +622,8 @@
       "term": "B",
       "model": "A*B",
       "printed": "0",
-      "disagreement": "the answer key marks this option incorrect: the effect of B, sitting to standing, is -12 min"
+      "disagreement": "the answer key marks this option incorrect: the effect of B, sitting to standing, is -12 min",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -657,7 +667,8 @@
       "term": "A",
       "model": "A*B",
       "printed": "-6",
-      "disagreement": "the answer key marks this option incorrect: going from a road racing bike to a mountain bike decreases the time by 6 min"
+      "disagreement": "the answer key marks this option incorrect: going from a road racing bike to a mountain bike decreases the time by 6 min",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -767,7 +778,8 @@
       "term": "C",
       "model": "A*B*C",
       "printed": "7",
-      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min"
+      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -810,7 +822,8 @@
       "term": "C",
       "model": "A*B*C",
       "printed": "+3.5",
-      "disagreement": "the answer key marks this option incorrect: the coefficient of C is 1.75; 3.5 is the effect"
+      "disagreement": "the answer key marks this option incorrect: the coefficient of C is 1.75; 3.5 is the effect",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -853,7 +866,8 @@
       "term": "C",
       "model": "A*B*C",
       "printed": "1.75",
-      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min; 1.75 is the coefficient"
+      "disagreement": "the answer key marks this option incorrect: the effect of C is 3.5 min; 1.75 is the coefficient",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1220,7 +1234,8 @@
       "kind": "coefficient",
       "term": "B",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -4"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -4",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1241,7 +1256,8 @@
       "kind": "coefficient",
       "term": "A·B",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1285,7 +1301,8 @@
       "term": "B",
       "model": "A*B",
       "printed": "8",
-      "disagreement": "the answer key marks this option incorrect: going from white to yellow corn increases the number popped by 8"
+      "disagreement": "the answer key marks this option incorrect: going from white to yellow corn increases the number popped by 8",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1358,7 +1375,8 @@
        "B": -1
       },
       "printed": "63",
-      "disagreement": "the answer key marks this option incorrect: the model predicts 71 for yellow corn at 180 s; 63 is its prediction for white corn"
+      "disagreement": "the answer key marks this option incorrect: the model predicts 71 for yellow corn at 180 s; 63 is its prediction for white corn",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -1511,7 +1529,8 @@
        "B": 0
       },
       "printed": "4",
-      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 4 cm is run 1, at 200 g and 50 mL"
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 4 cm is run 1, at 200 g and 50 mL",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1562,7 +1581,8 @@
        "B": 0
       },
       "printed": "3.75",
-      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 3.75 is the main effects' prediction at 200 g and 50 mL"
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 3.75 is the main effects' prediction at 200 g and 50 mL",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1588,7 +1608,8 @@
        "B": 0
       },
       "printed": "0",
-      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 0 is the coded value of each setting"
+      "disagreement": "the answer key marks this option incorrect: the model predicts 5.75 cm at 300 g and 75 mL; 0 is the coded value of each setting",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1604,7 +1625,8 @@
       "quote": "The coded value for $$x_\\text{A} = 0$$, since 300 grams is midway between 200 and 400 grams. The coded value for $$x_\\text{B} = 0$$, since 75 mL is midway between 50 and 100 mL."
      },
      "check": {
-      "manual": "the coded values of single settings, a unit conversion rather than a result: each setting is the centre of its range"
+      "manual": "the coded values of single settings, a unit conversion rather than a result: each setting is the centre of its range",
+      "cause": "not_a_result"
      }
     },
     {
@@ -1702,7 +1724,8 @@
       "kind": "coefficient",
       "term": "T·D",
       "model": "T*D",
-      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5"
+      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -1764,7 +1787,8 @@
       "kind": "coefficient",
       "term": "T·D",
       "model": "T*D",
-      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5; 3 is the interaction effect, twice b_TD"
+      "disagreement": "the answer key marks this option incorrect: b_TD is 1.5; 3 is the interaction effect, twice b_TD",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -2219,7 +2243,8 @@
       "term": "C",
       "model": "C*K*S",
       "printed": "-4.5",
-      "disagreement": "the answer key marks this option incorrect: the effect of C is -9 min; -4.5 is its coefficient"
+      "disagreement": "the answer key marks this option incorrect: the effect of C is -9 min; -4.5 is its coefficient",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -2411,7 +2436,8 @@
       "quote": "5 staff at the check-in counter: $$x_\\text{C}=0$$ 1 staff helping at the automatic check-in kiosks: $$x_\\text{K}=-1$$ 4 staff at the security gates: $$x_\\text{S}=+1$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: 5 is the centre of 4 to 6 staff, 1 the low level of K and 4 the high level of S"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 5 is the centre of 4 to 6 staff, 1 the low level of K and 4 the high level of S",
+      "cause": "not_a_result"
      }
     },
     {
@@ -2522,7 +2548,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza3.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, A and C 1.9, A:C 0.9, A:B:C and A:B 0.4, B:C and B 0.1, with B and B:C negative: the coefficients of A*B*C, under an axis labelled 'Magnitude of effect'"
     },
@@ -2541,7 +2568,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza4.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "its explanation reads 'Verify the magnitude of the effects.' By eye, A and C 3.75, A:C 1.75, A:B:C and A:B 0.75, B:C and B 0.25, with the signs of pizza3.png: these are the effects of A*B*C, twice the coefficients, so this plot shows the magnitude of the effects its axis names; it is keyed incorrect only because the course's Pareto plot shows coefficients"
     },
@@ -2560,7 +2588,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza1.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, the bars of pizza3.png with every sign reversed; the fit has the opposite signs"
     },
@@ -2579,7 +2608,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/pizza2.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, the bars of pizza3.png, with C, A:C and A:B:C drawn negative and B:C positive; in the fit C, A·C and A·B·C are positive and B·C negative"
     }
@@ -2683,7 +2713,8 @@
       "model": "W",
       "runs": [1, 2],
       "printed": "+1",
-      "disagreement": "the answer key marks this option incorrect: the effect of W at P = 10 L is 16 - 11 = +5"
+      "disagreement": "the answer key marks this option incorrect: the effect of W at P = 10 L is 16 - 11 = +5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -2728,7 +2759,8 @@
       "term": "Intercept",
       "model": "W*P",
       "printed": "10",
-      "disagreement": "the answer key marks this option incorrect: the fit's intercept is 10.75, and a Pareto plot does not show the intercept"
+      "disagreement": "the answer key marks this option incorrect: the fit's intercept is 10.75, and a Pareto plot does not show the intercept",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -2744,7 +2776,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Destructive%20-%20boiling%20water.jpeg\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, P 2.75 negative, W 1.75 positive and W:P 0.75 negative: the coefficients of W*P"
     }
@@ -2958,7 +2991,8 @@
       "quote": "Yes, this is correct. Earlier morning ($$x_D=-1$$) boosts the outcome variable."
      },
      "check": {
-      "manual": "the coded value of the 9:00 level, a setting rather than a result; the fit T*H*C*D gives D a coefficient of -7.06, so the low level, 9:00, gives the longer drives, as the option says"
+      "manual": "the coded value of the 9:00 level, a setting rather than a result; the fit T*H*C*D gives D a coefficient of -7.06, so the low level, 9:00, gives the longer drives, as the option says",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -3042,7 +3076,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/Long%20Jump.jpeg\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, F 0.6, S:F 0.575, R:S:F 0.35, S 0.325, R:S 0.15, R:F 0.125 and R 0.025, all positive: the coefficients of R*S*F"
     }
@@ -3333,7 +3368,8 @@
       "term": "A",
       "model": "A*B*C",
       "runs": [1, 2, 3, 4, 5, 6, 7, 8],
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -3379,7 +3415,8 @@
       "term": "C",
       "model": "A*B*C",
       "runs": [1, 2, 3, 4, 5, 6, 7, 8],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.75"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.75",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4139,7 +4176,8 @@
       "kind": "coefficient",
       "term": "H",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -7"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -7",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4160,7 +4198,8 @@
       "kind": "coefficient",
       "term": "I",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4181,7 +4220,8 @@
       "kind": "coefficient",
       "term": "S",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -2.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -2.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4349,7 +4389,8 @@
       "kind": "coefficient",
       "term": "H·I",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4370,7 +4411,8 @@
       "kind": "coefficient",
       "term": "H·S",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4391,7 +4433,8 @@
       "kind": "coefficient",
       "term": "I·S",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4496,7 +4539,8 @@
       "kind": "coefficient",
       "term": "H·I",
       "model": "H*I*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -4574,7 +4618,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/flu_Pplot.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, H 7 and S 2.5 negative, I 1.5 positive, H:S, I:S and H:I 0.25 positive and H:I:S 0: the coefficients of H*I*S"
     }
@@ -4663,7 +4708,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, P 5.75 and N 1.75 positive, D:N 1.25 and N:P 0.75 negative, D 0.25 positive, D:P 0.25 negative and D:N:P 0.25 positive: the coefficients of D*N*P on the eight runs"
     },
@@ -4682,7 +4728,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist1.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, the magnitudes of scores.png with P, N:P, D:P and D:N:P drawn with the wrong sign"
     },
@@ -4701,7 +4748,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist2.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, the magnitudes of scores.png with N, D:N, N:P and D:N:P drawn with the wrong sign"
     },
@@ -4720,7 +4768,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/scores-dist3.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, the magnitudes of scores.png with D, D:N, D:P and D:N:P drawn with the wrong sign"
     },
@@ -5387,7 +5436,8 @@
      "check": {
       "kind": "fraction_runs",
       "generator": "P=DR",
-      "disagreement": "the answer key marks this option incorrect: its table holds runs 1, 2, 7 and 8, where P = R; the fraction P = DR is runs 2, 3, 5 and 8"
+      "disagreement": "the answer key marks this option incorrect: its table holds runs 1, 2, 7 and 8, where P = R; the fraction P = DR is runs 2, 3, 5 and 8",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -5818,7 +5868,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "A + B + C + D + A:B + A:C + A:D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 29.75"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 29.75",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -5839,7 +5890,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A + B + C + D + A:B + A:C + A:D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -5860,7 +5912,8 @@
       "kind": "coefficient",
       "term": "B",
       "model": "A + B + C + D + A:B + A:C + A:D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -1"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -1",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -5923,7 +5976,8 @@
       "kind": "coefficient",
       "term": "A·B",
       "model": "A + B + C + D + A:B + A:C + A:D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -5944,7 +5998,8 @@
       "kind": "coefficient",
       "term": "A·C",
       "model": "A + B + C + D + A:B + A:C + A:D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6192,7 +6247,8 @@
       "kind": "coefficient",
       "term": "R",
       "model": "R + F + P",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6213,7 +6269,8 @@
       "kind": "coefficient",
       "term": "F",
       "model": "R + F + P",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.375"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.375",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6234,7 +6291,8 @@
       "kind": "coefficient",
       "term": "P",
       "model": "R + F + P",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.125"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.125",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6521,7 +6579,8 @@
       "kind": "fraction_runs",
       "generator": "S=TF",
       "printed": "5, 6, 7, 8",
-      "disagreement": "blocking on the sign of FTS puts runs 2, 3, 5 and 8 in one block and 1, 4, 6 and 7 in the other; experiments 5 to 8 of the table are the runs at high S, so the explanation's claim holds only in a run order the quiz does not give"
+      "disagreement": "blocking on the sign of FTS puts runs 2, 3, 5 and 8 in one block and 1, 4, 6 and 7 in the other; experiments 5 to 8 of the table are the runs at high S, so the explanation's claim holds only in a run order the quiz does not give",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -6695,7 +6754,8 @@
       "model": "A + B + C + D + E + F + C:D",
       "terms": ["A", "C", "F", "D"],
       "margin": "ME",
-      "disagreement": "the quiz reads significance off the Pareto plot of a saturated fit, which leaves no error estimate; by Lenth's method (PSE 18.4 s, margin of error 69.2 s on the effects) no effect is active. A, C, D and F are the four largest: effects C -42.25, F 16.75, A -13.25 and D -12.25 s"
+      "disagreement": "the quiz reads significance off the Pareto plot of a saturated fit, which leaves no error estimate; by Lenth's method (PSE 18.4 s, margin of error 69.2 s on the effects) no effect is active. A, C, D and F are the four largest: effects C -42.25, F 16.75, A -13.25 and D -12.25 s",
+      "cause": "method"
      }
     },
     {
@@ -6717,7 +6777,8 @@
       "model": "A + B + C + D + E + F + C:D",
       "terms": ["A", "B", "D", "E", "F"],
       "margin": "ME",
-      "disagreement": "the answer key marks this option incorrect; by Lenth's method no effect is active, and B and E are among the smallest"
+      "disagreement": "the answer key marks this option incorrect; by Lenth's method no effect is active, and B and E are among the smallest",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6760,7 +6821,8 @@
       "k": 6,
       "generators": ["D=AB", "E=AC", "F=BC"],
       "printed": "I = ABC = ADE = ABCFE = ABCDE = ABCDEF",
-      "disagreement": "the answer key marks this option incorrect: the relation of D = AB, E = AC, F = BC has the seven words ABD, ACE, BCF, DEF, BCDE, ACDF and ABEF"
+      "disagreement": "the answer key marks this option incorrect: the relation of D = AB, E = AC, F = BC has the seven words ABD, ACE, BCF, DEF, BCDE, ACDF and ABEF",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6890,7 +6952,8 @@
      "check": {
       "kind": "fraction_runs",
       "generator": "C=AB",
-      "disagreement": "the answer key marks this option incorrect: the fraction C = AB is runs 2, 3, 5 and 8"
+      "disagreement": "the answer key marks this option incorrect: the fraction C = AB is runs 2, 3, 5 and 8",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -6929,7 +6992,8 @@
      "check": {
       "kind": "fraction_runs",
       "generator": "C=-AB",
-      "disagreement": "the answer key marks this option incorrect: the fraction C = -AB is runs 1, 4, 6 and 7"
+      "disagreement": "the answer key marks this option incorrect: the fraction C = -AB is runs 1, 4, 6 and 7",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7213,7 +7277,8 @@
       "k": 3,
       "generators": ["C=AB"],
       "printed": "AC",
-      "disagreement": "the answer key marks this option incorrect: A is aliased with BC"
+      "disagreement": "the answer key marks this option incorrect: A is aliased with BC",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7314,7 +7379,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "A + B + C",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 30.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 30.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7335,7 +7401,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A + B + C",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 3.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 3.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7356,7 +7423,8 @@
       "kind": "coefficient",
       "term": "B",
       "model": "A + B + C",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1.75"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.75",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7377,7 +7445,8 @@
       "kind": "coefficient",
       "term": "C",
       "model": "A + B + C",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.25",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -7660,7 +7729,8 @@
       "term": "I",
       "k": 3,
       "generators": ["C=AB"],
-      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with ABC"
+      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with ABC",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -7934,7 +8004,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -3.605"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.605",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -7978,7 +8049,8 @@
       "kind": "coefficient",
       "term": "A·B",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.6055"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.6055",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8000,7 +8072,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 35.02"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 35.02",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8022,7 +8095,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -3.581"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.581",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8044,7 +8118,8 @@
       "kind": "coefficient",
       "term": "A²",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.2752"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.2752",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8326,7 +8401,8 @@
       "kind": "coefficient",
       "term": "D",
       "model": "P*S*D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.2"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.2",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8348,7 +8424,8 @@
       "kind": "coefficient",
       "term": "P·S",
       "model": "P*S*D",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8433,7 +8510,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "P + I(P**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 12"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 12",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8497,7 +8575,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "P + I(P**2)",
-      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives 12"
+      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives 12",
+      "cause": "source_error"
      }
     },
     {
@@ -8537,7 +8616,8 @@
       "kind": "coefficient",
       "term": "P²",
       "model": "P + I(P**2)",
-      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives -2"
+      "disagreement": "the explanation's code predicts with 17.75 - 6x - 3x^2, which is not the quadratic fit of these runs (12 - 5.5x - 2x^2, the option keyed correct); it reads as left over from another version of the question; the fit gives -2",
+      "cause": "source_error"
      }
     }
    ]
@@ -8704,7 +8784,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "V",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 8.727"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 8.727",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8790,7 +8871,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "V + I(V**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 7.6"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 7.6",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -8812,7 +8894,8 @@
       "kind": "coefficient",
       "term": "V",
       "model": "V + I(V**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 4.067"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 4.067",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -9020,7 +9103,8 @@
       "quote": "Each experiment that you run costs $5,000, so you can only conduct 10 experiments."
      },
      "check": {
-      "manual": "arithmetic on the scenario: a budget of $50,000 at $5,000 a run is 10 runs"
+      "manual": "arithmetic on the scenario: a budget of $50,000 at $5,000 a run is 10 runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9036,7 +9120,8 @@
       "quote": "In addition, you have $25,000 left to spend."
      },
      "check": {
-      "manual": "arithmetic on the scenario: five runs at $5,000 each leave $50,000 - $25,000 = $25,000"
+      "manual": "arithmetic on the scenario: five runs at $5,000 each leave $50,000 - $25,000 = $25,000",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9169,7 +9254,8 @@
       "quote": "If you wanted to run an 7th experiment and step by $$\\Delta x_\\text{A} = -1$$, then you should run that next experiment at the following coded units: $$x_\\text{A}$$ = $$-1$$ $$x_\\text{B}$$ = $$-1$$"
      },
      "check": {
-      "manual": "a step along the path of steepest ascent, which no check here computes: the fit 84.2 + 3.25 x_A + 1.25 x_B moves 1.25/3.25 = 0.38 in x_B per unit of x_A, so a step Delta x_A = -1 lands at x_B = -0.38 (and descends); (-1, -1) is not on the path"
+      "manual": "a step along the path of steepest ascent, which no check here computes: the fit 84.2 + 3.25 x_A + 1.25 x_B moves 1.25/3.25 = 0.38 in x_B per unit of x_A, so a step Delta x_A = -1 lands at x_B = -0.38 (and descends); (-1, -1) is not on the path",
+      "cause": "check_gap"
      }
     },
     {
@@ -9187,7 +9273,8 @@
       "quote": "The coded units for the 6th experiment, taken in the search direction, is: $$x_\\text{A}$$ = $$+2.6$$ $$x_\\text{B}$$ = $$+1$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 357.5 °F codes to (357.5 - 312.5)/12.5 = +3.6, not +2.6, so the option is wrong as the table prints run 6. Yet +2.6 is where the path of steepest ascent crosses x_B = +1 (3.25/1.25 = 2.6)"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 357.5 °F codes to (357.5 - 312.5)/12.5 = +3.6, not +2.6, so the option is wrong as the table prints run 6. Yet +2.6 is where the path of steepest ascent crosses x_B = +1 (3.25/1.25 = 2.6)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9205,7 +9292,8 @@
       "quote": "The coded units for the 6th experiment, taken in the search direction, is: $$x_\\text{A}$$ = $$+2.6$$ $$x_\\text{B}$$ = $$+1$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 20 min codes to (20 - 17.5)/2.5 = +1"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: run 6 at 20 min codes to (20 - 17.5)/2.5 = +1",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -9305,7 +9393,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -4"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -4",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -9327,7 +9416,8 @@
       "kind": "coefficient",
       "term": "B",
       "model": "A*B",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -3"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -9395,7 +9485,8 @@
       "quote": "11 | 363.75 | 18.97 | 12 | 372.56 | 22.5 | 13 | 363.75 | 26.03 | 14 | 354.94 | 22.5"
      },
      "check": {
-      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: 363.75 +/- 1.41 x 6.25 = 372.56 and 354.94 °F, 22.5 +/- 1.41 x 2.5 = 26.025 and 18.975 min, printed 26.03 and 18.97; with alpha = sqrt(2) they would be 372.59, 354.91, 26.04 and 18.96"
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: 363.75 +/- 1.41 x 6.25 = 372.56 and 354.94 °F, 22.5 +/- 1.41 x 2.5 = 26.025 and 18.975 min, printed 26.03 and 18.97; with alpha = sqrt(2) they would be 372.59, 354.91, 26.04 and 18.96",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9413,7 +9504,8 @@
       "quote": "11 | 363.75 | 17.32 | 12 | 374.56 | 22.5 | 13 | 363.75 | 26.12 | 14 | 352.98 | 22.5"
      },
      "check": {
-      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -2.07, +1.73, +1.45 and -1.72, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94"
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -2.07, +1.73, +1.45 and -1.72, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9431,7 +9523,8 @@
       "quote": "11 | 363.75 | 19.15 | 12 | 373.76 | 22.5 | 13 | 363.75 | 27.03 | 14 | 350.54 | 22.5"
      },
      "check": {
-      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -1.34, +1.60, +1.81 and -2.11, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94"
+      "manual": "the axial runs in real-world units, the centre plus or minus alpha times the half-range: arithmetic on the coding, not a result of the runs: these code to -1.34, +1.60, +1.81 and -2.11, neither symmetric nor at 1.41; the axial runs are at 18.97, 372.56, 26.03 and 354.94",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -9504,7 +9597,8 @@
       "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Correct plot.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the fit has no interaction, so its contours are straight; it predicts 5 at (+1, -1) and 15 at x_P = -1.86 when x_T = -1, as the plot draws"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit has no interaction, so its contours are straight; it predicts 5 at (+1, -1) and 15 at x_P = -1.86 when x_T = -1, as the plot draws",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9522,7 +9616,8 @@
       "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Wrong plot #1.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: a surface with a strong interaction, which the fit (interaction 0) does not have; the run at (-1, -1) is 12"
+      "manual": "a contour plot read by eye off the image, which no check here computes: a surface with a strong interaction, which the fit (interaction 0) does not have; the run at (-1, -1) is 12",
+      "cause": "not_a_result"
      }
     },
     {
@@ -9540,7 +9635,8 @@
       "quote": "The full factorial above can be shown with the following contour plot: [image: Garden - Wrong plot #2.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (+1, +1) is 6 and the fit predicts 6 there; this surface rises the wrong way"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (+1, +1) is 6 and the fit predicts 6 there; this surface rises the wrong way",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -9821,7 +9917,8 @@
       "quote": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = -0.7$$"
      },
      "check": {
-      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_T wrong"
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_T wrong",
+      "cause": "check_gap"
      }
     },
     {
@@ -9839,7 +9936,8 @@
       "quote": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = -0.7$$"
      },
      "check": {
-      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has both signs wrong"
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has both signs wrong",
+      "cause": "check_gap"
      }
     },
     {
@@ -9857,7 +9955,8 @@
       "quote": "$$\\mathbf{D} = +0.6$$ $$\\mathbf{T} = +0.7$$"
      },
      "check": {
-      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_D wrong"
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option has the sign of x_D wrong",
+      "cause": "check_gap"
      }
     },
     {
@@ -9875,7 +9974,8 @@
       "quote": "$$\\mathbf{D} = -0.6$$ $$\\mathbf{T} = +0.7$$"
      },
      "check": {
-      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option is that point, rounded"
+      "manual": "the stationary point of the quadratic fit, which no check here computes: setting both derivatives to zero with the fit's unrounded coefficients gives x_D = -0.557 and x_T = +0.681, a maximum (about 64.9 kW); this option is that point, rounded",
+      "cause": "check_gap"
      }
     }
    ]
@@ -10169,7 +10269,8 @@
        "term": "M²",
        "model": "M + H + M:H + I(M**2) + I(H**2)",
        "printed": "-2.76",
-       "disagreement": "the explanation differentiates the printed model, whose -1.38 is the fit's -1.375 rounded: twice -1.38 is -2.76, where twice the fit's coefficient is -2.75"
+       "disagreement": "the explanation differentiates the printed model, whose -1.38 is the fit's -1.375 rounded: twice -1.38 is -2.76, where twice the fit's coefficient is -2.75",
+       "cause": "source_rounding"
       }
      ]
     },
@@ -10206,7 +10307,8 @@
        "term": "H²",
        "model": "M + H + M:H + I(M**2) + I(H**2)",
        "printed": "-1.76",
-       "disagreement": "the explanation differentiates the printed model, whose -0.88 is the fit's -0.875 rounded: twice -0.88 is -1.76, where twice the fit's coefficient is -1.75"
+       "disagreement": "the explanation differentiates the printed model, whose -0.88 is the fit's -0.875 rounded: twice -0.88 is -1.76, where twice the fit's coefficient is -1.75",
+       "cause": "source_rounding"
       }
      ]
     },
@@ -10225,7 +10327,8 @@
       "quote": "$$x_\\text{M} \\approx 1.38$$ or $$1038$$ grams of malt in real world units"
      },
      "check": {
-      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41"
+      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41",
+      "cause": "check_gap"
      }
     },
     {
@@ -10243,7 +10346,8 @@
       "quote": "$$x_\\text{H} \\approx -1.59$$ or $$4.82$$ grams of hops in real world units"
      },
      "check": {
-      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41"
+      "manual": "the stationary point, which no check here computes: the explanation's rounded equations solve to x_M = 1.377 and x_H = -1.591; the unrounded fit's stationary point is x_M = 1.391, x_H = -1.612, a maximum of about 10.1, which is 1039 g of malt and 4.78 g of hops, beyond the axial run at x_H = -1.41",
+      "cause": "check_gap"
      }
     },
     {
@@ -10261,7 +10365,8 @@
       "quote": "The contour plot of the original factorial DOE, using only the first 5 experiments would look like: [image: Beer 5exp plot good.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the fit 6.4 + 1.5 x_M - 0.75 x_H - 1.25 x_M x_H predicts 9.9 at (+1, -1), 4.4 at (-1, -1) and 6.4 at the centre, as the plot draws"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit 6.4 + 1.5 x_M - 0.75 x_H - 1.25 x_M x_H predicts 9.9 at (+1, -1), 4.4 at (-1, -1) and 6.4 at the centre, as the plot draws",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10279,7 +10384,8 @@
       "quote": "The contour plot of the original factorial DOE, using the first 5 experiments would look like: [image: Beer 5exp plot bad.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 6.4 at the centre (8 was observed there), not 5"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 6.4 at the centre (8 was observed there), not 5",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10297,7 +10403,8 @@
       "quote": "Using all experiments noted above, the CCD contour plot would look like this: [image: Beer 9exp plot good.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the quadratic fit has its maximum, 10.1, at (+1.39, -1.61), as the plot draws"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the quadratic fit has its maximum, 10.1, at (+1.39, -1.61), as the plot draws",
+      "cause": "not_a_result"
      }
     },
     {
@@ -10315,7 +10422,8 @@
       "quote": "Using all experiments noted above, the CCD contour plot would look like this: [image: Beer 9exp plot bad.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: both squared terms of the fit are negative, so its surface has a maximum, not a minimum"
+      "manual": "a contour plot read by eye off the image, which no check here computes: both squared terms of the fit are negative, so its surface has a maximum, not a minimum",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -10462,7 +10570,8 @@
       "term": "Intercept",
       "model": "P*T",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 9"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 9",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -10485,7 +10594,8 @@
       "term": "P",
       "model": "P*T",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -10508,7 +10618,8 @@
       "term": "T",
       "model": "P*T",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -10531,7 +10642,8 @@
       "term": "P·T",
       "model": "P*T",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -10643,7 +10755,8 @@
       "term": "P",
       "model": "P + I(P**2)",
       "runs": [1, 2, 3, 4, 5],
-      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -3.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -10735,7 +10848,8 @@
       "quote": "The coded value is $$x_\\text{A}=3$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 8 weeks is (8 - 5)/1 = +3; the explanation calls it x_A, the factor being P"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 8 weeks is (8 - 5)/1 = +3; the explanation calls it x_A, the factor being P",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -10987,7 +11101,8 @@
       "model": "N + R + T",
       "runs": [1, 2, 3, 4],
       "response": "followers",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 127.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 127.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11035,7 +11150,8 @@
       "model": "N + R + T",
       "runs": [1, 2, 3, 4],
       "response": "followers",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 0"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 0",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11059,7 +11175,8 @@
       "model": "N + R + T",
       "runs": [1, 2, 3, 4],
       "response": "followers",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 2.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 2.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11083,7 +11200,8 @@
       "model": "N + R + T",
       "runs": [1, 2, 3, 4],
       "response": "reposts",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 89"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 89",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11131,7 +11249,8 @@
       "model": "N + R + T",
       "runs": [1, 2, 3, 4],
       "response": "reposts",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11270,7 +11389,8 @@
       "quote": "If the sites were open for 16 hours per week and number of electronic recycling depots was 8, this would represent coded units of: $$\\mathbf{H} = +3 $$ $$\\mathbf{S} = +2$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11288,7 +11408,8 @@
       "quote": "If the sites were open for 16 hours per week and number of electronic recycling depots was 8, this would represent coded units of: $$\\mathbf{H} = +3 $$ $$\\mathbf{S} = +2$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (8 - 4)/2 = +2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (8 - 4)/2 = +2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11306,7 +11427,8 @@
       "quote": "If the sites were open for 4 hours per week and number of electronic recycling depots was 1, this would represent coded units of: $$\\mathbf{H} = -3$$ $$\\mathbf{S} = -1.5$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (4 - 10)/2 = -3"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (4 - 10)/2 = -3",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11324,7 +11446,8 @@
       "quote": "If the sites were open for 4 hours per week and number of electronic recycling depots was 1, this would represent coded units of: $$\\mathbf{H} = -3$$ $$\\mathbf{S} = -1.5$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 4)/2 = -1.5"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 4)/2 = -1.5",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11425,7 +11548,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "H*S",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 142.5"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 142.5",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11656,7 +11780,8 @@
       "term": "Intercept",
       "model": "L*N",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 61.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 61.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11679,7 +11804,8 @@
       "term": "L",
       "model": "L*N",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives -6.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -6.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11702,7 +11828,8 @@
       "term": "N",
       "model": "L*N",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives -16.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -16.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11725,7 +11852,8 @@
       "term": "L·N",
       "model": "L*N",
       "runs": [1, 2, 3, 4],
-      "disagreement": "the answer key marks this option incorrect; the fit gives 1.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 1.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -11743,7 +11871,8 @@
       "quote": "If the length of the classes were 3.75 hours and the program ran for 5 weeks, then the coded units for the system would be: $$\\mathbf{L} = +2 $$ $$\\mathbf{N} = 0$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (3.75 - 2.25)/0.75 = +2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (3.75 - 2.25)/0.75 = +2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -11761,7 +11890,8 @@
       "quote": "If the length of the classes were 3.75 hours and the program ran for 5 weeks, then the coded units for the system would be: $$\\mathbf{L} = +2 $$ $$\\mathbf{N} = 0$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (5 - 5)/1 = 0"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (5 - 5)/1 = 0",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -12020,7 +12150,8 @@
       "kind": "coefficient",
       "term": "Intercept",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives 6.375"
+      "disagreement": "the answer key marks this option incorrect; the fit gives 6.375",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -12042,7 +12173,8 @@
       "kind": "coefficient",
       "term": "A",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -2.25"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -2.25",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -12064,7 +12196,8 @@
       "kind": "coefficient",
       "term": "A²",
       "model": "A + I(A**2)",
-      "disagreement": "the answer key marks this option incorrect; the fit gives -0.625"
+      "disagreement": "the answer key marks this option incorrect; the fit gives -0.625",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -12117,7 +12250,8 @@
        "C": 0
       },
       "printed": "0.5",
-      "disagreement": "the answer key marks this option incorrect: the quadratic model predicts -0.625 at 600 W"
+      "disagreement": "the answer key marks this option incorrect: the quadratic model predicts -0.625 at 600 W",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -12194,7 +12328,8 @@
       "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 15 minutes and $$\\mathbf{B}$$ = 700mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$+3$$ $$\\mathbf{B}$$ = $$+2$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (15 - 7.5)/2.5 = +3, which is right; the option is wrong in B"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (15 - 7.5)/2.5 = +3, which is right; the option is wrong in B",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12212,7 +12347,8 @@
       "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 15 minutes and $$\\mathbf{B}$$ = 700mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$+3$$ $$\\mathbf{B}$$ = $$+2$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (700 - 400)/100 = +3, not +2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (700 - 400)/100 = +3, not +2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12230,7 +12366,8 @@
       "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 2.5 minutes and $$\\mathbf{B}$$ = 500mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$-2$$ $$\\mathbf{B}$$ = $$+1$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (2.5 - 7.5)/2.5 = -2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (2.5 - 7.5)/2.5 = -2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12248,7 +12385,8 @@
       "quote": "if Jason wanted to conduct an experiment at $$\\mathbf{A}$$ = 2.5 minutes and $$\\mathbf{B}$$ = 500mL, then the coded unit representation would be: $$\\mathbf{A}$$ = $$-2$$ $$\\mathbf{B}$$ = $$+1$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (500 - 400)/100 = +1"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (500 - 400)/100 = +1",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12266,7 +12404,8 @@
       "quote": "With a step of $$+1$$ unit in $$x_A$$, from the baseline of (0, 0) Jason should have moved to $$+2$$ units in $$x_B$$."
      },
      "check": {
-      "manual": "a step along the path of steepest descent, which no check here computes: the fit 276.2 - 9 x_A - 14 x_B + 1.5 x_A x_B moves 14/9 = 1.56 in x_B per unit of x_A, so +1.56, not +2; run 6, at 556 mL, is at x_B = +1.56, on the path"
+      "manual": "a step along the path of steepest descent, which no check here computes: the fit 276.2 - 9 x_A - 14 x_B + 1.5 x_A x_B moves 14/9 = 1.56 in x_B per unit of x_A, so +1.56, not +2; run 6, at 556 mL, is at x_B = +1.56, on the path",
+      "cause": "check_gap"
      }
     },
     {
@@ -12397,7 +12536,8 @@
       "quote": "A.coded # has a value of 2.0"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 12.5 min is (12.5 - 7.5)/2.5 = +2.0"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 12.5 min is (12.5 - 7.5)/2.5 = +2.0",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12413,7 +12553,8 @@
       "quote": "B.coded # has a value of 3.11"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 711 mL is (711 - 400)/100 = +3.11"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 711 mL is (711 - 400)/100 = +3.11",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -12487,7 +12628,8 @@
       "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Stocks good plot.jpeg]"
      },
      "check": {
-      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 537 (thousand $) there, above the best factorial run, 500"
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 537 (thousand $) there, above the best factorial run, 500",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12505,7 +12647,8 @@
       "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Bad plot #1 Stocks.jpeg]"
      },
      "check": {
-      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 437 (thousand $) there, below the best factorial run, 500"
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 437 (thousand $) there, below the best factorial run, 500",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12523,7 +12666,8 @@
       "quote": "A good place to run the 6th experiment would be at the point indicated on the following contour plot: [image: Bad plot #2 Stocks.jpeg]"
      },
      "check": {
-      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 384 (thousand $) there, down the slope"
+      "manual": "a point read off the contour plot image, which no check here computes; the fit 443 + 33.75 x_A + 16.25 x_B + 3.75 x_A x_B predicts about 384 (thousand $) there, down the slope",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -12597,7 +12741,8 @@
       "quote": "If the city were to conduct a 6th experiment and you wanted to step $$+1.5$$ in $$x_\\text{H}$$, you should conduct this initial optimal search experiment at the following coded units: $$\\mathbf{H}=+1.5$$ $$\\mathbf{S}=+2.8$$"
      },
      "check": {
-      "manual": "a step along the path of steepest descent, which no check here computes: 1.5 x 32.5/17.5 = 2.79 in x_S for a step of +1.5 in x_H"
+      "manual": "a step along the path of steepest descent, which no check here computes: 1.5 x 32.5/17.5 = 2.79 in x_S for a step of +1.5 in x_H",
+      "cause": "check_gap"
      }
     },
     {
@@ -12615,7 +12760,8 @@
       "quote": "If the city were to conduct a 6th experiment and you wanted to step $$+2$$ in $$x_\\text{S}$$, you should conduct this initial optimal search experiment at the following coded units: $$\\mathbf{H} \\approx +1.1$$ $$\\mathbf{S} = +2$$"
      },
      "check": {
-      "manual": "a step along the path of steepest descent, which no check here computes: 2 x 17.5/32.5 = 1.08 in x_H for a step of +2 in x_S"
+      "manual": "a step along the path of steepest descent, which no check here computes: 2 x 17.5/32.5 = 1.08 in x_H for a step of +2 in x_S",
+      "cause": "check_gap"
      }
     },
     {
@@ -12633,7 +12779,8 @@
       "quote": "The full factorial above can be shown with the following contour plot: [image: Recycling electronics - good plot.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 199.5, 149.5 and 99.5 at those runs, as the plot draws"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the fit predicts 199.5, 149.5 and 99.5 at those runs, as the plot draws",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12651,7 +12798,8 @@
       "quote": "The full factorial above can be visualized with the following contour plot: [image: Recycling electronics - bad plot.jpeg]"
      },
      "check": {
-      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (-1, +1) is 120 and the fit predicts 119.5 there, not 100"
+      "manual": "a contour plot read by eye off the image, which no check here computes: the run at (-1, +1) is 120 and the fit predicts 119.5 there, not 100",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12669,7 +12817,8 @@
       "quote": "if the city wanted to conduct an experiment at $$\\mathbf{H}$$ = 16 hours and $$\\mathbf{S}$$ = 1 site, then the coded unit representation would be: $$\\mathbf{H}$$ = $$+3$$ $$\\mathbf{S}$$ = $$-1.5$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3, which is right, as the option's explanation says"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (16 - 10)/2 = +3, which is right, as the option's explanation says",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12687,7 +12836,8 @@
       "quote": "if the city wanted to conduct an experiment at $$\\mathbf{H}$$ = 16 hours and $$\\mathbf{S}$$ = 1 site, then the coded unit representation would be: $$\\mathbf{H}$$ = $$+3$$ $$\\mathbf{S}$$ = $$-1.5$$"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 3)/1 = -2 with S from 2 to 4 sites, not -1.5 (which it is with S from 2 to 6, as in practice quiz 5A)"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (1 - 3)/1 = -2 with S from 2 to 4 sites, not -1.5 (which it is with S from 2 to 6, as in practice quiz 5A)",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -12725,7 +12875,8 @@
       "quote": "There seem to be 3 factors in her experiment, as described above."
      },
      "check": {
-      "manual": "a count of the factors the question names (time of day, shoe type, arm position), which no check computes"
+      "manual": "a count of the factors the question names (time of day, shoe type, arm position), which no check computes",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12753,7 +12904,8 @@
       },
       "property": "n_runs",
       "printed": "6",
-      "disagreement": "the answer key marks this option incorrect: the full factorial in three two-level factors has 2^3 = 8 runs; 2 + 2 + 2 adds the levels"
+      "disagreement": "the answer key marks this option incorrect: the full factorial in three two-level factors has 2^3 = 8 runs; 2 + 2 + 2 adds the levels",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -12842,7 +12994,8 @@
       "quote": "4"
      },
      "check": {
-      "manual": "the question prints the model and no runs, so there is nothing to fit: 7 + 3(-1) - 4(0) + 2(-1)(0) = 4, with BASF coded -1 and 330 °C, the centre of B, coded 0"
+      "manual": "the question prints the model and no runs, so there is nothing to fit: 7 + 3(-1) - 4(0) + 2(-1)(0) = 4, with BASF coded -1 and 330 °C, the centre of B, coded 0",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -12858,7 +13011,8 @@
       "quote": "Note that the coding is $$x_\\text{A}=-1$$ and that $$x_\\text{B}=0$$."
      },
      "check": {
-      "manual": "the coded values of single settings, a unit conversion rather than a result: BASF is A's low level, and 330 °C is midway between 320 and 340 °C"
+      "manual": "the coded values of single settings, a unit conversion rather than a result: BASF is A's low level, and 330 °C is midway between 320 and 340 °C",
+      "cause": "not_a_result"
      }
     },
     {
@@ -12874,7 +13028,8 @@
       "quote": "\\hat{y} &= 7 + 3 (-1) - 4 (0) + 2(-1)(0)\\\\ \\hat{y}&= 7 - 3 = 4"
      },
      "check": {
-      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right"
+      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -12911,7 +13066,8 @@
       "quote": "+7"
      },
      "check": {
-      "manual": "read off the model the question prints, which has no runs to fit: +7 is the intercept, as the option's explanation says"
+      "manual": "read off the model the question prints, which has no runs to fit: +7 is the intercept, as the option's explanation says",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -12929,7 +13085,8 @@
       "quote": "+3"
      },
      "check": {
-      "manual": "read off the model the question prints, which has no runs to fit: +3 is the coefficient of x_A"
+      "manual": "read off the model the question prints, which has no runs to fit: +3 is the coefficient of x_A",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -12947,7 +13104,8 @@
       "quote": "-4"
      },
      "check": {
-      "manual": "read off the model the question prints, which has no runs to fit: -4 is the coefficient of x_B"
+      "manual": "read off the model the question prints, which has no runs to fit: -4 is the coefficient of x_B",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -12965,7 +13123,8 @@
       "quote": "+2"
      },
      "check": {
-      "manual": "read off the model the question prints, which has no runs to fit: +2 multiplies x_A x_B, the two-factor interaction"
+      "manual": "read off the model the question prints, which has no runs to fit: +2 multiplies x_A x_B, the two-factor interaction",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -12998,7 +13157,8 @@
       "quote": "\\text{coded humidity value} = x_\\text{B} = \\dfrac{(40\\%) - (40\\%)}{\\tfrac{1}{2}\\left(50\\% - 30\\% \\right)} = 0"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: 40% is the centre of 30 to 50%, so (40 - 40) / 10 = 0"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 40% is the centre of 30 to 50%, so (40 - 40) / 10 = 0",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13016,7 +13176,8 @@
       "quote": "$$x_\\text{A} = 2$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, as the key says"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, as the key says",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13034,7 +13195,8 @@
       "quote": "$$x_\\text{A} = 1$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1 is the coded value of 40 degrees, the high level"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1 is the coded value of 40 degrees, the high level",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13052,7 +13214,8 @@
       "quote": "$$x_\\text{A} = 0$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 0 is the coded value of 35 degrees, the centre"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 0 is the coded value of 35 degrees, the centre",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13070,7 +13233,8 @@
       "quote": "$$x_\\text{A} = 1.75$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, not 1.75"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2, not 1.75",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13088,7 +13252,8 @@
       "quote": "$$x_\\text{A} = 1.5$$"
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1.5 is the coded value of 42.5 degrees"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: (45 - 35) / (0.5 × 10) = 2; 1.5 is the coded value of 42.5 degrees",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -13125,7 +13290,8 @@
       "quote": "6.25"
      },
      "check": {
-      "manual": "the question prints the model and no runs, so there is nothing to fit: 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 6.25, with 11:1 coded 0 and soap A coded -1"
+      "manual": "the question prints the model and no runs, so there is nothing to fit: 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 6.25, with 11:1 coded 0 and soap A coded -1",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13141,7 +13307,8 @@
       "quote": "As an 11:1 ratio of water to soap is halfway between 10:1 (A$$-$$) and 12:1(A$$+$$), it would have a coded value of $$0$$. The coded value of soap A is $$-1$$."
      },
      "check": {
-      "manual": "the coded value of a single setting, a unit conversion rather than a result: 11:1 is midway between 10:1 and 12:1, and soap A is B's low level, coded -1"
+      "manual": "the coded value of a single setting, a unit conversion rather than a result: 11:1 is midway between 10:1 and 12:1, and soap A is B's low level, coded -1",
+      "cause": "not_a_result"
      }
     },
     {
@@ -13157,7 +13324,8 @@
       "quote": "$$\\hat{y} = 4.5 + 3(0) - 1.75(-1) + 1(0)(-1) = 4.5 + 1.75 = 6.25$$"
      },
      "check": {
-      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right"
+      "manual": "the question prints the model and no runs, so there is nothing to fit: the explanation's arithmetic on the printed model, which is right",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -13191,7 +13359,8 @@
       "quote": "$$3^3 = 27$$"
      },
      "check": {
-      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 27 would be three factors at three levels"
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 27 would be three factors at three levels",
+      "cause": "check_gap"
      }
     },
     {
@@ -13209,7 +13378,8 @@
       "quote": "$$3^2 = 9$$"
      },
      "check": {
-      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only"
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only",
+      "cause": "check_gap"
      }
     },
     {
@@ -13227,7 +13397,8 @@
       "quote": "$$2^3 = 8$$"
      },
      "check": {
-      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 8 would be three factors at two levels"
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 8 would be three factors at two levels",
+      "cause": "check_gap"
      }
     },
     {
@@ -13245,7 +13416,8 @@
       "quote": "$$3+3=6$$"
      },
      "check": {
-      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 6 adds the levels instead of multiplying them"
+      "manual": "a run count of a full factorial in two factors at three levels each, 3^2 = 9; design_property builds two-level factors only; 6 adds the levels instead of multiplying them",
+      "cause": "check_gap"
      }
     }
    ]
@@ -13280,7 +13452,8 @@
       "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
      },
      "check": {
-      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13296,7 +13469,8 @@
       "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
      },
      "check": {
-      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13312,7 +13486,8 @@
       "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
      },
      "check": {
-      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13328,7 +13503,8 @@
       "quote": "\\hat{y} = 669 + 93.75 x_S -11.25x_R + 63.75x_Sx_R"
      },
      "check": {
-      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms"
+      "manual": "the explanation's model, fitted from runs the quiz does not print; the Pareto plot shows the same terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13344,7 +13520,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/SR%20-%20Synergy.jpeg\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, S 94 and S:R 64 positive, R 11 negative: the coefficients of the explanation's model"
     }
@@ -13380,7 +13557,8 @@
       "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
      },
      "check": {
-      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13396,7 +13574,8 @@
       "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
      },
      "check": {
-      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13412,7 +13591,8 @@
       "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
      },
      "check": {
-      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13428,7 +13608,8 @@
       "quote": "$$y = 16.5 + 1.25x_{A} - 4x_{B} + 0.75x_{A}x_{B}$$"
      },
      "check": {
-      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms"
+      "manual": "a model the question states, with no runs to fit it from; the Pareto plots draw its terms",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -13446,7 +13627,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, B 4 negative, A 1.25 and A:B 0.75 positive: the model's coefficients"
     },
@@ -13465,7 +13647,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist1.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, A 4 negative and B 1.25 positive: A and B swapped, as its explanation says"
     },
@@ -13484,7 +13667,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist2.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, A:B 1.25 and A 0.75: A and A:B swapped, as its explanation says"
     },
@@ -13503,7 +13687,8 @@
       "quote": "<img src=\"https://d396qusza40orc.cloudfront.net/experiments/quiz_assets/week3/q3-model-dist3.png\">"
      },
      "check": {
-      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit"
+      "manual": "a Pareto plot given only as an image: its bars are read off the axis by eye, with no digits printed; the note compares them with the fit",
+      "cause": "not_a_result"
      },
      "note": "by eye, B 4 positive and A:B 0.75 negative: B's sign reversed (and A:B's), as its explanation says"
     }
@@ -13700,7 +13885,8 @@
       "k": 3,
       "factors": ["T", "S", "C"],
       "generators": ["C=TS"],
-      "disagreement": "the answer key marks this option incorrect: C is aliased with TS, and TSC with the intercept"
+      "disagreement": "the answer key marks this option incorrect: C is aliased with TS, and TSC with the intercept",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -13868,7 +14054,8 @@
       "k": 4,
       "factors": ["A", "R", "T", "E"],
       "generators": ["E=ART"],
-      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with AERT"
+      "disagreement": "the answer key marks this option incorrect: the intercept is aliased with AERT",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -14019,7 +14206,8 @@
        }
       },
       "property": "n_runs",
-      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^7 = 128 runs"
+      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^7 = 128 runs",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -14037,7 +14225,8 @@
       "quote": "A full factorial will cost almost $900 to complete, if each experiment costs $7 to run."
      },
      "check": {
-      "manual": "arithmetic on the run count: 128 runs at $7 each is $896, which is almost $900"
+      "manual": "arithmetic on the run count: 128 runs at $7 each is $896, which is almost $900",
+      "cause": "not_a_result"
      }
     },
     {
@@ -14109,7 +14298,8 @@
       "k": 7,
       "resolution": 7,
       "printed": "G = ABC",
-      "disagreement": "the answer key marks this option incorrect: G = ABC makes a half fraction of resolution IV, where G = ABCDEF makes one of resolution VII"
+      "disagreement": "the answer key marks this option incorrect: G = ABC makes a half fraction of resolution IV, where G = ABCDEF makes one of resolution VII",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -14310,7 +14500,8 @@
       "factors": ["P", "Q", "R"],
       "generators": ["R=PQ"],
       "printed": "P = -QR",
-      "disagreement": "the answer key marks this option incorrect: P = -QR makes the other half fraction, I = -PQR"
+      "disagreement": "the answer key marks this option incorrect: P = -QR makes the other half fraction, I = -PQR",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -14421,7 +14612,8 @@
       "factors": ["A", "R", "T"],
       "generators": ["T=AR"],
       "printed": "ART",
-      "disagreement": "the answer key marks this option incorrect: T is aliased with AR"
+      "disagreement": "the answer key marks this option incorrect: T is aliased with AR",
+      "cause": "incorrect_option"
      }
     }
    ]
@@ -14652,7 +14844,8 @@
       "quote": "Defining relationships have $$2^p$$ words, which is equal to $$2^2=4$$ in this case, not 2 words."
      },
      "check": {
-      "manual": "a count of words, which no check here computes; the relation is I = ABD = ACE = BCDE, four words counting I"
+      "manual": "a count of words, which no check here computes; the relation is I = ABD = ACE = BCDE, four words counting I",
+      "cause": "check_gap"
      }
     }
    ]
@@ -14753,7 +14946,8 @@
      "check": {
       "kind": "standard_order",
       "factors": ["M", "L", "W"],
-      "disagreement": "a typo in the explanation: the last run (carbon fibre, short, no) is row 1 of the standard order, so the list is 8, 3, 5, 2, 6, 7, 4, 1; row 3 is already the second run"
+      "disagreement": "a typo in the explanation: the last run (carbon fibre, short, no) is row 1 of the standard order, so the list is 8, 3, 5, 2, 6, 7, 4, 1; row 3 is already the second run",
+      "cause": "source_error"
      }
     }
    ]
@@ -14816,7 +15010,8 @@
       "k": 6,
       "resolution": 3,
       "printed": "I = ABD = ACE = BCDE",
-      "disagreement": "the answer key marks this option incorrect: that is the relation of the five-factor quarter fraction D = AB, E = AC, with no F"
+      "disagreement": "the answer key marks this option incorrect: that is the relation of the five-factor quarter fraction D = AB, E = AC, with no F",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -14834,7 +15029,8 @@
       "quote": "There are 3 generators, and $$2^3$$ words in the defining relationship."
      },
      "check": {
-      "manual": "a count of words, which no check here computes; the relation checked above has eight, counting I"
+      "manual": "a count of words, which no check here computes; the relation checked above has eight, counting I",
+      "cause": "check_gap"
      }
     },
     {
@@ -14852,7 +15048,8 @@
       "quote": "A = Baking temperature: around 270°C. B = Number of minutes he stirs the dough for: 4 minutes C = Mass of chocolate chips per batch: 225 grams. D = Baking duration: around 17 to 18 minutes"
      },
      "check": {
-      "manual": "the centre of each factor's range, (250 + 290) / 2 = 270 °C, 4 min, 225 g and 17.5 min: a baseline chosen, not a result"
+      "manual": "the centre of each factor's range, (250 + 290) / 2 = 270 °C, 4 min, 225 g and 17.5 min: a baseline chosen, not a result",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -14897,7 +15094,8 @@
       },
       "property": "n_runs",
       "printed": "32",
-      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^6 = 64 runs"
+      "disagreement": "the answer key marks this option incorrect: the full factorial has 2^6 = 64 runs",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -14954,7 +15152,8 @@
       },
       "property": "resolution",
       "printed": "III",
-      "disagreement": "the answer key marks this option incorrect: the fraction of six factors in 16 runs has resolution IV"
+      "disagreement": "the answer key marks this option incorrect: the fraction of six factors in 16 runs has resolution IV",
+      "cause": "incorrect_option"
      }
     },
     {
@@ -15072,7 +15271,8 @@
       "quote": "A = Time going to bed = 1am [...] A = Time going to bed = +3"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 1am is 3 h after the centre, 10pm, at a half-range of 1 h: +3"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: 1am is 3 h after the centre, 10pm, at a half-range of 1 h: +3",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15090,7 +15290,8 @@
       "quote": "B = Time waking up = 10am [...] B = Time waking up = +5"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (10am - 7:30am) / 0.5 h = +5"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (10am - 7:30am) / 0.5 h = +5",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15108,7 +15309,8 @@
       "quote": "C = Amount of water drank before going to bed = 400ml [...] C = Amount of water drank before going to bed = +2"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (400 - 300) / 50 = +2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (400 - 300) / 50 = +2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15126,7 +15328,8 @@
       "quote": "A = Time going to bed = 7pm [...] A = Time going to bed = -3"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (7pm - 10pm) / 1 h = -3"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (7pm - 10pm) / 1 h = -3",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15144,7 +15347,8 @@
       "quote": "B = Time waking up = 6am [...] B = Time waking up = -3"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (6am - 7:30am) / 0.5 h = -3"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (6am - 7:30am) / 0.5 h = -3",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15162,7 +15366,8 @@
       "quote": "C = Amount of water drank before going to bed = 200ml [...] C = Amount of water drank before going to bed = -2"
      },
      "check": {
-      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (200 - 300) / 50 = -2"
+      "manual": "a conversion of one setting to coded units, arithmetic on the factor's range rather than a result of runs: (200 - 300) / 50 = -2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15180,7 +15385,8 @@
       "quote": "\\hat{y} = 6 - 1 x_\\text{A} + 2x_\\text{B} + 0.5x_\\text{C} + 0.25x_\\text{A}x_\\text{B} + 0.25x_\\text{A}x_\\text{C} \\\\- 0.25x_\\text{B}x_\\text{C} - 0.25x_\\text{A}x_\\text{B}x_\\text{C} [...] Would yield a quality prediction of: $$\\,\\,\\hat{y} = 0.5$$"
      },
      "check": {
-      "manual": "arithmetic on a model the option states, with no runs to fit: 11pm, 6:30am and 300 mL code to +1, -2 and 0, and 6 - 1 + 2(-2) + 0.25(+1)(-2) = 0.5, the other terms being zero"
+      "manual": "arithmetic on a model the option states, with no runs to fit: 11pm, 6:30am and 300 mL code to +1, -2 and 0, and 6 - 1 + 2(-2) + 0.25(+1)(-2) = 0.5, the other terms being zero",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -15215,7 +15421,8 @@
       "quote": "The predicted value is $$\\hat{y} = 12 - 2(+3) - 0.1(+2) + 0.2(+3)(+2) = 12 - 6 - 0.2 + 1.2 = 7.0$$"
      },
      "check": {
-      "manual": "arithmetic on a model the question states, with no runs to fit: 12 - 6 - 0.2 + 1.2 = 7.0 is right; the option is keyed incorrect because 7.0 is further from the observed 3 than 2.5 is"
+      "manual": "arithmetic on a model the question states, with no runs to fit: 12 - 6 - 0.2 + 1.2 = 7.0 is right; the option is keyed incorrect because 7.0 is further from the observed 3 than 2.5 is",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -15233,7 +15440,8 @@
       "quote": "The predicted value is $$\\hat{y} = 13 - 2(+3) - 0.5(+3)^2 = 13 - 6 - 4.5 = 2.5$$"
      },
      "check": {
-      "manual": "arithmetic on a model the question states, with no runs to fit: 13 - 6 - 4.5 = 2.5"
+      "manual": "arithmetic on a model the question states, with no runs to fit: 13 - 6 - 4.5 = 2.5",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -15268,7 +15476,8 @@
       "quote": "Let's use the model: $$\\hat{y} = 67 - 4(2) - 0.5(+1)+ 0.7(+2)(+1) = 67 - 8 - 0.5 + 1.4 \\approx 60$$, which is less accurate."
      },
      "check": {
-      "manual": "arithmetic on a model the question states, with no runs to fit: 67 - 8 - 0.5 + 1.4 = 59.9, about 60; further from the observed 65 than the quadratic model's 67"
+      "manual": "arithmetic on a model the question states, with no runs to fit: 67 - 8 - 0.5 + 1.4 = 59.9, about 60; further from the observed 65 than the quadratic model's 67",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -15286,7 +15495,8 @@
       "quote": "Let's use the model: $$\\hat{y} = 77 - 2(+2) - 1.5(+2)^2 = 77 - 4 - 6= 67$$, which is more accurate."
      },
      "check": {
-      "manual": "arithmetic on a model the question states, with no runs to fit: 77 - 4 - 6 = 67"
+      "manual": "arithmetic on a model the question states, with no runs to fit: 77 - 4 - 6 = 67",
+      "cause": "data_not_printed"
      }
     }
    ]

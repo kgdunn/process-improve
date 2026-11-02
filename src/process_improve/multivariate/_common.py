@@ -29,7 +29,6 @@ __all__ = [
     "SelectionRule",
     "SpecificationWarning",
     "UncentredDataWarning",
-    "cumulative_block_t2",
     "epsqrt",
     "informative_widths",
     "y_is_exhausted",
@@ -611,16 +610,44 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     """
     if scaling == "none":
         return blocks
+    # A missing cell's contribution is NaN, so both scalings skip NaN, as the single-block
+    # score_contributions does: NaN in the max or a row's sum left the bars unscaled.
     if scaling == "maximum":
-        largest = max((float(np.abs(v).max()) for v in blocks.values() if v.size), default=0.0)
+        largest = max((float(np.nanmax(np.abs(v))) for v in blocks.values() if np.isfinite(v).any()), default=0.0)
         scalar = largest if largest > epsqrt else 1.0
         return {name: values / scalar for name, values in blocks.items()}
     if scaling == "within":
-        totals = sum(np.abs(values).sum(axis=1) for values in blocks.values())
+        totals = sum(np.nansum(np.abs(values), axis=1) for values in blocks.values())
         per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
+
+
+def largest_ssq_column(values: np.ndarray) -> np.ndarray:
+    """Return a copy of the column of ``values`` with the largest sum of squares, as an ``(N, 1)`` array.
+
+    NIPALS seeds its iteration from this column (#195). Any non-degenerate seed converges to
+    the same component, but the first column can be constant (all zero after preprocessing),
+    and then the iteration has nothing to follow. The highest-variance column also needs
+    fewer iterations. Missing cells are skipped in the sum and set to 0 in the returned column.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        An ``(N, K)`` array, possibly with NaN.
+
+    Returns
+    -------
+    np.ndarray
+        The chosen column, ``(N, 1)``, float, NaN replaced by 0.
+    """
+    ssq = np.nansum(values**2, axis=0)
+    # Autoscaled columns all have the same sum of squares up to round-off, so a plain argmax picks
+    # whichever is one ulp larger on this platform. Take the first column within round-off of the
+    # largest instead: the start, and so the iteration count, is then the same everywhere.
+    start_col = int(np.flatnonzero(ssq >= ssq.max() * (1 - 1e-9))[0])
+    return np.nan_to_num(values[:, [start_col]].astype(float))
 
 
 def _cross_size(x_blocks: list[np.ndarray], y: np.ndarray) -> float:
@@ -713,36 +740,6 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
             spread = np.nanstd(values, axis=0)
         out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
     return out
-
-
-def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:
-    """Return the cumulative Hotelling's T² of each row of a multiblock model's block scores (#513).
-
-    Each component is scaled by the scores' second moment about zero,
-    ``sum(t**2) / (n - 1)`` over the ``n`` rows that have a score, which is how
-    ``explained_variance_`` scales the super scores, so a block's T² and the super T²
-    follow one convention. T² measures the distance from the model's centre, the
-    origin of the score space, so the spread it is scaled by is the spread about that
-    origin too. The block scores used to be scaled by their variance about their own
-    mean instead, which differs as soon as missing data leaves them off-centre, and
-    which a single row without a score turned into NaN, so that every row's T² in the
-    block went unscaled.
-
-    Parameters
-    ----------
-    scores : np.ndarray of shape (n_samples, n_components)
-        One block's scores, NaN for a row with nothing observed in the block.
-
-    Returns
-    -------
-    np.ndarray of shape (n_samples, n_components)
-        Column ``a`` holds the T² over the first ``a`` components; NaN for a row with
-        no score. A component whose scores are all zero adds nothing.
-    """
-    present = np.isfinite(scores)
-    second_moment = np.nansum(scores**2, axis=0) / np.maximum(1, present.sum(axis=0) - 1)
-    second_moment = np.where(second_moment > 0, second_moment, 1.0)
-    return np.cumsum((scores**2) / second_moment, axis=1)
 
 
 class BlockSet(dict):

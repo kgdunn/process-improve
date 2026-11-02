@@ -6,6 +6,10 @@ papers), recorded so that software can be checked against them. Each entry holds
 exactly as printed (factors, responses, runs) and every number the source prints for it, as the
 text printed, with where it is printed. A number also carries a check, saying how to recompute
 it (the kind of result, the term, the model, the runs it uses), or why it is not recomputed.
+A number known not to reproduce records why (its ``disagreement``) and the cause of the
+difference, one of :data:`DISAGREEMENT_CAUSES`; a number not recomputed records the cause too, one
+of :data:`UNCHECKED_CAUSES`, which tells a number the library cannot compute yet from one with
+nothing to compute.
 
 :func:`reproduce_reference_catalogue` recomputes every checked number with this library and
 reports, row by row, the printed text, the value found, whether they agree to within the
@@ -207,7 +211,10 @@ def reference_experiments(source: str | None = None, topic: str | None = None) -
         ``where``, ``factors``, ``responses``, ``design``, ``runs`` (``None`` when the source does
         not print them, and ``data_source`` then says where they come from), ``expected`` and
         ``notes``. Each item of ``expected`` has ``what``, ``term`` and ``value`` (the printed
-        text), ``where`` (a file and line, or a page, with a quotation) and ``check``.
+        text), ``where`` (a file and line, or a page, with a quotation) and ``check``. A response
+        measured as a curve, not as one number, also has ``curve``: its ``columns`` in the run
+        table, in order along the curve, and its ``argument`` (``name`` and ``units``, and either
+        ``values``, the points every run shares, or ``columns``, where each run records its own).
 
     Raises
     ------
@@ -453,6 +460,15 @@ def _coded_runs(
         return pd.DataFrame(settings), _summarised(table, summary)
     names = [r["name"] for r in experiment["responses"] if r["name"] in table.columns]
     return pd.DataFrame(settings), table[names].astype(float)
+
+
+def _first_scalar_response(experiment: dict) -> str:
+    """Return the first response measured as one number: a check that names none is about it, never a curve."""
+    name = next((r["name"] for r in experiment["responses"] if "curve" not in r), None)
+    if name is None:
+        msg = f"{experiment.get('name', 'The experiment')}: every response is a curve, so the check must name one."
+        raise ValueError(msg)
+    return name
 
 
 def _changed(settings: pd.DataFrame, changes: list | None) -> pd.DataFrame:
@@ -701,18 +717,22 @@ def _extra_sums(out: dict, check: dict) -> dict[str, float]:
     model, as RS/Discover splits a quadratic's regression into its linear and non-linear parts.
     """
 
-    def explained(model: str | None) -> tuple[float, int]:
+    def explained(model: str | None) -> tuple[float, int, int | None]:
         if not model:
-            return 0.0, 0
+            return 0.0, 0, None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitted = analyze_experiment(out["settings"], out["y"], model=model, analysis_type="anova")
         ss, _, df = _anova_sums({**fitted, "y": out["y"]})
-        return ss, df
+        return ss, df, fitted["model_summary"]["df_residual"]
 
-    ss_part, df_part = explained(check.get("part", check["model"]))
-    ss_after, df_after = explained(check.get("after"))
-    ss, df = ss_part - ss_after, df_part - df_after
+    ss_part, df_part, resid_part = explained(check.get("part", check["model"]))
+    ss_after, df_after, resid_after = explained(check.get("after"))
+    # The extra df is the residual df the part takes up beyond the after model. Counting ANOVA rows
+    # fails when only one of the two is read as a mixture: z1 + z2 + z3 - 1 holds the constant and
+    # has one 2-df blend row, z1 + z2 - 1 does not and keeps a row per term.
+    df_extra = df_part - df_after if resid_after is None or resid_part is None else resid_after - resid_part
+    ss, df = ss_part - ss_after, df_extra
     f_ratio = ss / df / out["model_summary"]["mse_residual"]
     p_value = float(f_distribution.sf(f_ratio, df, out["model_summary"]["df_residual"]))
     return {"sum_sq": ss, "mean_sq": ss / df, "F": f_ratio, "p_value": p_value}
@@ -803,7 +823,7 @@ def _prediction_error(predicted: float, check: dict, experiment: dict) -> float:
     check's ``"deviation"``, the run's value less the prediction.
     """
     runs = experiment["runs"]
-    column = check.get("observed") or check.get("response") or experiment["responses"][0]["name"]
+    column = check.get("observed") or check.get("response") or _first_scalar_response(experiment)
     observed = float(runs["rows"][check["run"] - 1][runs["columns"].index(column)])
     error = predicted - observed
     return 100 * error / observed if check["error"] == "percent" else error
@@ -3156,7 +3176,7 @@ def _variance_component(experiment: dict, check: dict) -> float:
     """
     runs = experiment["runs"]
     table = pd.DataFrame(runs["rows"], columns=runs["columns"])
-    y = table[check.get("response") or experiment["responses"][0]["name"]].to_numpy(dtype=float)
+    y = table[check.get("response") or _first_scalar_response(experiment)].to_numpy(dtype=float)
     fixed = [_fixed_columns(table, name) for name in check.get("fixed", [])]
     design = pd.concat([pd.DataFrame({"Intercept": np.ones(len(y))}), *fixed], axis=1).astype(float)
     groups = [pd.factorize(table[name.split(":")].astype(str).agg(":".join, axis=1))[0] for name in check["groups"]]
@@ -3517,6 +3537,30 @@ def _fit_check(experiment: dict, check: dict, printed: Any, fits: _Fits) -> tupl
     )
 
 
+#: Why a recomputed number differs from its source, as a disagreement's ``cause`` records it. In the first two
+#: the library's value is the right one: the source is in error, or the number is an option of a quiz that its
+#: answer key marks incorrect, as the library finds it to be.
+DISAGREEMENT_CAUSES: dict[str, str] = {
+    "source_error": "The source misprints the number or works it out wrongly; the library's value follows from "
+    "the source's own data.",
+    "incorrect_option": "An option of a quiz that its answer key marks incorrect, as the library finds it to be.",
+    "source_rounding": "The source works the number from values it has already rounded or truncated, or prints "
+    "fewer digits than it carries.",
+    "method": "The source uses another convention, definition, model or software than the library.",
+    "library": "A bug or a limitation of the library.",
+    "unexplained": "The cause is not known yet.",
+}
+
+#: Why a printed number is not recomputed, as its check's ``cause`` records it beside the reason (``manual``).
+UNCHECKED_CAUSES: dict[str, str] = {
+    "library_gap": "The library has no function for it yet.",
+    "check_gap": "The library computes it, but no check of the catalogue reads it yet.",
+    "data_not_printed": "The source does not print the data the number is worked from.",
+    "not_a_result": "Nothing to recompute: a statement in words, an input or a choice, a reading by eye, a unit "
+    "conversion or an intermediate of a number that is checked.",
+}
+
+
 def _checks(expected: dict) -> list[dict]:
     check = expected.get("check") or {}
     return check if isinstance(check, list) else [check]
@@ -3579,7 +3623,9 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
         One row per check, with columns ``source``, ``experiment``, ``what``, ``term``,
         ``printed`` (the text compared), ``found`` (the value recomputed, as text), ``checked``,
         ``agrees`` (``None`` where not checked), ``reason`` (why a number is not recomputed, or
-        the error raised recomputing it), ``disagreement`` (for a number known not to reproduce,
+        the error raised recomputing it), ``cause`` (why a number is not recomputed, one of
+        :data:`UNCHECKED_CAUSES`, or why it differs, one of :data:`DISAGREEMENT_CAUSES`),
+        ``disagreement`` (for a number known not to reproduce,
         the explanation of why) and ``where``.
 
     Raises
@@ -3606,6 +3652,7 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
             "checked": "kind" in check,
             "agrees": None,
             "reason": check.get("manual"),
+            "cause": check.get("cause"),
             "disagreement": check.get("disagreement"),
             "where": json.dumps(expected["where"], ensure_ascii=False),
         }

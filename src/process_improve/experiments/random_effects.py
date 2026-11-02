@@ -38,7 +38,7 @@ from patsy import ModelDesc
 from scipy import stats
 
 from process_improve.experiments.models import validate_formula_is_safe
-from process_improve.regression._variance_components import fit_variance_components
+from process_improve.regression._variance_components import fit_variance_components, require_apart_from_residual
 
 ERROR = "Error"
 
@@ -121,6 +121,12 @@ def variance_components(
         - ``r_squared`` and ``r_squared_adj``: one less the residual sum of squares about the
           fitted values with the random effects predicted, over the total about the mean, as JMP
           reports them for a REML fit, the adjusted one on the fixed parameters' count.
+
+    Raises
+    ------
+    ValueError
+        If a random term's variance cannot be told apart from the residual's, as with one reading
+        at each of its levels: only the sum of the two is estimable then.
     """
     table = design_matrix.reset_index(drop=True)
     response_column, fixed = _response_and_terms(formula, [str(c) for c in table.columns])
@@ -129,7 +135,9 @@ def variance_components(
     design = pd.concat(blocks, axis=1).astype(float)
     labels = [table[_group_columns(name)].astype(str).agg(":".join, axis=1) for name in random]
     codes = [pd.factorize(label) for label in labels]
-    fit = fit_variance_components(y, design.to_numpy(), [c for c, _ in codes], bounded=bounded)
+    groups = [c for c, _ in codes]
+    require_apart_from_residual(design.to_numpy(), groups, random)
+    fit = fit_variance_components(y, design.to_numpy(), groups, bounded=bounded)
     names = [*random, "residual"]
     values = [*map(float, fit.variances), float(fit.sigma2)]
     components = dict(zip(names, values, strict=True))

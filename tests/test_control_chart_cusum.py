@@ -112,6 +112,50 @@ def test_a_missing_value_holds_the_sums_and_is_not_counted() -> None:
     assert chart.idx_outside_3S == [4]
 
 
+def test_each_run_is_dated_and_sized_on_its_own() -> None:
+    """Six readings of 3 against the target 0, with s = 1: the upper sum is 2.5, 5.0, 7.5 and alarms.
+
+    It restarts, and alarms again three samples later. Each run starts at its first reading and
+    estimates the new mean as 0.5 + 7.5 / 3 = 3, the mean of its readings.
+    """
+    chart = fit_cusum(np.full(6, 3.0), target=0.0, sigma=1.0)
+
+    assert chart.df["cusum_upper"].tolist() == [2.5, 5.0, 7.5, 2.5, 5.0, 7.5]
+    assert chart.df["cusum_lower"].tolist() == [0.0] * 6
+    assert chart.cusum_alarms.index.tolist() == [2, 5]
+    assert chart.cusum_alarms["shift_start"].tolist() == [0, 3]
+    assert chart.cusum_alarms["new_mean"].tolist() == pytest.approx([3.0, 3.0])
+
+
+def test_the_lower_sum_mirrors_the_upper() -> None:
+    """Readings of 0, -3, -3 below the target 0: C-_t = max(0, C-_(t-1) - y_t - 0.5) is 0, 2.5, 5.0."""
+    chart = fit_cusum(np.array([0.0, -3.0, -3.0]), target=0.0, sigma=1.0)
+
+    assert chart.df["cusum_lower"].tolist() == [0.0, 2.5, 5.0]
+    assert chart.df["cusum_upper"].tolist() == [0.0, 0.0, 0.0]
+    assert chart.cusum_alarms.empty, "5.0 is not above the decision interval 5"
+
+
+def test_a_reference_value_of_zero_estimates_the_mean_of_the_run() -> None:
+    """With k = 0 and h = 1 every deviation counts: 0.6 + 0.6 = 1.2 alarms, then 2.0 alone does.
+
+    The estimated new mean is then the mean of the run's readings, 0.6 and 2.0.
+    """
+    chart = fit_cusum(np.array([0.6, 0.6, 0.0, 2.0]), target=0.0, sigma=1.0, k=0.0, h=1.0)
+
+    assert chart.cusum_alarms.index.tolist() == [1, 3]
+    assert chart.cusum_alarms["shift_start"].tolist() == [0, 3]
+    assert chart.cusum_alarms["new_mean"].tolist() == pytest.approx([0.6, 2.0])
+
+
+def test_none_in_an_object_array_is_a_missing_value() -> None:
+    """None holds the sums, as NaN does in ``test_a_missing_value_holds_the_sums_and_is_not_counted``."""
+    chart = fit_cusum(np.array([0.0, 3.0, None, 3.0, 3.0], dtype=object), target=0.0, sigma=1.0)
+
+    assert chart.df["cusum_upper"].tolist() == [0.0, 2.5, 2.5, 5.0, 7.5]
+    assert chart.idx_outside_3S == [4]
+
+
 def test_defaults_and_estimates() -> None:
     """Without tuning parameters k = 0.5 and h = 5; without a target and s both come from the data."""
     y = shifted_series()
@@ -122,7 +166,7 @@ def test_defaults_and_estimates() -> None:
     assert chart.s == pytest.approx(1.4826 * np.median(np.abs(y - np.median(y))))
 
 
-@pytest.mark.parametrize("parameters", [{"k": -0.1}, {"h": 0.0}, {"h": np.inf}])
+@pytest.mark.parametrize("parameters", [{"k": -0.1}, {"k": np.inf}, {"h": 0.0}, {"h": np.inf}])
 def test_rejects_invalid_parameters(parameters: dict[str, float]) -> None:
     """The reference value cannot be negative, and the decision interval must be positive and finite."""
     with pytest.raises(ValueError, match="k >= 0 and h > 0"):

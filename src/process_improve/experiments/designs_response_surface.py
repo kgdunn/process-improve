@@ -420,12 +420,7 @@ def _fractional_cube(
     if not asked:
         generators = [f"{factor_names[-1]}={''.join(factor_names[:-1])}"]
     cube, frac_meta = dispatch_fractional_factorial(factors, resolution=resolution, generators=generators)
-    res = frac_meta.get("resolution")
-    if res is not None and res < 3:
-        raise ValueError(
-            f"The fractional cube has resolution {res}: it aliases main effects with each other, so no model of "
-            "them can be fitted. Supply other generators or use cube='full'."
-        )
+    res = frac_meta.get("resolution")  # 3 or more: dispatch_fractional_factorial refuses generators that alias mains
     aliased = _aliased_interactions(cube, factor_names)
     if aliased and not asked:
         raise ValueError(

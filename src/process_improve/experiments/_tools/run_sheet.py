@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import io
+import zipfile
 from typing import Any, Literal
 
 import pandas as pd
@@ -21,6 +23,8 @@ _LABELS = (
     "How the factors' columns are named: omitted for the factors' own names, 'X' for X01, X02, ... in the order "
     "of factors, or a mapping from a factor's name to its column, e.g. {'Temperature': 'X01'}."
 )
+#: The one date a written workbook holds, in place of the time it was written: the earliest a zip archive can hold.
+_WORKBOOK_DATE = datetime.datetime(1980, 1, 1, tzinfo=datetime.UTC)
 
 
 class WriteRunSheetInput(BaseModel):
@@ -71,6 +75,37 @@ class ReadRunSheetInput(BaseModel):
         return self
 
 
+def _without_the_clock(workbook: bytes) -> bytes:
+    """Return ``workbook`` with ``_WORKBOOK_DATE`` in place of the time openpyxl wrote into it.
+
+    Parameters
+    ----------
+    workbook : bytes
+        An .xlsx workbook as openpyxl writes it: the time of the call is the date of every zip member
+        and the created and modified dates in ``docProps/core.xml``.
+
+    Returns
+    -------
+    bytes
+        The same workbook, its members in the same order and compression, with ``_WORKBOOK_DATE`` for each
+        of those dates, so the same sheet gives the same bytes.
+    """
+    from openpyxl.packaging.core import DocumentProperties  # noqa: PLC0415
+    from openpyxl.xml.functions import fromstring, tostring  # noqa: PLC0415
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(workbook)) as source, zipfile.ZipFile(out, "w") as target:
+        for member in source.infolist():
+            content = source.read(member)
+            if member.filename == "docProps/core.xml":
+                properties = DocumentProperties.from_tree(fromstring(content))
+                properties.created = properties.modified = _WORKBOOK_DATE
+                content = tostring(properties.to_tree())
+            member.date_time = _WORKBOOK_DATE.timetuple()[:6]
+            target.writestr(member, content)
+    return out.getvalue()
+
+
 @tool_spec(
     name="write_run_sheet",
     description=(
@@ -105,7 +140,7 @@ def write_run_sheet_tool(spec: WriteRunSheetInput) -> dict[str, Any]:
         else:
             buf = io.BytesIO()
             sheet.to_excel(buf, index=False, sheet_name="Runs")
-            output["xlsx_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
+            output["xlsx_base64"] = base64.b64encode(_without_the_clock(buf.getvalue())).decode("ascii")
         return clean(output)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool write_run_sheet failed")

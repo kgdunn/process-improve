@@ -245,7 +245,9 @@ def extreme_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
     found = []
     combos = itertools.combinations(range(m), q - 1)
     while chunk := list(itertools.islice(combos, _VERTEX_CHUNK)):
-        subsets = np.array(chunk, dtype=int).reshape(-1, q - 1)
+        # The row count is given, not -1: with one component each subset is empty, and numpy
+        # cannot infer a row count from rows of length 0 (#999).
+        subsets = np.array(chunk, dtype=int).reshape(len(chunk), q - 1)
         systems = np.concatenate([a_red[subsets], np.full((len(subsets), 1, q), 1.0 / np.sqrt(q))], axis=1)
         rhs = np.concatenate([b_red[subsets], np.full((len(subsets), 1), 1.0 / np.sqrt(q))], axis=1)
         solvable = np.abs(np.linalg.det(systems)) > 1e-12  # every row has unit length, so this is a relative test

@@ -265,6 +265,7 @@ def _git_commit() -> str:
             text=True,
             check=True,
             cwd=HERE,
+            encoding="utf-8",
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
@@ -283,7 +284,7 @@ def main() -> None:
     }
     # One compact case per line: keeps the fixture small yet greppable by case name.
     cases = ",\n".join(json.dumps(entry, separators=(",", ":")) for entry in entries)
-    GOLDEN_JSON.write_text(f'{{"generated_from":{json.dumps(provenance)},"cases":[\n{cases}\n]}}\n')
+    GOLDEN_JSON.write_text(f'{{"generated_from":{json.dumps(provenance)},"cases":[\n{cases}\n]}}\n', encoding="utf-8")
     print(f"wrote {len(entries)} cases to {GOLDEN_JSON}")
 
 

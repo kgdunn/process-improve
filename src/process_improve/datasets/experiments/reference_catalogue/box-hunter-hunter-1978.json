@@ -292,7 +292,8 @@
       "quote": "sum = 842.4"
      },
      "check": {
-      "manual": "a sum on the way to the average, which is checked"
+      "manual": "a sum on the way to the average, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -305,7 +306,8 @@
       "quote": "sum = 855.4"
      },
      "check": {
-      "manual": "a sum on the way to the average, which is checked"
+      "manual": "a sum on the way to the average, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -462,7 +464,8 @@
        19,
        20
       ],
-      "disagreement": "s/√n is 1.154 for the B runs; the book divides s and √10 already rounded to 3.65 and 3.16, which gives 1.155"
+      "disagreement": "s/√n is 1.154 for the B runs; the book divides s and √10 already rounded to 3.65 and 3.16, which gives 1.155",
+      "cause": "source_rounding"
      }
     },
     {
@@ -484,7 +487,8 @@
        "method": "B"
       },
       "key": "t_value",
-      "disagreement": "the book divides by the standard error rounded to 1.16, (85.54 - 84.12)/1.16 = 1.22; the unrounded 1.154 gives 1.23"
+      "disagreement": "the book divides by the standard error rounded to 1.16, (85.54 - 84.12)/1.16 = 1.22; the unrounded 1.154 gives 1.23",
+      "cause": "source_rounding"
      },
      "analysis": "the library's ttest_one_sample of method B's ten yields against 84.12"
     },
@@ -507,7 +511,8 @@
        "method": "B"
       },
       "key": "p_value_greater",
-      "disagreement": "the book's level is that of its t = 1.22, from the rounded standard error, 0.127; the unrounded t = 1.23 gives 0.125, printed 0.12"
+      "disagreement": "the book's level is that of its t = 1.22, from the rounded standard error, 0.127; the unrounded t = 1.23 gives 0.125, printed 0.12",
+      "cause": "source_rounding"
      },
      "analysis": "the library's ttest_one_sample of method B's ten yields against 84.12: the one-sided level Pr(t >= t0) on 9 degrees of freedom"
     },
@@ -822,7 +827,8 @@
       "quote": "statistically significant at the 9/191 = 0.047 level of probability"
      },
      "check": {
-      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 9 of the 191 differences exceed 1.30)"
+      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 9 of the 191 differences exceed 1.30)",
+      "cause": "check_gap"
      }
     },
     {
@@ -835,7 +841,8 @@
       "quote": "the significance level Pr(t > 2.17) is about 0.028"
      },
      "check": {
-      "manual": "a t significance level scaled by the 10 nearly independent differences of past records, which no check computes"
+      "manual": "a t significance level scaled by the 10 nearly independent differences of past records, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -848,7 +855,8 @@
       "quote": "sample average Y = 52.4 y = 79 + 5.24 = 84.24"
      },
      "check": {
-      "manual": "the average of the coded values Y = 10(y - 79); the average of y is checked"
+      "manual": "the average of the coded values Y = 10(y - 79); the average of y is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -861,7 +869,8 @@
       "quote": "Σ(Y - Y)² = 7578.40"
      },
      "check": {
-      "manual": "the corrected sum of squares of the coded values, 100 times the 75.784 checked"
+      "manual": "the corrected sum of squares of the coded values, 100 times the 75.784 checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -924,7 +933,8 @@
       "quote": "crude sum of squares 35,036.0 correction for the average 27,457.6 corrected sum of squares 7,578.4"
      },
      "check": {
-      "manual": "sums of the coded values, ΣY² and nY²; their difference is checked as 75.784"
+      "manual": "sums of the coded values, ΣY² and nY²; their difference is checked as 75.784",
+      "cause": "not_a_result"
      }
     }
    ],
@@ -14453,7 +14463,8 @@
       "quote": "rather rarely, specifically in only nine instances, do the differences in the reference set exceed +1.30"
      },
      "check": {
-      "manual": "a count over the reference set, each of whose 191 members is checked"
+      "manual": "a count over the reference set, each of whose 191 members is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15366,7 +15377,8 @@
       "quote": "variance of differences s² = 0.36"
      },
      "check": {
-      "manual": "a variance about the known mean zero, Σd²/10, which no check computes (it reproduces: 0.362)"
+      "manual": "a variance about the known mean zero, Σd²/10, which no check computes (it reproduces: 0.362)",
+      "cause": "check_gap"
      }
     },
     {
@@ -15379,7 +15391,8 @@
       "quote": "standard deviation of differences s = 0.60"
      },
      "check": {
-      "manual": "a standard deviation about the known mean zero, which no check computes (it reproduces: 0.601)"
+      "manual": "a standard deviation about the known mean zero, which no check computes (it reproduces: 0.601)",
+      "cause": "check_gap"
      }
     },
     {
@@ -15392,7 +15405,8 @@
       "quote": "t0 = (1.30 - 0)/0.60 = 2.17"
      },
      "check": {
-      "manual": "the plant trial's difference scaled by the past differences, which no check computes (2.16 from the unrounded 0.601)"
+      "manual": "the plant trial's difference scaled by the past differences, which no check computes (2.16 from the unrounded 0.601)",
+      "cause": "check_gap"
      }
     },
     {
@@ -15419,7 +15433,8 @@
      },
      "check": {
       "kind": "variance",
-      "disagreement": "the 210 yields give 8.30 (1734.6/209); 8.29 is the square of the standard deviation rounded to 2.88"
+      "disagreement": "the 210 yields give 8.30 (1734.6/209); 8.29 is the square of the standard deviation rounded to 2.88",
+      "cause": "source_rounding"
      }
     },
     {
@@ -15474,6 +15489,7 @@
       },
       {
        "manual": "the numerator of r2, the sum of (yt - ȳ)(yt+2 - ȳ), which autocorrelation does not return; the 210 yields give -231.10, and r2 = -231.10/1734.59",
+       "cause": "not_a_result",
        "printed": "-231.11"
       }
      ]
@@ -15507,7 +15523,8 @@
       "quote": "2 x 8.29/10 = 1.67 ... 1.67[1 + 1.7(-0.29)] = 0.84 (18.5) ... 1.30/√0.84 = 1.41"
      },
      "check": {
-      "manual": "the variance of a difference of two averages of 10, independent and with lag-1 correlation, and the normal significance levels, time-series quantities, which no check computes"
+      "manual": "the variance of a difference of two averages of 10, independent and with lag-1 correlation, and the normal significance levels, time-series quantities, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -15520,7 +15537,8 @@
       "quote": "The parameter estimates thus obtained are σ̂ε² = 7.5 and θ̂ = 0.32 ... ŷt = 84.1 + εt - 0.32εt-1 (18.16)"
      },
      "check": {
-      "manual": "a first-order moving average model fitted by matching moments, time-series quantities, which no check computes"
+      "manual": "a first-order moving average model fitted by matching moments, time-series quantities, which no check computes",
+      "cause": "check_gap"
      }
     }
    ]
@@ -15698,7 +15716,8 @@
       "quote": "Answer: y = 35.5, s² = 48.72, s = 6.98, with ν = 9 degrees of freedom."
      },
      "check": {
-      "manual": "used to restore the two illegible values, so not an independent check"
+      "manual": "used to restore the two illegible values, so not an independent check",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15711,7 +15730,8 @@
       "quote": "Answer: y = 35.5, s² = 48.72, s = 6.98, with ν = 9 degrees of freedom."
      },
      "check": {
-      "manual": "used to restore the two illegible values, so not an independent check"
+      "manual": "used to restore the two illegible values, so not an independent check",
+      "cause": "not_a_result"
      }
     },
     {
@@ -15819,7 +15839,8 @@
      },
      "check": {
       "kind": "variance",
-      "disagreement": "the variance of these seven values is 667.90; the book prints 667.50, though its s = 25.84 is the root of 667.90"
+      "disagreement": "the variance of these seven values is 667.90; the book prints 667.50, though its s = 25.84 is the root of 667.90",
+      "cause": "source_error"
      }
     },
     {
@@ -16006,7 +16027,8 @@
       "quote": "Answer: s² = 2.96, s² = 3.70, t = 1.86 (ν = 5), t = 1.67 (ν = 4)."
      },
      "check": {
-      "manual": "a variance about a known mean, Σ(y - 25.0)²/5, which no check computes (it reproduces: 2.962)"
+      "manual": "a variance about a known mean, Σ(y - 25.0)²/5, which no check computes (it reproduces: 2.962)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16032,7 +16054,8 @@
       "quote": "Answer: ... t = 1.86 (ν = 5)"
      },
      "check": {
-      "manual": "a single new observation against a stated mean, which no check computes (it reproduces: 1.859)"
+      "manual": "a single new observation against a stated mean, which no check computes (it reproduces: 1.859)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16045,7 +16068,8 @@
       "quote": "Answer: ... t = 1.67 (ν = 4)"
      },
      "check": {
-      "manual": "a single new observation against a stated mean, which no check computes; (28.2 - 25.0)/√3.702 is 1.663"
+      "manual": "a single new observation against a stated mean, which no check computes; (28.2 - 25.0)/√3.702 is 1.663",
+      "cause": "check_gap"
      }
     }
    ],
@@ -16132,7 +16156,8 @@
       "quote": "Answer : The observed significance level = 0/17 = 0.00"
      },
      "check": {
-      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 0 of 17)"
+      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 0 of 17)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16145,7 +16170,8 @@
       "quote": "What significance level is obtained using \"nearly independent\" differences? ... Answer: 0.047."
      },
      "check": {
-      "manual": "a t significance level scaled by differences of past records, which no check computes (t = 2.21 on 4 df reproduces it)"
+      "manual": "a t significance level scaled by differences of past records, which no check computes (t = 2.21 on 4 df reproduces it)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16158,7 +16184,8 @@
       "quote": "Answer: 0.00, 0.05, 0.12, 0.05, 0.17."
      },
      "check": {
-      "manual": "a normal significance level with σ from past records, which no check computes (0.114 from their standard deviation 7.90)"
+      "manual": "a normal significance level with σ from past records, which no check computes (0.114 from their standard deviation 7.90)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16294,7 +16321,8 @@
       "quote": "Answer: (a) 3/31 = 0.097, (b) 0.103."
      },
      "check": {
-      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 3 of 31)"
+      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: 3 of 31)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16307,7 +16335,8 @@
       "quote": "Answer: (a) 3/31 = 0.097, (b) 0.103."
      },
      "check": {
-      "manual": "a t significance level scaled by differences of past records, which no check computes (t = 1.46 on 5 df reproduces it)"
+      "manual": "a t significance level scaled by differences of past records, which no check computes (t = 1.46 on 5 df reproduces it)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16320,7 +16349,8 @@
       "quote": "Answer: 0.10, 0.10, 0.12, 0.15, 0.10."
      },
      "check": {
-      "manual": "a normal significance level with σ from past records, which no check computes (0.112 from their standard deviation 3.36)"
+      "manual": "a normal significance level with σ from past records, which no check computes (0.112 from their standard deviation 3.36)",
+      "cause": "check_gap"
      }
     },
     {
@@ -16338,7 +16368,8 @@
       "term": "method",
       "model": "method",
       "alternative": "greater",
-      "disagreement": "the t-test on these six readings (t = 2.00 on 4 df) gives 0.058; the book prints 0.15, which does not follow from the data"
+      "disagreement": "the t-test on these six readings (t = 2.00 on 4 df) gives 0.058; the book prints 0.15, which does not follow from the data",
+      "cause": "source_error"
      }
     },
     {
@@ -16477,7 +16508,8 @@
       "quote": "construct an appropriate reference distribution, and determine the significance level associated with yB - yA for this test. Answer: 0.082."
      },
      "check": {
-      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: of the 201 differences of adjacent averages of 5 in Table 2.2, 16 lie below the observed -1.60 and one equals it, 16.5/201 = 0.082)"
+      "manual": "a significance level read from a reference distribution built from past records, which no check computes (it reproduces: of the 201 differences of adjacent averages of 5 in Table 2.2, 16 lie below the observed -1.60 and one equals it, 16.5/201 = 0.082)",
+      "cause": "check_gap"
      }
     }
    ],
@@ -16869,7 +16901,8 @@
       "term": "method",
       "model": "method",
       "alternative": "less",
-      "disagreement": "the one-sided t-test gives 0.036 (t = -2.11 on 7 df); the book's 0.037 comes from graphical interpolation in its t table"
+      "disagreement": "the one-sided t-test gives 0.036 (t = -2.11 on 7 df); the book's 0.037 comes from graphical interpolation in its t table",
+      "cause": "method"
      }
     }
    ]
@@ -17215,7 +17248,8 @@
       "term": "fertilizer",
       "model": "fertilizer",
       "alternative": "greater",
-      "disagreement": "the one-sided level is 0.334 (t = 0.444 on 9 df); the book reads 0.34 off its t table by graphical interpolation"
+      "disagreement": "the one-sided level is 0.334 (t = 0.444 on 9 df); the book reads 0.34 off its t table by graphical interpolation",
+      "cause": "method"
      }
     },
     {
@@ -17254,7 +17288,8 @@
       "term": "fertilizer",
       "model": "fertilizer",
       "scale": "effect",
-      "disagreement": "the 95% lower limit is -6.940; the book takes 1.69 less 3.82 x 2.262 = 8.64, both rounded"
+      "disagreement": "the 95% lower limit is -6.940; the book takes 1.69 less 3.82 x 2.262 = 8.64, both rounded",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17563,7 +17598,8 @@
       "quote": "s²d = (3.030 - 1.681)/9 = 0.149"
      },
      "check": {
-      "manual": "the variance of the 10 differences, (3.030 - 1.681)/9 = 0.14989, which rounds to 0.150; the book truncates it to 0.149 (half of it is the block model's residual mean square)"
+      "manual": "the variance of the 10 differences, (3.030 - 1.681)/9 = 0.14989, which rounds to 0.150; the book truncates it to 0.149 (half of it is the block model's residual mean square)",
+      "cause": "check_gap"
      }
     },
     {
@@ -17576,7 +17612,8 @@
       "quote": "sd = √0.149 = 0.386"
      },
      "check": {
-      "manual": "the standard deviation of the 10 differences, the block model's residual standard error times √2: 0.38715, which rounds to 0.387; the book's 0.386 is the square root of its 0.149"
+      "manual": "the standard deviation of the 10 differences, the block model's residual standard error times √2: 0.38715, which rounds to 0.387; the book's 0.386 is the square root of its 0.149",
+      "cause": "check_gap"
      }
     },
     {
@@ -17607,7 +17644,8 @@
       "kind": "t_value",
       "term": "material",
       "model": "boy + material",
-      "disagreement": "t is 3.349 for these differences; the book works with the standard error rounded to 0.12, 0.41/0.12 = 3.42"
+      "disagreement": "t is 3.349 for these differences; the book works with the standard error rounded to 0.12, 0.41/0.12 = 3.42",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17640,7 +17678,8 @@
       "kind": "p_value",
       "term": "material",
       "model": "boy + material",
-      "disagreement": "the two-sided level is 0.0085 (t = 3.349); the book's 0.008 is for its rounded t = 3.4"
+      "disagreement": "the two-sided level is 0.0085 (t = 3.349); the book's 0.008 is for its rounded t = 3.4",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17678,7 +17717,8 @@
       "quote": "t0 = (0.41 - 0.10)/0.12 = 2.6; Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "the t of the 10 differences against a difference of 0.10: ttest_one_sample with mu = 0.10 gives 2.532 (classical_test, key t_value); the book divides by the standard error rounded to 0.12, (0.41 - 0.10)/0.12 = 2.58"
+      "manual": "the t of the 10 differences against a difference of 0.10: ttest_one_sample with mu = 0.10 gives 2.532 (classical_test, key t_value); the book divides by the standard error rounded to 0.12, (0.41 - 0.10)/0.12 = 2.58",
+      "cause": "check_gap"
      }
     },
     {
@@ -17691,7 +17731,8 @@
       "quote": "Pr(t > 2.6) ≈ 0.014"
      },
      "check": {
-      "manual": "the one-sided p of the same test: ttest_one_sample with mu = 0.10 gives 0.0161 (classical_test, key p_value_greater); the book's 0.014 is Pr(t > 2.6) on 9 degrees of freedom, 0.0144, for its t rounded to 2.6"
+      "manual": "the one-sided p of the same test: ttest_one_sample with mu = 0.10 gives 0.0161 (classical_test, key p_value_greater); the book's 0.014 is Pr(t > 2.6) on 9 degrees of freedom, 0.0144, for its t rounded to 2.6",
+      "cause": "check_gap"
      }
     },
     {
@@ -17708,7 +17749,8 @@
       "term": "material",
       "model": "boy + material",
       "scale": "effect",
-      "disagreement": "the 95% lower limit is 0.133; the book works with the standard error rounded to 0.12"
+      "disagreement": "the 95% lower limit is 0.133; the book works with the standard error rounded to 0.12",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17725,7 +17767,8 @@
       "term": "material",
       "model": "boy + material",
       "scale": "effect",
-      "disagreement": "the 95% upper limit is 0.687; the book works with the standard error rounded to 0.12"
+      "disagreement": "the 95% upper limit is 0.687; the book works with the standard error rounded to 0.12",
+      "cause": "source_rounding"
      }
     },
     {
@@ -17768,7 +17811,8 @@
        "confidence": 0.999,
        "key": "ci_low",
        "printed": "-0.16",
-       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12"
+       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12",
+       "cause": "source_rounding"
       },
       {
        "kind": "t_test",
@@ -17800,7 +17844,8 @@
        "confidence": 0.999,
        "key": "ci_high",
        "printed": "0.98",
-       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12"
+       "disagreement": "the book takes the standard error rounded to 0.12 (0.1225 unrounded), so its limits are 0.41 -/+ t times 0.12",
+       "cause": "source_rounding"
       }
      ],
      "analysis": "the library's paired t-test of B against A: the 0.999 confidence interval for the mean difference"
@@ -18056,7 +18101,8 @@
        "key": "p_value",
        "printed": "25/1024",
        "expression": true,
-       "disagreement": "less 0.14, 29 of the 1024 averages are at least the observed 0.27 (2.8%): 28 above it, and the observed pattern itself; the book counts 25"
+       "disagreement": "less 0.14, 29 of the 1024 averages are at least the observed 0.27 (2.8%): 28 above it, and the observed pattern itself; the book counts 25",
+       "cause": "source_error"
       },
       {
        "kind": "classical_test",
@@ -18074,7 +18120,8 @@
        "key": "p_value_less",
        "printed": "19/1024",
        "expression": true,
-       "disagreement": "less 0.68, 27 of the 1024 averages are at most the observed -0.27 (2.6%): 26 below it, and the observed pattern itself; the book counts 19"
+       "disagreement": "less 0.68, 27 of the 1024 averages are at most the observed -0.27 (2.6%): 26 below it, and the observed pattern itself; the book counts 19",
+       "cause": "source_error"
       }
      ]
     }
@@ -18560,7 +18607,8 @@
        23,
        24
       ],
-      "disagreement": "48/7 is 6.857; the book cuts it to 6.8 where rounding gives 6.9"
+      "disagreement": "48/7 is 6.857; the book cuts it to 6.8 where rounding gives 6.9",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18704,7 +18752,8 @@
       "kind": "anova_p",
       "term": "diet",
       "model": "diet",
-      "disagreement": "the level is 0.0000466; the book cuts it to 0.000046"
+      "disagreement": "the level is 0.0000466; the book cuts it to 0.000046",
+      "cause": "source_rounding"
      }
     },
     {
@@ -18717,7 +18766,8 @@
       "quote": "98,644 = 98,304 + 228 + 112"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out; 228 and 112 are checked"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out; 228 and 112 are checked",
+      "cause": "library_gap"
      }
     },
     {
@@ -18730,7 +18780,8 @@
       "quote": "total 364 = average 24 + between treatments 228 + within treatments 112"
      },
      "check": {
-      "manual": "sums of squares about a stated norm, 63, which no check computes"
+      "manual": "sums of squares about a stated norm, 63, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -18743,7 +18794,8 @@
       "quote": "Exercise 6.5 ... Answer: t0 = 2.07"
      },
      "check": {
-      "manual": "a test of the grand mean against a stated norm, which no check computes (it reproduces: 2.07)"
+      "manual": "a test of the grand mean against a stated norm, which no check computes (it reproduces: 2.07)",
+      "cause": "check_gap"
      }
     },
     {
@@ -18756,7 +18808,8 @@
       "quote": "scale factor √(sR²/n) = √(5.6/6) = 0.97"
      },
      "check": {
-      "manual": "the scale of the book's sliding reference distribution, which no check computes"
+      "manual": "the scale of the book's sliding reference distribution, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -19474,7 +19527,8 @@
       "quote": "Exercise 6.4. Calculate SA and S for the data in Exercise 6.1. Answer: 612, 946."
      },
      "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)"
+      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
+      "cause": "check_gap"
      }
     },
     {
@@ -19982,7 +20036,8 @@
       "quote": "S = 89² + 84² + ... + 88² = 148,480; SA = 86² + ... = 147,920"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
+      "cause": "library_gap"
      }
     },
     {
@@ -20042,7 +20097,8 @@
       "kind": "anova_f",
       "term": "blend",
       "model": "blend + treatment",
-      "disagreement": "the ratio is 3.504; the book divides the mean squares already rounded, 66.0/18.8"
+      "disagreement": "the ratio is 3.504; the book divides the mean squares already rounded, 66.0/18.8",
+      "cause": "source_rounding"
      }
     },
     {
@@ -20073,7 +20129,8 @@
       "kind": "anova_p",
       "term": "treatment",
       "model": "blend + treatment",
-      "disagreement": "the level is 0.339; the book cuts it to 0.33"
+      "disagreement": "the level is 0.339; the book cuts it to 0.33",
+      "cause": "source_rounding"
      }
     },
     {
@@ -20818,7 +20875,8 @@
       "quote": "(a) SA = 2400, ... S = 3778"
      },
      "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)"
+      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
+      "cause": "check_gap"
      }
     }
    ]
@@ -21219,7 +21277,8 @@
       "quote": "(b) SA = 588, ... S = 590.46"
      },
      "check": {
-      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)"
+      "manual": "the correction for the average and the crude sum of squares, which no check computes (they reproduce)",
+      "cause": "check_gap"
      }
     }
    ]
@@ -21654,7 +21713,8 @@
       "kind": "ss_regression",
       "model": "poison * treatment",
       "printed": "2.2055",
-      "disagreement": "the between-groups sum of squares is 2204.4 (x 1000); the book's 2205.5 carries its treatments sum of squares 922.4, which the data do not give (921.2)"
+      "disagreement": "the between-groups sum of squares is 2204.4 (x 1000); the book's 2205.5 carries its treatments sum of squares 922.4, which the data do not give (921.2)",
+      "cause": "source_error"
      }
     },
     {
@@ -21671,7 +21731,8 @@
       "kind": "ms_regression",
       "model": "poison * treatment",
       "printed": "0.2005",
-      "disagreement": "the between-groups mean square is 200.4 (x 1000), from 2204.4/11"
+      "disagreement": "the between-groups mean square is 200.4 (x 1000), from 2204.4/11",
+      "cause": "source_error"
      }
     },
     {
@@ -21734,7 +21795,8 @@
       "kind": "ss_total",
       "model": "poison * treatment",
       "printed": "3.0062",
-      "disagreement": "the total corrected sum of squares is 3005.1 (x 1000); the book's 3006.2 carries the same 1.1 as its treatments sum of squares"
+      "disagreement": "the total corrected sum of squares is 3005.1 (x 1000); the book's 3006.2 carries the same 1.1 as its treatments sum of squares",
+      "cause": "source_error"
      }
     },
     {
@@ -21769,7 +21831,8 @@
       "term": "treatment",
       "model": "poison * treatment",
       "printed": "0.9224",
-      "disagreement": "the treatments sum of squares is 921.2 (x 1000); the book prints 922.4, though all twelve cell averages it prints in Table 7.14 reproduce from the data"
+      "disagreement": "the treatments sum of squares is 921.2 (x 1000); the book prints 922.4, though all twelve cell averages it prints in Table 7.14 reproduce from the data",
+      "cause": "source_error"
      }
     },
     {
@@ -21821,7 +21884,8 @@
       "term": "treatment",
       "model": "poison * treatment",
       "printed": "0.3075",
-      "disagreement": "the treatments mean square is 307.1 (x 1000), from 921.2/3"
+      "disagreement": "the treatments mean square is 307.1 (x 1000), from 921.2/3",
+      "cause": "source_error"
      }
     },
     {
@@ -22295,7 +22359,8 @@
        "poison": "III",
        "treatment": "A"
       },
-      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded"
+      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22315,7 +22380,8 @@
        "poison": "III",
        "treatment": "B"
       },
-      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded"
+      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22354,7 +22420,8 @@
        "poison": "III",
        "treatment": "D"
       },
-      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded"
+      "disagreement": "the additive prediction differs from the book's in the fourth decimal (0.0001); the book adds averages it has already rounded",
+      "cause": "source_rounding"
      }
     },
     {
@@ -22367,7 +22434,8 @@
       "quote": "P = 4Σ(...) = 0.1104, Q = 4Σ(...)² = 0.0793, SNA = P²/Q = 0.1537 ... F = 6.9"
      },
      "check": {
-      "manual": "Tukey's SNA is 0.1537 (nonadditivity, key ss) and the remainder 0.0964, which the table prints in thousandths; its F of 6.9 tests SNA against the within-cell mean square, 0.0222 on 36 degrees of freedom, not the residual the nonadditivity check pools over all 48 runs"
+      "manual": "Tukey's SNA is 0.1537 (nonadditivity, key ss) and the remainder 0.0964, which the table prints in thousandths; its F of 6.9 tests SNA against the within-cell mean square, 0.0222 on 36 degrees of freedom, not the residual the nonadditivity check pools over all 48 runs",
+      "cause": "check_gap"
      }
     },
     {
@@ -22434,7 +22502,8 @@
       "quote": "within groups (error) 35 24.7"
      },
      "check": {
-      "manual": "the error mean square of the reciprocal on 35 degrees of freedom, one taken off for choosing the transformation; the library divides by 36 (it gives 24.0, and 24.7 on 35)"
+      "manual": "the error mean square of the reciprocal on 35 degrees of freedom, one taken off for choosing the transformation; the library divides by 36 (it gives 24.0, and 24.7 on 35)",
+      "cause": "check_gap"
      }
     },
     {
@@ -22447,7 +22516,8 @@
       "quote": "26.2 {45.4 22.3"
      },
      "check": {
-      "manual": "the reciprocal scale's interaction mean square, 0.262, split into SNA, 0.4543 (nonadditivity on the rate, key ss), and the remainder's mean square, 0.2233, all printed in hundredths; no check scales a number so"
+      "manual": "the reciprocal scale's interaction mean square, 0.262, split into SNA, 0.4543 (nonadditivity on the rate, key ss), and the remainder's mean square, 0.2233, all printed in hundredths; no check scales a number so",
+      "cause": "check_gap"
      }
     },
     {
@@ -22479,7 +22549,8 @@
       "kind": "box_cox",
       "model": "poison + treatment",
       "key": "lambda_ci.0",
-      "disagreement": "the library's 95% likelihood-ratio limits are -1.14 and -0.36; the book reads its limits off a graph against the critical sum of squares 0.322(1 + 4.08/42), a t-based allowance"
+      "disagreement": "the library's 95% likelihood-ratio limits are -1.14 and -0.36; the book reads its limits off a graph against the critical sum of squares 0.322(1 + 4.08/42), a t-based allowance",
+      "cause": "method"
      }
     },
     {
@@ -22495,7 +22566,8 @@
       "kind": "box_cox",
       "model": "poison + treatment",
       "key": "lambda_ci.1",
-      "disagreement": "the library's 95% likelihood-ratio limits are -1.14 and -0.36; the book reads its limits off a graph against the critical sum of squares 0.322(1 + 4.08/42), a t-based allowance"
+      "disagreement": "the library's 95% likelihood-ratio limits are -1.14 and -0.36; the book reads its limits off a graph against the critical sum of squares 0.322(1 + 4.08/42), a t-based allowance",
+      "cause": "method"
      }
     },
     {
@@ -22511,6 +22583,7 @@
      "check": [
       {
        "manual": "the table's S at λ = -2.5, 0 and 0.5: the data give 1.136, 0.4230 and 0.6340 (box_cox, keys sse.-2.5, sse.0 and sse.0.5); 1.333 is a misprint, and 0.424 and 0.635 are each 0.001 above the data's",
+       "cause": "check_gap",
        "printed": "1.333 0.424 0.635"
       },
       {
@@ -22585,7 +22658,8 @@
       "quote": "S = 0.322(1 + 4.08/42) = 0.353"
      },
      "check": {
-      "manual": "the book's critical sum of squares for the interval, which no check computes"
+      "manual": "the book's critical sum of squares for the interval, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -22598,7 +22672,8 @@
       "quote": "scaled by √(0.0222/16) = 0.037 ... √(0.242/16) = 0.123"
      },
      "check": {
-      "manual": "scales of the book's reference distributions, which no check computes"
+      "manual": "scales of the book's reference distributions, which no check computes",
+      "cause": "check_gap"
      }
     }
    ]
@@ -23244,7 +23319,8 @@
       "quote": "sum of squares 6696 = 6400 + 216 + 24 + 40 + 16"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
+      "cause": "library_gap"
      }
     }
    ]
@@ -23674,7 +23750,8 @@
       "kind": "coefficient",
       "term": "doff[1]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.281944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.281944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23906,7 +23983,8 @@
       "kind": "coefficient",
       "term": "doff[8]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.758056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.758056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23940,7 +24018,8 @@
       "kind": "coefficient",
       "term": "doff[9]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.161944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.161944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -23974,7 +24053,8 @@
       "kind": "coefficient",
       "term": "doff[10]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.438056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.438056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24125,7 +24205,8 @@
       "kind": "coefficient",
       "term": "spinneret[II]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.024444"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.024444",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24168,7 +24249,8 @@
       "kind": "coefficient",
       "term": "spinneret[III]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.304444"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.304444",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24211,7 +24293,8 @@
       "kind": "coefficient",
       "term": "ratio[A]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -3.090556"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -3.090556",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24254,7 +24337,8 @@
       "kind": "coefficient",
       "term": "ratio[B]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.416944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.416944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24297,7 +24381,8 @@
       "kind": "coefficient",
       "term": "ratio[C]",
       "model": "C(doff, Sum) + C(spinneret, Sum) + C(ratio, Sum)",
-      "disagreement": "draw ratio C's average less the grand average is 24.53833 - 21.86472 = 2.67361; the book prints 2.67961"
+      "disagreement": "draw ratio C's average less the grand average is 24.53833 - 21.86472 = 2.67361; the book prints 2.67961",
+      "cause": "unexplained"
      }
     },
     {
@@ -24326,7 +24411,8 @@
       "kind": "fitted",
       "run": 1,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 19.727222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 19.727222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24342,7 +24428,8 @@
       "kind": "residual",
       "run": 1,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.167222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.167222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24358,7 +24445,8 @@
       "kind": "fitted",
       "run": 2,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 24.588056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 24.588056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24374,7 +24462,8 @@
       "kind": "residual",
       "run": 2,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.428056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.428056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24390,7 +24479,8 @@
       "kind": "fitted",
       "run": 3,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 28.124722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 28.124722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24406,7 +24496,8 @@
       "kind": "residual",
       "run": 3,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.595278"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.595278",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24482,7 +24573,8 @@
       "kind": "fitted",
       "run": 6,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.933889"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.933889",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24498,7 +24590,8 @@
       "kind": "residual",
       "run": 6,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.776111"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.776111",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24514,7 +24607,8 @@
       "kind": "fitted",
       "run": 7,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 23.038056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 23.038056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24530,7 +24624,8 @@
       "kind": "residual",
       "run": 7,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.021944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.021944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24546,7 +24641,8 @@
       "kind": "fitted",
       "run": 8,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 18.627222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 18.627222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24562,7 +24658,8 @@
       "kind": "residual",
       "run": 8,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.927222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.927222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24578,7 +24675,8 @@
       "kind": "fitted",
       "run": 9,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 23.414722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 23.414722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24594,7 +24692,8 @@
       "kind": "residual",
       "run": 9,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.094722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.094722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24670,7 +24769,8 @@
       "kind": "fitted",
       "run": 12,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.057222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.057222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24686,7 +24786,8 @@
       "kind": "residual",
       "run": 12,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.307222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.307222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24732,7 +24833,8 @@
       "kind": "fitted",
       "run": 14,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.661389"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.661389",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24748,7 +24850,8 @@
       "kind": "residual",
       "run": 14,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.371389"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.371389",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24794,7 +24897,8 @@
       "kind": "fitted",
       "run": 16,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.958056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.958056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24810,7 +24914,8 @@
       "kind": "residual",
       "run": 16,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -2.428056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -2.428056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24826,7 +24931,8 @@
       "kind": "fitted",
       "run": 17,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 16.547222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 16.547222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24842,7 +24948,8 @@
       "kind": "residual",
       "run": 17,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 3.342778"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 3.342778",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24858,7 +24965,8 @@
       "kind": "fitted",
       "run": 18,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.334722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.334722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24874,7 +24982,8 @@
       "kind": "residual",
       "run": 18,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.914722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.914722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24920,7 +25029,8 @@
       "kind": "fitted",
       "run": 20,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 18.173889"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 18.173889",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24936,7 +25046,8 @@
       "kind": "residual",
       "run": 20,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.286111"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.286111",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24952,7 +25063,8 @@
       "kind": "fitted",
       "run": 21,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.961389"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.961389",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24968,7 +25080,8 @@
       "kind": "residual",
       "run": 21,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -3.681389"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -3.681389",
+      "cause": "source_rounding"
      }
     },
     {
@@ -24984,7 +25097,8 @@
       "kind": "fitted",
       "run": 22,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 16.687222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 16.687222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25000,7 +25114,8 @@
       "kind": "residual",
       "run": 22,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.357222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.357222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25016,7 +25131,8 @@
       "kind": "fitted",
       "run": 23,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.548056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.548056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25032,7 +25148,8 @@
       "kind": "residual",
       "run": 23,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.471944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 1.471944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25048,7 +25165,8 @@
       "kind": "fitted",
       "run": 24,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 25.084722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 25.084722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25064,7 +25182,8 @@
       "kind": "residual",
       "run": 24,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.114722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.114722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25080,7 +25199,8 @@
       "kind": "fitted",
       "run": 25,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.114722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.114722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25096,7 +25216,8 @@
       "kind": "residual",
       "run": 25,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 3.295278"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 3.295278",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25112,7 +25233,8 @@
       "kind": "fitted",
       "run": 26,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 24.724722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 24.724722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25128,7 +25250,8 @@
       "kind": "residual",
       "run": 26,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -2.284722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -2.284722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25144,7 +25267,8 @@
       "kind": "fitted",
       "run": 27,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.240556"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 20.240556",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25160,7 +25284,8 @@
       "kind": "residual",
       "run": 27,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.010556"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.010556",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25176,7 +25301,8 @@
       "kind": "fitted",
       "run": 28,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 17.007222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 17.007222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25192,7 +25318,8 @@
       "kind": "residual",
       "run": 28,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.357222"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.357222",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25208,7 +25335,8 @@
       "kind": "fitted",
       "run": 29,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.868056"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 21.868056",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25224,7 +25352,8 @@
       "kind": "residual",
       "run": 29,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.821944"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 0.821944",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25240,7 +25369,8 @@
       "kind": "fitted",
       "run": 30,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 25.404722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 25.404722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25256,7 +25386,8 @@
       "kind": "residual",
       "run": 30,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.464722"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -0.464722",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25332,7 +25463,8 @@
       "kind": "fitted",
       "run": 33,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 19.913889"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 19.913889",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25348,7 +25480,8 @@
       "kind": "residual",
       "run": 33,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.036111"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.036111",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25394,7 +25527,8 @@
       "kind": "fitted",
       "run": 35,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 17.573889"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 17.573889",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25410,7 +25544,8 @@
       "kind": "residual",
       "run": 35,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.793889"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is -1.793889",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25426,7 +25561,8 @@
       "kind": "fitted",
       "run": 36,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.361389"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 22.361389",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25442,7 +25578,8 @@
       "kind": "residual",
       "run": 36,
       "model": "doff + spinneret + ratio",
-      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.288611"
+      "disagreement": "the book works from averages rounded to five decimals, which moves the fifth; from the data it is 2.288611",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25488,7 +25625,8 @@
       "kind": "anova_sum_sq",
       "term": "ratio",
       "model": "doff + spinneret + ratio",
-      "disagreement": "the sum of squares is 202.4829; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves"
+      "disagreement": "the sum of squares is 202.4829; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25503,7 +25641,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "doff + spinneret + ratio",
-      "disagreement": "the sum of squares is 103.1982; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves, and the residual by subtraction carries it"
+      "disagreement": "the sum of squares is 103.1982; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves, and the residual by subtraction carries it",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25563,7 +25702,8 @@
       "kind": "anova_mean_sq",
       "term": "ratio",
       "model": "doff + spinneret + ratio",
-      "disagreement": "the mean square is 101.2414, half the sum of squares 202.4829"
+      "disagreement": "the mean square is 101.2414, half the sum of squares 202.4829",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25635,7 +25775,8 @@
       "quote": "grand average 17,210.3788 1 ... total 17,621.5617 36"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
+      "cause": "library_gap"
      }
     },
     {
@@ -25652,7 +25793,8 @@
       "kind": "anova_sum_sq",
       "term": "replicate",
       "model": "replicate + spinneret + ratio",
-      "disagreement": "the sum of squares is 33.1665; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves"
+      "disagreement": "the sum of squares is 33.1665; the book subtracts the correction for the average, 17,210.3788, from sums of squared totals and its last digit moves",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25668,7 +25810,8 @@
       "kind": "anova_mean_sq",
       "term": "replicate",
       "model": "replicate + spinneret + ratio",
-      "disagreement": "the mean square is 11.0555, a third of 33.1665"
+      "disagreement": "the mean square is 11.0555, a third of 33.1665",
+      "cause": "source_rounding"
      }
     },
     {
@@ -25681,7 +25824,8 @@
       "quote": "doffs within reps 30.7169 8 sB² = 3.8396 0.7"
      },
      "check": {
-      "manual": "multistratum_anova with the strata replicate/doff gives 30.7179, the doffs' 63.8844 (checked) less the replicates' 33.1665; the book subtracts its replicates' 33.1675, a recorded disagreement"
+      "manual": "multistratum_anova with the strata replicate/doff gives 30.7179, the doffs' 63.8844 (checked) less the replicates' 33.1665; the book subtracts its replicates' 33.1675, a recorded disagreement",
+      "cause": "check_gap"
      }
     }
    ]
@@ -26745,7 +26889,8 @@
        15,
        16
       ],
-      "disagreement": "the replicate averages are swapped: runs R1 to R4 (replicate I) average 267.1250 and R5 to R8 (replicate II) 275.8125, as the book's own run averages give"
+      "disagreement": "the replicate averages are swapped: runs R1 to R4 (replicate I) average 267.1250 and R5 to R8 (replicate II) 275.8125, as the book's own run averages give",
+      "cause": "source_error"
      }
     },
     {
@@ -26777,7 +26922,8 @@
        31,
        32
       ],
-      "disagreement": "the replicate averages are swapped: runs R1 to R4 (replicate I) average 267.1250 and R5 to R8 (replicate II) 275.8125, as the book's own run averages give"
+      "disagreement": "the replicate averages are swapped: runs R1 to R4 (replicate I) average 267.1250 and R5 to R8 (replicate II) 275.8125, as the book's own run averages give",
+      "cause": "source_error"
      }
     },
     {
@@ -26940,7 +27086,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "run + position + paper + holder + treatment",
-      "disagreement": "the residual sum of squares is 949.03; the book finds it by subtraction from rounded sums"
+      "disagreement": "the residual sum of squares is 949.03; the book finds it by subtraction from rounded sums",
+      "cause": "source_rounding"
      }
     },
     {
@@ -27050,7 +27197,8 @@
       "quote": "average 1 2,358,249.03 ... total 32 2,384,713.00"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
+      "cause": "library_gap"
      }
     }
    ]
@@ -27354,7 +27502,8 @@
      },
      "check": {
       "kind": "mean",
-      "disagreement": "9682/28 is 345.786; the book cuts it to 345.78"
+      "disagreement": "9682/28 is 345.786; the book cuts it to 345.78",
+      "cause": "source_rounding"
      }
     },
     {
@@ -27371,7 +27520,8 @@
       "kind": "anova_sum_sq",
       "term": "run",
       "model": "run",
-      "disagreement": "the blocks' sum of squares is 97,394.71; the book subtracts the correction for the average rounded to 3,347,897.28"
+      "disagreement": "the blocks' sum of squares is 97,394.71; the book subtracts the correction for the average rounded to 3,347,897.28",
+      "cause": "source_rounding"
      }
     },
     {
@@ -27445,7 +27595,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "run + treatment",
-      "disagreement": "22,071.43/15 is 1,471.429; the book cuts it to 1,471.42"
+      "disagreement": "22,071.43/15 is 1,471.429; the book cuts it to 1,471.42",
+      "cause": "source_rounding"
      }
     },
     {
@@ -27476,7 +27627,8 @@
       "kind": "anova_mean_sq",
       "term": "run",
       "model": "run",
-      "disagreement": "97,394.72/6 is 16,232.45; the book prints 16,232.33 in Table 8D.4 and 16,232.45 in Table 8D.5"
+      "disagreement": "97,394.72/6 is 16,232.45; the book prints 16,232.33 in Table 8D.4 and 16,232.45 in Table 8D.5",
+      "cause": "source_error"
      }
     },
     {
@@ -27489,7 +27641,8 @@
       "quote": "sB²/sR² = 11.03"
      },
      "check": {
-      "manual": "the unadjusted blocks' mean square over the residual of the full model, which no check computes (it reproduces: 11.03)"
+      "manual": "the unadjusted blocks' mean square over the residual of the full model, which no check computes (it reproduces: 11.03)",
+      "cause": "check_gap"
      }
     },
     {
@@ -27502,7 +27655,8 @@
       "quote": "total 3,974,162.00; average SA = 3,347,897.28"
      },
      "check": {
-      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out"
+      "manual": "the crude sum of squares and the correction for the average, which the library's sums about the mean leave out",
+      "cause": "library_gap"
      }
     },
     {
@@ -27515,7 +27669,8 @@
       "quote": "a t15 distribution with scale factor √(ks²/tλ) = √(4(1471.42)/(7)(2)) = 20.50"
      },
      "check": {
-      "manual": "the scale of the book's reference distribution for adjusted averages"
+      "manual": "the scale of the book's reference distribution for adjusted averages",
+      "cause": "check_gap"
      }
     },
     {
@@ -27561,7 +27716,8 @@
       "quote": "A 1446 5481 303"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27607,7 +27763,8 @@
       "quote": "B 2286 6162 2982"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27653,7 +27810,8 @@
       "quote": "C 1002 5267 -1259"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27699,7 +27857,8 @@
       "quote": "D 928 5476 -1764"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27745,7 +27904,8 @@
       "quote": "E 739 5236 -2280"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27791,7 +27951,8 @@
       "quote": "F 2206 5883 2941"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27837,7 +27998,8 @@
       "quote": "G 1075 5223 -923"
      },
      "check": {
-      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked"
+      "manual": "the treatment total, the total of the blocks containing it, and Q = 4T - B, sums on the way to the adjusted effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -27983,7 +28145,8 @@
       "quote": "sB²/sR² = 15.93"
      },
      "check": {
-      "manual": "the unadjusted blocks' mean square over the Youden residual, which no check computes (it reproduces: 15.93)"
+      "manual": "the unadjusted blocks' mean square over the Youden residual, which no check computes (it reproduces: 15.93)",
+      "cause": "check_gap"
      }
     },
     {
@@ -27996,7 +28159,8 @@
       "quote": "a t12 distribution with scale factor √(4(1018.75)/7(2)) = 17.06"
      },
      "check": {
-      "manual": "the scale of the book's reference distribution"
+      "manual": "the scale of the book's reference distribution",
+      "cause": "check_gap"
      }
     }
    ]
@@ -28333,7 +28497,8 @@
       "quote": "total 25,018"
      },
      "check": {
-      "manual": "the crude sum of squares, Σy², which the library's sums about the mean leave out (it reproduces)"
+      "manual": "the crude sum of squares, Σy², which the library's sums about the mean leave out (it reproduces)",
+      "cause": "library_gap"
      }
     }
    ]
@@ -30049,7 +30214,8 @@
       "quote": "(+60 + 72 + 54 + 68 + 52 + 83 + 45 + 80)/8 = 514/8 = 64.25"
      },
      "check": {
-      "manual": "the sum on the way to the average, which is checked"
+      "manual": "the sum on the way to the average, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30062,7 +30228,8 @@
       "quote": "(-60 + 72 - 54 + 68 - 52 + 83 - 45 + 80)/4 = 92/4 = 23.0"
      },
      "check": {
-      "manual": "a contrast total on the way to the effect, which is checked"
+      "manual": "a contrast total on the way to the effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30075,7 +30242,8 @@
       "quote": "(+60 - 72 + 54 - 68 - 52 + 83 - 45 + 80)/4 = 40/4 = 10.0"
      },
      "check": {
-      "manual": "a contrast total on the way to the effect, which is checked"
+      "manual": "a contrast total on the way to the effect, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30088,7 +30256,8 @@
       "quote": "Table 10.5 ... (1) 132 122 135 125 12 14 31 35"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30101,7 +30270,8 @@
       "quote": "Table 10.5 ... (2) 254 260 26 66 -10 -10 2 4"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30114,7 +30284,8 @@
       "quote": "Table 10.5 ... (3) 514 92 -20 6 6 40 0 2"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30245,7 +30416,8 @@
       "quote": "Table 10A.1 ... estimates 64.25 23.0 -5.0 1.5 1.5 10.0 0.0 0.5"
      },
      "check": {
-      "manual": "the estimates of Table 10.5 again, which are checked there"
+      "manual": "the estimates of Table 10.5 again, which are checked there",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30258,7 +30430,8 @@
       "quote": "sum of squares check 34,342 68,684 137,368 274,736"
      },
      "check": {
-      "manual": "the checks on Yates's columns, the crude sum of squares of the averages times 1, 2, 4 and 8"
+      "manual": "the checks on Yates's columns, the crude sum of squares of the averages times 1, 2, 4 and 8",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30271,7 +30444,8 @@
       "quote": "the sum of the entries in column (2) is 592 ... 122 + 125 + 14 + 35 = 296"
      },
      "check": {
-      "manual": "a step of Yates's algorithm on the way to the effects, which are checked"
+      "manual": "a step of Yates's algorithm on the way to the effects, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -30547,7 +30721,8 @@
       "quote": "sum of squares ... 34,332.5"
      },
      "check": {
-      "manual": "the crude sum of squares of the fitted values, Σŷ², which no check computes (34,342 - 9.5 reproduces)"
+      "manual": "the crude sum of squares of the fitted values, Σŷ², which no check computes (34,342 - 9.5 reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -30560,7 +30735,8 @@
       "quote": "sum of squares 274,660 549,320 1,098,640 2,197,280"
      },
      "check": {
-      "manual": "the checks on the columns of the reverse Yates algorithm"
+      "manual": "the checks on the columns of the reverse Yates algorithm",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -31071,7 +31247,8 @@
       "quote": "total 64"
      },
      "check": {
-      "manual": "the sum of the eight variances on the way to the pooled one, which is checked"
+      "manual": "the sum of the eight variances on the way to the pooled one, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -31446,7 +31623,8 @@
       "quote": "starting with totals rather than averages, ... 59 + 61 = 120 for the first test condition, 74 + 70 = 144 for the second"
      },
      "check": {
-      "manual": "totals of the duplicates for Yates's algorithm, twice the averages of bhh-pilot-plant-2-3, which are checked there"
+      "manual": "totals of the duplicates for Yates's algorithm, twice the averages of bhh-pilot-plant-2-3, which are checked there",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -33118,7 +33296,8 @@
       "quote": "effect² 0.5625 0.2500 0.0625 0.5625 0.0625 sum 1.5000"
      },
      "check": {
-      "manual": "the squares of the five three- and four-factor effects, which are checked, and their sum"
+      "manual": "the squares of the five three- and four-factor effects, which are checked, and their sum",
+      "cause": "not_a_result"
      }
     },
     {
@@ -34387,7 +34566,8 @@
       "kind": "box_cox",
       "model": "A + B + C + D",
       "key": "lambda_ci.0",
-      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom"
+      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom",
+      "cause": "method"
      }
     },
     {
@@ -34403,7 +34583,8 @@
       "kind": "box_cox",
       "model": "A + B + C + D",
       "key": "lambda_ci.1",
-      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom"
+      "disagreement": "the library's 95% likelihood-ratio limits are -0.25 and 0.14; the book reads its limits off the plot of Sλ against the critical sum of squares 2.59(1 + t²/11) = 3.73, a t-based allowance that widens the interval for 11 degrees of freedom",
+      "cause": "method"
      }
     },
     {
@@ -34430,7 +34611,8 @@
       "quote": "Sλ̂ = 2.59 ... S = 3.73 (Figure 10.10 b)"
      },
      "check": {
-      "manual": "2.59 is the profile's value at λ = 0 (2.5875, box_cox key sse.0), the log the analysis goes on with, not its least value, 2.539 at λ = -0.052; 3.73 is the critical value 2.59(1 + t²/11), with t read from a table"
+      "manual": "2.59 is the profile's value at λ = 0 (2.5875, box_cox key sse.0), the log the analysis goes on with, not its least value, 2.539 at λ = -0.052; 3.73 is the critical value 2.59(1 + t²/11), with t read from a table",
+      "cause": "check_gap"
      }
     },
     {
@@ -34443,7 +34625,8 @@
       "quote": "(c) Logged data: log y"
      },
      "check": {
-      "manual": "log10 of each rate of advance, to two decimals (each reproduces; used above to read the data)"
+      "manual": "log10 of each rate of advance, to two decimals (each reproduces; used above to read the data)",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -34702,7 +34885,8 @@
       "quote": "C -2 ± 6 ... CHF -4 ± 6"
      },
      "check": {
-      "manual": "a standard error the book gives without saying how it was found (the eight runs have no replicates)"
+      "manual": "a standard error the book gives without saying how it was found (the eight runs have no replicates)",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -34888,7 +35072,8 @@
        3,
        4
       ],
-      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1",
+      "cause": "source_rounding"
      }
     },
     {
@@ -34901,7 +35086,8 @@
       "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 4.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -34924,7 +35110,8 @@
        3,
        4
       ],
-      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1",
+      "cause": "source_rounding"
      }
     },
     {
@@ -34937,7 +35124,8 @@
       "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... -5.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -34960,7 +35148,8 @@
        3,
        4
       ],
-      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1"
+      "disagreement": "the corner averages on the board give 3.0, -4.0 and 0.0; the board shows them to the nearest unit, and the effects were worked from the averages before rounding, which differ by up to 1",
+      "cause": "source_rounding"
      }
     },
     {
@@ -34973,7 +35162,8 @@
       "quote": "Table 11.2, phase I, cycle 5, effects and their standard errors ... 1.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -35099,7 +35289,8 @@
       "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 1.0 ± 1.0"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35134,7 +35325,8 @@
       "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... -3.0 ± 1.0"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35169,7 +35361,8 @@
       "quote": "Table 11.2, phase II, cycle 5, effects and their standard errors ... 0.0 ± 1.0"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -35295,7 +35488,8 @@
       "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... -1.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35330,7 +35524,8 @@
       "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 2.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35365,7 +35560,8 @@
       "quote": "Table 11.2, phase III, cycle 4, effects and their standard errors ... 0.0 ± 1.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -35480,7 +35676,8 @@
        3,
        4
       ],
-      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -35493,7 +35690,8 @@
       "quote": "Table 11.3, phase I, effects with standard errors ... 0.2 ± 0.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35516,7 +35714,8 @@
        3,
        4
       ],
-      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -35529,7 +35728,8 @@
       "quote": "Table 11.3, phase I, effects with standard errors ... -0.4 ± 0.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35552,7 +35752,8 @@
        3,
        4
       ],
-      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong"
+      "disagreement": "the four corner averages printed give -0.1 for addition time, -0.1 for stirring rate and 0.9 for the interaction; no arrangement of the four values gives the printed effects, so one of the printed averages or effects is wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -35565,7 +35766,8 @@
       "quote": "Table 11.3, phase I, effects with standard errors ... 0.6 ± 0.5"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -35692,7 +35894,8 @@
       "quote": "Table 11.3, phase II, effects with standard errors ... 0.6 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35727,7 +35930,8 @@
       "quote": "Table 11.3, phase II, effects with standard errors ... 1.6 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35762,7 +35966,8 @@
       "quote": "Table 11.3, phase II, effects with standard errors ... -0.4 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -35889,7 +36094,8 @@
       "quote": "Table 11.3, phase III, effects with standard errors ... 0.8 ± 1.2"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35924,7 +36130,8 @@
       "quote": "Table 11.3, phase III, effects with standard errors ... 4.8 ± 1.2"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -35959,7 +36166,8 @@
       "quote": "Table 11.3, phase III, effects with standard errors ... 0.0 ± 1.2"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -36086,7 +36294,8 @@
       "quote": "Table 11.3, phase IV, effects with standard errors ... -0.2 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -36121,7 +36330,8 @@
       "quote": "Table 11.3, phase IV, effects with standard errors ... 4.2 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -36156,7 +36366,8 @@
       "quote": "Table 11.3, phase IV, effects with standard errors ... -1.4 ± 0.7"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -36283,7 +36494,8 @@
       "quote": "Table 11.3, phase V, effects with standard errors ... 0.8 ± 0.4"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -36318,7 +36530,8 @@
       "quote": "Table 11.3, phase V, effects with standard errors ... 3.0 ± 0.4"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -36353,7 +36566,8 @@
       "quote": "Table 11.3, phase V, effects with standard errors ... -0.4 ± 0.4"
      },
      "check": {
-      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print"
+      "manual": "a standard error from the EVOP calculation over the cycles, whose individual readings the information board does not print",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -36760,7 +36974,8 @@
       "quote": "Individual 95% confidence intervals for true values of effects ... ± 2.4"
      },
      "check": {
-      "manual": "the half-width t(8, 0.025) x √1.05 of each interval, which no check reads (2.36 reproduces)"
+      "manual": "the half-width t(8, 0.025) x √1.05 of each interval, which no check reads (2.36 reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -37413,7 +37628,8 @@
       "kind": "effect",
       "term": "feed·temperature",
       "model": "feed * catalyst * agitation * temperature * concentration",
-      "disagreement": "the data give -0.875, as the book's own half fraction requires: l14 = 14 + 235 = -0.75 there, and 235 = 0.125; the sign is lost"
+      "disagreement": "the data give -0.875, as the book's own half fraction requires: l14 = 14 + 235 = -0.75 there, and 235 = 0.125; the sign is lost",
+      "cause": "source_error"
      }
     },
     {
@@ -37759,7 +37975,8 @@
       "kind": "effect",
       "term": "feed·catalyst·agitation·temperature·concentration",
       "model": "feed * catalyst * agitation * temperature * concentration",
-      "disagreement": "the data give -0.5, as the book's own half fraction requires: its average 65.25 is the average 65.5 plus half of 12345"
+      "disagreement": "the data give -0.5, as the book's own half fraction requires: its average 65.25 is the average 65.5 plus half of 12345",
+      "cause": "source_error"
      }
     },
     {
@@ -40002,7 +40219,8 @@
        15,
        16
       ],
-      "disagreement": "the times of Table 12.7 give -2.25 (the breakfast column is +, +, -, -, -, -, +, +); the sign is lost, and Table 12.9 carries the slip"
+      "disagreement": "the times of Table 12.7 give -2.25 (the breakfast column is +, +, -, -, -, -, +, +); the sign is lost, and Table 12.9 carries the slip",
+      "cause": "source_error"
      }
     },
     {
@@ -40069,7 +40287,8 @@
       "kind": "effect",
       "term": "seat",
       "model": "seat + dynamo + handlebars + gear + raincoat + breakfast + tires + dynamo:gear + seat:gear + gear:tires + seat:dynamo + gear:breakfast + gear:raincoat + handlebars:gear",
-      "disagreement": "the data give 2.125; the book halves contrasts already rounded (l'1 = 0.75 printed 0.8)"
+      "disagreement": "the data give 2.125; the book halves contrasts already rounded (l'1 = 0.75 printed 0.8)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -40150,7 +40369,8 @@
       "kind": "effect",
       "term": "breakfast",
       "model": "seat + dynamo + handlebars + gear + raincoat + breakfast + tires + dynamo:gear + seat:gear + gear:tires + seat:dynamo + gear:breakfast + gear:raincoat + handlebars:gear",
-      "disagreement": "the data give -0.625 (1/2(1.0 - 2.25)); the book uses l'6 = 2.2 with its sign lost, and 1/2(1.0 + 2.2) is 1.6, not the 1.8 printed"
+      "disagreement": "the data give -0.625 (1/2(1.0 - 2.25)); the book uses l'6 = 2.2 with its sign lost, and 1/2(1.0 + 2.2) is 1.6, not the 1.8 printed",
+      "cause": "source_error"
      }
     },
     {
@@ -40183,7 +40403,8 @@
       "kind": "effect",
       "term": "dynamo·gear",
       "model": "seat + dynamo + handlebars + gear + raincoat + breakfast + tires + dynamo:gear + seat:gear + gear:tires + seat:dynamo + gear:breakfast + gear:raincoat + handlebars:gear",
-      "disagreement": "the data give 1.375; the book halves contrasts already rounded (l'1 = 0.75 printed 0.8)"
+      "disagreement": "the data give 1.375; the book halves contrasts already rounded (l'1 = 0.75 printed 0.8)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -40264,7 +40485,8 @@
       "kind": "effect",
       "term": "gear·raincoat",
       "model": "seat + dynamo + handlebars + gear + raincoat + breakfast + tires + dynamo:gear + seat:gear + gear:tires + seat:dynamo + gear:breakfast + gear:raincoat + handlebars:gear",
-      "disagreement": "the data give 1.625 (1/2(1.0 + 2.25)); the book uses l'6 = 2.2 with its sign lost"
+      "disagreement": "the data give 1.625 (1/2(1.0 + 2.25)); the book uses l'6 = 2.2 with its sign lost",
+      "cause": "source_error"
      }
     },
     {
@@ -40293,7 +40515,8 @@
       "quote": "the calculated effects l1, l2, ..., l7 have a standard error of about √(3²/4 + 3²/4) = 2.1"
      },
      "check": {
-      "manual": "a standard error from a standard deviation of 3 s taken from past experience, not from these runs"
+      "manual": "a standard error from a standard deviation of 3 s taken from past experience, not from these runs",
+      "cause": "not_a_result"
      }
     },
     {
@@ -41742,7 +41965,8 @@
       "quote": "From the last two equations M is estimated as 20.95"
      },
      "check": {
-      "manual": "the book's hand solution, which holds the main effects at their estimates from the first sixteen runs; the four interactions are checked above"
+      "manual": "the book's hand solution, which holds the main effects at their estimates from the first sixteen runs; the four interactions are checked above",
+      "cause": "not_a_result"
      }
     },
     {
@@ -41755,7 +41979,8 @@
       "quote": "Table 12B.2 ... (18.5*) (28.2*) (12.4*) (23.5*) ... 20.95 - 19.75 = 1.2 has been subtracted from each value"
      },
      "check": {
-      "manual": "the four new runs less the block difference 1.2"
+      "manual": "the four new runs less the block difference 1.2",
+      "cause": "not_a_result"
      }
     },
     {
@@ -42892,7 +43117,8 @@
       "kind": "effect",
       "term": "recycle",
       "model": "water + raw + temperature + recycle + caustic + cloth + holdup + water:raw + water:temperature + water:recycle + water:caustic + water:cloth + water:holdup + raw:recycle",
-      "disagreement": "the sixteen runs give 2.71 (1/2(3.175 + 2.25)), and 12, from the same two contrasts, reproduces; 2.8 is a slip"
+      "disagreement": "the sixteen runs give 2.71 (1/2(3.175 + 2.25)), and 12, from the same two contrasts, reproduces; 2.8 is a slip",
+      "cause": "source_error"
      }
     },
     {
@@ -42925,7 +43151,8 @@
       "kind": "effect",
       "term": "cloth",
       "model": "water + raw + temperature + recycle + caustic + cloth + holdup + water:raw + water:temperature + water:recycle + water:caustic + water:cloth + water:holdup + raw:recycle",
-      "disagreement": "the sixteen runs give -0.06 (1/2(-3.425 + 3.3)), and 17, from the same two contrasts, reproduces; 0.1 is a slip"
+      "disagreement": "the sixteen runs give -0.06 (1/2(-3.425 + 3.3)), and 17, from the same two contrasts, reproduces; 0.1 is a slip",
+      "cause": "source_error"
      }
     },
     {
@@ -42942,7 +43169,8 @@
       "kind": "effect",
       "term": "holdup",
       "model": "water + raw + temperature + recycle + caustic + cloth + holdup + water:raw + water:temperature + water:recycle + water:caustic + water:cloth + water:holdup + raw:recycle",
-      "disagreement": "the sixteen runs give -4.31 (1/2(0.525 - 9.15)); the book's -4.4 and its 4.9 for 16 both follow from a second-fraction contrast of -9.3 for -9.15"
+      "disagreement": "the sixteen runs give -4.31 (1/2(0.525 - 9.15)); the book's -4.4 and its 4.9 for 16 both follow from a second-fraction contrast of -9.3 for -9.15",
+      "cause": "source_error"
      }
     },
     {
@@ -43023,7 +43251,8 @@
       "kind": "effect",
       "term": "water·cloth",
       "model": "water + raw + temperature + recycle + caustic + cloth + holdup + water:raw + water:temperature + water:recycle + water:caustic + water:cloth + water:holdup + raw:recycle",
-      "disagreement": "the sixteen runs give 4.84 (1/2(0.525 + 9.15)); see 7"
+      "disagreement": "the sixteen runs give 4.84 (1/2(0.525 + 9.15)); see 7",
+      "cause": "source_error"
      }
     },
     {
@@ -43854,6 +44083,7 @@
       ],
       "term": "AC",
       "disagreement": "37 is not an alias of 13 under the generators 1235, 1246, 1347 and 2348 (47 is, as Table 13.8 prints it); the sorted list misprints 47 as 37",
+      "cause": "source_error",
       "printed": "BE, CG, FH"
      }
     },
@@ -43867,7 +44097,8 @@
       "quote": "it could be assumed that the standard deviation of an estimated effect was about 0.35"
      },
      "check": {
-      "manual": "a standard error taken from previous simulation studies, not from these runs"
+      "manual": "a standard error taken from previous simulation studies, not from these runs",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -46705,7 +46936,8 @@
       "quote": "Table 14.2 ... sum = 1486.8675 = S(0.30)"
      },
      "check": {
-      "manual": "the sum of squares at a trial slope of 0.30, on the way to the minimum, which no check computes (it reproduces)"
+      "manual": "the sum of squares at a trial slope of 0.30, on the way to the minimum, which no check computes (it reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -46718,7 +46950,8 @@
       "quote": "Table 14.3 ... Σy² = 8901.31 Σŷ² = 8836.64"
      },
      "check": {
-      "manual": "crude sums of squares of the data and fitted values; the model's is checked in Table 14.4"
+      "manual": "crude sums of squares of the data and fitted values; the model's is checked in Table 14.4",
+      "cause": "not_a_result"
      }
     },
     {
@@ -46731,7 +46964,8 @@
       "quote": "Σ xuyu = 17,638.61 and Σ x² = 35,208"
      },
      "check": {
-      "manual": "the sums of the normal equation, on the way to b, which is checked"
+      "manual": "the sums of the normal equation, on the way to b, which is checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -46906,7 +47140,8 @@
       "quote": "total ST = 8901.31 9"
      },
      "check": {
-      "manual": "the crude total, Σy², which the library's sums do not report"
+      "manual": "the crude total, Σy², which the library's sums do not report",
+      "cause": "library_gap"
      }
     },
     {
@@ -46922,7 +47157,8 @@
       "kind": "anova_f",
       "term": "x",
       "model": "x - 1",
-      "disagreement": "the ratio is 1093.1; the book divides by the residual mean square rounded to 8.08"
+      "disagreement": "the ratio is 1093.1; the book divides by the residual mean square rounded to 8.08",
+      "cause": "source_rounding"
      }
     },
     {
@@ -46938,7 +47174,8 @@
       "kind": "t_value",
       "term": "x",
       "model": "x - 1",
-      "disagreement": "t is 33.06; the book divides by the standard error rounded to 0.01515"
+      "disagreement": "t is 33.06; the book divides by the standard error rounded to 0.01515",
+      "cause": "source_rounding"
      }
     },
     {
@@ -47413,7 +47650,8 @@
       "quote": "for the trial values β1 = 1 and β2 = 7, S(1, 7) = Σ(y - 1x1 - 7x2)² = 1.9022"
      },
      "check": {
-      "manual": "the sum of squares at trial values of the parameters, which no check computes (it reproduces)"
+      "manual": "the sum of squares at trial values of the parameters, which no check computes (it reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -47470,7 +47708,8 @@
       "quote": "7.055b1 + 4.178b2 = 38.279, 4.178b1 + 3.635b2 = 30.939 (14.33)"
      },
      "check": {
-      "manual": "the sums of squares and products of the normal equations, on the way to the coefficients, which are checked"
+      "manual": "the sums of squares and products of the normal equations, on the way to the coefficients, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -47483,7 +47722,8 @@
       "quote": "Table 14.6 ... sum of squares = 266.59 267.92 1.33"
      },
      "check": {
-      "manual": "crude sums of squares of the fitted values and data, which the library's sums do not report"
+      "manual": "crude sums of squares of the fitted values and data, which the library's sums do not report",
+      "cause": "library_gap"
      }
     },
     {
@@ -47513,7 +47753,8 @@
      "check": {
       "kind": "pure_error_ms",
       "model": "x1 + x2 - 1",
-      "disagreement": "the duplicates give 0.293 (0.586/2); the book halves the pure-error sum already rounded to 0.59"
+      "disagreement": "the duplicates give 0.293 (0.586/2); the book halves the pure-error sum already rounded to 0.59",
+      "cause": "source_rounding"
      }
     },
     {
@@ -47565,7 +47806,8 @@
      "check": {
       "kind": "lack_of_fit_f",
       "model": "x1 + x2 - 1",
-      "disagreement": "the ratio is 1.27 (0.373/0.293); the book divides mean squares already rounded, 0.37/0.30"
+      "disagreement": "the ratio is 1.27 (0.373/0.293); the book divides mean squares already rounded, 0.37/0.30",
+      "cause": "source_rounding"
      }
     },
     {
@@ -47578,7 +47820,8 @@
       "quote": "mean square ratios as great or greater than 1.2 can be expected about 45% of the time"
      },
      "check": {
-      "manual": "read approximately off an F table; the level is 0.44 (0.37/0.295 = 1.25 on 2 and 2 degrees of freedom)"
+      "manual": "read approximately off an F table; the level is 0.44 (0.37/0.295 = 1.25 on 2 and 2 degrees of freedom)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -47593,7 +47836,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "x1 + x2 - 1",
-      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that"
+      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that",
+      "cause": "source_error"
      }
     },
     {
@@ -47608,7 +47852,8 @@
      "check": {
       "kind": "residual_std_error",
       "model": "x1 + x2 - 1",
-      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that"
+      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that",
+      "cause": "source_error"
      }
     },
     {
@@ -47621,7 +47866,8 @@
       "quote": "V(b2) = 1/(1 - ρ²) s²/Σx2² = (1/0.3193)(0.3309/3.635) = 0.2851"
      },
      "check": {
-      "manual": "the square of b2's standard error: the data give 0.2866 (0.5353², std_error squared); the book's 0.2851 is 0.534², from its residual mean square of 0.3309, recorded as a disagreement beside it"
+      "manual": "the square of b2's standard error: the data give 0.2866 (0.5353², std_error squared); the book's 0.2851 is 0.534², from its residual mean square of 0.3309, recorded as a disagreement beside it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -47634,7 +47880,8 @@
       "quote": "where ρ, which measures the correlation between the estimates b1 and b2, is ρ = -0.8250 (14.41)"
      },
      "check": {
-      "manual": "the correlation of the two estimates, which no check reads (it reproduces)"
+      "manual": "the correlation of the two estimates, which no check reads (it reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -47650,7 +47897,8 @@
       "kind": "std_error",
       "term": "x1",
       "model": "x1 + x2 - 1",
-      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that"
+      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that",
+      "cause": "source_error"
      }
     },
     {
@@ -47666,7 +47914,8 @@
       "kind": "std_error",
       "term": "x2",
       "model": "x1 + x2 - 1",
-      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that"
+      "disagreement": "1.3308/4 is 0.3327; the book prints 0.3309, and its s and standard errors follow from that",
+      "cause": "source_error"
      }
     },
     {
@@ -47679,7 +47928,8 @@
       "quote": "For β1: 1.21 ± (2.132 x 0.38) = 1.21 ± 0.82; For β2: 7.12 ± (2.132 x 0.53) = 7.12 ± 1.13 (14.43)"
      },
      "check": {
-      "manual": "90% intervals, which the checks (at 95%) do not read; 2.132 x 0.383 = 0.82 and 2.132 x 0.534 = 1.14 from the unrounded errors"
+      "manual": "90% intervals, which the checks (at 95%) do not read; 2.132 x 0.383 = 0.82 and 2.132 x 0.534 = 1.14 from the unrounded errors",
+      "cause": "check_gap"
      }
     },
     {
@@ -47692,7 +47942,8 @@
       "quote": "S = 1.3308[1 + 2/4 (4.32)] = 4.2053 (14.45) ... = 2.874"
      },
      "check": {
-      "manual": "the contour bounding the joint confidence region, which no check computes"
+      "manual": "the contour bounding the joint confidence region, which no check computes",
+      "cause": "check_gap"
      }
     },
     {
@@ -47976,7 +48227,8 @@
       "quote": "Table 14.8 ... sum = 18.75 ... x̄ = 2.679"
      },
      "check": {
-      "manual": "the average velocity, a setting, which no check reads (it reproduces: 18.75/7)"
+      "manual": "the average velocity, a setting, which no check reads (it reproduces: 18.75/7)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -48002,7 +48254,8 @@
       "quote": "Σx² = 51.0625, Σxy = 1820.5, Σy² = 65,744.0 (14.55); Σ(x - x̄)² = 0.8393, Σ(x - x̄)(y - ȳ) = 9.7857, Σ(y - ȳ)² = 157.7143 (14.56)"
      },
      "check": {
-      "manual": "sums of squares and products on the way to the coefficients, which are checked; Σ(y - ȳ)² = 157.7143 is the corrected total"
+      "manual": "sums of squares and products on the way to the coefficients, which are checked; Σ(y - ȳ)² = 157.7143 is the corrected total",
+      "cause": "not_a_result"
      }
     },
     {
@@ -48061,7 +48314,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "x",
-      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)"
+      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -48076,7 +48330,8 @@
      "check": {
       "kind": "ss_regression",
       "model": "x",
-      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)"
+      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -48091,7 +48346,8 @@
      "check": {
       "kind": "ms_residual",
       "model": "x",
-      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)"
+      "disagreement": "the data give 43.617, 114.097 and 8.7234; the book multiplies by the slope already rounded to 11.66 (11.66 x 9.7857 = 114.1013)",
+      "cause": "source_rounding"
      }
     },
     {
@@ -48107,7 +48363,8 @@
       "kind": "std_error",
       "term": "Intercept",
       "model": "x",
-      "disagreement": "the data give 8.71 (s √(1/7 + 2.679²/0.8393)); the book prints 8.64"
+      "disagreement": "the data give 8.71 (s √(1/7 + 2.679²/0.8393)); the book prints 8.64",
+      "cause": "unexplained"
      }
     },
     {
@@ -48321,7 +48578,8 @@
       "quote": "the sum of squares for the mean Nȳ² = 67,404.1 ... 67,428.6 - 67,404.1 = 24.5 ... total ST = 68,115.0"
      },
      "check": {
-      "manual": "crude sums of squares, about zero, which the library's sums about the mean do not report"
+      "manual": "crude sums of squares, about zero, which the library's sums about the mean do not report",
+      "cause": "library_gap"
      }
     },
     {
@@ -48477,7 +48735,8 @@
       "kind": "anova_sum_sq",
       "term": "x²",
       "model": "x + I(x ** 2)",
-      "disagreement": "the data give 641.2: the book's 643.2 is 2.0 away, and so are its model and lack-of-fit sums; its coefficients and normal equations reproduce, so the slip is in the sums of squares"
+      "disagreement": "the data give 641.2: the book's 643.2 is 2.0 away, and so are its model and lack-of-fit sums; its coefficients and normal equations reproduce, so the slip is in the sums of squares",
+      "cause": "source_error"
      }
     },
     {
@@ -48492,7 +48751,8 @@
      "check": {
       "kind": "ss_residual",
       "model": "x + I(x ** 2)",
-      "disagreement": "the data give 45.2: the book's 43.2 is 2.0 away, and so are its model and lack-of-fit sums; its coefficients and normal equations reproduce, so the slip is in the sums of squares"
+      "disagreement": "the data give 45.2: the book's 43.2 is 2.0 away, and so are its model and lack-of-fit sums; its coefficients and normal equations reproduce, so the slip is in the sums of squares",
+      "cause": "source_error"
      }
     },
     {
@@ -48505,7 +48765,8 @@
       "quote": "Table 14.12 ... SM = 68,071.8 ... SL = 16.2 3 5.40"
      },
      "check": {
-      "manual": "the model (crude) and lack-of-fit sums: the data give 68,069.8, 18.2 and 6.06, each 2.0 (or 2.0/3) from the book's, as the residual is"
+      "manual": "the model (crude) and lack-of-fit sums: the data give 68,069.8, 18.2 and 6.06, each 2.0 (or 2.0/3) from the book's, as the residual is",
+      "cause": "check_gap"
      }
     },
     {
@@ -48520,7 +48781,8 @@
      "check": {
       "kind": "lack_of_fit_f",
       "model": "x + I(x ** 2)",
-      "disagreement": "the ratio is 0.90 (6.06/6.75); the book's 0.80 carries the 2.0 by which its residual sum of squares is short"
+      "disagreement": "the ratio is 0.90 (6.06/6.75); the book's 0.80 carries the 2.0 by which its residual sum of squares is short",
+      "cause": "source_error"
      }
     },
     {
@@ -48547,7 +48809,8 @@
       "quote": "10b0 + 215b1 + 5225b2 = 821 ... = 418,750 (14B.11)"
      },
      "check": {
-      "manual": "the sums of the normal equations and the inverse matrix, on the way to the coefficients, which are checked (they reproduce)"
+      "manual": "the sums of the normal equations and the inverse matrix, on the way to the coefficients, which are checked (they reproduce)",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -48647,7 +48910,8 @@
       "quote": "The minimum is at the least squares values b1 = 213.8 and b2 = 0.5473."
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit (scipy reproduces 213.8 and 0.5473)"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit (scipy reproduces 213.8 and 0.5473)",
+      "cause": "library_gap"
      }
     },
     {
@@ -48660,7 +48924,8 @@
       "quote": "b1 = 213.8 and b2 = 0.5473"
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit",
+      "cause": "library_gap"
      }
     },
     {
@@ -48673,7 +48938,8 @@
       "quote": "The sum of squares of these residuals is SR = 1168.01."
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit",
+      "cause": "library_gap"
      }
     },
     {
@@ -48686,7 +48952,8 @@
       "quote": "the boundary of the region lies on the contour for which S = 3690.91"
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit",
+      "cause": "library_gap"
      }
     },
     {
@@ -48699,7 +48966,8 @@
       "quote": "Table 14.14 ... ŷu = 213.8(1 - e^(-0.5473xu))"
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit",
+      "cause": "library_gap"
      }
     },
     {
@@ -48712,7 +48980,8 @@
       "quote": "Table 14.14 ... yu - ŷu"
      },
      "check": {
-      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit"
+      "manual": "a model nonlinear in its parameters, η = β1(1 - exp(-β2 x)), which the library does not fit",
+      "cause": "library_gap"
      }
     }
    ]
@@ -48941,7 +49210,8 @@
       "quote": "8b0 + 0.40b1 + 1.60b2 + 0.00b3 = 445.50 ... (14C.2)"
      },
      "check": {
-      "manual": "the sums of squares and products of the executed settings, on the way to the coefficients, which are checked"
+      "manual": "the sums of squares and products of the executed settings, on the way to the coefficients, which are checked",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -49293,7 +49563,8 @@
       "quote": "Table 17.1 ... original data minus 60"
      },
      "check": {
-      "manual": "each observation less the target 60, which no check computes (each reproduces)"
+      "manual": "each observation less the target 60, which no check computes (each reproduces)",
+      "cause": "check_gap"
      }
     },
     {
@@ -49306,7 +49577,8 @@
       "quote": "Table 17.1 ... cumulative sum Σ(y - 60)"
      },
      "check": {
-      "manual": "the cumulative sum of the deviations from target, which no check computes (each reproduces); the library's CUSUM chart works with a reference value and decision interval instead"
+      "manual": "the cumulative sum of the deviations from target, which no check computes (each reproduces); the library's CUSUM chart works with a reference value and decision interval instead",
+      "cause": "library_gap"
      }
     }
    ]
@@ -51590,7 +51862,8 @@
       "quote": "Table 17.3 ... sum (1) + (2) ... sum of entries in (4)"
      },
      "check": {
-      "manual": "sums on the way to the averages, which are checked"
+      "manual": "sums on the way to the averages, which are checked",
+      "cause": "not_a_result"
      }
     },
     {
@@ -51632,7 +51905,8 @@
       "quote": "Pooling the 15 estimates of this kind, we get VS = 28.99 with 15 degrees of freedom."
      },
      "check": {
-      "manual": "the pooled variance of the duplicate sample averages within batches, half the samples' mean square 58.0, which no check reads (it reproduces: 28.99)"
+      "manual": "the pooled variance of the duplicate sample averages within batches, half the samples' mean square 58.0, which no check reads (it reproduces: 28.99)",
+      "cause": "check_gap"
      }
     },
     {
@@ -51645,7 +51919,8 @@
       "quote": "Their overall average is 26.783, and their variance is ... = 21.64 (17.24)"
      },
      "check": {
-      "manual": "the variance of the 15 batch averages, which no check reads; it is 21.62 (1210.93/56), and the book's footnote writes 26.278 for the grand average 26.783"
+      "manual": "the variance of the 15 batch averages, which no check reads; it is 21.62 (1210.93/56), and the book's footnote writes 26.278 for the grand average 26.783",
+      "cause": "check_gap"
      }
     },
     {
@@ -51701,7 +51976,8 @@
        "sample"
       ],
       "key": "batch",
-      "disagreement": "the batch component is 7.1 (VB - VS/2 = 21.62 - 14.50); the book's own expression, 21.6 - 28.5/2 - 0.92/4, is 7.1 as well, so 6.9 is a slip"
+      "disagreement": "the batch component is 7.1 (VB - VS/2 = 21.62 - 14.50); the book's own expression, 21.6 - 28.5/2 - 0.92/4, is 7.1 as well, so 6.9 is a slip",
+      "cause": "source_error"
      }
     },
     {
@@ -51718,7 +51994,8 @@
       "kind": "anova_sum_sq",
       "term": "batch",
       "model": "batch",
-      "disagreement": "the data give 1210.9; the book subtracts a rounded correction for the average"
+      "disagreement": "the data give 1210.9; the book subtracts a rounded correction for the average",
+      "cause": "source_rounding"
      }
     },
     {
@@ -51734,7 +52011,8 @@
       "kind": "anova_mean_sq",
       "term": "batch",
       "model": "batch",
-      "disagreement": "the mean square is 86.5 (1210.93/14); the book prints 86.6"
+      "disagreement": "the mean square is 86.5 (1210.93/14); the book prints 86.6",
+      "cause": "unexplained"
      }
     },
     {
@@ -51815,7 +52093,8 @@
       "quote": "Table 17A.2 ... average 43,040.8 1 ... total 45,149.0 60"
      },
      "check": {
-      "manual": "the correction for the average and the crude total, which the library's sums about the mean do not report"
+      "manual": "the correction for the average and the crude total, which the library's sums about the mean do not report",
+      "cause": "library_gap"
      }
     },
     {
@@ -51828,7 +52107,8 @@
       "quote": "The experiment yielded these estimates: σ̂B² = 4.3, σ̂U² = 16.0, σ̂T² = 1.3 (17.27)"
      },
      "check": {
-      "manual": "estimates from a second hierarchical study whose data are not printed"
+      "manual": "estimates from a second hierarchical study whose data are not printed",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -51841,7 +52121,8 @@
       "quote": "V = 16.0/U + 1.3/A ... (Tables 17.4 and 17.5)"
      },
      "check": {
-      "manual": "variances of sampling schemes worked from the second study's components, V = 16.0/U + 1.3/A, with their costs; arithmetic on numbers whose data are not printed"
+      "manual": "variances of sampling schemes worked from the second study's components, V = 16.0/U + 1.3/A, with their costs; arithmetic on numbers whose data are not printed",
+      "cause": "data_not_printed"
      }
     }
    ]
@@ -53527,7 +53808,8 @@
       "kind": "residual",
       "run": 3,
       "model": "x1 + x2",
-      "disagreement": "the engineer's fitted equation gives a residual of 30.8; the problem asks the reader to check these calculations, and three of the twelve are wrong"
+      "disagreement": "the engineer's fitted equation gives a residual of 30.8; the problem asks the reader to check these calculations, and three of the twelve are wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -53573,7 +53855,8 @@
       "kind": "residual",
       "run": 6,
       "model": "x1 + x2",
-      "disagreement": "the engineer's fitted equation gives a residual of 27.6; the problem asks the reader to check these calculations, and three of the twelve are wrong"
+      "disagreement": "the engineer's fitted equation gives a residual of 27.6; the problem asks the reader to check these calculations, and three of the twelve are wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -53604,7 +53887,8 @@
       "kind": "residual",
       "run": 8,
       "model": "x1 + x2",
-      "disagreement": "the engineer's fitted equation gives a residual of -19.2; the problem asks the reader to check these calculations, and three of the twelve are wrong"
+      "disagreement": "the engineer's fitted equation gives a residual of -19.2; the problem asks the reader to check these calculations, and three of the twelve are wrong",
+      "cause": "source_error"
      }
     },
     {
@@ -56186,7 +56470,8 @@
       "quote": "ŷ = 62.01 + 2.35x1 + 4.50x2 (±0.57) (±0.75) (±0.75) (15.4)"
      },
      "check": {
-      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/√7 and σ/√4 reproduce)"
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/√7 and σ/√4 reproduce)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -56248,7 +56533,8 @@
       "quote": "b12 = -0.65 ± 0.75, b11 + b22 = -0.50 ± 1.15 (15.7) ... Exercise 15.1 ... Answer: 0.75, 1.15."
      },
      "check": {
-      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/2 and σ√(1/4 + 1/3) reproduce)"
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual (σ/2 and σ√(1/4 + 1/3) reproduce)",
+      "cause": "not_a_result"
      }
     },
     {
@@ -56297,7 +56583,8 @@
       "quote": "Exercise 15.3. Add 10 units to each of the response values ... Answer: b0 = 72.01, b1 = 2.35, b2 = 4.50."
      },
      "check": {
-      "manual": "the fit to the yields with 10 added, which only shifts the intercept; the slopes are checked above"
+      "manual": "the fit to the yields with 10 added, which only shifts the intercept; the slopes are checked above",
+      "cause": "not_a_result"
      }
     },
     {
@@ -56450,7 +56737,8 @@
       "quote": "Table 15.2 ... coded conditions x2 1.91 3.83 5.74 7.66 9.57"
      },
      "check": {
-      "manual": "the same points in coded units, 4.50/2.35 = 1.91 for each unit of x1; checked above in degrees"
+      "manual": "the same points in coded units, 4.50/2.35 = 1.91 for each unit of x1; checked above in degrees",
+      "cause": "not_a_result"
      }
     },
     {
@@ -56478,7 +56766,8 @@
        "time": 1,
        "temperature": 1
       },
-      "disagreement": "the largest fitted value, at (+1, +1), is 62.01 + 2.35 + 4.50 = 68.86; the answer misprints it as 66.86"
+      "disagreement": "the largest fitted value, at (+1, +1), is 62.01 + 2.35 + 4.50 = 68.86; the answer misprints it as 66.86",
+      "cause": "source_error"
      }
     },
     {
@@ -56518,7 +56807,8 @@
       "quote": "Answer: 0.965"
      },
      "check": {
-      "manual": "the average variance of the fitted values, pσ²/n = 3(1.5²)/7, a property of the design and the prior σ"
+      "manual": "the average variance of the fitted values, pσ²/n = 3(1.5²)/7, a property of the design and the prior σ",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -57093,7 +57383,8 @@
       "quote": "s² = ((2 x 4.00) + (1 x 4.21))/3 = 4.07 (15.16) ... s = 2.02 ... s² = 3.18 ... s = 1.78 (15.24)"
      },
      "check": {
-      "manual": "variances pooled across the centre runs of three designs, two of them in another entry, which no check computes (they reproduce)"
+      "manual": "variances pooled across the centre runs of three designs, two of them in another entry, which no check computes (they reproduce)",
+      "cause": "check_gap"
      }
     },
     {
@@ -57209,7 +57500,8 @@
        "time": 1,
        "temperature": 1.4
       },
-      "disagreement": "the fitted equation gives 71.40 at x1 = 1, x2 = 1.4, and so does the printed equation (15.19) with its rounded coefficients (71.39); the answer prints 71.20"
+      "disagreement": "the fitted equation gives 71.40 at x1 = 1, x2 = 1.4, and so does the printed equation (15.19) with its rounded coefficients (71.39); the answer prints 71.20",
+      "cause": "source_error"
      }
     },
     {
@@ -57222,7 +57514,8 @@
       "quote": "b111 - b122 = 1.28 ± 1.06 (15.20), b222 - b112 = -1.93 ± 1.06 (15.21)"
      },
      "check": {
-      "manual": "third-order contrasts of the composite design, the slope from the axial runs less the slope from the factorial runs along each axis, which no check computes (1.28 and -1.93 reproduce; ± from σ = 1.5)"
+      "manual": "third-order contrasts of the composite design, the slope from the axial runs less the slope from the factorial runs along each axis, which no check computes (1.28 and -1.93 reproduce; ± from σ = 1.5)",
+      "cause": "check_gap"
      }
     },
     {
@@ -57303,7 +57596,8 @@
       "quote": "the standard error of this difference is given by √(σ²/6 + σ²/6) = 1.5/√3 = 0.87"
      },
      "check": {
-      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual"
+      "manual": "a standard error from the prior σ = 1.5, not from these runs; the library's standard errors use the residual",
+      "cause": "not_a_result"
      }
     },
     {
@@ -57316,7 +57610,8 @@
       "quote": "the average variance of the fitted value is 6(1.5)²/12 = 1.125, and the corresponding average standard error of the ŷ's is √1.125 = 1.06"
      },
      "check": {
-      "manual": "pσ²/n, the average variance of the fitted values over the design whatever the design (Box and Wetz), from the prior σ; no check computes it"
+      "manual": "pσ²/n, the average variance of the fitted values over the design whatever the design (Box and Wetz), from the prior σ; no check computes it",
+      "cause": "not_a_result"
      }
     },
     {
@@ -57368,7 +57663,8 @@
        "model": "time + temperature + I(time ** 2) + I(temperature ** 2) + time:temperature",
        "key": "canonical_analysis.ridge_form.origin_response",
        "printed": "88.2",
-       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 88.2 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge",
+       "cause": "source_error"
       },
       {
        "kind": "optimum",
@@ -57377,7 +57673,8 @@
        "key": "canonical_analysis.ridge_form.linear",
        "abs": true,
        "printed": "2.4",
-       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+       "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 2.4 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge",
+       "cause": "source_error"
       }
      ],
      "analysis": "the library's ridge form (Box and Draper's Eq. 11.1.2): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge"
@@ -57427,7 +57724,8 @@
       "key": "canonical_analysis.ridge_form.offsets.0",
       "sign_of": "canonical_analysis.eigenvectors.0.0",
       "printed": "0.33",
-      "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge"
+      "disagreement": "the ridge form (Box and Draper's Eq. 11.1.2) of the fit of equation 15.19 has its origin nearest the centre at y0 = 87.37 (87.38 from the rounded coefficients 15.19 prints), a linear term of size 1.31 along the ridge and the ridge 0.63x1 + 0.77x2 + 0.06 = 0, as the library finds; the book's 0.33 does not follow from 15.19, since the offset is fixed by b and the larger eigenvalue wherever the origin sits along the ridge",
+      "cause": "source_error"
      },
      "analysis": "the library's ridge form (Box and Draper's Eq. 11.1.2): rotated to the eigenvectors, the origin moved to where the response stops changing across the ridge: the constant of the ridge X1 = 0"
     }
@@ -57895,7 +58193,8 @@
         "n_blocks": 16
        }
       },
-      "disagreement": "the book's generators confound four two-factor interactions (23, 14, 35, 25) with blocks; the library's choice confounds three, the fewest possible, with the rest of three or more factors"
+      "disagreement": "the book's generators confound four two-factor interactions (23, 14, 35, 25) with blocks; the library's choice confounds three, the fewest possible, with the rest of three or more factors",
+      "cause": "method"
      }
     },
     {
@@ -57981,7 +58280,8 @@
         "n_blocks": 8
        }
       },
-      "disagreement": "the book's generators confound three three-factor interactions (123, 456, 167) with blocks; the library's choice confounds only four-factor interactions (1234, 1256, 1357 and their products), so every interaction of three factors stays free of blocks"
+      "disagreement": "the book's generators confound three three-factor interactions (123, 456, 167) with blocks; the library's choice confounds only four-factor interactions (1234, 1256, 1357 and their products), so every interaction of three factors stays free of blocks",
+      "cause": "method"
      }
     },
     {
@@ -58024,7 +58324,8 @@
         "n_blocks": 32
        }
       },
-      "disagreement": "the book's generators confound six two-factor interactions (13, 24, 35, 46, 15, 26) with blocks; the library's choice confounds five"
+      "disagreement": "the book's generators confound six two-factor interactions (13, 24, 35, 46, 15, 26) with blocks; the library's choice confounds five",
+      "cause": "method"
      }
     },
     {
@@ -58059,7 +58360,8 @@
       "quote": "4 = 123, 5 = 23 ... 45 = 123 23 = 12233 = 111 = 1"
      },
      "check": {
-      "manual": "an arrangement the book shows in order to reject it, as it confounds the main effect of factor 1 with blocks; the library refuses such a choice"
+      "manual": "an arrangement the book shows in order to reject it, as it confounds the main effect of factor 1 with blocks; the library refuses such a choice",
+      "cause": "not_a_result"
      }
     },
     {
@@ -58072,7 +58374,8 @@
       "quote": "B1 = 135, B2 = 1256, B3 = 1234 ... B1B2 = 236, B1B3 = 245, B2B3 = 3456, B1B2B3 = 146"
      },
      "check": {
-      "manual": "the arrangement of Table 10B.1 for k = 6 in blocks of 8 worked out in words, checked there"
+      "manual": "the arrangement of Table 10B.1 for k = 6 in blocks of 8 worked out in words, checked there",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -59204,7 +59507,8 @@
       "quote": "Table 12.14 ... method of introducing \"new\" factors ... method of introducing blocks"
      },
      "check": {
-      "manual": "the same generators as Table 12.15, checked there; the blocking arrangements of fractions are not compared"
+      "manual": "the same generators as Table 12.15, checked there; the blocking arrangements of fractions are not compared",
+      "cause": "not_a_result"
      }
     }
    ]
@@ -59858,7 +60162,8 @@
       "quote": "FIGURE 15.7. (d) ... ŷ - 87.69 = -9.02X1² + 2.97X2"
      },
      "check": {
-      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; for this equation the library's stationary point is at (414, -758) coded with ŷ = -1197, a point of no use"
+      "manual": "the library reports the stationary point of the fitted quadratic and its eigenvalues, not the ridge (B-canonical) form, whose origin is the point of the ridge nearest the design centre and which carries a linear term along the ridge; for this equation the library's stationary point is at (414, -758) coded with ŷ = -1197, a point of no use",
+      "cause": "library_gap"
      }
     },
     {

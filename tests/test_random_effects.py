@@ -6,6 +6,7 @@ measurements each. JMP fits it by REML with unbounded variance components.
 
 from __future__ import annotations
 
+import itertools
 import json
 
 import numpy as np
@@ -77,6 +78,54 @@ def test_a_nested_random_factor_is_grouped_within_its_outer_factor():
     by_pair = variance_components(purity, "purity ~ supplier", random=["supplier:batch"])
     assert list(by_name["components"].values()) == pytest.approx(list(by_pair["components"].values()))
     assert list(by_name["components"]) == ["batch(supplier)", "residual"]
+
+
+def _parts_by_operators(readings: int) -> pd.DataFrame:
+    """Five parts, each read ``readings`` times by three operators; each part-by-operator cell has its own shift."""
+    rng = np.random.default_rng(7)
+    cells = list(itertools.product(range(5), range(3)))
+    shift = rng.normal(0, 1, len(cells))
+    rows = [
+        {"part": f"p{p}", "operator": f"op{o}", "y": 10 + 0.3 * o + shift[k] + rng.normal(0, 0.4)}
+        for k, (p, o) in enumerate(cells)
+        for _ in range(readings)
+    ]
+    return pd.DataFrame(rows)
+
+
+@pytest.mark.parametrize(
+    ("data", "formula", "random", "message"),
+    [
+        (_parts_by_operators(1), "y ~ operator", ["part:operator"], "part:operator has one reading at each of its 15"),
+        (_parts_by_operators(1), "y ~ 1", ["part", "part:operator"], "part:operator has one reading at each of its 15"),
+        # op2 reads p0 alone: its fixed effect takes up that reading, which leaves one reading of each part
+        (
+            pd.DataFrame(
+                {"operator": ["op1"] * 5 + ["op2"], "part": [f"p{i}" for i in range(5)] + ["p0"]},
+            ).assign(y=[10.1, 11.3, 9.4, 10.8, 9.9, 10.6]),
+            "y ~ operator",
+            ["part"],
+            "part changes the readings in the same way as the residual once the fixed terms are fitted",
+        ),
+    ],
+)
+def test_a_term_that_cannot_be_told_apart_from_the_residual_is_refused(data, formula, random, message):
+    """Issue #1004: only the sum of the term's variance and the residual's is estimable, so no split is reported."""
+    with pytest.raises(ValueError, match=message):
+        variance_components(data, formula, random)
+
+
+def test_two_readings_per_cell_separate_the_interaction_from_the_residual():
+    """The neighbour of #1004's refused case: balanced, so REML gives the analysis-of-variance estimates."""
+    data = _parts_by_operators(2)
+    found = variance_components(data, "y ~ operator", ["part:operator"])
+    y = data["y"].to_numpy().reshape(5, 3, 2)  # part, operator, reading
+    cells = y.mean(axis=2)
+    ms_error = float(np.sum((y - cells[..., None]) ** 2)) / (5 * 3 * (2 - 1))
+    ms_cells = 2 * float(np.sum((cells - cells.mean(axis=0)) ** 2)) / (3 * (5 - 1))  # cells within operators
+    assert ms_cells > ms_error  # so the estimates are positive, and REML's equal them
+    assert found["components"]["residual"] == pytest.approx(ms_error, rel=1e-8)
+    assert found["components"]["part:operator"] == pytest.approx((ms_cells - ms_error) / 2, rel=1e-8)
 
 
 @pytest.mark.parametrize(

@@ -59,6 +59,7 @@ def test_import_does_not_change_global_default() -> None:
         capture_output=True,
         text=True,
         check=False,
+        encoding="locale",
     )
     assert result.returncode == 0, result.stderr
 
@@ -126,6 +127,7 @@ def test_plotly_installed_after_the_package_was_imported() -> None:
         capture_output=True,
         text=True,
         check=False,
+        encoding="locale",
     )
     assert result.returncode == 0, result.stderr
 

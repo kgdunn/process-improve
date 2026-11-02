@@ -38,9 +38,13 @@ def cycles(record) -> list[list[float]]:
     return [[row[point] for point in range(1, 6)] for _, row in sorted(table.items())]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def sheets(cycles) -> list[dict]:
-    """Work the sheet as Montgomery does, with f_{k,n} rounded to two decimals as Table 11.27 prints it."""
+    """Work the sheet as Montgomery does, with f_{k,n} rounded to two decimals as Table 11.27 prints it.
+
+    Worked again for each test, not once per module: mutmut reruns only the tests it saw call the
+    sheet, and a test that read a cached sheet would not be among them.
+    """
     return evop_worksheet(cycles, factors=("T", "P"), range_factor_decimals=2)
 
 
@@ -208,7 +212,10 @@ def test_s_estimates_sigma_and_each_limit_is_two_standard_errors(n):
         ([[84.5, 84.2, 84.9, 84.5]], "a row of 5 readings per cycle, one cycle at least; got shape"),
         ([[84.5, 84.2, 84.9, 84.5, 84.3], [84.9, 84.6]], "each reading a number"),
         ([["high", 84.2, 84.9, 84.5, 84.3]], "each reading a number"),
-        ([[84.5, 84.2, math.nan, 84.5, 84.3]], "Each reading must be a finite number"),
+        ([[84.5, 84.2, math.nan, 84.5, 84.3]], r"^Each reading must be a finite number\.$"),
+        # A single cycle not wrapped in a list of cycles, and a table of five columns with no cycle in it.
+        ([84.5, 84.2, 84.9, 84.5, 84.3], r"one cycle at least; got shape \(5,\)\.$"),
+        (np.empty((0, 5)), r"one cycle at least; got shape \(0, 5\)\.$"),
     ],
 )
 def test_cycles_that_do_not_fill_the_sheet_are_refused(cycles, message):

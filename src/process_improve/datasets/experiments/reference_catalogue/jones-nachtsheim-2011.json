@@ -248,7 +248,8 @@
       "quote": "yi = 20 + 4xi,1 + 3xi,2 − 2xi,3 − xi,4 + 5xi,2 xi,3 + 6x2i,1 + εi"
      },
      "check": {
-      "manual": "the model the response was simulated from, with N(0, 1) errors; the fits above take the response as printed"
+      "manual": "the model the response was simulated from, with N(0, 1) errors; the fits above take the response as printed",
+      "cause": "not_a_result"
      }
     },
     {
@@ -261,7 +262,8 @@
       "quote": "(With n = 13, 10 is the maximum number of predictors that can be included with AICc)"
      },
      "check": {
-      "manual": "with k counting the error variance, as in the AICc values above, which reproduce, 2k(k + 1)/(n - k - 1) is defined for k <= 11, so for at most 9 predictors besides the intercept; 10 predictors leave n - k - 1 = 0"
+      "manual": "with k counting the error variance, as in the AICc values above, which reproduce, 2k(k + 1)/(n - k - 1) is defined for k <= 11, so for at most 9 predictors besides the intercept; 10 predictors leave n - k - 1 = 0",
+      "cause": "not_a_result"
      }
     }
    ],
@@ -578,7 +580,8 @@
        "k": 5
       },
       "relabel": "columns and signs",
-      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 13 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .25."
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 13 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .25.",
+      "cause": "method"
      }
     },
     {
@@ -1148,7 +1151,8 @@
       "kind": "average_power",
       "hypothesis": 1,
       "effect_size": 2,
-      "disagreement": "The library's average power is 0.999912, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
+      "disagreement": "The library's average power is 0.999912, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1407,7 +1411,8 @@
        }
       },
       "design_columns": 6,
-      "disagreement": "The library's average power is 0.981490, 0.00001 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+      "disagreement": "The library's average power is 0.981490, 0.00001 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1464,7 +1469,8 @@
       "kind": "average_power",
       "hypothesis": 4,
       "effect_size": 2,
-      "disagreement": "The library's average power is 0.999618, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation."
+      "disagreement": "The library's average power is 0.999618, which rounds to 1.000. The paper prints 0.999, and 1 only for powers of 0.99994 or more in the library's calculation.",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1523,7 +1529,8 @@
       "kind": "average_power",
       "hypothesis": 5,
       "effect_size": 1,
-      "disagreement": "The library's average power is 0.256477, 0.00002 below the printed 0.257's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+      "disagreement": "The library's average power is 0.256477, 0.00002 below the printed 0.257's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model",
+      "cause": "source_rounding"
      }
     },
     {
@@ -1777,7 +1784,8 @@
        "k": 7
       },
       "relabel": "columns and signs",
-      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 17 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .167."
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 17 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .167.",
+      "cause": "method"
      }
     },
     {
@@ -2031,7 +2039,8 @@
       "quote": "TABLE 5 ... 7 84.1 14.3"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -2044,7 +2053,8 @@
       "quote": "TABLE 5 ... 7 84.1 14.3"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -2738,7 +2748,8 @@
       "kind": "average_power",
       "hypothesis": 3,
       "effect_size": 1,
-      "disagreement": "The library's average power is 0.842467, 0.00003 below the printed 0.843's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+      "disagreement": "The library's average power is 0.842467, 0.00003 below the printed 0.843's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model",
+      "cause": "source_rounding"
      }
     },
     {
@@ -2887,7 +2898,8 @@
       "kind": "average_power",
       "hypothesis": 5,
       "effect_size": 1,
-      "disagreement": "The library's average power is 0.291472, 0.00003 below the printed 0.292's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+      "disagreement": "The library's average power is 0.291472, 0.00003 below the printed 0.292's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model",
+      "cause": "source_rounding"
      }
     },
     {
@@ -3161,7 +3173,8 @@
        "k": 9
       },
       "relabel": "columns and signs",
-      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 21 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .125."
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 21 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .125.",
+      "cause": "method"
      }
     },
     {
@@ -3318,7 +3331,8 @@
       "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3336,7 +3350,8 @@
       "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3354,7 +3369,8 @@
       "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3372,7 +3388,8 @@
       "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3390,7 +3407,8 @@
       "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3408,7 +3426,8 @@
       "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 84 projections onto three factors: 32 of them give its six numbers, the first x1, x2 and x8.",
+      "cause": "source_error"
      }
     },
     {
@@ -3421,7 +3440,8 @@
       "quote": "TABLE 5 ... 9 86.8 10.6"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -3434,7 +3454,8 @@
       "quote": "TABLE 5 ... 9 86.8 10.6"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -4635,7 +4656,8 @@
        "k": 11
       },
       "relabel": "columns and signs",
-      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 25 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .3."
+      "disagreement": "The library builds the definitive screening design of an odd number of factors from a conference matrix of order m + 1 (Xiao, Lin and Bai, 2012): 25 runs, 2m + 3, orthogonal for main effects. Figure 1's has 2m + 1 runs, found by the paper's search, and two of its main effects are correlated by up to .3.",
+      "cause": "method"
      }
     },
     {
@@ -4792,7 +4814,8 @@
       "pairs": "square_and_own_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4810,7 +4833,8 @@
       "pairs": "square_and_own_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4828,7 +4852,8 @@
       "pairs": "square_and_other_interaction",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4846,7 +4871,8 @@
       "pairs": "square_and_other_interaction",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4864,7 +4890,8 @@
       "pairs": "two_interactions",
       "key": "mean",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4882,7 +4909,8 @@
       "pairs": "two_interactions",
       "key": "max",
       "factors": ["x1", "x2", "x3"],
-      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5."
+      "disagreement": "The projection onto x1, x2 and x3 gives other correlations. The printed row is that of another of the 165 projections onto three factors: 54 of them give its six numbers, the first x1, x3 and x5.",
+      "cause": "source_error"
      }
     },
     {
@@ -4895,7 +4923,8 @@
       "quote": "TABLE 5 ... 11 89.1 8.1"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -4908,7 +4937,8 @@
       "quote": "TABLE 5 ... 11 89.1 8.1"
      },
      "check": {
-      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print"
+      "manual": "against a D-optimal main-effects design of 2m runs and a centre run that the paper built with JMP's coordinate exchange and does not print",
+      "cause": "data_not_printed"
      }
     },
     {
@@ -5111,7 +5141,8 @@
        "k": 12
       },
       "relabel": "columns and signs",
-      "disagreement": "The library's 12-factor design comes from a conference matrix of order 12 and is orthogonal for main effects. Figure 1's, found by the paper's search, is not (two main effects are correlated by up to .182): 'we have not been able to find an orthogonal design for m = 12' (p. 5)."
+      "disagreement": "The library's 12-factor design comes from a conference matrix of order 12 and is orthogonal for main effects. Figure 1's, found by the paper's search, is not (two main effects are correlated by up to .182): 'we have not been able to find an orthogonal design for m = 12' (p. 5).",
+      "cause": "method"
      }
     },
     {
@@ -5643,7 +5674,8 @@
       "kind": "average_power",
       "hypothesis": 3,
       "effect_size": 1,
-      "disagreement": "The library's average power is 0.981484, 0.00002 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model"
+      "disagreement": "The library's average power is 0.981484, 0.00002 below the printed 0.982's rounding boundary; every other average power of Table 7 agrees to the printed digit, so the two calculations differ in the fifth decimal, not in the design or the model",
+      "cause": "source_rounding"
      }
     },
     {

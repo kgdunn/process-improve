@@ -48,3 +48,6 @@ web/node_modules/
 
 # Traces and screenshots of failing browser tests (pytest --e2e-artifacts)
 e2e-artifacts/
+
+# mutmut works in a copy of the source
+mutants/

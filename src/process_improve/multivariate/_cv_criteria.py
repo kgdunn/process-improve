@@ -81,9 +81,10 @@ from sklearn.utils import Bunch
 
 from .._random import check_random_state
 from ._common import _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
+from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
 from ._nipals import _kernel_pls, _sign_align
-from ._preprocessing import MCUVScaler, _warn_scaling_traps
+from ._preprocessing import MCUVScaler, _back_to_units, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
@@ -111,8 +112,8 @@ class _Fold:
     test: np.ndarray
     x_test: np.ndarray  # held-out X in the fold model's scaled space, NaN where missing, (n_test, K)
     scores: np.ndarray  # held-out scores, scored as NIPALS scores its training rows, (n_test, A)
-    y_centre: np.ndarray  # maps the fold's scaled Y back to original units, (M,)
-    y_scale: np.ndarray  # (M,)
+    y_centre: np.ndarray | float  # maps the fold's scaled Y back to original units, (M,)
+    y_scale: np.ndarray | float  # (M,)
     weights: np.ndarray  # W, (K, A)
     direct_weights: np.ndarray  # W* = W (P'W)^-1, (K, A)
     x_loadings: np.ndarray  # P, (K, A)
@@ -127,18 +128,17 @@ def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, 
     entirely missing cannot be scaled. A row whose Y is entirely missing is kept; it
     helps fit the X side and is left out of every Y-based criterion.
     """
-    X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X, dtype=float))
+    X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
     if isinstance(Y, pd.Series):
         Y_df = Y.to_frame()
     elif isinstance(Y, pd.DataFrame):
         Y_df = Y
-    else:
-        y = np.asarray(Y, dtype=float)
-        Y_df = pd.DataFrame(y.reshape(-1, 1) if y.ndim == 1 else y, index=X_df.index)
+    else:  # a 1-D array is one column, 0
+        Y_df = pd.DataFrame(np.asarray(Y), index=X_df.index)
     if X_df.shape[0] != Y_df.shape[0]:
         raise ValueError(f"X and Y must have the same number of rows; got {X_df.shape[0]} and {Y_df.shape[0]}.")
-    X_df = X_df.astype(float)
-    Y_df = Y_df.astype(float)
+    X_df = X_df.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
+    Y_df = Y_df.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
     empty_rows = X_df.index[X_df.isna().all(axis=1)]
     if len(empty_rows):
         raise ValueError(f"Rows with every X value missing cannot be scored; remove them: {list(empty_rows)[:5]}.")
@@ -179,14 +179,12 @@ def _partition_splits(
     if isinstance(cv, (int, np.integer)) and not isinstance(cv, bool):
         if cv < 2:
             raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
-        if isinstance(random_state, (int, np.integer)) and not isinstance(random_state, bool):
-            seed = int(random_state)
-        else:
-            seed = int(rng.integers(2**31))
-        splits = list(KFold(n_splits=int(cv), shuffle=True, random_state=seed).split(X, Y))
+        # Both callers resolve random_state with check_random_state first, which refuses a bool.
+        seed = int(random_state) if isinstance(random_state, (int, np.integer)) else int(rng.integers(2**31))
+        splits = list(KFold(n_splits=int(cv), shuffle=True, random_state=seed).split(X))  # KFold reads no Y
     else:
         splits = list(check_cv(cv).split(X, Y))
-    counts = np.zeros(X.shape[0], dtype=int)
+    counts = np.zeros(X.shape[0])
     for _, test in splits:
         counts[test] += 1
     if not splits or np.any(counts != 1):
@@ -239,36 +237,10 @@ def _nipals_scores(x: np.ndarray, weights: np.ndarray, x_loadings: np.ndarray) -
     for a in range(weights.shape[1]):
         w = weights[:, a]
         denominator = observed @ w**2
-        with np.errstate(divide="ignore", invalid="ignore"):
+        with np.errstate(invalid="ignore"):  # no observed weight leaves a numerator of 0 too: 0 / 0
             scores[:, a] = np.where(denominator > 0, residual @ w / denominator, 0.0)
         residual = np.where(observed, residual - np.outer(scores[:, a], x_loadings[:, a]), 0.0)
     return scores
-
-
-def _fold_from_model(
-    model: Any,  # noqa: ANN401 - any fitted PLS-family estimator
-    split: tuple[np.ndarray, np.ndarray],
-    x_test: pd.DataFrame,
-    y_map: tuple[np.ndarray, np.ndarray],
-) -> _Fold:
-    """Collect the fitted matrices a fold contributes; ``y_map`` is the (centre, scale) of Y."""
-    return _Fold(
-        train=split[0],
-        test=split[1],
-        x_test=x_test.to_numpy(dtype=float),
-        scores=_nipals_scores(x_test.to_numpy(dtype=float), model.x_weights_.to_numpy(), model.x_loadings_.to_numpy()),
-        y_centre=np.asarray(y_map[0], dtype=float),
-        y_scale=np.asarray(y_map[1], dtype=float),
-        weights=model.x_weights_.to_numpy(),
-        direct_weights=model.direct_weights_.to_numpy(),
-        x_loadings=model.x_loadings_.to_numpy(),
-        y_loadings=model.y_loadings_.to_numpy(),
-    )
-
-
-def _global_scaling(X: pd.DataFrame, Y: pd.DataFrame) -> tuple[MCUVScaler, MCUVScaler]:
-    """Scalers mapping raw data into the space of the model fitted to all rows."""
-    return MCUVScaler().fit(X), MCUVScaler().fit(Y)
 
 
 def _fit_folds(
@@ -277,33 +249,47 @@ def _fit_folds(
     Y: pd.DataFrame,
     splits: list[tuple[np.ndarray, np.ndarray]],
     *,
-    scope: Literal["local", "global"],
+    global_model: Any = None,  # noqa: ANN401 - any fitted PLS-family estimator
 ) -> list[_Fold]:
     """Fit one model per fold, each made by ``make_model()``.
 
-    ``"local"`` scope autoscales each training fold with its own :class:`MCUVScaler`,
-    exactly as :meth:`PLS.select_n_components` does. ``"global"`` scope fits the fold
-    models on rows of the fully autoscaled data without re-centring them, which is the
-    default of the published Procrustes cross-validation; ``make_model`` must then build
-    an estimator with ``scale=False``.
+    Without ``global_model`` (``"local"`` scope) each training fold is autoscaled with its
+    own :class:`MCUVScaler`, exactly as :meth:`PLS.select_n_components` does. With it
+    (``"global"`` scope) the fold models are fitted on the training rows in the space of
+    ``global_model``, the model fitted to all rows, without re-centring them, which is the
+    default of the published Procrustes cross-validation; ``make_model`` must then build an
+    estimator with ``scale=False``.
+
+    Either way a fold model may centre and scale its rows again (``PLS(scale=True)``, or
+    :class:`PRM`, which always centres at its robust centre), so the held-out rows are
+    taken into its space, and Y back out of it, through both scalings (#1029).
     """
     _check_fold_coverage(X, Y, splits)
     folds: list[_Fold] = []
-    if scope == "global":
-        x_scaler, y_scaler = _global_scaling(X, Y)
-        Xs, Ys = x_scaler.transform(X), y_scaler.transform(Y)
-        y_map = (y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy())
-        for train, test in splits:
-            model = make_model().fit(Xs.iloc[train], Ys.iloc[train])
-            folds.append(_fold_from_model(model, (train, test), Xs.iloc[test], y_map))
-        return folds
-
     for train, test in splits:
-        scaler_x = MCUVScaler().fit(X.iloc[train])
-        scaler_y = MCUVScaler().fit(Y.iloc[train])
-        model = make_model().fit(scaler_x.transform(X.iloc[train]), scaler_y.transform(Y.iloc[train]))
-        y_map = (scaler_y.center_.to_numpy(), scaler_y.scale_.to_numpy())
-        folds.append(_fold_from_model(model, (train, test), scaler_x.transform(X.iloc[test]), y_map))
+        if global_model is not None:
+            x_scaler, y_scaler = global_model._x_scaler, global_model._y_scaler
+        else:
+            x_scaler, y_scaler = MCUVScaler().fit(X.iloc[train]), MCUVScaler().fit(Y.iloc[train])
+        fold_model = make_model().fit(x_scaler.transform(X.iloc[train]), y_scaler.transform(Y.iloc[train]))
+        x_centre, x_scale = _back_to_units(fold_model._x_scaler, x_scaler)
+        y_centre, y_scale = _back_to_units(fold_model._y_scaler, y_scaler)
+        x_test = (X.iloc[test].to_numpy() - x_centre) / x_scale
+        weights, x_loadings = fold_model.x_weights_.to_numpy(), fold_model.x_loadings_.to_numpy()
+        folds.append(
+            _Fold(
+                train=train,
+                test=test,
+                x_test=x_test,
+                scores=_nipals_scores(x_test, weights, x_loadings),
+                y_centre=y_centre,
+                y_scale=y_scale,
+                weights=weights,
+                direct_weights=fold_model.direct_weights_.to_numpy(),
+                x_loadings=x_loadings,
+                y_loadings=fold_model.y_loadings_.to_numpy(),
+            )
+        )
     return folds
 
 
@@ -317,7 +303,7 @@ def _correlation_about_origin(x: np.ndarray, y: np.ndarray) -> float:
     Pearson correlation.
     """
     denominator = float(np.sqrt((x @ x) * (y @ y)))
-    return float(x @ y) / denominator if denominator > 0 else float("nan")
+    return float(x @ y) / denominator if denominator > 0 else np.nan
 
 
 def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -> Bunch:
@@ -336,9 +322,10 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
     A = n_components
     n_folds = len(folds)
     press_y = np.zeros((A, M))
-    per_obs_sse = np.full((A, N), np.nan)
-    per_fold_press = np.full((A, n_folds), np.nan)
-    per_fold_rmse = np.full((A, n_folds), np.nan)
+    # Every row is held out once, so every entry of these three is set below.
+    per_obs_sse = np.empty((A, N))
+    per_fold_press = np.empty((A, n_folds))
+    per_fold_rmse = np.empty((A, n_folds))
     slope_numerator = np.zeros(A)
     slope_weight = np.zeros(A)
     press_baseline = 0.0
@@ -362,7 +349,7 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
             # u_a = Y_res c_a / (c_a'c_a) over the observed responses, with Y_res the
             # held-out Y deflated by the earlier held-out components, in scaled units.
             cc = observed @ c**2
-            with np.errstate(divide="ignore", invalid="ignore"):
+            with np.errstate(invalid="ignore"):  # no observed loading leaves a numerator of 0 too: 0 / 0
                 u = np.where(cc > 0, (residual_prev / fold.y_scale) @ c / cc, 0.0)
             t_pool[a].append(t[has_y])
             u_pool[a].append(u[has_y])
@@ -370,13 +357,17 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
             residual = np.where(observed, residual_prev - np.outer(t, c_original), 0.0)
             squared = residual**2
             press_y[a] += squared.sum(axis=0)
-            per_obs_sse[a, fold.test] = np.where(has_y, squared.sum(axis=1), np.nan)
+            per_obs_sse[a, fold.test] = np.where(
+                has_y,
+                squared.sum(axis=1),
+                np.nan,  # pragma: no mutate - None is stored as NaN in this float array
+            )
             per_fold_press[a, k] = float(squared.sum())
             per_fold_rmse[a, k] = float(np.sqrt(squared.sum() / n_cells))
             residual_prev = residual
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        slope_ratio = np.where(slope_weight > 0, slope_numerator / slope_weight, np.nan)
+    with np.errstate(invalid="ignore"):  # no weight (every t or c~ is 0) leaves a numerator of 0: 0 / 0
+        slope_ratio = slope_numerator / slope_weight
     r_cv = np.array([_correlation_about_origin(np.concatenate(t_pool[a]), np.concatenate(u_pool[a])) for a in range(A)])
     return Bunch(
         press_y=press_y,
@@ -393,7 +384,7 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
 def _autoscale_parameters(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Column means and ``ddof=1`` standard deviations over observed cells, with the :class:`MCUVScaler` guard."""
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
+        warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanmean and nanstd warn no other kind
         centre = np.nanmean(values, axis=0)
         scale = np.nanstd(values, axis=0, ddof=1)
     tiny = float(np.finfo(float).tiny) ** 0.5
@@ -465,14 +456,14 @@ def _score_correlation_null(
                 c = y_loadings[:, a]
                 cc = observed @ c**2
                 t = np.where(has_y, t_test[:, a], 0.0)
-                with np.errstate(divide="ignore", invalid="ignore"):
+                with np.errstate(invalid="ignore"):  # no observed loading leaves a numerator of 0 too: 0 / 0
                     u = np.where(cc > 0, residual @ c / cc, 0.0)
                 tu[a] += float(t @ u)
                 tt[a] += float(t @ t)
                 uu[a] += float(u @ u)
                 residual = np.where(observed, residual - np.outer(t, c), 0.0)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            return np.where(tt * uu > 0, tu / np.sqrt(tt * uu), np.nan)
+        with np.errstate(invalid="ignore"):  # every t or every u 0 leaves tu at 0: 0 / 0
+            return tu / np.sqrt(tt * uu)
 
     null = np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
     return _heldout_correlations(y_values), null
@@ -511,7 +502,6 @@ def _covariance_permutation_pvalues(
     cross-product; a Y row carries its missing cells with it when the rows are permuted.
     """
     N = x_scaled.shape[0]
-    M = y_scaled.shape[1]
     scores = model.scores_.to_numpy()
     x_loadings = model.x_loadings_.to_numpy()
     y_loadings = model.y_loadings_.to_numpy()
@@ -521,16 +511,14 @@ def _covariance_permutation_pvalues(
     y_a = np.where(y_observed, y_scaled, 0.0)
     p_values = np.empty(scores.shape[1])
     for a in range(scores.shape[1]):
-        observed = float(np.linalg.norm(x_a.T @ y_a, ord=2))
+        # The statistic of Y as given is the null's, for the permutation that leaves Y in place.
+        observed = np.linalg.norm(x_a.T @ y_a[np.newaxis], ord=2, axis=(1, 2))[0]
         exceed = 0
-        done = 0
-        while done < n_permutations:
-            batch = min(_PERMUTATION_BATCH, n_permutations - done)
+        for start in range(0, n_permutations, _PERMUTATION_BATCH):
+            batch = min(_PERMUTATION_BATCH, n_permutations - start)
             order = rng.permuted(np.tile(np.arange(N), (batch, 1)), axis=1)
-            cross = np.einsum("nk,bnm->bkm", x_a, y_a[order])  # (batch, K, M)
-            null = np.linalg.norm(cross[:, :, 0], axis=1) if M == 1 else np.linalg.norm(cross, ord=2, axis=(1, 2))
+            null = np.linalg.norm(x_a.T @ y_a[order], ord=2, axis=(1, 2))  # the cross-products are (batch, K, M)
             exceed += int(np.sum(null >= observed))
-            done += batch
         p_values[a] = (exceed + 1) / (n_permutations + 1)
         t = scores[:, [a]]
         x_a = np.where(x_observed, x_a - t @ x_loadings[:, [a]].T, 0.0)
@@ -549,7 +537,8 @@ def _jackknife_angle(fold_angles_deg: np.ndarray, n_folds: int) -> np.ndarray:
     estimates around it. Applied to :math:`\tan\theta`, the result is comparable
     between 7-fold and leave-one-out cross-validation.
     """
-    tangent = np.tan(np.radians(np.clip(fold_angles_deg, 0.0, 90.0 - 1e-9)))
+    # The angles lie in [0, 90]; just under 90, the tangent stays finite.
+    tangent = np.tan(np.radians(np.minimum(fold_angles_deg, 90.0 - 1e-9)))
     rms = np.sqrt(np.mean(tangent**2, axis=0))
     return np.degrees(np.arctan(np.sqrt(max(n_folds - 1, 1)) * rms))
 
@@ -563,12 +552,12 @@ def _weight_angles(global_weights: np.ndarray, folds: list[_Fold]) -> tuple[np.n
     is unit upper triangular in NIPALS, so either can be used.
     """
     A = global_weights.shape[1]
-    reference = global_weights / np.linalg.norm(global_weights, axis=0)
-    component = np.full((len(folds), A), np.nan)
-    subspace = np.full((len(folds), A), np.nan)
+    reference = global_weights  # NIPALS scales every weight vector to unit length
+    component = np.empty((len(folds), A))
+    subspace = np.empty((len(folds), A))
     for k, fold in enumerate(folds):
-        weights = fold.weights / np.linalg.norm(fold.weights, axis=0)
-        cosines = np.clip(np.abs(np.sum(weights * reference, axis=0)), 0.0, 1.0)
+        weights = fold.weights
+        cosines = np.minimum(np.abs(np.sum(weights * reference, axis=0)), 1.0)  # rounding can pass 1
         component[k] = np.degrees(np.arccos(cosines))
         for a in range(A):
             # subspace_angles returns the principal angles in descending order.
@@ -603,11 +592,12 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
     for k, fold in enumerate(folds):
         # _sign_align only reports the signs; apply them to the scores, P and C together.
         signs = _sign_align(fold.direct_weights, global_direct)
-        x_loadings = fold.x_loadings * signs
-        y_loadings = fold.y_loadings * signs
-        local_scores = fold.scores * signs
-        with np.errstate(divide="ignore", invalid="ignore"):
-            d = np.where(cc > 0, np.sum(y_loadings * global_y_loadings, axis=0) / cc, np.nan)
+        x_loadings, y_loadings, local_scores = (
+            matrix * signs  # pragma: no mutate - the signs are +1 and -1, which / reads the same
+            for matrix in (fold.x_loadings, fold.y_loadings, fold.scores)
+        )
+        with np.errstate(invalid="ignore"):  # a zero full-data Y loading has no ratio: 0 / 0
+            d = np.sum(y_loadings * global_y_loadings, axis=0) / cc
         d_ratios[k] = d
         pv_scores[fold.test] = local_scores * d
         for a in range(A):
@@ -624,13 +614,11 @@ def _leading_count(passes: np.ndarray, swaps: np.ndarray | None = None) -> int:
     the count when ``swaps[a]`` holds and ``a + 1`` passes: the pair is counted together.
     """
     count = 0
-    a = 0
-    while a < len(passes):
-        if passes[a]:
-            count, a = a + 1, a + 1
-        elif swaps is not None and swaps[a] and a + 1 < len(passes) and passes[a + 1]:
-            count, a = a + 2, a + 2
-        else:
+    for a, passed in enumerate(passes):
+        if passed:
+            count = a + 1
+        # A failure that opens a swapped pair goes on to the next component, which passes.
+        elif swaps is None or not (swaps[a] and passes[a + 1]):  # swaps[-1] is never set
             break
     return count
 
@@ -664,9 +652,9 @@ def _cv_anova_pvalues(q2: np.ndarray, N: int, M: int) -> np.ndarray:
         df_res = N - 1 - df_reg
         if df_res <= 0 or not np.isfinite(q2[a - 1]):
             continue
-        if q2[a - 1] <= 0:
-            p_values[a - 1] = 1.0
-        elif q2[a - 1] >= 1:
+        # A Q2 at or below 0 gives an F of at most 0, whose survival function is 1. A Q2 of
+        # 1 (no PRESS) would divide by 0: its p-value is 0.
+        if q2[a - 1] >= 1:
             p_values[a - 1] = 0.0
         else:
             f_stat = q2[a - 1] / (1 - q2[a - 1]) * df_res / df_reg
@@ -675,12 +663,12 @@ def _cv_anova_pvalues(q2: np.ndarray, N: int, M: int) -> np.ndarray:
 
 
 def _check_scale(pls_kwargs: dict) -> None:
-    """Reject ``scale=False``: every fold is autoscaled, so the full-data model must be too."""
-    if pls_kwargs.get("scale", True) is False:
+    """Reject a false ``scale`` (``False``, ``0``, ``None``): the folds are autoscaled, so the full model must be."""
+    if not pls_kwargs.get("scale", True):
         raise ValueError(
-            "scale=False is not supported: each training fold is autoscaled, and the model fitted to all "
-            "rows must live in the same space for the angles and the Procrustes step to compare them. "
-            "Pass X and Y on their raw scale."
+            f"scale={pls_kwargs['scale']!r} is not supported: each training fold is autoscaled, and the model "
+            "fitted to all rows must live in the same space for the angles and the Procrustes step to compare "
+            "them. Pass X and Y on their raw scale."
         )
 
 
@@ -733,16 +721,16 @@ def _predictive_criteria(
     """
     observed = ~np.isnan(y_values)
     M = y_values.shape[1]
-    A, n_folds = held.per_fold_press.shape
+    n_folds = held.per_fold_press.shape[1]
     tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        q2_per_target = np.where(tss_y > 0, 1.0 - held.press_y / np.where(tss_y > 0, tss_y, 1.0), np.nan)
-    q2_total = 1.0 - held.press_y.sum(axis=1) / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
+    # A target without spread has no Q2. Some target has spread: a fold model refuses a constant Y.
+    q2_per_target = 1.0 - held.press_y / np.where(tss_y > 0, tss_y, np.nan)
+    q2_total = 1.0 - held.press_y.sum(axis=1) / tss_y.sum()
+    with warnings.catch_warnings():  # one fold has no spread: NaN, and nanstd warns
+        warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanstd warns no other kind
         se_press = np.nanstd(held.per_fold_press, axis=1, ddof=1) / np.sqrt(n_folds)
         se_rmsecv = np.nanstd(held.per_fold_rmse, axis=1, ddof=1) / np.sqrt(n_folds)
-    rmsecv = np.sqrt(held.press_y.sum(axis=1) / max(1, int(observed.sum())))
+    rmsecv = np.sqrt(held.press_y.sum(axis=1) / observed.sum())  # each Y column has an observed cell
     vdv_recommended, vdv_p = _vandervoet_randomization(
         held.per_obs_sse,
         total_rmsecv=rmsecv,
@@ -752,7 +740,7 @@ def _predictive_criteria(
     )
     return Bunch(
         q2y=_equal_weight_r2_total(q2_per_target),
-        q2y_se=se_press * n_folds / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan),
+        q2y_se=se_press * n_folds / tss_y.sum(),
         cv_anova_p=_cv_anova_pvalues(q2_total, int(observed[:, 0].sum()), M),
         vdv_p=vdv_p,
         vdv_recommended=int(vdv_recommended),
@@ -776,30 +764,25 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     """
     N = sum(len(fold.test) for fold in folds)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
-    to_complete = np.ones(N)
-    for fold in folds:
-        observed = (~np.isnan(fold.x_test)).sum(axis=1)
-        to_complete[fold.test] = fold.x_test.shape[1] / np.maximum(observed, 1)
-    score_sd = model.scaling_factor_for_scores_.to_numpy()
-    with np.errstate(divide="ignore", invalid="ignore"):
-        pv_t2 = np.cumsum((pv_scores / np.where(score_sd > 0, score_sd, np.nan)) ** 2, axis=1)
+    to_complete = np.empty(N)
+    for fold in folds:  # a row with no X is refused, so every row has an observed cell
+        to_complete[fold.test] = fold.x_test.shape[1] / (~np.isnan(fold.x_test)).sum(axis=1)
+    # A component with no spread adds nothing, as to every other T2 (#1029).
+    pv_t2 = np.cumsum((pv_scores / _t2_score_sd(model.scaling_factor_for_scores_.to_numpy())) ** 2, axis=1)
     pv_spe = np.sqrt(squared_spe)
     A = pv_scores.shape[1]
-    spe_alarm = np.full(A, np.nan)
+    spe_alarm = np.empty(A)
     t2_alarm = np.full(A, np.nan)
-    spe_limits = np.full((A, 2), np.nan)
+    spe_limits = np.empty((A, 2))
     for a in range(A):
         spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
         complete_spe = np.sqrt(squared_spe[:, a] * to_complete)
         spe_limits[a] = spe_lim, float(spe_calculation(complete_spe, conf_level=conf_level))
         t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
-        # Both guards hold for any fitted model: its training SPE is finite, so is the limit
-        # fitted to it; the component cap keeps a + 1 <= N - 2, so the T2 limit is finite;
-        # and a fitted component always has score spread, so the held-out T2 is too.
-        if np.isfinite(spe_lim):  # pragma: no branch - see above
-            spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))
-        if np.isfinite(t2_lim) and np.all(np.isfinite(pv_t2[:, a])):  # pragma: no branch - see above
-            t2_alarm[a] = float(np.mean(pv_t2[:, a] > t2_lim))
+        spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))  # pragma: no mutate - >= differs only at the limit
+        # A component whose full-data Y loading is zero has no D ratio, so no held-out T2.
+        if np.all(np.isfinite(pv_t2[:, a])):
+            t2_alarm[a] = float(np.mean(pv_t2[:, a] > t2_lim))  # pragma: no mutate - >= differs only at the limit
     return Bunch(
         d_ratios=d_ratios,
         spe_alarm=spe_alarm,
@@ -816,7 +799,7 @@ def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareS
     swaps = _swapped_pairs(table["angle_subspace_deg"].to_numpy(), settings.angle_threshold)
     rules = {
         "q2_max": (
-            int(np.nanargmax(q2y)) + 1 if np.isfinite(q2y).any() else 1,
+            int(np.argmax(q2y)) + 1,
             "Largest cumulative Q2.",
             "Does the model predict Y?",
         ),
@@ -872,7 +855,7 @@ def _compare_cv_criteria(
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     rng_vdv, rng_perm, rng_null = rng.spawn(3)
     A = _component_cap(splits, X_df.shape[1], settings.max_components)
-    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits, scope="local")
+    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits)
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
     y_values = Y_df.to_numpy()
     held = _heldout_pass(folds, y_values, A)
@@ -887,10 +870,10 @@ def _compare_cv_criteria(
         n_with_y = int((~np.isnan(y_values).all(axis=1)).sum())
         r_cv_p = norm.sf(held.r_cv * np.sqrt(n_with_y))
         r_cv_threshold = np.full(A, norm.ppf(1.0 - settings.alpha) / np.sqrt(n_with_y))
-    x_scaler, y_scaler = _global_scaling(X_df, Y_df)
+    x_scaled, y_scaled = model._scaled_as_fitted(X_df, Y_df)  # the blocks in the space the model was fitted in
     cov_perm_p = _covariance_permutation_pvalues(
-        x_scaler.transform(X_df).to_numpy(),
-        y_scaler.transform(Y_df).to_numpy(),
+        x_scaled.to_numpy(),
+        y_scaled.to_numpy(),
         model,
         int(settings.n_permutations),
         rng_perm,
@@ -945,7 +928,7 @@ def _compare_cv_criteria(
 
 def _column_normalise(values: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(values, axis=0)
-    return values / np.where(norms > 0, norms, 1.0)
+    return values / np.where(norms > 0, norms, np.inf)  # a column of zeros stays zeros
 
 
 def _pseudo_validation_set(
@@ -972,8 +955,9 @@ def _pseudo_validation_set(
     fold_kwargs = (
         {**pls_kwargs, "scale": False, "warn_on_uncentred": False} if settings.scope == "global" else pls_kwargs
     )
-    folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, scope=settings.scope)
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
+    global_model = model if settings.scope == "global" else None
+    folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, global_model=global_model)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
 
     # X_pv = T_pv P' + E, with E orthogonal to the model (E W* = 0) and each row of E
@@ -990,14 +974,13 @@ def _pseudo_validation_set(
         residual = mixed - (mixed @ direct) @ x_loadings.T
         norms = np.linalg.norm(residual, axis=1)
         target = np.sqrt(squared_spe[fold.test, A - 1])
-        factor = np.where(norms > 0, target / np.where(norms > 0, norms, 1.0), 0.0)
+        factor = target / np.where(norms > 0, norms, np.inf)  # a zero residual row stays zero
         x_pv[fold.test] = pv_scores[fold.test] @ x_loadings.T + residual * factor[:, None]
 
-    x_pv[X_df.isna().to_numpy()] = np.nan
-    x_scaler, _ = _global_scaling(X_df, Y_df)
     component_index = pd.Index(range(1, A + 1), name="n_components")
+    x_pv_frame = pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns).mask(X_df.isna())
     return Bunch(
-        X_pv=x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns)),
+        X_pv=model._x_scaler.inverse_transform(x_pv_frame),
         Y_pv=Y_df.copy(),
         scores=pd.DataFrame(pv_scores, index=X_df.index, columns=component_index),
         local_spe=pd.Series(np.sqrt(squared_spe[:, A - 1]), index=X_df.index, name="SPE"),

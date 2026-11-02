@@ -24,7 +24,10 @@ existing code into the page.
 - **Designed experiments** are out of this tool: the designed-experiments app covers them.
 - **Batch data** comes later, together with PLS-DA and the drawing of chemical structures.
 
-In numbers: 91 Definitely lines, of which 12 are in process-improve and 58 partly.
+MOD-11 (SIMPLS) and MOD-12 (robust PCA) were added on 27 October 2026, for published results that
+need them.
+
+In numbers: 93 Definitely lines, of which 12 are in process-improve and 58 partly.
 
 ## Requirements
 
@@ -166,6 +169,14 @@ In numbers: 91 Definitely lines, of which 12 are in process-improve and 58 partl
   - Whether each segment re-centres and re-scales its data is a stated choice.
   - A held-out row with missing cells is predicted by the same choice of projection as a new row (PRD-2). On a published example with missing cells, source A's single-component projection gives the printed cross-validated Q² of 16 %; trimmed score regression gives 18.5 %.
   - Already there: select_n_components takes any scikit-learn splitter and repeats it; diagnose and predict score a test set. No leverage correction. PCA.select_n_components takes scale_inside_folds; compare_cv_criteria scales inside the folds and warns about scaling traps. No choice of projection for held-out rows: select_n_components uses trimmed score regression.
+- **MOD-11** PLS by SIMPLS as well as by NIPALS. *(not in process-improve)*
+  - PLS fitted by SIMPLS (de Jong, 1993) as a stated choice beside NIPALS, stored with the model and shown with its results. With one Y column the two give the same predictions; with several they give different components, and so different predictions.
+  - Published PLS2 results made by SIMPLS (MATLAB's plsregress, R's pls with method "simpls") can then be reproduced.
+  - Already there: PLS by NIPALS only.
+- **MOD-12** Robust PCA, so that a few outlying rows do not set the components. *(not in process-improve)*
+  - PCA of a robust covariance or correlation matrix: the minimum covariance determinant (MCD) estimator's, which needs more rows than columns. For wide data the robust estimate is made in the space of the leading components (ROBPCA, Hubert, Rousseeuw and Vanden Branden, 2005).
+  - The rows the estimator gives no weight are listed and drawn as such.
+  - Already there: PRM, a robust PLS (partial robust M-regression); scikit-learn, a dependency, has MinCovDet. No robust PCA.
 
 ### STA: Statistics and diagnostics
 
@@ -182,8 +193,8 @@ In numbers: 91 Definitely lines, of which 12 are in process-improve and 58 partl
   - Leverages of rows in X and in Y (with 1/I for the centring), of variables, and for MLR.
 - **STA-4** Hotelling's T², with its limits and ellipse. *(partly in process-improve)*
   - Hotelling's T² over any range of components, with its F-based limits (95% and 99%) and the T² ellipse; a zero significance hides the limits.
-  - The limit depends on the row. A fitted row's limit is A(N − 1)/(N − A)·F(A, N − A), as source A's own exports give it, and the score plot's ellipse is drawn at it with A = 2. A new row's limit is A(N² − 1)/(N(N − A))·F(A, N − A), (N + 1)/N larger, as source A's guide gives it. A third form source A has drawn, A·F(A, N − A) with no N factor, is not used.
-  - Already there: hotellings_t2_limit, ellipse_coordinates and t2_plot; the page draws the ellipse and the limit. hotellings_t2_limit gives the new-row form only, and the ellipse is drawn at it, so a fitted row's limit is (N + 1)/N too large and the ellipse's axes √((N + 1)/N).
+  - The limit depends on the row. A fitted row helped estimate the centre and the score variances, so its T² can never exceed (N − 1)²/N, and its law is T² ~ ((N − 1)²/N)·Beta(A/2, (N − A − 1)/2) (Tracy, Young and Mason, 1992; exact for fixed variables, close for scores chosen from the same data): a fitted row's limit comes from it, and the score plot's ellipse is drawn at it with A = 2. A new row's limit is A(N² − 1)/(N(N − A))·F(A, N − A), as source A's guide gives it. Source A's own exports use A(N − 1)/(N − A)·F(A, N − A) for fitted rows; that form can lie above (N − 1)²/N, where it can flag no fitted row (10.03 against 8.10 at N = 10, A = 2), and it is kept only to reproduce source A's numbers. A further form source A has drawn, A·F(A, N − A) with no N factor, is not used.
+  - Already there: hotellings_t2_limit, ellipse_coordinates and t2_plot; the page draws the ellipse and the limit. hotellings_t2_limit gives the new-row form only, and the ellipse is drawn at it, so a fitted row's limit and ellipse are too large: at N = 20, A = 2, the 95% limit is 7.88 against the beta form's 5.36.
 - **STA-5** Distance to the model in X and in Y, with its critical limit and probability. *(partly in process-improve)*
   - Distance to the model in X (DModX), absolute or normalized by the pooled residual SD, with its F-based critical distance and probability of belonging, optionally weighted by modelling power; the distance in Y (DModY); for predictions, the distance plus how far a row falls outside the model's score range.
   - A fitted row's DModX is sᵢ = √(Σeᵢₖ²/(K − A))·v, with v = √(N/(N − A − A₀)) and A₀ = 1 when the data are centred; it is normalized by s₀ = √(ΣΣe²/((N − A − A₀)(K − A))). The critical distance and the probability come from (sᵢ/s₀)² ~ F(K − A, (N − A − A₀)(K − A)), the degrees of freedom of source A's guide. An older version of source A printed 1.389 for a limit these give as 1.285; no stated rule gives 1.389.
@@ -443,8 +454,8 @@ Each Definitely line in one milestone, in an order where each builds on the last
    PRJ-1, PRJ-3, PRJ-4, PRJ-4.1, PRJ-4.2, PRJ-6, PRJ-6.1, MOD-1, MOD-5, MOD-6, MOD-7, MOD-8, MOD-9, MOD-10, STA-1, STA-4, STA-5, STA-7, STA-11, STA-15, VIS-3, VIS-4, VIS-5, VIS-6, VIS-7, VIS-8, VIS-9, VIS-11, UI-1, UI-2, UI-3, UI-4, UI-6.
 2. **Data in, and preparing it** (15 lines, 12 with code already there). Import, the table, ids and classes, and the preprocessing the models need.
    PRJ-2, PRJ-5, PRJ-7, PRJ-8, PRJ-9, PRJ-10, DAT-1, DAT-4, DAT-5, DAT-6, PRE-1, PRE-2, PRE-3, PRE-7, PRE-8.
-3. **Statistics, diagnostics and prediction** (16 lines, 10 with code already there). The full results of a model, new data through it, and class models.
-   MOD-2, MOD-4, STA-2, STA-3, STA-6, STA-8, STA-9, STA-10, STA-12, STA-13, PRD-1, PRD-2, PRD-3, PRD-4, PRD-6, PRD-6.1.
+3. **Statistics, diagnostics and prediction** (18 lines, 10 with code already there). The full results of a model, new data through it, and class models.
+   MOD-2, MOD-4, MOD-11, MOD-12, STA-2, STA-3, STA-6, STA-8, STA-9, STA-10, STA-12, STA-13, PRD-1, PRD-2, PRD-3, PRD-4, PRD-6, PRD-6.1.
 4. **Plots and the working environment** (16 lines, 9 with code already there). The plot builder and styles, menus, keys and panes, and settings.
    VIS-1, VIS-2, VIS-2.1, VIS-2.2, VIS-10, VIS-12, VIS-13, VIS-14, UI-5, UI-7, UI-8, UI-9, UI-10, SET-1, SET-2, SET-3.
 5. **Results out** (11 lines, 7 with code already there). Reports, the change log, help, and models exported for use elsewhere.

@@ -608,7 +608,8 @@
       "kind": "run_order_trends",
       "factors": ["X1", "X2", "X3"],
       "key": "summary.linear.main_effects.max_cosine",
-      "disagreement": "the text restates the largest absolute cosine of a main effect with the linear trend as 0.934; the paper's own Table 6 prints 0.943, and the printed runs give 0.9435: the text transposes two digits"
+      "disagreement": "the text restates the largest absolute cosine of a main effect with the linear trend as 0.934; the paper's own Table 6 prints 0.943, and the printed runs give 0.9435: the text transposes two digits",
+      "cause": "source_error"
      }
     }
    ]
@@ -2183,7 +2184,8 @@
       "factors": ["X1", "X2", "X3"],
       "key": "summary.linear.quadratics.max_deviation",
       "printed": "2.18",
-      "disagreement": "the paper takes the angle of the rounded cosine 0.038, arcsin(0.038) = 2.18 degrees; the unrounded cosine 0.0378 gives 2.17 degrees"
+      "disagreement": "the paper takes the angle of the rounded cosine 0.038, arcsin(0.038) = 2.18 degrees; the unrounded cosine 0.0378 gives 2.17 degrees",
+      "cause": "source_rounding"
      }
     }
    ]
@@ -4053,7 +4055,8 @@
       "quote": "We need seven center points to obtain a run order for which the main effects are orthogonal to linear and quadratic time trend"
      },
      "check": {
-      "manual": "the least number of centre runs for which the paper's integer program finds a run order with the main effects orthogonal to the linear and quadratic trends, which proves that fewer admit none; the library's trend_robust_run_order is a heuristic search, which cannot prove that; the size, 17 runs, is in Figure 3"
+      "manual": "the least number of centre runs for which the paper's integer program finds a run order with the main effects orthogonal to the linear and quadratic trends, which proves that fewer admit none; the library's trend_robust_run_order is a heuristic search, which cannot prove that; the size, 17 runs, is in Figure 3",
+      "cause": "library_gap"
      }
     },
     {
@@ -4068,7 +4071,8 @@
       "quote": "We found a trend-robust run order for the four-factor sCCD with four center points."
      },
      "check": {
-      "manual": "the centre runs of the sCCD for which the paper's integer program found a trend-robust run order: the design searched, not a number the library recomputes (its trend_robust_run_order is a heuristic search); the size, 20 runs, is in Figure 3"
+      "manual": "the centre runs of the sCCD for which the paper's integer program found a trend-robust run order: the design searched, not a number the library recomputes (its trend_robust_run_order is a heuristic search); the size, 20 runs, is in Figure 3",
+      "cause": "not_a_result"
      }
     }
    ]

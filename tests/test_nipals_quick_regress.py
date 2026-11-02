@@ -7,6 +7,8 @@ fitted models, so the comparison is ``np.array_equal``, never ``allclose``.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -61,6 +63,28 @@ def test_an_all_zero_x_gives_zero_coefficients_on_both_paths() -> None:
     assert np.array_equal(_quick_regress_masked(y, x, _floor(x)), np.zeros((3, 1)))
 
 
+def test_an_all_zero_x_gives_zero_coefficients_per_row_with_a_missing_cell() -> None:
+    """Case B on the masked path: x'x is 0, so every row's coefficient is undefined and returned as 0, not 0/0."""
+    y = np.arange(12.0).reshape(3, 4)
+    y[1, 2] = np.nan
+    assert np.array_equal(quick_regress(y, np.zeros((4, 1)), per="row"), np.zeros((3, 1)))
+
+
+def test_a_column_major_block_gives_the_same_answer() -> None:
+    """A Fortran-ordered block: the fast path's per-row sums must still be the loop's, bit for bit.
+
+    Summed along a row of a column-major array, numpy adds the columns one at a time instead of
+    pairwise, so the result differs in the last bits unless the product is laid out by rows first.
+    """
+    rng = np.random.default_rng(3)
+    block = np.asfortranarray(rng.normal(size=(50, 40)) * 10.0 ** rng.uniform(-6, 6, size=(1, 40)))
+    x = rng.normal(size=(40, 1))
+    assert np.array_equal(
+        _quick_regress_complete(block, x, _floor(x), "row"),
+        _quick_regress_masked(block, x, _floor(x), "row"),
+    )
+
+
 @pytest.mark.parametrize("bad", [np.nan, np.inf])
 def test_a_missing_or_infinite_cell_takes_the_masked_path(bad: float) -> None:
     """The fast path assumes every cell is finite; anything else must use the loop."""
@@ -95,7 +119,11 @@ def test_a_square_block_is_regressed_on_the_axis_asked_for() -> None:
 
 def test_a_square_block_without_per_is_refused() -> None:
     """The shapes cannot tell the two cases apart, so the call must say which it means."""
-    with pytest.raises(ValueError, match="square"):
+    message = (
+        "Y is square, so its shape cannot say whether x is regressed on its columns or on its rows: "
+        "pass per='column' or per='row'."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         quick_regress(np.ones((5, 5)), np.ones((5, 1)))
     with pytest.raises(ValueError, match="not compatible"):
         quick_regress(np.ones((5, 3)), np.ones((3, 1)), per="column")
