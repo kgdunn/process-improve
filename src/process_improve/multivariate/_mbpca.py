@@ -351,6 +351,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The number of components fitted. Everything after ``fit`` reads it, not the
+        ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
     block_names_ : list[str]
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
@@ -702,7 +705,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             if sample_index is None:
                 sample_index = block.index
 
-        n_components = int(self.n_components)
+        n_components = self.n_components_
         n_new = next(iter(x_def.values())).shape[0]
         sqrt_kb = self._block_scale()
 
@@ -809,7 +812,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         missing = set(self.block_names_) - set(X)
         if missing:
             raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= int(component) <= a_max):
             msg = f"component must be a 1-based index within 1..{a_max}, got {component}."
             raise ValueError(msg)
@@ -910,7 +913,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
         """Scatter plot of MBPCA super-scores for two components."""
         check_is_fitted(self, "super_scores_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
         x = self.super_scores_[pc_horiz].to_numpy()
@@ -938,7 +941,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def super_loadings_bar_plot(self, component: int = 1) -> go.Figure:
         """Bar plot of MBPCA super-loadings for a single component."""
         check_is_fitted(self, "super_loadings_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         loadings = self.super_loadings_[component]
@@ -953,12 +956,12 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, iterations and timing."""
         check_is_fitted(self, "super_scores_")
-        rows: list[str] = [f"MBPCA model: {self.n_components} component(s), {len(self.block_names_)} X-block(s)"]
+        rows: list[str] = [f"MBPCA model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)"]
         header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_)
         rows.append(header)
         rows.append("-" * len(header))
         src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-        for a in range(self.n_components):
+        for a in range(self.n_components_):
             cells = [f"{a + 1:>3d}"]
             cells.extend(f"{src.loc[name].iloc[a]:>9.4f}" for name in self.block_names_)
             rows.append(" | ".join(cells))

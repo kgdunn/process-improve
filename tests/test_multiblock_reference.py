@@ -59,10 +59,13 @@ from sklearn.exceptions import NotFittedError
 from process_improve.multivariate._limits import spe_calculation
 from process_improve.multivariate.methods import (
     MBPCA,
+    MBPLS,
     PCA,
     MCUVScaler,
     SpecificationWarning,
+    randomization_test_mbpls,
 )
+from process_improve.visualization.themes import REFERENCE_LINE_COLOR
 
 # ---------------------------------------------------------------------------
 # Wold/Esbensen/Geladi 1987 reference data and expectations
@@ -2002,8 +2005,6 @@ class TestMBPLSOnLDPE:
         """Real data should be more correlated than randomly-permuted Y for the
         first component; risk_pct for PC1 should be small (< 50%).
         """
-        from process_improve.multivariate.methods import MBPLS, randomization_test_mbpls
-
         x_blocks, y_df = ldpe
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
         result = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=20, seed=0)
@@ -2228,6 +2229,897 @@ class TestMBPLSOnDTUPectin:
             f"DTU pectin @ {int(ratio * 100)}% MCAR: prediction correlation "
             f"dropped to {corr:.3f} (threshold {min_pred_corr})"
         )
+
+
+# ---------------------------------------------------------------------------
+# MBPLS written out by hand
+# ---------------------------------------------------------------------------
+
+
+def _masked_regression(values: np.ndarray, vector: np.ndarray, per: str) -> np.ndarray:
+    """Regress each column (``per="column"``) or each row of ``values`` on ``vector``, over its observed cells.
+
+    A row with nothing observed has no score: 0 / 0, NaN.
+    """
+    observed, filled = ~np.isnan(values), np.nan_to_num(values)
+    if per == "column":
+        return filled.T @ vector / (observed.T @ vector**2)
+    with np.errstate(invalid="ignore"):
+        return filled @ vector / (observed @ vector**2)
+
+
+def _cross_size(x: dict[str, np.ndarray], target: np.ndarray) -> float:
+    """``sqrt(sum_b ||X_b' Y||^2)``, a missing cell read as 0."""
+    return float(np.sqrt(sum(np.sum((np.nan_to_num(values).T @ np.nan_to_num(target)) ** 2) for values in x.values())))
+
+
+def _mbpls_component_by_hand(x: dict, follow: np.ndarray, widths: dict, has_data: dict, max_iter: int) -> tuple:
+    """Iterate one MBPLS component from the column of ``follow`` with the largest sum of squares.
+
+    Returns the super score ``t``, the Y-score ``u``, the super weight ``w``, the Y-loading
+    ``c``, the block weights and block scores, and the number of passes.
+    """
+    names = list(x)
+    u = np.nan_to_num(follow)[:, np.argmax(np.nansum(follow**2, axis=0))]
+    passes = 0
+    while passes < max_iter:
+        passes += 1
+        previous, w_b, t_b = u, {}, {}
+        for name in names:
+            weight = _masked_regression(x[name], u, "column")
+            w_b[name] = weight / np.linalg.norm(weight)
+            t_b[name] = _masked_regression(x[name], w_b[name], "row") / np.sqrt(widths[name])
+        scores = np.column_stack([np.where(has_data[name], t_b[name], np.nan) for name in names])
+        w = _masked_regression(scores, u, "column")
+        w = w / np.linalg.norm(w)
+        g = np.concatenate([w[b] * w_b[name] / np.sqrt(widths[name]) for b, name in enumerate(names)])
+        t = _masked_regression(np.hstack([x[name] for name in names]), g, "row") * (g @ g)
+        c = _masked_regression(follow, t, "column")
+        u = _masked_regression(follow, c, "row")
+        if np.linalg.norm(u - previous) <= EPSQRT * np.linalg.norm(u):
+            break
+    return t, u, w, c, w_b, t_b, passes
+
+
+def _mbpls_written_out(
+    blocks: dict[str, pd.DataFrame], y: pd.DataFrame, n_components: int, max_iter: int = 500
+) -> dict:
+    """MBPLS written out (Westerhuis, Kourti and MacGregor, 1998), seeded and stopped as ``fit`` is.
+
+    Each block and Y is autoscaled over its observed cells, and each block weighted by
+    ``1 / sqrt(K_b)``, ``K_b`` its count of columns that vary. A component starts from the
+    column of what is left of Y with the largest sum of squares (a missing cell read as 0) and
+    repeats: ``w_b = X_b'u / u'u`` column by column over the observed cells, scaled to length
+    1; ``t_b = X_b w_b / w_b'w_b`` row by row over the observed cells, over ``sqrt(K_b)``;
+    ``w = T'u / u'u`` over the rows that have a block score, scaled to length 1; the super
+    score ``t`` as one regression of the whole row on ``g = [w[b] w_b / sqrt(K_b)]``, scaled
+    by ``g'g``; ``c = Y't / t't`` and ``u = Y c / c'c``, each over the observed cells. It
+    stops once ``u`` moves by at most ``epsqrt`` of its length, or after ``max_iter`` passes.
+    The component is flipped so its largest block loading ``p_b = X_b't / t't`` is positive,
+    and ``t p_b'`` is taken from each block and ``t c'`` from Y. Once ``X'Y`` has fallen to
+    ``epsqrt`` of its first size, every later component takes the blocks over ``sqrt(K_b)``
+    as its target in place of Y, and has no Y-score.
+    """
+    names = list(blocks)
+    scaling = {name: _autoscaling(frame) for name, frame in blocks.items()}
+    y_scaling = _autoscaling(y)
+    x = {name: (frame.to_numpy(dtype=float) - scaling[name][0]) / scaling[name][1] for name, frame in blocks.items()}
+    target = (y.to_numpy(dtype=float) - y_scaling[0]) / y_scaling[1]
+    widths = {name: max(1, int(np.sum(np.nanstd(values, axis=0) > EPSQRT))) for name, values in x.items()}
+    has_data = {name: ~np.all(np.isnan(values), axis=1) for name, values in x.items()}
+    total = {name: np.nansum(values**2, axis=0) for name, values in x.items()}
+    total_y = np.nansum(target**2, axis=0)
+    reach, exhausted = _cross_size(x, target), False
+    found: dict = {key: [] for key in ("t", "u", "w", "c", "iterations", "r2_y", "r2_y_columns")}
+    for key in ("t_b", "w_b", "p_b", "spe", "r2_columns", "r2_block"):
+        found[key] = {name: [] for name in names}
+    for a in range(n_components):
+        exhausted = exhausted or (a > 0 and _cross_size(x, target) <= EPSQRT * reach)
+        follow = np.column_stack([x[name] / np.sqrt(widths[name]) for name in names]) if exhausted else target
+        t, u, w, c, w_b, t_b, passes = _mbpls_component_by_hand(x, follow, widths, has_data, max_iter)
+        if exhausted:
+            c, u = _masked_regression(target, t, "column"), np.zeros_like(t)
+        p_b = {name: _masked_regression(x[name], t, "column") for name in names}
+        stacked = np.concatenate([p_b[name] for name in names])
+        sign = -1.0 if stacked[np.argmax(np.abs(stacked))] < 0 else 1.0
+        t, u, c = sign * t, sign * u, sign * c
+        for name in names:
+            x[name] = x[name] - np.outer(t, sign * p_b[name])
+            remaining = np.nansum(x[name] ** 2, axis=0)
+            found["t_b"][name].append(np.where(has_data[name], sign * t_b[name], np.nan))
+            found["w_b"][name].append(sign * w_b[name])
+            found["p_b"][name].append(sign * p_b[name])
+            found["spe"][name].append(np.where(has_data[name], np.sqrt(np.nansum(x[name] ** 2, axis=1)), np.nan))
+            found["r2_columns"][name].append(1 - remaining / np.where(total[name] > 0, total[name], np.nan))
+            found["r2_block"][name].append(1 - remaining.sum() / total[name].sum())
+        target = target - np.outer(t, c)
+        remaining_y = np.nansum(target**2, axis=0)
+        found["r2_y"].append(1 - remaining_y.sum() / total_y.sum())
+        found["r2_y_columns"].append(1 - remaining_y / np.where(total_y > 0, total_y, np.nan))
+        for key, value in (("t", t), ("u", u), ("w", w), ("c", c), ("iterations", passes)):
+            found[key].append(value)
+    out = {key: np.column_stack(found[key]) for key in ("t", "u", "w", "c", "r2_y_columns")}
+    out |= {"iterations": found["iterations"], "r2_y": np.array(found["r2_y"])}
+    for key in ("t_b", "w_b", "p_b", "spe", "r2_columns", "r2_block"):
+        out[key] = {name: np.column_stack(found[key][name]) for name in names}
+    return out | {"scaling": scaling, "y_scaling": y_scaling, "widths": widths, "has_data": has_data}
+
+
+def _gappy_mbpls_data() -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+    """Return the gappy three blocks, row r3 with nothing in block ``x``, and a Y of two columns with one gap.
+
+    Autoscaled over its observed cells, Y's first column holds 4 in sums of squares and its
+    second 5, so the second seeds the first component.
+    """
+    blocks = _gappy_three_blocks()
+    blocks["x"].iloc[3] = np.nan
+    rng = np.random.default_rng(1)
+    y = pd.DataFrame(rng.standard_normal((6, 2)), index=blocks["x"].index, columns=["q", "r"])
+    y.iloc[1, 0] = np.nan
+    return blocks, y
+
+
+def _check_mbpls_fitted(
+    model: MBPLS, blocks: dict[str, pd.DataFrame], y: pd.DataFrame, expected: dict, rtol: float
+) -> None:
+    """Every fitted attribute of ``model`` against ``_mbpls_written_out``, labels included."""
+    names, index = list(blocks), next(iter(blocks.values())).index
+    components = list(range(1, expected["t"].shape[1] + 1))
+    n_rows = len(index)
+    t = expected["t"]
+    assert model.block_names_ == names
+    assert model.block_widths_ == {name: frame.shape[1] for name, frame in blocks.items()}
+    assert model.block_informative_widths_ == expected["widths"]
+    assert (model.n_samples_, model.n_targets_, model.n_components_) == (n_rows, y.shape[1], len(components))
+    assert model.n_features_in_ == sum(frame.shape[1] for frame in blocks.values())
+    np.testing.assert_array_equal(model.feature_names_in_, np.concatenate([frame.columns for frame in blocks.values()]))
+    _frames_near(model.super_scores_, pd.DataFrame(t, index=index, columns=components), rtol)
+    _frames_near(model.super_y_scores_, pd.DataFrame(expected["u"], index=index, columns=components), rtol)
+    _frames_near(model.super_weights_, pd.DataFrame(expected["w"], index=names, columns=components), rtol)
+    _frames_near(model.super_y_loadings_, pd.DataFrame(expected["c"], index=y.columns, columns=components), rtol)
+    centre, scale = expected["y_scaling"]
+    predictions = pd.DataFrame(t @ expected["c"].T * scale + centre, index=index, columns=y.columns)
+    _frames_near(model.predictions_, predictions, rtol)
+    variance = np.sum(t**2, axis=0) / (n_rows - 1)
+    np.testing.assert_allclose(model.explained_variance_, variance, rtol=rtol)
+    _frames_near(
+        model.scaling_factor_for_super_scores_,
+        pd.Series(np.sqrt(variance), index=components, name="Standard deviation per super-score"),
+        rtol,
+    )
+    _frames_near(
+        model.super_hotellings_t2_,
+        pd.DataFrame(np.cumsum(t**2 / variance, axis=1), index=index, columns=components),
+        rtol,
+    )
+    r2_block = np.vstack([expected["r2_block"][name] for name in names])
+    _frames_near(model.r2_x_per_block_cumulative_, pd.DataFrame(r2_block, index=names, columns=components), rtol)
+    increments = np.diff(r2_block, axis=1, prepend=0.0)
+    _frames_near(model.r2_x_per_block_per_component_, pd.DataFrame(increments, index=names, columns=components), rtol)
+    _frames_near(model.r2_y_cumulative_, pd.Series(expected["r2_y"], index=components, name="Cumulative R²Y"), rtol)
+    r2_y_increments = np.diff(expected["r2_y"], prepend=0.0)
+    _frames_near(
+        model.r2_y_per_component_, pd.Series(r2_y_increments, index=components, name="R²Y per component"), rtol
+    )
+    _frames_near(
+        model.r2_y_per_variable_, pd.DataFrame(expected["r2_y_columns"], index=y.columns, columns=components), rtol
+    )
+    super_vip = np.sqrt(len(names) * (expected["w"] ** 2 @ r2_y_increments) / r2_y_increments.sum())
+    _frames_near(model.super_vip_, pd.Series(super_vip, index=names, name="Super VIP"), rtol)
+    for b, name in enumerate(names):
+        columns = blocks[name].columns
+        t_b, w_b = expected["t_b"][name], expected["w_b"][name]
+        _frames_near(model.block_scores_[name], pd.DataFrame(t_b, index=index, columns=components), rtol)
+        _frames_near(model.block_weights_[name], pd.DataFrame(w_b, index=columns, columns=components), rtol)
+        p_b = pd.DataFrame(expected["p_b"][name], index=columns, columns=components)
+        _frames_near(model.block_loadings_[name], p_b, rtol)
+        _frames_near(model.block_spe_[name], pd.DataFrame(expected["spe"][name], index=index, columns=components), rtol)
+        r2_columns = pd.DataFrame(expected["r2_columns"][name], index=columns, columns=components)
+        _frames_near(model.r2_x_per_variable_[name], r2_columns, rtol)
+        present = expected["has_data"][name].sum()
+        second_moment = np.nansum(t_b**2, axis=0) / (present - 1)
+        block_t2 = pd.DataFrame(np.cumsum(t_b**2 / second_moment, axis=1), index=index, columns=components)
+        _frames_near(model.block_hotellings_t2_[name], block_t2, rtol)
+        vip = np.sqrt(expected["widths"][name] * (w_b**2 @ increments[b]) / increments[b].sum())
+        _frames_near(model.block_vip_[name], pd.Series(vip, index=columns, name=f"VIP[{name}]"), rtol)
+
+
+class TestMBPLSWrittenOut:
+    """MBPLS against its algorithm written out by hand, every attribute, label and step."""
+
+    def test_a_gappy_fit_follows_the_algorithm_pass_for_pass(self) -> None:
+        """Missing cells take the masked path; a fit stopped after one pass shows where it was seeded."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        expected = _mbpls_written_out(blocks, y, 2)
+        assert model.algorithm_ == "nipals"
+        assert model.has_missing_data_ is True
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], expected["iterations"])
+        assert model.fitting_info_["iterations"].dtype.kind == "i"
+        np.testing.assert_array_equal(model.fitting_info_["converged"], [True, True])
+        _check_mbpls_fitted(model, blocks, y, expected, rtol=1e-10)
+
+        with pytest.warns(
+            SpecificationWarning,
+            match=r"^MBPLS NIPALS did not converge within max_iter=1 for component\(s\) \[1, 2\]; ",
+        ):
+            one_pass = MBPLS(n_components=2, max_iter=1).fit(blocks, y)
+        _check_mbpls_fitted(one_pass, blocks, y, _mbpls_written_out(blocks, y, 2, max_iter=1), rtol=1e-12)
+        np.testing.assert_array_equal(one_pass.fitting_info_["iterations"], [1, 1])
+
+    def test_the_masked_path_on_complete_data_is_the_dense_path(self) -> None:
+        """On complete LDPE blocks, "nipals" fits what "dense" does, and what the algorithm written out does."""
+        blocks, y = _ldpe_blocks()
+        expected = _mbpls_written_out(blocks, y, 3)
+        for algorithm in ("dense", "nipals", "auto"):
+            model = MBPLS(n_components=3, algorithm=algorithm).fit(blocks, y)
+            assert model.algorithm_ == ("dense" if algorithm == "auto" else algorithm)
+            assert model.has_missing_data_ is False
+            _check_mbpls_fitted(model, blocks, y, expected, rtol=1e-6)
+
+    def test_square_blocks_and_a_square_y_tell_each_regression_which_way_it_runs(self) -> None:
+        """Three rows, three blocks, a block of three columns and three targets, on the masked path.
+
+        Every masked regression of a square array must be told whether it runs over the
+        columns or the rows: the block weights and scores of block ``p``, the super weight over
+        the three block scores, Y's loading and score, and the deflating loadings. The third
+        component finds nothing left in Y, three rows holding two directions, and is fitted
+        along X, whose Y-loading is a regression on the square Y too.
+        """
+        blocks = {
+            "p": pd.DataFrame([[1.0, 4.0, 2.0], [3.0, 1.0, 5.0], [0.0, 2.0, 2.5]], columns=["p0", "p1", "p2"]),
+            "q": pd.DataFrame({"q0": [2.0, -1.0, 0.5]}),
+            "r": pd.DataFrame({"r0": [1.0, 1.5, 4.0], "r1": [0.0, 2.0, -1.0]}),
+        }
+        y = pd.DataFrame([[1.0, 0.0, 2.0], [2.0, 3.0, 1.0], [4.0, 1.0, 1.5]], columns=["a", "b", "c"])
+        model = MBPLS(n_components=2, algorithm="nipals").fit(blocks, y)
+        _check_mbpls_fitted(model, blocks, y, _mbpls_written_out(blocks, y, 2), rtol=1e-9)
+        with pytest.warns(SpecificationWarning, match=r"^MBPLS: from component 3 on there is nothing left in Y"):
+            third = MBPLS(n_components=3, algorithm="nipals").fit(blocks, y)
+        np.testing.assert_array_equal(third.super_y_scores_[3], np.zeros(3))
+        _frames_near(third.super_scores_[[1, 2]], model.super_scores_, 1e-9)
+
+    @pytest.mark.parametrize("algorithm", ["dense", "nipals"])
+    def test_once_y_is_explained_the_later_components_follow_x(self, algorithm: str) -> None:
+        """Y is the first principal component of the weighted blocks, so one component explains all of it.
+
+        From the second component on, ``X'Y`` is about zero, and each component is fitted along
+        the largest direction left in the blocks over ``sqrt(K_b)``, the blocks three and two
+        columns wide, with a Y-loading of about zero and no Y-score.
+        """
+        rng = np.random.default_rng(3)
+        latent = rng.standard_normal((12, 3))
+        blocks = {
+            "wide": pd.DataFrame(latent @ rng.standard_normal((3, 3)) + 0.3 * rng.standard_normal((12, 3))),
+            "narrow": pd.DataFrame(latent @ rng.standard_normal((3, 2)) + 0.3 * rng.standard_normal((12, 2))),
+        }
+        weighted = np.hstack([MCUVScaler().fit_transform(frame) / np.sqrt(frame.shape[1]) for frame in blocks.values()])
+        y = pd.DataFrame({"y": 3.0 * np.linalg.svd(weighted, full_matrices=False)[0][:, 0] + 1.0})
+        message = (
+            r"^MBPLS: from component 2 on there is nothing left in Y that X can explain: what is left of Y is "
+            r"uncorrelated with what is left of X \(R²Y stays at 1\)\. The data support 1 component\(s\); "
+        )
+        with pytest.warns(SpecificationWarning, match=message):
+            model = MBPLS(n_components=3, algorithm=algorithm).fit(blocks, y)
+        expected = _mbpls_written_out(blocks, y, 3)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], expected["iterations"])
+        np.testing.assert_array_equal(model.super_y_scores_[[2, 3]], np.zeros((12, 2)))
+        _check_mbpls_fitted(model, blocks, y, expected, rtol=1e-8)
+
+    def test_a_component_found_against_its_largest_loadings_is_flipped_whole(self) -> None:
+        """The blocks follow ``-y``, so the iteration from ``y`` finds a component whose loadings are negative.
+
+        It is flipped: super and block scores, block weights, Y-score and Y-loading together. The
+        super weight is not, as flipping leaves each ``t_b'u`` as it was.
+        """
+        rng = np.random.default_rng(4)
+        z = rng.standard_normal(8)
+        blocks = {
+            "a": pd.DataFrame({"a0": -z + 0.1 * rng.standard_normal(8), "a1": -z + 0.3 * rng.standard_normal(8)}),
+            "b": pd.DataFrame({"b0": -z + 0.2 * rng.standard_normal(8)}),
+        }
+        y = pd.DataFrame({"y": z + 0.1 * rng.standard_normal(8)})
+        model = MBPLS(n_components=1).fit(blocks, y)
+        assert model.super_y_loadings_.loc["y", 1] < 0
+        assert (model.super_weights_[1] > 0).all()
+        _check_mbpls_fitted(model, blocks, y, _mbpls_written_out(blocks, y, 1), rtol=1e-10)
+
+    def test_a_change_of_exactly_tol_has_converged(self) -> None:
+        """The loop stops once ``u`` moves by at most ``tol`` of its length, equality included.
+
+        Fits stopped after 3 and 4 passes give the last two iterates, so their change relative to
+        the newer is what the fourth pass measures, to the last bit. With that as ``tol`` the fit
+        stops after the fourth pass.
+        """
+        blocks, y = _gappy_mbpls_data()
+        with pytest.warns(SpecificationWarning, match="did not converge"):
+            third = MBPLS(n_components=1, max_iter=3).fit(blocks, y).super_y_scores_[1].to_numpy()
+        with pytest.warns(SpecificationWarning, match="did not converge"):
+            fourth = MBPLS(n_components=1, max_iter=4).fit(blocks, y).super_y_scores_[1].to_numpy()
+        step = np.linalg.norm(third - fourth)
+        assert step < 0.1 * np.linalg.norm(fourth)  # one pass apart, with the same sign
+        model = MBPLS(n_components=1, tol=step / np.linalg.norm(fourth)).fit(blocks, y)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], [4])
+
+    def test_a_fit_stopped_by_max_iter_says_which_components_and_logs_the_iterations(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The gappy data converge in 27 and 8 passes: ten stop the first, which the warning names."""
+        blocks, y = _gappy_mbpls_data()
+        message = (
+            r"^MBPLS NIPALS did not converge within max_iter=10 for component\(s\) \[1\]; "
+            r"results for those components may be unreliable\.$"
+        )
+        with (
+            caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._mbpls"),
+            pytest.warns(SpecificationWarning, match=message),
+        ):
+            model = MBPLS(n_components=2, max_iter=10).fit(blocks, y)
+        assert caplog.messages == ["MBPLS (nipals): iterations per component = [10, 8]"]
+        np.testing.assert_array_equal(model.fitting_info_["converged"], [False, True])
+        assert model.fitting_info_["timing"].shape == (2,)
+        _check_mbpls_fitted(model, blocks, y, _mbpls_written_out(blocks, y, 2, max_iter=10), rtol=1e-10)
+
+    def test_two_rows_and_constant_columns_have_the_r2_they_should_without_a_warning(self) -> None:
+        """At two rows a varying column holds a sum of squares of 1; a constant one, in X or Y, holds none.
+
+        One component explains both rows of every column that varies: R2 1. The constant column
+        ``b1``, the block ``c`` of constants and the constant target ``y1`` have nothing to
+        explain: their R2 is NaN, with no warning from a division by 0, ``c``'s VIP is 0, and
+        no constant column counts in its block's width. The variance divides by 1.
+        """
+        index = ["first", "second"]
+        blocks = {
+            "a": pd.DataFrame({"a0": [0.0, 1.0]}, index=index),
+            "b": pd.DataFrame({"b0": [2.0, 7.0], "b1": [5.0, 5.0]}, index=index),
+            "c": pd.DataFrame({"c0": [3.0, 3.0]}, index=index),
+        }
+        y = pd.DataFrame({"y0": [0.0, 1.0], "y1": [2.0, 2.0]}, index=index)
+        assert np.sum(MCUVScaler().fit_transform(y[["y0"]]).to_numpy() ** 2) < 1.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            model = MBPLS(n_components=1).fit(blocks, y)
+            flat = MBPLS(n_components=1).fit(blocks, y[["y1"]])
+        assert model.block_informative_widths_ == {"a": 1, "b": 1, "c": 1}
+        _frames_near(
+            model.r2_x_per_block_cumulative_,
+            pd.DataFrame([[1.0], [1.0], [np.nan]], index=list(blocks), columns=[1]),
+            1e-12,
+        )
+        _frames_near(
+            model.r2_x_per_variable_["b"], pd.DataFrame([[1.0], [np.nan]], index=["b0", "b1"], columns=[1]), 1e-12
+        )
+        _frames_near(model.r2_y_per_variable_, pd.DataFrame([[1.0], [np.nan]], index=["y0", "y1"], columns=[1]), 1e-12)
+        _frames_near(model.r2_y_cumulative_, pd.Series([1.0], index=[1], name="Cumulative R²Y"), 1e-12)
+        np.testing.assert_allclose(model.explained_variance_, [np.sum(model.super_scores_.to_numpy() ** 2)], rtol=1e-15)
+        np.testing.assert_allclose(model.block_vip_["b"], [1.0, 0.0], rtol=1e-12, atol=1e-15)
+        np.testing.assert_array_equal(model.block_vip_["c"], [0.0])
+        assert flat.r2_y_cumulative_.isna().all()
+        assert flat.r2_y_per_variable_.isna().all().all()
+
+    def test_a_block_or_a_y_the_component_leaves_untouched_has_no_r2_and_no_vip(self) -> None:
+        """Columns with mean 0 and sd 1, exactly orthogonal: what the component does not reach has R2 and VIP 0.
+
+        ``b`` is orthogonal to ``a`` and to Y, which is ``a``: its weight, loading and R2X are 0
+        exactly, and so its VIP is 0 rather than 0 / 0. A Y orthogonal to the only block leaves
+        the fit nothing at all: R2X and R2Y 0, and both VIPs 0.
+        """
+        a, b = [-1.0, -1.0, 0.0, 1.0, 1.0], [1.0, -1.0, 0.0, -1.0, 1.0]
+        both = {"a": pd.DataFrame({"a0": a}), "b": pd.DataFrame({"b0": b})}
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            model = MBPLS(n_components=1).fit(both, pd.DataFrame({"y": a}))
+            nothing = MBPLS(n_components=1).fit({"a": pd.DataFrame({"a0": a})}, pd.DataFrame({"y": b}))
+        np.testing.assert_array_equal(model.super_weights_[1], [1.0, 0.0])
+        np.testing.assert_array_equal(model.block_loadings_["b"][1], [0.0])
+        np.testing.assert_array_equal(model.r2_x_per_block_cumulative_[1], [1.0, 0.0])
+        np.testing.assert_array_equal(model.block_vip_["a"], [1.0])
+        np.testing.assert_array_equal(model.block_vip_["b"], [0.0])
+        np.testing.assert_array_equal(nothing.r2_y_cumulative_, [0.0])
+        np.testing.assert_array_equal(nothing.r2_x_per_block_cumulative_[1], [0.0])
+        np.testing.assert_array_equal(nothing.super_vip_, [0.0])
+        np.testing.assert_array_equal(nothing.block_vip_["a"], [0.0])
+
+
+def test_mbpls_refuses_what_its_masked_path_cannot_fit_in_full() -> None:
+    """Each refusal names what is missing where; a row with nothing in one block, even the last, is fitted."""
+    for block, column in (("x", "x1"), ("z", "z5")):
+        blocks, y = _gappy_mbpls_data()
+        blocks[block][column] = np.nan
+        message = rf"^Block '{block}' has columns with all values missing: \['{column}'\]\. Drop these columns before"
+        with pytest.raises(ValueError, match=message):
+            MBPLS(n_components=1).fit(blocks, y)
+
+    blocks, y = _gappy_mbpls_data()
+    for frame in blocks.values():
+        frame.iloc[[2, 4]] = np.nan
+    message = (
+        r"^Rows at positions \[2, 4\] have all values missing in every X-block\. "
+        r"Drop these observations or impute them before fitting\.$"
+    )
+    with pytest.raises(ValueError, match=message):
+        MBPLS(n_components=1).fit(blocks, y)
+
+    blocks, y = _gappy_mbpls_data()
+    with pytest.raises(
+        ValueError, match=r"^Y has columns with all values missing: \['r'\]\. Drop these targets before fitting\.$"
+    ):
+        MBPLS(n_components=1).fit(blocks, y.assign(r=np.nan))
+    gappy_y = y.copy()
+    gappy_y.iloc[[0, 5]] = np.nan
+    message = (
+        r"^Y has rows with all values missing at positions \[0, 5\]\. "
+        r"Drop these observations or impute them before fitting\.$"
+    )
+    with pytest.raises(ValueError, match=message):
+        MBPLS(n_components=1).fit(blocks, gappy_y)
+
+    with pytest.raises(
+        ValueError, match=r"^Algorithm 'dense' cannot handle missing data\. Use 'nipals' or 'auto' instead\.$"
+    ):
+        MBPLS(n_components=1, algorithm="dense").fit(blocks, y)
+    with pytest.raises(
+        ValueError,
+        match=r"^Algorithm 'Bogus' is not recognised\. Must be one of \['auto', 'dense', 'nipals'\]\.$",
+    ):
+        MBPLS(n_components=1, algorithm="Bogus").fit(blocks, y)
+
+    blocks["z"].iloc[3] = np.nan  # r3 has nothing in x already, and now nothing in z, the last block
+    model = MBPLS(n_components=1, algorithm="NIPALS").fit(blocks, y)
+    assert model.algorithm_ == "nipals"
+    assert np.isfinite(model.super_scores_.loc["r3", 1])
+    assert np.isnan(model.block_scores_["z"].loc["r3", 1])
+
+
+def test_an_mbpls_component_whose_loadings_are_all_zero_keeps_its_signs() -> None:
+    """Only a negative largest loading flips a component; a largest of zero is not negative."""
+    from process_improve.multivariate._mbpls import _apply_sign_convention, _MBPLSComponent, _MBPLSLoopContext
+
+    context = _MBPLSLoopContext(
+        algo="dense",
+        block_names=["a"],
+        sqrt_kb={"a": 1.0},
+        block_has_data={"a": np.ones(2, dtype=bool)},
+        tol=1e-8,
+        max_iter=10,
+    )
+    component = _MBPLSComponent(
+        block_weights={"a": np.array([-1.0])},
+        block_scores={"a": np.array([-0.5, 0.5])},
+        super_weight=np.ones(1),
+        super_score=np.array([-1.0, 1.0]),
+        super_y_score=np.array([-2.0, 2.0]),
+        super_y_loading=np.array([-3.0]),
+        iterations=1,
+    )
+    assert _apply_sign_convention(component, {"a": np.zeros((2, 1))}, context) is component
+
+
+def _project_mbpls_by_hand(fitted: dict, blocks: dict[str, pd.DataFrame]) -> dict:
+    """Score new rows on a model written out by ``_mbpls_written_out``, deflating as the fit did.
+
+    Each block score is a regression of the row's observed cells on ``w_b``, over ``sqrt(K_b)``,
+    and NaN for a row with nothing in the block; the super score is the regression of the
+    whole row on ``g``, scaled by ``g'g``, and NaN for a row with nothing observed. A row
+    without a super score is deflated by 0. Returns the scores, the data each component starts
+    from and the data left after the last, the predictions, the block SPE and the T².
+    """
+    names = list(blocks)
+    x = {
+        name: (frame.to_numpy(dtype=float) - fitted["scaling"][name][0]) / fitted["scaling"][name][1]
+        for name, frame in blocks.items()
+    }
+    has_data = {name: ~np.all(np.isnan(values), axis=1) for name, values in x.items()}
+    root = {name: np.sqrt(fitted["widths"][name]) for name in names}
+    t_all, t_b_all, before = [], {name: [] for name in names}, []
+    for a in range(fitted["t"].shape[1]):
+        before.append(dict(x))
+        for name in names:
+            t_b = _masked_regression(x[name], fitted["w_b"][name][:, a], "row") / root[name]
+            t_b_all[name].append(np.where(has_data[name], t_b, np.nan))
+        g = np.concatenate([fitted["w"][b, a] * fitted["w_b"][name][:, a] / root[name] for b, name in enumerate(names)])
+        t = _masked_regression(np.hstack([x[name] for name in names]), g, "row") * (g @ g)
+        for name in names:
+            x[name] = x[name] - np.outer(np.nan_to_num(t), fitted["p_b"][name][:, a])
+        t_all.append(t)
+    t = np.column_stack(t_all)
+    variance = np.sum(fitted["t"] ** 2, axis=0) / (len(fitted["t"]) - 1)
+    centre, scale = fitted["y_scaling"]
+    spe = {name: np.where(has_data[name], np.sqrt(np.nansum(x[name] ** 2, axis=1)), np.nan) for name in names}
+    return {
+        "t": t,
+        "t_b": {name: np.column_stack(values) for name, values in t_b_all.items()},
+        "residuals": x,
+        "before": before,
+        "predictions": t @ fitted["c"].T * scale + centre,
+        "spe": spe,
+        "t2": np.sum(t**2 / variance, axis=1),
+    }
+
+
+def _new_mbpls_rows(blocks: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Six new rows: n0 to n2 complete, n3 without one cell of z, n4 with nothing in x, n5 with nothing at all."""
+    rng = np.random.default_rng(1)
+    index = [f"n{i}" for i in range(6)]
+    new = {
+        name: pd.DataFrame(rng.standard_normal((6, frame.shape[1])), index=index, columns=frame.columns)
+        for name, frame in blocks.items()
+    }
+    new["z"].loc["n3", "z2"] = np.nan
+    new["x"].loc[["n4", "n5"]] = np.nan
+    new["y"].loc["n5"] = np.nan
+    new["z"].loc["n5"] = np.nan
+    return new
+
+
+class TestMBPLSNewRowsByHand:
+    """New rows, their scores, predictions, SPE, T² and contributions, against the model written out."""
+
+    def test_new_rows_are_scored_on_what_the_earlier_components_left(self) -> None:
+        """Projections, predictions, SPE and T² of complete rows, a row with a gap, and rows with no data."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        new = _new_mbpls_rows(blocks)
+        by_hand = _project_mbpls_by_hand(_mbpls_written_out(blocks, y, 2), new)
+        index, components = new["x"].index, [1, 2]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # nothing divides by zero for the rows without data
+            result = model.diagnose(new)
+            from_arrays = model.diagnose({name: frame.to_numpy() for name, frame in new.items()})
+            transformed, predicted = model.transform(new), model.predict(new)
+        assert sorted(result) == ["block_scores", "block_spe", "hotellings_t2", "predictions", "super_scores"]
+        scores = pd.DataFrame(by_hand["t"], index=index, columns=components)
+        assert scores.loc["n5"].isna().all()
+        assert scores.drop(index="n5").notna().all().all()
+        _frames_near(result.super_scores, scores, 1e-10)
+        _frames_near(transformed, scores, 1e-10)
+        predictions = pd.DataFrame(by_hand["predictions"], index=index, columns=y.columns)
+        _frames_near(result.predictions, predictions, 1e-10)
+        _frames_near(predicted, predictions, 1e-10)
+        _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
+        for name in blocks:
+            t_b = pd.DataFrame(by_hand["t_b"][name], index=index, columns=components)
+            _frames_near(result.block_scores[name], t_b, 1e-10)
+            spe = pd.Series(by_hand["spe"][name], index=index, name=f"SPE[{name}]")
+            _frames_near(result.block_spe[name], spe, 1e-10)
+        assert np.isnan(result.block_spe["x"]["n4"])
+        positions = pd.RangeIndex(6)
+        _frames_near(from_arrays.super_scores, scores.set_axis(positions), 1e-10)
+        _frames_near(from_arrays.predictions, predictions.set_axis(positions), 1e-10)
+
+    def test_contributions_split_the_new_rows_scores_and_residuals_by_hand(self) -> None:
+        """SPE contributions are the squared residuals; score contributions split each super score by variable."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        fitted = _mbpls_written_out(blocks, y, 2)
+        new = _new_mbpls_rows(blocks)
+        by_hand = _project_mbpls_by_hand(fitted, new)
+        index = new["x"].index
+
+        spe = model.spe_contributions(new)
+        assert list(spe) == ["x", "y", "z"]
+        for name, frame in new.items():
+            scaled = (frame.to_numpy() - fitted["scaling"][name][0]) / fitted["scaling"][name][1]
+            residuals = (scaled - by_hand["t"] @ fitted["p_b"][name].T) ** 2
+            _frames_near(spe[name], pd.DataFrame(residuals, index=index, columns=frame.columns), 1e-10)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")  # no "X does not have valid feature names"
+                of_arrays = model.spe_contributions({key: value.to_numpy() for key, value in new.items()})[name]
+            _frames_near(of_arrays, pd.DataFrame(residuals, columns=frame.columns), 1e-10)
+
+        for component in (1, 2):
+            a = component - 1
+            contributions = model.score_contributions(new, component=component)
+            expected = {
+                name: pd.DataFrame(
+                    by_hand["before"][a][name]
+                    * fitted["w_b"][name][:, a]
+                    * fitted["w"][b, a]
+                    / np.sqrt(fitted["widths"][name]),
+                    index=index,
+                    columns=new[name].columns,
+                )
+                for b, name in enumerate(new)
+            }
+            for name in new:
+                _frames_near(contributions[name], expected[name], 1e-10)
+            complete = ["n0", "n1", "n2"]
+            total = sum(frame.loc[complete].sum(axis=1) for frame in expected.values())
+            np.testing.assert_allclose(total, by_hand["t"][:3, a], rtol=1e-12)
+            if component == 2:
+                group = model.group_contributions(new, group=["n0", "n2"], reference=["n1"], component=2)
+                centred = model.group_contributions(new, group=["n0", "n2"], component=2)
+                for name in new:
+                    mean = expected[name].loc[["n0", "n2"]].mean()
+                    _frames_near(centred[name], mean.rename(f"group_contributions[{name}]"), 1e-10)
+                    shift = mean - expected[name].loc["n1"]
+                    _frames_near(group[name], shift.rename(f"group_contributions[{name}]"), 1e-10)
+        first = model.score_contributions(new)
+        for name in new:
+            pd.testing.assert_frame_equal(first[name], model.score_contributions(new, component=1)[name])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no "X does not have valid feature names"
+            of_arrays = model.score_contributions({name: frame.to_numpy() for name, frame in new.items()}, component=2)
+        for name in new:
+            np.testing.assert_array_equal(of_arrays[name], model.score_contributions(new, component=2)[name])
+            assert list(of_arrays[name].columns) == list(new[name].columns)
+        first_group = model.group_contributions(new, group=["n0"])
+        for name in new:
+            pd.testing.assert_series_equal(
+                first_group[name], model.group_contributions(new, group=["n0"], component=1)[name]
+            )
+
+        with pytest.raises(ValueError, match=r"^group contains entries that are not index labels of X: \['zz'\]\. "):
+            model.group_contributions(new, group=["zz"])
+        with pytest.raises(
+            ValueError, match=r"^reference contains entries that are not index labels of X: \['zz'\]\. "
+        ):
+            model.group_contributions(new, group=["n0"], reference=["zz"])
+        with pytest.raises(TypeError, match=r"^X must be a dict\[str, pd\.DataFrame\]\.$"):
+            model.score_contributions(new["x"])
+        with pytest.raises(ValueError, match=r"^Missing X-blocks: \['z'\]\.$"):
+            model.score_contributions({"x": new["x"], "y": new["y"]})
+        with pytest.raises(ValueError, match=r"^component must be a 1-based index within 1\.\.2, got 3\.$"):
+            model.score_contributions(new, component=3)
+
+    def test_diagnose_gives_no_block_spe_where_a_row_has_no_data(self) -> None:
+        """A row with nothing observed in a block has no SPE there: NaN, as in ``block_spe_`` (#1028).
+
+        Row r3 has nothing in block ``x``. ``block_spe_`` holds NaN for it, and diagnose of the
+        training rows gave 0, the SPE of a row the model fits exactly.
+        """
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        result = model.diagnose(blocks)
+        for name in blocks:
+            pd.testing.assert_series_equal(
+                result.block_spe[name], model.block_spe_[name][2].rename(f"SPE[{name}]"), rtol=1e-12
+            )
+        assert np.isnan(result.block_spe["x"]["r3"])
+
+    def test_the_spe_limits_are_set_on_the_last_component_over_the_rows_with_data(self) -> None:
+        """With three components, each block's limit and the merged one read the third column of the SPE.
+
+        Row r3 has nothing in block ``x``, so no SPE there: it has no part in ``x``'s limit, and
+        adds nothing to its merged SPE. Its NaN made both limits NaN (#1028).
+        """
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=3).fit(blocks, y)
+        spe = {name: values[:, 2] for name, values in _mbpls_written_out(blocks, y, 3)["spe"].items()}
+        assert np.isnan(spe["x"][3])
+        merged = np.sqrt(sum(np.nan_to_num(values) ** 2 for values in spe.values()))
+        for conf_level in (0.95, 0.99):
+            for name in blocks:
+                limit = spe_calculation(spe[name][np.isfinite(spe[name])], conf_level=conf_level)
+                assert model.block_spe_limit(name, conf_level=conf_level) == pytest.approx(limit, rel=1e-9)
+            assert model.super_spe_limit(conf_level=conf_level) == pytest.approx(
+                spe_calculation(merged, conf_level=conf_level), rel=1e-9
+            )
+        assert model.block_spe_limit("z") == model.block_spe_limit("z", conf_level=0.95)
+        assert model.super_spe_limit() == model.super_spe_limit(conf_level=0.95)
+
+
+class TestMBPLSPlotsAndSummary:
+    """The plots and the summary of a fitted MBPLS, in full."""
+
+    def test_display_results_prints_the_r2_iterations_and_timing(self) -> None:
+        """The summary, in full: cumulative R2X and R2Y by default, the increments on request, and plain integers."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        model.fitting_info_["timing"] = np.array([0.1, 0.00123])
+        expected = _mbpls_written_out(blocks, y, 2)
+        r2 = np.vstack([*(expected["r2_block"][name] for name in blocks), expected["r2_y"]])
+        header = "  PC | R²X[x] | R²X[y] | R²X[z] | R²Y"
+
+        def summary(values: np.ndarray) -> str:
+            rows = [f"  {a + 1} | " + " | ".join(f"{value:9.4f}" for value in values[:, a]) for a in range(2)]
+            return "\n".join(
+                [
+                    "MBPLS model: 2 component(s), 3 X-block(s)",
+                    header,
+                    "-" * len(header),
+                    *rows,
+                    "",
+                    "  Iterations per PC: [27, 8]",
+                    "  Time per PC (ms):  [100.0, 1.2]",
+                ]
+            )
+
+        assert model.display_results() == summary(r2)
+        assert model.display_results(show_cumulative=False) == summary(np.diff(r2, axis=1, prepend=0.0))
+
+    def test_the_plots_draw_the_fitted_super_scores_and_weights(self) -> None:
+        """Both plots, in full, by default and at the last component."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=3).fit(blocks, y)
+        scores = model.super_scores_
+        for figure, (horizontal, vertical) in (
+            (model.super_score_plot(), (1, 2)),
+            (model.super_score_plot(3, 1), (3, 1)),
+        ):
+            (trace,) = figure.data
+            np.testing.assert_array_equal(trace.x, scores[horizontal])
+            np.testing.assert_array_equal(trace.y, scores[vertical])
+            assert trace.mode == "markers+text"
+            assert list(trace.text) == [f"r{i}" for i in range(6)]
+            assert trace.textposition == "top center"
+            assert trace.name == "Super-scores"
+            assert figure.layout.xaxis.title.text == f"t_super[{horizontal}]"
+            assert figure.layout.yaxis.title.text == f"t_super[{vertical}]"
+            assert figure.layout.title.text == f"MBPLS super-score plot: PC{horizontal} vs PC{vertical}"
+        for horizontal, vertical in ((4, 1), (1, 4), (0, 1), (1, 0)):
+            with pytest.raises(ValueError, match=r"^pc_horiz and pc_vert must be in 1\.\.3\.$"):
+                model.super_score_plot(horizontal, vertical)
+
+        for figure, component in ((model.super_weights_bar_plot(), 1), (model.super_weights_bar_plot(3), 3)):
+            (bar,) = figure.data
+            assert list(bar.x) == ["x", "y", "z"]
+            np.testing.assert_array_equal(bar.y, model.super_weights_[component])
+            assert bar.name == f"w_super[{component}]"
+            assert figure.layout.xaxis.title.text == "Block"
+            assert figure.layout.yaxis.title.text == f"w_super[{component}]"
+            assert figure.layout.title.text == f"MBPLS super-weights, component {component}"
+        for component in (0, 4):
+            with pytest.raises(ValueError, match=r"^component must be in 1\.\.3\.$"):
+                model.super_weights_bar_plot(component)
+
+    def test_the_predictions_plot_draws_the_points_the_line_and_the_rmsee(self) -> None:
+        """The plot of predicted against observed, in full: two traces, a y = x line padded by 5%, the RMSEE."""
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        observed = y.fillna(0.5) * 2.0  # what is drawn need not be what was fitted
+        figure = model.predictions_vs_observed_plot(observed, variable="q")
+        points, line = figure.data
+        np.testing.assert_array_equal(points.x, observed["q"])
+        np.testing.assert_array_equal(points.y, model.predictions_["q"])
+        assert (points.mode, points.name) == ("markers", "Predicted vs observed")
+        low = min(observed["q"].min(), model.predictions_["q"].min())
+        high = max(observed["q"].max(), model.predictions_["q"].max())
+        pad = 0.05 * (high - low)
+        np.testing.assert_allclose(line.x, [low - pad, high + pad], rtol=1e-14)
+        np.testing.assert_allclose(line.y, [low - pad, high + pad], rtol=1e-14)
+        assert (line.mode, line.name) == ("lines", "y = x")
+        assert line.line.color == REFERENCE_LINE_COLOR
+        assert line.line.dash == "dash"
+        (note,) = figure.layout.annotations
+        rmsee = np.sqrt(np.mean((observed["q"] - model.predictions_["q"]) ** 2))
+        assert note.text == f"RMSEE = {rmsee:.4g}"
+        assert note.x == pytest.approx(low + 0.05 * (high - low), rel=1e-14)
+        assert note.y == pytest.approx(high - 0.05 * (high - low), rel=1e-14)
+        assert note.showarrow is False
+        assert figure.layout.xaxis.title.text == "Observed: q"
+        assert figure.layout.yaxis.title.text == "Predicted: q"
+        assert figure.layout.title.text == "Predicted vs observed for q"
+
+        # Every point at one value: the line is padded by 1 either side.
+        flat = MBPLS(n_components=1).fit(blocks, pd.DataFrame({"c": np.full(6, 3.0)}, index=y.index))
+        (_, line) = flat.predictions_vs_observed_plot(pd.DataFrame({"c": np.full(6, 3.0)})).data
+        np.testing.assert_array_equal(line.x, [2.0, 4.0])
+        np.testing.assert_array_equal(line.y, [2.0, 4.0])
+
+
+@pytest.mark.parametrize(
+    "use",
+    [
+        lambda model, blocks, _: model.transform(blocks),
+        lambda model, blocks, _: model.diagnose(blocks),
+        lambda model, blocks, _: model.predict(blocks),
+        lambda model, blocks, y: model.score(blocks, y),
+        lambda model, blocks, _: model.spe_contributions(blocks),
+        lambda model, blocks, _: model.score_contributions(blocks),
+        lambda model, blocks, _: model.group_contributions(blocks, group=["r0"]),
+        lambda model, _, __: model.block_spe_limit("x"),
+        lambda model, _, __: model.super_spe_limit(),
+        lambda model, _, __: model.super_score_plot(),
+        lambda model, _, __: model.super_weights_bar_plot(),
+        lambda model, _, y: model.predictions_vs_observed_plot(y),
+        lambda model, _, __: model.display_results(),
+        lambda model, blocks, y: randomization_test_mbpls(model, blocks, y, n_permutations=1),
+    ],
+    ids=[
+        "transform",
+        "diagnose",
+        "predict",
+        "score",
+        "spe_contributions",
+        "score_contributions",
+        "group_contributions",
+        "block_spe_limit",
+        "super_spe_limit",
+        "super_score_plot",
+        "super_weights_bar_plot",
+        "predictions_vs_observed_plot",
+        "display_results",
+        "randomization_test_mbpls",
+    ],
+)
+def test_an_mbpls_whose_fit_failed_is_not_fitted(use: Callable[[MBPLS, dict, pd.DataFrame], object]) -> None:
+    """A fit refused after the block names were recorded leaves a model every method reports as unfitted."""
+    blocks, y = _gappy_mbpls_data()
+    model = MBPLS(n_components=2, algorithm="bogus")
+    with pytest.raises(ValueError, match="is not recognised"):
+        model.fit(blocks, y)
+    assert model.block_names_ == ["x", "y", "z"]
+    with pytest.raises(NotFittedError):
+        use(model, blocks, y)
+
+
+def _blocks_of_two_directions() -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+    """Return ten rows whose blocks hold two directions exactly, and a response barely tied to them.
+
+    After two components the blocks have nothing left, so a third finds nothing in Y that X
+    can explain, whatever the order of Y's rows.
+    """
+    rng = np.random.default_rng(6)
+    latent = rng.standard_normal((10, 2))
+    blocks = {
+        "a": pd.DataFrame(latent @ rng.standard_normal((2, 3)), columns=["a0", "a1", "a2"]),
+        "b": pd.DataFrame(latent @ rng.standard_normal((2, 2)), columns=["b0", "b1"]),
+    }
+    return blocks, pd.DataFrame({"y": 0.1 * latent[:, 0] + rng.standard_normal(10)})
+
+
+def _association(model: MBPLS) -> np.ndarray:
+    """``|t'u| / (||t|| ||u||)`` per component, or 0 where ``||t|| ||u||`` is at most ``epsqrt``."""
+    t, u = model.super_scores_.to_numpy(), model.super_y_scores_.to_numpy()
+    size = np.linalg.norm(t, axis=0) * np.linalg.norm(u, axis=0)
+    return np.where(size > EPSQRT, np.abs(np.sum(t * u, axis=0)) / np.where(size > EPSQRT, size, 1.0), 0.0)
+
+
+def test_the_randomization_test_counts_the_permutations_that_reach_the_fit_by_hand() -> None:
+    """Each permutation of Y's rows is fitted afresh; a component's risk counts those at least as associated.
+
+    The third component has no Y-score, so its association is 0 in the fit and in every
+    permutation: a tie, which counts, so its risk is 100%. The permutations are drawn as
+    ``seed`` draws them, with the rows of Y taken by position.
+    """
+    blocks, y = _blocks_of_two_directions()
+    y.index = [f"r{i}" for i in range(10)][::-1]  # labels that differ from the positions
+    with pytest.warns(SpecificationWarning, match="nothing left in Y"):
+        model = MBPLS(n_components=3).fit(blocks, y)
+    observed = _association(model)
+    assert observed[2] == 0.0
+    rng = np.random.default_rng(11)
+    exceed = np.zeros(3)
+    for _ in range(20):
+        with pytest.warns(SpecificationWarning, match="nothing left in Y"):
+            permuted = MBPLS(n_components=3).fit(blocks, y.iloc[rng.permutation(10)])
+        exceed += _association(permuted) >= observed
+    assert np.all((exceed[:2] > 0) & (exceed[:2] < 20))  # counts that depend on the permutations drawn
+    assert exceed[2] == 20
+    expected = pd.DataFrame(
+        {"observed": observed, "risk_pct": 100.0 * (exceed + 1) / 21}, index=pd.Index([1, 2, 3], name="component")
+    )
+    for _ in range(2):  # the same seed draws the same permutations
+        with pytest.warns(SpecificationWarning, match="nothing left in Y"):
+            result = randomization_test_mbpls(model, blocks, y, n_permutations=20, seed=11)
+        pd.testing.assert_frame_equal(result, expected, rtol=1e-12)
+
+
+def test_the_randomization_test_draws_200_permutations_by_default() -> None:
+    """The default is 200 permutations, so each risk is a whole number of 201sts of 100%."""
+    blocks, y = _blocks_of_two_directions()
+    model = MBPLS(n_components=1).fit(blocks, y)
+    risk = randomization_test_mbpls(model, blocks, y, seed=0)["risk_pct"].to_numpy()
+    assert 100.0 / 201 <= risk[0] < 100.0
+    np.testing.assert_allclose(risk * 201 / 100, np.round(risk * 201 / 100), atol=1e-9)
+
+
+def test_an_association_over_a_size_of_at_most_epsqrt_is_zero() -> None:
+    """``|t'u| / (||t|| ||u||)`` is 0 once ``||t|| ||u||`` is at most ``epsqrt``, and the ratio above it.
+
+    With ``t = [epsqrt, 0, ...]`` and ``u = [1, 0, ...]`` the size is exactly ``epsqrt``; with
+    ``t = [2 epsqrt, 0, ...]`` it is twice that, and the ratio 1.
+    """
+    blocks, y = _blocks_of_two_directions()
+    model = MBPLS(n_components=2).fit(blocks, y)
+    unit = np.zeros(10)
+    unit[0] = 1.0
+    model.super_scores_ = pd.DataFrame({1: EPSQRT * unit, 2: 2.0 * EPSQRT * unit})
+    model.super_y_scores_ = pd.DataFrame({1: unit, 2: unit})
+    result = randomization_test_mbpls(model, blocks, y, n_permutations=0)
+    np.testing.assert_array_equal(result["observed"], [0.0, 1.0])
+    np.testing.assert_array_equal(result["risk_pct"], [100.0, 100.0])
 
 
 # ---------------------------------------------------------------------------

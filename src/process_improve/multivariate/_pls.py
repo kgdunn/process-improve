@@ -62,7 +62,10 @@ from ._diagnostics import (
 )
 from ._impute import impute_low_rank
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
+from ._optimal_inversion import Probe, finite_or
+from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
+from ._optimal_inversion import optimal_inversion as _optimal_inversion
+from ._preprocessing import MCUVScaler, _back_to_units, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -208,21 +211,6 @@ def _standard_error(per_fold: np.ndarray) -> np.ndarray:
     if folds < 2:
         return np.full(per_fold.shape[0], np.nan)
     return np.std(per_fold, axis=1, ddof=1) / np.sqrt(folds)
-
-
-def _back_to_units(*scalers: MCUVScaler | None) -> tuple[np.ndarray | float, np.ndarray | float]:
-    """Return ``(centre, scale)`` with ``units = scaled * scale + centre``, undoing ``scalers`` in the order given.
-
-    Each scaler maps ``u`` to ``(u - center_) / scale_``, so the one applied last is undone
-    first; a missing scaler is the identity.
-    """
-    centre: np.ndarray | float = 0.0
-    scale: np.ndarray | float = 1.0
-    for scaler in scalers:
-        if scaler is not None:
-            centre = centre * scaler.scale_.to_numpy() + scaler.center_.to_numpy()
-            scale = scale * scaler.scale_.to_numpy()
-    return centre, scale
 
 
 def _fit_fold(
@@ -497,6 +485,32 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     # PLS-specific predictive-importance diagnostics (need beta_coefficients_).
     target_projection = _model_method(_target_projection)
     selectivity_ratio = _model_method(_selectivity_ratio)
+    # Inversion as an optimisation: cost or targets, under rules, with each rule's shadow price.
+    optimal_inversion = _model_method(_optimal_inversion)
+    inversion_sensitivity = _model_method(_inversion_sensitivity)
+
+    def _inversion_probe(self, conf_level: float) -> Probe:
+        """Describe this model for optimal inversion: its inputs, one residual block (X), and rows read by diagnose."""
+        names = tuple(str(n) for n in self._feature_names)
+        x_scaler, y_scaler = self._x_scaler, self._y_scaler
+        n_x, n_y = len(names), len(self.beta_coefficients_.columns)
+
+        def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
+            out = self.diagnose(pd.DataFrame(rows, columns=list(self._feature_names)))
+            scores, y_hat = out.scores.to_numpy(dtype=float), out.y_hat.to_numpy(dtype=float)
+            spe = out.spe.to_numpy(dtype=float)[:, None]
+            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], out.hotellings_t2.to_numpy(dtype=float), spe
+
+        return Probe(
+            names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
+            block_names=("X",), block_limits=(float(self.spe_limit(conf_level=conf_level)),),
+            score_sd=_t2_score_sd(self.scaling_factor_for_scores_.to_numpy()),
+            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            y_scale=finite_or(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_y),
+            centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n_x),
+            spread=finite_or(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n_x),
+            diagnose=diagnose,
+        )  # fmt: skip
 
     _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
         "x_scores": "scores_",
@@ -1271,6 +1285,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
             - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
               predictions, on the original Y scale.
+            - ``residuals`` (pd.DataFrame, ``(n_samples, n_features)``): what
+              is left of each row after the components, in the scaled space
+              the model was fitted in; ``spe`` is the length of each row.
 
         Notes
         -----
@@ -1312,7 +1329,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if self._y_scaler is not None:
             y_hat = self._y_scaler.inverse_transform(y_hat)
 
-        return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
+        return Bunch(
+            scores=scores,
+            hotellings_t2=t2,
+            spe=spe_values,
+            y_hat=y_hat,
+            residuals=pd.DataFrame(residuals, index=X.index, columns=X.columns),
+        )
 
     def project(
         self,
@@ -2310,11 +2333,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Number of shuffled K-fold segments, or a splitter that holds out every row
             exactly once.
         scope : {"global", "local"}, default="global"
-            ``"global"`` (the published default) fits the fold models on rows of the fully
-            autoscaled data without re-centring them; the prediction property above is
-            then exact. ``"local"`` autoscales each training fold separately, as
-            :meth:`PLS.select_n_components` does; scores and SPE are still reproduced
-            exactly, predictions approximately.
+            ``"global"`` (the published default) fits the fold models on the rows as the
+            model fitted to all rows scales them (autoscaled, for PLS), without re-centring
+            them; the prediction property above is then exact. ``"local"`` autoscales each
+            training fold separately, as :meth:`PLS.select_n_components` does; scores and
+            SPE are still reproduced exactly, predictions approximately. A fold model that
+            centres its rows itself, as :class:`~process_improve.multivariate.methods.PRM`
+            always does, predicts approximately in either scope.
         random_state : int, numpy.random.Generator or None, default=None
             Seed for the fold assignment and the random directions of the residual part.
         **pls_kwargs

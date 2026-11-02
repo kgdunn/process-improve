@@ -1626,6 +1626,15 @@ class TestBlocks:
         assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
         assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
 
+    def test_a_reference_level_written_as_a_string_names_the_integer_levels(self) -> None:
+        """Blocks numbered 1 and 2 have the integer levels; ``Treatment('1')`` names a string (follow-up to #1043)."""
+        message = (
+            "C(Block, Treatment('1')) asks for the level '1', which column 'Block' does not have: its levels are "
+            "[1, 2]. Write the level as the column holds it, as in C(Block, Treatment(1))."
+        )
+        with pytest.raises(ValueError, match=re.escape(message)):
+            analyze_experiment(self._blocked(), response_column="y", model="y ~ C(Block, Treatment('1')) + A + B + C")
+
     def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
         """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
         df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})
@@ -2541,6 +2550,35 @@ class TestNoCodedScale:
             self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="coefficients"
         )
         assert result["coding"] == "coded"
+
+    @pytest.mark.parametrize("analysis", ["effects", "lenth_method"])
+    @pytest.mark.parametrize("model", ["I(xi ** 0.5)", "I(1 / xi)"])
+    def test_effects_are_refused(self, model: str, analysis: str) -> None:
+        """Coded, xi runs from -1 to +1: the square root was NaN, so two runs were dropped, and 1 / 0 failed."""
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(self.DATA, response_column="Y", model=model, analysis_type=analysis)
+
+    def test_effects_of_a_term_that_mixes_factors_are_refused(self) -> None:
+        """Box and Draper (2007) Table 3.6: once z2 is centred, I(z2 - 0.2 * z1) is another column."""
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(data, response_column="y", model="z1 + I(z2 - 0.2 * z1) - 1", analysis_type="effects")
+
+    def test_a_polynomial_keeps_its_effects(self) -> None:
+        """Twice the coefficient on the coded xi; the square's column runs from 0 to 1, so its coefficient."""
+        result = analyze_experiment(self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="effects")
+        coded = (self.DATA["xi"] - 2.5) / 2.0
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(pd.concat([coded, coded**2], axis=1))).fit().params
+        assert result["effects"] == pytest.approx({"xi": 2 * expected.iloc[1], "I(xi ** 2)": expected.iloc[2]})
+        assert result["effects_coding"] == {"xi": {"low": 0.5, "high": 4.5}}
+
+    def test_factors_already_coded_keep_their_effects(self) -> None:
+        """Nothing is refitted, so the term keeps its meaning: its coefficient times its column's span of 3."""
+        data = pd.DataFrame({"x": [-1.0, 0, 1, -1, 0, 1], "y": [3.0, 1, 4, 2.5, 1.2, 4.4]})
+        result = analyze_experiment(data, response_column="y", model="x + I(3 * x ** 2 - 2)", analysis_type="effects")
+        fit = smf.ols("y ~ x + I(3 * x ** 2 - 2)", data=data).fit()
+        assert result["effects"]["I(3 * x ** 2 - 2)"] == pytest.approx(3 * fit.params["I(3 * x ** 2 - 2)"])
+        assert "effects_coding" not in result
 
 
 class TestStandardisedCoefficients:

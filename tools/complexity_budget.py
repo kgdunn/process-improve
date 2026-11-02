@@ -38,6 +38,8 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 32: #1029 fitted the in-fold centre and scale of PCA's element-wise
+    # cross-validation with MCUVScaler, taking `_pca_ekf_press` under C901.
     # 33: #1026 built PCA.fit's Hotelling's T² as one cumulative sum through the
     # rule diagnose and project share, taking it under C901.
     # 34: #1025 read OPLS.fit's response through one pd.DataFrame call and folded
@@ -59,7 +61,11 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 33,
+    "C901": 32,
+    # 17: #1028 merged with #981 scored every Z group of `TPLS.diagnose`, none or
+    # several, in one loop, which needs no branch for a model without Z and takes
+    # that function under PLR0912.
+    # 18: #1029 took `_pca_ekf_press` under PLR0912 (see C901).
     # 19: #1027 built PLS.cross_validate's resamples first and fitted them in one
     # loop, taking it under PLR0912.
     # 20: #1026 built PCA.select_n_components' result once after its scheme
@@ -68,7 +74,7 @@ BUDGET: dict[str, int] = {
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 19,
+    "PLR0912": 17,
     # 87: #793 adds `simulate_design_performance`, the public entry point that
     # simulates studies with candidate designs. Its settings are the inputs of
     # the simulation (the designs, the hypothesised process, the goal and its
@@ -109,8 +115,8 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 87,
-    # 26: #981 scored each Z group of `TPLS.diagnose` with the shared regression
-    # helper, which took that function under PLR0915.
+    # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
+    # arrays) and in #981 (each Z group scored on its own) alike.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper
     # select_n_components uses, taking it under PLR0915.
     # 28: #513 (see C901). 29 before that.

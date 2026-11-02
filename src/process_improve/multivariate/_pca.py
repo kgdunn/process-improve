@@ -128,7 +128,7 @@ def _opposes_convention(loadings: np.ndarray) -> np.ndarray:
     return np.signbit(loadings[np.argmax(np.abs(loadings), axis=0), np.arange(loadings.shape[1])])
 
 
-def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
+def _pca_ekf_press(  # noqa: PLR0913, PLR0915
     X: np.ndarray,
     max_components: int,
     *,
@@ -283,20 +283,15 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
             # is needed either way, as the null model's prediction for every
             # held-out cell in this fold; only the True path also centres and
             # scales the matrix it fits, and recomputes nothing inside EM.
-            col_centre = np.zeros(p)
-            col_scale = np.ones(p)
             # Held out this fold, or never measured: both are unknown to the
             # fit and both are filled by EM below. Only ``mask`` is scored.
             impute = mask | ~observed
-            for j in range(p):
-                in_fold = X[~impute[:, j], j]
-                if in_fold.size > 1:
-                    col_centre[j] = float(in_fold.mean())
-                    if scale_inside_folds:
-                        sd = float(in_fold.std(ddof=1))
-                        col_scale[j] = sd if sd > epsqrt else 1.0
-                elif in_fold.size == 1:
-                    col_centre[j] = float(in_fold[0])
+            # MCUVScaler's, in any units: a column whose in-fold values are all
+            # equal (or one, or none) keeps a scale of 1, and its centre is the
+            # value (0 for none).
+            in_fold = MCUVScaler().fit(np.where(impute, np.nan, X))  # pragma: no mutate - a None reads as NaN too
+            col_centre = in_fold.center_.to_numpy()
+            col_scale = in_fold.scale_.to_numpy() if scale_inside_folds else np.ones(p)
 
             # Initial imputation in original space: held-out cells take the
             # in-fold column mean (which is ``col_centre`` under
@@ -456,10 +451,7 @@ def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
             f"{where}. Use cv_scheme='ekf', which imputes an unmeasured cell alongside "
             "the held-out ones and never scores it, or drop what is missing first."
         )
-    centre = X.mean(axis=0)
-    spread = X.std(axis=0, ddof=1)
-    spread[spread < epsqrt] = 1.0
-    return (X - centre) / spread
+    return MCUVScaler().fit(X).transform(X).to_numpy()  # in any units, as for every other scheme
 
 
 def _pca_ckf_press(

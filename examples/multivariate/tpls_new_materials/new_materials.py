@@ -39,7 +39,7 @@ class TPLSWithoutDDeflation(TPLS):
         """Run the TPLS deflation, then put D back as it was."""
         d_before = {k: np.asarray(v, dtype=float).copy() for k, v in self.d_mats.items()}
         super()._calculate_and_store_deflation_matrices(pc_a, t_super_i, q_super_i, r_i)
-        self.d_mats = {k: pd.DataFrame(d) for k, d in d_before.items()}
+        self.d_mats = d_before
 
 
 def project_materials(model: TPLS, d_new: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -63,7 +63,7 @@ def project_materials(model: TPLS, d_new: dict[str, pd.DataFrame]) -> dict[str, 
         materials the same way to get the reference distribution of both.
     """
     out = {}
-    n_comp = model.n_components
+    n_comp = model.n_components_
     deflate_d = getattr(model, "deflate_d", True)
     for group, df in d_new.items():
         pre = model.preproc_["D"][group]
@@ -128,14 +128,14 @@ def predict(
     """
     d_new = d_new or {}
     r_new = project_materials(model, d_new) if d_new else {}
-    n_comp = model.n_components
+    n_comp = model.n_components_
     groups = list(model.material_names)
     f_x, r_all, p_all, r_den = {}, {}, {}, {}
     for g in groups:
         known = model.material_names[g]
         extra = list(r_new[g].index) if g in r_new else []
         f_g = X["F"][g][known + extra].to_numpy(dtype=float)
-        if not model.skip_f_matrix_preprocessing:
+        if not model.skip_f_matrix_preprocessing_:
             centre = model.preproc_["F"][g]["center"].to_numpy()
             scale = model.preproc_["F"][g]["scale"].to_numpy()
             s_new = f_scale_new.get(g) if isinstance(f_scale_new, dict) else f_scale_new

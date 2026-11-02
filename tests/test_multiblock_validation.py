@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import pytest
 
 from process_improve.multivariate._limits import spe_calculation
-from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning
+from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning, randomization_test_mbpls
 
 MultiblockModel = MBPCA | MBPLS
 
@@ -265,6 +265,51 @@ def test_display_results_prints_the_iterations_as_integers(cls: type[MultiblockM
     blocks, y = _blocks()
     lines = _fit(cls, blocks, y).display_results().splitlines()
     assert re.fullmatch(r"  Iterations per PC: \[\d+, \d+\]", lines[-2]), lines[-2]
+
+
+def _assert_same(after: object, before: object) -> None:
+    """Assert two diagnose results, or parts of them, equal: frames, series, and dicts of either."""
+    if isinstance(before, dict):
+        assert isinstance(after, dict)
+        assert list(after) == list(before)
+        for key, value in before.items():
+            _assert_same(after[key], value)
+    elif isinstance(before, pd.DataFrame):
+        pd.testing.assert_frame_equal(after, before)
+    else:
+        pd.testing.assert_series_equal(after, before)
+
+
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+@pytest.mark.parametrize("n_components", [1, 3])
+def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_says(
+    cls: type[MultiblockModel], n_components: int
+) -> None:
+    """``set_params(n_components=...)`` without a refit leaves a fitted model as it was (#1028).
+
+    scikit-learn's convention: what a fitted model does depends on its fitted attributes only.
+    The projections, the plots, the summary and the contributions read the constructor's
+    ``n_components`` instead of ``n_components_``, so on a two-component fit 3 indexed past the
+    fitted weights (IndexError), and 1 failed in MBPLS's projection and scored MBPCA's new rows
+    on one component.
+    """
+    blocks, y = _blocks()
+    model = _fit(cls, blocks, y)
+    result, summary = model.diagnose(blocks), model.display_results()
+    contributions = model.score_contributions(blocks, component=2)
+    bar_plot = "super_loadings_bar_plot" if cls is MBPCA else "super_weights_bar_plot"
+
+    model.set_params(n_components=n_components)
+    _assert_same(dict(model.diagnose(blocks)), dict(result))
+    pd.testing.assert_frame_equal(model.transform(blocks), result.super_scores)
+    assert model.display_results() == summary
+    _assert_same(model.score_contributions(blocks, component=2), contributions)
+    assert model.super_score_plot(2, 1).layout.title.text.endswith("PC2 vs PC1")
+    assert getattr(model, bar_plot)(2).layout.title.text.endswith("component 2")
+    if cls is MBPLS:
+        pd.testing.assert_frame_equal(model.predict(blocks), result.predictions)
+        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, seed=0)
+        assert list(risk.index) == [1, 2]
 
 
 def test_mbpca_with_one_component_reports_its_r2_as_both_increment_and_total() -> None:

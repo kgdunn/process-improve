@@ -138,9 +138,10 @@ def _solve_qp(
         eps_abs=1e-10,
         eps_rel=1e-10,
         max_iter=100_000,
-        polish=True,
+        polishing=True,
     )
-    result = problem.solve()
+    # Explicit, as osqp warns that its default will become True; the status check below raises instead.
+    result = problem.solve(raise_error=False)
     status = str(result.info.status)
     if "solved" not in status.lower():
         raise RuntimeError(
