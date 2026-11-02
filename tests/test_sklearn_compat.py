@@ -440,7 +440,7 @@ def test_pls_fit_leaves_constructor_params_untouched() -> None:
     X, Y = _small_xy()
     X_missing = X.copy()
     X_missing.iloc[0, 0] = np.nan
-    requested = {"md_max_iter": 250}
+    requested = {"md_method": "nipals"}
     model = PLS(n_components=2, missing_data_settings=dict(requested)).fit(X_missing, Y)
     assert model.get_params()["n_components"] == 2
     assert model.get_params()["missing_data_settings"] == requested

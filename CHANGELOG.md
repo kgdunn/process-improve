@@ -11,7 +11,4531 @@ those changes.
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-10-29
+
+### Added
+
+- **The design catalog in words, with a page per field and a page per book.** The catalog opens with
+  the reader's field, two doors ("Browse by book", "Can I trust it?") and goals that write a search
+  ("Screen many factors", "Find an optimum", ...). Each application has a page under
+  `catalog/fields/`: the typical size of its published experiments and the kinds of design they use,
+  on a chart of factors and runs. Each source has a page under `catalog/books/`: how closely Factorial
+  gives its answers, its examples in page order, the misprints found in it with the printed value
+  beside the value its own data give, and what Factorial cannot compute yet. The reproduction page
+  opens with one printed answer beside Factorial's, why answers differ, and the books, and keeps its
+  tables behind "Show the numbers". In Factorial, "Experiments like yours" sets the plan beside what
+  others in the chosen field have run. The writing rule these pages follow is in `CONTRIBUTING.md`.
+
+### Changed
+
+- **`PRM` is now the Partial Robust M-regression of Serneels et al. (2005), step for step.** It cited the paper
+  but differed from it in five steps, and its fitted values on the PAC data of Varmuza and Filzmoser were 11 to 15
+  (root mean square, y's standard deviation 81) from those of the R package chemometrics, written by one of the
+  paper's authors; at its defaults its weights did not settle. Now X is centred once at its L1 median and y at its
+  median; the leverage weight measures each row's scores with every component scaled to unit length, so the first
+  components no longer decide it alone; the residual weight divides by the median absolute residual itself; the
+  loop stops when the norm of the regression on those scores changes by less than `coefficient_tol` (default 1%);
+  and the intercept is the median residual. With `scale=False` it reproduces chemometrics's `prm` to 1e-7, once
+  that code's one slip is undone: it subtracts the scores' L1 median as `T - mt`, which R recycles down the columns,
+  so with two or more components the median lands in the wrong cells. `scale=True` (the default) now divides each
+  column by 1.4826 times its median absolute deviation, once, instead of standardising with the weights at every
+  iteration. Every number a `PRM` returns changes.
+
+### Deprecated
+
+- **`PRM(weight_tol=...)` is deprecated and has no effect.** `PRM` stops, as Serneels et al. (2005) do, on the
+  relative change in the norm of its regression on the scores, set by the new `coefficient_tol`. Passing
+  `weight_tol` warns with a `DeprecationWarning`; it will be removed in 3.0.
+
 ### Fixed
+
+- **`hotellings_t2_limit(conf_level, 0, n_rows)` returns 0.0, not NaN.** With no components every T2 value
+  is 0, and so is its limit; the formula tends to 0 as the number of components falls to 0, but scipy
+  cannot evaluate an F distribution with 0 numerator degrees of freedom. Found by mutation testing.
+- **`recommend_next_step` no longer confirms a model that misses the repeated runs while interactions of its active
+  factors with the others are untested.** When the model the terms were judged in does not fit the repeats, that
+  lack of fit now holds for the smaller final model too, whose own test has less power; and the second look also
+  tests the interactions of an active factor with every other factor (weak heredity, Holm's method). Before, a
+  10-factor study could confirm, after a definitive screening design and 4 de-alias runs, an optimum below two
+  runs it had already made.
+- **`analyze_experiment` refuses three inputs by name that used to fail deep inside numpy or statsmodels:**
+  data with no complete run (#1000); a zero in a binomial GLM's trials *column*, which was refused as a
+  number or a list but not as a column (#1001); and a response so large in its units that its sums of
+  squares overflow, with the advice to rescale it, which changes no test or R-squared (#1005).
+- **A response named after a Python keyword, such as `yield`, is analysed when the data also has a column
+  `yield_`.** Its stand-in name became `yield__`, which the formula check refused as dunder access (#1002).
+- **Factorial: a blank cell for a categorical factor is named by its run (#1006).** The app refused the run,
+  as it should, but called the blank `nan`, a value the reader never typed: "Factor S: each run must be at A or
+  B, not nan." It now says "Factor S: run 2 has no setting; each run must be at A or B."
+- **The warning `calculate_cpk` gives for a side with no spread now names the line that called it.** It named a
+  line inside `calculate_cpk` instead, because the helper that raises it sits one frame deeper than its
+  `stacklevel` allowed for. Found by mutation testing.
+- **`analyze_experiment` no longer calls a model estimable because its factors, coded to -1/+1, would estimate it.**
+  With `A * B` the same in every run, `y ~ A:B` has rank 1 of 2, but it was reported as estimable with a warning
+  that blamed the units, and the browser app showed the intercept and `A:B` each as half the mean, with a small
+  p-value. Now `rank_deficient` is true and the app refuses the model, as it does any model the runs cannot
+  estimate. A hierarchical model in very unequal units, or with a tiny span far from zero, is still not blamed on
+  the design. (#997)
+- **`lm(...).get_parameters()` is annotated and documented as returning a pandas `Series`**, indexed by term,
+  which it always returned; the annotation said `DataFrame`, so a type checker accepted DataFrame-only calls such
+  as `.to_dict(orient="records")` that fail at run time.
+- **`ControlChart.calculate_limits` keeps a Holt-Winters weight pinned on its own, and searches only the other.**
+  Pinning one of `ld_1` and `ld_2` was ignored: both were searched over the grid, the pinned value was replaced,
+  and an out-of-range value such as `ld_2=5.0` was accepted without a word. It is now kept, checked to lie in
+  0 to 1, and, when the data cannot choose the other weight, kept beside its default. Results change only for a
+  call that pins exactly one of the two. Found by mutation testing.
+- **`recommend_next_step` is many times faster on a large screening study.** Listing the alternatives, it chose
+  the runs of the response-surface option by a D-optimal search only to count them; the search always adds the
+  runs it is asked for, so the count now skips it. An 11-factor Plackett-Burman design with 3 centre runs took
+  15 s, nearly all of it on that count, and now takes under 1 s, with the same alternatives.
+- **`recommend_next_step(..., response=None)` says the runs have no response column `None`**, as for any other
+  name not among the runs, not a `KeyError` for a column `'y'` the caller never named.
+- **`recommend_next_step` no longer reads a shift between blocks as curvature when the centre runs are in a block
+  of their own.** With the corners in one round and the centre runs in the next (`block="Round"`), the centre runs'
+  mean was compared with the corners' and the blocks ignored, so a process that ran 8 units higher in the second
+  round showed significant curvature (p = 0.0003) and the step was `augment_to_rsm`. The runs cannot tell that
+  shift from curvature, so curvature is now not judged (`"source": None`), a reason in the step says why, and the
+  step is the same with the shift as without it (#998).
+- **A one-component mixture region with a constraint no longer crashes.** `DesignRegion` with a single
+  mixture component and any constraint raised `ValueError: cannot reshape array of size 0` while
+  enumerating its vertices. Its only blend is the pure component, so its share of the blends is now 1.0
+  when the constraints allow that blend and 0.0 when they do not (#999).
+- **`reshape_to_long` refuses two labels that differ only in surrounding whitespace (#1003).** It strips each
+  label, so `"P1"` and `"P1 "` (a space typed into a spreadsheet) became one panelist: silently when their mean
+  scores agreed, and otherwise through a round-trip failure that blamed the column mapping. A `ValueError` now
+  names the two labels, for panelists, products and attributes alike.
+- **`variance_components` refuses a random term that cannot be told apart from the residual.** With one
+  reading at each level of a term, such as `part:operator` in a gauge study with one reading per part
+  and operator, only the sum of the term's variance and the residual's is estimable. It used to report
+  an arbitrary split of that sum, with standard errors near 2e7; now it raises a `ValueError`, before
+  fitting, that names the term. (#1004)
+
+## [2.2.0] - 2026-10-26
+
+### Added
+
+- **A form to share a case study of your own.** The issue form `case_study.yml` asks for the least an analysis
+  needs: the factors and responses, the runs in the order they were done, how the runs were grouped (in a random
+  order, in blocks, or as a split plot), and the licence the data are shared under (CC BY 4.0 or CC0 1.0). The
+  numbers the contributor's own analysis found are optional; each one given becomes a check. The design catalog
+  links to the form beside the one for proposing a published design, and an entry made from it cites the issue
+  as its source.
+- **The reference catalogue holds Anderson and Whitcomb (2007), *DOE Simplified*.** `anderson-whitcomb-2007`
+  holds the book's 30 experiments (16 worked examples and 14 practice problems) and 16 design layouts, with 668
+  printed numbers: simple comparisons and blocking, two-level factorials and fractions with their aliases, an
+  irregular 3/4 fraction, minimum-run resolution IV and V designs, fold-overs, general factorials, centre points
+  augmented to a central composite design, desirability, two mixture designs, and a table of power for five
+  factors. The library reproduces 578 of the 668. Another 23 differ for reasons the book's own data show: a
+  p-value copied from the row above, two effects swapped between rows, F ratios worked from a rounded mean square,
+  and the two fits behind the confetti example, Table 8-5 at axial distance √2 and the text at the 1.4 it prints.
+  The other 67 have no check, and their reasons name what the library lacks: the irregular and
+  minimum-run designs, an alias matrix against three-factor interactions, and plotting positions for raw data.
+- **Factorial: Learn's "What if" panel predicts every response at the settings the reader chooses (#899).** A
+  slider and a number box set each numeric factor inside its range, and a list sets each categorical factor's
+  level. Each response's prediction, its 95% confidence interval for the mean, its 95% prediction interval for one
+  new run and its leverage follow each move at once: Python sends each response's fitted model as numbers once per
+  analysis, and the page predicts from them in its own JavaScript. A flag says when the settings lie beyond the runs
+  a model was fitted to, and a sentence names each limit on the settings they break. The panel opens at the balanced
+  settings, else the best settings, and comes back to them with one button; its Python panel prints the same
+  predictions with `analyze_experiment`.
+- **Factorial: runs given as a regular two-level fraction say its resolution and defining relation (#923).**
+  Runs a reader hands over, or the catalog opens as its source prints them, are read for the fraction they make:
+  "Resolution III: the runs make the defining relation I = A·D·E = B·C·D = A·B·C·E", as a fraction the page makes
+  states its own. Runs that make no such fraction, as a Plackett-Burman design, say nothing of it.
+- **`analyze_experiment(transform="log10")` fits the common log of the response.** Its F tests and p-values are
+  those of `transform="log"`; its sums of squares, coefficients and predictions are on the log10 scale, as
+  Design-Expert prints them, so Table 4-4 of Anderson and Whitcomb's *DOE Simplified* reproduces as printed.
+  The `analyze_experiment` tool accepts it too.
+- **A prediction from a transformed response is also given in the response's own units.** With
+  `analyze_experiment(transform=...)`, each record of `predictions` holds `response_units`: the prediction put
+  back (the response's median, which a monotone transform keeps, not its mean) and the ends of both intervals
+  put back, low before high. An end the transform leaves unbounded, such as a 1/y interval through 0, is `None`.
+- **`signal_to_noise(readings, kind)` works Taguchi's signal-to-noise ratios.** Larger is better, smaller is
+  better and nominal is best, in decibels, of one setting's readings or of a table of them with a row for each
+  setting; a blank reading is left out. It is exported from `process_improve.experiments`, beside
+  `cross_arrays`, and the reference catalogue's `sn_*` statistics use it.
+- **The browser app analyses a response as measured, or as its log, square root or inverse.** A choice beside
+  the model fits the response on that scale (the inverse as -1/y, which keeps the results' order and tests as 1/y
+  does), and the study, its saved link and its workbook keep it. When Box-Cox's interval for lambda leaves out 1
+  and holds one of the three, the analysis says so and offers it in one click. On the log scale each main effect
+  is also shown as a ratio, from the factor's low to its high. Everything said in the response's units is put
+  back in them: the response surface, the best settings and their intervals (the prediction is the median), the
+  what-if panel, and the balance of several responses, whose desirability is worked on each model's scale
+  between the reader's own ends. A level comparison stays on the results as measured, the next step says its
+  numbers are on the model's scale, and the "Show the Python" code fits the same transform. A mixture's
+  responses are analysed as measured.
+- **The browser app reads the spread of the results repeated at each setting.** When two settings or more are
+  run twice or more, as a replicated Taguchi array is, Learn sums up each setting's readings: their mean,
+  standard deviation, ln s and the signal-to-noise ratio of the response's goal (larger is better to maximise,
+  smaller is better to minimise, nominal is best for a target). The response table averages each at every level
+  of each factor, with its delta and rank, and says at which level the spread is smallest and the ratio highest.
+  For a target it names the adjustment factor: the one that moves the mean most for its effect on the spread.
+  "Show the Python" gives the same table with pandas.
+- **`budget` sizes a fractional factorial (#956).** `generate_design(factors,
+  design_type="fractional_factorial", budget=32)` builds the minimum-aberration fraction with that many
+  runs, so sizes between two resolutions, such as 2^(7-2) and 2^(8-3) in 32 runs, no longer need
+  hand-written generators. The budget counts centre runs and replicates. A budget that leaves a number
+  of runs that is not a power of two warns (`UserWarning`) and rounds down to the largest power of two
+  that fits; a budget beyond the half fraction warns and gives the half fraction. With `resolution` as
+  well, the fraction must reach it, or a `ValueError` says so; before, a budget with a resolution gave
+  the fewest runs that reached the resolution, and it now gives the budget's size (`budget=32,
+  resolution=4` for 7 factors: 32 runs, not 16). With `generators`, or when the design type is chosen
+  automatically, the budget is a ceiling, as before.
+- **Choose the number of components on the multivariate page.** A "Cross-validate" button,
+  never run on its own, scores every number of components on values the model was not fitted
+  to and draws R² beside Q² with one standard error, the recommendation marked; clicking a bar
+  uses that number. In Python, `process_improve.workbench.Variant.cross_validate` does the same
+  over a recipe's table, leaving the excluded rows out, and returns a `CrossValidation` that
+  writes the code repeating it. For PLS, the targets weigh alike, as the fitted model weighs
+  them.
+- **A multivariate page in the browser app, at `mva/`.** PCA and PLS on the LDPE example or on your own CSV or
+  Excel file, with Python running in the page (Pyodide): a canvas data table whose column headers show each
+  variable's distribution, run order and missing values, with the selected rows drawn over them; linked score,
+  loading, SPE and T2 plots, where a lasso in one selects the rows everywhere; rows excluded from the model but
+  still drawn, hollow, where the refitted model projects them; "Why are these rows different?", which ranks the
+  variables behind a group's shift with their raw data beside the bars; recipe steps that write the Python that
+  repeats them; and project files that refit and check themselves when opened. The page shares the app's wheel
+  with the designed-experiments page.
+- **`process_improve.workbench`: a recipe that refines a table step by step and writes the Python that repeats
+  it.** A `Recipe` is a source file (`SourceFile`, with its SHA-256 digest) and a list of steps: drop, keep or
+  rename columns, drop rows with a reason, keep the rows where a condition holds, add a computed column,
+  transform a column (log, log10, sqrt, reciprocal, logit, signed log, signed power), read text as numbers, and
+  identify the rows by a column. `Recipe.apply` runs it, `Recipe.to_python` writes a pandas script that rebuilds
+  the same table bit for bit (and refuses a different file of the same name), and `Recipe.to_dict` /
+  `Recipe.from_dict` round-trip it through JSON. Computed columns and conditions use a small expression language
+  that is parsed and never evaluated as Python, so a recipe read from someone else's file stays data.
+- **`process_improve.workbench.Variant`: a PCA or PLS model over a recipe's table that excludes rows without
+  losing them.** An excluded row is left out of the fit and of its centring and scaling, then projected through
+  the fitted model, so `Fit.rows()` still reports its scores, Hotelling's T2 and SPE, flagged. `Variant.to_python`
+  writes the model code that follows the recipe's script. `Fit.explain_group` answers what a cluster on a score
+  plot asks: per component, each variable's share of the difference between the group's average score and the
+  rest's (they add up to that difference), the variables to look at first, their means in the table's own units,
+  and their raw values in run order to draw beside the bars.
+- **`process_improve.workbench.Project`: one zip file with a source file, its recipe, its model variants and the
+  reader's saved selections.** It stores the source file's own bytes, a `manifest.json`, the recipe as a script
+  to run next to the source, and each variant's fitted scores, loadings, T2 and SPE as `.npy` arrays. Opening
+  executes nothing from the file (JSON checked field by field, and `numpy.load(allow_pickle=False)`), and
+  `Project.open` refits every variant and compares it with the stored arrays, naming any that no longer
+  reproduce.
+- **The reference catalogue holds Box and Draper (2007), *Response Surfaces, Mixtures, and Ridge Analyses*
+  (2nd edition), the whole book.** `box-draper-2007` holds 177 experiments and 145 designs from chapters 1 to 20
+  and the answers to the exercises, with 12,499 printed numbers: least squares and its matrix algebra, two-level
+  factorials and fractions, steepest ascent, second-order fits and their canonical analysis, transformations of the
+  response, ridge analysis, composite, Box-Behnken and other response surface designs, variance and bias of designs,
+  and mixture experiments. 8,746 checks agree with the library. 1,049 do not, and each says why: an error in the
+  book, the book's own rounding, a convention the library does not follow, or a library bug. 3,192 numbers are not
+  recomputed, and each says why: what the library lacks, such as ridge analysis under linear restrictions,
+  iteratively reweighted least squares, the bias of a design and mixture lattices of degree 4 and more, or the
+  library function that gives the number where no check reads it yet.
+- **New check options in the reference catalogue:** `exp10` reads a fit to common logs back as an antilog;
+  `sign_of` and `abs` on `library_value` give an eigenvector the sign a source prints; `ss_total_uncorrected`,
+  `ss_mean`, `ss_regression_uncorrected`, `df_model_uncorrected` and `ms_regression_uncorrected` check an analysis
+  of variance about zero; the `angular_degrees` summary is arcsin (m/n)^1/2 in degrees, with a source's own values
+  at m = 0 and m = n.
+- **Multivariate session tools for agents.** `mva_open`, `mva_fit`, `mva_explain`, `mva_predict` and
+  `mva_script` let an agent work a multivariate analysis step by step, as the Multi- and Megavariate book does: fit,
+  find the rows beyond the T² or SPE limits and the variables that set them apart, leave rows out or transform a
+  column, and fit again. The tools keep no state: each takes the analysis so far as a JSON *session* (the source,
+  its recipe, and every model with the one it grew from and why) and returns it with the step added, so the session
+  works in safe mode and is the whole record. `mva_script` writes the Python that rebuilds each model.
+- **Reproduced from the books: a page of the design catalog at https://factori.al/catalog/reproduced/.** It shows,
+  for every case of every source in the reference catalogue, how closely process-improve reproduces the numbers
+  the source prints, in four tiers: fully reproduced (every recomputed number agrees to the source's last printed
+  digit), within 1%, within 5%, and unable to reproduce. A table counts the cases and the numbers in each tier. A
+  table by source groups the sources by their form (books, journal papers, and handbooks, encyclopedias and
+  courses), with each group's totals and the share of each source's printed numbers that agree. A chart shows how
+  far off the differing numbers are. Each tier opens as a list of its cases, grouped by source, and each case lists
+  the numbers that differ with the printed value, the library's value, the relative difference, where the source
+  prints it and the reason the catalogue records. The page can be searched (a title, a quantity, a word of the
+  reasons such as "misprint"), filtered by source, form of source and kind of case, and its address keeps the
+  view, down to one case. The causes of the differences, and of the printed numbers not recomputed, are counted
+  for all the sources together, and a list of what the library lacks orders the missing methods by how many
+  printed numbers each would recompute.
+- **Every difference and every number not recomputed in the reference catalogue now records its cause.** A
+  check with a `disagreement` names one of `reference_catalogue.DISAGREEMENT_CAUSES` (an error in the source, a
+  quiz option its key marks incorrect, the source's rounding, another method, the library, or not known yet) and a
+  check with a `manual` reason one of `UNCHECKED_CAUSES` (not in the library yet, not read by a check yet, data not
+  printed, nothing to recompute); `reproduce_reference_catalogue` reports it in a `cause` column. A number the source
+  prints in error, or a quiz option keyed incorrect, does not count against a case's tier
+  (`design_catalog.LIBRARY_RIGHT`).
+- **`design_catalog.catalog_reproduction`** returns that classification for every case, or for one source, and
+  `REPRODUCTION_TIERS` holds each tier's largest relative difference. **`design_catalog.source_form`** reads the
+  form of a source from what the catalogue records of it (`SOURCE_FORMS`). The browser app's build writes both to
+  `catalog/reproduction.json`.
+
+### Changed
+
+- **Factorial's design catalog counts its designs only (#923).** An entry of facts about designs, or of one sample
+  with nothing varied, is listed but counted apart from the designs, after them: "and 3 entries of facts about
+  designs or a single sample".
+- **A study of one factor that its source compares as levels opens with that factor categorical (#923).**
+  Montgomery's plasma etching compares four RF powers, `C(power)`: Factorial compares them with Tukey's intervals,
+  as the book does, and Learn shows 79 of the numbers the book prints for it, where it showed none.
+- **The `dev` extra is removed (#513).** `pip install 'process-improve[dev]'` installed the
+  contributors' test, lint and documentation tools, Sphinx among them, from the published wheel, and
+  its list had drifted from the `dev` dependency group that CI installs. Contributors install the
+  group with `uv sync --dev --all-extras`, as `CONTRIBUTING.md` now says. No runtime extra changes.
+- **`PCA.select_n_components` with the element-wise k-fold scheme (`cv_scheme="ekf"`, the default) runs about four
+  times faster on wide data.** Each EM step now projects onto the leading components from the smaller Gram matrix
+  instead of computing a full SVD. The PRESS values are unchanged to rounding (1e-13 relative): 7-fold cross-validation
+  of the tablet spectra up to 20 components takes 103 s, where it took 445 s.
+- **`find_elbow_point`, and `f_elbow` with it, scale both axes to span 0 to 1 before looking for the
+  elbow (#513).** The elbow was the point nearest the lines' intersection by a distance that added
+  x units to y units, so it moved when the units did: on one test curve it was at index 24 with time
+  in hours, 26 in seconds, and 38 with y multiplied by 1000. It is now 24 for all three. The elbow
+  you get can move by a few points wherever the two axes span very different ranges.
+- **`panel_scorecard` measures each panelist's `agreement` against the other panelists only (#513).**
+  The consensus was the mean of every panelist, the one being scored included, and a mean that holds
+  a panelist's own scores correlates with them by construction. This changes the numbers you get:
+  `agreement` falls, by most on a small panel. With two panelists both now get
+  the correlation between them (0.665 in the new test, where they got 0.928 and 0.896), and a panel
+  of one gets NaN instead of 1.0. Because the flags compare `agreement` with fixed levels (0.5, and
+  0 for anti-correlation), a panelist can now be flagged, and dropped by `drop_panelists="auto"` in
+  `analyze_descriptive`, where it was not before. The same applies to the `sensory_panel_check` and
+  `sensory_analyze_descriptive` tools.
+- **`mixed_assessor_model` gives NaN F-tests, with a `RuntimeWarning`, for an attribute where a
+  panelist did not score every product (#513).** Its sums of squares add up only on a complete
+  panelist-by-product table. With a missing cell the four F-test columns were sometimes NaN and
+  sometimes a finite number on the wrong degrees of freedom, with no warning; a finite value you got
+  before for such an attribute is now NaN. The warning names the attributes and points to
+  `mixed_assessor_model_reml`, which handles missing cells. The scaling coefficients are unchanged.
+- **`PLS.select_n_components` runs about twice as fast on wide data.** The per-row and per-column sums of squares
+  that PLS and PCA fits keep at every component were computed one row or column at a time in Python; they are now one
+  vectorised call. Fitted values are unchanged (under 1e-12 relative), and cross-validated PRESS to 1e-9: 7-fold
+  cross-validation of the 650-column tablet spectra, 10 repeats to 20 components, takes 17 s, where it took 31 s.
+- **The package is classified as production-ready on PyPI.** Its trove classifier moves from
+  `Development Status :: 4 - Beta` to `Development Status :: 5 - Production/Stable`.
+- **A `budget` too small for the design raises a `ValueError` (#957).** Optimal, mixture and
+  mixture-process designs used to raise such a budget and log a warning, so a caller who set the run
+  count as a limit got a larger design than asked for, with no Python warning to catch. They now refuse
+  it, and say how many runs are needed, when the budget is below the model's number of coefficients,
+  when it leaves too few runs for the block effects of `n_blocks`, or when it leaves too few new runs
+  for the coefficients that `fixed_runs` do not estimate. A budget left at its default is still sized
+  to the design, and now counts the block effects as well. `metadata["budget_requested"]`, which
+  recorded the raised budget, is no longer set by these designs. The browser app refuses such a run
+  count in the same way, where it used to build the larger design and add a note saying so.
+  `augment_design` still adds the runs an augmentation needs, and says so in its explanation.
+- **`augment_design(..., "add_runs_optimal")` raises a `ValueError` when `n_additional_runs` is too few
+  (#957).** When the existing runs left more model coefficients unestimated than the runs asked for, the
+  augmentation added more runs than requested and said so in its explanation. It now refuses, naming
+  how many new runs the target model needs, as `generate_design` refuses a budget that is too small.
+- **`optimize_responses(method="canonical_analysis")` returns the ridge form as `ridge_form`, in place of
+  `b_canonical`, with the same contents.** The old key named Box and Draper's B canonical form, but it held their
+  ridge form of Eq. 11.1.2, y = y0 + theta X_k + sum of lambda_i X_i^2. The form centred on the stationary point,
+  `canonical_axes`, is their B form; the docstring called it the A form, and now names both as Box and Draper
+  (2007) do. `b_canonical` is gone, with no alias.
+- **Five arguments and result keys are named for what they are, not by a letter** (no aliases, except as noted):
+  - `bibd_analysis` returns `n_treatments`, `n_blocks`, `block_size`, `replicates`, `concurrences` and
+    `n_runs` in place of `a`, `b`, `k`, `r`, `lambda` and `n`;
+  - `spe_plot` and `t2_plot` (and the PCA and PLS methods) take `n_components` in place of `with_a`;
+  - `evop_worksheet` takes `range_factor_decimals` in place of `f_decimals`;
+  - `variance_components` reports each fixed effect's `t_value` and `p_value`, and each fixed term's test
+    `f_value` and `p_value`, in place of `t`, `p` and `f`;
+  - `ControlChart.calculate_limits` takes a known standard deviation as `sigma` in place of `s`; the fitted
+    attribute is still `s`. This one keeps `s=` as a deprecated alias.
+- **A refused name now comes with a name that works.** A factor, response or column name that a model formula
+  cannot hold is refused with a suggestion close to it: `'Water %'` gives `Water_pct`, `'Temp (°C)'` gives
+  `Temp_deg_C`, `'2nd stage'` gives `x2nd_stage` and `'lambda'` gives `lambda_`. `analyze_experiment`,
+  `evaluate_design`, `augment_design` and `ASCA` refuse every unfit factor name in one error, with a map to paste
+  into `DataFrame.rename(columns=...)`; a suggestion that another column already has gets `_2`, `_3`, and so on.
+  On factori.al, the factor table offers the suggestion as you type the name.
+
+### Deprecated
+
+- **`ControlChart.calculate_limits(s=...)` is deprecated since 2.2.0 and will be removed in 3.0; use `sigma=`.**
+  The keyword `s` still works and issues a `DeprecationWarning`. Passing both `s` and `sigma` raises `ValueError`.
+
+### Fixed
+
+- **The `boxplot` tool leaves missing values out of each box (#513).** One missing value made every quartile
+  of its box NaN, so the box came back as five `null`s and drew as nothing, with no error. The quartiles,
+  whiskers and outliers are now computed from the values present. A column or group with no values at all
+  is refused by name, as `{"error": "'y' has no values to plot: every value is missing."}`.
+- **`ChartSpec.to_dict()` is JSON-safe, as documented (#513).** It converted enums only, so a layer's data
+  built from a DataFrame kept its numpy scalars and `json.dumps` raised on an `np.int64`. It now converts
+  them as every tool's output is converted (`tool_spec.clean`): numpy values become Python values, and
+  NaN and infinity become `None`.
+- **The batch feature functions no longer add columns to the caller's DataFrame (#513).** Without a
+  `batch_col` or `phase_col`, every `f_*` feature inserted `__batch_grouper__` and `__phase_grouper__`
+  into the frame it was given; they now go on a copy.
+- **`f_iqr` omits missing values, as `f_std` and `f_robust_mad` do (#513).** One missing value made
+  the whole batch's IQR NaN.
+- **`f_area` works on a datetime or timedelta time axis, and measures it in seconds (#513).** The
+  widths were timedeltas, so the area could not be stored as a number. A numeric axis is unchanged.
+- **`f_crossing` gives NaN for a batch that never crosses the threshold, as documented (#513).** It
+  gave an empty array.
+- **`batch_dtw` keeps each batch's own key (#513).** With keys of mixed types, such as `1` and
+  `"two"`, every key was cast to the type of the last one, so batch `1` came back as `"1"`.
+- **`batch_dtw` always runs its first iteration (#513).** A `tolerance` at or above the square root of
+  the number of aligned columns skipped the alignment and raised an `IndexError`.
+- **`resample_to_reference` refuses a batch of fewer than 2 rows, naming it (#513).** It divided by
+  zero and then failed inside scipy with "`x` array is all-nan".
+- **`OLS` gives a near-perfect fit its `pi_range_` grid (#513).** Below a residual standard error of
+  about 1e-7 the grid was NaN, and `multiple_linear_regression` left out its `pi_range` key; the band
+  now has the near-zero width that `prediction_interval()` already gave.
+- **`PCA.select_n_components(return_consensus=True)` scales the block for parallel analysis
+  whatever `scale_inside_folds` is (#513).** The flag was passed on as
+  `parallel_analysis(scale=...)`, so with `scale_inside_folds=False` a raw block was compared in its
+  own units against a unit-variance null, and parallel analysis retained every component of loud
+  noise. `parallel_analysis_n_components` and `consensus` can change for calls that passed
+  `scale_inside_folds=False` on a block that was not already autoscaled.
+- **`MBPLS` and `MBPCA` scale each block's Hotelling's T² as they scale the super T² (#513).** Each
+  component is divided by the block scores' second moment about zero over the rows that have a
+  score, the convention `explained_variance_` uses for the super scores. The block T² used the
+  variance about the scores' own mean, which differs once missing cells leave them off-centre, and
+  on an `MBPLS` fit with a row that has nothing observed in a block, that variance was NaN, so the
+  block's T² went unscaled for every row. `block_hotellings_t2_` changes for fits with missing data,
+  slightly for scattered missing cells and by a large factor in the second case; on complete data it
+  is unchanged to rounding.
+- **`TPLS` fits a blend with nothing observed in F or Z, and a material with nothing observed in D
+  (#513).** The row's regression had an empty denominator, which gave NaN, and the NaN spread to
+  every score of every later component, so since #709 the fit was refused. The row now gets a
+  zero score or loading in that block and no weight in its regressions, as PCA and PLS fit an
+  all-missing row, so through that block it has no effect on the other rows. A fit still refused,
+  because a block has no variation for the iteration to follow, now says that rather than naming
+  empty rows. `regress_a_space_on_b_row` returns 0 rather than NaN for a row with nothing present.
+- **`TPLS` super weights and block weights point the way of the super score (#513).** The inner
+  PLS step's sign convention negated `t`, `w` and `q` but not `u`, and TPLS regresses its blocks on
+  `u`, so on every component the convention flipped, `w_loadings_super`, `r_loadings_f`,
+  `s_loadings_d`, `v_loadings_d` and `w_loadings_z` came out with the opposite sign to the super
+  score: with no Z block the F super weight was -1. Those components change sign now; scores,
+  predictions, SPE, Hotelling's T² and VIP do not change.
+- **`TPLS` leaves a column with no variance out of every score (#513).** Such a column is scaled to
+  NaN and zeroed, as it was, but its cells were still counted as observed, so in F they entered
+  every row's denominator and shrank every score; the warning added earlier said the column was
+  excluded when it was only partly so. The presence maps (`not_na_d`, `not_na_f`, `not_na_z`,
+  `not_na_y`) are now taken after preprocessing, in `fit` and in `diagnose`. A fit whose F block has
+  a constant column now matches the same fit with that column unobserved; its scores, predictions
+  and loadings change.
+- **`TPLS.diagnose` corrects a Z score for the row's missing cells, as `fit` does (#513).** It
+  computed the correction and never applied it, so a row with a missing Z cell scored closer to 0 in
+  `diagnose` than in `fit`, which moved its T², SPE and predictions too. Rows with every Z cell
+  observed are unchanged.
+- **`AnalysisRecipe` and `RecipeStep` can be hashed, and their sequences cannot be changed in place
+  (#513).** Both were `frozen=True` dataclasses holding lists, so `hash(recipe)` raised `TypeError` and
+  `recipe.stages.append(...)` changed a registered recipe. `cue_phrases`, `inputs_needed`, `stages` and
+  `tools` are now stored as tuples, whatever sequence is passed in; `arg_hints` stays a `dict`, copied
+  from the one passed in. `to_payload()` still returns lists. `select_recipe` no longer re-canonicalises
+  every cue phrase on every query.
+- **Box-Behnken designs for 9, 10, 11, 12 and 16 factors are the published designs.** They were built
+  from a two-level factorial in every pair of factors, which gives more runs than Box and Behnken's
+  (1960) designs: 144 instead of 120 runs at 9 factors, 180 instead of 160 at 10, 220 instead of 176 at
+  11, 264 instead of 192 at 12 and 480 instead of 384 at 16, before centre points. They now use the
+  incomplete block designs of the paper's Table 4, the 11-factor design with the half fraction
+  `x1 x2 x3 x4 x5 = +1` in each block of five. `metadata["construction"]` reports
+  `"published_blocks_of_three"`, `"_four"` or `"_five"`; 8, 13 to 15 and more than 16 factors, for which
+  no design was published, still pair every two factors (`"all_pairs"`).
+- **`MCUVScaler` keeps integer column labels.** It took its labels from sklearn's `feature_names_in_`,
+  which sklearn sets only for string labels, so a frame with integer labels (a spectrum's wavelengths, or
+  a CSV read with `header=None`) came out labelled 0..K-1. The loadings of a model fitted to the scaled
+  frame were then labelled with the wrong wavelengths. `center_`, `scale_`, and the output of `transform`
+  and `inverse_transform` now carry the frame's own labels; ndarray input is still numbered from 0.
+- **NIPALS PCA, PLS, MBPCA and MBPLS are right when a block has as many rows as columns.**
+  `quick_regress` chose whether to regress on the columns or the rows of a block from the block's shape,
+  so a square block (N = K, or N = M for Y) was regressed on the wrong axis. NIPALS PLS then gave wrong
+  weights, and NIPALS PCA wrong loadings, even on complete data; a cross-validation fold that happened
+  to be square gave a wrong Q2. `quick_regress` takes a new keyword `per="column"` or `per="row"`, which
+  every NIPALS loop now passes. Called without it on a square block, it raises `ValueError` instead of
+  guessing; other shapes behave as before.
+- **A factor named `I` no longer breaks a quadratic model with "'Series' object is not callable", nor a factor
+  named `C` an ASCA.** Patsy finds a column before its own function of the same name, so a column `I` turned every
+  square term `I(P ** 2)` into a call of the column, and a column `C` did the same to ASCA's `C(A, Sum)`. The formula
+  check now refuses a column named like a function the formula calls, with a rename to paste:
+  `.rename(columns={'I': 'I_'})`. A factor `I` in a model without square terms still works. On factori.al, a design
+  whose model has squares (Box-Behnken, central composite, ...) refuses a factor named `I` when it is made, before
+  the runs, and offers `I_`.
+- **factori.al refuses a factor named with a Python keyword, such as `lambda`, when you type it.** The page
+  accepted the name, made the design and simulated the runs; only the analysis refused it, after the experiment.
+- **`analyze_experiment` fits a response named `I`, `C` or `Q`.** A column of that name hid patsy's function of
+  the same name, so a quadratic model failed with `PatsyError: 'Series' object is not callable` at `I(x1 ** 2)`.
+  The response is now fitted under a stand-in name and reported under its own, as a response named after a
+  Python keyword already was. Box and Draper's Exercise 7.9 names its responses I, II and III.
+- **Safe mode's memory cap no longer counts the imports against a tool call.** `max_memory_mb`
+  (`PROCESS_IMPROVE_MAX_MEMORY_MB`) is now the address space a worker may map beyond what it mapped on importing
+  the package, as the worker's own documentation said. It was an absolute cap on `RLIMIT_AS`, which counts address
+  space reserved rather than memory in use: on the free-threaded build the imports alone reserve about 1.5 GiB, so
+  every tool that allocated failed with "out of memory", even on a 7 kB CSV. On the build with the GIL the imports
+  reserve about 0.8 GiB, so the total a worker may reserve rises from 1 GiB to about 1.8 GiB at the default.
+- **The Holt-Winters `ControlChart` uses a given `sigma` when the data cannot estimate the scale.** On a
+  series with no usable spread, such as one where every value is the same, `calculate_limits(y, sigma=...)`
+  raised with pinned lambdas or in the lambda search, although the error told the caller to pass `sigma`,
+  and ignored `sigma` and `target` below the warm-up length (fewer than 10 values), giving limits of zero
+  width (`s = 0`) or `s = NaN` for one value. Now `sigma` is the scale of the limits, the lambdas that the
+  data cannot choose are 0.5 and 0.8, and a short series uses a given `target`. Data with usable spread give
+  the same results as before. Without `sigma`, a short series with no spread now raises `ValueError`, so
+  the `control_chart` tool reports it as an error instead of charting it with zero-width limits.
+
+### Documentation
+
+- Correct `f_sum` See also reference (removed invalid `f_cumsum`).
+- Correct `f_rupture` See also reference (`f_cross` -> `f_crossing`).
+- Add `cusum` to the list of variants in `ControlChart.calculate_limits`.
+- Document the `ok` flag and early-exit shape of `permutation_column_null`.
+- Fix typo "elbox" -> "elbow" in `f_elbow` docstring.
+- **`robust_regression` says which of its outputs are robust (#513).** Only the slope and the
+  intercept are. The standard errors, `t_value`, `R2`, the confidence intervals and `pi_range` use the
+  least-squares formulas on the residuals around the robust line, so one outlier widens the intervals
+  without moving the slope. `R2` is `RegSS / (RegSS + RSS)`, which is not the `1 - RSS / TSS` of
+  `multiple_linear_regression`. The `robust_regression` tool's description says the same.
+- **Each VIP says which variance weights its components (#513).** `vip()` weights by R2X on a PCA
+  and by R2Y on a PLS, with one formula for both; `MBPLS.block_vip_` weights by each block's R2X
+  while `MBPLS.super_vip_` weights by R2Y; `MBPCA.block_vip_` and `TPLS.vip()` weight by the block's
+  own variance. The docstrings now say so.
+- **`PCA.diagnose` and `PLS.diagnose` say what shape their `hotellings_t2` is (#513).** PCA returns
+  the cumulative T² as a DataFrame with one column per component; PLS, MBPLS and MBPCA return the
+  full model's T² as a Series. Both docstrings now give each field's type and shape, and name the
+  difference: the Series is the DataFrame's last column.
+
+## [2.1.0] - 2026-10-23
+
+### Added
+
+- **The reference catalogue reads Goos and Jones, *Optimal Design of Experiments: A Case Study Approach*
+  (2011), the whole book.** It holds:
+  - the splits of a two-machine comparison's runs (Tables 1.1 to 1.4), checked with `allocate_runs`;
+  - the GeneBe extraction experiment, with its fits, predictions, alias matrix (Table 2.7) and variance
+    inflation factors;
+  - the four-run design of Table 2.8 and the D-optimal design of Table 2.11;
+  - the worked coordinate-exchange example, each design compared on |X'X|;
+  - the extraction experiment augmented with eight runs (chapter 3): the nine competing models of
+    Table 3.1 with their AICc, the settings each recommends (Table 3.2), the power and variances of the
+    14-term model, and the fits of the 20 runs;
+  - the peel strength experiment (chapter 4): its D-optimal and I-optimal designs, compared on their
+    relative variances, average prediction variance, FDS plots and each other, and the prediction
+    equations of the final model, one per supplier;
+  - the yield of a reaction (chapter 5): a 3 x 3 factorial with its quadratic fit, and a 15-run
+    D-optimal design in a constrained region with its cubic fits, lack-of-fit test and greatest
+    predicted yield;
+  - the rolling mill (chapter 6), a mixture with two process variables: its design's balance and
+    prediction variance, its first-order Scheffé fit in pseudocomponents, and the half fraction of the
+    2^5 factorial that the mixture constraint rules out;
+  - the pastry dough experiment (chapter 7), a D-optimal response surface design in seven days of four
+    runs: its efficiency factors and the average row of each day's model matrix, and REML fits with
+    the days as random effects, beside the orthogonally blocked central composite design it replaces;
+  - the stability of riboflavin (chapter 8), a D-optimal screening design in eight days of four: its
+    blocking VIFs beside a random design's and Dr. Xu's blocked half fraction, the 64-run
+    alternatives, and the fixed and random block effects analyses;
+  - the polypropylene experiment (chapter 9), 18 samples chosen from 40 in stock with their EPDM,
+    ethylene and EVA as covariates: the design's balance, its relative standard errors beside a design
+    that treats the covariates as ordinary factors, the main-effects fit with its gas type coded as
+    JMP codes it, the prediction equations and the points of Figure 9.4's contours, and two run orders
+    of the 2^3 factorial robust to a linear time trend, with their trend-robustness (Equation 9.19);
+  - the wind tunnel experiment (chapter 10), a 50-run I-optimal split-plot design in ten whole plots:
+    its variances, average and median prediction variance beside Dr. Cavendish's two designs, the
+    ordinary and Kenward-Roger generalized least squares fits of the efficiency (Tables 10.5 to 10.7)
+    and the simplified models of all five responses (Table 10.8), and the eight-whole-plot design of
+    Tables 10.9 and 10.10;
+  - the battery cell experiment (chapter 11), a 48-run D-optimal two-way split-plot design in 16 lots
+    and six curing cycles: its variances and correlations of estimates with the rows and the columns
+    as random effects (Tables 11.3 and 11.4), the Kenward-Roger fit (Table 11.6), the BLUPs of the
+    rows and columns (Table 11.7) and the variance components, beside Pino's four-cycle plan and the
+    12-run design of Tables 11.8 and 11.9.
+
+  2164 printed numbers give 2361 checks, all agreeing or explained. The 77 explained disagreements are
+  misprints, numbers read off a figure, or numbers of a design other than the one printed:
+  - two t ratios in Table 2.5 and two in Table 3.7;
+  - the time coefficient of Equation 2.1;
+  - Table 2.12's VIF of 1.25 for four terms, which Table 2.11's runs, and the best design a coordinate
+    exchange finds, give as 1.125;
+  - the block row of Equation 3.14 and the determinant printed under it;
+  - an RMSE "more than one and a half" for the reduced model of the 20 runs, whose RMSE is 1.07;
+  - chapter 4's two determinants, whose ratio gives a relative D-efficiency of 0.952, not 93%;
+  - supplier 3's speed coefficient, -0.0079 to the four decimals printed as -0.0080;
+  - three quantiles of chapter 4's FDS plot, read off Figure 4.1;
+  - Figure 7.1's two predictions at the settings it shows, which Table 7.9's models do not give;
+  - the "about 3% better" of the 64-run design printed as D-optimal (Table 8.7), which holds the same
+    runs as Table 8.6, blocked the same way;
+  - ten relative standard errors of Table 9.4 that differ from the printed runs' in the fourth decimal
+    (three of them inconsistent with Table 9.6's own standard errors);
+  - Table 10.3's I-optimal column, the 89.2% relative D-efficiency and the 12.1% gain, which belong to
+    an I-optimal design other than Table 10.2's (that design gives 91.4%); and the median prediction
+    variance "about 0.47", 0.475 for Table 10.2;
+  - the 45 degrees of freedom of Table 10.7's ordinary least squares, 35 for its 15-term model;
+  - one p value of Table 10.8 (0.0013 for 0.00136) and one square in Table 10.11.
+
+  Chapter 9's "95% prediction intervals" are the mean's 95% confidence intervals, and are checked as
+  those; a new run's prediction interval is about twice as wide.
+
+  New check kinds: the corner of the cube where a model predicts the most (`best_corner`), a model's
+  AICc (`aicc`), and one design's D- or I-efficiency relative to another entry's
+  (`relative_efficiency`). New check options: an array compared as arithmetic (`expression`, for an
+  alias matrix printed in thirds), a product column named by its columns (`of`), the mean of a
+  product column (`mean`), the square root of a library value (`root`), the first columns of a
+  library design (`design_columns`), and some of the printed runs compared with a library design
+  (`runs`, for one supplier's runs), the runs whose column is above or at least a value
+  (`above` and `at_least` on `run_count`), a metric over the same metric of a second model
+  (`relative_to`, for a VIF or efficiency factor due to blocking), in percent (`percent`) or counted
+  (`count`), a block's average model row (`average`), and the split-plot analysis's coefficients,
+  variance ratio and predictions, by Kenward and Roger's method (`df_method`, `information`), a
+  design's runs evaluated as a split-plot design through their groups (`groups`, on
+  `design_metric` and `relative_efficiency`), a relative efficiency in percent or as a gain (`percent`,
+  `gain`), a run order's trend-robustness (`trend_robustness`, Equation 9.19), and a two-way
+  split-plot analysis's crossed random effects, BLUPs and best corner (`crossed`, `blup`,
+  `best_corner` on `split_plot`).
+- **Tool calls return the warnings they raise.** A warning raised inside a tool used to reach only the
+  MCP server's stderr, which the model calling the tool never reads. `execute_tool_call` now returns
+  each one with a dict result, once, under `library_warnings` as `{"category", "message"}` records.
+- **`analyze_omars` is an MCP tool.** The staged analysis of a definitive screening or OMARS design
+  returns its active main effects, interactions and squares, and `model_formula`, the selected model
+  to pass on to `analyze_experiment` and `optimize_responses`.
+- **`recommend_strategy` marks the stages the screening decides on.** An optimisation stage after a
+  screening design that can test for curvature has `conditional: true` and a `run_if` naming the
+  evidence that calls for it, and `minimum_total_runs` counts the plan without it.
+- **`generate_design` says when a design leaves the factor ranges.** A CCD with `alpha` above 1 warns,
+  naming each factor's lowest and highest setting against its range, and records them in
+  `metadata["runs_beyond_ranges"]`.
+- **`evaluate_design`'s power says what it assumes.** When interactions outside the model bias the
+  tested coefficients, as in a Plackett-Burman design, the result adds `alias_exposure` per term and
+  `power_assumes`, since the real power can then be far lower than stated.
+- **`confirmation_test` gives a verdict on the mean.** `confirmed` compares the mean of the runs at
+  each setting with the prediction interval for a mean of that many runs (`mean_tests`).
+- **Split-plot and two-way split-plot designs in `evaluate_design`.** `random_effects` maps each
+  column that labels a random effect's groups (`{"WholePlot": 1.0}` for a split-plot design,
+  `{"Row": 1.0, "Column": 1.0}` for a two-way split-plot, or strip-plot, design) to its variance
+  over the run variance. Every metric (the coefficient variances, the D-, A- and I-criteria, the FDS
+  curve) then uses the generalized least squares information `X' V^-1 X`,
+  `V = I + sum_k eta_k Z_k Z_k'`, in place of `X'X`. It reproduces the variances Goos and Jones
+  (2011) print for a 50-run split-plot design in ten whole plots (Table 10.3) and for a 48-run
+  two-way split-plot design in 16 rows and six columns (Tables 11.3 and 11.4). The `evaluate_design`
+  tool takes the same field. Without it, the runs are treated as independent, as before.
+- **Factorial's Design says why.** The list of designs that can learn the brief gains a column,
+  Stands out for, that names what each design does best of those listed (or within 1% of the best):
+  the fewest runs, precise coefficients, joint precision, precise predictions, a precise worst-case
+  prediction, the least correlated terms, and the power for each kind of term. Until the reader
+  chooses a design, a sentence says why Design picked the one it holds: the fewest runs with three
+  or more spare. A design the page offers that the list leaves out now says why: the factor count it
+  takes, or that it needs numeric factors and which of the brief's are categorical. `api_candidates`
+  returns the designs left out, each with its reason, as `left_out`.
+- **Factorial takes feedback.** A Feedback button in the header and the footer, and "Report this
+  result" on Learn and beside an analysis error, open a dialog for a problem with a result, a
+  suggestion, or anything else. A screenshot of the tab goes unless the reader unticks it (taken by a
+  vendored modern-screenshot, MIT, loaded only then), and the study, as a link with its results, only
+  if they tick it, beside the page's build, a report's stamp, the tab and charts on show and the last
+  Python errors; a list names all of it. From factori.al the report goes to
+  `deploy/factorial/feedback_relay.py`, a standard-library relay behind Caddy that checks it, limits
+  each network to 10 reports an hour, emails the maintainer and keeps nothing. The dialog then shows
+  the report's reference (such as FB-7K3Q2M, also in the email's subject), and a reader who gave an
+  address gets a receipt of fixed text: the reference, the topic and the day, and nothing they
+  wrote, at most one a day to an address. Elsewhere, or when the
+  relay cannot take it, the dialog offers a GitHub issue from `.github/ISSUE_TEMPLATE/web_app.yml`
+  (without the screenshot, the study or the address), a copy, and an email.
+- **Factorial's Learn says what to do next.** A new section, The next step, follows the analysis.
+  When the best settings sit at an end of the ranges and the model predicts better past it, a table
+  gives the ranges a next study would have, moved along the steepest ascent (or descent), and a
+  button starts that study in Design with this study's brief and design. Learn also offers the ways
+  of adding runs that suit the design, each with what it is for, through `augment_design`: a
+  fold-over for a two-level design whose main effects are aliased with two-factor interactions,
+  axial runs that make a two-level design fitting the interactions a face-centred central composite
+  design, center runs for a two-level design with none, runs chosen for the model the study aims to
+  learn (D-optimal), and every run made again when the model leaves fewer than three runs for the
+  noise. A way whose runs would break a limit on the settings is not offered, and Learn says so.
+  The runs added go at the end of the run sheet as a block of their own (center runs excepted,
+  since their shift from the others is the curvature they test); the runs before keep their places
+  and results, and a practice study's runs added are simulated from the same process and seed. The
+  grown study is a design of runs as given, analysed with its blocks, and runs as given now keep
+  their blocks when made again (`api_next_runs`, `api_add_runs`).
+- **Factorial takes results pasted from a spreadsheet.** A block pasted into a result box of the run
+  sheet, as a spreadsheet copies it (a line a row, a tab between cells), fills the results: a column
+  goes down the sheet as it is shown, from the box pasted into, and several columns go across the
+  responses. A block whose first column holds the run numbers, or whose headings name the Run order
+  and the responses (the factors' columns may come along), is matched to the runs by number, in any
+  order. A value written with a decimal comma, a minus sign or spaces between its thousands is read
+  as a number, and a blank cell leaves the result as it is. A block that does not fit, or holds text
+  that is no number, is not pasted at all, and the status line says why.
+- **Factorial makes space-filling designs.** The design list offers Space-filling (Latin hypercube),
+  a maximin Latin hypercube from `generate_design(design_type="maximin_lhs")`: runs spread evenly
+  through the ranges for no model in particular, each factor at as many different settings as there
+  are runs. It opens on ten runs a factor, the usual start for a model fitted to a computer
+  experiment, and takes the reader's own number, replicates and blocks. Each setting is rounded to a
+  tenth of the step between a factor's settings, so it can be set and stays in its step, and the
+  Python code rounds it the same way. Learn analyses the runs with the model the study aims to learn,
+  and the comparison of designs for a model leaves the design out. It takes numeric factors and no
+  limits on the settings.
+- **Factorial downloads a study report.** Run's Download report (.html), and the same button at the
+  end of Learn, give one HTML page that needs nothing else: the brief, the design and its run sheet
+  with the results (a simulated one in italics), what Learn makes of each response's results (the
+  analysis, its charts as images, the best settings), the balance of the responses, the next step,
+  and the Python code that computes it all again. A stamp at the top says how to get the same
+  numbers: when it was made, the process-improve release, Python and its numeric packages (and
+  Pyodide in a browser), the seed the run order was drawn with, where the results came from (the
+  simulated process, its noise and seed), the SHA-256 of the study's inputs, and a link that opens
+  the same study in Factorial. `api_catalogue` returns the runtime as `runtime`.
+- **`optimize_responses(..., flat_tolerance=)`** reads an eigenvalue of the pure-quadratic matrix
+  at most this share of the largest in size as zero, for `"stationary_point"` and
+  `"canonical_analysis"`, so a surface the sources read as a ridge can be classified as one. The
+  slope along such a direction is judged on the same scale, so a ridge rises only when its slope is
+  above that share: Box, Hunter and Hunter's stationary ridge (eigenvalues -9.02 and 0.0017, slope
+  0.005) is a stationary ridge at `flat_tolerance=0.05`, and their rising ridge (slope 2.97) still
+  rises. The default, 1e-8, reads only rounding as zero, as before. A
+  `classification_note` now says when an eigenvalue is below 5% of the largest though not flat. The
+  `optimize_responses` tool takes the same argument.
+- **Hard limits on a factor's range.** `Factor(..., hard_limits=True)` marks a factor's `low` and `high` as limits of the
+  process, not only the range studied, and every design tool keeps runs inside them.
+  `generate_design` makes a CCD face-centred by default and refuses a design that would
+  set the factor past its limits. `augment_design(..., hard_limits=[...])` keeps axial runs
+  on the faces of the cube and refuses an `alpha` above 1. `recommend_strategy` names the
+  limits in its assumptions. `recommend_next_step` never moves or widens such a range: the
+  path of steepest ascent moves only the other factors, and the reasons say which factors
+  would improve past their limits. The MCP tools take `hard_limits` in each factor's
+  specification, and `augment_design` takes the list of names.
+- **`MBPLS.predict`** returns the predicted Y of new observations as a `DataFrame` on its original
+  scale, as `PLS.predict` does, so an `MBPLS` model works where scikit-learn calls `predict`. 2.0.0
+  removed a method of the same name that returned the `diagnose` Bunch; this one returns the
+  predictions only, so code that read `.predictions` off the old result raises an
+  `AttributeError` rather than reading a wrong value.
+- **`analyze_experiment`'s model summary gives the corrected AIC.** `model_summary["aicc"]` is
+  AIC + 2k(k + 1)/(n - k - 1), with k the model's coefficients and the error variance, as JMP prints
+  it and the library's stepwise model selection scores a model. It is `None` when the runs are too
+  few for the correction (n <= k + 1).
+- **`optimize_responses` and `evaluate_model` evaluate any polynomial in the factors.** A term may
+  be a whole power, `I(A ** 3)`, or a product of powers, `A:I(B ** 2)`, so a cubic model is
+  optimised with `method="desirability"` or `"pareto_front"`. The second-order analyses
+  (`stationary_point`, `canonical_analysis`, `ridge_analysis`) refuse such a term by name, as they
+  refuse `A:B:C`.
+- **`recommend_next_step` decides the next round of a designed experiment from its results.** Pass
+  every run so far (and any confirmation runs); it returns one action (stop, confirm, add centre
+  points, replicate, widen the ranges, de-alias, augment to a response surface, add runs for the
+  model, move along the path of steepest ascent, or investigate), the reasons with their numbers,
+  the runs to make in the factors' own units, and how to judge them. It is also an MCP tool.
+  Whether anything stands out from the noise is one test whose critical value is simulated for the
+  design, so pure noise raises a false alarm in one study in twenty, and Lenth's method uses
+  simulated critical values (with seven contrasts the individual one is 2.31 PSE, not the 3.76 of
+  its t approximation). A model that does not fit the repeated runs is not confirmed: its terms
+  are judged against the repeats' own variation, and factors with some evidence of an effect join
+  the next runs. Followed round by round in simulation, from a screening design to `stop`, it
+  reached the true optimum in every one of nine kinds of study.
+- **The browser app says what the results call for next.** Once every run of a study has its result,
+  Learn's "The next step" opens with the step `recommend_next_step` takes for the response's goal,
+  and one button that carries it out: the runs added to the run sheet as a block of their own,
+  confirmation runs at the predicted optimum, or a new study with its ranges moved or widened. Why,
+  and what to do with the runs, are folded beneath it. The study's blocks are fitted as rounds, and
+  confirmation runs already made are judged, so the step follows the study round by round to its
+  confirmed optimum.
+- **Run sheets out to the lab and back.** `run_sheet(design, factors, units=..., labels=...,
+  responses=...)` writes the runs as a table to save as CSV or Excel: in actual or coded units,
+  under the factors' names, `X01`..`Xnn` or labels of your own, with empty response columns.
+  `read_run_sheet(source, factors, labels=...)` reads a filled sheet (a CSV or Excel file, the
+  bytes of a workbook, or a DataFrame) back into the factors' own names and actual units. It
+  tells coded from actual units, matches columns without regard to case or leading zeros, and
+  warns about settings outside the ranges. Both are MCP tools, `write_run_sheet` and
+  `read_run_sheet`, which exchange the sheet as CSV text or a base64 workbook.
+- **`simulate_design_performance` judges designs by the studies they would give.** It makes
+  each design many times on a `TrueProcess`, the process you expect, and analyses every
+  simulated study as `recommend_next_step` does. Per design it reports the share of studies
+  that find each true term, all of them, and only them, the false alarms, how often nothing
+  stood out, and, toward a goal, how far the predicted best settings fall short of the true
+  best. A term found through an exact alias counts as found. Unlike the analytic measures of
+  `compare_designs`, it sees the bias that terms outside a model put on the terms inside it.
+  It is an MCP tool, and so now is `compare_designs`.
+- **Kenward and Roger's method in the split-plot analysis.** `analyze_experiment(...,
+  analysis_type="split_plot", df_method="kenward_roger")` inflates the covariance of the estimates
+  for the uncertainty in the variance components and scales each term's F test, as Kenward and
+  Roger (1997) do. `information="observed"` computes the degrees of freedom from the observed REML
+  information, as JMP and R's lmerTest do, in place of the expected (SAS, pbkrtest). The two
+  together reproduce JMP's analysis of a design in random blocks, which is the same model with the
+  blocks named as the whole plots. The defaults, and the results they give, are unchanged.
+- **A benchmark for whole studies, `process_improve.experiments.benchmark`.** `run_study` follows
+  `recommend_next_step` round by round on a process whose true model is known, makes each round's
+  runs on it, and reports where the study ended: the actions, the runs used, the final settings,
+  and how far they fall short of the true best, in noise standard deviations. `run_benchmark`
+  repeats every case over many noise seeds and returns one summary row per case.
+  `scripts/doe_benchmark.py` prints the table. The cases (`CASES`) include the adhesion problem of
+  the "AI agents in DoE" study, processes hypothesised from coating chemistry for its Problems 02
+  and 03 (not the study's hidden models), and synthetic cases for an interior optimum, curvature
+  in eight factors, an optimum outside the ranges, and noise only.
+- **`ttest_paired` names its numbers for what they are.** The result gains `"t value"`, the t
+  statistic; `"Std error of mean difference"`, s / sqrt(n); and `"Std dev of differences"`, s.
+  `ttest_paired_from_df` gains the same three columns. The `ttest_paired_samples` tool gains
+  `t_value` and `std_error_of_mean_difference`.
+- **Two-way split-plot (strip-plot) analysis.** `analyze_experiment(..., analysis_type="split_plot",
+  whole_plot=["Row", "Column"])` fits crossed random effects, one per column named, by REML, with
+  Satterthwaite's or Kenward and Roger's degrees of freedom and standard errors as for one whole-plot
+  column. The result has each random effect's variance, error degrees of freedom and best linear
+  unbiased predictions (BLUPs), named by its column, and each term's stratum. It reproduces JMP's
+  analysis in Goos and Jones (2011), Tables 11.6 and 11.7, to every printed digit. The split-plot
+  analysis with one whole-plot column now reports its whole plots' BLUPs as well.
+- **`augment_design(..., region=...)` keeps every new run inside the limits on the settings** (#809). The
+  region is a `DesignRegion` of the design's factors, or its dict, such as `metadata["region"]` of a design
+  `generate_design` made. `"add_runs_optimal"` chooses its D-optimal runs among the settings the limits allow,
+  with the existing runs held fixed, and reaches the D-criterion that `generate_design` reaches with those runs
+  as `fixed_runs`. `"add_center_points"` puts the centre runs at the region's central setting when the centre of
+  the box breaks a limit. The region's ranges are limits, so axial runs sit on the faces of the cube, as with
+  `hard_limits`. Any other new run that breaks a limit (a folded, axial or centre run, or a copy) is refused,
+  and the message names the run and the limit. Existing runs outside the region are kept, with a warning, and
+  listed under `existing_runs_outside_region`. The `augment_design` tool takes the region too.
+- **`DesignRegion.broken_limits(x)`** lists, for each point, the factor ranges it leaves and the limits it
+  breaks.
+- **`model_summary` reports `average_fitted_variance` (#797 R1).** It is the average variance of
+  the fitted values over the runs, p s²/n, because the runs' leverages sum to p whatever the design
+  (Box and Wetz). With `sigma` it is p sigma²/n, which reproduces BHH's 0.965 (Exercise 15.8) and
+  1.125 (the composite design of section 15.3). `adequate_precision` is the range of the fitted
+  values over its square root, and is read against `sigma` when one is given. A model with no
+  constant term now counts its own terms in both; it counted one too many.
+- **`bibd_analysis`: the intrablock, interblock and combined treatment estimates of a balanced
+  incomplete block design** (`process_improve.experiments`, #789 B7). From the runs it finds the
+  design's a, b, k, r and lambda (and refuses a layout that is not balanced), and gives the adjusted
+  treatment totals Q, the intrablock estimates kQ/(lambda a), the adjusted block totals Q', Yates's
+  interblock estimates from the block totals, and the combined estimates that weight the two by
+  the error and block variances, with the adjusted and unadjusted sums of squares. It reproduces
+  Montgomery's Example 4.5 (Q = -9/3 to 20/3, interblock estimates 10.50, -3.50, -0.50 and -6.50,
+  combined -1.09, -0.88, -0.50 and 2.47), Box, Hunter and Hunter's T, B and Q of Table 8D.4, and
+  Davies's tyre and rubber totals.
+- **`generate_design(..., block_generators=[...])`: a two-level factorial blocked by the
+  interaction words the user gives** (#788 A8). Until now the library chose the words itself, so
+  a published blocking could not be rebuilt. `block_generators=["ADE", "BCE"]` makes four blocks
+  with ADE, BCE and their product ABCD confounded with them, as in Montgomery's 2^5 example; names
+  longer than one letter are joined with `*`. Words that confound a main effect (directly or
+  through an alias), depend on each other, or lie in the fraction's defining relation are refused.
+  For a fraction, `metadata["blocking"]["aliases"]` now lists each confounded word's aliases,
+  which go with it to the blocks (ABCE with ADEF in Montgomery's photoresist half fraction), for
+  the library's own choice of words as well.
+- **The Box-Cox interval as Box, Hunter and Hunter and Montgomery draw it.** `box_cox_profile` takes
+  `interval="t"`, the allowance S_min(1 + t²/ν) on the model's residual degrees of freedom, beside the
+  default likelihood-ratio interval, and the `box_cox` analysis reports both under `intervals`, each
+  with its `critical_sse`, with the least SSE(λ) as `sse` and its `residual_df`. It reproduces BHH's
+  critical value 0.353 for the toxic agents, and the books' limits, which they read off a plot, to
+  within 0.03. Each end of an interval is now solved for, rather than taken at a point of the 0.001
+  grid, so `lambda_ci` can move by less than 0.001 (#801 F1).
+- **`box_tidwell`: Box and Tidwell's estimate of the power of a regressor**
+  (`process_improve.regression`, #801 F2). For a response that is curved in a positive regressor
+  but straight in a power of it, `box_tidwell(X, y, columns=None)` estimates the power of one or
+  more regressors in y = b0 + sum_j b_j x_j^alpha_j (ln x at alpha = 0), with the other columns
+  entering as they are. Each step regresses y on the regressors at the trial powers and on the
+  constructed variables x^alpha ln x, and moves each power by gamma / beta; repeated, with a step
+  halved when it would raise the residual sum of squares, this is the Gauss-Newton method for the
+  least-squares estimate. The result gives each power, its standard error, the t value and p value
+  of the constructed variable at power 1 (a test of a straight-line relation), the residual sums of
+  squares at the estimate and at power 1, and the powers after each step. On Montgomery, Peck and
+  Vining's windmill data the first step is the book's -0.92 and the estimate is -0.833 with a
+  standard error of 0.159, as nonlinear least squares gives.
+- **The prediction variance over a candidate set.** `evaluate_design(..., region=points)`, with
+  `points` a DataFrame of one row per point and a column per factor, takes the region-based
+  metrics (`average_prediction_variance`, `g_efficiency`, `fds`) over exactly those points, each
+  counted once, with no sampling. This is how NIST reports the I-efficiency of a design chosen
+  from candidates: its 12-run D-optimal design gives 12 x 0.388542 = 4.6625 over the 20 points of
+  Table 5.1, where the cube gives 0.2555. `evaluate_all` takes the same region.
+- **The reference catalogue holds Fries and Hunter (1980) and Jones and Nachtsheim (2011), the papers that
+  define minimum aberration and definitive screening designs.** `fries-hunter-1980` holds Table 1's minimum
+  aberration designs (generators, defining relations, alias strings and word lengths) and 48 cells of Table 2's
+  largest attainable resolution. Six of those cells are printed wrong, which an exhaustive search over every
+  set of generators confirms: one 2^(12-5) cannot reach resolution V, and five designs reach one resolution more
+  than printed. `jones-nachtsheim-2011` holds Figure 1's nine designs for 4 to 12 factors, the six-factor example
+  with its AICc values, and the numbers of Tables 3, 4, 5, 7 and 8. Table 4's caption describes two models: its
+  correlations of two squares come from the model of every main effect and every square, and the rest come from
+  one three-factor projection, not an average over projections. The orthogonal 12-factor design of Table 7 is the
+  12-run Plackett-Burman design folded over. The library's own definitive screening designs differ from the
+  paper's for odd m (2m + 3 runs, from a conference matrix) and for m = 12 (orthogonal for main effects).
+- **New check kinds in the reference catalogue:** `term_correlations` (correlations between second-order columns),
+  `estimate_correlations` (correlations between estimated second-order effects, in the whole design or its
+  projections), and `average_power` (the power of one coefficient's t test, averaged over factors or pairs of
+  factors). `relative_efficiency` can now compare with a design the library makes and by standard errors, and a
+  design the library makes can be folded over.
+- **The reference catalogue holds Lenth (1989) and Derringer and Suich (1980), the papers that define two
+  methods the library implements.** `lenth-1989` holds Examples II and IV with their 30 contrasts, 15 alias
+  chains, PSE, ME and SME, and Table 1's t quantiles; the library's Lenth method reproduces every number the
+  paper prints for it. `derringer-suich-1980` holds the tire tread compound: the 20 runs, the 40 fitted
+  coefficients and four standard errors, the desirability limits, and the optimum, whose composite
+  desirability, D = 0.583, the library's own search reaches. The numbers that do not reproduce say why: three
+  misprints in Lenth, and in Derringer and Suich four coefficients fitted with the squared axial setting
+  rounded to 2.667, and an optimum printed rounded on a flat maximum. The NIST e-Handbook's tire tread entry
+  now checks its axial distance (the orthogonal-blocking alpha, sqrt(8/3)) and its d3 and d4, and notes that
+  its x3 column reverses four cube runs of the paper's Table 1.
+- **The reference catalogue checks 204 more of the numbers its sources print**, in place of 133 it left
+  to be worked by hand, and two of its recorded disagreements now agree (#791). New check kinds read
+  Lenth's s0 (`lenth_s0`), a normal plot's ranks and plotting positions (`normal_plot`), a straight
+  limit through cut points on the factors (`limit_through`), and rows of an analysis of variance added
+  or pooled into one (`anova_pooled`). A number read from a fit may be squared (`squared`); `anova_df`
+  and `multistratum` read a `Total` row; `prediction` reads its error at a run (`error`); and
+  `normal_equations` reads a run's readings as a fit does (`summary`).
+- **The catalogue's readers take more of what a source prints as it prints it.** A fraction's generator
+  is read against the factors' names, so a name may be longer than one letter; an alias chain may be
+  printed with `+` between its words and its own term at its head; and a 3^k component reads runs
+  printed in coded units.
+- **Box and Hunter's rules for a central composite design's centre runs** (#788 A11).
+  `generate_design(..., design_type="ccd", n_center_points="uniform_precision")` or `"orthogonal"`
+  picks the number for a rotatable design in one block, and makes the design rotatable;
+  `designs_response_surface.ccd_center_points(rule, n_cube_runs, n_factors, n_replicates=1)` gives
+  the number alone. They reproduce Box and Hunter's (1957) table: uniform precision 5, 6 and 7
+  centre runs for two, three and four factors and 6 for five factors on a half fraction;
+  orthogonality 8, 9, 12 and 10.
+- **Bartlett's test, the Kruskal-Wallis test, a variance's chi-square interval, and the power and
+  sample size of the one-way analysis of variance (#789 B5).** In `process_improve.univariate`:
+  - `bartlett_test(*groups)`, with its steps `q` and `c` as Montgomery prints them (Example 3.4:
+    0.43, P = 0.933);
+  - `kruskal_wallis_test(*groups)`, the analysis of variance of the ranks, allowing for ties
+    (H = 16.91, P = 7.38e-4);
+  - `variance_interval(variance, df)`, also on fractional degrees of freedom, with the interval of
+    the standard deviation;
+  - `one_way_power(n, sigma, means)` from the noncentral F, with the parameter of Montgomery's
+    operating characteristic curves, and `one_way_sample_size(power, sigma, means)`, the smallest
+    number of runs in each group that reaches a power; `least_favourable_means(difference,
+    n_groups)` gives the means at which a difference is hardest to detect, as Minitab works it
+    (0.804838 and 0.915384 for five and six wafers; 8 samples of each mortar for 0.95).
+- **F tests between nested models.** `compare_models(reduced, full, error=None)` is the
+  extra-sum-of-squares F test of two models from `lm` (or the statsmodels formula API) fitted to the
+  same runs, as R's `anova(reduced, full)` gives it, optionally against the residual of a third model
+  that contains the full one. `group_test(model, terms)` tests a group of a model's terms together,
+  with the reduced model built by leaving them out and fitted to the same runs. Both check that the
+  models are nested, by the columns of their model matrices, and refuse models fitted to different
+  runs. They reproduce Montgomery's lack-of-fit tests (Tables 6.7 and 6.22), the sequential model sums
+  of squares of Table 11.7, the extra sum of squares of Example 10.6 and the mixture test of Tables
+  11.21 and 11.22 (#789 B2).
+- **Two designs set against each other.** `compare_designs(...).relative(design, reference)` gives
+  the design's D-, A-, I- and G-efficiencies relative to the reference (each above 1 when the
+  design is the better), each coefficient's variance over the reference's, and where the two
+  designs' FDS curves cross, with the share of the design space where the design's curve is the
+  lower. Every number comes from the information matrices the scores use, X'V^-1 X for a
+  split-plot design, and the FDS curves from a seeded uniform sample (`n_points`,
+  `random_state`). For Goos and Jones's wind tunnel, the I-optimal split-plot design and the
+  second option cross at 0.19 of the design space (the book reads 0.20 off its figure), and the
+  second option's relative D-efficiency is 91.4%.
+- **The contour plot covers the whole design, can be drawn in the factors' own units, and can show the
+  canonical analysis of the model (#799).** The grid of the contour, 3D surface and prediction-variance
+  plots reaches every run in `design_data`, so a composite design's axial runs lie inside the plot, and
+  `extent=` sets it by hand. `units="actual"` draws the contour plot in the factors' own units, from
+  `analyze_experiment`'s `factor_coding` or the ranges of the region's factors.
+  `overlays=["stationary_point", "canonical_axes"]` marks the stationary point with its classification
+  and draws each canonical axis through it with its eigenvalue, which shows where a ridge runs.
+- **Designs on units with known covariates.** `designs_covariates.covariate_design(units, factors,
+  n_runs, CovariateOptions(...))` chooses which of a list of experimental units to use, each at
+  most once, and the factors' settings for each, D-, A- or I-optimally for a model with the
+  units' covariates beside the factors. With every unit used it places the settings in time
+  for a trend. On Goos and Jones's polypropylene samples it chooses the printed 18 of 40, and
+  with more starts a design 0.05% better; with the time in the model, the best order of the
+  2^3 is trend-robust.
+- **Crossed inner and outer arrays for robust design.** `cross_arrays(inner, outer)` runs every
+  run of an inner array (the controllable factors) at every run of an outer array (the noise
+  factors): one row per pair, ordered by the inner run and then the outer run, with `inner_run`
+  and `outer_run` labels to lay the readings out as the sources print them. It takes a
+  `DesignResult`, in coded or actual units, or a DataFrame. It builds Ullmann's Table 8 (11 x 4 =
+  44 runs), and with Montgomery's readings it gives the leaf springs' means and variances of
+  Table 12.1.
+- **`defining_relation(design)`: the defining relation of a fraction on request, however many
+  generators it has** (`process_improve.experiments`, #788 A9). A design lists its relation only up
+  to ten generators (1023 words); past that, `metadata["defining_relation_note"]` now says so, and
+  `defining_relation(design)` works out every word from the generators, in the design's own form
+  (`"I=ABE"`, `"I=-ABD"`). The saturated 2^(15-11) of Montgomery's Table X gets its 2047 words.
+- **Alternative near-best settings.** `optimize_responses(..., method="desirability",
+  n_alternatives=k)` reports, beside the best setting, up to k other local optima of its
+  multistart search under `alternatives`: each with a composite desirability of at least 95% of
+  the best's, and at least 0.5 apart in coded units from the best and from each other, so each is
+  a different choice (one cheaper, safer or easier to run, say). The default of 0 leaves the
+  search and its result as they were.
+- **`error_transmission`: the variance a quantity carries from the errors of the measurements it is
+  worked out from** (`process_improve.univariate`, #801 F4). It linearizes the function at the
+  inputs' means, as Box, Hunter and Hunter's section 17.2 does, and returns the variance and its
+  square root, each input's slope and the variance it transmits (with its share, which says which
+  measurement to improve first), and the linearity check: the function at each input's mean plus
+  and minus three standard deviations, beside the straight line's change. With a fitted model and a
+  noise factor it gives Montgomery's propagation of error for the filtration example (Example 12.1):
+  4.75 at the recommended setting.
+- **`analyze_experiment`'s coefficients carry the correlations of the estimates and the contour of
+  their joint confidence region (#789 B10).** `estimate_correlations` gives the correlation of each
+  pair of coefficient estimates, from (X'X)^-1 alone, so it exists for a saturated design too; BHH
+  print -0.8250 for the impurity regression's b1 and b2 (eq. 14.41). `joint_confidence_region`
+  gives the residual sum of squares that bounds all the coefficients together, S_R (1 + p F /
+  (n - p)) at `1 - significance_level` (BHH eq. 14.45: 4.2053 at 90%, with F rounded to 4.32;
+  4.2082 from the exact F), or S_R plus sigma squared times the chi-square point with a `sigma`.
+- **`evop_worksheet`: the evolutionary-operation calculation sheet of a 2^2 design with a centre
+  point** (`process_improve.monitoring`, #802 G1). For each cycle it gives each point's sums and
+  averages, the effects of the two factors, their interaction and the change in mean, the
+  differences between each point's previous average and its new reading, their range, the
+  standard deviation from it, S = range x f_{k,n}, with its running sum and average, and the
+  two-standard-error limits of the averages, the effects and the change in mean; the last sheet is
+  the information board. `evop_f(k, n)` gives f_{k,n} = sqrt((n - 1)/n)/d2(k), and `range_d2(k)`
+  the mean range of k standard normal observations. The sheet reproduces Montgomery's Example 11.7
+  (S 0.60 and 0.56, limits 0.85 and 0.67 for the effects, 0.76 and 0.60 for the change in mean).
+- **Factorial finds a mixture's best blend, and balances its responses over the blends.** For a
+  mixture with a goal, Learn searches the region of blends for the one the fitted Scheffé model
+  predicts best (`optimize_responses` with a mixture `DesignRegion`: each component between its
+  bounds, the proportions summing to 1), where it used to say the blends were not searched. It shows
+  each component's proportion and whether it sits at a bound (and whether the goal improves past a
+  bound you set), the prediction with its 95% confidence and prediction intervals, the leverage,
+  and how much the prediction moves when each component changes along its Cox direction.
+  Confirmation runs go at the blend weighed out to a thousandth, still summing to 1, with the
+  component that takes the rounding named. A star marks the blend on the triangle of three
+  components; with four or more, the Cox traces are drawn through the best blend and cross at the
+  star. With two responses or more that have goals, the balance of the responses is found over the
+  blends too, each response with its own Scheffé model, and for three components the overlay of the
+  acceptable ranges is drawn on the triangle. The Python panels search the same region and find the
+  same blends.
+- `fit_gaussian_process(data, response)` fits a Gaussian process (ordinary kriging) model to the runs of a computer experiment by maximum likelihood, in the parameterisation of JMP and of Montgomery's Example 11.4. The fit predicts with the kriging standard error (`predict`) and splits the prediction's variance over the box of the inputs into each input's main-effect and total sensitivity index (`sensitivity`), worked to rounding error even for a smooth output whose fit has large weights of both signs (#789).
+- **Hold a response within limits while others are optimised.** `optimize_responses(...,
+  method="desirability")` takes a goal of `"in_range"` with `low` and `high`, Design-Expert's
+  "is in range": the search keeps to settings where the predicted response lies within the
+  limits, its individual desirability is 1 there, and it is left out of the composite, as
+  Montgomery's printed composites show. With the molecular weight of his yield CCD held between
+  3200 and 3400, the search finds D = 0.929 at 86.1 min and 170.2 F, above both solutions he
+  prints. The desirability contour plot uses the same composite.
+- **Axial check blends for a mixture design.** `augment_design(design, "add_axial_points")` on a
+  mixture design (each run's proportions sum to 1) adds its axial check blends, each midway
+  between the centroid of the simplex and a vertex: (2/3, 1/6, 1/6) and its permutations for
+  three components. The design for the linear Scheffe model with them is Ullmann's axial simplex
+  (7 runs), and the simplex centroid design with them is Montgomery's augmented simplex lattice
+  (10 runs). `"add_center_points"` adds runs at the centroid. Both work on the whole simplex and
+  on an L-pseudocomponent simplex the runs span.
+- **`DesignRegion.volume_fraction` gives a mixture region's share (#810 item 3).** It raised a
+  `ValueError` before. The share is of the blends the components' ranges allow (the whole simplex
+  when every range is 0 to 1), and it is exact: the volume of the polytope the limits leave over
+  that of the polytope the ranges leave, each the hull of its extreme vertices. A limit `A <= 0.5`
+  on three components leaves 0.75 of the simplex.
+- **A cumulative sum about a target, the variance of a sampling scheme, and defects per million.**
+  `monitoring.cusum_about_target(values, target)` gives the plain cumulative sum of the deviations
+  from a target, which Box, Hunter and Hunter plot (Table 17.1), beside the tabular CUSUM.
+  `sampling_scheme_variance(components, schemes, costs=None, target=None)` turns variance components
+  into the variance of the mean of each sampling and testing scheme, Σ σ²_k / n_k, its cost, and the
+  cheapest scheme that reaches a target variance (BHH Table 17.4). `calculate_cpk` also returns
+  `defects_per_million` and `defects_per_million_nearer`, the parts per million outside the
+  specifications of a normal process with that capability (#802 G2, G4, G5).
+- **Split-plot optimal designs without pyoptex.** `split_plot_design(factors, hard_to_change,
+  n_runs, SplitPlotOptions(...))` finds a D-, I- or A-optimal split-plot design by coordinate
+  exchange on the generalised least squares information X'V^-1 X: the hard-to-change factors
+  are set once for each whole plot, the others for each run, and categorical factors take their
+  own levels. `SplitPlotOptions` sets the criterion, the model, the number of whole plots, the
+  ratio of the whole-plot to the run variance and the number of random starts. For Goos and
+  Jones's wind tunnel (50 runs in ten whole plots, the full quadratic model, equal variances) it
+  finds an I-optimal design with an average prediction variance of 0.51219, against the printed
+  design's 0.51227, in about a second.
+- **`nonlinear_regression`: least squares for a model nonlinear in its parameters, with the usual
+  inference** (`process_improve.regression`, #789 B8). `nonlinear_regression(model, x, y, start)`
+  fits y = model(x, *theta) by least squares from the named starting values, and gives each
+  parameter's estimate, standard error, t value, p value and interval from the linearization at the
+  estimate, the correlations of the estimates, the residual sum of squares and mean square, the
+  fitted values and residuals, and the contour S(theta) = S_R (1 + p/(n - p) F) that bounds the
+  joint confidence region. It reproduces Box, Hunter and Hunter's biochemical oxygen demand fit
+  (section 14.6): b1 = 213.8, S_R = 1168.01, and the 90% contour 3690.91 with the table's F of 4.32
+  (3693.57 with the exact F). Parameters whose derivatives are linearly dependent are refused.
+- `generate_design(..., design_type="dsd", categorical_method="orth")` builds Jones and Nachtsheim's (2013) ORTH-augmented definitive screening design for two-level categorical factors: every main effect is orthogonal to every other (with up to four categorical factors), in the same runs as the DSD-augmented design for one categorical factor and two more centre runs for more, at the cost of some aliasing between main effects and second-order effects. The default, `"dsd"`, is the DSD-augment method as before. `dsd_run_count` takes the method too, and the `generate_design` tool offers it (#788).
+- **`analyze_experiment(sigma=...)`: standard errors from an error standard deviation known before
+  the runs (#789 B6).** Sources often take sigma from past records or earlier experiments, not
+  from a small experiment's residual. With `sigma` given, the standard errors, tests and intervals
+  of the coefficients, effects, significance, confidence intervals, predictions and confirmation
+  test use it, and read the normal distribution, since sigma is not estimated from the runs. A
+  saturated design gets standard errors this way: BHH's eight bicycle runs for seven factors give
+  each effect 2.1 with a sigma of 3. The ANOVA, the lack-of-fit test, Lenth's method and a mixture
+  model's significance and effects keep the residual. `model_summary` reports the value as
+  `prior_sigma`.
+- **`to_pseudocomponents` and `from_pseudocomponents`: L-pseudocomponents of a mixture with lower
+  bounds** (`process_improve.experiments`, #788 A10). x'_i = (x_i - L_i)/(T - sum L) maps the
+  region the lower bounds leave back onto the whole simplex, and x_i = L_i + (T - sum L) x'_i maps
+  it back, for proportions (T = 1) or percentages (T = 100); a DataFrame keeps its index and
+  columns, with the bounds given by name. The pure first pseudocomponent of the pid-book's region
+  (bounds 0.2, 0.2 and 0) is the blend (0.8, 0.2, 0.0), and Goos and Jones's rolling-mill runs
+  convert as the reference catalogue codes them.
+- `randomization_interval(x, y=None, paired=False, confidence=0.95)` gives the confidence interval for a difference that inverts the randomization test, for pairs or two groups, with no distribution assumed. Each arrangement passes the observed one at one difference (for pairs, the mean of the differences whose signs it changes), so the limits are order statistics of those breakpoints, and the interval reports its own confidence, 1 - 2m/M. For Box, Hunter and Hunter's boys' shoes it is 0.125 to 0.700 at 95.1%, beside the t interval's 0.133 to 0.687 (#789).
+- **`reference_distribution`: judge a difference of averages against the process's own past
+  record** (`process_improve.univariate`, #789 B6). From a record in time order and the number of
+  observations in each average, it builds every difference of adjacent averages, the later less the
+  earlier, and gives the share at least as extreme as an observed difference, a tie counting half
+  as Box, Hunter and Hunter count it. It also takes the nearly independent differences (groups of
+  2n a gap of one apart) and their root mean square about zero, and gives the t statistic and its
+  level on as many degrees of freedom. It reproduces the book's 9 of 191 (0.047) and 0.028 for the
+  plant trial, Table 2.5's ten differences and s = 0.60, and the exercises' 0/17, 3/31 and
+  16.5/201 = 0.082.
+- **The scale of Box, Hunter and Hunter's reference distribution.** `least_squares_means` also returns
+  `reference_scale`, the scale of the t distribution the book slides under a set of means, on the
+  residual degrees of freedom. By default it is the square root of half the average variance of a
+  difference of two means: s/√n with n runs at each level, and √(k s²/(λt)) in a balanced incomplete
+  block design. `Comparisons(reference_rule="average_replication")` gives s/√n̄ instead, with n̄ the
+  average number of runs at a level, as the book scales its unequally replicated blood-coagulation
+  diets. They reproduce the book's 0.97 (blood coagulation), 0.037 (toxic agents) and 20.50 and 17.06
+  (the wear-testing Youden square) (#800 E3).
+- **Mixture designs and analyses accept the full cubic Scheffé model, `"scheffe_cubic"` (alias `"cubic"`).**
+  It adds a term `x_i x_j (x_i - x_j)` for each pair of components to the special cubic, for `q^2 + C(q, 3)`
+  terms. The default design over the whole simplex is the {q, 3} simplex lattice (every blend in thirds,
+  NIST/SEMATECH e-Handbook Table 5.3), plus the overall centroid for four or more components. A bounded or
+  constrained region takes the points a third and two thirds of the way along each edge in place of the
+  midpoints: along an edge the model is a cubic polynomial, which needs four points on that edge.
+  `analyze_experiment`, `evaluate_design`, the stepwise model selection and the design catalog accept the new
+  model.
+- **`fit_ma1` and `difference_variance`: a first-order moving average, and the variance of a
+  difference of averages of serially correlated observations** (`process_improve.univariate`,
+  #802 G3). `fit_ma1` fits y_t = mu + e_t - theta e_{t-1} to a record in time order by matching
+  its lag-1 autocorrelation and variance, as Box, Hunter and Hunter do (theta 0.32 and a residual
+  variance of 7.5 for their 210 batch yields), or by maximum likelihood (`method="likelihood"`),
+  which uses the whole record and gives a standard error. `difference_variance` gives the variance
+  of the difference of two averages of n observations with a lag-1 autocorrelation, for adjacent
+  averages (2 sigma^2/n)(1 + rho1 (2n - 3)/n), which is the book's 1 + 1.7 rho1 for averages of 10:
+  0.84 for the 210 yields, against 1.66 if they were independent.
+- **Predictions and optimisation from a split-plot fit.** `analyze_experiment(...,
+  analysis_type="split_plot", new_points=...)` predicts from the generalized least-squares fit:
+  each point's mean with its standard error, degrees of freedom and interval (Kenward and Roger's
+  when asked for), and the interval for one new run there, whose variance adds every variance
+  component. The split-plot result carries `response_name`, `factor_names` and `coding`, so
+  `optimize_responses` takes it as a fitted model and works from its coefficients rather than the
+  ordinary least-squares ones. On Goos and Jones's battery cell it finds the best corner with
+  the printed 7.42, where the ordinary least-squares fit predicts 7.75.
+- **Results against a value stated before the data** (`process_improve.univariate`, #789 B5 and B6).
+  `variance_about(x, mean)` gives the variance about a known mean on all n degrees of freedom;
+  `ttest_new_observation(y, mean, x, mean_known=True)` tests one new observation against a stated
+  mean with the standard deviation of earlier data; and `grand_mean_test(y, groups, value)` splits
+  a one-way layout's sum of squares about a norm and tests the grand mean against it on the
+  residual. They reproduce Box, Hunter and Hunter's five cars (2.96, and t = 1.86 on 5 degrees of
+  freedom), the production record's 0.36 and 0.60, and the blood coagulation times against the
+  norm of 63 (364 = 24 + 228 + 112, t = 2.07 on 20 degrees of freedom).
+- **`steepest_path` sets out a path of steepest ascent as sources do, and `next_design` centres the
+  next design on one of its steps (#798 S1, S2).** `steepest_path(fit, step={"x1": 10}, n_steps=7)`
+  steps a round amount of one leading factor, in its own units, and moves the others in proportion to
+  their slopes, as Davies (Table 11-22), Box, Hunter and Hunter (Table 15.2) and Schmidt and Launsby
+  set their paths out; a number for `step` keeps the distance in coded units that
+  `optimize_responses` steps. The path can start away from the centre (`base=`), where it follows the
+  slopes there, and goes down with `goal="minimize"`. `next_design(path, at_step, scale={...},
+  design_type=...)` makes a design centred on a step, each factor's range kept or rescaled. A model
+  flat at the base raises `NoSteepestDirectionError`, a `ValueError`.
+- **Two-way split-plot (strip-plot) designs.** `designs_split_plot.strip_plot_design(factors,
+  StripPlotLayout(row_factors, column_factors, cells), StripPlotOptions(...))` searches for a D-,
+  A- or I-optimal design on a grid of runs: a row's factors are set once for its runs and a
+  column's once for its runs, with the rows and the columns as crossed random effects of the
+  ratios given. On Goos and Jones's 48-run battery cell grid it reaches the printed design's
+  D-efficiency. On the cells of their twelve-run design it finds a design a little better than
+  the printed one (which is 99.8% D-efficient), confirmed by enumerating every setting.
+- **`analyze_experiment`'s `model_summary` gives the sums of squares in the conventions sources print
+  (#789 B1).** `ss_total`, `ss_mean` (the correction for the mean, n times the mean squared) and
+  `ss_total_uncorrected` (the crude total, the sum of the squared responses); `ss_model` on the basis
+  of `r_squared`, `ss_model_uncorrected` (the sum of the squared fitted values) and `ss_residual`; and
+  `coefficient_of_variation`, Design-Expert's "C.V. %". A model with blocks adds `ss_blocks` and
+  `r_squared_without_blocks`, `r_squared_adj_without_blocks` and `r_squared_pred_without_blocks`, over
+  the total less the blocks' sum of squares, as Design-Expert reports them.
+- **The ANOVA of a model with no intercept term says that its rows do not add up** to a model sum of
+  squares, and where `model_summary` gives the model's sums. The rows of NIST's yarn-elongation
+  mixture model add to 1952.33, which is neither its uncorrected model sum, 2878.27, nor its sum about
+  the mean, 128.30.
+- **Checks on a response surface before it is read (#797 R2 to R4).**
+  - `third_order_contrasts(design, response_col, factor_cols, sigma=None)` gives, for each factor of a
+    composite design, the slope its axial runs give less the slope its cube gives, with its standard
+    error: the lack of fit along each axis, which the lack-of-fit F test pools. Box, Hunter and Hunter's
+    1.28 and -1.93, each with a standard error of 1.06, reproduce.
+  - `pooled_pure_error(designs, response_col, factor_cols)` pools the replicated runs of the designs
+    of one investigation, each design's replicates compared with their own mean (Box, Hunter and
+    Hunter's 4.07, then 3.18).
+  - `evaluate_design(..., metric="alias_matrix", alias_terms="quadratic")` also aliases the model
+    against the squares of the numeric factors, so the matrix shows how curvature biases a
+    first-order design's intercept (Davies, 11.33: b0 -> b0 + b11 + b22 + ...).
+- **The components of three-level interactions.** `interaction_components(data, response,
+  factors)` splits each interaction of three-level factors into its components of two degrees of
+  freedom, in arithmetic modulo 3, with Montgomery's names (`AB2C`) and Yates's (`X(ABC)`), and
+  gives each component's sum of squares. It reproduces Davies's cotton dyestuff (Example 9-4:
+  X = 6191, Z = 1002, W = 2939 from the second replicate and Y = 664 from the first) and
+  Montgomery's syrup loss (W = 3804.11), and in a full factorial an interaction's components add
+  up to its sum of squares.
+- **Three-level fractional factorials from generators.** When every factor has three levels (a
+  continuous factor with three `levels`, or a categorical factor with three),
+  `generate_design(..., design_type="fractional_factorial", generators=[...])` builds the
+  3^(k-p) fraction in arithmetic modulo 3: `"D=A2BC2"` sets x_D = 2 x_A + x_B + 2 x_C (mod 3),
+  the digits 0, 1 and 2 being each factor's levels from the lowest. The result lists the defining
+  relation in Montgomery's form (`"I=AB2CD"`), its resolution, and the alias chain of each main
+  effect; `resolution=` checks that the generators reach it. Montgomery's 3^(3-1), 3^(4-1) and
+  3^(4-2) fractions, the L9 of NIST and of Schmidt and Launsby, and Schmidt and Launsby's Latin
+  square are rebuilt from their generators in the tests. Before, three-level continuous factors
+  with generators gave a two-level fraction that left out the middle level, and three-level
+  categorical factors were refused. Without generators, a fractional factorial is two-level, as
+  before.
+- **`evaluate_design` reads a three-level fraction's own relation.** Its `defining_relation`,
+  `resolution`, `alias_structure` and `clear_effects` metrics no longer read the generators with
+  two-level arithmetic, which gave `I=ABCD` and `A = BCD` for `D=A2BC2`.
+- **Tukey's test for nonadditivity, and estimates of missing runs.** `tukey_nonadditivity(design_matrix,
+  formula)` fits the additive model again with the square of its fitted values: the sum of squares on
+  one degree of freedom, its F test against the remainder (or, with `error="pure"`, against the pure
+  error of replicated cells), the regressor's coefficient (Box, Hunter and Hunter's theta), and the
+  power of the response that would make the effects add. `estimate_missing(design_matrix, formula)`
+  gives the least-squares estimates of the runs whose response is missing (Yates's formula for one), and
+  the approximate analysis of the table they complete, with the residual degrees of freedom reduced
+  for each estimate. They reproduce Montgomery's impurity example, Box, Hunter and Hunter's penicillin
+  and toxic-agents tests, and Davies's estimates and approximate analysis (#800 E1, E2).
+- **`variance_dispersion`: the variance dispersion of a design, and whether it is rotatable**
+  (`process_improve.experiments`, #790 C4). For spheres about a design's centre, in coded units,
+  `variance_dispersion(design, model="quadratic", radii=21)` gives the minimum, average and maximum
+  scaled prediction variance, N Var(y-hat)/sigma^2, which a variance dispersion graph plots against
+  the radius, and their spread. A design is `rotatable` when the minimum and the maximum meet on
+  every sphere. The average is exact: the prediction variance is written in monomials, whose
+  averages over a sphere have a closed form; the minimum and the maximum are searched for from a
+  seeded sample of directions. It confirms the book's statement that a Box-Behnken design is
+  rotatable in four and seven factors, and not in three, five or six, and that a central composite
+  design is rotatable at an axial distance of the fourth root of its factorial runs.
+- **Yates's algorithm, and the algorithm run in reverse.** `yates_table(design, response)` puts the
+  runs of a full two-level factorial in standard order and returns the algorithm's columns, each
+  effect's estimate and sum of squares, and the columns' sums of squares, each twice the one before,
+  as the classical sources print their working. `reverse_yates(table, keep)` runs it backwards on the
+  contrasts of the effects a model keeps, and returns the fitted values and residuals with the same
+  checks. They reproduce Box, Hunter and Hunter's pilot-plant Tables 10.5, 10A.1 and 10A.2 (#803 H1).
+- **`generate_design(..., design_type="dsd", budget=2k + 1)` builds Jones and Nachtsheim's (2011) 2k + 1-run
+  design for an odd number of factors (5, 7, 9 or 11, all continuous).** The default definitive screening design
+  for an odd k comes from a conference matrix of order k + 1 and has 2k + 3 runs. A budget of 2k + 1 or 2k + 2 runs
+  now gives the design of the paper's Figure 1 instead, two runs fewer. Its main effects are still orthogonal to
+  every second-order effect but correlated with each other (|r| up to 0.25, 0.167, 0.125 and 0.3), and it has no
+  fake factors, so the full second-order model leaves no error degrees of freedom; the design's
+  `metadata["note"]` says both. A budget below 2k + 1 still raises, and its message now names the smaller size.
+- **`evaluate_design(..., metric="estimate_correlation")` reports the correlations between the estimated
+  second-order effects**, `c_ij / sqrt(c_ii c_jj)` with `c = (X'X)^-1` (JMP's "correlation of estimates"). Where
+  `correlation` compares the design's columns, this says how well the fit can tell a square from an interaction.
+- **Both `correlation` and `estimate_correlation` now summarise their sizes by kind of pair** under `by_pair`: the
+  largest and the mean |r|, and the number of pairs, for `two_squares`, `square_and_own_interaction`,
+  `square_and_other_interaction` and `two_interactions`, as Jones and Nachtsheim (2011) tabulate them for definitive
+  screening designs. Under the full quadratic model of a DSD, `correlation` gives their Table 3; in its three-factor
+  projections, `estimate_correlation` gives their Table 4.
+- **`evaluate_design(..., metric="screening_power")` runs Jones and Nachtsheim's (2011) power study.** It tests one
+  term of each kind (a linear effect, a quadratic effect, an interaction) in the model an analyst would fit to find
+  it: alone among the main effects, or in the full quadratic model of two factors (their Table 6). Each test's power
+  is averaged over every factor or pair of factors, at an `effect_size` or at Table 7's 1, 2 and 3 times sigma. A test
+  the design cannot make is marked `"aliased"` (an effect that a second-order term outside the model copies) or
+  `"not estimable"`, as Table 7 marks the two-level alternatives. Random effects are taken into account through
+  the generalized least squares information, as for the other metrics.
+- **`dunnett_value` takes a correlation for each treatment**, `correlation=[c_1, ..., c_k]` with
+  `c_i = n_i / (n_i + n_0)`, so Dunnett's critical value is exact for treatments of unequal runs: comparisons
+  i and j correlate by the root of `c_i c_j`. Its docstring gave the correlation of two comparisons as
+  `n_0 / (n_0 + n)`; it is `n / (n + n_0)`, which is one half only when the control has as many runs as a
+  treatment.
+- **Factorial takes a categorical factor of two to eight levels, each any text** (#909), such as catalyst
+  copper, nickel or platinum, or lot 1, 2, 3 or 4: a label that reads as a number stays a label. The brief
+  shows a categorical factor's levels as chips, typed or pasted as a list, removed with their cross, and put
+  in order by a drag or with Alt and an arrow key. A full factorial or a Taguchi array takes a factor of three
+  levels or more; the two-level designs are disabled for it, saying why. The analysis fits such a factor as a
+  contrast for each level but the last, names each coefficient by its level (`Catalyst[copper]`), and tests
+  the factor as one source in the ANOVA, of Type II as its other rows. A factor nested in another, as Batch is
+  in `Supplier + Supplier:Batch`, is fitted within each level of the other, as patsy fits it. A study of one
+  such factor is sized by the power of the one-way analysis of variance, and Learn compares its levels: the
+  one-way analysis of variance, every pair by Tukey's intervals, and each level against a control the reader
+  picks by Dunnett's. The Python panel and the notebook do the same, and a study with such a factor is saved
+  in study format 3. The catalog opens 803 of its 1212 designs, 109 more, among them Box, Hunter and Hunter's
+  four diets, and a test holds the page's analysis of each study with a categorical factor to the library's
+  for the 1665 printed numbers it shows.
+- **Factorial's detailed comparison can set designs aside.** Under each design's name, a switch shows or hides
+  it, and "Use this design" sits in a row of its own below. A design switched off slides to the right of a thick
+  line, in light grey: it leaves the row shading (whose best passes to the next design) and the charts (its FDS
+  curve and its correlation map), and each other FDS curve keeps its colour. Switched on, it slides back to its
+  place. Every design starts shown, and the choice holds while the comparison stands.
+- **Factorial takes a study of one factor: two treatments compared** (#905), such as two suppliers, an old
+  and a new catalyst, or a temperature at its low and its high. Design sizes the comparison by power: a table
+  gives, for each number of runs at each level, the chance that the t-test finds the smallest change worth
+  finding, and the design is made with the fewest runs that reach 80% (up to 50 at each level). Learn leads
+  with the difference between the two levels and its 95% interval, each level's average with its own interval,
+  and the difference tested four ways: the t-test with one variance for both levels (the model's own test),
+  Welch's t-test, the randomization test of `process_improve.univariate`, and Wilcoxon's rank-sum test. A chart
+  shows every run at its level beside the level's average, in place of the response surface. The Python panel
+  and the notebook give the same four tests. The catalog's one-factor designs at two levels now open in
+  Factorial, among them Box, Hunter and Hunter's comparison of two methods.
+- **Factorial's studies can leave the browser as a file, and come back.** Under "Your studies", "Download
+  all" saves every study as one JSON file, and each study's "Share" hands its own file to the share sheet
+  (Mail, Messages, AirDrop, Files) where the browser can share a file, or saves it where it cannot (the button
+  then reads "Download"). A dropzone under the list opens such a file in any browser: a file of one study
+  opens it on the page, a file of several adds them all; a study already kept there is not saved twice, and
+  none is overwritten. The file (`format`, `version`, and each study with its `id`, times, `sha256` and the
+  study whole) is built to grow: a reader skips keys it does not know, and a study's own format number rises
+  when it holds something an earlier Factorial could not keep. "How Factorial works" describes it.
+- **Categorical process factors in mixture-process designs.** A mixture-process design can now hold a
+  categorical process factor, such as a catalyst type or a supplier, beside continuous ones. It enters the
+  model in `L - 1` sum-to-zero columns; the candidates take every level, and the I- and G-criteria average
+  over the levels. Without an intercept, patsy would code such a factor with a column for every level
+  wherever the term below it is missing from the formula (`T:catalyst` in the `"interactions"` model), which
+  made the model inestimable. `evaluate_design` and `analyze_experiment` now code every categorical factor of
+  a mixture-process model in `L - 1` columns (`ReducedRank`, `ReducedRankFormula`), so the recorded formula
+  fits as it is. With the coolant settings as the two-level factors they are, the library computes Goos and
+  Jones's (2011) p. 120 statements on Table 6.2: an average relative prediction variance of 0.483 ("a little
+  less than a half") and a largest of two-thirds.
+- **Mixture components and process factors in one optimal design.** `generate_design` used to refuse mixture
+  components beside process factors. The optimal families (`d_optimal`, `i_optimal`, `a_optimal`,
+  `e_optimal`, `g_optimal`, `k_optimal`, and `design_type=None`) now build the design from every candidate
+  blend of the constrained simplex at every candidate process setting. `model_type` takes the polynomial of
+  an order in all the factors (`"main_effects"`, `"interactions"`, `"quadratic"`; the last is the
+  Kowalski-Cornell-Vining model), a Scheffé model added to a process model (`"scheffe_quadratic +
+  main_effects"`), or the two crossed (`"scheffe_quadratic * interactions"`). The design records its formula
+  in `metadata["formula"]` and its region in `metadata["region"]`. `DesignRegion` has a `"mixture_process"`
+  kind, the product of the two regions, which `evaluate_design` averages and maximises over and
+  `optimize_responses` searches. `analyze_experiment` keeps the components as proportions, so the blending
+  coefficients read as a Scheffé model's. The 12-run design of Goos and Jones (2011), Table 6.2, is found
+  again. Categorical process factors, constraints that join components and process factors,
+  `hard_to_change`, `fixed_runs`, `candidates` and blocks are refused for now.
+- **The catalog makes the fractions its sources name by their generators alone (#920).** Forty entries print
+  facts about one two-level fraction (its aliases, defining relation or resolution) without its runs, Montgomery's
+  Table X among them. Each now has the fraction the library makes from the source's generators as its runs, in
+  standard order, with the generators in the record's `runs_from`; 37 of them, those of at most 12 factors, open
+  in Factorial, whose catalog detail names the generators. Ullmann's two-factor central composite design and
+  2^(4-1) inner array, whose factors were not listed, open too.
+- **Constraints on categorical factors: disallowed combinations and limits on some levels only.** A constraint
+  may compare a categorical factor with its levels (`==`, `!=`, `in`, `not in`) and join comparisons with `and`,
+  `or` and `not`: `"not (catalyst == 'B' and solvent == 'Y')"` disallows a combination of levels, and
+  `"not (catalyst == 'B' and T > 180)"` limits `T` when the catalyst is B. The optimal designs place runs only
+  where the constraints allow. A disallowed combination is a missing cell that leaves part of an interaction
+  inestimable over the whole region: the design is built for the columns that can be estimated, a warning names
+  the term and the missing cell, and `metadata["inestimable_columns"]` records it. `DesignRegion` takes the
+  same constraints: `feasible()` and `broken_limits()` read each point's levels, `sample_frame()` and
+  `support_frame()` draw the levels with the settings, `allowed_combinations()` lists the allowed combinations
+  and the limits on each, and `given()` returns the region of one combination. `evaluate_design` averages and
+  maximises over the allowed combinations only, each weighted equally, and drops the same inestimable columns. A
+  level name the factor does not have is an error, and two inequalities joined by `or` are refused. Design types
+  that cannot follow a constraint naming a categorical factor refuse it instead of warning, and such constraints
+  are not supported beside mixture components yet.
+- **The catalog's blocked designs open in Factorial in their blocks** (#904). A design whose run table prints
+  each run's block, such as a 2^3 in two blocks of four, a randomized complete block design or a Youden square,
+  opens with its runs as given and each run's block in the run sheet, and Learn fits the blocks as a fixed
+  effect. The catalog's table of runs shows each run's block before the factors. A design said to be run in
+  blocks without each run's block printed, or in more than 8 blocks, says so.
+- **Factorial compares two levels in pairs within each pair** (#904). A study of one factor at two levels whose
+  blocks each hold one run at each level, as a paired comparison makes them (a sole of each material on each boy's
+  shoes), is compared within each pair, three ways: the paired t-test, the randomization test of every swap of the
+  levels within the pairs, and Wilcoxon's signed-rank test, which counts every pattern of signs on the ranks and so
+  stays exact with ties. Learn notes that the model's test of the factor, beside its blocks, is the paired t-test
+  squared, and the Python panel and the notebook give the same three tests. Runs as given now come in up to 32
+  blocks, where a design the page makes keeps 8; runs each in a block of their own are refused, since the blocks
+  leave nothing to compare.
+- **Factorial: a study opened from the design catalog shows the numbers its source prints beside its own (#921).**
+  The study keeps its source (the citation, where the runs are printed and a link to that place) through links,
+  saves and study files, and its banner names it. Learn lists, for the model fitted, each number the source
+  prints that the page shows too (an effect, a coefficient's interval, an ANOVA row, a sum of squares of the
+  fit), the page's own number, and whether the two agree to the printed rounding, or the
+  reason the catalog records that the printed number is wrong. A model the source prints other numbers for is
+  offered, to fit in its place. 3536 numbers of 199 studies; the catalog's test reads each one through the
+  page's own code.
+
+### Changed
+
+- `augment_design(..., "add_runs_optimal", target_model=<formula>)` builds the model rows of a
+  formula written as main effects, `A:B` products and `I(A ** 2)` squares with numpy instead of
+  patsy, so the exchange's polish no longer rebuilds a patsy matrix at every move: 0.5 s instead
+  of 7 s for eight factors. Other formulas still go through patsy.
+- **The book's reference catalogue reads Process Improvement using Data 2026.10.17.** Its quotations and
+  line references follow the book to commit 28e5b88. The worst-case prediction variances of the design
+  chapter are now the maxima over the whole cube, searched for with `evaluate_design(...,
+  max_search="optimize")` as the book now computes them (the thirteen-run OMARS design's G is 13.00, not
+  the sample's 12.50), and the worked OMARS study's numbers follow designs returned in one orientation. A
+  `design_metric` check takes `"times_runs": true`, to compare the scaled prediction variance G, the run
+  count times the largest prediction variance.
+- **The curvature test's `difference` is now the factorial mean less the centre mean**, the sign
+  Box, Hunter and Hunter (section 15.2) and Montgomery (section 6.8) print. It estimates the sum of
+  the pure quadratic coefficients, b11 + ... + bkk, so a surface that bends down near a maximum
+  gives a negative difference. It was the centre mean less the factorial mean. The test also
+  reports the difference's `std_error`, s * sqrt(1/nF + 1/nC) with s from pure error, and its
+  `t_statistic` is now the difference over that error. The F statistic and p-value do not change.
+- **`recommend_strategy` screens six or more continuous factors with a definitive screening design.**
+  In a 12-run Plackett-Burman design each interaction biases the main effects of the factors outside
+  it by a third of its size; in a simulated 8-factor study that hid a real factor in 35% of the
+  sessions that followed the old plan. The DSD gets the centre runs that leave `analyze_omars` four
+  degrees of freedom for error (with two, it missed an active factor in 6% of simulated studies;
+  with four, in none), and a Plackett-Burman screen, where a domain prefers one, gets three centre
+  runs to test for curvature. A budget that would strip the screening
+  design's curvature test gets one DSD and the confirmation runs instead. Every CCD the plan proposes
+  is face-centred, so no run leaves the factor ranges.
+- **`analyze_experiment` fits main effects when its default model cannot be estimated.** With no
+  `model` given, a design that cannot estimate the interactions model and does not alias its
+  interactions in whole chains (a Plackett-Burman or definitive screening design) now gets the
+  main-effects model, with a warning and `model_summary["model_note"]`, instead of 37 coefficients of
+  which 25 were arbitrary. `model_selection` still searches the interactions, and a regular fraction
+  keeps its alias-chain analysis.
+- **Factorial's detailed comparison of designs is easier to read sideways.** The designs that can
+  fit the model come first; those that cannot, whose measures are mostly blank, follow at the
+  right, greyed and set apart by a dashed line. The column of arrows that says whether higher or
+  lower is better now stays in view beside the measure names as the designs scroll past.
+- **`optimize_responses(method="stationary_point")` lists the eigenvalues largest in size first**, the
+  order `canonical_analysis` already used. It gave them in ascending order, so a caller who matched
+  the two results by position paired the wrong values: Davies's three-factor composite design
+  (11.73) read (-3.190, -0.069, 0.780) in one and (-3.190, 0.780, -0.069) in the other.
+- **A design's detail in the catalog shows only what is about that design.** It opens on the
+  same three cells for every design: the design itself, where it comes from, and what to do
+  with it. The design type, its plain description and its history fold under "About this
+  design type". The lines on how the catalog checks its entries are gone. A click outside the
+  detail closes it, unless the click began inside it, so text can still be selected and copied.
+- **A projection labels a point's runs as "3×", and only when the points differ.** A bare
+  number beside a corner read as a response. When every point holds the same number of runs,
+  the text under the plot says so once.
+- **A factorial whose factors are all categorical gets no centre runs by default** (`generate_design`,
+  #788 A5). A categorical factor has no centre, so the three default "centre runs" of such a design
+  only repeated cells it already had: a 3 x 3 factorial had 12 runs, with three of its diagonal cells
+  twice, and a 2 x 2 had 7. It now has 9 (and the 2 x 2 has 4). An explicit `n_center_points` still
+  adds runs, and a design with a numeric factor keeps its three centre runs.
+- **Each Factorial study puts its runs in random order with a seed of its own.** Every design
+  used seed 42, so every reader got the same run order. A new study now takes the second it
+  began, as a Unix timestamp, and keeps it while designs are tried in its place; the designs the
+  comparison offers are made with it too. Each set of runs added to a study is drawn with the
+  seed plus the number of runs before it. The report and the Python code name the study's seed.
+  Studies saved before keep seed 42, as does the worked example.
+- **`generate_design(..., hard_to_change=[...])` builds the split-plot design itself.** With
+  `backend="auto"` (the default) or `"exchange"`, a split-plot design now comes from the built-in
+  coordinate exchange (`metadata["backend"] == "split_plot_exchange"`), whether or not pyoptex
+  is installed; `backend="pyoptex"` still asks for pyoptex. Before, the design came from pyoptex
+  when it was installed, and without it `hard_to_change` was ignored with a warning. With
+  constraints, a candidate set, fixed runs, blocks or the E-, G- and K-criteria, it is still
+  ignored with a warning that names the reason. The whole-plot variance ratio stays at 0.5.
+- **A catalog design's leverage reads as a chart only when it says something.** When every run
+  has the same leverage, as in a balanced design, one sentence says so, with the value, instead
+  of a strip of equal bars. Otherwise the bars have a 0 to 1 scale and a labelled line at 1, and a
+  sentence names the runs the model leans on most. The caption says what leverage is in words.
+- **Projectivity is about the two-level runs, and says so.** When only some of a design's runs
+  are at -1 and +1, the sentence names how many ("Its 8 two-level runs, of 17, ..."). A design
+  with a categorical factor of three or more labels has no projectivity, since which two of its
+  labels are coded -1 and +1 is arbitrary.
+- **A catalog design's runs are one table that scans across.** Each coded setting is tinted in
+  its own cell (blue at -1, grey at 0, vermillion at +1), so colour and number line up and scroll
+  together; the separate strip of colours beside the table is gone. When the runs' leverages
+  differ, a Leverage column gives each run's, with a bar from 0 to 1, in place of the chart above
+  the table. A categorical factor of more than two labels shows its label, untinted, instead of a
+  coded number such as -0.789, and the Factors table gives its labels ("1 to 20 (20 labels)")
+  instead of a low and high taken from its first two.
+- **Factorial's detailed comparison of designs is easier to scan.** Each row prints as many digits as tell
+  its designs apart: whole numbers whole, otherwise two significant figures of the row's largest value, with
+  a decimal more (two at most) while two values more than 1% apart would print alike. It was four
+  significant figures throughout. Each scored row is shaded light green, the more strongly the nearer a value
+  is to that row's best, which is also in bold; the designs that cannot fit the model are not shaded and do
+  not set the scale. The copied Python code still prints the library's table, at four significant figures.
+- **Factorial: the logo goes home, and the three ways in share one row.** The mark and the name in the
+  header link to the page's own address, so a press opens it afresh, as a reload does. Wider than a phone,
+  "Start a new study", "Explore a worked example" and "Browse the design catalog" sit in one row: on an
+  iPad, or any window from 521 px to about 880 px wide, the buttons are set a little smaller rather than
+  one dropping to a second row. A brief typed just before the page is left (a reload, the logo, a closed
+  tab) is now kept; it was lost if the page went within a third of a second of the last keystroke. In
+  "Your studies", each study's Delete sits at the right end of its row. In the tagline, "prove" in "Improve"
+  is set upright in the red of the mark's centre run. Design's labels are clearer: "What you know of it
+  already (optional)", "Settings you cannot run (constraints)", the aim "Which factors matter, and how they
+  act together", and the heading "Designs that can help you learn this".
+- **Factorial keeps every study.** The browser kept only the 30 most recent studies, and dropped the oldest
+  when a 31st was saved. A study is a few kilobytes, so every one is now kept, and "Your studies" shows even
+  before the first is saved, with its dropzone for a study file.
+- **`analyze_experiment` fits the interactions a design can estimate when a combination of levels was never
+  run.** The default interactions model used to fall back to main effects whenever the design could not
+  estimate it in full, so one missing cell (a pair of levels the constraints disallow, or a continuous factor
+  held at one value on a level of another) cost every interaction. Each pair of factors is now judged on the
+  combinations of its levels that were run: an interaction those cells cannot estimate is left out of the
+  formula, with a warning that names the missing combinations, and the rest are fitted. A design whose pairs
+  each show every combination but which has too few runs, such as a Plackett-Burman design, still falls back
+  to main effects.
+- **A catalog entry says more about its blocks.** `design["blocks"]` may list several columns, a block being each
+  combination of their values (a shift within a replicate), or be false for a design its text calls blocked that is
+  not run in blocks as printed. `design["blockings"]` lists the ways a source arranges one design's runs in blocks:
+  `catalog_records` gives each a record of its own, the first under the entry's name and the others named for their
+  number of blocks (`davies-penicillin-2-5-in-4-blocks`). Six more entries carry their blocks: three with a block
+  column worked out from what the source states, with a note saying how.
+- **A catalog record keeps each run's block apart from the design's factors.** `catalog_records` gives a
+  published design's blocks, run by run as its source prints them, as `blocks`, and leaves the block column out
+  of `factors` and `coded_runs`: a 3^2 in three blocks is described as the 3^2 it is, with 2 factors. A
+  reference entry names its block column with `design["blocks"]` when its source calls the blocks something
+  else (a batch, an operator, a week); 35 entries now do. Text that names blocks without the design being run
+  in them, such as "no blocks", no longer marks a design blocked.
+- **A catalog record's `kind` says what its entry holds (#920).** Besides `experiment` and `design`, an entry is
+  a `sample` (results with no factor varied, as Montgomery's Problem 2.8) or `facts` about designs (neither factors
+  nor runs, as a table of blocking arrangements). Factorial's catalog says such an entry is no design to open,
+  where it said that the source prints no complete table of runs.
+- Python 3.10 is no longer supported, as it reached its end of life in October 2026. The
+  package now needs Python 3.11 or newer; pip on Python 3.10 keeps installing 2.0.0. The
+  lowest dependency versions stay as they were (pandas 2.3, numpy 2.2, scipy 1.15), and CI
+  tests them on Python 3.11.
+
+### Deprecated
+
+- **`ttest_paired`'s `"z value"` and `"Standard deviation"`**, which hold the t statistic and the
+  standard error of the mean difference, are deprecated since 2.1.0 and will be removed in 3.0; use
+  `"t value"` and `"Std error of mean difference"`. Reading either key by name gives a
+  `DeprecationWarning`; reading the whole result, as `dict(result)` or `json.dumps(result)` do, does
+  not. The same two columns of `ttest_paired_from_df`, and the `ttest_paired_samples` tool's
+  `z_value`, are deprecated on the same schedule.
+
+### Fixed
+
+- **The ANOVA of a model with a nested factor no longer prints meaningless rows.** When a factor's
+  levels each fall in one level of another, as the times of spinning within each square of Davies's
+  yarn experiment do, the model matrix is short of full rank, and `analyze_experiment`'s Type II
+  table counted every column as a degree of freedom: Davies's squares, times and days came out on
+  3, 11 and 11 df, with sums of squares of 0.11, 0.41 and 0.41, and a warning about rank only.
+  Each term is now tested on the degrees of freedom it adds (times 6.794 and days 2.317 on 8 df,
+  as Davies prints them). A term that adds none, such as the squares, gets no test, and
+  `anova_note` names the `multistratum_anova` strata that separate it.
+- **A design opened from a link with a limit shows the runs outside it.** The catalog read the
+  design's own file and every design's runs at the same time; when the design's file came first,
+  its detail opened before the runs were judged against the limit and said nothing about them.
+  The detail now waits for that judgment.
+- **Factorial's next step sits inside its card again.** Its parts took the class of the numbered
+  badges of Design, Run and Learn, which squeezed them into a circle 28 px wide: the table of the
+  next study's ranges and its button spilled out below the card. The cards of the best settings,
+  the balance and the next step also keep their text clear of their edges now.
+- **Learn's "Show the Python code" panels say what each is the code of.** The analysis's sits with
+  the analysis, before the best settings, and the best settings' and the balance's name theirs, so
+  two panels in a row no longer read alike.
+- **The report opens in a tab of its own to read.** Run and Learn each have a button to view the
+  report beside the one that downloads it; where the browser opens no tab, the report is downloaded.
+- **Concurrent safe tool calls no longer deadlock on free-threaded Python.** The worker pool of
+  `safe_execute_tool_call` forked its workers from whichever thread asked, and on a free-threaded
+  build a lock another thread held at that moment stayed held in the child, so concurrent calls
+  timed out. On a free-threaded build the pool now starts its workers with `forkserver`, which
+  forks from a single-threaded server process; other builds keep `fork`.
+- **`MBPLS.score` returns the R² of the predictions.** `MBPLS` is a scikit-learn regressor, whose
+  `score` calls `predict`, but it had no `predict` that returned predictions, so `score` raised in
+  every release: a `ValueError` in 1.99.0, where `predict` returned the `diagnose` Bunch, and an
+  `AttributeError` in 2.0.0, which removed that method. `score` now averages the R² over the Y
+  columns with equal weights, as `PLS.score` does, and takes `sample_weight`.
+- **A factor whose name Python normalises can appear in a limit.** Python's parser writes every name
+  in its Unicode NFKC form, so a factor named with a decomposed accent (`e` and a combining acute,
+  as macOS and some keyboards type it) or a full-width letter (from an East Asian input method)
+  never matched its own name in a limit, and the refusal named two strings that print alike.
+  `parse_constraint`, `DesignRegion`, `rename_factors` and Factorial's limits now match each name
+  through its NFKC form, keep the name as it was given, and refuse two factors whose names share one.
+  A refusal shows the code points of a name that is not ASCII.
+- **`analyze_omars` finishes in seconds on designs with many factors.** Its second-order subset
+  search fitted every subset of each size, and a 10-factor design with no heredity has 29 million
+  subsets of six terms, which took hours. The search stays exhaustive at every size with at most
+  200,000 subsets, so its results there are unchanged. Past that it continues with a beam search
+  (every one-term extension of the 100 best subsets of the size before), refined by sequential
+  replacement. `details["subset_search"]` says which sizes were searched exhaustively.
+- **A term such as `I(A ** 2):B` is no longer read as `I(A ** 2)`.** `optimize_responses` and
+  `evaluate_model` matched a square at the start of a term name and dropped the rest of the
+  product, so a model with such a term was optimised as a different model, with no error.
+- **`augment_design(..., "add_runs_optimal")` no longer fails on a custom `target_model` whose runs
+  are polished.** Under pandas 3 the model rows patsy builds are read-only, so the coordinate
+  exchange that moves runs off the candidate grid raised `ValueError: assignment destination is
+  read-only` (seen adding runs to an 8-factor definitive screening design). The exchange now works
+  on a copy.
+- **A factor name that no model term uses no longer turns a maximum into a ridge.**
+  `optimize_responses` with `"stationary_point"` or `"canonical_analysis"` built the quadratic's
+  matrix over every name in `factor_names`, so a block column or a copy of a factor in other units
+  added an eigenvalue of zero, and a maximum was reported as a `stationary_ridge` with no warning.
+  Such a name is now refused, with a `ValueError` that names it.
+- **A split-plot main effect's test no longer depends on how its factor is coded.**
+  `analyze_experiment(..., analysis_type="split_plot")` tested a main effect beside its own
+  interaction on its treatment-coded coefficients when the formula named the factor plainly
+  (`method`) or as `C(method)`. That tested the effect at one reference level of the other
+  factor, on degrees of freedom that mixed the strata, with no warning: Montgomery's paper
+  experiment gave F = 2.05 on 2 and 15.5 df (p = 0.16) for the method, where Table 14.19 prints
+  7.08 on 2 and 4 df (p = 0.049). The tests now code every categorical factor to sum-to-zero
+  contrasts, whatever the formula writes, and the coefficients stay in the formula's coding. The
+  two-way split-plot analysis is fixed in the same way.
+- **The `ttest_paired_samples` tool's `differences_std` is the standard deviation of the
+  differences.** It reported the standard error of their mean, sqrt(n) too small: for the
+  differences 1, 2, 3 and 4 it said 0.6455 where their standard deviation is 1.291.
+- **`augment_design("upgrade_to_rsm")` reads `n_additional_runs`.** The documented argument had no
+  effect: the centre runs were always topped up to five, so Davies's composite design (a 2^3
+  completed with one centre run and six axial runs, 15 runs) came out with 19. It is now the number
+  of centre runs in the second stage, and without it the centre runs are still brought to five. A
+  `Block` column now marks the two stages, which are run at different times (an existing `Block`
+  column keeps its labels), and the result gives `orthogonal_blocking_alpha`, the axial distance at
+  which the stages block orthogonally with these centre runs, with a note when the chosen one is not
+  it.
+- **`PCA.select_n_components(cv_scheme="ckf")` no longer recommends a component count it could not
+  evaluate (#675).** A count that leaves a column group with fewer retained columns than components
+  cannot be scored on that group. Its PRESS was the sum over the groups that could be scored: 0 when
+  none could, so pure noise in five columns came out with Q2 = 1 at five components and that count
+  was recommended, and too small when some could. Such a count now has a NaN PRESS and Q2, and is
+  not recommended; the columns of the groups it skips have a NaN per-variable Q2, not 1.
+- **The coefficients' intervals follow `significance_level`.** With
+  `analyze_experiment(..., analysis_type="coefficients", significance_level=0.10)`, each coefficient's
+  `ci_low` and `ci_high` stayed at 95%, while `confidence_intervals` gave the 90% interval the level asks
+  for. The `coefficients` and `coefficients_actual` intervals now use 1 - `significance_level`, and the
+  result reports it as `confidence_level`. The `analyze_experiment` tool, which takes
+  `significance_level`, gave the same 95% intervals.
+- **`compare_designs` scores a split-plot design as one.** Its runs share whole plots, so they are
+  not independent, yet every measure was computed as if each run were set on its own. When a design
+  records the whole-plot variance ratio it was made for (a split-plot `DesignResult` from
+  `generate_design(hard_to_change=...)` keeps it in `metadata["whole_plot_variance_ratio"]`; a
+  DataFrame can carry one in `attrs["whole_plot_variance_ratio"]`), the measures now use X'V⁻¹X with
+  V = I + ηZZ' over its `WholePlot` column, as `evaluate_design(random_effects=...)` does. Whole plots
+  with no recorded ratio are noted (#790 C2).
+- **A curved limit's share is integrated, not sampled.** `DesignRegion.volume_fraction` now
+  integrates the share when one factor runs through every limit of a group that a curved limit
+  ties together: a curved limit on one or two factors, or one beside a straight limit that shares a
+  factor with it. At each value of that factor, each other factor's allowed length is found along a
+  line across the box (exactly where a straight limit bounds it), and their product is integrated by
+  adaptive Gauss-Legendre quadrature, between the points where a limit meets the end of such a line.
+  The share is good to about 1e-10, where the fixed sample of 16384 points was within about 0.005:
+  the guide's `T*F <= 3600` removes 0.041404, which the sample read as 0.041626, and a band
+  `|A + B| <= 0.0001` beside `A*C <= 0` keeps 4.999875e-05, which the sample read as 0. A curved
+  limit on three factors is still sampled (#810 item 1).
+- **Concurrent `safe_execute_tool_call` calls no longer hang on Python 3.14.** From 3.14 every
+  warning takes one lock for the whole process. A worker forked while another thread held that lock
+  inherited it held, waited forever at its first warning, and the call ended in `ToolTimeoutError`.
+  Since tool calls record their warnings (`library_warnings`), several calls at once on the
+  free-threaded build often failed this way. The fork of a worker now holds the lock, so no other
+  thread holds it at that instant.
+- **`gather()` no longer drops an input without a word (#677).** It kept Column, list, Series and
+  DataFrame values and skipped anything else: `gather(A=A, x=np.array([...]), t=(5, 6, 7, 8))` came
+  back with column A only. A tuple and a one-dimensional NumPy array are now columns, as they are
+  entries of `c()`. Any other input (a number, a two-dimensional array, a dict) raises a
+  `TypeError` that names its keyword.
+- **A limit reads the same whatever the units of its factors (#807).** Several tests held a tolerance of
+  `1e-9` in a limit's own units, which is as wide as a factor's whole range when that range is about
+  `1e-9` of its units (a trace mole fraction, a nanomolar concentration in mol/L). The region dropped
+  `X <= 0.5e-9`, `DesignRegion.feasible()` passed every setting, D-optimal, I-optimal and space-filling
+  designs put runs beyond the limit, and a curved limit on such a factor was read as a straight one.
+  Now a straight limit is judged by its distance in coded units, `1e-9`, however it is scaled, and a
+  curved one by `1e-9` of the largest value it takes over the box. The test that tells a straight
+  limit from a curved one compares its fit with the limit's own values and with the rounding of its
+  terms. A setting between `1e-9` and `1e-9` divided by a gentle limit's coded gradient from its
+  boundary used to pass and now fails. A comparison whose factors cancel exactly, such as
+  `0.1*A + 0.2*A <= 0.3*A`, is read in exact arithmetic, as one that compares numbers.
+- **`midcourse_correction` no longer reports `"ok"` while an SPE or T2 cap is broken (#681).** With
+  both caps binding, the polishing step lowered one multiplier while checking only its own
+  statistic, which could push the other statistic over its cap: 48 of 720 two-cap solves read
+  `"ok"` with a cap more than 1% over. A step is now taken only when both caps hold, so `"ok"`
+  means both are met. `active_constraints` no longer flags a cap whose statistic ended below it
+  with a multiplier bisected to almost nothing: such a cap is active only if dropping its
+  multiplier from the schedule returned would break it.
+- **`augment_design` no longer adds runs that are not blends to a mixture design.** On a
+  mixture design, `"add_axial_points"` added star points with negative proportions,
+  `"add_center_points"` a run of zeros, and `"foldover"`, `"semifold"`, `"upgrade_to_rsm"` and
+  `"add_runs_optimal"` runs whose proportions do not sum to 1. The first two now add blends (see
+  the axial check blends above), and the others, with `"add_blocks"`, refuse with the reason. A
+  mixture design whose region is not a simplex (a component with an upper bound) is refused
+  for axial and centroid runs, which are not known from its runs.
+- **`PLS.select_n_components` and `PLS.nested_cv` predict a held-out row with a missing X cell
+  (#676).** Such a row was scored by a plain product with the direct weights, so its prediction was
+  NaN, and its residual dropped out of PRESS while the row still counted in the divisor. With 15%
+  of X missing, 21 of 40 rows had no prediction and RMSECV read 3.5 to 7.6 against about 1 for the
+  complete data. A held-out row with a gap is now projected over its observed columns by trimmed
+  score regression, as `PLS.project` projects a new row, with the model of each component count.
+  Separately, with gaps in the training data the first columns of a fold model's direct weights
+  are not the smaller model's, so every held-out row was scored with the wrong weights; each
+  component count now uses its own. A count that leaves a held-out row with fewer observed
+  columns than components unpredicted has no RMSECV, Q2 or randomization p-value, and is not
+  recommended. Results on complete data do not change.
+- **`DesignRegion.volume_fraction` no longer reads 0 for a thin region beside a curved limit (#810
+  item 2).** When the straight limits leave a region too thin for any point of the fixed sample,
+  such as `T >= 149.9999` with T from 100 to 150, the curved limit's part is now counted over points
+  spread uniformly through that region, so `["T >= 149.9999", "T * D <= 6000"]` keeps 1.0e-6 of the
+  box (half of the straight part's 2e-6) instead of 0. The points are fixed, so the share is the
+  same on every run. Regions of more than five factors keep the fraction of the box's points.
+- **`TPLS.fit` fits a row with every Y value missing, and predicts it (#709).** Such a row (a
+  material added before any quality was measured) turned every fitted value NaN and ran each
+  component to the 500-iteration cap, about 20 s on eight materials. It now carries no Y
+  information, as a row with only some Y values missing already did, so it shapes no weight and is
+  predicted from its materials through F. A row that leaves nothing to compute a score from, a
+  material with no observed value in D or a row with none in F, now stops the fit at once with a
+  `ValueError` that names it, instead of running to the cap and returning NaN everywhere.
+- **The Python a catalog design copies reads one step a line, and runs for every design.** It
+  looks the entry up by name in plain steps, then prints the factors and the runs as two tables,
+  each with a comment that says what it is. No line is wider than the box that shows it. A design
+  whose source prints no table of runs raised a `KeyError`; its code now
+  prints what the source says of the design.
+- **`evaluate_projections` no longer averages different quantities together.** Its `averages` were keyed by the
+  number's own name alone, so two metrics that return numbers under one name had them pooled: asked for `vif`
+  and `power` together, each term's "average" was the mean of its variance inflation factors and its powers.
+  Such numbers are now kept apart and named after their metric (`"vif.A"`, `"power.A"`). Every other key is
+  unchanged: a metric's own number (`"d_efficiency"`) keeps its name, and so does a number only one metric returns.
+- **`analyze_experiment` ranks a model that is not hierarchical as it is given.** The design's rank was
+  taken with every factor coded to -1/+1, which re-expresses a hierarchical model but changes one that is
+  not: a factor nested in another through the other's 0/1 indicators, `L + I1:o + I2:o`, lost a column once
+  coded (`I2` becomes the negative of `I1`), so a full-rank model was reported rank-deficient and its terms
+  as aliased. The rank is now the model's own, its columns as given scaled to unit length, whenever the
+  coded columns do not span them; a hierarchical model is ranked as before.
+- **The design catalog codes a categorical level printed as a number** as the level listed as text: a lot
+  printed as `2` is the level `"2"`, and a table of coded runs that prints a categorical factor's levels codes
+  them. Twelve published entries, among them Davies's Latin squares and Montgomery's syrup loss, kept such runs
+  as raw numbers.
+  Two levels listed high first are coded low first, as the source codes them, so the page's effects of
+  Montgomery's mortars, nerve fluorescence and hardness tips, and Schmidt and Launsby's soft bake, have the
+  printed sign.
+- **`analyze_experiment` refuses effects for mixture-process data.** `"effects"` and `"lenth_method"` measure
+  each factor between its -1 and +1 settings, so on mixture components beside process factors they reported
+  numbers that described no change a formulator can make. They now raise `ValueError` and point to
+  `"coefficients"` and `"anova"`.
+- **27 more of the catalog's designs open in Factorial: their entries are fixed.** Factors named 1, 2, 3 take the
+  source's X1, X2, X3; ranges stored as text are numbers; a numeric factor with no range takes the one its source
+  states, or the span of the levels it lists, or -1 to +1 where the source gives coded settings only. A factor of
+  two labels with runs at its centre (a 50-50 blend of two brands, an intermediate stirring rate, EVOP addition
+  times) is numeric: the share of the second material, its coded setting, or its time in minutes. A level the
+  source prints as None is written none, as a spreadsheet reads None back as a blank cell. A range written high
+  first, as a source that codes its larger setting -1 writes it, opens low to high, with the runs at the source's
+  settings.
+- **The design catalog keeps a setting a source prints rounded at its exact value (#921).** A central composite
+  design printed with axial points at 1.414 is described, and opens in Factorial, with them at the root of 2, as
+  its source worked its analysis and as the reference catalogue fits it (`runs.exact`); 23 entries, Montgomery's
+  response surface examples among them.
+- **MBPLS and MBPCA: constant columns no longer lower a block's weight (#913).** Each block is divided by the
+  square root of its number of columns so that blocks of unequal width carry equal weight, and a constant
+  column (a column of zeros once centred and scaled) used to count. Twelve constant columns beside four
+  varying ones moved a fitted MBPLS model's R²Y from 0.919 to 0.708. The weighting now counts the columns that
+  vary, recorded in `block_informative_widths_`, in the fit, `transform`, `predict`, the score contributions and
+  the block VIP; `block_widths_` keeps the full width.
+- **PLS and MBPLS: a component with nothing left in Y to explain (#913).** When what is left of Y is
+  uncorrelated with what is left of X (as after one component of an orthogonal factorial design), NIPALS used
+  to change sign at every iteration until `max_iter`, and the warning blamed convergence. The fit now warns
+  that the data support fewer components and fits each later one along the largest direction left in X: its
+  Y-loading is about zero, so the predictions, R²Y and the cross-validated PRESS stay as they were, and every
+  fitted frame keeps the number of components asked for.
+
+### Documentation
+
+- **How to evaluate an agent that designs experiments.** A development page sets out the protocol
+  and the first results: an LLM agent runs whole studies with the process-improve tools and without
+  them, on processes whose truth is known. Its runs come from `scripts/doe_lab.py`, a blind
+  laboratory on localhost that charges each run against a budget, keeps the true model to itself,
+  and scores the agent's answer afterwards. In twelve sessions on three problems, the agents with
+  the tools used 36 runs on average against 77 without them.
+
+## [2.0.0] - 2026-10-17
+
+### Added
+
+- **Factorial makes Taguchi orthogonal arrays.** A new design type takes 2 to 12 numeric or
+  two-level categorical factors and makes the smallest standard array with a column for each, as
+  `generate_design(design_type="taguchi")` chooses it: the L4, L8, L12 or L16 with every numeric
+  factor at two levels or, with the new levels setting at 3, the L9, L18, L27 or L36 with each
+  numeric factor at its low, centre and high values and each categorical factor at its two labels.
+  The design's facts name the array ("Taguchi L12 (2^11): 12 runs, main effects"). A two-level
+  array is analysed for its main effects and a three-level one for the main effects and each
+  numeric factor's square, and Learn says once that the interactions are aliased with them. Plan
+  compares the array, at three levels for a model with squares, and the Python panels give each
+  numeric factor its three levels. In the design catalog, the library's L4, L8, L9 and L12 and 13
+  published arrays now open as the app makes them.
+- **Factorial measures up to five responses, and finds the settings that balance them.** The
+  brief lists each response in a row of its own, with its units and its goal: maximise, minimise,
+  hit a target, or learn. The first response sizes the design, so the brief asks its typical value,
+  noise and smallest change worth finding for it alone. The run sheet and the workbook have a
+  column per response; a run is complete once every response has its result, and each response is
+  fitted to the runs that have its result. Practice results come from one process per response,
+  each derived from the scenario with its own coefficients and noise. Learn has a tab per response,
+  each with its own model, analysis and best settings. With two or more responses aimed at a goal,
+  Learn balances them with the library's desirability (`optimize_responses(method="desirability")`):
+  a table of each response's acceptable range, importance and shape to edit, the settings with the
+  best overall desirability, each response's prediction, 95% prediction interval and desirability
+  there, the response that holds the overall desirability down most, the leverage there, and an
+  overlay of where every response is acceptable over the two factors that move them most.
+  Confirmation runs at the balanced settings are judged response by response. The Python panels
+  and the notebook reproduce each response's analysis and the balance (`api_balance`). Studies
+  saved before, workbooks, links and catalog campaigns open unchanged, as studies of one response.
+- **Factorial finds the best settings for the response's goal.** Once the model is fitted, Learn
+  says where to run the process to maximise, minimise or hit the target the brief names: the
+  settings in the factors' own units, each categorical factor at its better level, found on the
+  fitted model inside the ranges and the limits on the settings with `optimize_responses`. Beside
+  them are the predicted response with its 95% confidence interval for the mean and its 95%
+  prediction interval for one new run, the leverage there against the runs' (a warning when the
+  prediction leans on the model beyond the runs), which factors are at an end of their range and
+  the way a next study could move it along the steepest ascent, the limits the settings are on,
+  and bars that show how much each factor moves the prediction, so the reader sees which to hold
+  tightly. The response surface is drawn through the best settings, with a star on them. A button
+  adds three confirmation runs at the best settings to the run sheet, marked in a column of their
+  own and never fitted; once their results are in, Learn says whether their average falls inside
+  the prediction interval for an average of three runs. The "Show the Python code" panel and the
+  notebook reproduce the search with the library (`api_best_settings`).
+- **Small composite designs.** A CCD with `cube="fractional"` may now sit on a cube below
+  resolution V. The default half fraction must still leave the full quadratic model estimable,
+  which it does for three factors (Hartley's small composite design, 4 + 6 runs). A cube given by
+  `generators` or `resolution` that aliases two-factor interactions in pairs is built with a
+  warning, for a model with one interaction of each pair. `metadata["full_quadratic_estimable"]`
+  and `metadata["aliased_interactions"]` say which. The reference catalogue checks Schmidt and
+  Launsby's composite-design run counts and Núñez Ares and Goos's small composite designs with it.
+- **Multistratum analysis of variance.** `multistratum_anova(runs, model, strata, response=None)`
+  analyses a split-plot, strip-plot or other design with several sizes of unit, as R's
+  `aov(y ~ model + Error(strata))` does. The block structure is given as error terms (`"rep/plot"`,
+  `"S:T"`, `"row + column"`). Each treatment term is estimated in the stratum its contrasts fall in
+  and tested on that stratum's residual. A term of a design that is not orthogonal, such as the
+  treatments of an incomplete block design, gets a row in each stratum it falls in. Without a
+  response it gives the skeleton analysis of variance, the sources and degrees of freedom a layout
+  will have. The reference catalogue checks 41 more items with it: NIST's three electroplating
+  split-plot layouts and the implant-anneal strip plot, their degrees of freedom, terms per stratum
+  and whole-plot units.
+- **Least-squares means and their multiple comparisons.** `least_squares_means(runs,
+  "y ~ treatment + block", factor)` gives each level's adjusted mean: the model's prediction averaged with equal
+  weight over the other factors' levels, as an incomplete block design or a Youden square needs.
+  Pairs are compared by Tukey's studentized range (Tukey-Kramer), by Dunnett's multivariate t
+  against a control (`Comparisons("dunnett", control=...)`), or unadjusted (Fisher's LSD), with adjusted p-values, simultaneous
+  intervals, connecting letters, and the confidence each interval has alone and the family has
+  together. `at=` compares the levels within one level of another factor, on the error of the
+  whole model, and `C(x)` in the formula takes a numeric column as levels. The reference catalogue checks 33 more printed numbers with it: Minitab's Tukey
+  comparisons of Montgomery's catalyst design (its p-values agree; its intervals use a
+  studentized range point 0.0014 larger than the exact one), Box, Hunter and Hunter's Youden-square
+  adjusted averages, Dunnett's d0.05(3,16), Fisher's family confidence and JMP's connecting letters.
+- **Classical tests and percentage points** (`process_improve.univariate`). `f_value`,
+  `chi2_value`, `z_value`, `studentized_range_value` and `dunnett_value` give the percentage
+  points of the F, chi-squared, normal, studentized-range and Dunnett distributions, a cumulative
+  probability first as `t_value` takes it; Dunnett's two-sided and one-sided critical values are
+  worked by numerical integration and agree with SciPy's multivariate t. `ttest_one_sample` tests
+  a mean against a stated value, `ztest` a mean or a difference of means with the standard
+  deviation known, `rank_sum_test` two groups by Wilcoxon's rank sum (normal approximation and
+  exact level), `randomization_test` two groups or pairs against every arrangement of the labels
+  or signs (sampled, with a `random_state`, past `max_arrangements`, and with a mid-p value that
+  counts ties as half), and `autocorrelation` a record in time order. The reference catalogue
+  checks 76 printed numbers with them: the F, chi-squared and Dunnett points of Montgomery's and
+  Schmidt and Launsby's tables, and the tests of Box, Hunter and Hunter's chapters 2 and 3 and the
+  PID book's randomization test. Three disagree, each explained (the book's rounded standard
+  errors, and a table value printed 5.31 for 5.318).
+- **Random effects** (`process_improve.experiments`). `variance_components(runs, "y ~ operator",
+  random=[...])` fits random intercepts (`"a"`, `"a:b"`, or `"b(a)"` for a factor nested in
+  another) beside the formula's sum-coded fixed factors by REML, and reports the components with their share of the total, standard errors and
+  intervals (chi-squared for the error variance), the restricted log-likelihood, the fixed
+  effects with their Satterthwaite F tests, the best linear unbiased predictions of the random
+  effects, and the R-square JMP reports for a REML fit. `bounded=False` lets a component go below
+  zero, as JMP's unbounded REML does; in a balanced design that gives the analysis-of-variance
+  estimates. `expected_mean_squares` derives the expected mean squares of a balanced crossed or
+  nested design (a nested factor named as `"batch(supplier)"`) under the restricted or the
+  unrestricted mixed model, a reduced model's too, with
+  each term's degrees of freedom and the term that tests it, and `intraclass_correlation_interval`
+  gives the exact interval of a one-way random model. The reference catalogue checks 98 more of
+  Montgomery's numbers with them: JMP's unbounded gauge study (resolving 10 recorded
+  disagreements), JMP's REML R-squares of seven studies, and Minitab's and Montgomery's
+  expected-mean-square tables and error terms of the gauge study, the purity and the assembly
+  experiments.
+- **Run orders robust to a time trend.** `run_order_trends` measures how far each term of a
+  model is confounded with the linear, quadratic and cubic time trends of a run order: the cosine
+  and angle of each term's column with each trend, their mean and largest by class of term (main
+  effects, interactions, quadratic effects), the time-count dot products and the number of level
+  changes. `trend_robust_run_order` searches, by an iterated local search with a `random_state`,
+  for an order whose main effects, and then second-order terms, are orthogonal to the trends of
+  lowest degree first; `time_trends` gives the orthogonal polynomial trends. The reference
+  catalogue checks 154 printed numbers of Núñez Ares and Goos (2019) with it, every table of
+  cosines of their run orders; two disagree, each explained (a transposed digit in the text, and
+  an angle taken from a rounded cosine).
+- **The canonical forms of a fitted quadratic.** `optimize_responses(..., method="canonical_analysis")`
+  now also returns the surface in Box and Draper's B canonical form (`b_canonical`), the form a ridge is
+  read in. It is rotated to the eigenvectors, with its origin where the response stops changing across
+  the ridge and one linear term along it. Where a stationary point exists, it also returns each
+  canonical variable W = v'(x - x*) (`canonical_axes`). The reference catalogue checks 26 more items
+  with these and the existing stationary point and steepest-ascent path: NIST's chemical CCD
+  (stationary point, eigenvalues, eigenvectors with their signs, canonical axes) and its first-order
+  steepest-ascent step, an EFI wind-turbine optimum, Montgomery's tool-life maximum and Box, Hunter and
+  Hunter's ridge. Several printed values carry recorded disagreements: NIST's stationary point from
+  rounded coefficients, two NIST canonical-axis constants that do not follow from the page's own sums,
+  and BHH's B canonical numbers, which do not follow from their equation 15.19.
+- **The overall F test and likelihood criteria in `analyze_experiment`'s model summary.**
+  `model_summary` now carries `f_statistic` and `f_p_value` (the model against the intercept
+  alone; against zero, on uncorrected sums of squares, for a model without an intercept whose
+  columns do not span one, as R's summary does), `log_likelihood`, `aic` and `bic` (counting the
+  error variance as a parameter, as R's `AIC` and the library's model selection do) and
+  `aic_step`, n ln(RSS/n) + 2p, as R's `step` prints it. The reference catalogue reads them,
+  with new fit kinds for residual quartiles and the uncorrected F, and checks 94 more of the NIST
+  e-Handbook's printed numbers: overall F tests and their p-values, lack-of-fit and pure-error
+  sums of squares, residual quartiles, R's stepwise AICs, Dataplot's model F tests and the
+  sequential sums of squares of a central composite design. Four disagree, each explained
+  (Dataplot truncates two F values, and a p-value no pair of degrees of freedom gives).
+- **The information matrix and exact region values in `evaluate_design`.** The new metric
+  `information_matrix` gives X'X, its determinant, the D-, A- and E-criteria, the rank, the residual
+  degrees of freedom, the inverse and each coefficient's variance; `estimable_interactions` counts
+  the omitted two-factor interactions a design estimates beside its model. `integration="exact"`
+  works out the average prediction variance over the cube by Gauss-Legendre quadrature,
+  trace((X'X)^-1 W), in place of a sample; `max_search="optimize"` climbs from the sample's largest
+  points by a compass search, so a maximum inside a face or an edge is not missed.
+- **`evaluate_projections`** evaluates a design on every projection onto a number of its factors,
+  or a number from each of several groups (quantitative and categorical, say), and reports the
+  fraction that estimate the model (the projection estimation capacity) and the metrics' averages.
+- **`design_measures.design_structure`** counts what a design's runs are made of: levels and how
+  often each factor takes each one, middle-level zeros of the main effects and of the products of two
+  three-level factors (n0ME, n0IE), centre runs, mirror-image pairs, replicated runs and blocks.
+- **`allocate_runs`** tabulates every whole-run split of a budget between two levels that differ
+  in noise or cost, with each split's variance and efficiency, and finds the most precise one.
+- **Reference catalogue: design checks.** New check kinds read a design's structure
+  (`design_structure`), its projections (`projections`) and its projectivity (`design_measure`);
+  a printed vector or matrix is compared entry by entry with X, X'X, X'y or (X'X)^-1; a design
+  metric's table of terms can be picked by a regular expression and reduced; and a check may name
+  a design `generate_omars` chooses; `library_text` compares a label the library gives word for
+  word; and `desirability_optimum` runs the library's desirability search on the fitted responses.
+  With these, 565 printed numbers that were set aside by hand in Núñez Ares and Goos (2020), Núñez
+  Ares et al. (2023), Goos (2025), Jones and Nachtsheim (2013) and the PID book are now checked.
+- **Generalized linear models in `analyze_experiment`.** `analysis_type="glm"` fits a response that
+  is a count (`family="poisson"`), a number of successes out of `trials` (`"binomial"`) or a
+  positive amount whose spread grows with its size (`"gamma"`), as well as `"gaussian"` and
+  `"inverse_gaussian"`, with the family's canonical link or another (`link=`). It reports Wald
+  tests and intervals for the coefficients, odds or rate ratios under a logit or log link, the
+  log-likelihood, deviance and Pearson statistic, goodness-of-fit tests (Hosmer and Lemeshow's for
+  a binomial response), and each run's fitted mean with an interval carried through the link.
+  `dispersion=` and `information=` choose between R's conventions (the default) and SAS GENMOD's.
+  The reference catalogue checks 111 printed numbers of Montgomery's section 15.1 with it: the
+  coupon logistic regression as Minitab prints it, and the grill-defect Poisson and worsted-yarn
+  gamma models as GENMOD does; all agree.
+
+- **Studentized residuals.** `analyze_experiment`'s `"residual_diagnostics"` now lists each run's
+  `studentized_residuals` (the residual over its own standard error, s √(1 − h), Design-Expert's
+  "Student Residual") and `externally_studentized_residuals` (with s from the fit without that run,
+  R's `rstudent`, Design-Expert's "Outlier t"). The reference catalogue checks both against the 80
+  runs Design-Expert lists in Montgomery's Figures 3.12, 4.2 and 5.10; all agree.
+- **Subject-matter topics in the reference catalogue.** Every experiment and design now lists one
+  or two `topics`: what it is about (semiconductors, food and beverages, ...), as opposed to how it
+  is designed. `reference_topics()` returns the vocabulary of 30 topics, each with its nearest UN
+  ISIC Rev. 4 industries and OECD FORD field of research, and `reference_experiments` and
+  `reference_designs` take `topic=` to select by it. Of the 1039 entries, 583 state an application;
+  the other 456 (mostly tables of designs) are `"general"`.
+- **The reference catalogue holds chapters 1 to 15 and the appendix of Montgomery, *Design and
+  Analysis of Experiments* (8th edition).** Chapters 1 and 2: the golf 2^2 factorial and its three effects; the
+  Portland cement mortar two-sample t-test with Minitab's and JMP's output, its confidence interval
+  and Minitab's power table; the nerve and muscle fluorescence compared by Welch's test; the
+  hardness tips' paired t-test beside the pooled test that ignores the specimens; the run counts of
+  the golf factorials and of a 4 x 8 x 6 x 5 x 4 x 3 x 7 web page factorial; and the half fraction
+  of Figure 1.8, read from its circled corners and compared run for run with the library's. Chapter
+  3: the plasma etching one-way analysis of variance by hand and in Design-Expert, Minitab and JMP,
+  with its residuals and case statistics, contrasts, Scheffé's, Tukey's, Fisher's and Dunnett's
+  comparisons, Bartlett's variances and the Kruskal-Wallis ranks; the peak discharge data with the
+  modified Levene test and a square root transformation; dark and milk chocolate; end-aisle
+  displays; the pot noise of aluminum smelting analysed as ln(s); and the looms as a random factor,
+  with JMP's REML variance components, their standard errors, covariances and intervals. Chapter 4:
+  the vascular graft randomized complete block design in Design-Expert and JMP, with the blocks
+  fixed and random, and with one value missing; the rocket propellant Latin and Graeco-Latin
+  squares; and the catalyst balanced incomplete block design, with its adjusted and unadjusted sums
+  of squares, Minitab's output, and the combined intra- and interblock estimates, which the
+  library's REML fit with random blocks reproduces. Chapter 5: the effects of Figures 5.1 and 5.2;
+  the battery life 3^2 factorial by hand and in Design-Expert and JMP, with all 36 rows of case
+  statistics, Tukey's comparisons at 70 °F, the analysis without interaction, and Design-Expert's
+  reduced cubic response curves in coded and actual temperature; the impurity data with one
+  observation per cell and Tukey's test for nonadditivity; the soft drink bottling 3 x 2 x 2
+  factorial with every total and sum of squares; the tool life 3^2 as a categorical analysis and as
+  JMP's second-order and expanded models, with the prediction profiler's optimum; and the radar
+  detection factorial with the operators as fixed and as random blocks (JMP's REML table, its -2
+  log-likelihood included), then run in a 6 x 6 Latin square. Chapter 6: the chemical process 2^2
+  with its residuals and its equation in natural units; the plasma etch 2^3 with Design-Expert's
+  full and reduced models, their 16 rows of case statistics, equations in actual factors and lack of
+  fit, and the ranges of Figure 6.8; the filtration 2^4 in a single replicate with its projection on
+  A, C and D, Lenth's method, JMP's screening platform (estimates, pseudo t-ratios and p-values) and
+  fitted model with its lack of fit and profiler, and again with four centre runs and the test for
+  pure quadratic curvature; the drill in ln y; the aircraft panels' dispersion effects; the oxide
+  thickness with duplicate measurements, its ln(s²) model and Design-Expert's tables; the credit
+  card mailing in JMP; the optimality of the 2^2; and the circuit fitted in coded and in engineering
+  units. Chapter 7: the chemical process in three blocks; the filtration 2^4 in two blocks with ABCD
+  confounded, and unblocked with a shift; the 2^5 in four blocks and the 2^6 in eight; Table 7.9's
+  blocking arrangements, compared with the library's blocking and with the products of the effects
+  each row chooses; and the plasma etch in two replicates partially confounded. Chapter 8: the half
+  fractions of the 2^3; the filtration 2^(4-1) and its alternate fraction, their sums and
+  differences the effects of the full 2^4; the integrated circuit 2^(5-1); the 2^(6-2)'s
+  construction, alias structure, alternate fraction and two blocks; the injection molding 2^(6-2)
+  with its dispersion effects (Table 8.12's sign columns included); the three 2^(7-2) designs
+  compared by word length pattern; Table 8.14's 29 designs, each compared with the library's
+  fraction for its resolution; the 2^(7-3); the CNC machine 2^(8-3) in four blocks, analysed in ln
+  s; the alias matrix of the 2^(3-1); the 2^(7-4), the 2^(6-3) and the fold over on D; the eye focus
+  2^(7-4) and its full fold over; the Plackett-Burman designs of 12, 20, 24, 28 and 36 runs written
+  from Table 8.23, compared with the library's; a 20-run Plackett-Burman design in 12 factors with
+  JMP's alias matrix (858 entries) and its initial and final stepwise regression tables; the 2^(4-1)
+  by fold over; Table 8.30; the spin coater's single-factor and partial fold overs, with their
+  coefficients' standard errors in units of σ; the smallest resolution V fractions; and the
+  supersaturated design of Table 8.34. Chapter 9: the tool life interaction split into its linear
+  and quadratic components and into its AB and AB² components of interaction; the syrup loss 3^3 run
+  twice, its analysis of variance, the quadratic models of each nozzle in coded and natural units,
+  and the four components of its three-factor interaction; the 3^2, 3^3 and 3^4 in three and nine
+  blocks, the 3^7 in 27 blocks, the one-third fractions of the 3^3, the 3^(4-1) and the 3^(4-2) with
+  its 32 aliases; two- and four-level factors in the 2^3 and 2^4; the five Hall designs and the
+  nonregular no-confounding designs for 6 to 14 factors in 16 runs, with Table 9.23's E(s²),
+  confounded pairs and trace(AA'), and the spin coater on the six-factor design with JMP's stepwise
+  table; and the optimal designs of section 9.6: two categorical factors in 9 and 12 runs, six
+  factors in four days of three runs, the 18- and 12-run resolution IV designs with all 274 alias
+  weights, the 22- and 38-run resolution V designs, and three mixed-level D-optimal designs with
+  JMP's relative variances. Chapter 10: the viscosity regression with its X'X, X'y and (X'X)^-1,
+  Table 10.3's residuals, leverages, Cook's distances and R-student, Minitab's output, the extra sum
+  of squares of the feed rate, a confidence interval on a coefficient and PRESS; the 2^3 with four
+  centre runs fitted by regression, again with run 8 missing and again at the levels reached; a
+  2^(4-1) augmented to de-alias AB from CD, by one run or by four in a block of their own; and the
+  prediction interval on Example 8.1's confirmation run. Chapter 11: the yield's first-order model,
+  its interaction and curvature checks and Table 11.3's path of steepest ascent; the central
+  composite design of Example 11.2 with all of Design-Expert's Table 11.7 (sequential sums of
+  squares, lack-of-fit tests, model summaries, the case statistics and the equation in actual
+  factors), the stationary point, the eigenvalues and eigenvectors of the canonical analysis, the
+  viscosity and molecular weight models and the constrained and desirability solutions; the
+  Box-Behnken, small composite and hybrid designs; orthogonal blocking of a CCD and Table 11.11's
+  nine blocked designs; the inscribed CCD, D-optimal and modified D-optimal designs of the adhesive's
+  constrained region; JMP's 16-run D- and I-optimal designs in four factors, their relative
+  variances and maximum prediction variances; the definitive screening designs of Figure 11.32 for
+  4 to 12 factors, read from the page image, and the conference matrix of order 6; the CFD plume
+  experiment; the yarn elongation simplex lattice, the augmented simplex lattice and the paint
+  formulation fitted in pseudocomponents with Design-Expert's Tables 11.21 and 11.22; and the EVOP
+  of Example 11.7, its averages, sums, differences and effects cycle by cycle. Chapter 12: the leaf
+  spring crossed array with its mean and ln(s²) models; the connector pull-off force crossed array,
+  its inner array matched to the stored L9; the filtration 2^4 with temperature a noise factor and
+  the semiconductor combined array of Example 12.2, each with its response, mean and variance
+  models; the 30-run resolution V design, the 23-run D-optimal combined array and the 18-run
+  saturated design of section 12.5; and the alias weights of Problem 12.10's 3^(4-2). Chapter 13: the
+  measurement systems capability study as a two-factor random model and, with the operators fixed,
+  as restricted and unrestricted mixed models, in Minitab and JMP, with the analysis-of-variance and
+  REML variance components, their standard errors, covariances and intervals, and the reduced model;
+  and the pressure drop three-factor mixed model with its exact, approximate (Satterthwaite) and
+  synthesized F tests, restricted and unrestricted, and the Satterthwaite and modified large-sample
+  intervals on a variance component. Chapter 14: the purity of batches nested within suppliers, by hand,
+  in Minitab and in JMP, with its residuals and, analysed wrongly, as crossed; the assembly times
+  of operators nested within layouts and crossed with fixtures, under the restricted and
+  unrestricted models; the tensile strength split-plot, with its analysis of variance, JMP's REML
+  table and the library's split-plot analysis, and analysed wrongly as completely randomized;
+  the plasma etching 2^(5-1) in eight whole plots; and the split-plot layouts of Figure 14.7 and
+  Table 14.24. Chapter 15: the Box-Cox curve SSE(λ) of the peak discharge data and Design-Expert's
+  choice of λ; the coupon redemption, grill defect and worsted yarn examples, their least-squares
+  analyses of transformed responses checked and their generalized linear models recorded; the
+  battery data with proportional cell counts; the fibre strength analysis of covariance, by hand
+  and in Minitab, with its adjusted means; a 2^3 with a covariate in JMP, with common and with
+  separate slopes; and a D-optimal design that chooses raw material samples by two covariates,
+  with its relative variances and alias matrix. The appendix: Table X's 26 fractions of 3 to 15
+  factors in 4 to 64 runs, each with its fraction, run count, resolution, generators, defining
+  relation, every alias chain and the effects confounded with its blocks; its tables of the
+  normal, t, chi-square, F, studentized range and Dunnett distributions and of orthogonal
+  polynomials are screened against scipy, and their misprints listed with them. The data of the
+  184 problems that have data are kept as data, since the book prints no answers; the totals, means, ranges, standard
+  deviations, response rates and transformations some of their tables print are checked, and the two
+  models Problem 9.6 prints. 11150 printed numbers, 10382 checked. 492 are recorded as not
+  reproducing, each explained: the book's rounding (test statistics, P-values, fitted values and
+  residuals worked from rounded values, a Tukey critical difference from a table's rounded point,
+  three standard deviations in each of Tables 3.7 and P8.3, dispersion statistics from rounded
+  standard deviations, F ratios divided by a rounded error mean square, Figure 8.22's averages cut
+  off rather than rounded, Table 9.2's P-values worked from F rounded to two decimals and sums of
+  squares cut rather than rounded, and chapter 10's confidence and prediction limits worked with t
+  rounded to two decimals, a partial F from rounded sums of squares, and Example 10.4's (X'X)^-1
+  inverted from X'X rounded to four decimals, and in chapter 11 P-values worked from F rounded, the
+  path of steepest ascent stepped by Δx2 rounded to 0.42 and 2°F, the w equations' coefficients and
+  a determinant cut rather than rounded, chapter 12's variance models worked from coefficients
+  rounded to two decimals, chapter 13's variance components worked from rounded mean squares and
+  its intervals from rounded chi-square and F points, chapter 14's F ratios of rounded mean
+  squares, and chapter 15's Box-Cox minimum and limits read off a graph), misprints (sums of squares and mean squares, an F of
+  3.95 for 3.93, an error degrees of freedom of 19 for 20, a residual of 26.00 for −6.00, a dropped
+  sign in two coefficients or limits, a range of 59 for 54, Table 6.28's analysis of variance copied
+  from Table 6.26, one row of Table 7.9 that prints the interactions of other generators, a column
+  of Table 8.12 headed BD = CE for BD = CF, a 0 for 0.2 in Table 8.26's alias matrix, three signs of
+  the 12-run Plackett-Burman design's alias weights, Figure 8.25's axis taken from Figure 8.26, and
+  transformed values in Tables P8.13 and P8.14, one sign in each of the Hall II, III and IV designs,
+  whose Hall II also drops a run at a page break, a block of Figure 9.8 labelled (1,6) for (1,0),
+  the components ABC and ABC² of the syrup loss data exchanged, nozzle 2's models fitted to data
+  other than Table 9.1's, the Hall columns named for Tables 9.21 and 9.22, an E(s²) of 14.20 for
+  14.22, two counts of Table 9.35's levels exchanged, Example 10.3's coefficients, which are not the
+  product of the (X'X)^-1 and X'y it prints, and an entry of Example 10.4's (X'X)^-1 printed 4.37851
+  for 4.37351; in chapter 11 the characteristic equation λ² + 2.3788λ + 1.3639 = 0 for
+  λ² + 2.3775λ + 1.3624, the temperatures 179 and 181 of steps 11 and 12 of the path for 177 and
+  179, Table 11.11's N = 80 for 90, Table 11.22's mean square 1465.66 for 1465.55, the EVOP's
+  change in mean of 0.02 for −0.02 and 225°F for 255°F, and the desirability solutions, whose D and
+  predictions do not match their printed settings; in chapter 12 the outer array of Table 12.2,
+  whose sixth column repeats the fifth, Problem 12.9's first mean and variance, 57.75 and 121.19
+  for 57.25 and 161.58, and the alias expression of β11 in Problem 12.10, which leaves out +β34;
+  in chapter 13 a P-value of 0.01 for 0.00007 in Table 13.10; in chapter 14 sums of squares of
+  82.80, 71.91 and 65.84 for 82.79, 71.92 and 65.83 in Table 14.12, P-values of 0.01 for 0.002 and
+  0.0002, the degrees of freedom of the operators' two F tests, and Table 14.23's coefficients,
+  fitted with 38.03 where Table 14.22 prints 38.08; in chapter 15 the least-squares columns of
+  Tables 15.3 and 15.5, which are those of models fitted to slightly other data than the book
+  prints, a machine total of 184 for 180, two signs of Table 15.24's alias matrix, and Table
+  15.21's asterisks, which mark five samples twice; in the appendix Table X's defining relation
+  of design (r), CDFGI for CDFGJ, and the heading of design (z), 5 factors for 15), Design-Expert's Box-Cox λ and its
+  interval, which is symmetric about λ where the library's likelihood-ratio interval is not,
+  JMP's REML estimates in chapter 13,
+  which leave a variance component negative where the library's REML, like lme4, keeps every
+  component at or above zero (the analysis-of-variance estimates, JMP's standard errors and its
+  covariances all reproduce from the library's mean squares),
+  Design-Expert's equations in actual temperature, whose linear coefficients add the
+  quadratic ones, Minitab's Tukey intervals, which use a studentized range point of 4.0504 where the
+  library's, like R's, is 4.0461, a residual mean square of "about 109" that no model of the data
+  gives, two rows of Table 7.9 that confound one more two-factor interaction than the library's
+  blocking does, and three numbers where the library's design differs from the book's: its 24-run
+  Plackett-Burman design is the 12-run one doubled (11 of its three-column products completely
+  aliased) rather than the cyclic design of Table 8.23, its 36-run design is of another class,
+  its 16-run fraction for 12 factors has one more word of length three than that of Tables 8.14 and X, and
+  Figure 11.32's 12-factor definitive screening design is not a conference-matrix design like the
+  library's (its main effects are correlated); those for 4, 6, 8 and 10 factors are the library's
+  with their columns reordered and their signs changed.
+
+  New checks: `t_test` compares two groups of runs with the library's pooled, Welch and paired
+  t-tests; `contrast` weighs a fit's level means (its value, standard error, t, F, sum of squares,
+  p-value and 95% interval); `tukey` reads the library's `tukey_hsd`; a fit can take a `transform`;
+  `variance_component` takes fixed factors, coded to sum to zero, and reads the REML fit's variance
+  ratios, percentages, standard errors, covariances, Wald intervals, the mean's t on Satterthwaite's
+  degrees of freedom, fixed-effect F tests and level effects, and its fixed factors may include
+  their interactions; `nonadditivity` is Tukey's one-degree-of-freedom test, worked as the test of
+  the additive model's squared fitted values added as a regressor; a prediction can be read as the
+  half-width of its interval, as a prediction profiler prints it. Checks can also read a run's leverage,
+  Cook's distance and studentized residuals, a sum, a median, a minimum and a maximum, the adequate
+  precision, and a percentage point of the t distribution (`t_value`). A term written as the library
+  names it, such as `C(power)[160.0]`, is read as that row of the coefficients. For chapters 6 and 7:
+  `nested_test` tests a model against a fuller one fitted to the same runs (Design-Expert's lack of
+  fit against pure error, or a group of terms); `lenth_t` and `lenth_p` read an effect's pseudo
+  t-ratio on Lenth's PSE and its p-value on m/3 degrees of freedom, as JMP's screening platform
+  prints them; `percent_of_total`, `curvature` (the library's test for pure quadratic curvature),
+  `max_r_squared`, a run's `range`, `column_correlation` and `generalized_interactions` (the effects
+  confounded with blocks, as the products of those chosen to generate them); `fraction_runs` takes
+  several generators, and a path into a library result may be a list of keys. For chapter 8: a
+  fraction's `word_lengths`, whether an effect is `clear` of main effects and two-factor
+  interactions, and `minimum_aberration` (its word lengths against those of the fraction the library
+  chooses for its resolution); `product_column`, a printed column of signs as the product of the
+  factor columns it is headed with; `same_projections`, a two-level design matched to the library's
+  by its one-, two- and three-column J-characteristics, without searching relabellings;
+  `distinct_runs` in a projection; `unit_std_error`, a coefficient's standard error in units of σ;
+  the per-run statistics `sqrt`, `arcsin_sqrt` and Freeman and Tukey's `freeman_tukey_sqrt` and
+  `freeman_tukey_arcsin`; and `data_rounding` on a `nested_test` and a residual sum of squares or mean
+  square, holding a number fitted to unrounded responses to the first-order bound of what the
+  printed responses' rounding moves. A design's evaluation and a nested test's fits are made once
+  however many of their numbers are read. For chapter 9: `component_ss`, a 3^k component of
+  interaction's sum of squares and group totals, the runs grouped by its defining contrast
+  x1 + 2x2 + ... (mod 3); `component_blocks` and `component_fraction`, blocks and fractions made by
+  such contrasts; `component_product` and `component_relation`, generalized interactions, aliases,
+  defining relations and resolutions worked modulo 3; `component_values` and `mod3_sum`, the
+  arithmetic of treatment combinations; `projection`, a design printed as columns of another entry's;
+  `interaction_columns`, Booth and Cox's E(s²), the confounded pairs and the largest correlations of
+  a design's main-effect and two-factor interaction columns; `estimable_projections`, the projections
+  that cannot fit their main effects and interactions; and `run_count`. `unit_std_error` can read
+  one term, a relative variance, a design the library makes, and categorical factors coded as JMP
+  codes them to evaluate a design (each factor's effect-coding columns made orthonormal and scaled to
+  a mean square of 1), with which JMP's relative variances reproduce; `design_metric` can square
+  what it reads, as trace(AA') is the alias matrix's squared norm; `distinct_runs` takes levels
+  printed as names, and a subset of the runs. For chapter 10: `normal_equations` reads an entry of
+  X'X, X'y or (X'X)^-1; a prediction reads its interval's half-width for a new observation and the
+  point's x0'(X'X)^-1 x0; and `dot_product` takes a subset of the runs. For chapter 11:
+  `normal_equations` also reads |(X'X)^-1|, its trace, x0'(X'X)^-1 x0 at a point and the D-efficiency
+  of one set of runs relative to another; `desirability` scores several fitted responses at a
+  point with the library's desirability functions; `run_radius`, `blocks_orthogonal` (both of
+  Box and Hunter's conditions, the second the library's `squares_orthogonal_to_blocks`) and
+  `fold_over_pairs` read a design's runs; `interaction_columns` reads the correlation of main effects
+  with squares and `estimable_projections` the full quadratic model; `nested_test` takes its error
+  from a third model, as Design-Expert tests a mixture's linear blending; a factor can be coded as
+  a pseudocomponent; `runs.exact` maps settings in a factor's own units too, and `"settings":
+  "as_printed"` fits them as printed; the lack of fit's degrees of freedom is read directly
+  (`lack_of_fit_df`); a contrast's value is read from a saturated fit; a
+  library value or design property can be squared; a path into a result can take `sum` and `prod`;
+  and the canonical analysis holds only the factors its model holds. For chapter 12:
+  `transmitted_variance` reads a coefficient of the variance model a fitted response model transmits
+  from its noise factors, or the variance or propagation of error at a point, worked from the
+  library's coefficients; and `"exp": true` reads a model of ln(s²) back as a variance. For chapter
+  13: `mean_squares` reads a linear combination of the library's mean squares (the
+  analysis-of-variance estimate of a variance component), its Satterthwaite degrees of freedom,
+  standard error, covariance with a second combination, its Wald and chi-square intervals and the
+  modified large-sample lower limit of Ting et al. (1990), and the F test of one combination against
+  another; and a `variance_component` group can be an interaction of factors, such as
+  `part:operator`. For chapter 14: `split_plot` reads the library's split-plot analysis (REML with
+  the whole plots random, Satterthwaite's tests), the whole plots named by the columns that make
+  them; a two-level factor can be fitted by its level names (`"coding": "name"`), so a factor
+  nested in it is fitted within each level; and a Wald interval can take JMP's multiplier of 1.96
+  itself (`"z"`), as the JMP of chapter 14 does where that of chapter 13 takes 1.95996. For chapter
+  15: `box_cox` reads SSE(λ) and its log at any λ; a value can be read back from a transformed
+  scale (`"log10"`, and `"back_transform": "freeman_tukey_sqrt"`); `cross_products` reads an
+  analysis of covariance's sums of squares and products, total, treatments and error; and a
+  prediction reads its standard error, an adjusted mean's at the covariate's mean. For the
+  appendix: `aliases` takes `up_to`, so a printed chain must hold every alias of up to that many
+  factors and no other; `block_effects` reads the effects confounded with blocks, each chosen
+  effect and every product of them, as alias chains; `design_property` reads the `fraction` of the
+  full factorial a design runs and its runs per block (`blocks`); and a defining relation of more
+  than ten generators, which the library leaves out of a design's metadata, is worked out with
+  `evaluate_design`, so the 15-factor fraction in 16 runs is compared word by word.
+- **Prediction from marginal means, as Taguchi's additive model makes it.**
+  `marginal_means_prediction(design_matrix, responses, at, interactions=())` predicts a response at
+  given settings as the grand mean plus each factor's deviation (the mean of the runs at its level
+  less the grand mean), plus, for each named pair of factors, the deviation of their two-factor
+  mean. On a design whose levels and pairs of levels occur equally often, such as an orthogonal
+  array, the main-effect terms are the least-squares estimates; on any other a `UserWarning` says
+  the prediction is not the least-squares one. The reference catalogue checks it (`marginal_means`)
+  against the 42 predictions and deviations of Schmidt and Launsby's lunar concrete study, which it
+  held as not recomputed until now: 40 agree, and two are the book's errors (run 14's prediction
+  has two digits exchanged, and run 16's deviation does not follow from its values).
+- **`evaluate_design(..., metric="scaled_condition_number")`**: the condition number of the model
+  matrix with each column scaled to unit length, so the factors' units do not count: 1 for
+  orthogonal columns, whatever their units. RS/Discover prints it as Cond. No.; the nine that
+  Schmidt and Launsby print (eight plating models and the ball weld D-optimal design) agree.
+- **A design catalog, at factori.al/catalog.** It lists the reference catalogue's 1039 published
+  experiments and designs, and 117 designs the library makes. A reader searches them in words ("4
+  factors, <=30 runs, quadratic, since 1990"); filters them by family, application (the industry
+  sector of the reference catalogue's topics, such as food and beverages or semiconductors), runs,
+  factors, the model they estimate in full, categorical factors, blocks, split plot, mixture, printed
+  results, recomputed numbers, and the year the source appeared or the date the entry was added; and
+  sees each one on a map of runs against factors, beside the fewest runs each model needs. A design's
+  page links to the place its source prints it (for the book and the NIST e-Handbook, the section
+  itself), and names the book's tables and figures by their captions. A design opens in Factorial
+  with one click: 269 published designs, which the library regenerates run for run, and every
+  generated design of the nine types the app makes, an orthogonal array when the app takes every
+  column. The filters are kept in the address, so a filtered view can be shared. `process_improve.experiments.design_catalog` makes the records: `catalog_records`,
+  `normalise_family` (a source's free-text design type, read into a family), `design_facets`,
+  `glyph`, `printed_checks`, `short_citation`, `catalog_sources`, `catalog_families`,
+  `catalog_topics`, `figure_name`, `table_name`, `where_url`, and `search_catalog`, which filters
+  them as the page does. The tool `search_design_catalog` searches the same records for an agent or
+  the MCP server, and returns each design with its page in the catalog. The user guide's new page,
+  *The Design Catalog*, lists what a
+  record holds.
+- **What a design withstands, read off its runs: `process_improve.experiments.design_measures`.**
+  `run_loss` says whether a design still estimates its model if any one run is lost, and the
+  D-efficiency the worst loss leaves: losing run *i* scales det(X'X) by 1 - h_i, with h_i its
+  leverage, so one hat matrix answers it for every run. `quadratic_projection` is the most factors
+  whose every projection estimates the full quadratic in them (3 for a six-factor definitive
+  screening design), and `projectivity` the most whose every projection holds all their two-level
+  combinations (3 for the 12-run Plackett-Burman design). `fingerprint`, `same_design` and
+  `design_classes` find one design under other labels, its runs, factors or levels reordered: the
+  catalog lists 115 designs printed or made in more than one place, among them the 12-run
+  Plackett-Burman design, which is also Schmidt and Launsby's Taguchi L12 and Table 3.18 of the NIST
+  e-Handbook. `estimable_models` and `model_matrix` are here too. The catalog filters on all of them,
+  and a design's page draws its runs' leverages.
+- **The design catalog compares designs, explores their projections and lists the errata.** Up to
+  four designs of one size are set side by side on the measures of `compare_designs`, for the model
+  they all fit, with their fraction-of-design-space curves (`design_measures.fds_curve`); 586 designs
+  of numeric factors are scored at build time (`design_catalog.catalog_comparisons`). A design's
+  page projects its runs onto any two or three of its factors, says whether that projection
+  estimates the full quadratic, draws its correlation map, and links to the families it can be
+  augmented to (`catalog_families` reads them from the knowledge base). A timeline under the map
+  counts the published designs by year in their families' colours, marks the year each family was
+  first published, and keeps the years a reader drags across. The errata list the 1381 printed
+  numbers the library does not reproduce, each with the value printed, its page and the recorded
+  reason (`catalog_errata`). A source filter and a "no source prints it" filter find the generated
+  designs no source in the catalogue prints. `catalog/feed.xml` is an Atom feed with an entry for
+  each source as it enters the catalogue (`catalog_feed`).
+- **Every design in the catalog with a complete table of runs opens in Factorial.** Factorial holds
+  *runs as given* (`design_type="given"` in `api_make_design`): the runs of a design it does not
+  make, such as one a book prints, in their order and their factors' own units, analysed with the
+  largest model they estimate in full. 506 published designs open, 269 of them as the app makes
+  them, and 99 generated ones. A limit on the coded settings, typed in the catalog (`A + B <= 1`),
+  keeps the designs whose
+  every run meets it, marks the runs outside it, and opens a design in Factorial with the limit in
+  its own units, where the D-optimal and I-optimal designs make runs inside it. A form for proposing
+  a published design for the catalogue is linked from the catalog.
+- **Standardised coefficients.** Each row of `analyze_experiment`'s `"coefficients"` (and
+  `coefficients_actual`) now carries `standardised_coefficient`: the coefficient times the standard
+  deviation of its column of the model matrix, over the standard deviation of the response, as
+  MYSTAT prints it in its STD COEF column. It has no units, so terms measured in different units
+  compare; the intercept's is 0, and it is not a number when the response does not vary. The
+  reference catalogue checks it (`standardised_coefficient`) against the 57 that Schmidt and Launsby
+  print in chapters 4, 5 and 7, which it held as not recomputed until now; all 57 agree.
+- **The reference catalogue holds chapters 1 to 8 of Schmidt and Launsby, *Understanding Industrial
+  Designed Experiments* (4th edition), with the answers of its Appendix J.** Chapters 1 and 2: bond
+  strengths confounded with batches, a twenty-week mileage record with its Cpk, a control chart's
+  subgroup averages, the gas mileage and aircraft painting 2^(4-1) fractions analysed for their
+  averages and standard deviations, the nickel plating 2^2, a 2 x 3 factorial, L12 and L18 screening
+  designs, a 3^2 factorial, and a two-factor central composite design fitted whole and with a row
+  missing. Chapter 3: its design matrices, each compared with the design the library makes, and the
+  run counts of Tables 3.21, 3.24 and 3.26. Chapter 4: analyses of variance, simple, polynomial and
+  multiple regression with MYSTAT's tables and prediction intervals, and a Box-Behnken design fitted
+  in actual and in coded units. Chapter 5: an L8 analysed by average effects, analysis of variance
+  and regression, and its variance and ln s modelled; signal-to-noise ratios and ln s compared; a
+  turbine blade 2^3 with its dispersion effects; dispersion found from the residuals' spread at each
+  level; an injection molding L8 with an outer array of noise factors; multi-variate charts of
+  wafers and lots; a four-factor face-centred composite design modelled for its average and standard
+  deviation; and one plating process run as a composite design, a D-optimal design, a Box-Behnken
+  design and a 3^3, with RS/Discover's tables and each model's predictions at 27 points. Chapter 6:
+  a wave solder L8 inner array with an L4 outer array of noise factors, analysed by its averages and
+  smaller-is-better signal-to-noise ratios. Chapter 7: yield searched one factor at a time and by a
+  3^2, then by response surface methods: a 2^2 with centre points and its path of steepest ascent, a
+  second 2^2 at the best point along it, and the rotatable composite design that completes it, with
+  its stationary point and eigenvalues. Chapter 8: the industrial case studies that print data,
+  among them a 2^(8-4) screening design, a one-way analysis of variance with unequal groups, L8
+  studies of a linear motor, an injection molded part and gold wire bonding, a simulated computer
+  network fitted in its inputs' own units (SAS's three regression tables and lack of fit),
+  duplicated 2^3 paper helicopters, lunar concrete in an 18-run D-optimal design, a duplicated L4
+  for GaAs doping, an L16 of rubber formulations with seven responses and Design Cube's level
+  effects, a plasma etch central composite design, an 18-run D-optimal design with an outer array,
+  rivet protrusion regressed in four unbalanced blocks, a quarter fraction of a simulated sludge
+  plant, two duplicated Karl Fischer fractions, a 2^4 on circular runout with Q-EDGE's regressions
+  of the readings and their standard deviations, a ball weld D-optimal design, an analog filter
+  screened in an L12 and modelled in a 33-run composite design on a half fraction, a PSPICE 2^2, a
+  solderability L18 with a dummy-level column, a 2^4 on chemiluminescence with centre runs, and the
+  run counts of a 136-run Plackett-Burman design for 134 inputs and a mixed-level full factorial of
+  49152 cases. Appendix J's answers are checked against the problems they answer. 4520 printed
+  numbers, 4253 checked. 400 are recorded as not reproducing, each explained: most come from the
+  book's rounding (run averages and standard deviations that do not follow from their readings,
+  squares of rounded effects, coefficients that are halves of rounded effects, values cut rather
+  than rounded), some are misprints (a wrong sign, two exchanged digits, rows swapped, Yates's
+  algorithm run on totals listed in run order rather than Yates order, an answer's resolution IV for
+  a design with three-letter words). A catalogue check can now analyse
+  each run's mean, total, standard deviation, ln s or one of Taguchi's signal-to-noise ratios
+  (larger, smaller and nominal is best), or every reading as an observation of its own, in other
+  units than the readings are printed in if need be (`summary`); solve for the setting of a factor
+  at which a fitted line or parabola reaches a target (`target_setting`); compute a Cpk with
+  `calculate_cpk` (`capability`); read a term's tolerance as one over its VIF, and its squared
+  correlation with the others or a confidence printed as 1 - p as one less that (`reciprocal`,
+  `complement`); hold a number that software prints with more digits than its arithmetic carries to
+  fewer decimals (`decimals`); allow a coefficient the rounding it carries from responses printed
+  rounded, through its row of the pseudo-inverse of the model matrix (`data_rounding`); read the
+  Durbin-Watson statistic (`durbin_watson`); read a limit of a prediction's interval (`bound`);
+  check Multiple R and the F ratio of the whole regression with its p-value (`multiple_r`,
+  `f_regression`, `f_regression_p`); find a dispersion effect as ln(s+²/s-²), from run standard
+  deviations or from the residuals' spread at each level (`log_variance_ratio`, `residual_std_dev`,
+  `residual_log_variance_ratio`); give a number printed as the difference of two rounded averages
+  the rounding of both, with or without a fit (`of_rounded`); compare a printed design matrix, coded
+  or in the factors' own units, with the library's design or stored orthogonal array whatever the
+  run order, and if need be the order and signs of its columns, a subset of an array's columns, or
+  numbers rounded as printed (`same_runs`); read a step of steepest ascent in coded units (`units`);
+  check that a printed matrix obeys its printed generators (`generator_holds`); sum a product of
+  columns (`dot_product`); make a design for more factors than there are letters; read a term's
+  degrees of freedom, its sum of squares as a percentage of the total, and Taguchi's percent
+  contribution (`anova_df`, `percent_of_total`, `percent_contribution`); read the lack of fit's and
+  the pure error's sums of squares and the lack of fit's mean square (`lack_of_fit_ss`,
+  `lack_of_fit_ms`, `pure_error_ss`); and split a regression into what one model explains and what
+  a larger one adds, each tested against the full model's residual, as RS/Discover splits a
+  quadratic into its linear and non-linear parts (`extra_ss`, `extra_ms`, `extra_f`, `extra_p`).
+- **A region that describes its limits, in actual units.** `DesignRegion` now takes its
+  constraints as `Constraint` objects, their dict form or bare expressions such as
+  `"3*T + 5*D <= 600"`, and a box region reports: the share of the box it keeps
+  (`volume_fraction()`: exact for straight limits, in closed form for the factors one limit
+  ties together and from the polytope's volume for up to five tied together by several;
+  else from a fixed Sobol sample, so the same on every platform, which beside straight
+  limits counts only what the curved ones take from the share the straight ones leave); whether
+  any setting is left (`is_empty()`); the range each factor can still reach
+  (`implied_bounds()`); a central setting that can be run, to hold unplotted factors at
+  (`centroid()`); the limits that remove nothing the others do not
+  (`redundant_constraints()`); the limits that are curved over the box rather than straight
+  (`curved_constraints()`); each limit's affine form, rounded so no floating-point residue
+  shows (`linear_forms()`); its corners (`vertices()`); and pictures on any two factors: the
+  shadow of the region (`shadow(x, y)`), a slice through it at given values of the others
+  (`slice_polygon`, `slice_lines`) and the slack of a grid, at or below zero exactly where a
+  point can be run (`slice_slack`). Linear limits are handled exactly (a polygon, with a
+  segment or a point where the region is flat), curved ones by a mask. With 8 factors and 8
+  limits, everything a change to one limit needs takes about 70 ms.
+- **`rename_factors(expression, names)`**: rename factors
+  inside a limit, all at once (so a swap works), leaving function names such as `sqrt`
+  alone, and return the canonical text, which renaming back reproduces.
+- **A limit proposed from the settings that cannot be run.**
+  `separating_constraint(factors, cannot, can)` takes settings that cannot be run (corners
+  of the box, say) and settings that can, and proposes the straight limit that rules out
+  exactly the first, written for a reader in actual units: marking the corners where `T`
+  and `P` are both high, with the centre runnable, gives `"T + 25 * P <= 250"`. The cut is
+  the plane of maximum margin between the two sets, which is unique, so a symmetric pattern
+  gives a symmetric limit and a factor the pattern ignores is left out; its coefficients are
+  rounded to the fewest digits that move them by at most 1% and keep every setting on its
+  side, and the right-hand side is the roundest number in the middle of the gap. When no
+  straight cut separates the sets, `NotSeparableError` (a `ValueError`) names the settings
+  that lie between those of the other set. `constraint_through_cuts(factors, corner, cuts)`
+  writes the limit through a cut on each factor from one corner, in exact arithmetic: from
+  `(200, 3)`, `T` up to 190 and `P` up to 2.5 give `"T + 20 * P <= 250"`. Both run under
+  Pyodide and give the same text on every platform.
+- **Designs compared over the settings that can be run.** `compare_designs(...,
+  region=)` takes a `DesignRegion` (or its dict) and computes I and G over it rather than
+  over the cube: I averages the prediction variance over 20000 points drawn uniformly from
+  the region with a fixed seed, and G searches the region's vertices (up to 65536 of
+  them; past that `g_points` says that G can come out low), its support points, points
+  on the boundary of a curved limit, the grid's points inside it and that sample.
+  With a curved limit, local searches (SLSQP) then climb each design's prediction variance
+  from the points where it is largest, since the largest value usually sits where the
+  curved boundary meets faces of the box, which no fixed set of points reaches. The other
+  measures do not depend on where predictions are made and do not change.
+  `DesignComparison` gains `region` (also in `to_dict()`) and a
+  `measures` property whose definitions of I and G say "over the region"; a design with
+  runs outside the region is noted. A mixture region, or one that names a factor the
+  designs lack, is refused. Without a region every value is what it was.
+- **Response plots shade the settings that cannot be run.** The contour, 3D surface and
+  prediction-variance plots, and `visualize_doe`, take `region=` (a `DesignRegion` or its
+  dict). The contour and prediction-variance plots add a second trace after the response
+  (which stays `data[0]`): a translucent constraint contour of the limits' slack, named
+  "Cannot be run", so a straight limit is drawn straight. The 3D surface is `NaN` where a
+  setting cannot be run. The Plotly adapter passes a layer's `fillcolor` and `hoverinfo`
+  through, and the ECharts adapter draws a constraint contour as a masked heatmap. Without
+  a region, or with one without limits, every figure is unchanged.
+- **A user-guide page on limits on the settings.** "Limits on the Settings" covers writing
+  limits as text, what they leave of the factor ranges, renaming a factor inside them,
+  proposing a limit from the settings that cannot be run, pictures of the region, and
+  comparing designs and plotting a response over it; its examples run with the test suite.
+- **Factorial takes limits on the settings that can be run.** Under the factors, "Settings you
+  cannot run" holds up to 8 limits, each an inequality in the factors' own units over any number
+  of factors (`T + 25*P <= 250`, `0.5 <= A/B <= 2`, `T*F <= 3600`), with buttons that type the
+  factors' names and the signs a phone lacks. Python reads each limit as the library will and says
+  what it rules out, or what to change in it; together, the limits say what share of the ranges
+  they leave, whether the center can still be run, and how far each factor can still go. A limit
+  can also be had by marking the corners of the ranges that cannot be run: the page proposes the
+  straight limit that rules out just those, to add as it is or to adjust factor by factor from
+  its corner. A picture shows, for each pair of factors, the settings that can be run, each
+  straight limit's boundary and the run sheet's runs, and opens to look inside at values of the
+  other factors the reader sets; a curved limit is traced smoothly. With limits, only the
+  D-optimal and I-optimal designs are offered, every run is checked to be inside, the designs are
+  compared over the settings that can be run, Learn greys the response surface outside them, and
+  the Python shown, the notebook, the workbook, saved studies and links all carry them. Renaming a
+  factor renames it inside the limits, and the run sheet keeps its runs.
+- **Factorial picks a fractional factorial from the trade-off grid.** With a fractional factorial,
+  the Design step shows runs (4 to 128) against factors (3 to 11), each cell the resolution of the
+  minimum-aberration fraction that `trade_off_table` finds, or Full, coloured in three bands. A
+  cell in the column of the brief's factors sets the design: its resolution, V for a higher one, or
+  the full factorial. A cell whose runs the page does not make at that resolution is not offered.
+  The cell of the design the form makes is marked, and it moves as the factors or the resolution
+  change.
+- **Factorial makes and analyses mixture designs.** For a blend of 3 to 6 components, the design
+  list offers a simplex lattice of degree 1 or 2, the simplex centroid (3 or 4 components), and
+  extreme vertices for a mixture with bounds; under a mixture, each factor's low and high are its
+  lower and upper proportions, 0 and 1 when left blank, and every run's proportions sum to 1. The
+  page refuses bounds no blend can meet, a categorical factor or a process variable, and limits on
+  the settings, each with the reason. Learn fits the Scheffé model the design supports (linear,
+  quadratic or special cubic where the runs estimate it), with no intercept: the mixture ANOVA,
+  each component's effect along its Cox direction, and the fitted response drawn over the triangle
+  of blends for 3 components, or along each Cox direction for more. Lenth's method and the Pareto
+  plot are left out, saying why. A process with one synergistic and one antagonistic blend
+  simulates practice results, and the Python shown, the notebook, the workbook, renaming, saved
+  studies and links all keep a mixture a mixture. A mixture measures up to five responses as
+  other designs do, each simulated from the blend process turned to another component. The
+  comparison of designs, the best settings and the balance of the responses are for factors with
+  ranges, and say so for a mixture.
+
+### Changed
+
+- **Plackett-Burman designs of 24 and 36 runs are the cyclic designs Plackett and Burman
+  printed.** The 24-run design was the 12-run design doubled, which aliases 11 products of three
+  columns completely with the intercept; it is now Paley's cyclic design mod 23, as in Montgomery's
+  Table 8.23, whose products of three columns have |J| of 0 or 8 only. The 36-run design comes from
+  Plackett and Burman's generating row instead of Paley's second construction. The same rule makes
+  48 and 80 runs Paley's cyclic designs. Other run counts are unchanged.
+- **Fractional factorials of more than 11 factors have minimum aberration where it is quick to
+  find.** At the fewest runs that reach the resolution asked for, every generator set is scored
+  when there are few enough (12 to 15 factors in 16 runs): 12 factors at resolution III now have
+  16 words of length three, as in Montgomery's Table X, not 17. Otherwise the fraction is the one
+  of highest resolution the search reaches at that size: 16 factors asked at resolution III are
+  resolution IV in 32 runs.
+- **Factorial's three ways in stand out, and links out open in a tab of their own.** The header's
+  buttons are larger, each in a colour of its own with an icon, and each begins with a verb: *Start
+  a new study*, *Explore a worked example* and *Browse the design catalog*. Every link from the
+  app, its About page and the design catalog to another site (a source, GitHub, Pyodide) opens in a
+  new tab, and a link to the book in the book's tab, so the page and its study stay where they are.
+- **Factorial warns when the model's terms are correlated.** Runs as given, or runs left blank,
+  can leave the fitted terms correlated: their standard errors grow, and the model as a whole can
+  explain the response while no single term looks active. Each coefficient in Learn now carries its
+  variance inflation factor (VIF), from the runs fitted. When a term's VIF is above 5, a note names
+  each such term with its VIF, says that its standard error is about √VIF times what uncorrelated
+  runs would give, and suggests adding runs that separate the terms or dropping one; the
+  coefficients table then shows a VIF column, defined on request, and the Python shown and the
+  notebook work the VIFs out with `evaluate_design`. An orthogonal design, every VIF 1, shows
+  neither.
+- **`generate_omars` returns an exhaustively searched design in one fixed orientation.** For three and
+  four factors at small run sizes the search enumerates every design and picks the best. Designs that differ
+  only in factor order and factor signs tie exactly on every criterion, so rounding in the floating-point
+  scores picked among them, and the design returned could differ between platforms. The winner is now
+  returned in its canonical orientation, which is the same on every platform. It scores as before on every
+  criterion, but its columns can be permuted and sign-flipped relative to 1.99.0.
+- **`analyze_experiment`'s `coding` defaults to `"auto"`, so coefficients on factors not already
+  coded come back on the -1/+1 scale.** The change was announced in 1.98.0. A call that passes no
+  `coding` now gets its `"coefficients"` and `"confidence_intervals"` refitted with each numeric
+  factor mapped from its minimum and maximum to -1 and +1 and each two-level categorical factor
+  from its first level to its second; in a named model a categorical factor with more levels gets
+  sum-to-zero contrasts. A main effect in a model with interactions is then tested at the centre of
+  the design, and the result is reported with `coding: "coded"`, its `factor_coding`, and the
+  equation on the factors' own scale as `coefficients_actual`. A numeric factor already coded to
+  -1/+1 is left as it is, and a Scheffe mixture model keeps `"actual"`. The other analyses do not
+  use `coding` and are unchanged.
+  - Pass `coding="actual"` to keep the old scale. `coding=None`, and a `null` in the agent tool, mean
+    `"auto"`.
+  - The `FutureWarning` and the `coding_note` key that announced the change are removed.
+
+### Deprecated
+
+- **The module-level `DEFAULT_TIMEOUT_S`, `DEFAULT_MAX_CELLS`, `DEFAULT_MAX_STRING`,
+  `DEFAULT_MAX_DEPTH` and `DEFAULT_MEMORY_MB` names in `process_improve.tool_safety` are deprecated
+  since 2.0.0 and will be removed in 3.0; use `settings.tool_timeout`, `settings.max_cells`,
+  `settings.max_string`, `settings.max_depth` and `settings.max_memory_mb` from
+  `process_improve.config`.** A read still returns the current settings value, and now issues a
+  `DeprecationWarning`. The names were marked for removal in 2.0 but never warned, so the
+  deprecation cycle starts with this release.
+
+### Removed
+
+- **`random_seed` is removed; use `random_state`.** It was deprecated since 1.97.0. Passing
+  `random_seed=` to `generate_design`, `evaluate_design`, `evaluate_all` or `generate_omars` now
+  raises `TypeError`, and the `generate_design` agent tool refuses it as an unknown key, as it
+  refuses any other. `random_state` takes an int, a `numpy.random.Generator` or `None`, and its
+  default (42) gives the same designs as before. The parameters that followed `random_seed` in
+  those signatures each move up one position.
+- **The `i_efficiency` metric of `evaluate_design` is removed; use
+  `"average_prediction_variance"`.** It was deprecated since 1.97.0. Asking for it now raises the
+  `ValueError` any unknown metric raises, which lists the metrics there are. The replacement
+  reports the I-criterion itself: the prediction variance averaged over the region, in units of
+  the error variance, where lower is better. `"i_optimality"` and `"i_criterion"` remain aliases
+  for it.
+- **`optimize_responses(..., desirability_weights=)` is removed; use `response_importance`.** It
+  was renamed in 1.62.0, since the values are importances, which set how much each response
+  counts in the overall desirability, and not the per-goal `weight` that shapes a response's
+  ramp. Passing it now raises `TypeError`, and the `optimize_responses` agent tool refuses it as
+  an unknown key. The parameters that followed it in the signature each move up one position.
+- **The empty `ilp` extra.** It was deprecated since 1.97.0, when `generate_omars` moved from
+  pulp's CBC solver to SciPy's HiGHS, a core dependency. `pip install 'process-improve[ilp]'` now
+  warns that the extra does not exist and installs the core package, which is all it ever added.
+- **`PCA.predict`, `MBPCA.predict`, `MBPLS.predict` and `TPLS.predict`.** Each one forwarded to
+  `diagnose`, which returns the same `Bunch`, so call `diagnose` instead. `PLS.predict` and
+  `OPLS.predict` are the scikit-learn regressor method and stay.
+- **`TPLS.tolerance_`.** Read `TPLS.tol` instead.
+- **`permutation_q2` and `pipeline_null`.** Use `check_predictive_signal(x, y, fit_predict)` and
+  `count_discoveries_under_null(select, x, y)`; `check_predictive_signal` takes the blocks first.
+- **The `empirical_fdr` key of the `count_discoveries_under_null` result.** Read
+  `null_to_observed_ratio`, which is the same ratio without the clip to `[0, 1]`.
+- **`OPLS(max_iter=..., tol=...)`.** The single-response algorithm is closed form and never read
+  them, so leave them out; passing either now raises `TypeError`.
+- **The `md_tol` and `md_max_iter` keys of `missing_data_settings` on `PCA`, `PLS`, `MBPCA` and
+  `MBPLS`.** Pass `tol` and `max_iter` to the constructor instead. A dict that still holds either
+  key raises `ValueError` at `fit`, since ignoring a convergence setting would change the fit.
+- **`PCA.select_n_components(n_iter=..., tol=..., threshold=...)`.** Use `ekf_max_iter` and
+  `ekf_tol`. `threshold` was already ignored; `selection_rule="q2_increment"` with
+  `min_q2_increase` gives a similar preference for fewer components.
+- **`PCA.select_n_components(cv_scheme="row_wise")` and its `**pca_kwargs`.** Use `"ekf"`,
+  `"ckf"`, `"ek"`, `"sacv"` or `"gcv"`, which the `ValueError` for `"row_wise"` now lists.
+  `**pca_kwargs` reached `PCA` only under that scheme, so an unknown keyword now raises `TypeError`
+  instead of being ignored.
+- **`process_improve.sensory.discriminate_observational`.** Deprecated since 1.77.0. Use
+  `find_predictive_descriptors`, which takes the same arguments and returns the same result. The old
+  name now raises `ImportError` on import and `AttributeError` on attribute access.
+- **The `discriminator=` keyword of `relate_observational` and `analyze_descriptive`.** Deprecated
+  since 1.77.0. Use `find_predictive=`. Passing `discriminator=` now raises `TypeError`. The
+  `sensory_analyze_descriptive` tool no longer declares a `discriminator` field, and because its
+  schema forbids unknown keys, a call that sends it now fails validation with
+  `ToolInputInvalidError`.
+- **The `discriminator` keys in sensory results.** Deprecated since 1.77.0. Read
+  `result.relate["predictive_descriptors"]` instead of `result.relate["discriminator"]`, and
+  `result.config["find_predictive"]` instead of `result.config["discriminator"]`.
+- **`q_value` and `discriminator_significant` on the `find_predictive_descriptors` descriptor
+  records.** Deprecated since 1.77.0. Read `p_value_fwer` and `is_predictive`, which carry the same
+  values. The `q_value` on the marginal `associations` rows of `relate_observational` is a
+  Benjamini-Hochberg q-value and stays.
+- **The `"z value"` and `"Pooled standard deviation"` keys of `ttest_independent`.** Deprecated
+  since 1.70.0. Read `"t value"` and `"Std error of difference"`, which carry the same values. The
+  statistic is a t-statistic, and the second key held the standard error of the difference, not the
+  pooled standard deviation, which is `"Pooled std dev"`. The two columns are also gone from
+  `ttest_independent_from_df`. Reading an old key now raises `KeyError`. The paired test,
+  `ttest_paired`, is unchanged.
+- **The `z_value` and `pooled_std` fields of the `ttest_two_samples` tool.** Deprecated since 1.70.0.
+  Read `t_value` and `std_error_of_difference`. The `pooled_std_dev` field stays. The
+  `ttest_paired_samples` tool is unchanged.
+
+### Fixed
+
+- **`evaluate_design` no longer calls a full-rank model rank-deficient because of its factors'
+  units.** It took the rank of X'X, whose condition number is the square of X's: with a column of
+  x1 (to 100) beside one of x1²x2 (to 2,000,000), X's is 7e7 and X'X's passes the precision of a
+  double, so the model got no VIFs, D-efficiency or prediction variance. The rank, and the inverse
+  of X'X, are now worked on X with each column scaled to unit length, which changes neither. The
+  five tolerances of Schmidt and Launsby's Table 4.20, which the reference catalogue could not check
+  before, are checked: four agree, and the fifth repeats the next row's value in the book.
+- **A Taguchi design for one 2-level and seven 3-level factors takes 18 runs, not 36.** The
+  library stores the L18 as `L18(6^1 3^6)`, and the design gave each factor a column of its own, so
+  the eighth factor found none and the design moved on to `L36(3^23)`. When no array has a column
+  for every factor, a column whose level count is a product of two factors' counts now carries both,
+  each factor taking a digit of the column's level: the 6-level column is the 2-level and a 3-level
+  column of Taguchi's L18, and a 4-level column of `L16(4^5)` carries two 2-level factors, so one
+  4-level and six 2-level factors take 16 runs rather than 32. Every pair of columns is still checked
+  to be balanced, `metadata["columns"]` names a shared column twice, and a design whose array
+  already had a column for every factor is unchanged.
+- **The reference catalogue's regression sum of squares is the total less the residual's.** It
+  was the sum of the Type II rows of the ANOVA, which leaves out what correlated terms share, such
+  as the squares of a composite design; for orthogonal designs the two are the same, and every
+  number already in the catalogue still reproduces.
+- **A number the reference catalogue reads in E-notation is held to the digits it prints.** 1.25E+08
+  allows half a million either side; it was held to half a unit, so a correct number printed that way
+  could not agree. No number already in the catalogue was printed in E-notation with a positive
+  exponent.
+- **Linear constraints in 6 or more factors are recognised as linear.** The test for an
+  affine constraint fitted it on points that, from 6 factors, do not determine an affine
+  function, so every linear constraint was treated as curved: the candidate set of a
+  constrained optimal design lost the region's vertices, and its sampler fell back to a
+  slower method.
+- **Constrained optimal designs and `evaluate_design(region=)` reach every vertex of a
+  region with many limits.** The vertices among the candidates, and among the support
+  points that `evaluate_design` takes its worst case over, came from solving every choice
+  of `k` boundaries, which was given up past 200000 choices (8 factors and 5 limits): a
+  region of 8 factors and 6 limits had 236 of its 758 vertices listed, its D-optimal
+  designs lost about 5% of D, and `evaluate_design` gave a worst case 7% below the
+  variance at a vertex. They are now found by cutting the box with one limit at a time, as
+  `DesignRegion` finds them: the same vertices wherever the old way finished, and every
+  one up to 8192 of them.
+- **Constrained optimal designs keep the corners of a steep straight limit.** Candidates,
+  supplied candidates and fixed runs were held to each limit with a tolerance of `1e-9` in
+  the limit's own units, so a corner lying `1e-12` (coded) off the boundary of a steep limit
+  failed it: `120*T + 33*D + 450*F <= 17000` lost 3 of its 8 vertices from the candidates,
+  the corners that `DesignRegion.vertices()` reports were dropped when supplied as
+  candidates (`30*T + 70*D <= 7000` then kept too few to fit a model), and one of them, as
+  a fixed run, was said to lie outside the region. As in `DesignRegion.feasible`, the
+  tolerance is now a distance of `1e-9` in coded units for a straight limit whose coded
+  gradient is longer than 1.
+- **A constraint that cannot be evaluated over part of the factor box is treated as
+  curved.** Where `sqrt` or `log` of a negative number, or a division by zero, made the
+  constraint infinite or `NaN` at some probe point, the test for an affine constraint
+  passed it, and its fitted form stood in for it: the secant plane through the points
+  where it was finite (`0.5 <= A/B <= 2` with `B` from 0), or a form of `NaN`, which the
+  hit-and-run chains ignore (`sqrt(A - 149) + B <= 21` with `A` from 100 to 150 and `B`
+  from 20 to 60). In a region too thin to sample by rejection, the chains then did not
+  keep to the constraint: none of 2000 samples of that `sqrt` limit met it, so
+  `evaluate_design(region=)` and the moments of an I-optimal design averaged over settings
+  outside it, and none of the 6 runs of a maximin or a maxpro design met it.
+- **Samples of a thin region no longer depend on the sign of an eigenvector.** A region too
+  thin to sample by rejection (one that keeps under 1% of the box for the 20000 points that
+  `compare_designs` and an I-optimal design's moments draw, or under 5% for the 100000 of
+  `evaluate_design`) is sampled by hit-and-run chains, whose directions used eigenvectors
+  of a covariance, and those have no fixed sign: native Python and Pyodide took different
+  steps, and their averages over such a region differed in the third or fourth figure.
+  The directions now use the Cholesky factor, which is unique. The chains still magnify
+  differences in the last bit of the platforms' arithmetic, so in 6 or more factors these
+  averages agree to about 7 to 11 figures, not to every one.
+- **`DesignRegion.feasible` accepts a point on a straight limit's boundary however the
+  limit is scaled.** It compared a limit's value with `1e-9` in the limit's own units, so
+  a point on the boundary of `120*T + 33*D + 450*F <= 17000` could fail where the same
+  limit divided by 100 passed. For a straight limit whose coded gradient is longer than 1,
+  the tolerance is now a distance of `1e-9` in coded units; a gentler limit keeps its
+  tolerance in its own units, which is the wider of the two, so nothing that passed before
+  fails.
+- **A single limit passed outside a list is refused with a clear message.**
+  `constraints="T <= 160"` was read character by character and reported that a limit
+  named `'T'` is not an inequality; a lone string, dict or `Constraint` now raises a
+  `TypeError` that shows the list to write.
+
+## [1.99.0] - 2026-10-15
+
+### Added
+
+- **How Factorial works: a page of the app (`about.html`), linked from its footer.** It says
+  what runs where (the page, a worker running Python compiled to WebAssembly, this browser's
+  storage, and links that carry a study after the `#`), what reaches a server (factori.al's
+  access log, its addresses cut to their network and kept for 90 days, and the public servers
+  Python is downloaded from), the versions this copy loads, read from the files it loads them
+  by, where to read the code, and how to build and serve the app yourself. Tests hold each of
+  these to the file it describes: the server's configuration, the build script and the
+  repository's layout.
+- **The reference catalogue, `process_improve.experiments.reference_catalogue`: designed
+  experiments from published sources, and `reproduce_reference_catalogue()`, which recomputes
+  every number they print.** The reference catalogue, bundled as JSON under
+  `datasets/experiments/reference_catalogue/`, holds each worked example, exercise and case
+  study of the book *Process Improvement using Data* (read from
+  its source at a stated commit), of Soravia and Orth's "Design of Experiments" in
+  *Ullmann's Encyclopedia of Industrial Chemistry* (2012), of the graded and practice
+  quizzes of the *Experimentation for Improvement* course, of Nair's tutorial on fractional
+  factorial designs (2004), of Chapter 5 (Process Improvement) of the NIST/SEMATECH
+  *e-Handbook of Statistical Methods*, of chapters 2 to 11 and the glossary of Davies (ed.),
+  *The Design and Analysis of Industrial Experiments* (1956): paired comparisons, nested sampling studies,
+  randomised blocks, Latin, Graeco-Latin and Youden squares, balanced incomplete blocks, a table
+  with missing cells, two-level factorials, multi-level factorials with their orthogonal
+  polynomial components, factorials confounded in blocks, fractional factorials, and response
+  surface work (two stages of steepest ascent, a 3^2 factorial and a composite design with their
+  canonical analyses, and orthogonal composite designs); of the whole of Box, Hunter and
+  Hunter, *Statistics for Experimenters* (1978): two-treatment comparisons (a plant trial
+  against a 210-batch production record, randomized and paired experiments, and the
+  exercises of chapters 2 and 3, each labelled as a one-factor design), one-way analyses of
+  variance, randomized blocks, the replicated 3 x 4 toxic-agents factorial with its Box-Cox
+  transformation, Latin, replicated Latin, hyper-Graeco-Latin and Youden squares, two-level
+  factorials (the pilot plant 2^3 with its replicates and reverse Yates residuals, the
+  process development 2^4, Daniel's drill data with a Box-Cox transformation, a student's
+  bicycle experiment and the exercises), the blocking arrangements of 2^k factorials,
+  evolutionary operation on two plants, fractional factorials (the reactor 2^5 and its two
+  half fractions, two 2^(7-4) fractions combined, an injection-molding 2^(8-4) with four runs
+  added to separate an interaction string, the fractions of its Table 12.15 against the
+  library's own, and three case studies), and least squares regression (lines and a plane
+  through the origin, a straight line, a quadratic, a nonlinear model and a factorial run off
+  plan), response surface methods (a first-order design and its path of steepest ascent, a
+  composite design in two orthogonal blocks, and the canonical forms of four fitted
+  surfaces), and the components of variance of a hierarchical design; and of five papers on definitive screening and OMARS designs and
+  trend-robust run orders (Jones and Nachtsheim 2013; Nunez Ares and Goos 2019, 2020; Nunez
+  Ares, Schoen and Goos 2023; Goos 2025). For each it keeps the factors,
+  responses and runs exactly as printed, and every number the source prints: each as the
+  printed text, with where it is printed (file and line, or page, and a quotation) and how to
+  recompute it (the kind of result, the term, the model and the runs used; a stationary point,
+  canonical form or path of steepest ascent is recomputed with `optimize_responses`, and a
+  Box-Cox power with the library's Box-Cox analysis; a one-sided
+  p-value, a variance or a difference between two groups of runs is read as a source quotes it). Designs without
+  responses keep the properties the source states; a blocking arrangement is compared with the
+  library's own blocking of the factorial, by how many interactions of each order it confounds,
+  a regressor can be fitted in its own units rather than coded, and a variance component is read
+  from the library's REML fit. `reference_sources()`,
+  `reference_experiments()` and `reference_designs()` read it. `reproduce_reference_catalogue()`
+  returns one row per printed number: the printed text, the value this library computes,
+  whether they agree to within the source's own rounding, and where it is printed. A number
+  the library does not recompute says why, and one known not to reproduce says what differs.
+  A quiz's answer key is tested as well: the numbers printed in options the key marks
+  incorrect are recomputed too, and must not reproduce.
+  A design printed without results is checked through its properties (`design_metric`
+  evaluates it with `evaluate_design`: D-, A-, G-efficiency, correlations, prediction
+  variance, power).
+  `tests/test_reference_catalogue.py` requires every checked number to agree.
+  The catalogue holds facts and short quotations, not the sources themselves, and the MIT
+  licence covers the package's code, not them: each source states its own terms in `rights`,
+  and the folder's `NOTICE.md` explains the split.
+- **Factorial starts a study from its response.** The first question is what the experiment
+  measures: its name, its units, the goal (maximise, minimise, hit a target, or just learn)
+  and, when the reader knows them, its typical value, run-to-run noise and the smallest change
+  worth finding. A design keeps this description in its specification (`response_info`, beside
+  the column the results go in, which is derived from the name and then fixed), and so do its
+  workbook, saved study and link; a design made before keeps working as it was. The response
+  names the study, the run sheet's column (each heading now carries its units), the equations,
+  the notebook and the charts, whose axes are in the reader's words and units, and the reader
+  can rename it at any time without remaking the run sheet. Practice results are centred on the
+  typical value with the run-to-run noise.
+- **Factorial lists the designs that can learn the brief.** After the response come the factors
+  that might change it and what the study is to learn: which factors matter (main effects),
+  how they act together (interactions), where each factor's effect curves (main effects and
+  squares, the book's model) or the whole response surface. As the brief is typed, Design makes
+  every design the page offers for it and scores them on that model, with each one's power to
+  find the smallest change worth finding (`api_candidates`, one call for `api_compare_plan`, the
+  designs and `api_compare`). The designs that can fit the model are listed by their runs, with
+  their spare runs and power, the fewest runs that leave three to estimate the noise picked
+  until the reader picks another; a design picked is made into the run sheet as it was scored.
+  With five factors or more the optimal designs' slow search waits for a Search button. The
+  nine measures, FDS curves and correlation maps open over the page, and a run sheet whose
+  design can fit the aim is analysed for it (a DSD made to learn curvature fits the squares).
+- **Factorial opens examples from published sources other than the book:
+  `https://factori.al/?example=<name>`.** They are listed in `web/published-examples.json`, each
+  the experiment of the same name in the reference catalogue (above), and the opening banner cites the source and
+  links to its DOI. The first source is Soravia and Orth, "Design of Experiments", *Ullmann's
+  Encyclopedia of Industrial Chemistry* (2012): its 2² factorial with a centre run, its 2³ with a
+  categorical agitator type, and the 2³⁻¹ half fraction of that 2³. The article's three-level
+  categorical factor is in the reference catalogue only, since the app's categorical factors have
+  two levels. `tests/web/api/test_published_examples.py` checks that each opens the reference
+  catalogue's runs and that every printed number the page shows agrees.
+- **Factorial opens the book's examples by name: `https://factori.al/?book=<name>`.** The
+  19 design-of-experiments examples and exercises of *Process Improvement using Data* that
+  the app can reproduce are listed in `web/book-examples.json`, with the book's factors,
+  units, response, runs and results. The build makes each into `book/<name>.json`, its run
+  sheet numbered and ordered as the book's table (the side product's two days as its
+  blocks), and the page opens it with a banner that links back to its page in the book.
+  The names are short and stay fixed while the `#c=` link format changes behind them.
+  `tests/web/api/test_book_examples.py` reads the same file, so every link opens runs whose
+  coefficients are checked against the numbers the book prints. Opened again, an example
+  reopens the copy saved in the browser while it is unchanged, and a fresh copy once the
+  reader has changed it.
+
+### Changed
+
+- **Factorial is laid out as Design, Run and Learn.** A bar that stays at the top names the study
+  and its three phases, each tab marked with how far it has got (the plan changed since the run
+  sheet, the results in, the fit's R²), above the status line. On a wide screen the brief (the
+  response, the factors, the aim) has a column of its own beside the phase on show; on a phone
+  it opens Design. A first visit starts a new study at its response, a returning reader picks up
+  the last study, and a brief not yet made into a run sheet is kept as a draft in the browser.
+  The worked example opens on request (Explore a worked example, or `?example=worked`), from the
+  build at once, and Run it again computes it in the tab. Results are entered by default;
+  simulated ones are asked for under Practise with simulated results, and a new run sheet is
+  simulated again only while practising. Any change to the plan (the factors' levels, the design
+  or a setting) marks the run sheet out of date until it is made again or the plan is put back. New
+  study clears the page, and Your designs is now Your studies.
+- **Factorial renames a factor everywhere when the reader leaves its box.** A factor's name and
+  units are labels, taken on Tab, Enter or a click elsewhere, and a run sheet already made takes
+  them without being made again: its runs, their order and their results stay, and Design does
+  not mark it changed. Python writes the new name into all it wrote with the old (the run sheet's
+  headings, the design's notes on its resolution, aliases and blocks, the factors outside their
+  ranges, and the process practice results come from), and the analysis is fitted again, so the
+  equations, coefficients, charts, Python and the study's title follow. Renaming a design gives
+  exactly what making it under the new names gives, which a test checks for every kind of note. A
+  name Python would refuse (another factor's, the results column's, Block on a blocked run sheet,
+  or not a variable name) is not taken: it stays marked under the table, both factors that share
+  a name are marked, and the old name stays everywhere until it is put right. Results sent back by
+  link still find a study whose factors were renamed since.
+- **Factorial says less, and defines its words on request.** Each screen keeps what only it
+  can say (a warning, a fact about the study, a result) and leaves the rest to its headings,
+  labels and tables. The running text a reader meets falls by more than half on every screen,
+  from 296 to 77 words on a first visit. In its place, the words a newcomer may not know (the
+  response, a factor, an interaction, resolution, blocks, spare runs, power, the run order, R²,
+  the p-value, Lenth's margins and some sixty more) have a dotted underline, and their
+  definition, in the book's words, opens in a small pop-up beside them: on a phone with a press
+  and hold, which does not also press the choice or button the word is part of; with a mouse
+  by resting on it; and from the keyboard on reaching its box. A word that stands alone also
+  opens with a tap. A screen reader reads each definition as its control's description, and a
+  phone is told once, on a first visit, that the dotted words open. The designs that can learn
+  the brief show their power under one heading that names the change it is for ("Power to find
+  a change of 2 %"), and the run sheet's summary no longer names the analysis model, which
+  Learn's Model box shows. The response surface's caption no longer calls the runs coded, since
+  its axes are in the factors' own units. A browser test holds each screen to a budget of words.
+  The opening line now reads "Design, Run and Learn from your experiments. Nothing to install.
+  Data never leaves your machine.", as do the link card and the app's description, and the
+  footer says in one sentence that everything runs in the browser tab.
+- **Factorial says which factors are categorical.** Each factor in the brief has a Type,
+  Numeric or Categorical: choosing Categorical gives it two labels to edit (A and B to
+  start) and takes away its units, and choosing Numeric brings its numbers back. **+ Add
+  categorical factor** sits beside + Add factor. Typing two labels still makes a factor
+  categorical, and now the Type shows it. A sentence under the table says, as the reader
+  types, what a factor's levels still need (two numbers with the low below the high, or two
+  labels that differ and are not numbers), and a factor's name is checked as it is typed;
+  the run sheet waits until they are ready. In a narrow column each factor is a card of two
+  lines, every box under its heading.
+
+- **Factorial has a colour-mode switch, as the book has.** An icon at the top right cycles
+  the system's mode, dark and light (light first on a dark system), with the book's
+  sun, moon and half-circle and its "light/dark" tooltip. The choice is kept in this
+  browser and put on the page before it is drawn, so it never flashes; the charts are
+  drawn again in its colours, and now also follow the system when it changes.
+- **Factorial's links into the book open in one tab**, reused on the next click, rather
+  than a new tab each time.
+- **Factorial's factors are easier to tell apart.** The first column reads Factor name, the
+  type is one switch (Numeric or Categorical, a tap or Space to flip), and on a phone each
+  factor is a numbered card, "Factor 1", "Factor 2", with a border and a gap between cards.
+- **Factorial's coefficients get a row each, and the book's Pareto plot.** The chart grows
+  with the number of terms and its legend sits above it. A toggle beside its heading draws
+  the coefficients as the book's Pareto plot instead: bars sorted by size, orange for a
+  positive coefficient and blue for a negative one, each with its 95% interval when
+  residual degrees of freedom remain and Lenth's ME and SME when none do. The choice is
+  kept in this browser. Both views drop their caption: the legend names each mark, the
+  95% interval included, and the true values are white diamonds with a dark edge, as the
+  book draws a mark on bars, so they read on the orange and the blue alike.
+- **Factorial's "Show the Python code" panels each hold a script that runs as it is.** Step
+  2's panel holds step 1's code before its own, and step 3's both, their imports merged at
+  the top, so the code copied from any panel runs without the others. The results' code
+  writes out the run sheet as the page lists it, so it gives the page's analysis to the
+  last digit for the book's examples too, whose runs are in the order of the book's table
+  rather than `generate_design`'s; simulated results are rounded as the page rounds them.
+- **Factorial lists the fit's statistics as bullet points**, a line each: the completed
+  runs, any still to run, R², adjusted R², predicted R² and the residual degrees of freedom.
+- **Factorial no longer prints a run sheet.** The Print the run sheet button, its printed
+  page and the QR code on it are gone: the workbook (.xlsx) serves for a sheet on paper, and
+  Copy a link carries the design to a phone. `segno`, the QR encoder's test oracle, leaves
+  the dev dependencies. The app is not public Python API, so this is filed as a change.
+- **Factorial says "Link copied" where the reader is looking.** Copy a link, and Copy the
+  code under a Show the Python code panel, now show a short message at the foot of the
+  screen that the link or code is on the clipboard, or that the browser refused it and the
+  text is selected to copy by hand.
+- **Factorial's status line fades five seconds after a success**, giving its room back to
+  the page. An error brings it back at once; a busy spell does once it has lasted long
+  enough to be worth showing, so a quick analysis does not make the page jump.
+- **The residuals-vs-fitted plot names the response on its x axis** ("Fitted Conversion"
+  rather than "Fitted Values") when `create_plot` is given `response_column`.
+- **`generate_design` refuses `hard_to_change` for a design type that cannot build split
+  plots.** Only the optimal families (`d_optimal`, `i_optimal`, ...) build a split-plot
+  design. Every other design type (a fractional factorial, a CCD, a Box-Behnken design and
+  the rest) dropped the argument and randomised every run, so the hard-to-change factors
+  were reset from run to run with no warning. They now raise `ValueError`, as
+  `candidates` and `fixed_runs` already did. With `design_type` unset, a split-plot
+  request is still given a D-optimal design.
+
+## [1.98.0] - 2026-10-12
+
+### Added
+
+- **`compare_designs` scores designs for one model on the nine measures of design
+  quality** that *Process Improvement using Data* defines ("Nine measures down one
+  column"): A/p, I, E, G, D, the largest correlation between two second-order terms, and
+  the power to detect a main effect, an interaction and a quadratic. Three feasibility
+  rows come first: runs, whether the design can fit the model (its rank, and the terms it
+  cannot separate, when it cannot), and residual degrees of freedom. Each design is scored
+  at its own size and labelled with it (`DSD [n=9]`). The result, a `DesignComparison`,
+  holds the numbers, a table in the book's layout, notes on each design and its
+  correlation map; it names no winner. I uses the exact averages of the model terms over
+  the cube, and G the book's 7-level grid up to five factors. The book's printed values
+  for its twelve-point Box-Behnken example are reproduced to every printed digit.
+- **`TrueProcess(coefficients, sigma)`**, a known second-order process in coded units,
+  simulates a design's results (`simulate(design, random_state=...)`), so an analysis can
+  be checked against the truth it should recover. Terms are named as `analyze_experiment`
+  names them; `A*B`, `B:A`, `A**2` and `A^2` are read too.
+- **A `correlation_map` plot type**: the absolute correlation between a design's main
+  effects, squares and two-factor interactions, in three blocks, as the book draws it,
+  for Plotly and ECharts. Heatmaps now take a fixed colour range and colour scale from
+  their layer's style, and an ECharts heatmap gets category axes and the colour scale it
+  needs to be drawn.
+
+- **`coding="auto"` for `analyze_experiment`, and the coefficients in actual units next
+  to coded ones.**
+  - `"auto"` is `"coded"`, except for a Scheffe mixture model, which keeps `"actual"`. It
+    becomes the default in 2.0, and can be chosen now.
+  - Whenever the coefficients are refitted on the coded scale, the result also holds
+    them on the factors' own scale, as `coefficients_actual`: the equation to use for
+    predictions in actual units.
+  - `coding_note` says when the change of default will affect a result.
+
+- **`analyze_experiment(..., analysis_type="split_plot")` analyses a split-plot
+  experiment correctly (#630).** Ordinary least squares, which every other analysis
+  uses, treats the runs in a whole plot as independent, so the hard-to-change factors
+  looked more significant than they are and the easy ones less. The new analysis fits a
+  random whole-plot effect by REML and tests every coefficient and term on
+  Satterthwaite's denominator degrees of freedom, so whole-plot terms are judged against
+  the whole-plot error. It reports the variance components and their ratio `eta`, the
+  error df of the two strata, and the stratum of each term. In a balanced design it is
+  the classical split-plot ANOVA. On Box, Hunter and Hunter's corrosion experiment, least
+  squares finds temperature significant (p = 0.003) and coating not (p = 0.39); the
+  split-plot analysis finds the reverse (temperature F = 2.75 on 2 and 3 df, p = 0.21;
+  coating p = 0.002), as the book does. The whole plots come from a `WholePlot` column,
+  or the column named by the new `whole_plot` argument, also on the `analyze_experiment`
+  agent tool. A new user-guide page, "Split-plot experiments", walks through both.
+- **`datasets.corrosion()`**: the corrosion-resistance split plot from Box, Hunter and
+  Hunter, chapter 9 (six heats at three temperatures, four coatings per heat).
+- **D-, A- and I-optimal designs in blocks choose their runs for the blocked model
+  (#631).** With `n_blocks`, the candidate exchange treats the blocks as fixed effects:
+  each block gets its own copy of the candidates, a run is only exchanged within its
+  block, and the criterion is that of the factor effects adjusted for the blocks, the
+  model `analyze_experiment` fits. Before, the runs were chosen as if there were no
+  blocks and then split into blocks. The joint design is never worse, and is better
+  where it matters most: a follow-up experiment passed as `fixed_runs` now goes in a
+  new block (the runs already made are the first block, kept first and in their
+  order), 5 to 13% more D-efficient in the tests than augmenting as if the days were
+  one, a combination that used to raise `ValueError`; blocks of two runs gain 2 to 5%.
+  Works with constraints, categorical factors and candidate sets. See "Running the
+  design in blocks" in the constrained-designs guide.
+- **`sensory.mixed_assessor_model_reml`, the random-effects Mixed Assessor Model
+  that the R package SensMixed fits, in pure Python (#431).**
+  - **The model:** panelist terms are random; the random terms are chosen by
+    likelihood-ratio tests; the product terms and the panelists' scaling are tested
+    by Type I F-tests on Satterthwaite's degrees of freedom.
+  - **Factorial products:** unlike the closed-form `mixed_assessor_model`, it handles
+    products from a factorial design (`product_factors=("tv_set", "picture")`). Each
+    product term is tested against the panelist variation found for that term.
+  - **Results:** the F-tests, the random-term selection, the variance components and
+    each panelist's `beta`.
+  - **Checked against R:** on the TVbo panel it reproduces SensMixed 2.1 in four
+    cases. F, variance components and `beta` agree to about 1e-6. The df agree with
+    lmerTest 3.1 to 3e-6; SensMixed's own lmerTest 2.0 is less accurate, to 2e-4.
+  - **No R needed:** SensMixed itself no longer runs on a current R.
+  - **Dependency:** `threadpoolctl`, already installed with scikit-learn, is now
+    declared directly. The fits run their many small matrix operations on one BLAS
+    thread, which is ten times faster.
+- **EWMA control chart: `ControlChart(variant="ewma")`.** The chart plots the
+  exponentially weighted moving average `z_t = w y_t + (1 - w) z_(t-1)`, started at the
+  target, against its exact 3-sigma limits, which start narrow and widen to
+  `target +/- 3 s sqrt(w / (2 - w))`. Set the weight with
+  `calculate_limits(y, ld_1=w)`; the default 0.2 suits small shifts, and `ld_1=1` gives
+  the Shewhart individuals chart. A given `target` and `s` are used as they are; a
+  missing one is estimated as for the Shewhart chart. A missing observation holds the
+  statistic and is never flagged. On a sustained one-sigma shift, with the target and
+  `s` known, the EWMA chart alarms 14 samples after the shift and the Shewhart chart not
+  at all. The `control_chart` agent tool takes `chart_type="ewma"` and also reports the
+  weight and the statistic at each alarm.
+- **CUSUM control chart: `ControlChart(variant="cusum")`.** The tabular CUSUM keeps two
+  one-sided sums, `C+_t = max(0, C+_(t-1) + (y_t - target) - K)` and
+  `C-_t = max(0, C-_(t-1) - (y_t - target) - K)`, and raises an alarm when either exceeds
+  the decision interval `H`; that sum then restarts from zero, as the textbook describes.
+  Set `K = k s` and `H = h s` with `calculate_limits(y, k=..., h=...)` (defaults 0.5 and
+  5). Each alarm in `cusum_alarms` also dates the start of the shift and estimates the new
+  mean. It reproduces Montgomery's tabular CUSUM example (an alarm at period 29, the shift
+  dated to period 23, a new mean of 11.25), and its simulated average run lengths match
+  the published 10.4 samples after a one-sigma shift and 465 in control. The
+  `control_chart` agent tool takes `chart_type="cusum"`. Each variant now accepts only
+  its own tuning parameters, and names them when given another chart's.
+
+### Changed
+
+- **pandas 3 is supported: the `pandas<3.0` cap is lifted.** Python 3.11 and later can
+  install pandas 3; Python 3.10 stays on pandas 2.3. The cap guarded against a crash with
+  numba installed, which numba 0.68 no longer has. CI tests pandas 2.3 on Python 3.10 and
+  pandas 3 on the newer Pythons.
+
+- **The browser app compares the designs for the reader's own factors, shows the Python
+  behind each step, and links to the book.** Step 4 generates every design the factor
+  count allows, at the size step 1 would give it, and scores them with
+  `compare_designs` on the nine measures for the model the reader picks.
+  - The model is main effects and quadratics by default, the book's model for these
+    measures.
+  - Each measure links to its definition in the book and carries an arrow for its
+    preferred direction.
+  - FDS curves of every design share one chart, and each design has its correlation map.
+  - No design is named best, and any of them can be loaded into step 1.
+
+  Each step has "Show the Python", the process-improve code that does what the step did,
+  checked by a test that runs it and compares the results with the page's. Each design
+  links to the book's section on it.
+
+- **The browser app takes a reader from a design to an analysis with charts, without
+  leaving the page.**
+  - Step 2 holds the run sheet. Results are typed into it, or simulated from a process
+    whose true model is known: reactor yield, main effects only, an interaction, a
+    maximum inside the ranges, nothing active, or a random process. A noise level and
+    "New noise" give another draw, and the true process is behind a reveal. The workbook
+    download and upload still work, and simulated values are marked in the workbook.
+  - Step 3 analyses the runs as soon as they change. Each coefficient is shown with its
+    95% interval and, when the results were simulated, with the true value of what it
+    estimates: the term's own coefficient, or the sum over an alias chain. The charts are
+    the library's own plots, drawn with Plotly: the fitted response surface beside the
+    true one, residuals against fitted values, and Lenth's half-normal plot for a
+    saturated two-level design. plotly is installed on the first chart.
+  - "Run the worked example" generates a Box-Behnken design, simulates it and analyses
+    it, live. The same example, computed through the same entry points when the page is
+    built, is drawn at first paint, so a reader sees a complete analysis while Python
+    loads.
+- **The browser app takes replicates, blocks, a typed axial distance, chosen model terms
+  and categorical factors**, so every exercise in the book's chapter on designed
+  experiments can be worked in it.
+  - **Replicates:** each run but the center runs is made up to ten times. The repeats
+    estimate the pure error for a lack-of-fit test.
+  - **Blocks:** the runs are made in up to eight blocks, with a Block column in the run
+    sheet. The analysis fits the blocks as a fixed effect. A term the design confounds
+    with the blocks is left out, with a note, and so is its alias.
+  - **A CCD's axial distance can be typed as a number**, such as 1.4, beside the face-centred,
+    rotatable and orthogonal choices.
+  - **"Terms you choose"** lists every main effect, two- and three-factor interaction and
+    square the factors allow, to tick for the model. The page sends the terms as lists of
+    factor names and builds the formula from them, each checked, so no formula text is
+    read in. The workbook keeps the model analysed with, checked the same way when it
+    is uploaded. An interaction that is zero in every run is left out with a note.
+  - **A factor whose two levels are labels**, such as a supplier A and B, is categorical.
+    Full factorial, fractional factorial and Plackett-Burman designs take it. It is coded
+    -1 and +1 from its first label to its second, and has no square.
+  - "Show the Python" reproduces each of these. The analysis it shows now names the terms
+    the page actually fitted, after any aliased or confounded term is left out.
+- **The browser app is called Factorial**, and takes over that name from the
+  conversational app at kgdunn/factorial, which it replaces.
+  - Its mark is the package's logo in one more factor: a 2³ factorial and its centre run,
+    seen down the cube's diagonal. `tools/branding/app_mark.py` draws it from
+    `generate_design`, with the favicon, the install icons and the link card.
+  - A link to the app in a chat or a blog post shows that card.
+  - While Python works, the status line lights up the mark's runs in a random run order.
+  - The page takes the package's navy, red and warm paper. Every text colour meets WCAG AA
+    in both themes.
+- **Factorial keeps each design in the reader's browser, and a link carries one.** This
+  gives the four things the server of kgdunn/factorial gave beyond its chat, without a
+  server: persistence across visits, results entered by someone without an account,
+  sharing, and a reproducible export.
+  - Every design but the worked example is saved in IndexedDB as it changes, with its
+    results, where they came from, the simulated process and the model. Nothing is
+    uploaded. A returning reader picks up where they left off, and Your designs lists the
+    rest, to open or delete. Trying designs one after another while simulating keeps one
+    entry; a design with a result typed in is kept.
+  - "Copy a link" packs the design, with or without its results, into the address after
+    `#c=`, which a browser sends to no server. Opening the link saves the design in that
+    browser. A link is checked field by field before anything in it is used, and a
+    damaged one is refused with a sentence.
+  - "Download notebook (.ipynb)" writes the code each step's "Show the Python" panel shows,
+    in order, after a line that installs the release the page ran.
+  - "Print the run sheet" prints the runs in their order, with a box for each result and a
+    QR code of a link to the design. Scanned at the plant, it opens the design on a phone,
+    where the results are typed in and sent back by link. A link that brings results for a
+    design this browser keeps fills them into it, keeping any result already there.
+    `web/qr.js` is held to segno, module for module, at every QR version and level; segno
+    joins the development dependencies as a test oracle.
+- **Factorial has its own address, https://factori.al/.** Each build that passes the smoke
+  tests on `main` is sent to a server of its own and checked there again. The copy on GitHub
+  Pages stays, and names factori.al as the app's address.
+  - The server keeps usage and nothing else: each request, with the reader's address cut to
+    its network before it is written, for 90 days. There are no cookies and no database.
+  - `deploy/factorial` sets the server up. Its deploy key can only upload a build, switch to
+    it, or switch back, and "Factorial: roll back" in the Actions tab switches back.
+- **The browser app runs on Pyodide 314.0.7 (Python 3.14.2)**, with numpy 2.4, pandas 3.0,
+  scipy 1.18 and scikit-learn 1.8.
+- **PLS and multiblock fits on complete data are faster, with identical results.** So is
+  `PCA(algorithm="nipals")`; the default PCA already uses an SVD on complete data.
+  The NIPALS regression step handled missing cells one row or column at a time in
+  Python even when there were none. A block with no missing or infinite cell now takes
+  a vectorised path that returns the same numbers to the last bit; a PLS fit on a
+  20 x 5 block went from 157 ms to 24 ms. Data with missing cells use the previous
+  code unchanged.
+- **Batch DTW alignment is about 4 times faster, with identical results.**
+  `align_with_path` wrote the aligned batch one pandas row per warping-path step;
+  it now fills a NumPy array, averaging a compression with the same `nanmean` over
+  the same samples in the same order. One `batch_dtw` run on the dryer data went
+  from 6.9 s to 1.7 s.
+- **TPLS fits are about 3 times faster.** The NIPALS step received pandas frames and
+  did all its arithmetic in pandas; it now converts them to arrays first. Results agree
+  with before to within 1.5e-14 (pandas and NumPy add in a different order), not to the
+  last bit as for the two changes above.
+
+- **`analyze_experiment`'s `coding` chooses the scale of the coefficients (#513).** It was
+  accepted and ignored, and its default, `"coded"`, named a scale the coefficients were
+  not on. The default is now `"actual"`, which is what every call already returned.
+  - `coding="coded"` refits the model with each numeric factor mapped from its extremes
+    to -1 and +1, a two-level categorical factor coded as for the effects, and, in a named
+    model, a categorical factor with more levels sum-coded.
+  - A dict such as `{"T": {"low": 150, "high": 200}}` codes from those levels instead,
+    for example a central composite design's cube rather than its axial runs.
+  - The result reports `coding`, and `factor_coding` with each factor's coded range.
+  - The `analyze_experiment` agent tool takes `coding` too.
+
+  This changes more than the units. In a model with interactions, a main effect is tested
+  where the other factors are zero, which on the actual scale can be far outside the
+  experiment. With T at 150 and 200 degC, P's coefficient is -4.5 (p = 0.09) at 0 degC
+  but +2.5 (p = 0.0066, the ANOVA's p) at the centre of the design. A model whose coded
+  refit fits differently, such as an interaction without its main effects, warns.
+
+- **`max_iter` defaults to 500 on every iterative estimator (#588).** `PCA`, `PLS` and
+  `OPLS` used 1000; `MBPCA`, `MBPLS` and `TPLS` already used 500. One number now, so a
+  caller carrying a mental model between two estimators is not surprised.
+
+  This was measured before it was changed. Instrumenting every fit in the test suite,
+  20,536 components across 8,717 fits: the median component converges in 6 iterations,
+  p99 is 79, p99.9 is 335, and only 15 exceed 500. Fourteen of those already fail to
+  converge at 1000, so they emit the non-convergence warning today and a lower cap only
+  makes them say so sooner. Exactly one converges in the 501-1000 band, at 803
+  iterations, inside a permutation null where slow convergence is expected because there
+  is no dominant direction to find.
+
+  A caller whose data is well conditioned will not notice. A caller whose data is not
+  already gets a `SpecificationWarning` naming the cap.
+
+- **`MBPCA(tol=...)` and `MBPLS(tol=...)` default to `epsqrt` instead of `None` (#588).**
+  Both declared `tol: float | None = None` and substituted `epsqrt` inside `fit`. Same
+  value, one less branch, and `get_params()["tol"]` now reports what the fit will use
+  rather than `None`, which is what an sklearn caller inspecting a cloned estimator
+  expects.
+
+- **One resolver for the loop settings (#588).** `PCA`, `PLS`, `MBPCA` and `MBPLS` each
+  carried their own copy of the precedence rule and the tolerance-bounds check. They now
+  share `resolve_loop_settings`, so the contract is defined once.
+
+- **No design needs pyDOE3 any more, and the `expt` extra is removed.** The pyDOE3
+  arrays the designs were built from are now in the package (BSD-3, credited): the
+  factorial, Plackett-Burman, Box-Behnken and central composite arrays in
+  `experiments/_classical.py`, and the Taguchi orthogonal arrays in
+  `experiments/_orthogonal_arrays.py`. Tests check them against pyDOE3 element for
+  element, so every design is unchanged. pyDOE3's `L64(2^31)` is not stored: it is
+  unbalanced in 59 column pairs, and a Taguchi design never chose it, because
+  `L32(2^31)` comes first and holds the same factors. `pip install
+  'process-improve[expt]'` still installs the package, with a warning from pip that
+  the extra no longer exists; pyDOE3 is no longer part of `all`. A Plackett-Burman
+  design's `metadata["construction"]` now reads `"classical"` instead of `"pyDOE3"`.
+- **`hard_to_change` ignored without pyoptex now raises a `UserWarning`**, not only a
+  log line. The design is still built as an ordinary (not split-plot) design, and
+  `metadata["hard_to_change_ignored"]` still records why.
+- **A DSD or OMARS design that leaves no error degrees of freedom warns when it is
+  built.** The default design for an even number of factors leaves the full
+  second-order model nothing for error, so `analyze_omars` used to fail only after the
+  runs were done. The warning names the fix: centre runs (`n_center_points=3`) or a
+  larger budget.
+- **A split-plot design from `generate_design(hard_to_change=...)` has a `WholePlot`
+  column**, numbering each run's whole plot from 1, as a blocked design has `Block`. So
+  `analysis_type="split_plot"` finds the whole plots by itself, and `WholePlot` is now
+  a reserved name that a factor cannot use. `evaluate_design`, `augment_design`, the
+  design-quality plots and `moment_aberration` do not treat the column as a factor.
+- **Any other analysis of runs grouped into whole plots warns** that ordinary least
+  squares treats them as independent, and names `analysis_type="split_plot"`. Drop the
+  column to analyse without it. `recommend_strategy`'s split-plot risk now names the
+  analysis too.
+- **A D-, A- or I-optimal design with `n_blocks` is a different design**, chosen with
+  the blocks in its model (see Added), and reports
+  `metadata["blocking"]["method"] == "optimal_exchange"`; its `log_det_information` or
+  `trace_criterion` is for the factor effects adjusted for the blocks. E-, G- and
+  K-optimal, mixture, split-plot and replicated designs are still blocked afterwards.
+  When the block effects leave too few runs for the model, the budget is raised with a
+  warning, and `metadata["budget_requested"]` records the budget asked for.
+- **`n_center_points` is the number of centre runs in the whole design, for every
+  design type: replicates no longer multiply it (#513).** `n_replicates` repeats the
+  other runs, so a 2^3 factorial with `n_center_points=3, n_replicates=2` has 19 runs,
+  3 at the centre, where it had 22 with 6. A CCD, Box-Behnken or DSD no longer
+  replicates its own centre runs either. The budget check and the automatic choice
+  of design count runs the same way. A replicated CCD's default ("orthogonal") axial
+  distance allows for its single centre runs, so its squares stay orthogonal;
+  `orthogonal_alpha` takes the number of axial replicates for it.
+- **A CCD with `n_blocks` is blocked by its cube and axial portions (#513).** It was
+  split by the generic exchange, which left the blocks correlated with the factors.
+  The axial runs are now a block of their own and the cube runs fill the others
+  (`n_blocks` of 2, 3, 5, ...), the cube split by confounding interactions as a
+  factorial is, each portion keeping its centre runs (Box and Hunter 1957). Without an
+  `alpha`, the CCD takes the axial distance at which the blocks are orthogonal to the
+  squares too (the new `blocking_alpha`, `alpha_rule` `"orthogonal_blocks"`): in two
+  blocks they are then orthogonal to every term of the quadratic model, and two
+  factors get `sqrt(2)`, as in Montgomery's textbook example.
+  `metadata["blocking"]["orthogonal"]` says whether they are, and a split that
+  confounds a two-factor interaction warns.
+- **Effects and Lenth's method give a square its coefficient, not twice it (#513).**
+  An effect is the change in response from the lowest to the highest value of its
+  coded model column: twice the coefficient for a main effect or an interaction, as
+  before, but the coefficient itself for a square such as `I(A**2)`, whose column runs
+  from 0 to 1. The coefficients themselves are unchanged.
+
+### Deprecated
+
+- **The default of `analyze_experiment`'s `coding` changes from `"actual"` to `"auto"` in
+  2.0, so coefficients on factors not already coded will come back on the -1/+1 scale.**
+  Deprecated since 1.98.0.
+  - Until then, `coding` defaults to `None`, which means `"actual"`.
+  - A call the change would affect issues a `FutureWarning` and carries the same text as
+    `coding_note`, so agents see it too. That is a call asking for coefficients or
+    confidence intervals, of a model that is not a mixture, on factors not already
+    coded. Data already coded, other analyses and mixture models are not affected, and
+    stay silent.
+  - Pass `coding="actual"` to keep the current scale, or `coding="auto"` to change now;
+    either silences the warning.
+  - The warning is a `FutureWarning` because Python shows those to end users, while it
+    hides a `DeprecationWarning`. The deprecation policy gains a section on changing a
+    default.
+
+- **`missing_data_settings["md_tol"]` and `["md_max_iter"]` are deprecated (#588)**, on
+  `PCA`, `PLS`, `MBPCA` and `MBPLS`. Pass `tol` and `max_iter` to the constructor
+  instead. They predate those parameters existing on these estimators, and they describe
+  a convergence setting as a missing-data setting, which it is not: the loop runs, and
+  needs a tolerance, whether or not a cell is missing.
+
+  They still take effect and still override the constructor, because silently demoting a
+  value a caller set would be worse than warning about it. Removal in 2.0.
+
+  `md_method` is **not** deprecated, and neither is `missing_data_settings` itself: that
+  key names the imputation algorithm, which is the one axis the dict still owns. With
+  `md_method="tsr"` or `"pmp"` on `PLS`, `tol` and `max_iter` bound the imputation rounds
+  as well as the NIPALS loop, as they already did by default.
+
+- **`PCA.select_n_components(n_iter=..., tol=...)` are deprecated in favour of
+  `ekf_max_iter` and `ekf_tol` (#588).** They bound the EM loop of the element-wise
+  k-fold imputation, which is a different loop from the per-component NIPALS loop that
+  `PCA(tol=..., max_iter=...)` governs.
+
+  `tol` had become a collision rather than a mere inconsistency: a parameter captured in
+  that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
+  name meant the EM loop here and the per-component loop everywhere else, with no way to
+  set the latter from here. Once the aliases are removed in 2.0, `tol` and `max_iter`
+  will pass through to `PCA` like any other keyword. Until then the old names still
+  work, still win, and warn.
+
+### Fixed
+
+- **An explicit formula that names `Block` fits the blocks as a named model does.**
+  `analyze_experiment(..., model="y ~ Block + A + B")` on a blocked design took `Block`
+  as a number, a straight line through the block labels: one degree of freedom whatever
+  the number of blocks, and a coefficient whose size depended on how the blocks were
+  numbered. The blocks now enter in that term's place as the sum-coded contrasts
+  `Block1`, ... that the named models use, with one `"Block"` row in the ANOVA, and are
+  left out of the effects and Lenth's method. This is what the warning for a formula
+  without `Block` already advised ("name it in the formula"), and how `evaluate_design`
+  reads such a formula.
+
+- **Blocking by exchange no longer splits the runs by rounding error.** A design that is
+  not a regular two-level factorial is blocked by swapping runs between blocks to keep
+  the most information for the largest model it can estimate. That search tried the
+  quadratic model first even when the design could not estimate it in one block: in a
+  two-level design whose centre runs are its only third level, the squares of two
+  factors are the same column. Every split then left the model singular, the
+  determinant the search maximised was rounding error, and the blocks it picked differed
+  between platforms (between native Python and Pyodide in the browser app, for one). This
+  is the case for a two-level factorial with a categorical factor and centre runs, or a
+  Plackett-Burman design with centre runs. Such a model is now passed over, and the blocks
+  are chosen for the largest model the design can estimate: two replicates of a 2²
+  factorial with a supplier A or B, in two blocks, keep 99% of the information on the main
+  effects and two-factor interactions, where the old blocks kept 92%. A random start now
+  replaces an earlier one only when it is better by more than rounding, so equally good
+  starts give the same blocks everywhere.
+
+- **Plots drawn after plotly is installed into a running process use the library's
+  theme.** The themes were registered only when `process_improve.visualization` was
+  imported with plotly already installed, and bound plotly at that import. In a browser
+  under Pyodide, plotly is installed when the first chart is drawn, after the package
+  has been imported, so every figure named a template plotly did not know and failed.
+  `register_themes()` now imports plotly when it runs, and the Plotly adapter registers
+  the themes before drawing if plotly does not have them.
+
+- **The browser app's run sheet lists the runs in their randomised order.** It sorted them
+  back into standard order: a 2^3 factorial's eight corners came first, last factor
+  fastest, and its three centre runs last, under a "Run order" of 1 to 11.
+  - `DesignResult.run_order[i]` is the standard-order position of the i-th run, whose
+    rows are already randomised; the page read it as the run order and sorted on it.
+    "Run order" is now the row's position, and "Std order" the library's `run_order`.
+  - `DesignResult.run_order`'s docstring said "Randomized run order", which invites the
+    same misreading; it now says what the list holds.
+
+- **The browser app no longer generates designs it cannot analyse, or that grow out of
+  hand.**
+  - D- and I-optimal designs: the page sent 16 runs whatever the model, so six factors
+    and a quadratic model (28 coefficients) came back with 28 runs and nothing left to
+    estimate the error. The default is now the model's coefficients plus four, and a run
+    count raised by the library is reported.
+  - Box-Behnken designs, and a rotatable CCD, need at least one center point: without one
+    every other run lies on one sphere, so the squared terms cannot be told apart from
+    the intercept.
+  - Fractional factorials take a resolution (III, IV or V, up to the number of factors;
+    IV by default) instead of always the half fraction, which had 32, 64 and 128 runs at
+    6, 7 and 8 factors. A fraction of resolution V or more is analysed with its two-factor
+    interactions. A CCD uses a half-fraction cube from six factors.
+  - Each design takes a range of factor counts, and is unavailable outside it, with the
+    reason shown; for example, an I-optimal design is limited to six factors, since its
+    search takes up to 20 s under WebAssembly at six.
+  - The summary states the generated design's resolution, generators and fully aliased
+    effects, read off the design itself, instead of a fixed hint that called every
+    fraction's main effects aliased with interactions. Plackett-Burman designs show their
+    center points, which the page added without a control.
+  - A definitive screening design takes center runs, three by default, like the other
+    designs. With only its own center run, an even-k DSD leaves no degrees of freedom to
+    estimate the error, and the warning that says so asked for a control the page did not
+    have.
+
+- **The browser app estimates aliased terms once, as their chain, and analyses saturated
+  designs.**
+  - When a design cannot tell terms apart, the fit listed each one with an equal share of
+    their joint estimate: in a 2^(3-1) design, T and P·F each read 2 where T is 4. The
+    page now refits with one term per alias chain, labelled with the whole chain
+    ("T + P·F"), and lists the terms that move with the intercept (the squares of a
+    two-level design without center points) as not estimable. A model the design cannot
+    fit, such as the quadratic in a 9-run DSD, is refused with that reason.
+  - A model that uses every run stopped with "needs more than N completed runs". The
+    effects of a two-level design are now judged with Lenth's method; any other
+    saturated fit says that nothing can be tested.
+  - The library's warnings, such as an even-k DSD leaving no error degrees of freedom,
+    are shown with the result; numerical noise from numpy and statsmodels is not.
+
+- **The browser app refuses a factor whose low or high value is blank.** A blank box was
+  read as 0, so the design was generated over a range the reader had not entered.
+
+- **On a phone, the browser app's design settings fit the screen width**, with no
+  sideways scrolling.
+
+- **The browser app's errors reach the reader as one sentence, never a Python
+  traceback.** This covers a malformed request, an unexpected error, too few results for
+  the model, and Python failing to start. A blocked Pyodide or PyPI download no longer
+  leaves the page waiting.
+
+- **In the browser app, a factor or response named `Source` keeps its values in the
+  workbook**; simulated results are now marked in a `Result source` column. A factor named
+  `y` no longer stops the design comparison, which now keeps the response name the reader
+  typed.
+
+- **After a deploy, a browser can no longer run a cached copy of the browser app's
+  previous package alongside the new page code.**
+
+- **The browser app stays in step with what it holds.**
+  - An analysis that arrives after the results are cleared, or after a new design, is
+    dropped.
+  - A loaded design's resolution and number of runs reach the form.
+  - The "Show the Python" panels and the true-process panel follow the results.
+  - A blank response name matches the design's `y`.
+  - Choosing the same workbook again reads it again.
+
+- **When the clipboard is refused, the browser app selects the code** so the reader can
+  copy it. A comparison where no design can be made now says why.
+
+- **The browser app shows a coefficient the results make exactly zero as 0**, in the
+  coefficient table, Lenth's table and the fitted equation. Least squares returns such a
+  term as round-off, and the page printed it as such: `6.106e-16` where the textbook's
+  breaded-chicken exercise prints 0.
+
+- **The browser app says that Lenth's effects are twice the coefficients**: the change from
+  a factor's low level to its high level. Lenth's margins are on that scale, so a reader
+  comparing one with a coefficient was off by a factor of two.
+
+- **The Pareto and half-normal plots draw Lenth's margins at the level the analysis
+  used, and recompute them with the analysis's formula.** They looked for that level under
+  `alpha`, but `analyze_experiment` stores it as `significance_level`, so an analysis at
+  0.10 was drawn as if at 0.05. Recomputed at another level, SME used a Bonferroni
+  quantile, `t(1 - alpha/(2m), m/3)`, where the analysis uses Lenth's
+  `t((1 + (1 - alpha)**(1/m))/2, m/3)`; the two lines now agree with the analysis's
+  `active_SME` flags.
+
+- **`analyze_experiment` no longer blames the design for badly scaled units.** It took
+  the model matrix's rank in the factors' own units. In very unequal units, or with a
+  span that is tiny next to its distance from zero, that rank drops in floating point.
+  - For example, a rotatable three-factor CCD in kelvin, pascals and seconds was
+    reported as having "1 of them not estimable from this design", though the design
+    estimates all ten terms of its quadratic model.
+  - `model_rank` and `rank_deficient` now come from the model matrix with the numeric
+    factors coded to -1/+1, which is what the design can estimate.
+  - A new `ill_conditioned` flag in `model_summary` reports a rank lost to the units,
+    with its own warning: the fit is numerically unreliable, and the factors should be
+    coded before analysing.
+
+- **`analyze_experiment`'s ANOVA and significance test each term at the centre of the
+  design, so they no longer depend on the factors' units.** Both now use the numeric
+  factors coded to -1/+1.
+  - **The cause.** A main effect next to its interaction or square was tested where the
+    higher terms are zero, which on the factors as given is wherever their units put
+    zero.
+  - **Significance.** The 2^2 data in the `coding` example, with T at 150 and 200 degC,
+    left P out of the significance list (p = 0.09 in degC, 0.05 in kelvin). The ANOVA
+    beside it gave P p = 0.0066; the list now agrees.
+  - **The ANOVA.** In a quadratic model T's Type II test is adjusted for `T**2`, and
+    `T**2` measured from 0 degC is a different column. That turned T's test into a test
+    of the curvature: p = 0.0007 in degC, where at the centre T is borderline at 0.051.
+  - **What is unchanged.** Data already coded, models without interactions or squares,
+    mixture models, and categorical factors (whose term names stay the same). A model
+    that coding would change, such as an interaction without its main effects, is
+    tested as given.
+
+
+- **`optimize_responses` no longer optimises coefficients fitted in actual units as if
+  they were coded (#513).** It evaluates models at coded settings, from -1 to +1, and the
+  documentation said an `analyze_experiment` result could be passed as it is. For data
+  in actual units the search therefore ran over -1 to +1 degC. Maximising `y` in a 2^2
+  experiment with T at 150 and 200 degC gave T = 200, P = 1 with a predicted `y` of
+  -5.0, where the best run is T = 200, P = 3 with `y` = 25.
+  - Such a model is now refused, with a pointer to `coding="coded"`.
+  - A coded model supplies `factor_ranges` itself, so the optimum is also reported in
+    actual units. A `factor_ranges` entry that disagrees with it, or two models coded
+    from different ranges, raise rather than mix two scales.
+  - Models without the new keys, written out by hand or Scheffe mixture models, are
+    used as before.
+- **`c()` combines all its arguments, as R's `c()` does (#513).** An iterable replaced
+  the entries before it, so `c([1, 2], [3, 4])` gave `[3, 4]` and `c(1, [2, 3])` lost
+  the 1. A string or a tuple was dropped altogether: `c("Dry", "Wet", levels=...)`, the
+  docstring's own example, gave an empty column, and `c(0, 1, "green")` a numeric one.
+  `None` is now a missing value.
+- **An `Expt` or `Column` built directly, or by `pd.concat`, has its `pi_*` metadata
+  (#513).** It raised `AttributeError` from `repr()`, `get_title()` and the model
+  summary. The fields now default to `None`, `pd.concat` keeps a field all its inputs
+  agree on, and slicing a categorical column keeps its `pi_levels`.
+- **`lm` signs aliases correctly, and `alias_threshold=1.0` works (#513).** Signs came
+  from the raw dot product of the uncentred columns, so with A at 10 and 20,
+  `E = 30 - A` read as `+E`, and with 0/1 coding the sign was missing and the summary
+  raised `IndexError`. A threshold of 1 made every column an alias of the intercept.
+  Aliases now come from the correlations of the centred columns.
+
+- **`MBPCA` and `MBPLS` no longer ignore `missing_data_settings` (#588).** Both resolved
+  the dict at the top of `fit` and threw the result away, keeping only the validation it
+  performed on the way, so a caller's settings were checked and then had no effect.
+
+  Measured on `MBPCA` before the change, two components on a 30-row two-block fit:
+  `{"md_tol": 1e-1, "md_max_iter": 3}` ran 180 and 85 iterations, exactly what passing
+  nothing ran, while `tol=1e-1, max_iter=3` ran 3 and 3. The dict now gives 3 and 3 too,
+  with the deprecation warning above. A default fit is unchanged.
+
+- **A replicated split-plot design's `metadata["whole_plot"]` covers every run.** It
+  listed the whole plots of one replicate only, so it was shorter than the design, and
+  `n_whole_plots` counted one replicate's. Each replicate now has whole plots of its
+  own, as it is run again from scratch.
+
+- **The Shewhart chart (`variant="xbar.no.subgroup"`) keeps a `target` and `s` you
+  give it.** `calculate_limits(y, target=..., s=...)` replaced both with estimates from
+  `y`, although its docstring says given values are used, so a chart could not be drawn
+  from known (Phase I) values. In the new test, a two-sigma shift in the last 20 of 80
+  samples is flagged at sample 70 against the known target 50 and `s` 2, and not at all
+  against the estimates, which the shift itself had pulled. A given value is now used as
+  it is, and only a missing one is estimated; the robust `s` is still the MAD about the
+  data's own median. Without a given `target` or `s` the chart is unchanged.
+
+- **A constant column no longer enters a model as a variable.** A column whose observed
+  values are all equal (a setpoint, a recipe value, a stuck sensor) was found by testing
+  its standard deviation for exactly 0, and the standard deviation of equal values is more
+  often rounding noise, about 1e-17. Each place below now tests the values themselves.
+  - `MCUVScaler` transforms a constant column to exactly 0. It turned most constant
+    columns into a column of ±0.9 that entered PCA and PLS models as a variable, so
+    models fitted on data with a constant column change.
+  - `scale()` leaves a constant column unchanged, as its docstring says, where it
+    multiplied it by about 1e16. The docstring also said that `np.std` propagates a
+    missing cell; each column reaches `func` as a pandas Series, whose standard
+    deviation skips it.
+  - The EM imputation behind `PLS(missing_data_settings={"md_method": "tsr"})` and `"pmp"`
+    fills a constant column's gaps with its value and leaves the column out of the model.
+    A constant column moved every other imputed cell, and could keep the imputation from
+    converging, so the fit warned that it had not.
+
+- **`reshape_to_long` refuses a row with no panelist, product or attribute label**, and
+  names the column and rows. A missing product label used to become a product called
+  `"nan"`, and under pandas 3 a missing panelist id passed the round-trip check.
+
+The fixes below were found while raising test coverage to 96% (#678).
+
+- **`find_reference_batch` relaxes the SPE cutoff all the way to 0.95.** The loop
+  added 0.05 to a float each step, stopped at 0.9000000000000004, and never tried the
+  0.95 its error message reports. On the dryer data, 60 batches pass at 0.95, yet a
+  request for 60 failed with "only 58 batches passed".
+- **The `slope` feature of the `extract_batch_features` tool works.** The tool passed
+  the time column as `time_tag`, which only `f_area` accepts, so every request returned
+  `{"error": "f_slope() got an unexpected keyword argument 'time_tag'"}`.
+- **`TPLS` accepts int64 columns, as its error message always said.** The check tested
+  `np.dtypes.IntDType`, which is C `int` (int32), so int64 data were refused.
+- **`TPLS` fits group names that are not strings.** One check compared the keys of `D`
+  as `str(key)` and another compared them as given, so an integer group name always
+  failed one of the two. `DataFrameDict`'s type error also no longer reads "got
+  instead<class ...>".
+- **`repeated_median_slope(..., nowarn=True)` refuses x and y of unequal length**, with
+  the same `ValueError` as without `nowarn`. Before, it indexed past the shorter vector
+  and raised an `IndexError`.
+- **`score_limit` and `ellipse_coordinates` raise instead of asserting.** Under
+  `python -O` the asserts vanish. `conf_level=1.0` then returned an infinite limit, and
+  omitting `scaling_factor_for_scores` failed further in with an `AttributeError`.
+- **`ssq` refuses an axis other than 0, 1 or None.** It used to return a sum of squares
+  of 0.0.
+- **The robust-regression tool explains when it has fewer than three complete (x, y)
+  pairs.** It used to fail with `{"error": "'float' object is not iterable"}`.
+- **Pickling a fitted latent-variable model (`PCA`, `PLS`, ...) leaves its DataFrame
+  cache intact.** On Python 3.11+, sklearn's `__getstate__` returns the instance's own
+  `__dict__`, so dropping the cache from it emptied the live model's cache. After a
+  joblib dump, a multiprocessing hand-off or a deep copy, `scores_` and the other
+  frames came back as new objects. The cache is now dropped from a copy and is still
+  not pickled.
+- **`lm()` fits one-column models.** `lm("y ~ 1", df)` and `lm("y ~ 0 + A", df)` raised
+  `TypeError: cannot unpack non-iterable numpy.float64`.
+- **`summary()` and `get_title()` work on a model fitted to a plain DataFrame**, which
+  `lm` accepts but which has no `pi_title`. Both raised `AttributeError`.
+- **The sensory reshape's round-trip check gives the same answer on every run.** A label
+  lost or invented by the reshape gave a NaN difference. `max()` over NaN depends on
+  input order, and the order of string labels changes with the hash seed, so a missing
+  panelist id passed on some runs. Such a label now always fails the check. Labels with
+  stray spaces (`"Salty "`) are compared in the stripped form the long table writes, so
+  they now reshape cleanly.
+- **`pip install 'process-improve[all]'` installs `ruptures`.** The `batch` extra has
+  needed it since #605, for the change-point detection in `features.f_rupture`, but it was
+  never added to `all`, which the README presents as everything the other extras install.
+
+### Security
+
+- **The SEC-19 column cap measures the widest row of a JSON matrix.** The multivariate
+  tools measured only the first row, and pandas pads short rows with NaN to the
+  longest. A narrow first row followed by a wide one therefore bypassed
+  `settings.max_matrix_cols`: with the cap at 4, `fit_pca` fitted a six-column model.
+
+### Documentation
+
+- **The documentation opens on what the package does, and every page has a link
+  preview.**
+  - The landing page shows the banner, the install line, and buttons to the quick
+    start, the browser app, the user guide, the API reference and the textbook,
+    then one card per part of the package, the browser app, the design gallery and
+    the textbook.
+  - A logo (a two-level factorial design with a centre point) and the short title
+    "process-improve", which a phone no longer cuts off; links and buttons use the
+    README's colours in light and dark mode.
+  - Open Graph tags, a description and a canonical link on every page, so a shared
+    link shows the social card.
+- **The supersaturated `e_s2_efficiency` is measured against a lower bound that is not
+  attainable at every size**, so a value below 1 does not by itself mean a better
+  balanced design exists (15 factors in 12 runs report 0.63). Stated in the
+  `dispatch_supersaturated` docstring and the screening user guide.
+- **Docstring fixes for public API, no behaviour change.**
+  - `multivariate.ellipse_coordinates`: the `n_components` and `n_rows` parameters
+    were said to feed the Hotelling's T^2 limit, but the ellipse limit is deliberately
+    computed on 2 and `N - 2` degrees of freedom (the joint confidence region for the
+    two plotted scores). `n_components` is used only to bound `score_horiz` and
+    `score_vert`.
+  - `multivariate.spe_limit`: Returns clarified that the limit is on the same
+    square-root scale as `model.spe_`, so values can be compared directly.
+  - `multivariate.check_predictive_signal`: the `p_value` is computed with
+    `n_used` (permutations whose fit produced a usable Q^2), not `n_perm`, so the
+    attainable floor is `1 / (n_used + 1)` and shrinks only when some permutations
+    degenerate.
+  - `multivariate.MBPLS.select_n_components`: the returned Bunch's `n_splits`
+    field is now documented alongside the others.
+  - `multivariate.TPLS.vip` with `block=None`: the returned dict carries four
+    keys (`"D"`, `"F"`, `"Z"`, `"Y"`) for shape-stability, not two. The `"Z"`
+    and `"Y"` entries are always empty dicts since VIP is defined only for the
+    D- and F-blocks.
+- **Every README example runs as pasted, on real data, and CI checks its output.**
+  The examples read the LDPE reactor and cheddar data from openmv.net, and
+  `tests/test_readme.py` runs them in order (from the bundled copies) and compares
+  each promised `print` output with what was printed. Three examples that failed on
+  the released package are fixed: the PCA block read a missing file and passed a
+  score vector to `score_contributions`, the model-inversion block called `.round`
+  on a float, and the `ColumnTransformer` example, now in `SKLEARN_COMPATIBILITY.md`
+  and tested there, needs `OneHotEncoder(sparse_output=False)` under pandas output.
+  The README also gains a banner, a recording of the in-browser app, and a table
+  from ten practical questions to one call and a textbook chapter, and its links are
+  absolute, so they work on PyPI too.
+- **PyPI links the documentation, changelog, in-browser app and textbook**
+  (`[project.urls]`).
+- **The README is checked beyond its code blocks.** `tests/test_readme_guards.py`
+  confirms, offline, that every call quoted in its text and tables names a real function,
+  method and keyword, that every link into the repository and the documentation resolves,
+  and that the installation lines match `pyproject.toml`. A weekly job,
+  `tools/check_readme_links.py`, requests every other link and checks that the openmv.net
+  data files still match the bundled copies behind the README's numbers. The checks
+  brought two fixes: the `batch` line now lists `ruptures`, and the `control` extra
+  (`osqp`, the batch mid-course correction solver) is documented.
+
+## [1.97.2] - 2026-10-07
+
+### Changed
+
+- **The Holt-Winters `ControlChart` fit is 80x to 150x faster, with identical output.**
+  `ControlChart(variant="hw").calculate_limits` ran its recursion through per-row
+  `DataFrame` lookups and `df.loc` writes, 26 times per call for the default lambda grid
+  search, so a 1,000-point series took about half a minute. The recursion now runs over
+  numpy arrays, the warm-up statistics (which do not depend on the lambdas) are computed
+  once per grid search instead of once per cell, and the grid is scored with a vectorised
+  biweight `rho` instead of `np.vectorize`. A 1,000-point fit now takes about 0.2 s. Every
+  number, dtype, column and exception is unchanged (apart from the `beta_hat` dtype fix
+  below): a golden-output test recorded from the previous implementation pins them, and
+  the results are bit-identical. `scripts/benchmark_control_chart_hw.py` reproduces the
+  timings.
+
+### Fixed
+
+- **A `ControlChart` reused for a second `calculate_limits` call gives the same result as a
+  fresh one.** It kept the first series' `target` and `s` and treated them as given, so a
+  mean-80 series reported the mean-50 series' target (50.1 instead of 80.1) and scale (1.8
+  instead of 5.3); it reused the first series' fitted lambdas instead of searching again;
+  and it raised `ValueError` on a second series of a different length. Each call now
+  starts from the constructor's state, for both the `hw` and `xbar.no.subgroup` variants.
+- **A missing value at index 1 no longer makes the Holt-Winters chart fail.** Row 0 has
+  no one-step-ahead error, so a gap starting at index 1 had no error history to impute
+  from: its NaN error spread through every later row and `calculate_limits` raised
+  `ValueError`, although a gap at index 0 or 2 fitted. Such a row now carries the forecast
+  forward (the level follows the trend; trend and scale are held) and keeps a NaN error
+  and cleaned value, so nothing imputed reaches the target or the scale. A series with no
+  finite observation to forecast against still raises. Gaps later in the series are
+  bridged as before.
+- **`ControlChart.df["beta_hat"]` is float64 for series shorter than the Holt-Winters
+  warm-up.** With N below `warm_up_M` (10 to 20 points) the column was int64, unlike every
+  other column and every longer series. The values (all zero) are unchanged.
+- **A missing `plotting` extra now raises `ImportError`, as a missing `expt` extra
+  does.** Plotting with plotly not installed (`pca.score_plot()`, for example) raised
+  `AttributeError` from the placeholder module, so `except ImportError` did not catch
+  it. Using a missing module now raises `ImportError` with the
+  `pip install 'process-improve[plotting]'` hint and the name that was used
+  (`'Figure'`); protocol lookups such as `__array__` still raise `AttributeError`.
+
+### Documentation
+
+- **The Holt-Winters control chart documents where its constants depart from the
+  paper** (Gelper, Fried and Croux, 2010). Equation 13 pairs the biweight cutoff k = 2
+  with the consistency constant c_k = 2.52; `rho` uses 2.52 as the cutoff, with its own
+  c_k = 3.2667, and its docstring had credited that cutoff to the paper. The paper also
+  fixes the startup period at m = 10, where `ControlChart` uses 10 to 20 points. Both are
+  noted next to the constants, which are unchanged.
+- **`ControlChart.calculate_limits` documents how the Holt-Winters chart bridges missing
+  values, and its limitations.** A missing value is imputed with the median absolute error
+  of the previous 10 rows, which is never negative, so a gap pulls the level upward (more
+  so for long gaps). That imputation is unchanged.
+- **The `generate_design` docstring lists G- and K-optimal designs among those that
+  honour `constraints` and accept `fixed_runs`.** Both did already; tests now pin it.
+- **The definitive screening design docstring says that a categorical factor's main
+  effect is slightly correlated with the continuous main effects** (`|r|` about 0.17 for
+  four continuous factors and one categorical factor), a consequence of the DSD-augment
+  construction. It previously mentioned only the correlation among categorical factors.
+
+## [1.97.1] - 2026-10-04
+
+### Changed
+
+- **The built-in optimal-design exchange is 8 to 12 times faster on the large cases,
+  with designs no worse.** `augment_design(..., "add_runs_optimal")` on a 16-run
+  screening design with 40 runs for a 10-factor quadratic model took 18.3 s
+  single-threaded and now takes 1.7 s; a 7-factor constrained I-optimal quadratic
+  design took 36.4 s and now takes 3.0 s (D-optimal: 9.9 s to 0.8 s; the 8-factor
+  augmentation: 11.3 s to 1.4 s). Each change, in `designs_constrained.py`:
+
+  - For D, A and I the exchange is row-wise (modified Fedorov, Cook and Nachtsheim
+    1980): each run in turn takes its best improving swap, with `(X'X)^-1` and the
+    candidate variances kept current by rank-one updates. It used to rescore every
+    (run, candidate) pair and re-invert `X'X` to make a single swap. The greedy start
+    adds runs by rank-one updates too. Small problems get up to 50 random starts.
+  - The automatic candidate grid is capped at `max(5000, 200 p)` points for `p` model
+    coefficients, so 7 factors no longer list 5^7 = 78,125 points. A quadratic model
+    skips 4 levels for D, A, E and K (no centre), and a grid sampled down to the cap
+    leans towards points with most factors at their extremes for those criteria.
+  - When the grid had fewer than 5 levels or was sampled, the design from each start
+    is polished by moving single coordinates on a 5-level lattice while D, A or I
+    improves, and the best polished design is kept, so runs may sit at +/-0.5.
+    `add_runs_optimal` builds the named models with numpy instead of patsy.
+
+  Designs differ from 1.97.0 for the same `random_state`. Measured on fixed seeds,
+  `log det(X'X) / p` of the augmentation went from 3.341, 3.169 and 3.331 to 3.344,
+  3.191 and 3.343 at 6, 8 and 10 factors, the constrained D-optimal designs at 3, 5
+  and 7 factors from 1.870, 2.467 and 2.936 to 1.870, 2.470 and 2.953, and the I
+  trace of the constrained I-optimal designs from 0.3466, 0.3909 and 0.4340 to 0.3466,
+  0.3855 and 0.4277; tests pin each as a no-worse threshold. Small designs take a
+  little longer than before (a 5-factor constrained I-optimal design: 0.2 s to 1.2 s)
+  for the extra starts. Constrained designs that were polished record
+  `polish_levels` in their metadata. E and K keep the best-swap search; the I-lambda
+  rounds of G-optimality use the row-wise exchange.
+
+- **Categorical factors are effect-coded on the design side**, in `evaluate_design`,
+  `evaluate_all`, the `evaluate_design` tool and the built-in optimal-design exchange. A
+  factor with `L` levels now gives `L - 1` sum-to-zero columns, the usual convention in
+  DoE software: a two-level factor is -1 and +1 (first and second level in sorted order),
+  and with more levels the last level in sorted order is -1 in every column, so terms
+  read `C[S.lo]` instead of `C[T.mid]`. Before, `evaluate_design` used patsy's 0/1
+  treatment coding and the exchange 0/1 indicators against the first *declared* level,
+  so an A-optimal design was reported with a trace it had not minimised, and the two
+  disagreed with each other and with pyoptex. The A- and E-criteria, VIF, the condition
+  number, power and the alias matrix change; the prediction variance (I, G, FDS), the
+  D-efficiency ranking of designs and the degrees of freedom do not. On a 15-run design
+  in two continuous factors and a three-level categorical (interactions model), the
+  A-criterion goes from 3.37 to 1.17, the VIF of a continuous main effect from 3.02 to
+  1.06 and its power at a unit coefficient from 0.41 to 0.83, because a treatment-coded
+  main effect is the slope at the reference level only. The exchange now optimises the
+  A-, E- and K-criteria in effect coding: over five seeds (16 runs, three-level factor)
+  the mean effect-coded trace of A-optimal designs drops from 1.063 to 1.045 and the
+  mean condition number of K-optimal designs from 3.80 to 3.73, with D, I and G designs
+  of the same quality and run times unchanged. pyoptex now receives the levels in sorted
+  order, so its own trace equals `trace_criterion` and `evaluate_design`'s A-criterion
+  (1.186 for all three on a 14-run design whose levels are declared `lo, mid, hi`, where
+  `trace_criterion` reported 3.407 and `evaluate_design` 3.621 before). A `Block` column
+  named in the formula is sum-coded, as `analyze_experiment` codes blocks. Pass `categorical_coding="treatment"`
+  for the previous numbers. `analyze_experiment` is unchanged: its coefficients keep
+  treatment coding and its effects already run from low to high.
+
+- **OMARS generation with a run budget is about eight times faster, and its designs are
+  no worse.** `generate_design(factors, design_type="omars_ilp", budget=17)` for six
+  factors took 138 s and 51 HiGHS solves; it now takes about 16 s and 20 solves,
+  single-threaded, for a design with D-efficiency 37.3 against 35.9 (A-optimality 2.72
+  against 3.71, maximum second-order correlation 0.50 against 0.51). Over five and six
+  factors at budgets 17, 19, 21 and none, the D-efficiency is higher in seven cases and
+  equal in one; three of the higher-D designs trade a higher A-optimality or
+  correlation, which the dominance rule accepts. The designs differ from 1.97.0's for
+  the same `random_state`, which still reproduces the design. Five changes, in
+  `designs_omars_ilp.py`:
+  - The randomized-objective solves skip HiGHS's RINS and RENS sub-MIP heuristics and
+    trust pseudocosts without strong branching: 0.8 s a solve instead of 2.7 s at six
+    factors and 17 runs. The feasibility and minimise-size solves keep the defaults.
+  - At six factors and 17 runs, 35 of the 51 solves returned a design that cannot
+    estimate the model. Each such design now adds cover cuts that exclude every design
+    sharing its rank deficiency, and the cuts that two identical quadratic columns imply
+    are imposed up front: 8 of the 20 solves now return one.
+  - Designs that differ only in run order, factor order or factor signs are counted once.
+  - The run-budget search stops once eight solves in a row return an estimable design
+    that does not improve the Pareto front, with 50 restarts as the ceiling.
+    `generate_omars` keeps its exact `n_restarts`.
+  - For the `"dominance"` and `"d_efficiency"` criteria, each design found is improved
+    by a local search over one-, two- and three-run swaps that keep the main effects
+    orthogonal. This more than makes up for the cheaper solves: `generate_omars` for six
+    factors at its default 50 restarts returns D-efficiency 37.4 in about 70 s, against
+    26.8 before.
+
+  A design with a second-order column that never varies now ranks last under every
+  selection criterion. With the highest D-efficiency it used to win under
+  `"dominance"` and `"d_efficiency"`, with an infinite maximum correlation.
+
+### Fixed
+
+- **The OMARS trade-off table now reports even run counts as designs.**
+  `get_omars_trade_off_table_entry` and `omars_trade_off_table` treated every
+  even budget as "not a design", although a foldover with no centre run or with
+  two has an even run count, and `generate_omars(..., center_runs=2)` builds one:
+  at 22 runs and four factors it fits the full second-order model with 7 error
+  degrees of freedom. An even budget now reports the model of the odd budget one
+  run below it, with one more error degree of freedom. The smallest `Quad` size is
+  `2k + 2` (a definitive screening design with a second centre run, one error
+  degree of freedom), so `omars_minimum_runs(k, "quad")` returns `2k + 2` instead
+  of `2k + 3`.
+
+### Documentation
+
+- **Docstrings that disagreed with the code now describe what it does.** These
+  are wording fixes only; no behaviour changes.
+  - `hotellings_t2_limit` lists the negative-`n_components` case under `Raises`.
+  - `PLS.select_n_components` says it chooses from four rules, not three.
+  - `analyze_descriptive` documents the deprecated `discriminator` keyword it
+    still accepts (use `find_predictive`, since v1.77.0).
+  - `randomization_test_mbpls` gives the p-value floor for its real default of
+    200 permutations (about 0.5%), not for 999.
+  - `PCA.select_n_components` lists all six values of `cv_scheme` it echoes back,
+    and says `cv_scores` aliases `per_fold_press` on every cell-based scheme.
+  - `PCA.__init__` annotates `n_components` as `int | None`, as its docstring and
+    parameter constraints already allowed; the `fitting_info_` comment no longer
+    swaps which algorithms store per-component arrays (SVD, NIPALS) and which
+    store scalar totals (TSR).
+  - `robust_regression` describes `conf_intervals` as one row for its single
+    slope, not K rows.
+  - The `t_value_cdf` examples use `float("inf")`, which needs no numpy import.
+  - `find_elbow_point` gains `Parameters` and `Raises` sections; `rho` and `psi`
+    gain `Parameters`, `Returns` and `References`, and `rho` says it saturates at
+    the consistency constant `c_k`, not at the cutoff `k`.
+  - `spe_calculation` says its limit is on the square-root scale of `model.spe_`;
+    `ellipse_coordinates` says `scaling_factor_for_scores` is required despite its
+    `None` default.
+  - `TPLS.fit` documents `X` as a `DataFrameDict` (a plain `dict` raises
+    `TypeError`), and the `TPLS.diagnose` example wraps its input accordingly.
+  - `Settings` no longer points at a nonexistent `override` method; it shows the
+    property setter and `as_dict`.
+  - `DEFAULT_THEME` no longer claims importing the package sets the Plotly default.
+
+## [1.97.0] - 2026-10-03
+
+### Added
+
+- **`omars_trade_off_table(..., anchors=True)` marks where the two standard designs
+  fall**, so a column shows the span of the OMARS family for that factor count: the
+  definitive screening design, the smallest member, and the Box-Behnken design, among the
+  largest. Each is marked on the row of its own run count by appending `" | DSD"` or
+  `" | BBD"` to the cell. Rows are added where a Box-Behnken run count is not already a
+  budget (15, 27, 46, 54 and 62 for three to seven factors), and a column is left blank
+  below its Box-Behnken cell, where every remaining row would repeat `Full` on more runs.
+  The default, `False`, leaves the table exactly as it was. Three supporting functions
+  are public: `definitive_screening_runs(k)`, `box_behnken_runs(k)` (returning `None`
+  where Box and Behnken published no design) and `omars_anchor_entry(design, k)`, the
+  counterpart of `get_omars_trade_off_table_entry` for a named design. A named design is
+  classified without the `2h + 1` parity gate, since it carries the centre replication of
+  its published form: `get_omars_trade_off_table_entry(46, 5)` reports no design at that
+  budget, while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken design.
+  (Ported from #501.)
+- **G-optimal and K-optimal designs** (`design_type="g_optimal"` and `"k_optimal"`), so
+  the built-in exchange covers the D, A, E, G, I and K criteria. G-optimality minimises
+  the largest prediction variance over the region (constrained or mixture regions
+  included), found by I-lambda optimality (Hernandez and Nachtsheim 2018): rounds of the
+  fast trace exchange whose weights move, by Lawson's rule, to where the variance is
+  largest, then an exact polish of the maximum. For a first-order model it recovers the
+  2^k factorial (G-efficiency 100%). K-optimality minimises the condition number of
+  `X'X` (Ye and Zhou 2013). Both work with constraints, candidate sets, fixed runs and
+  mixtures.
+- **Maximum projection (MaxPro) space-filling designs** (`design_type="maxpro"`; Joseph,
+  Gul and Ba 2015), which keep runs apart in every projection onto a subset of factors.
+  On 20 runs in 4 factors the smallest distance between runs in any two-factor
+  projection is 0.24 against 0.09 for a Latin hypercube; a plain maximin design, which
+  sits on a grid, has coincident projections. MaxPro works on the box (Latin hypercube
+  swaps, then a bounded continuous search) and in constrained and mixture regions.
+
+- **The `generate_design` agent tool exposes the whole design surface.** It takes
+  `constraints` (expressions in actual units), `candidates`, `fixed_runs`, `model_type`,
+  `n_blocks`, `hard_to_change`, `generators`, `cube` and a numeric `alpha`, offers the
+  `omars` and `omars_ilp` types it was missing (a test keeps its choices equal to
+  `generate_design`'s), and returns the design's `metadata`, including the `region` that
+  `evaluate_design` and `optimize_responses` work over.
+- **The `evaluate_design` and `optimize_responses` agent tools take that `region`**, so
+  an agent can judge a constrained or mixture design over the settings it may use and
+  keep the recommended optimum inside them; `evaluate_design` also accepts the Scheffé
+  mixture models and a `random_state`.
+
+- **Space-filling designs**: `design_type="latin_hypercube"`, `"maximin_lhs"`,
+  `"uniform"` (low centred L2 discrepancy), `"sobol"`, `"halton"` and `"maximin"`.
+  The last three also work in constrained regions and constrained mixtures: the
+  sequences are mapped onto the region (a uniform-preserving map onto the simplex for
+  mixtures) and filtered, and maximin picks runs from a dense sample of the region by a
+  farthest-point build and exchanges. The metadata reports the smallest and mean
+  nearest-neighbour distances and, on the plain box, the discrepancy. In a region too
+  thin to fill from the first 2**22 points of a sequence, `"sobol"` and `"halton"`
+  raise and point to `"maximin"`.
+- **Supersaturated designs** (`design_type="supersaturated"`, chosen automatically when
+  the budget is below `k + 1` and a design without fully aliased factors exists for it):
+  Lin's half-fraction of a Hadamard matrix, trying every
+  branching column. Paley's Hadamard matrices are preferred, since the Kronecker-built
+  ones for 16, 24 and 32 runs leave identical columns. The metadata reports `E(s^2)`
+  against its lower bound; Lin's 12-run design for 22 factors reaches it.
+- **E-optimal designs** (`design_type="e_optimal"`): maximise the smallest eigenvalue of
+  `X'X`. No single swap can raise a repeated smallest eigenvalue, so the exchange first
+  climbs Kiefer's `phi_p`, a smooth stand-in that separates such ties, then polishes the
+  smallest eigenvalue itself; swaps are ranked by the gradient of `phi_p` and scored
+  exactly in batches. Five factors in eight runs reach the regular 2^(5-2) fraction from
+  any seed. Works with constraints, candidate sets, fixed runs and mixtures.
+
+- **Optimal designs chosen from a user-supplied candidate set.**
+  `generate_design(..., candidates=df)` picks the runs from the rows of `df`: plant
+  history, the settings a piece of equipment offers, or the blends that can be made
+  up. Rows are in actual units (labels for categorical factors, proportions for
+  mixtures); rows breaking a constraint are dropped; a row may be picked more than
+  once. `metadata["selected_candidates"]` counts the picks per index label, so the
+  design reads as "rerun batches 2, 20 and 29 twice". Works for D-, I- and
+  A-optimality (for I, the average is over the candidate set), and for mixtures.
+
+- **I-optimal and A-optimal designs without pyoptex, and over constrained regions.**
+  The candidate exchange from the constrained D-optimal design now takes a
+  `Criterion`: D maximises `log det(X'X)`; A minimises `trace((X'X)^-1)`; I
+  minimises `trace((X'X)^-1 W)`, with `W` the moment matrix of the (constrained)
+  region, i.e. the average prediction variance that `evaluate_design` reports. Each
+  swap is scored in closed form (two Sherman-Morrison updates), so all swaps are
+  scored in a few matrix products. `generate_design(design_type="i_optimal")` and
+  `"a_optimal"` no longer raise `ImportError` without pyoptex, honour `constraints`
+  and `fixed_runs`, and work for mixture factors. pyoptex is still used, when
+  installed and no constraints are given, and is still needed for split-plot designs.
+
+- **Constrained mixture designs, Scheffé models, and one `DesignRegion` shared by
+  design, evaluation and optimisation.** Mixture components with bounds inside (0, 1)
+  or linear constraints (`Constraint("polymer + solvent <= 0.85")`) now get a design
+  built from the geometry of the constrained simplex, instead of the full-simplex
+  lattice that ignored the bounds.
+
+  - `generate_design` enumerates the **extreme vertices** of the region (every choice
+    of `q - 1` active constraints solved as one batched linear system). Without a
+    budget it returns the classical extreme-vertices design; with one, a D-optimal
+    subset of vertices, edge midpoints, centroids of the 2-dimensional faces (the
+    analogue of ternary blends, which a special cubic model needs for any number of
+    components), facet centroids, centroid and axial blends.
+    `design_type="d_optimal"` with mixture factors uses the same engine.
+  - `analyze_experiment` and `evaluate_design` accept `"scheffe_linear"`,
+    `"scheffe_quadratic"` and `"scheffe_special_cubic"` (no intercept; R-squared and
+    model df stay centred because statsmodels detects the implicit constant). For these
+    models the ANOVA tests the linear blending terms jointly (do the components blend
+    differently at all?) and each non-linear blending term on its own, effects are
+    reported in the Cox direction, and Lenth's method is declined, since a blending
+    coefficient tested against zero answers no useful question.
+  - `DesignRegion(factors, constraints)` holds the region, tests feasibility and
+    samples it uniformly. `generate_design` records it in `metadata["region"]`. A
+    region too thin for rejection sampling (below a few parts per thousand of the box
+    or simplex) is sampled by hit-and-run chains: chords are cut exactly by affine
+    constraints, and non-linear ones are handled by slice-sampler shrinkage.
+  - `evaluate_design` computes I-efficiency, G-efficiency and the FDS curve **over the
+    recorded region** instead of the box: for the heat-budget example the G-efficiency
+    is 73% inside the region against 3.5% over the box, whose worst case is a corner
+    the design may not visit. `region=` overrides it.
+  - `optimize_responses(..., region=...)` keeps the desirability optimum and the Pareto
+    front inside the region (SLSQP constraints, feasible starts), and for a mixture
+    returns a blend that sums to one. A box region's constraints apply on top of
+    `search_bounds`, which may reach beyond the coded cube. The result carries
+    `within_region`.
+
+- **Constraints on the factor region are now enforced for D-optimal designs.**
+  `generate_design(..., constraints=[Constraint("3*T + 5*D <= 600")])` used to accept
+  constraints and return a design that ignored them, flagged only by
+  `constraints_enforced=False`. The design is now chosen from a candidate set of
+  feasible points, so every run satisfies every constraint.
+
+  ```python
+  factors = [Factor(name="T", low=100, high=150), Factor(name="D", low=20, high=60)]
+  heat = Constraint(expression="3*T + 5*D <= 600")
+  result = generate_design(factors, budget=10, constraints=[heat], model_type="quadratic")
+  result.metadata["constraints_enforced"]  # True
+  ```
+
+  The candidate set is a grid plus the points where each constraint boundary crosses a
+  grid edge, found by bisection, so runs land on the constraint line rather than on the
+  nearest grid point inside it. Runs are selected by a Fedorov exchange on the model
+  matrix of the requested `model_type` (main effects, interactions, quadratic), with
+  categorical factors and `fixed_runs` supported and pyoptex not required. Linear,
+  chained (`400 <= 3*T + 5*D <= 600`) and nonlinear inequalities are accepted; the
+  expression is parsed into an arithmetic tree and never passed to `eval`. Other design
+  types now log a warning and set `constraints_enforced=False` instead of ignoring
+  constraints silently. See the new user-guide page "Designs over a Constrained Region".
+
+- **MEDA and oMEDA: what a fitted PCA or PLS model says about the variables, and
+  about two groups of observations (#373).**
+  - `meda(model, X)`, or `model.meda(X)`, returns the K x K map of how well each
+    variable is predicted from each other one through the model (Camacho, 2010). It
+    shows the relationships the model represents, where a correlation matrix mixes
+    in the directions the model discards. `signed=False` gives the goodness of
+    prediction itself, and `seriate=True` puts related variables next to each other.
+  - `omeda(model, X, group, reference)`, or `model.omeda(...)`, ranks the variables
+    that separate two groups of observations along the model's directions, with the
+    sign of each difference (Camacho, 2011). `weights` takes a general dummy vector.
+  - `meda_plot` and `omeda_plot` draw them, and are methods of PCA and PLS as well.
+
+  ```python
+  pca = PCA(n_components=3).fit(X_scaled)
+  pca.meda_plot(X_scaled)                                   # blocks of related variables
+  pca.omeda(X_scaled, group=cluster, reference=rest)        # what separates the cluster
+  ```
+
+- **`generate_omars` and `solve_omars_ilp` take `solver_options["node_limit"]`.** It caps
+  the branch-and-bound nodes of each randomized-objective solve (default 100; `None`
+  solves each one to proven optimality). A node budget ends a solve at the same point on
+  every run, so a fixed `random_seed` reproduces the design, which a wall-clock limit
+  does not guarantee. `OmarsSearchReport` gains `node_limit`, `time_limit`,
+  `node_limited_solves`, `time_limited_solves`, `rank_deficient_designs`,
+  `size_proven_minimal` and `run_sizes_searched`.
+
+### Changed
+
+- **`analyze_experiment` models the blocks of a blocked design.** A `Block` column was
+  dropped from the model, so block-to-block differences went into the residual and
+  masked real effects (in one blocked 2^3, p = 0.23 for an effect with p = 7e-8 once
+  blocks are in). With two or more blocks the named non-mixture models now carry
+  sum-coded block contrasts (`Block1`, ...), tested together as one `"Block"` ANOVA
+  row (Montgomery, chapter 7); lack of fit and the curvature test take pure error
+  within blocks, effects and significance leave the blocks out, and a new point without
+  a block is predicted for the average block. A Scheffe model or an explicit formula
+  that does not name `Block` warns that the blocks are not modelled. Drop the column to
+  analyse without blocks.
+- **`analyze_experiment` fits a Scheffe quadratic model to mixture data by default.**
+  With `model=None` it fitted the intercept `interactions` model even when every run's
+  settings sum to 1, a rank-deficient fit with meaningless effects; it now does what
+  `evaluate_design` does, and `model_summary["model"]` names the model fitted.
+- **Notes from separate analyses no longer overwrite each other.** The mixture ANOVA,
+  effects and Lenth notes, and the saturated-model ANOVA note, all went to one `note`
+  key, so only the last survived. They are now `anova_note`, `effects_note`,
+  `lenth_note` and `significance_note`.
+- **`recommend_strategy` plans hard-to-change factors as D-optimal split-plot
+  designs.** Their stages carried `split_plot`, `whole_plot_factors` and
+  `subplot_factors`, which `generate_design` rejects with `TypeError`; only the optimal
+  designs build split plots. Such a stage is now `design_type="d_optimal"` with
+  `hard_to_change` naming its whole-plot factors, and an unknown hard-to-change name
+  raises `ValueError`. Mixture components with process factors, which no stage can
+  build, now raise `ValueError` from `recommend_strategy` itself.
+- **The knowledge base names only designs `generate_design` builds.** The
+  definitive screening entry's id is `dsd` (it was `definitive_screening`), the domain
+  templates prefer `dsd`, and the hard-to-change rule recommends `d_optimal` with
+  `hard_to_change` instead of the non-existent `split_plot`. The ids a strategy names
+  that are not design types are listed in `strategy.models.NON_GENERATE_DESIGN_IDS`.
+- **`doe_knowledge` no longer offers the `worked_examples` and `interpretation`
+  topics**, which had no data and returned the same unfiltered list as every other
+  topic; they now raise `ValueError` like any unknown topic.
+
+- **The browser app offers I-optimal designs**, which no longer need pyoptex.
+
+- **Optimal designs use the built-in exchange by default, whether or not pyoptex is
+  installed.** With pyoptex importable (as in CI and the docs build), unconstrained D-,
+  I- and A-optimal designs came from pyoptex, and from the built-in exchange otherwise,
+  so the same call returned different designs on different installs. pyoptex now runs
+  only for split-plot designs (`hard_to_change`), or when asked for with the new
+  `backend="pyoptex"` argument of `generate_design`. Asking for pyoptex where it cannot
+  work (constraints, a candidate set, E-optimality) raises; ignoring `hard_to_change`
+  logs the true reason.
+
+- **`n_center_points` defaults to `None` and is honoured, or refused, by every design
+  type.** `None` means three centre points for the factorials, Plackett-Burman, CCD and
+  Box-Behnken designs, as before, and the design's own for the rest. For a DSD or OMARS
+  design the value is now the total number of centre runs (it was ignored, leaving one);
+  values below the design's own count keep it. The mixture, optimal, space-filling,
+  supersaturated and Taguchi designs add no centre points, and a positive value for them
+  now raises `ValueError` instead of being ignored. The `generate_design` tool follows
+  the same default.
+
+- **The D-optimal fallback without pyoptex is model-aware.** It used a point
+  exchange on a 3-level grid that scored a first-order model whatever `model_type`
+  asked for, so a quadratic request could get a design with too few levels. It is
+  replaced by the candidate exchange, which scores the requested model and allows
+  replicated runs. `metadata["backend"]` reads `"candidate_exchange"` instead of
+  `"point_exchange_fallback"`, and `fixed_runs` no longer needs pyoptex. The fixed runs
+  stay in the first rows, and when they repeat points the budget is raised until the
+  free runs can estimate the model.
+- **Large candidate grids are sampled instead of refused.** Models without squared
+  terms use a 2-level grid, so up to 16 factors are listed in full; beyond that, or for
+  a quadratic model on 11 or more factors, 32,768 grid points are taken from an unscrambled Sobol sequence (with the
+  centre and face centres). No candidate set above `MAX_CANDIDATES` is allocated, as
+  before.
+- **Automatic design choice may return a supersaturated design** when the budget is
+  below `k + 1` continuous factors and an unaliased design exists for it (for example
+  10 factors in 6 runs); otherwise the previous choice stands.
+- **`design_type="i_optimal"` and `"a_optimal"` no longer raise `ImportError`** without
+  pyoptex; they use the built-in candidate exchange.
+- **`evaluate_design` measures I- and G-efficiency over the recorded region** of a
+  constrained design, not the full box. Pass `region=` to choose another.
+- **The optimal design families validate `model_type`.** An unknown value (such as
+  `"linear"` for process factors) used to set the budget as an interactions model while
+  the built-in exchange optimised main effects; it now raises. Mixtures keep their
+  aliases (`"linear"`, `"special_cubic"`, the `scheffe_*` names).
+- **Mixture components together with process factors raise one clear `ValueError`**,
+  which explains how to cross a mixture design with a process design. Without pyoptex
+  such requests used to return designs that were not mixtures: D-optimal blends summing
+  to anything from 0 to 3, or, with `design_type="mixture"`, the process factor run as
+  a fourth component between 0 and 1.
+- **The browser app's tables sort by column.** Clicking a column header in the
+  design run list, the coefficient table or the ANOVA table sorts the rows
+  ascending, and a second click sorts them descending, for example by standard
+  order, by a factor or by p-value. Formatted values such as `< 0.0001` sort as
+  numbers, unfilled responses stay last, and the headers work from the keyboard.
+- **The browser app opens ready to use, and fits a phone.** Definitive screening
+  is selected when the page opens, with only the settings it takes on show,
+  before Python has finished loading; previously the design list stayed empty
+  and every setting showed until then. The factor table now fits narrow screens,
+  so the Units column no longer runs off the right edge.
+
+- **`generate_omars` solves its integer program with HiGHS, through
+  `scipy.optimize.milp`, instead of pulp's bundled CBC binary (#623).** CBC is a native
+  executable that pulp runs in a subprocess; on Apple Silicon it runs under Rosetta and
+  could exit nonzero for no reason in the model, which aborted the search. HiGHS runs in
+  process and ships with SciPy, which is now a declared core dependency (`scipy>=1.15`),
+  so OMARS needs no extra. What changes for callers:
+  - Designs from the multistart path (five or more factors, or three and four factors
+    beyond the exhaustive caps) can differ from 1.96.0 for the same `random_seed`. Within
+    one SciPy version the search is deterministic; another SciPy release ships another
+    HiGHS and may pick another design. Measured on one machine: the five-factor default
+    and the 25-run, five-factor `main_quadratic` design are unchanged; the six-factor
+    default returns a different design (D-efficiency 26.8 instead of 26.5) in 106 s
+    instead of 119 s.
+  - Five-factor searches are slower: the default call takes about 15 s instead of
+    10 s, and the 25-run `main_quadratic` call 18 s instead of 10 s. HiGHS spends
+    longer at the root node of each small solve than CBC did. The trade buys a solver
+    that installs everywhere SciPy does and per-solve work bounded by the node budget.
+  - `metadata["solver"]` is `"highs"`; it was `"pulp"`. `solver_status` reads
+    `"Optimal"`, `"Node limit"`, `"Time limit"`, `"Infeasible"`, `"Not Solved"` or
+    `"Enumerated"`. A solve stopped by a limit still returns the best design it found.
+  - `solver_options` accepts only `"msg"`, `"time_limit"` and `"node_limit"`, and checks
+    their values. Unknown keys used to be ignored; they now raise `ValueError`.
+  - `time_limit` (float seconds, default 60) is now a safety cap. A solve it stops depends
+    on machine speed, and `time_limited_solves` counts those.
+  - HiGHS runs on one thread, because a process forked after a multi-threaded HiGHS solve
+    hangs in its next solve.
+  - Every selection the solver returns is re-checked exactly against its constraints
+    before it is used.
+- **Mixture designs are sized to the Scheffé model and never quietly exceed the budget.**
+  On the full simplex the design ignored `model_type`: without a budget it was the
+  `2^q - 1`-run simplex centroid (1023 runs for a 10-term linear model at 10
+  components), and with one it was the `{q, 2}` lattice, which cannot fit a special
+  cubic model (rank 6 of 7 at 3 components) and could exceed the budget. The default is
+  now the pure components and the overall centroid, plus the binary blends for a
+  quadratic model and the ternary blends for a special cubic one (the 7-run simplex
+  centroid at 3 components, as before). A smaller budget gives a D-optimal subset, and a
+  budget below the number of terms is raised to it, with a warning, and recorded in
+  `metadata["budget_requested"]`. `_simplex_lattice` lists the lattice points directly,
+  so the 91-point `{13, 2}` lattice is no longer refused.
+
+### Deprecated
+
+- **`random_seed` is deprecated since 1.97.0 and will be removed in 2.0.0; use
+  `random_state`.** It affects `generate_design`, `evaluate_design`, `evaluate_all`,
+  `generate_omars` and the `generate_design` agent tool, the last public functions that
+  did not follow the package's reproducibility contract. `random_state` takes an int, a
+  `numpy.random.Generator` or `None` (fresh entropy), and its default (42) gives the
+  same designs as before. Passing `random_seed` still works, with a
+  `DeprecationWarning`; passing both raises.
+- **The `i_efficiency` metric of `evaluate_design` is deprecated since 1.97.0 and will
+  be removed in 2.0.0; use `"average_prediction_variance"`.** I-efficiency divided
+  `p / N` by the average prediction variance, which, unlike D- and G-efficiency, is not
+  bounded by 100: a design in a small constrained region scored 181%. The new metric
+  reports the I-criterion itself (the prediction variance averaged over the region, in
+  units of the error variance; lower is better), which is what JMP reports and what an
+  I-optimal design minimises. `"i_optimality"` is now an alias for it, and
+  `metric="all"` leaves the deprecated percentage out.
+
+- **The `ilp` extra is deprecated since 1.97.0 and will be removed in 2.0.0.** It is now
+  empty: `generate_omars` no longer needs pulp, so there is no replacement to install.
+  `pip install 'process-improve[ilp]'` keeps working until then.
+
+### Fixed
+
+- **`evaluate_design(metric="clear_effects")` follows Wu and Hamada's definition for
+  every design.** Effect orders were guessed from the length of the alias string, so with
+  factor names longer than one letter every main effect of a resolution III fraction was
+  reported clear (`PressConc` counted as a ninth-order term) and no two-factor interaction
+  could ever be. Effects aliased with nothing were never listed: a 2^3 full factorial, or
+  a 2^(5-1) resolution V fraction passed as a DataFrame, had no clear main effects. Orders
+  now come from the set of factors in each word, every main effect and two-factor
+  interaction is checked, and the interactions are named `"A:B"`.
+- **Alias metrics keep the sign of a negative generator, and describe the design that
+  was run.** `generators=["D=-ABC"]` gave the defining relation `I=ABCD` (in
+  `evaluate_design` and in `DesignResult.defining_relation`) and the chain `A = BCD`; they
+  are now `I=-ABCD` and `A = -BCD`. A central composite design on a fractional cube
+  reported the cube's chains (`A = BCDE`), which its axial runs partly break; its alias
+  structure and clear effects now come from the whole design, with a note saying why. A
+  resolution II fraction reports `roman="II"` (not `"2"`) and a wordlength pattern that
+  starts at `A_2` instead of hiding the length-2 word.
+- **`evaluate_design` handles categorical factors in the alias matrix and the region.**
+  `metric="alias_matrix"`, and so `evaluate_all` and `metric="all"`, raised "could not
+  convert string to float" for any design with a categorical factor; the omitted
+  interactions are now built by patsy next to the model's terms, contrast-coded as in the
+  model (`"A:C[T.y]"`). With a categorical factor present, `region` was ignored
+  (`"spherical"` gave the cube's answer and a misspelt region was accepted), and each cube
+  vertex was crossed with one random level, so the maximum prediction variance was
+  underestimated and G-efficiency overstated; the region is now honoured and validated, and
+  every vertex is crossed with every combination of levels.
+- **The region average and the FDS curve are no longer biased by the added vertices.**
+  The `2**k` cube vertices (or a region's support points), added so the maximum is seen,
+  were pooled into the sample that the average prediction variance, `i_efficiency` and the
+  FDS curve are taken over; they sit where the variance is highest, which raised the
+  average by 1% at the default 100,000 samples and by 88% at 1,000 samples for eight
+  factors. They now serve only the maximum (G-efficiency and the FDS curve's end point).
+- **`evaluate_design` checks its inputs.** A run with a missing factor setting was
+  dropped silently by patsy, so N and the efficiencies described a different design and
+  `alias_matrix` crashed; it now raises `ValueError` naming the rows. `alpha` outside
+  (0, 1), a non-positive `sigma` and `n_samples < 1` raise instead of giving NaN or a NumPy
+  error, and a DataFrame that looks like it is in actual rather than coded units warns
+  (a 2^3 factorial in 0 to 10 units reported a D-efficiency of 1118%).
+- **`metric="degrees_of_freedom"` counts from the rank of the model matrix.** It used the
+  column count and assumed an intercept, so a rank-deficient model (a quadratic model on a
+  replicated 2^2) reported fewer residual degrees of freedom than pure-error ones, and
+  `"A + B - 1"` reported one model degree of freedom for two terms. The model, residual
+  and total degrees of freedom now come from the rank, corrected for the mean only when
+  the model spans the constant (an intercept, or a Scheffé model), and `pure_error` and
+  `lack_of_fit` are always reported (0 without replicates).
+- **VIF and power are meaningful for Scheffé mixture models.** `metric="vif"` called
+  statsmodels, which centres the columns; the centred linear blending columns of a
+  mixture are exactly collinear, so every linear term read about 1e15 (with warnings),
+  and the value depended on the installed statsmodels. VIFs are now computed from the
+  model matrix as `c_jj * sum((x_j - mean_j)^2)`, which is the classical `1 / (1 - R^2)`
+  with an intercept and finite for any estimable Scheffé model. `metric="power"` no
+  longer reports power for testing a linear blending coefficient against zero, a
+  hypothesis the mixture analysis never tests, and says so in a note.
+- **`evaluate_design` speaks the same model names as `generate_design` for mixtures.**
+  Over a mixture region, `model="special_cubic"` was rejected as an unknown formula name
+  and `"interactions"` fitted an intercept model that is rank-deficient on a simplex;
+  they now map to the Scheffé models as in `generate_design`. Without a model, a mixture
+  design is evaluated for the Scheffé model it was generated for (now recorded as
+  `metadata["model_type"]` for the simplex designs too), not always the quadratic one.
+- **Blocks are no longer dropped without a word.** A blocked design was evaluated as if
+  unblocked, overstating the residual degrees of freedom, power and efficiencies, and a
+  formula naming the block column was refused. A formula may now include `Block` (as a
+  categorical factor), and when it does not, `result["notes"]["blocks"]` says the blocks
+  were left out.
+- **`effect_size` in power calculations is documented as an anticipated coefficient.**
+  It is half the high-minus-low effect of a two-level factor, which the docstring and
+  the agent tool's schema now say; the G-efficiency docstring names its convention
+  (`p / (N max d)`, of which JMP reports the square root).
+- **The FDS, power-curve and prediction-variance plots are computed for a model the
+  design can estimate, over all of its factors.** They assumed a full quadratic model,
+  counted `RunOrder` and `Block` as factors (an SPV in the thousands for a generated
+  CCD), and silently switched to a pseudo-inverse when the quadratic model could not be
+  estimated (any two-level design). The power curve also assumed an orthogonal two-level
+  design and clamped the residual degrees of freedom to 1, giving power 0.17 instead of
+  0.57 for a 2^3 under its main-effects model; the prediction-variance contour dropped
+  the factors not plotted from the model, so `hold_values` had no effect. All three now
+  share `evaluate_design`'s machinery for a `model` that `visualize_doe` and the plot
+  classes accept (default: the fitted formula, else the richest of quadratic,
+  interactions and main effects that the design estimates), use each term's own
+  coefficient variance, take `random_state` and `n_samples` for the FDS sample, and raise
+  `ValueError` for a model the design cannot estimate or that leaves no residual degrees
+  of freedom.
+- **Lenth thresholds on the Pareto and half-normal plots sit at the stated level.** The
+  ME and SME lines were drawn at the analysis's alpha = 0.05 but labelled with
+  `1 - confidence_level` (`"ME (α=0.010000000000000009)"` at 0.99); they are now
+  recomputed from the PSE at the plot's level, and the label is formatted (`α=0.01`).
+- **`visualize_doe` rejects an unknown `backend`.** A value such as `"Plotly"` returned no
+  figure without an error; it now raises `ValueError`.
+- **Each metric's note is kept under its own name.** Metrics returned a shared top-level
+  `"note"`, so asking for two metrics kept only the last note, attributed to the wrong
+  metric. `evaluate_design` now returns them as `result["notes"][metric_name]`.
+- **`analyze_experiment` effects are the change from a factor's low to its high level
+  whatever its units.** Effects and Lenth's method were always twice the coefficient,
+  which is the effect only for a numeric factor coded -1/+1: a factor in actual units
+  (150 and 170) got twice its slope (1.05 instead of 10.5), and a two-level categorical
+  factor got twice its treatment-coded difference, with a sign set by the alphabetical
+  reference level. Factors are now coded to -1/+1 for the effects (a numeric factor
+  from its own minimum and maximum unless already coded, a categorical one from its
+  first to its second level), the mapping is reported under `effects_coding`, and a
+  categorical factor with more than two levels raises, since it has no single effect.
+- **The curvature test uses pure error.** It divided the centre-versus-factorial
+  contrast by the residual mean square of the fitted model, which contains that same
+  curvature, so real curvature inflated its own error: on Montgomery's Example 6.6 with
+  the centre points shifted by 1 it gave p = 0.083 instead of 0.0017. It is now
+  Montgomery's `SS_curvature / MS_pure_error` on `(1, df_pure_error)` degrees of freedom,
+  pure error coming from the replicated runs, and reports `F_statistic`, `ss_curvature`,
+  `ms_pure_error` and `df_pure_error`.
+- **Response transforms in `analyze_experiment` are checked and reused.** An unknown name
+  (`"Log"`) was ignored, Box-Cox was skipped silently when any response was not
+  positive, and a log or square root of a non-positive value silently dropped runs or
+  made every statistic NaN; these now raise `ValueError`. A confirmation run was compared,
+  on the raw scale, with a prediction interval on the transformed scale, so a run at
+  the true mean was reported outside it; it is now transformed the same way first, and
+  predictions and the confirmation test say which scale they are on. `model_summary`
+  reports the `transform` and the Box-Cox `box_cox_lambda`.
+- **The Box-Cox `lambda` comes from the model.** It was chosen to make the response's own
+  distribution look normal, ignoring the factors, which recommended `lambda = 0.33` for
+  data that are additive on the original scale. It now maximises the profile likelihood
+  of the fitted model (Box and Cox 1964; Montgomery, section 15.1.1), is reported with
+  its 95% interval (`lambda_ci`), and the recommendation is "no transform" when that
+  interval holds 1.
+- **Cox-direction mixture effects include the non-linear blending terms.** The effect of a
+  component was `beta_i - mean(beta_j)` whatever the model, which is the Cox effect
+  only for the linear model: on Cornell's yarn-elongation data it gave x1 the wrong
+  sign and x3 five times its size. It is now the change in the fitted response along
+  the Cox direction through the design's centroid, over the span the design's component
+  ranges allow (`effect_reference`, `effect_range`).
+- **The ANOVA and significance test an alias chain once.** Exactly aliased terms each
+  had their own ANOVA row, so in a replicated 2^(4-1) the degrees of freedom summed to 18
+  for 16 runs, and both `A:B` and `C:D` were listed as significant. Both now use one
+  column per chain, named as the effects name it (`"A:B + C:D"`). The ANOVA reports its
+  sum-of-squares type (`anova_type`, Type II) and fills `mean_sq`, which was always
+  `None`.
+- **Lenth's method follows Lenth (1989).** The simultaneous margin of error used a
+  Bonferroni quantile instead of Lenth's `gamma = (1 + 0.95**(1/m)) / 2`, and the
+  pseudo standard error kept effects equal to `2.5 s0`, which Lenth trims. It also takes
+  `significance_level`.
+- **Smaller `analyze_experiment` defects.** Lack of fit and the curvature test ignored
+  `significance_level`; runs with a missing response were counted in the pure-error
+  degrees of freedom and made model selection return the full model with a NaN
+  criterion (they are now left out up front, with a warning); `observed_at_new` of the
+  wrong length was ignored or raised `IndexError`; a formula for another column
+  (`"z ~ A + B"`) silently fitted that column, and columns a formula does not name were
+  used to group replicates; a formula expanding past `settings.max_formula_terms` was
+  fitted (70 s for 16384 terms); an unnamed `responses` Series raised a confusing
+  formula error; `model="quadratic"` squared categorical factors; and a saturated
+  model's significance left every term out of both lists while its residual tests ran
+  on rounding noise. Each now behaves as documented or raises a `ValueError` naming the
+  fix, and terms that cannot be tested are listed under `not_estimable_terms`.
+- **`lm` keeps correlated terms that are not aliased, and handles categorical factors.**
+  It treated any two model columns correlated beyond 0.995 as aliases and dropped one,
+  so a square in actual units (`T` and `T**2` at 300, 305 and 310) was removed and the
+  curvature model fitted with R-squared 0.000 instead of 0.997; the default
+  `alias_threshold` now detects only exact aliasing, and `None` drops nothing (it raised
+  `TypeError`). Columns were matched to terms by position, so a categorical factor with
+  three levels raised `IndexError`; they are now matched through patsy's term slices. A
+  plain `Expt` without a title no longer raises `AttributeError`.
+- **`analyze_omars` warns on a design without the OMARS structure, and checks its
+  options.** The staged protocol estimates the main effects without adjusting for the
+  second-order terms, so it is valid only when the main effects are balanced, mutually
+  orthogonal and orthogonal to the second-order block; on a three-level design with runs
+  missing it declared a null main effect active in 162 of 200 simulations, with no
+  warning. It now checks the structure, warns with a `RuntimeWarning` when it is absent,
+  and records the checks in `details["design_structure"]`; the docstring no longer
+  claims it accepts any coded design. `effects_to_drop` is checked against the design's
+  factors before the analysis (a typo was accepted when the second-order gate stayed
+  shut, and a valid label outside the heredity candidates was refused), `"B:A"` means
+  `"A:B"`, and a significance level outside (0, 1) or a negative `max_subset_terms`
+  raises `ValueError`.
+- **Model selection scores AICc as Hurvich and Tsai do, and searches Scheffe models
+  without an intercept.** The penalty counted the regression coefficients but not the
+  error variance, so it was too weak near saturation and changed the model chosen. A
+  Scheffe model was searched as the intercept `interactions` model, which is
+  rank-deficient on mixture data; the linear blending terms are now always kept and the
+  search chooses among the non-linear ones. `n_terms` counts the intercept, as
+  `model_summary` does.
+- **`augment_design` refuses a run count that is not a positive whole number.**
+  `add_runs_optimal` with `n_additional_runs=0` or `-2` still appended a run, and
+  `replicate` with 0 or `add_center_points` with a negative count failed inside pandas
+  or numpy. All of them now raise a `ValueError` naming `n_additional_runs`.
+
+- **`augment_design` no longer augments a response column as a factor.** Every column
+  except `RunOrder` and `Block` was taken as a factor, so a design carrying its measured
+  response got axial runs on it, had it negated by a foldover, or set to 0 in new centre
+  runs. A new `factor_names` argument (also on the agent tool) names the factors; without
+  it, a column that is non-numeric, or lies on one side of 0 and beyond [-1, 1], is
+  refused with a `ValueError` that suggests naming them.
+
+- **`augment_design(..., "upgrade_to_rsm")` checks the model it claims to support.** It
+  always said "The design now supports estimation of a full quadratic model", yet on a
+  resolution IV cube such as the 2^(4-1) with D = ABC the interactions A:B = C:D,
+  A:C = B:D and A:D = B:C stay aliased (they are zero on every axial and centre run), so
+  the 15-term quadratic has rank 12. The upgrade now checks the `target_model` (default
+  quadratic), reports `n_coefficients` and `n_estimable`, and warns, naming the aliased
+  terms, when they differ. Centre runs are topped up to five in total (the count used to
+  fall as existing centre runs rose), and `alpha="orthogonal"` now counts the centre
+  runs the upgrade adds.
+
+- **`augment_design` no longer calls still-aliased effects "independently estimable".**
+  The explanation compared alias-chain strings, so any change to a chain, even dropping
+  a three-factor term, was reported as de-aliasing: the foldover of the 2^(5-2) with
+  D = AB, E = AC (I = BCDE afterwards) said "B:C is now independently estimable" while
+  B:C and D:E stayed identical, a semifold was called "full resolution" although its
+  effects remain correlated at |r| = 1/3, and the resolution was never reported. The
+  explanation now compares each aliased pair of main effects and two-factor
+  interactions in the augmented design, listing those now uncorrelated, those only
+  partially de-aliased (with |r|), and those still fully aliased; it reports the
+  resolution from the generators (III to IV for that foldover), and says a semifold is
+  not a regular fraction. A failed metric evaluation now warns instead of logging.
+
+- **The trade-off table no longer reports existing designs as impossible.** When the
+  minimum-aberration search would exceed its limit (12 factors in 32, 64 or 128 runs;
+  11 factors in 64 or 128 runs), the cell was blank and the `trade_off_table` tool
+  reported `exists: False`, "too many factors for the budget". Those cells now use the
+  tabulated minimum-aberration design when there is one (`2^(11-5) IV` in 64 runs,
+  `2^(11-4) V` in 128), and are otherwise marked `"?"` with `exists: None` and a reason;
+  the search limit raises the new `SearchLimitError`, a `ValueError`. Messages that read
+  "8 n_runs cannot accommodate 8 n_factors" now say runs and factors.
+
+- **The `create_factorial_design` tool follows `n_factors` and returns plain names.**
+  `factor_names` with a different length from `n_factors` silently decided the design
+  (two names with `n_factors=3` gave a 4-run, two-factor design still reported as three
+  factors); the schema now refuses it, and duplicate names. Factors were also returned
+  as `"A [coded]"`, so a formula such as `y ~ A*B` did not match them; they now carry
+  the names given, as in `generate_design`.
+
+- **Agent tool schemas reject malformed bounds and negative seeds.** `optimize_responses`
+  accepted `search_bounds=[-1.5]`, which escaped as an `IndexError`, and silently
+  dropped the third value of `[-1.5, 1.5, 99]`; a bound is now exactly two numbers,
+  for one factor or all. A negative `random_state` (or `random_seed`) for
+  `generate_design`, `augment_design`, `evaluate_design` or `optimize_responses` is
+  refused by the schema instead of failing inside numpy.
+
+- **Steepest-ascent and ridge paths check their inputs and say what they follow.**
+  `step_size=-1` walked a steepest-ascent path downhill and `n_steps=-3` returned an
+  empty path; both now raise. The docstring states that `step_size` is the Euclidean
+  distance between successive points, not a unit step in the factor with the largest
+  coefficient. Ridge analysis traces spheres out to the largest `|bound|` and so cannot
+  follow `search_bounds` that differ between factors or are asymmetric; each path point
+  now carries `inside_search_bounds`, with a warning when the bounds are of that kind.
+
+- **Canonical analysis recognises ridge systems.** A zero eigenvalue of `B` was given a
+  sign: y = 10 + 2A - A^2 (eigenvalues -1 and 0) was classed a `"saddle_point"`, its
+  flat axis labelled convex, and `stationary_point` reported a singular matrix although
+  the whole line A = 1 is a ridge of maxima. An eigenvalue that is zero to rounding is
+  now treated as flat (Myers, Montgomery and Anderson-Cook, sec. 6.4): the surface is a
+  `"stationary_ridge"`, with `ridge_of` set to `"maxima"` or `"minima"` and the ridge
+  point nearest the centre reported, or a `"rising_ridge"`, with no stationary point,
+  when the linear terms keep the response changing along the flat axis.
+
+- **`analyze_experiment`'s result can be passed straight to `optimize_responses`.** The
+  agent tool documented this pipeline, but the result had no `factor_names` or
+  `response_name`, so the call failed with the bare message `'factor_names'`. The result
+  now carries both, and a fitted model missing `coefficients` or `factor_names` raises a
+  `ValueError` that names the key. The single-response methods (`stationary_point`,
+  `canonical_analysis`, `steepest_ascent`, `steepest_descent`, `ridge_analysis`)
+  analysed the first of several models and ignored the rest; they now raise.
+
+- **Second-order analyses refuse terms they cannot represent.** `stationary_point`,
+  `canonical_analysis` and `ridge_analysis` silently dropped three-factor terms such as
+  `A:B:C`, so the reported stationary point was not stationary for the fitted model, and
+  a term that is not a product of the factors (`I(A ** 3)`, `C(A)[T.1]`) failed with a
+  bare `KeyError`. Both now raise a `ValueError` naming the terms; `desirability` and
+  `pareto_front` keep evaluating products of any number of factors.
+
+- **Desirability optimisation finds tight specification windows, and says when it
+  cannot.** A Derringer-Suich desirability is exactly 0, with zero gradient, outside its
+  limits, so when every start landed there the search stayed put and reported D = 0
+  with `optimizer_success=True`, although D = 1 was reachable in the search box (limits
+  of [1.9, 2.0] on y = A + B, met only at the corner (1, 1)). The search now first
+  maximises the smallest unclipped ramp, which is smooth everywhere and reaches the
+  region where every d > 0 when there is one; when there is none it reports the
+  setting closest to meeting every limit, with a `UserWarning`. Settings, predictions
+  and desirabilities in the result are plain Python floats rather than `np.float64`.
+
+- **`optimize_responses` takes a `random_state`.** The multistart search behind
+  `"desirability"` and `"pareto_front"` draws random starting points but was always
+  seeded with 42, so a caller could not vary the starts to check that an optimum does
+  not depend on them. The seed (an int, a `Generator` or `None`, default 42) is now a
+  parameter of the function and of the agent tool.
+
+- **`optimize_responses` refuses goals whose `response` names do not match the models.**
+  When both sides named their responses but the names did not pair up one to one (a typo
+  or a case difference such as `"Y1"` for `"y1"`), the goals were paired by list
+  position with only a log line, so goals listed in a different order from the models
+  optimised each response against another one's goal. That is now a `ValueError` naming
+  the unmatched names. Pairing by position when names are left out, and a `region`
+  ignored by a method that cannot use it, are now reported with a `UserWarning` rather
+  than a log record that an application's logging setup could hide.
+
+- **Desirability goals and importances are checked before optimising.** Swapped limits
+  (`low=80, high=60`) turned a ramp into a step, a target outside `[low, high]` could
+  never reach d = 1, a negative `weight` returned d = 2, a negative importance pushed
+  the composite above 1, missing limits silently became 0 and 1, and an importance list
+  of the wrong length failed inside `zip()`. Each now raises a `ValueError` naming the
+  response, as Derringer and Suich's `low < target < high` and positive exponents
+  require.
+- **Every `recommend_strategy` stage builds in the runs the plan states.** A budget
+  lowered a stage's `estimated_runs` without changing its design, so five factors in a
+  15-run budget reported 15 runs for designs that build 39, and a very small budget
+  pushed the total above the budget silently. `estimated_runs` is now the size of the
+  design the stage's `design_params` build, and a tight budget changes the designs:
+  fewer centre points, a Plackett-Burman screen, a D-optimal quadratic design with three
+  runs more than the model's coefficients, or one definitive screening design in place
+  of separate screening and optimisation stages. The risks say what was reduced, or that
+  the budget is below the smallest plan. The run estimates in `strategy.budget` match
+  `generate_design` too (a resolution IV fraction has 16 runs for 8 factors and 32 for
+  12 to 15, not 32 and 64), mixture stages estimate the blends they build, and a CCD for
+  six or more factors asks for the half-fraction cube it was estimated with.
+- **`recommend_strategy` stages are complete `generate_design` calls.** The
+  constrained optimisation stage carried neither the constraints, the quadratic model
+  nor a budget, so it built an unconstrained interactions design that broke the
+  constraints; it now carries all three, and mixture stages carry the constraints.
+  Box-Behnken was recommended for two factors, where it does not exist, and is now kept
+  to 3 to 7 factors (a face-centred CCD otherwise); a categorical factor with more than
+  two levels gets D-optimal stages instead of Plackett-Burman and CCD ones; and one
+  factor gets an optimisation stage instead of confirmation runs alone.
+  `generate_design` accepts constraints in their dict form, which is what a JSON round
+  trip of a stage gives, and as bare expressions.
+- **`recommend_strategy` uses the prior knowledge it parses.** Known significant
+  factors that skip screening are now the ones optimised (two named factors of six got
+  a 6-factor Box-Behnken design), and after screening the optimisation stage says its
+  factors are placeholders. The strongest evidence cue sets the confidence, so a stray
+  "expected" or "unknown" no longer caps confirmed, published results at 0.4 or 0.1.
+  `strategy_id` hashes every input, so constraints, prior knowledge, factor ranges,
+  response goals and detail level change it. Each domain's special considerations are
+  added to the risks and its extra stages named in the reasoning; the pharmaceutical
+  note no longer promises a design-space stage the plan does not contain.
+- **Four statements in the DOE knowledge base are corrected.** The rotatable CCD axial
+  distance is `(2^k)^(1/4)` with a full cube, not `k^0.25`; the Plackett-Burman partial
+  alias coefficients are 1/3 (12 runs) and 0.2 or 0.6 (20 runs), not `1/(N-1)`; four
+  factors cannot be placed in four runs at resolution III, and OMARS for three factors
+  has 9 runs, not 13; and a full foldover raises the resolution of a resolution III
+  fraction only. `doe_knowledge` now restricts the `analysis_methods`, `optimization`,
+  `screening` and `response_surface` topics to their own entries.
+- **The teaching simulators raise the documented `ValueError` for a string or `None`**
+  instead of numpy's `TypeError`, and their docstring examples show the values the
+  calls return (95 and 600, not 94 and 601). The `golf()` docstring no longer says the
+  rows are in standard order, which they are not.
+
+- **`analyze_experiment` accepts a response named `yield`.** The commonest response in
+  chemistry is a Python keyword, which a model formula cannot name, so the call failed
+  with "formula side 'yield' is not a valid expression". The response is now fitted
+  under a stand-in name and reported under its own; a factor named with a keyword gets a
+  clear message.
+
+- **Definitive screening designs are exact at every size (#629).** A DSD is built from a
+  conference matrix `C` with `C'C = (m - 1) I`; the code had one only when `m - 1` was a
+  prime, and otherwise used a cyclic matrix that is not a conference matrix. 9 or 10
+  factors then had main effects correlated at r = 0.89, and 15, 16, 21, 22 and 25 to 36
+  factors were affected likewise, with only a logged warning. Conference matrices now
+  come from a new finite-field module: Paley's construction over GF(q) for every prime
+  power `q = m - 1` (9, 25, 27, 49, ...) and the doubling of an antisymmetric matrix
+  (orders 16, 40, 56, ...), each checked before use. Where no matrix of the order can be
+  built (none exists at 22 or 34), the design steps up to the next order with fake
+  factors: 21 or 22 factors take 49 runs. `dsd_run_count` gives the run count, and
+  `recommend_strategy` now uses it (a 7-factor DSD has 17 runs, not 15). Designs for
+  sizes that were already exact are unchanged.
+- **Box-Behnken designs with six and seven factors are the published ones.** pyDOE3
+  puts a two-level factorial in every pair of factors at any size, which is Box and
+  Behnken's design for three to five factors but costs 60 and 84 runs at six and seven
+  against their 48 and 56. Six and seven factors now use the published blocks of three
+  factors, so `generate_design` agrees with the run counts `recommend_strategy` and the
+  knowledge base already quote. Eight or more factors keep the all-pairs design and say
+  so in `metadata["construction"]`. (Ported from #501.)
+- **Central composite designs honour `alpha` and `n_center_points` exactly.** With the
+  default full cube, a numeric `alpha` was silently replaced by the orthogonal distance,
+  and a misspelt name (`"rotateable"`) silently meant orthogonal too; `n_center_points`
+  of 0 or 1 still gave 2 centre runs. A numeric `alpha` now builds the design with that
+  axial distance, an unknown name raises `ValueError` (both cube types), and the centre
+  runs are the number asked for. Designs with a named `alpha` and two or more centre
+  runs are unchanged, except for `"orthogonal"` and `"inscribed"` below.
+- **`generate_design` refuses inputs it used to turn into a wrong design.** Two factors
+  with the same name collapsed into one column of the design; they now raise
+  `ValueError`. Mixture components given to a family that places runs in the factor box
+  (full and fractional factorials, Plackett-Burman, CCD, Box-Behnken, DSD, OMARS,
+  supersaturated, Latin hypercube) came back as coded +/-1 rows labelled as proportions,
+  with row sums from -3 to 3; they now raise and name the families that handle mixtures
+  (`"mixture"`, the optimal families, `"sobol"`, `"halton"`, `"maximin"`).
+- **`full_factorial(nfactors, names=...)` checks that the names match the factor count.**
+  The names were zipped with the factors without a check, so their number decided the
+  design: `full_factorial(3, names=["A", "B"])` returned a 4-run, 2-factor design and
+  repeated names collapsed into one column. A mismatch or a repeated name now raises
+  `ValueError`, and the docstring documents the returned list of `Column` objects.
+- **`moment_aberration` refuses a design with a missing value.** The two levels were
+  counted after dropping missing cells, and every value other than the low level, a
+  missing one included, was then coded as the high level, so one empty cell turned a
+  resolution IV fraction into "resolution 1". A missing value now raises `ValueError`.
+- **`trade_off_table` no longer shows existing fractions as impossible.** Every
+  `ValueError` blanked a cell, including the refusal of a minimum-aberration search that
+  would score too many generator sets, so 2^(11-5) in 64 runs and 2^(11-4) in 128 runs
+  read as designs that do not exist. Such a cell is now labelled
+  `"2^(k-p) (not searched)"` (and `exists` is true in the `trade_off_table` tool); only
+  more than `runs - 1` factors is blank. A run count that is not a power of two, or a
+  factor count below 2, now raises instead of giving a blank row. Messages and docstrings
+  in the module that read "11 n_factors in 64 runs" now say "factors" and "runs".
+- **The OMARS trade-off table and `dispatch_omars` say what their bounds cover.**
+  `omars_minimum_runs`, `get_omars_trade_off_table_entry` and `omars_trade_off_table`
+  give the smallest *foldover* size for each capability class; a non-foldover OMARS
+  design can do better (a 19-run, four-factor one estimates the full second-order model,
+  against 21 runs for a foldover), and the docstrings now say so. They also say that
+  `exists` does not mean `generate_omars` builds the size: it refuses the saturated size
+  and repeats half-runs only for three and four factors, so 39 runs for three factors is
+  listed but not built. `dispatch_omars` no longer calls its `2k + 3`-run design for odd
+  `k` the minimal OMARS design; `2k + 1` runs suffice.
+- **Fractional factorials: signed defining relations, generators checked against
+  `resolution`, and resolution requests beyond 11 factors.** A negated generator such as
+  `"D=-AB"` built the right fraction but reported `I=ABD` for it; the defining relation
+  now carries the sign (`["I=-ABD", "I=ACE", "I=-BCDE"]` for `D=-AB, E=AC`). Passing
+  `generators` together with a `resolution` they do not reach raises `ValueError`; the
+  resolution used to be ignored. For more than 11 factors, a resolution request used
+  pyDOE3's search, which reaches resolution IV only, so twelve factors at resolution V
+  to VIII raised. A search over generator sets now finds the fewest runs that reach the
+  resolution (256 runs for twelve factors at resolution V), falling back to the half
+  fraction; beyond the minimum-aberration table the design is not guaranteed to have
+  minimum aberration. A defining relation of more than ten generators is not listed.
+- **Central composite designs report alpha and their geometry consistently, and refuse
+  one factor.** The inscribed design reported `alpha = 1.0`, the axial runs' distance,
+  rather than the axial-to-cube ratio (1.68 for three factors); it now reports the ratio.
+  `metadata["face"]` named the geometry for a full cube but the alpha rule for a
+  fractional one; it now always names the geometry (`"circumscribed"`, `"faced"`,
+  `"inscribed"`), and the new `metadata["alpha_rule"]` says how alpha was chosen. A
+  fractional cube's defining relation keeps the signs of negated generators. A
+  one-factor CCD with a named alpha failed on pyDOE3's `assert` (and returned a design
+  under `python -O`); every one-factor CCD now raises `ValueError`.
+- **Automatic design selection fits the budget.** `generate_design(design_type=None,
+  budget=...)` compared the budget with the bare design and then added three centre
+  points, so a budget of 8 runs for three factors gave 11. It also picked a
+  Plackett-Burman design larger than the budget (15 runs for a budget of 11), a
+  D-optimal design whose default interactions model raised the run count (16 runs for a
+  budget of 12, where an 8-run Plackett-Burman fits), a fractional factorial for two
+  factors (which then raised), and a fractional factorial or Plackett-Burman design for
+  a categorical factor with three or more levels (which then raised). The choice now
+  counts centre points and replicates, builds an automatically chosen D-optimal design
+  for the largest model the budget can estimate, sends many-level categorical factors to
+  the full factorial or a D-optimal design, and logs a warning when no design fits.
+  Passing `resolution` or `generators` without a design type chooses a fractional
+  factorial.
+- **`generate_design` refuses arguments it used to ignore or misreport.** `resolution`
+  and `generators` given to a design that does not use them (a full factorial, a
+  Plackett-Burman or Box-Behnken design, a full-cube CCD) were reported back as the
+  design's own properties, so a Plackett-Burman design claimed resolution V; they now
+  raise, and the result reports only what the design achieves. A fixed-size design
+  (factorials, Plackett-Burman, Box-Behnken, CCD, Taguchi) that needs more runs than an
+  explicit `budget` raises instead of returning, say, 67 runs for a budget of 16.
+  Negative or zero `n_replicates`, negative `n_center_points` and `n_blocks` below 1
+  raise instead of being treated as the defaults; factors named `"RunOrder"` or
+  `"Block"` raise instead of being overwritten by, or clashing with, the columns the
+  design adds; and `fixed_runs` with `n_replicates > 1`, which repeated runs already made
+  and shuffled them among the new ones, raises. A full factorial through
+  `generate_design` respects the SEC-19 `max_factors_combinatorial` cap, as
+  `full_factorial` already did.
+- **Every design is randomised unless its run order is part of the solution.**
+  `random_seed=None` returned the design in standard order with the centre points last;
+  it now draws a fresh random order. Optimal designs from pyoptex kept the optimiser's
+  order even without `hard_to_change` factors; only a split-plot design does now.
+- **OMARS through `generate_design` treats the budget as a maximum and counts its centre
+  runs.** An even budget raised, suggesting a size above the budget; the design is now
+  the largest foldover within it, and a budget too small names the budget.
+  `generate_omars` reports `sparsity`, `model_rank` and `omars_verified` for the design it
+  returns, extra centre runs included, and honours `n_restarts` below 6 (`max_candidates`
+  sets a floor only when given); a negative `n_restarts` raises.
+- **`Factor` refuses bounds and levels that cannot make a design.** NaN or infinite bounds
+  were accepted (all-missing data in `Factor.from_data` gave them), and the design then
+  came back with every row missing. A mixture component with `low > high`, `low < 0` or
+  `high > 1` was accepted and either ignored or reported as conflicting constraints. A
+  missing or repeated categorical level was accepted. All now raise `ValueError` naming
+  the factor. `Constraint.type` is documented as informational: the engines classify each
+  expression themselves.
+- **`recommend_strategy` gives an all-mixture problem a mixture optimisation stage.** The
+  optimisation stage was a CCD or Box-Behnken design on the first three components. It is
+  now a `"mixture"` design for a quadratic Scheffe model in every component.
+- **`alpha="orthogonal"` (the CCD default) now gives an orthogonal design.** It used the
+  distance that makes a cube block and an axial block orthogonal to the model
+  (orthogonal *blocking*), so the quadratic coefficients stayed correlated: 1.886 for
+  three factors with three centre runs instead of 1.353. It is now
+  `alpha = (F (sqrt(N) - sqrt(F))^2 / 4)^(1/4)` for `F` cube runs and `N` runs in all,
+  which makes the centred squared columns orthogonal, in `generate_design` (full and
+  fractional cube) and in `augment_design(..., "add_axial_points", alpha="orthogonal")`,
+  whose formula was wrong in another way. The helper is public as
+  `designs_response_surface.orthogonal_alpha`. `alpha="inscribed"` now shrinks the cube
+  inside a rotatable design, the usual inscribed CCD, rather than inside the
+  orthogonal-blocking one.
+- **Categorical factors work in every design family that can carry them.** A two-level
+  categorical factor in a DSD, OMARS, fractional factorial or Plackett-Burman design
+  failed with `All values must be present in levels`, as did any categorical factor in a
+  Taguchi design. Coded designs now map level codes to labels in one place. DSDs use the
+  DSD-augment method of Jones and Nachtsheim (2013), which keeps every main effect
+  orthogonal to the second-order effects (two centre runs instead of one). Centre runs
+  cycle a categorical factor through its levels. Families that cannot place a categorical
+  factor (CCD, Box-Behnken, OMARS, supersaturated, space-filling) say so and name the
+  ones that can.
+- **General full factorials.** `design_type="full_factorial"` built only the 2^k design:
+  a categorical factor with more than two levels failed, and a continuous factor's
+  `levels` were ignored. Each factor now takes its own levels, giving the mixed-level
+  full factorial.
+- **Taguchi designs work for any number of factors their arrays can hold.** pyDOE3 needs
+  one level list per array column, so 4 to 6 factors (L8) and most other counts failed;
+  factor levels were not mapped to labels, and 3 centre points were added. Each factor
+  now takes its own array column (a column with more levels can carry a factor whose
+  levels divide into it, so a 6-level column holds a 2- or 3-level factor), the columns
+  are checked to be balanced in pairs before use, and no centre points are added. The
+  checks matter: pyDOE3's `L64(2^31)` is not orthogonal, and its `L27` and `L36` names do
+  not match their arrays.
+- **Automatic choice no longer picks a half fraction for six or more factors.** With no
+  budget it returned the 2^(k-1) design, 515 runs for 10 factors; it now returns the
+  smallest resolution IV fraction (35 runs for 10 factors, centre points included).
+- **Blocks no longer bias the factor effects.** `generate_design(n_blocks=...)` labelled
+  the randomised runs 1, 2, 1, 2, ... in turn, so the blocks were neither orthogonal to
+  the factors nor run as blocks. A regular two-level factorial is now blocked by
+  confounding interaction words with blocks, chosen so that no main effect and as few
+  two-factor interactions as possible are confounded (minimum aberration blocking); any
+  other design is blocked by exchanging runs between equal blocks to keep the most
+  information for the factor effects. Runs are randomised within each block and the
+  blocks run in turn; `metadata["blocking"]` names the method and every confounded
+  contrast. `augment_design(..., "add_blocks")` uses the same routine: with 4 blocks of a
+  2^4 design it used ABCD and ABC, whose product D (a main effect) was confounded with
+  blocks.
+- **`generate_design(..., "omars", budget=N)` accepts any budget above 2k + 1 runs.** It
+  always sized the search for the full second-order model, which a foldover design can
+  estimate only from k^2 + k + 1 runs (43 for 6 factors), so 17 to 41 runs for 6
+  factors were refused with a message about error degrees of freedom. Smaller budgets
+  now give an OMARS design sized for main effects and pure quadratics, recorded in
+  `metadata["model"]`, and the caller's seed reaches the search (it was fixed at 42).
+- **`budget` gives a definitive screening design fake factors.** It was ignored: a DSD
+  always had the minimal 2k + 1 (or 2k + 3) runs, which leave no error degrees of freedom
+  for the analysis. A larger budget now builds the DSD from a larger conference matrix
+  and leaves out the extra columns (fake factors, Jones and Nachtsheim 2017), so 6
+  factors in 17 runs give `analyze_omars` 2 error degrees of freedom free of every
+  second-order effect. A budget below the minimal design raises.
+- **Plackett-Burman designs exist for 24 to 99 factors.** pyDOE3 stops with an
+  `AssertionError` at 24 to 27, 32 to 35, 40 to 43, 48 to 59 factors and beyond; those
+  sizes now use a Hadamard matrix from the finite-field module (Paley I and II, doubling),
+  in the smallest multiple of 4 above the factor count (92 runs is not built, so 88 to
+  91 factors take 96). Sizes pyDOE3 covers are unchanged. The supersaturated designs
+  gain the same Hadamard orders (28, 36, 52, 76, 100, ...).
+
+- **`augment_design(..., "add_runs_optimal")` adds runs to a design that cannot yet fit
+  the target model (#637).** It added one run at a time by `log det(X'X)`, which is
+  `-inf` for every candidate while the design is singular, so a 2^(4-1) screening design
+  aimed at a quadratic model gained no runs and the result still reported success. The
+  new runs now come from the Fedorov exchange with the existing runs fixed. When the
+  request cannot supply the rank the existing runs lack, more runs are added and the
+  explanation says so. The candidate grid is capped (6 factors: 0.5 s, from 10.5 s).
+  `augment_design` and its tool take `random_state` (default 42).
+- **`recommend_strategy` stages are valid `generate_design` calls (#638).** It
+  recommended `"simplex_lattice"`, `"definitive_screening"` (with a `fake_factor`
+  parameter) and `"ccd_face_centered"`, which `generate_design` rejects. They are now
+  `"mixture"` (with `model_type`), `"dsd"` and `"ccd"` with `alpha="face_centered"`. A
+  budget below `k + 1` continuous factors gets a supersaturated screening design when an
+  unaliased one exists. The confirmation stage, `"replicates_at_optimum"`, is documented
+  as the one stage not built by `generate_design`.
+- **`analysis_type="model_selection"` searches the requested model, with heredity, by
+  AICc (#639).** It always added every two-factor interaction, eliminated backward from
+  fits with more terms than runs, took the first improving step, and could keep an
+  interaction without its main effects; in a 16-factor, 12-run supersaturated design it
+  dropped a true effect and kept dozens of interactions. Each step now takes the best
+  single addition or removal that respects strong heredity. The default criterion is
+  AICc, which equals AIC for large N and stops a search near saturation. The search
+  runs forward when the full model leaves no residual degrees of freedom. The result
+  adds `selected_terms` and `candidate_model`.
+- **Optimal designs built by pyoptex honour `random_seed` (#640).** pyoptex draws its
+  restarts from numpy's global RNG, so the same seed gave different designs depending on
+  the caller's global state. The global RNG is now seeded from `random_seed` for the
+  pyoptex call only, and the caller's state is restored afterwards.
 
 - **`generate_design(..., "fractional_factorial")` builds its designs from a table of
   minimum-aberration generators (#620).** It used pyDOE3's `fracfact_by_res`, which
@@ -33,6 +4557,172 @@ those changes.
     mislabelled.
   - An explicit generator whose right-hand side names no factors, such as `"D="`, raises
     a `ValueError` saying so, instead of an `IndexError` from inside pyDOE3.
+
+- **`generate_omars` no longer returns a design that cannot fit its model.** A foldover
+  can be a valid OMARS design and still leave the model it was sized for
+  rank-deficient. Such designs could win the selection, with D-efficiency 0: four
+  factors at the automatic size with `selection_criterion="min_second_order_correlation"`
+  returned a rank-14 design for the 15-parameter full second-order model. They are now
+  set aside on both the exhaustive and multistart paths, and counted in
+  `metadata["omars_search"].rank_deficient_designs`. When every design found is
+  rank-deficient, a `ValueError` says so.
+
+- **`generate_omars` requires every factor to leave its middle level.** The integer
+  program only asked for orthogonal main effects, which a factor left at 0 in every
+  half-run satisfies trivially. The solver could return such a selection; it then failed
+  the `is_omars` check, but a minimise-size solve had already fixed the run size from it.
+  Each factor now has a coverage constraint, and every selection is checked exactly
+  before its size is used.
+
+- **With the run size chosen automatically, `generate_omars` moves up the window when
+  the smallest feasible size has no usable design.** If every design found at that size
+  is rank-deficient, the search tries the next size instead of failing.
+  `metadata["omars_search"].run_sizes_searched` counts the sizes tried. A pinned
+  `n_runs` is still searched alone.
+
+- **`generate_omars` errors name the run sizes searched.** A search that found no design
+  at the automatic size reported `n_runs_range=None`. The message now gives the run
+  window or the pinned `n_runs`, the status the last solve ended with, and advice that
+  fits that status: more time or nodes for a limit, a different size for a proven
+  infeasibility.
+
+- **`generate_omars` checks the run window.** `n_runs_range` with min above max, or ending
+  below the smallest estimable size, raises `ValueError` instead of returning a design
+  outside the window. A window, or a pinned `n_runs`, that needs more half-runs than the
+  `(3**k - 1) / 2` distinct ones is served by the exhaustive search, which repeats
+  half-runs, for three and four factors (three factors with `n_runs_range=(31, 37)` used
+  to report that no design exists); beyond its reach it raises a `ValueError` that says
+  why.
+
+- **The exhaustive search counts only OMARS designs, and its rank screen no longer
+  depends on `tol`.** Enumerated designs in which a factor never leaves its middle level
+  are dropped before scoring, so `enumerated_designs` and `rank_deficient_designs`
+  describe genuine OMARS designs. The singular-matrix screen used the `is_omars`
+  tolerance, so a loose `tol` marked full-rank designs as rank-deficient and moved the
+  size up; it now uses a fixed threshold.
+
+- **`solver_options["time_limit"]` keeps its fraction.** It was truncated with `int()`, so
+  `0.5` meant zero seconds.
+
+- **`MBPLS` and `MBPCA` sign each component like `PLS` and `PCA` do: the
+  largest-magnitude X loading is positive (#586).** Their old convention looked at the
+  super weight (super loading for `MBPCA`), which a sign flip of the whole component
+  leaves unchanged, so it could not fix the sign.
+  - `MBPLS`'s scores and weights changed sign when Y did, and one-block models often
+    had the opposite sign to `PLS` or `PCA` on some component.
+  - With missing cells a super weight can be negative, and then the old flip fired
+    and negated it together with the scores. The model then disagreed with itself:
+    `transform` and `predict` on the training blocks did not reproduce
+    `super_scores_` and `predictions_`.
+  - Some components of existing fits change sign. Scores, loadings, contributions and
+    predictions are otherwise unchanged, apart from the corrected missing-data fits.
+- **Uniform samples of a constrained region reach all of it.** These samples drive
+  space-filling designs, the I-optimality average and `evaluate_design`'s prediction
+  variance. A piecewise-linear constraint such as `abs(a - 0.95) >= 0.01` passed the
+  affine test, so hit-and-run never visited the part beyond its kink; the test now also
+  checks the box corners and a thousand further points. In long thin regions (a mixture
+  sliver `x1 + 3*x2 <= 0.05`) the chains started near the centre and barely moved along
+  the region, so the 5-95% range of `x3` came out as 0.15-0.76 instead of 0.05-0.93;
+  chains now start from the rejection hits when there are any and step along directions
+  drawn from the region's shape. A region made of separate pieces is now shared between
+  them by size to within about 0.01 (it varied by 0.06 from seed to seed).
+  `DesignRegion.sample` on categorical factors alone returns an `(n, 0)` array instead
+  of raising `IndexError`.
+- **`optimal.point_exchange` returns the D-optimal design it promises.** It offered each
+  candidate once, in a single pass, and stopped there: for four runs from the 3^3 grid
+  half of all seeds returned a design with `det(X'X)` of 64 or less instead of the half
+  fraction's 256. It now repeats the passes until none swaps a row, keeps the best of
+  five random starts, and documents its parameters.
+- **Supersaturated designs stay supersaturated and are scored fairly.** Without a budget,
+  3 to 5 factors got 4 or 6 runs, `k + 1` or more and so not supersaturated, with a
+  negative `E(s^2)` bound and efficiency; no unaliased design exists there, so the call
+  now raises and points to `"plackett_burman"`. In 6, 10, 14, ... runs every `|s_ij|` is
+  at least 2, a floor the Nguyen / Tang-Wu bound misses: designs with every `|s_ij| = 2`,
+  which are optimal, were reported as 36% to 77% efficient and are now at 100%. The
+  bound is never negative. Automatic selection treats the budget as a ceiling: 10
+  factors with 7 to 9 runs get the 6-run design and 22 factors with 13 runs the 12-run
+  design, where they got 15 and 27 Plackett-Burman runs (the new
+  `supersaturated_runs` gives the run count). A budget of `6.0` works and `6.5` raises,
+  where both failed with a `TypeError`. Fully aliased factors are reported by a
+  `UserWarning`, which callers can catch, instead of a log message, and the run counts
+  it and the errors suggest are all supersaturated.
+- **Space-filling designs: `"uniform"` and `"maximin_lhs"` reach what they promise, and
+  the run count is checked.** `"uniform"` used a scrambled Latin hypercube, whose random
+  offset inside each slice raised the centred discrepancy by half (0.0046 against 0.0030
+  for 10 runs in 2 factors) and made the one-factor design a plain Latin hypercube; it is
+  now a U-type design on the slice centres, as in Fang's uniform designs. `"maximin_lhs"`
+  stopped after a fixed `200 * k` swap attempts whatever `n`, leaving the smallest
+  distance 15% short at 50 runs in 5 factors; it now places runs at the slice centres
+  (Morris and Mitchell) and swaps, each swap scored in `O(n)`, until `3 * n * k` attempts
+  in a row fail. Fewer than 2 runs, or a fractional run count, raise a `ValueError` that
+  says so, where they failed deep inside numpy or returned an infinite distance. The
+  docstrings and user guide now say that `metadata["centered_l2_discrepancy"]` is the
+  squared discrepancy `CD^2`, and that `"maximin"` on a box of 8 or more factors puts
+  every run on the levels -1, 0 and +1 (use `"maximin_lhs"` when projections matter).
+- **Constrained mixture regions: complete vertices, fast enumeration, model-sized
+  default designs.** The vertex search dropped a vertex whenever a constraint was
+  written with small coefficients (`0.003*x1 >= 0.0003`), giving a false "cannot
+  support the model" error or a design missing a vertex; constraints are now scaled to
+  unit length first. Constraints implied by the others (`x_i <= 1` with zero lower
+  bounds) are dropped before enumerating, so 10 components with three constraints give
+  their 40 vertices at once instead of being refused, and adjacent vertices are found
+  without a rank test for every pair (a 100-run maximin design over a 10-component
+  mixture took over 10 s in vertex enumeration alone). Without a budget, a design of
+  more than three runs per model term (211 runs for 21 terms at 6 bounded components,
+  6931 at 10) is replaced by a D-optimal one with five runs more than the model has
+  terms. With user candidates, `n_candidates` now counts the feasible supplied blends,
+  and the docstring says that no budget means `n_terms + 3` runs.
+- **The built-in candidate exchange searches better and checks its inputs.** Its
+  restarts began from almost the same greedy design, since the first of many candidates
+  tied at the largest variance was always taken: a 14-run, 3-factor quadratic A-optimal
+  design reached trace 2.39 or 2.42 from every seed, never the 2.30 design in its own
+  candidate set, which most seeds now reach. Ties are now broken at random. Two linear
+  constraints that meet off the grid lines left that vertex out of the candidates, so a
+  4-run design for `a + 2*b <= 1.1, 2*a + b <= 1.1` was 94% D-efficient; the vertices
+  of the region cut by its linear constraints are now candidates
+  (`metadata["n_vertex_points"]`). Unconstrained D-optimal designs without squared terms
+  use the 2-level grid, which holds an optimum, instead of 5 levels: the same designs,
+  100 times faster at 7 factors. `constrained_optimal_design` refuses an unknown
+  `model_type` (`"quad"` gave a main-effects design labelled `"quad"`). Fixed runs
+  outside the constrained region are counted in
+  `metadata["n_fixed_runs_outside_region"]`, and the docstrings say they are kept as
+  given; a budget raised to make room for the free runs is recorded in
+  `metadata["budget_requested"]`.
+- **Optimal designs: pyoptex designs use interior levels, split-plot designs report
+  their whole plots, and budgets are honest.** Under a quadratic model pyoptex chose
+  each continuous factor from `{-1, 0, 1}` only, so A- and I-optimal designs lost up to
+  19% of their criterion (a 6-run, 2-factor A-optimal trace of 5.0 against 4.185); they
+  now have five levels from -1 to 1. Split-plot designs fixed the number of whole plots
+  at `max(4, n_runs // 3)`, so 16 runs with two hard-to-change factors and a quadratic
+  model (6 whole-plot terms) failed with "rank collinearity"; the default is now at least
+  one more than the whole-plot terms, and the metadata records each run's whole plot
+  (`whole_plot`), `n_whole_plots` and `whole_plot_variance_ratio`, which a split-plot
+  analysis needs. A `hard_to_change` name that is not a factor raises instead of
+  producing an ordinary design labelled split-plot. pyoptex's `metric_value` is on its
+  own scale (`det(X'X)^(1/p)`, `-trace`), so its designs now also report
+  `log_det_information` or `trace_criterion` as the built-in exchange does. A budget
+  raised to the model size is recorded in `metadata["budget_requested"]`; fixed runs
+  that span too little of the model raise the budget on the pyoptex path too, where they
+  failed inside pyoptex; and without a budget, fixed runs get a default that leaves room
+  beyond them (8 fixed runs and the default `2k + 1 = 7` used to raise). The docstrings
+  name E-optimality and every case in which `hard_to_change` is ignored.
+
+### Documentation
+
+- **A screen-then-optimise case study for the designed-experiments tools.** A simulated
+  reactor with six candidate factors and a heat-release limit is screened with a 17-run
+  definitive screening design and `analyze_omars`, then optimised with D-, I- and
+  G-optimal designs compared over the constrained region, a desirability optimum inside
+  that region and confirmation runs, checked against the simulator's true optimum.
+- **The DoE user-guide examples run in the test suite.** `tests/test_docs_doe_pages.py`
+  runs the Python blocks of each DoE page in order, failing on an error or on the
+  library's own deprecation warnings. Two blocks that used undefined data now simulate
+  it. A new page, "Design families and how each one is checked", lists every family with
+  the conformance test that checks its defining property, replacing `docs/doe/coverage.md`.
+  The API reference adds the factor, screening, response-surface, optimal, mixture, OMARS
+  analysis and plotting modules. The stale `docs/doe/tools.md` and
+  `examples/experiments/case-studies.py` (which imported a module that no longer exists)
+  are removed.
 
 ## [1.96.0] - 2026-09-30
 
@@ -6077,7 +10767,16 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/kgdunn/process-improve/compare/v2.2.0...v2.2.2
+[2.2.0]: https://github.com/kgdunn/process-improve/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/kgdunn/process-improve/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/kgdunn/process-improve/compare/v1.99.0...v2.0.0
+[1.99.0]: https://github.com/kgdunn/process-improve/compare/v1.98.0...v1.99.0
+[1.98.0]: https://github.com/kgdunn/process-improve/compare/v1.97.2...v1.98.0
+[1.97.2]: https://github.com/kgdunn/process-improve/compare/v1.97.1...v1.97.2
+[1.97.1]: https://github.com/kgdunn/process-improve/compare/v1.97.0...v1.97.1
+[1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.96.0...v1.97.0
 [1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0

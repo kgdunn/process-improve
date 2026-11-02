@@ -12,10 +12,11 @@ parameter as ``BaseEstimator`` to avoid importing the estimator modules.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import leaves_list, linkage, optimal_leaf_ordering
 from scipy.stats import f as f_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
@@ -47,9 +48,17 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
             \\frac{\\sum_{a=1}^{A} r2_a \\cdot w_{ja}^2}{\\sum_{a=1}^{A} r2_a}}
 
     where :math:`K` is the number of features, :math:`A` the number of
-    components, :math:`r2_a` the fraction of variance explained by component
+    components, :math:`r2_a` the model's ``r2_per_component_`` at component
     :math:`a`, and :math:`w_{ja}` the weight for feature :math:`j` in
     component :math:`a`.
+
+    The same formula weights each component by a different block's variance on
+    the two models: :math:`r2_a` is the fraction of **X** variance component
+    :math:`a` explains for PCA (:math:`R^2X`), and the fraction of **Y**
+    variance for PLS (:math:`R^2Y`). A PLS VIP therefore ranks the variables by
+    how much they contribute to the components that predict Y, and a PCA VIP by
+    how much they contribute to the components that describe X; the two are
+    not comparable with each other.
 
     Parameters
     ----------
@@ -120,18 +129,15 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
     w: np.ndarray = weights.values  # (n_features, total_components)
 
     total_components = w.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    w = w[:, :n_components]
+    w = w[:, :n_components]  # a slice up to None keeps every component
     r2 = r2[:n_components]
 
     n_features = w.shape[0]
-    r2_row = r2.reshape(1, -1)  # (1, n_components)
-    vip_values = np.sqrt(n_features * np.sum(r2_row * w**2, axis=1) / np.sum(r2))
+    vip_values = np.sqrt(n_features * np.sum(r2 * w**2, axis=1) / np.sum(r2))
 
     return pd.Series(vip_values, index=weights.index, name="VIP")
 
@@ -178,7 +184,7 @@ def _target_projection_arrays(
     # it does not repair the per-column unit mismatch. Use the scaled-space
     # regression vector (direct_weights_ @ y_loadings_.T) instead, and map X
     # into the same internal space via the model's own scaler when present.
-    b_scaled = model.direct_weights_.to_numpy(dtype=float) @ model.y_loadings_.to_numpy(dtype=float).T
+    b_scaled = model.direct_weights_.to_numpy() @ model.y_loadings_.to_numpy().T
     b = b_scaled[:, list(beta.columns).index(label)]
     norm_b = float(np.sqrt(b @ b))
     if norm_b <= epsqrt:
@@ -288,11 +294,9 @@ def _selectivity_ratio_one(
     # F-based critical value (Rajalahti et al., 2009): SR_j above this is
     # "significant" at conf_level, with N-2 and N-3 degrees of freedom. The
     # sensory layer prefers a permutation test, so this is advisory metadata.
+    # With N <= 3 a degree of freedom is below 1, and scipy returns NaN.
     n_samples = X_values.shape[0]
-    if n_samples > 3:
-        series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
-    else:
-        series.attrs["f_critical"] = float("nan")
+    series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
     series.attrs["conf_level"] = float(conf_level)
     series.attrs["response"] = label
     return series
@@ -427,17 +431,15 @@ def squared_cosine(model: BaseEstimator, n_components: int | None = None) -> pd.
 
     scores = model.scores_
     total_components = scores.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    score_ss = scores.to_numpy(dtype=float) ** 2
-    residual_ss = model.spe_.to_numpy(dtype=float)[:, -1] ** 2
+    score_ss = scores.to_numpy() ** 2
+    residual_ss = model.spe_.to_numpy()[:, -1] ** 2
     total_ss = score_ss.sum(axis=1) + residual_ss
 
-    with np.errstate(invalid="ignore", divide="ignore"):
+    with np.errstate(invalid="ignore"):  # 0 / 0 for a row at the origin; total_ss >= score_ss, so never x / 0
         cos2 = score_ss[:, :n_components] / total_ss[:, None]
     cos2[~np.isfinite(cos2)] = 0.0
 
@@ -508,16 +510,14 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
     scores = model.scores_
     total_components = scores.shape[1]
-    if n_components is None:
-        n_components = total_components
-    elif not (1 <= n_components <= total_components):
+    if n_components is not None and not (1 <= n_components <= total_components):
         msg = f"n_components must be between 1 and {total_components}, got {n_components}."
         raise ValueError(msg)
 
-    score_ss = scores.to_numpy(dtype=float) ** 2
+    score_ss = scores.to_numpy() ** 2
     column_ss = score_ss.sum(axis=0)
 
-    with np.errstate(invalid="ignore", divide="ignore"):
+    with np.errstate(invalid="ignore"):  # 0 / 0 for a score with no spread; column_ss >= score_ss, so never x / 0
         contributions = score_ss[:, :n_components] / column_ss[:n_components]
     contributions[~np.isfinite(contributions)] = 0.0
 
@@ -539,13 +539,28 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     is_pls = hasattr(model, "direct_weights_")
     reconstruction = model.x_loadings_ if is_pls else model.loadings_
     directions = model.direct_weights_ if is_pls else model.loadings_
-    P = np.asarray(reconstruction, dtype=float)
-    R = np.asarray(directions, dtype=float)
+    P = np.asarray(reconstruction)
+    R = np.asarray(directions)
 
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X)
     X = _align_to_fit_features(X, reconstruction.index)
     return X, R, P
+
+
+def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+    """Evaluate ``rows_product(rows)`` for the complete rows and for the rest, separately.
+
+    The last bit of a matrix product can depend on how many rows it has, since BLAS
+    splits the work by shape (Apple's Accelerate does). Multiplying the complete rows on
+    their own makes them match, bit for bit, what the same rows give when ``X`` has no
+    missing cells, so a complete row's contributions do not depend on the other rows.
+    """
+    incomplete = np.isnan(X_values).any(axis=1)
+    out = np.empty(X_values.shape)
+    for rows in (~incomplete, incomplete):
+        out[rows] = rows_product(rows)
+    return out
 
 
 def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data and the estimator choice
@@ -568,9 +583,9 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         return X_values @ R, None
     scores = np.full((X_values.shape[0], R.shape[1]), np.nan)
     scores[complete] = X_values[complete] @ R  # the complete rows keep the exact complete-data path
-    variances = np.asarray(model.explained_variance_, dtype=float)
+    variances = np.asarray(model.explained_variance_)
     # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
-    weights = np.asarray(model.x_weights_, dtype=float) if hasattr(model, "direct_weights_") else None
+    weights = np.asarray(model.x_weights_) if hasattr(model, "direct_weights_") else None
     guides = np.broadcast_to(R, (X_values.shape[0], *R.shape)).copy()
     patterns: dict[bytes, list[int]] = {}
     for i in np.flatnonzero(~complete):
@@ -593,8 +608,64 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         guide = np.zeros_like(R)
         guide[mask, :] = operator.matrix.T
         guides[rows] = guide
-        scores[rows] = np.where(observed[rows], X_values[rows], 0.0) @ guide
+        # A missing cell meets a row of zeros in the guide, so the value it is filled with does not matter.
+        filled = np.where(observed[rows], X_values[rows], 0.0)  # pragma: no mutate - any fill: see above
+        scores[rows] = filled @ guide
     return scores, guides
+
+
+def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
+    """Return the score standard deviations Hotelling's T² divides by, ``inf`` for a component it leaves out.
+
+    A component whose training score sd is at most ``epsqrt`` times the largest (or
+    ``epsqrt`` itself while every sd is below 1) holds none of the data's spread: the last
+    component of a rank-deficient fit has an sd near 1e-16, for instance. Its standardised
+    score is noise over noise for a training row and enormous for a new row off the model
+    plane, so it carries no T². A divisor of ``inf`` makes it add 0 for any finite score.
+    Every T² of PCA, PLS, MBPCA and MBPLS goes through this one rule, so a row gets the
+    same T² from ``fit`` as from ``diagnose`` or ``project``.
+
+    Parameters
+    ----------
+    score_sd : np.ndarray of shape (n_components,)
+        The training score standard deviations (``scaling_factor_for_scores_``).
+
+    Returns
+    -------
+    np.ndarray of shape (n_components,)
+        ``score_sd``, with ``inf`` for each component left out.
+    """
+    return np.where(score_sd > epsqrt * max(1.0, float(np.max(score_sd))), score_sd, np.inf)
+
+
+def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:
+    """Return the cumulative Hotelling's T² of each row of a multiblock model's block scores (#513).
+
+    Each component is scaled by the scores' second moment about zero,
+    ``sum(t**2) / (n - 1)`` over the ``n`` rows that have a score, which is how
+    ``explained_variance_`` scales the super scores, so a block's T² and the super T²
+    follow one convention. T² measures the distance from the model's centre, the
+    origin of the score space, so the spread it is scaled by is the spread about that
+    origin too. The block scores used to be scaled by their variance about their own
+    mean instead, which differs as soon as missing data leaves them off-centre, and
+    which a single row without a score turned into NaN, so that every row's T² in the
+    block went unscaled. A component with no spread in the block is left out by
+    :func:`_t2_score_sd`, as from every other T² (#1028).
+
+    Parameters
+    ----------
+    scores : np.ndarray of shape (n_samples, n_components)
+        One block's scores, NaN for a row with nothing observed in the block.
+
+    Returns
+    -------
+    np.ndarray of shape (n_samples, n_components)
+        Column ``a`` holds the T² over the first ``a`` components; NaN for a row with
+        no score. A component with no spread adds nothing.
+    """
+    present = np.isfinite(scores)
+    second_moment = np.nansum(scores**2, axis=0) / np.maximum(1, present.sum(axis=0) - 1)
+    return np.cumsum((scores**2) / _t2_score_sd(np.sqrt(second_moment)) ** 2, axis=1)
 
 
 def t2_contributions(
@@ -602,7 +673,7 @@ def t2_contributions(
     X: DataMatrix,
     components: list[int] | None = None,
     *,
-    method: str = "scp",
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
     ridge: float = 0.0,
 ) -> pd.DataFrame:
     r"""Per-variable contributions to Hotelling's :math:`T^2`.
@@ -622,7 +693,9 @@ def t2_contributions(
     :math:`\sum_a t_{ia}^2 / s_a^2`, i.e. the observation's :math:`T^2`. The
     values are signed; a large magnitude flags a variable that drives the
     observation away from the model centre. This is the standard MSPC
-    diagnostic (Westerhuis, Gurden and Smilde, 2000).
+    diagnostic (Westerhuis, Gurden and Smilde, 2000). A component whose score
+    standard deviation is ~0 contributes nothing, as it adds nothing to the
+    stored ``hotellings_t2_``.
 
     A row with missing cells (NaN) gets its scores from its observed cells
     alone, with the estimator named by ``method``, the missing-data operators
@@ -672,7 +745,7 @@ def t2_contributions(
     PCA.score_contributions : Decomposes a single score-space movement.
     """
     X_df, R, P = _contribution_inputs(model, X)
-    X_values = X_df.to_numpy(dtype=float)
+    X_values = np.ascontiguousarray(X_df.to_numpy(dtype=float))  # one memory layout, whatever the input's
     A = R.shape[1]
 
     if components is None:
@@ -683,23 +756,32 @@ def t2_contributions(
             msg = f"components must be 1-based indices within 1..{A}, got {components}."
             raise ValueError(msg)
 
-    s = np.asarray(model.scaling_factor_for_scores_, dtype=float)[idx]
-    # ``s_a == 0`` for a degenerate component would give inf/NaN; clamp the
-    # divisor so such a component contributes nothing rather than poisoning the
-    # result (mirrors ``score_contributions(weighted=True)``).
-    s2 = np.where(s**2 > epsqrt, s**2, 1.0)
+    # A component whose score sd is ~0 carries no T2: fit() leaves it out of
+    # hotellings_t2_ by this same rule, and it contributes 0 here too, whatever X
+    # scores on it, rather than inf or NaN.
+    s2 = _t2_score_sd(np.asarray(model.scaling_factor_for_scores_))[idx] ** 2
 
     scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     weights = scores[:, idx] / s2  # (n, len(idx))
-    factors = weights @ R[:, idx].T  # exact for the complete rows
+    factors = _complete_rows_apart(X_values, lambda rows: weights[rows] @ R[:, idx].T)
     if guides is not None:
         rows = np.flatnonzero(np.isnan(X_values).any(axis=1))
-        factors[rows] = np.einsum("ia,ika->ik", weights[rows], guides[rows][:, :, idx])
+        factors[rows] = np.einsum(
+            "ia,ika->ik",  # pragma: no mutate - einsum reads upper-case subscripts as lower-case ones
+            weights[rows],
+            guides[rows][:, :, idx],
+        )
     contributions = X_values * factors
     return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
 
 
-def spe_contributions(model: BaseEstimator, X: DataMatrix, *, method: str = "scp", ridge: float = 0.0) -> pd.DataFrame:
+def spe_contributions(
+    model: BaseEstimator,
+    X: DataMatrix,
+    *,
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
+    ridge: float = 0.0,
+) -> pd.DataFrame:
     r"""Per-variable squared-prediction-error (SPE / DModX) contributions.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Returns the signed
@@ -759,9 +841,9 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix, *, method: str = "scp
     t2_contributions : The :math:`T^2` (score-space) counterpart.
     """
     X_df, R, P = _contribution_inputs(model, X)
-    X_values = X_df.to_numpy(dtype=float)
+    X_values = np.ascontiguousarray(X_df.to_numpy(dtype=float))  # one memory layout, whatever the input's
     scores, _guides = _scores_and_guides(model, X_values, R, P, method, ridge)
-    residuals = X_values - scores @ P.T
+    residuals = _complete_rows_apart(X_values, lambda rows: X_values[rows] - scores[rows] @ P.T)
     return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
 
 
@@ -815,7 +897,7 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     component: int = 1,
     scaling: str = "none",
     *,
-    method: str = "scp",
+    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
     ridge: float = 0.0,
     **deprecated: object,
 ) -> pd.DataFrame:
@@ -925,11 +1007,12 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     _scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     contributions = X_values * (r_a if guides is None else guides[:, :, int(component) - 1])
 
+    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do).
     if scaling == "maximum":
-        largest = float(np.abs(contributions).max())
+        largest = float(np.nanmax(np.abs(contributions)))
         contributions = contributions / (largest if largest > epsqrt else 1.0)
     elif scaling == "within":
-        row_total = np.abs(contributions).sum(axis=1, keepdims=True)
+        row_total = np.nansum(np.abs(contributions), axis=1, keepdims=True)
         contributions = contributions / np.where(row_total > epsqrt, row_total, 1.0)
     elif scaling != "none":
         msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
@@ -1030,8 +1113,7 @@ def group_contributions(  # noqa: PLR0913 - group/reference are sugar for weight
         if group is None:
             msg = "Pass group (optionally with reference), or weights."
             raise ValueError(msg)
-        w = np.zeros(len(X_df), dtype=float)
-        w += _mean_weights(X_df, group, "group")
+        w = _mean_weights(X_df, group, "group")
         if reference is not None:
             w -= _mean_weights(X_df, reference, "reference")
 
@@ -1045,7 +1127,7 @@ def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarr
     if len(selected) == 0:
         msg = f"{name} selected no observations from X."
         raise ValueError(msg)
-    w = np.zeros(len(X_df), dtype=float)
+    w = np.zeros(len(X_df))
     w[X_df.index.get_indexer_for(selected.index)] = 1.0 / len(selected)
     return w
 
@@ -1064,7 +1146,7 @@ def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFr
         if len(values) != len(X_df):
             msg = f"{name} is a boolean mask of length {len(values)}, but X has {len(X_df)} rows."
             raise ValueError(msg)
-        return X_df.loc[np.asarray(values, dtype=bool)]
+        return X_df.loc[np.asarray(values)]
     missing = [v for v in values if v not in X_df.index]
     if missing:
         msg = (
@@ -1074,6 +1156,261 @@ def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFr
         )
         raise ValueError(msg)
     return X_df.loc[values]
+
+
+def _complete_through_model(
+    model: BaseEstimator, X: DataMatrix
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+    """Align ``X`` to the fit and return ``(X_aligned, x, R, P)`` with every missing cell filled.
+
+    A missing cell is replaced by the model's reconstruction of it, from the scores that
+    the row's observed cells give (the estimator :func:`spe_contributions` uses), so the
+    cross-products MEDA and oMEDA are built from are of complete data.
+    """
+    X_df, R, P = _contribution_inputs(model, X)
+    x = X_df.to_numpy(dtype=float)
+    missing = np.isnan(x)
+    if missing.any():
+        scores, _ = _scores_and_guides(
+            model,
+            x,
+            R,
+            P,
+            method="scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same
+            ridge=0.0,  # pragma: no mutate - SCP does not use the ridge, so 1.0 is the same
+        )
+        x = np.where(missing, scores @ P.T, x)
+    return X_df, x, R, P
+
+
+def _meda_index(cross: np.ndarray, modelled: np.ndarray, scale: np.ndarray, *, signed: bool) -> np.ndarray:
+    """Return ``(2 cross - modelled) * modelled / scale``, with ``|modelled|`` when signed, and 0 where scale is 0."""
+    weight = np.abs(modelled) if signed else modelled
+    # A variable with no sum of squares makes scale 0; a divisor of inf gives its entries 0, without a warning.
+    return (2.0 * cross - modelled) * weight / np.where(scale > 0, scale, np.inf)
+
+
+def _seriation_order(matrix: np.ndarray) -> np.ndarray:
+    """Order rows and columns so that strongly related variables sit next to each other.
+
+    Average-linkage clustering on the distance ``1 - |m|`` (symmetrised), with the
+    leaves put in the order that maximises the similarity of neighbours (Bar-Joseph,
+    Gifford and Jaakkola, 2001), so each block of related variables is contiguous.
+    Two variables have only one order, up to reversal.
+    """
+    n = len(matrix)
+    if n < 3:
+        return np.arange(n)
+    similarity = np.abs((matrix + matrix.T) / 2.0)
+    distance = np.clip(1.0 - similarity, 0.0, None)
+    condensed = distance[np.triu_indices(n, 1)]  # scipy's condensed form: the upper triangle, row by row
+    return leaves_list(optimal_leaf_ordering(linkage(condensed, method="average"), condensed))
+
+
+def meda(model: BaseEstimator, X: DataMatrix, *, signed: bool = True, seriate: bool = False) -> pd.DataFrame:
+    r"""Map how the fitted model relates every pair of variables (MEDA).
+
+    MEDA, missing-data methods for exploratory data analysis (Camacho, 2010), asks
+    for each pair of variables how well one is predicted from the other alone,
+    through the model. A correlation matrix answers that from all the directions in
+    the data; MEDA answers it from the model's components only. It therefore shows
+    the relationships the model represents, and adding a component shows which
+    relationships that component brings in.
+
+    Entry :math:`(j, k)` is the goodness of prediction of variable :math:`k` when
+    only variable :math:`j` is known and the scores are estimated from it by
+    regression. With :math:`S = X^\top X` and :math:`S_A = S R P^\top`, the part
+    of it the model reproduces (``R`` gives the scores, ``P`` the reconstruction:
+    both the loadings for PCA, the direct weights and X-loadings for PLS),
+
+    .. math::
+
+        q^2_{jk} = 1 - \frac{\lVert x_k - \hat{x}_{k \mid j}\rVert^2}{\lVert x_k \rVert^2}
+                 = \frac{(2 S_{jk} - S_{A,jk})\, S_{A,jk}}{S_{jj} S_{kk}},
+        \qquad \hat{x}_{k \mid j} = x_j \frac{S_{A,jk}}{S_{jj}}.
+
+    The signed index, the default, replaces the last :math:`S_{A,jk}` by its
+    absolute value, as the MEDA Toolbox does (Camacho et al., 2015). The size is
+    unchanged where the model reproduces the relationship, and the sign then says
+    whether the two variables move together or in opposition. The diagonal is
+    :math:`r_k (2 - r_k)` for the fraction :math:`r_k` of variable :math:`k`'s sum
+    of squares that the model reproduces, which lies in :math:`[0, 1]`.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model. Every fitted component is used; to see the map
+        at fewer components, fit a model with fewer.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data, usually the
+        training data itself. A missing cell is filled with the model's
+        reconstruction of it before the cross-products are formed.
+    signed : bool, default=True
+        Return the signed index. ``False`` returns the goodness of prediction
+        :math:`q^2_{jk}` itself.
+    seriate : bool, default=False
+        Reorder the rows and columns so that groups of related variables are
+        contiguous (hierarchical clustering on :math:`1 - |\text{MEDA}|` with
+        optimal leaf ordering). The labels travel with the values.
+
+    Returns
+    -------
+    pd.DataFrame
+        The K x K map, rows and columns labelled by variable. It is symmetric
+        for PCA, and close to symmetric for PLS.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.meda(X_scaled, seriate=True)
+    >>> pca.meda_plot(X_scaled)
+
+    See Also
+    --------
+    omeda : Which variables separate one group of observations from another.
+
+    References
+    ----------
+    Camacho, J. (2010). Missing-data theory in the context of exploratory data
+    analysis. Chemometrics and Intelligent Laboratory Systems 103(1), 8-18.
+
+    Camacho, J., Perez-Villegas, A., Rodriguez-Gomez, R. A. and Jimenez-Manas, E.
+    (2015). Multivariate Exploratory Data Analysis (MEDA) Toolbox for Matlab.
+    Chemometrics and Intelligent Laboratory Systems 143, 49-57.
+    """
+    X_df, x, R, P = _complete_through_model(model, X)
+    cross = x.T @ x
+    modelled = cross @ R @ P.T
+    sums_of_squares = np.diag(cross)
+    values = _meda_index(cross, modelled, np.outer(sums_of_squares, sums_of_squares), signed=signed)
+    names = X_df.columns
+    if seriate:
+        order = _seriation_order(values)
+        values, names = values[np.ix_(order, order)], names[order]
+    return pd.DataFrame(values, index=names, columns=names)
+
+
+def _omeda_dummy(
+    X_df: pd.DataFrame, group: Sequence | None, reference: Sequence | None, weights: Sequence | None
+) -> np.ndarray:
+    """Build oMEDA's dummy: +1 on ``group`` and -1 on ``reference``, or ``weights``; each side peaks at 1 in size."""
+    if weights is not None:
+        if group is not None or reference is not None:
+            msg = "Pass either weights, or group/reference, not both."
+            raise ValueError(msg)
+        dummy = np.asarray(weights, dtype=float).copy()
+        if dummy.ndim != 1 or dummy.size != len(X_df):
+            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {dummy.shape}."
+            raise ValueError(msg)
+        # Each side is scaled so its largest weight is 1 in size (Camacho, 2011), as
+        # the +1 / -1 dummy of group and reference below already is.
+        positive, negative = dummy > 0, dummy < 0
+        if positive.any():
+            dummy[positive] /= dummy[positive].max()
+        if negative.any():
+            dummy[negative] /= -dummy[negative].min()
+    else:
+        if group is None:
+            msg = "Pass group (optionally with reference), or weights."
+            raise ValueError(msg)
+        dummy = np.zeros(len(X_df))
+        in_group = X_df.index.get_indexer_for(_select_rows(X_df, group, "group").index)
+        dummy[in_group] = 1.0
+        if reference is not None:
+            in_reference = X_df.index.get_indexer_for(_select_rows(X_df, reference, "reference").index)
+            if np.intersect1d(in_group, in_reference).size:
+                msg = "group and reference share observations; each observation belongs to one side."
+                raise ValueError(msg)
+            dummy[in_reference] = -1.0
+    if not np.any(dummy):
+        msg = "The comparison selects no observations: every weight is zero."
+        raise ValueError(msg)
+    return dummy
+
+
+def omeda(
+    model: BaseEstimator,
+    X: DataMatrix,
+    group: Sequence | None = None,
+    reference: Sequence | None = None,
+    *,
+    weights: Sequence | None = None,
+) -> pd.Series:
+    r"""Find the variables that separate one group of observations from another (oMEDA).
+
+    Observation-based MEDA (Camacho, 2011) answers the question a pair of clusters
+    on a score plot poses: which variables put these observations here and those
+    there? It compares the groups only along the directions the model trusts, so a
+    variable that differs between them but that the model does not capture scores
+    low.
+
+    A dummy vector :math:`d` marks the comparison: :math:`+1` on ``group``,
+    :math:`-1` on ``reference`` and 0 elsewhere, or ``weights`` with each side
+    rescaled so its largest weight is 1 in size. With :math:`\hat{X} = X R P^\top`
+    the data reconstructed through the model,
+
+    .. math::
+
+        \text{oMEDA}_k = \frac{(2\, x_k^\top d - \hat{x}_k^\top d)\,
+                               \lvert \hat{x}_k^\top d \rvert}{\sqrt{d^\top d}}.
+
+    This is the MEDA index with the dummy in place of a second variable. A
+    positive value means the variable is higher in ``group`` than in ``reference``
+    (or than the model centre, with no reference), a negative value that it is
+    lower. The size grows with the difference and with how well the model
+    reproduces it. The dummy sums the observations rather than averaging them, so
+    a comparison of unequal groups leans towards the larger one, as in the
+    original method.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model; every fitted component is used.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data. A missing
+        cell is filled with the model's reconstruction of it.
+    group : sequence, optional
+        Index labels of the observations of interest, or a boolean mask the same
+        length as ``X``. Selection is by label, not by position; pass
+        ``X.index[...]`` to select positionally. Required unless ``weights`` is
+        given.
+    reference : sequence, optional
+        Index labels, or a boolean mask, selecting the observations to compare
+        against. ``None`` (default) compares the group against the model centre.
+    weights : sequence, optional
+        One weight per row of ``X``: a general dummy vector, for comparisons
+        other than two groups. Mutually exclusive with ``group`` / ``reference``.
+
+    Returns
+    -------
+    pd.Series
+        One signed value per variable, named ``"omeda"``.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> # The cluster at the top right of the score plot, against the rest:
+    >>> rest = X_scaled.index.difference(cluster)
+    >>> pca.omeda(X_scaled, group=cluster, reference=rest).sort_values()
+    >>> pca.omeda_plot(X_scaled, group=cluster, reference=rest)
+
+    See Also
+    --------
+    group_contributions : The contributions to one component's score shift.
+    meda : The map of how the model relates the variables to each other.
+
+    References
+    ----------
+    Camacho, J. (2011). Observation-based missing data methods for exploratory data
+    analysis to unveil the connection between observations and variables in latent
+    subspace models. Journal of Chemometrics 25(11), 592-600.
+    """
+    X_df, x, R, P = _complete_through_model(model, X)
+    dummy = _omeda_dummy(X_df, group, reference, weights)
+    observed = x.T @ dummy
+    modelled = (x @ R @ P.T).T @ dummy
+    values = (2.0 * observed - modelled) * np.abs(modelled) / np.sqrt(dummy @ dummy)
+    return pd.Series(values, index=X_df.columns, name="omeda")
 
 
 def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
@@ -1113,9 +1450,9 @@ def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
 
     summary = pd.DataFrame(
         {
-            "eigenvalue": np.asarray(model.explained_variance_, dtype=float),
-            "percent_variance": model.r2_per_component_.to_numpy(dtype=float) * 100.0,
-            "cumulative_percent": model.r2_cumulative_.to_numpy(dtype=float) * 100.0,
+            "eigenvalue": model.explained_variance_,
+            "percent_variance": model.r2_per_component_.to_numpy() * 100.0,
+            "cumulative_percent": model.r2_cumulative_.to_numpy() * 100.0,
         },
         index=model.r2_per_component_.index,
     )
@@ -1176,9 +1513,9 @@ def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> p
         raise ValueError(msg)
 
     xs = supplementary_data.to_numpy(dtype=float)
-    t = scores.to_numpy(dtype=float)
-    xs_centered = xs - xs.mean(axis=0, keepdims=True)
-    t_centered = t - t.mean(axis=0, keepdims=True)
+    t = scores.to_numpy()
+    xs_centered = xs - xs.mean(axis=0)
+    t_centered = t - t.mean(axis=0)
     xs_norm = np.sqrt((xs_centered**2).sum(axis=0))
     t_norm = np.sqrt((t_centered**2).sum(axis=0))
 
@@ -1191,16 +1528,16 @@ def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> p
 
 def _column_centred_array(data: DataMatrix, name: str) -> np.ndarray:
     """Coerce *data* to a 2-D float array with every column mean-centred."""
-    arr = data.to_numpy(dtype=float) if isinstance(data, pd.DataFrame) else np.asarray(data, dtype=float)
+    arr = np.asarray(data, dtype=float)
     if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
+        arr = arr[:, np.newaxis]
     if arr.ndim != 2:
         msg = f"{name} must be 1- or 2-dimensional, got {arr.ndim} dimensions."
         raise ValueError(msg)
-    return np.asarray(center(arr), dtype=float)
+    return np.asarray(center(arr))
 
 
-def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> float:
+def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool = False) -> float:
     """Shared core of the RV and modified-RV (RV2) coefficients."""
     x_centred = _column_centred_array(X, "X")
     y_centred = _column_centred_array(Y, "Y")
@@ -1216,7 +1553,7 @@ def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> floa
 
     denominator = np.sqrt(np.sum(s_x * s_x) * np.sum(s_y * s_y))
     if denominator == 0.0:
-        return float("nan")
+        return np.nan
     return float(np.sum(s_x * s_y) / denominator)
 
 
@@ -1271,7 +1608,7 @@ def rv_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
     >>> rv_coefficient(X, Y)
     >>> rv_coefficient(X, X)  # 1.0: a block is perfectly correlated with itself
     """
-    return _matrix_correlation(X, Y, modified=False)
+    return _matrix_correlation(X, Y)
 
 
 def rv2_coefficient(X: DataMatrix, Y: DataMatrix) -> float:

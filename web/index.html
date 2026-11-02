@@ -3,100 +3,681 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Designed Experiments</title>
-  <meta name="description" content="Design an experiment and analyse the results in your browser with process-improve. Nothing to install; your data stay on your machine.">
-  <link rel="icon" href="data:,">
+  <title>Factorial: designed experiments in your browser</title>
+  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your machine.">
+  <!-- The app's address, factori.al. A link card needs absolute URLs, so the address is written out here;
+       tests/web/page/test_brand.py checks it is the one docs.yml deploys to and checks. The copy on GitHub
+       Pages names it too, so search engines treat the two as one page. -->
+  <link rel="canonical" href="https://factori.al/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" data-scheme="light">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
+  <script>
+    /* The colour mode chosen with the switch in the header (app.js), put on the page before it is drawn,
+       so a reader who chose dark never sees it flash light. Without a choice the system's is followed. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      const chosen = mode === "light" || mode === "dark";
+      if (chosen) document.documentElement.dataset.theme = mode;
+      document.documentElement.dataset.mode = chosen ? mode : "auto";
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Factorial: designed experiments in your browser">
+  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.">
+  <meta property="og:url" content="https://factori.al/">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
-  <header>
-    <h1>Designed experiments</h1>
-    <p class="lede">
-      Design an experiment, run it, and analyse the results, with the
-      <a href="https://github.com/kgdunn/process-improve">process-improve</a> Python package running
-      inside this browser tab. Nothing to install, and your data never leave your machine.
-    </p>
-    <p id="status" class="status" role="status" aria-live="polite">Starting Python...</p>
+  <header class="masthead">
+    <div class="brand">
+      <!-- The mark: a 2^3 factorial and its centre run, seen down the cube's diagonal, in the page's colours.
+           tools/branding/app_mark.py draws it from generate_design and writes favicon.svg; test_brand.py
+           keeps the two in step. The mark and the name are a link to the page itself, so a press opens it
+           afresh, as a reload does. -->
+      <a href="./" class="brand__home" aria-label="Factorial: the home page">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <g class="mark__edges"><polygon points="14.68,42 32,52 49.32,42 49.32,22 32,12 14.68,22"/><line x1="32" y1="32" x2="14.68" y2="22"/><line x1="32" y1="32" x2="32" y2="52"/><line x1="32" y1="32" x2="49.32" y2="22"/></g>
+          <g class="mark__runs"><circle cx="14.68" cy="42" r="6"/><circle cx="32" cy="52" r="6"/><circle cx="49.32" cy="42" r="6"/><circle cx="49.32" cy="22" r="6"/><circle cx="32" cy="12" r="6"/><circle cx="14.68" cy="22" r="6"/></g>
+          <circle class="mark__centre" cx="32" cy="32" r="6"/>
+        </svg>
+        <div>
+          <h1>Factorial</h1>
+          <p class="tagline">Sense it. Test it. Im<b>prove</b> it.</p>
+        </div>
+      </a>
+      <!-- Feedback (feedback.js): a report to the maintainer, which leaves the page only when the reader presses Send. -->
+      <button type="button" id="feedback" class="feedback-button" data-feedback="general">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4.5h16v11H10l-4.5 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 11.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Feedback</span></button>
+      <!-- Light, dark, or the system's, in turn, as the book's switch does: its icon shows the mode now. -->
+      <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+        <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
+        <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+        <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
+    <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
+    <div class="hero">
+      <button type="button" id="new-study" class="button hero__action hero__action--new">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>Start a new study</button>
+      <button type="button" id="show-example" class="button hero__action hero__action--example">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l11 7-11 7z"/></svg>Explore a worked example</button>
+      <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
+    </div>
+    <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
+    <details id="library" class="library">
+      <summary>Your studies (<span id="library-count">0</span>), kept in this browser</summary>
+      <p class="library__intro"><span class="hint">Saved as you work, in this browser only. Download them all to keep
+        a copy, or to move them to another device.</span>
+        <button type="button" id="download-all" class="button" disabled>Download all (.json)</button></p>
+      <ul id="library-list"></ul>
+      <label id="study-drop" class="drop library__drop">
+        <input id="study-upload" type="file" accept=".json,application/json">
+        <span>Drop a study file (.json) here, or click to choose it. A file of one study opens it; a file of several
+          adds them all here.</span>
+      </label>
+    </details>
   </header>
 
-  <section aria-labelledby="h-design">
-    <h2 id="h-design"><span class="step">1</span> Design</h2>
-
-    <table class="factors" id="factors">
-      <thead><tr><th>Factor</th><th>Low</th><th>High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <button type="button" id="add-factor" class="link">+ Add factor</button>
-
-    <div class="row">
-      <label>Design type
-        <select id="design-type"></select>
-      </label>
-      <label>Response name
-        <input id="response" value="y" size="8">
-      </label>
+  <!-- The study's name and its three phases, kept in reach while the page scrolls, with the status line. -->
+  <nav id="studybar" class="studybar" aria-label="The study">
+    <div class="studybar__row">
+      <p class="studybar__title"><span id="study-title">A new study</span> <span id="study-about"></span></p>
+      <div class="phases" role="tablist" aria-label="Design, run, learn">
+        <button type="button" role="tab" id="go-plan" aria-controls="step-plan" aria-selected="true"><span class="step">1</span> Design<span id="badge-plan" class="badge" hidden></span></button>
+        <button type="button" role="tab" id="go-run" aria-controls="step-run" aria-selected="false" tabindex="-1"><span class="step">2</span> Run<span id="badge-run" class="badge" hidden></span></button>
+        <button type="button" role="tab" id="go-learn" aria-controls="step-analyse" aria-selected="false" tabindex="-1"><span class="step">3</span> Learn<span id="badge-learn" class="badge" hidden></span></button>
+      </div>
     </div>
-    <p id="design-hint" class="hint"></p>
+    <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
+      <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
+      <span class="status__text">Starting Python...</span>
+    </div>
+  </nav>
 
-    <div class="row" id="options">
-      <label data-option="n_center_points">Center points
-        <input id="n_center_points" type="number" min="0" max="10" value="3">
-      </label>
-      <label data-option="alpha">Axial points
-        <select id="alpha">
-          <option value="face_centered">Face-centred (inside the ranges)</option>
-          <option value="rotatable">Rotatable (outside the ranges)</option>
-          <option value="orthogonal">Orthogonal</option>
-        </select>
-      </label>
-      <label data-option="budget">Runs
-        <input id="budget" type="number" min="3" max="200" value="16">
-      </label>
-      <label data-option="model_type">Model to design for
-        <select id="model_type">
-          <option value="quadratic">Quadratic</option>
-          <option value="interactions">Interactions</option>
-          <option value="main_effects">Main effects</option>
-        </select>
-      </label>
+  <div id="demo-banner" class="banner" hidden>
+    <p>The worked example, computed with <span id="demo-version">process-improve</span>
+      <span id="demo-when">when this page was built</span>. Change anything to make it a study of your own.</p>
+    <p class="actions"><button type="button" id="run-example" class="button">Run it again in your browser</button></p>
+  </div>
+  <p id="campaign-banner" class="banner" role="status" hidden></p>
+
+  <div id="workspace" class="workspace" data-phase="plan">
+    <!-- The brief: what the study measures, what might change it, and what it is to learn. Beside every phase on a
+         wide screen; on a narrow one, at the top of Design. -->
+    <div id="brief" class="brief" data-pane="plan">
+      <section id="response-card" class="card" aria-labelledby="h-response">
+        <h2 id="h-response">What will you measure?</h2>
+        <!-- A row per response, up to five, as the factors are listed. The first row is the study's response and is
+             always there; app.js adds the others from it. Its goals mirror bootstrap.GOALS; tests/web/page/test_parity.py
+             keeps them in step. -->
+        <table class="factors responses" id="responses">
+          <thead><tr><th><button type="button" class="term" data-term="response">Response</button></th><th>Units</th><th>Goal</th><th>Target</th><th><span class="sr">Remove</span></th></tr></thead>
+          <tbody>
+            <tr>
+              <td data-label="Response"><input id="response" name="label" aria-label="Response" maxlength="64" placeholder="Yield" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Units"><input id="response-units" name="units" aria-label="Units" maxlength="32" size="5" placeholder="%" autocomplete="off" spellcheck="false"></td>
+              <td data-label="Goal"><select id="response-goal" name="goal" aria-label="Goal" autocomplete="off">
+                <option value="maximize">Maximise</option>
+                <option value="minimize">Minimise</option>
+                <option value="target">Hit a target</option>
+                <option value="learn" selected>Just learn</option>
+              </select></td>
+              <td data-label="Target"><input id="response-target" name="target" type="number" step="any" aria-label="Target" placeholder="none" disabled></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="response-problems" class="hint error" role="status" hidden></p>
+        <p class="add-factors">
+          <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
+          <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
+        </p>
+        <p id="first-sizes" class="hint" hidden>The first response sizes the design, so the page asks what you know of it.</p>
+        <details id="response-known" class="known">
+          <summary>What you know of <span id="known-name">it</span> already <span class="hint">(optional)</span></summary>
+          <div class="row">
+            <label><span class="term" data-term="typical">Typical value</span>
+              <span class="with-unit"><input id="response-typical" type="number" step="any"><span class="unit"></span></span>
+            </label>
+            <label><span class="term" data-term="noise">Run-to-run noise</span>
+              <span class="with-unit"><input id="response-noise" type="number" min="0" step="any"><span class="unit"></span></span>
+            </label>
+            <label><span class="term" data-term="change">Smallest change worth finding</span>
+              <span class="with-unit"><input id="response-change" type="number" min="0" step="any"><span class="unit"></span></span>
+            </label>
+          </div>
+        </details>
+        <p id="response-problems" class="hint error" role="status" hidden></p>
+      </section>
+
+      <section id="factors-card" class="card" aria-labelledby="h-factors">
+        <h2 id="h-factors">What might change it?</h2>
+        <table class="factors" id="factors">
+          <thead><tr><th>Factor name</th><th>Type</th><th id="h-low">Low</th><th id="h-high">High</th><th>Units</th><th><span class="sr">Remove</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="factor-problems" class="hint error" role="status" hidden></p>
+        <p class="add-factors">
+          <button type="button" id="add-factor" class="link">+ Add <span class="term" data-term="factor">factor</span></button>
+          <button type="button" id="add-categorical" class="link">+ Add <span class="term"
+            data-term="categorical">categorical factor</span></button>
+        </p>
+        <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
+        <details id="limits" class="known limits">
+          <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>
+          <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
+            component its lower and upper proportions instead.</p>
+          <p class="hint">Type each <button type="button" class="term" data-term="limit">limit</button> as an inequality
+            in the factors' own units, with + - * / and ** for a power.</p>
+          <div id="limit-list"></div>
+          <p id="limit-names" class="limit-names" aria-label="Type a factor or a sign" hidden></p>
+          <p class="actions">
+            <button type="button" id="add-limit" class="link">+ Type a limit</button>
+            <span id="limits-full" class="hint" hidden>A study can have at most 8 limits.</span>
+          </p>
+          <p id="limits-summary" class="hint" role="status" aria-live="polite" hidden></p>
+          <!-- The picture of the settings that can be run (picture.js): a panel per pair of numeric factors. -->
+          <div id="region" class="region" hidden>
+            <svg class="region__defs" width="0" height="0" aria-hidden="true">
+              <defs>
+                <pattern id="region-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <rect width="6" height="6" class="region__hatch-ground"></rect>
+                  <line x1="0" y1="0" x2="0" y2="6" class="region__hatch"></line>
+                </pattern>
+              </defs>
+            </svg>
+            <h3 id="h-region">The settings you can run</h3>
+            <p id="region-key" class="hint"></p>
+            <div id="region-panels" class="region-panels"></div>
+            <p id="region-legend" class="hint"></p>
+            <p class="actions"><button type="button" id="every-pair" class="link" aria-pressed="false" hidden></button></p>
+            <div id="region-slice" class="region-slice" role="group" aria-labelledby="h-slice" hidden>
+              <h4 id="h-slice"></h4>
+              <div id="slice-held" class="slice-held"></div>
+              <div id="slice-panel" class="slice-panel"></div>
+              <p class="actions"><button type="button" id="slice-close" class="link">Back to every pair</button></p>
+            </div>
+          </div>
+          <!-- The corners of the ranges (corners.js): mark those that cannot be run, and a limit is proposed. -->
+          <div id="corners" class="corners" hidden>
+            <h3 id="h-corners">Or mark the settings you cannot run</h3>
+            <p class="hint">Tick the corners that cannot be run, and a limit that rules them out is proposed.</p>
+            <div id="corner-filters" class="corner-filters" role="group" aria-label="Show the corners where" hidden></div>
+            <div class="scroll"><table id="corner-table" class="data corner-table" aria-labelledby="h-corners"></table></div>
+            <p class="actions">
+              <button type="button" id="mark-shown" class="link">Mark all shown</button>
+              <button type="button" id="clear-marks" class="link" hidden>Clear the marks</button>
+              <button type="button" id="more-corners" class="link" hidden></button>
+            </p>
+            <div id="limit-proposals" class="proposals" aria-live="polite"></div>
+          </div>
+        </details>
+      </section>
+
+      <section id="aim-card" class="card" aria-labelledby="h-aim">
+        <h2 id="h-aim">What do you want to learn?</h2>
+        <!-- The models designs are compared on, process_improve.experiments.compare.MODELS;
+             tests/web/page/test_parity.py keeps them in step. -->
+        <div class="aims" role="radiogroup" aria-labelledby="h-aim">
+          <label class="aim"><input type="radio" name="aim" value="main_effects"><span><strong>Which factors
+            matter</strong><span class="hint"><span class="term" data-term="main-effect">Main effects</span></span></span></label>
+          <label class="aim"><input type="radio" name="aim" value="interactions"><span><strong>Which factors matter, and
+            how they act together</strong><span class="hint">Main effects and <span class="term"
+            data-term="interaction">two-factor interactions</span></span></span></label>
+          <label class="aim"><input type="radio" name="aim" value="main_quadratic" checked><span><strong>Where each
+            factor's effect curves</strong><span class="hint">Main effects and <span class="term"
+            data-term="square">squares</span>, the book's model</span></span></label>
+          <label class="aim"><input type="radio" name="aim" value="quadratic"><span><strong>The whole response
+            surface</strong><span class="hint">The <span class="term" data-term="quadratic">full quadratic
+            model</span></span></span></label>
+        </div>
+        <p id="aim-terms" class="hint"></p>
+      </section>
     </div>
 
-    <button type="button" id="generate" class="primary" disabled>Generate design</button>
-    <div id="design-out" hidden>
-      <p id="design-summary"></p>
-      <div class="scroll"><table id="design-table" class="data"></table></div>
-      <a id="download" class="primary button" download="experiment.xlsx">Download workbook (.xlsx)</a>
-    </div>
-  </section>
+    <div class="panes">
+      <section id="step-plan" class="pane" data-pane="plan" role="tabpanel" aria-labelledby="h-plan">
+        <h2 id="h-plan">Designs that can help you learn this</h2>
+        <p id="plan-empty" class="hint">Enter a factor or more to list them.</p>
+        <div id="candidates" class="candidates" aria-live="polite" hidden></div>
+        <p class="actions">
+          <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>
+          <button type="button" id="compare" class="link" disabled>Compare them in detail</button>
+        </p>
 
-  <section aria-labelledby="h-analyse">
-    <h2 id="h-analyse"><span class="step">2</span> Analyse</h2>
-    <p>Run the experiments in the order listed, type each result into the response column, save, and drop the workbook here.
-      A partly filled workbook is fine: the page analyses the completed runs.</p>
-    <label id="drop" class="drop">
-      <input id="upload" type="file" accept=".xlsx" disabled>
-      <span>Drop the filled-in workbook here, or click to choose it</span>
-    </label>
-    <div class="row">
-      <label>Model
-        <select id="model">
-          <option value="">As designed</option>
-          <option value="main_effects">Main effects</option>
-          <option value="interactions">Main effects + two-factor interactions</option>
-          <option value="quadratic">Full quadratic</option>
-        </select>
-      </label>
+        <div id="design-card" class="design-card">
+          <h3 id="h-design">The design</h3>
+          <div class="row">
+            <label>Design type
+              <!-- Mirrors bootstrap.DESIGNS (label, hint, options) so the form is
+                   right before Python loads; tests/web/page/test_parity.py keeps them in step. -->
+              <select id="design-type" autocomplete="off">
+                <option value="full_factorial" data-options="n_center_points n_replicates n_blocks" data-min-factors="1" data-max-factors="7"
+                  data-hint="Every combination of low and high. 2^k runs, plus center points.">Full factorial (2-level)</option>
+                <option value="fractional_factorial" data-options="n_center_points resolution n_replicates n_blocks" data-min-factors="3" data-max-factors="11"
+                  data-hint="A fraction of the full factorial; its resolution says what is aliased with what.">Fractional factorial (2-level)</option>
+                <option value="plackett_burman" data-options="n_center_points n_replicates n_blocks" data-min-factors="2" data-max-factors="11"
+                  data-hint="Main effects only, in a multiple of 4 runs plus center points; each main effect is partly or fully aliased with two-factor interactions.">Plackett-Burman screening</option>
+                <option value="taguchi" data-options="n_levels n_replicates n_blocks" data-min-factors="2" data-max-factors="12"
+                  data-hint="Main effects in a standard array of 4 to 36 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
+                <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="12"
+                  data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
+                <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
+                  data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
+                <option value="ccd" data-options="n_center_points alpha n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
+                  data-hint="Response surface: factorial corners, axial points and center points.">Central composite (CCD)</option>
+                <option value="d_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
+                  data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
+                <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
+                  data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
+                <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
+                  data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
+                <option value="given" data-options="" data-min-factors="1" data-max-factors="12" hidden
+                  data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
+                <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
+                <optgroup label="Mixtures: proportions that sum to 1">
+                  <option value="simplex_lattice" data-options="lattice_degree n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The pure components and, at degree 2, every 50:50 blend of two, with the overall centroid to check the fit.">Simplex lattice (mixture)</option>
+                  <option value="simplex_centroid" data-options="n_replicates" data-min-factors="3" data-max-factors="4"
+                    data-hint="Every blend of equal parts: the pure components, the 50:50 blends, the blends in thirds, and so on to the overall centroid.">Simplex centroid (mixture)</option>
+                  <option value="extreme_vertices" data-options="mixture_model n_replicates" data-min-factors="3" data-max-factors="6"
+                    data-hint="The corners of the blends your lower and upper proportions allow, the midpoints of the edges between them for the quadratic model, and their centroid.">Extreme vertices (mixture with bounds)</option>
+                </optgroup>
+              </select>
+            </label>
+          </div>
+          <p id="design-hint" class="hint"></p>
+
+          <div class="row" id="options">
+            <label data-option="n_center_points"><span class="term" data-term="center-points">Center points</span>
+              <input id="n_center_points" type="number" min="0" max="10" value="3">
+            </label>
+            <label data-option="alpha"><span class="term" data-term="axial">Axial points</span>
+              <select id="alpha">
+                <option value="face_centered">Face-centred (inside the ranges)</option>
+                <option value="rotatable">Rotatable (outside the ranges)</option>
+                <option value="orthogonal">Orthogonal</option>
+                <option value="distance">A distance you choose</option>
+              </select>
+            </label>
+            <label id="alpha-distance" hidden>Axial distance, coded
+              <input id="alpha_value" type="number" min="0.01" step="any" value="1.4" aria-describedby="alpha-hint">
+              <span id="alpha-hint" class="hint">How far each axial run lies from the center along its factor, where the
+                factorial runs are at -1 and +1.</span>
+            </label>
+            <label data-option="resolution"><span class="term" data-term="resolution">Resolution</span>
+              <select id="resolution">
+                <option value="3">III: main effects aliased with two-factor interactions</option>
+                <option value="4" selected>IV: main effects clear of two-factor interactions</option>
+                <option value="5">V: two-factor interactions clear as well</option>
+              </select>
+            </label>
+            <label data-option="n_levels">Levels of each numeric factor
+              <select id="n_levels">
+                <option value="2" selected>2: low and high</option>
+                <option value="3">3: low, center and high</option>
+              </select>
+            </label>
+            <label data-option="budget">Runs
+              <input id="budget" type="number" min="3" max="200" aria-describedby="budget-hint">
+              <span id="budget-hint" class="hint"></span>
+            </label>
+            <label data-option="n_replicates"><span class="term" data-term="replicates">Replicates</span>
+              <input id="n_replicates" type="number" min="1" max="10" value="1">
+            </label>
+            <label data-option="n_blocks"><span class="term" data-term="blocks">Blocks</span>
+              <input id="n_blocks" type="number" min="1" max="8" value="1">
+            </label>
+            <label data-option="model_type">Model to design for
+              <select id="model_type">
+                <option value="quadratic">Quadratic</option>
+                <option value="interactions">Interactions</option>
+                <option value="main_effects">Main effects</option>
+              </select>
+            </label>
+            <!-- A simplex lattice's degree, and the Scheffé model extreme vertices are built for: bootstrap.LATTICE_DEGREES
+                 and bootstrap.VERTICES_MODELS. -->
+            <label data-option="lattice_degree"><span class="term" data-term="lattice-degree">Degree</span>
+              <select id="lattice_degree">
+                <option value="2" selected>2: and every 50:50 blend</option>
+                <option value="1">1: the pure components</option>
+              </select>
+            </label>
+            <label data-option="mixture_model">Model to design for
+              <select id="mixture_model">
+                <option value="scheffe_quadratic" selected>Quadratic blending</option>
+                <option value="scheffe_linear">Linear blending</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- The trade-off of a fraction (logic.js TRADE_OFF), with a design that takes a resolution: the column of
+               the brief's factors takes a pick, which sets the resolution, or the full factorial. -->
+          <div id="trade-off" class="trade-off" hidden>
+            <p id="trade-off-caption" class="hint">Each cell is the <button type="button" class="term"
+              data-term="resolution">resolution</button> of the best fraction in that many runs: going down costs runs
+              and buys resolution.</p>
+            <div class="scroll"><table id="trade-off-table" class="trade-off-table" aria-labelledby="trade-off-caption"></table></div>
+            <p id="trade-off-hint" class="hint"></p>
+          </div>
+
+          <p class="actions">
+            <button type="button" id="generate" class="primary" disabled>Make the run sheet</button>
+            <span id="plan-note" class="hint" hidden></span>
+          </p>
+        </div>
+
+        <!-- What others in the reader's field have run (catalog/fields.json, written by the build), with the plan
+             marked on the chart field-chart.js draws. Shown once the build's file is read. -->
+        <section id="like-yours" class="like-yours" aria-labelledby="h-like-yours" hidden>
+          <h3 id="h-like-yours">Experiments like yours</h3>
+          <label class="like-yours__field">Your field
+            <select id="field" autocomplete="off">
+              <option value="">Choose your field</option>
+            </select>
+          </label>
+          <div id="like-yours-body" hidden>
+            <p id="like-yours-sentence"></p>
+            <svg id="like-yours-chart" class="field-chart__svg" role="img"
+              aria-label="The published experiments in your field, by their number of factors and of runs, with your plan"></svg>
+            <ul class="field-chart__legend">
+              <li><span class="field-key field-key--full" aria-hidden="true"></span>Full factorial</li>
+              <li><span class="field-key field-key--screening" aria-hidden="true"></span>Fractional factorial or screening</li>
+              <li><span class="field-key field-key--surface" aria-hidden="true"></span>Central composite or Box-Behnken</li>
+              <li><span class="field-key field-key--mixture" aria-hidden="true"></span>Mixture</li>
+              <li><span class="field-key field-key--other" aria-hidden="true"></span>Other designs</li>
+            </ul>
+            <p id="like-yours-verdict" class="like-yours__verdict"></p>
+            <p class="actions"><a id="like-yours-link" class="button" href="catalog/fields/">See them in the catalog</a></p>
+          </div>
+        </section>
+        <details class="python" id="py-design" hidden>
+          <summary>Show the Python code</summary>
+          <p class="hint">The process-improve code for this design. Copy it and it runs as it is.</p>
+          <pre><code></code></pre>
+          <button type="button" class="link copy">Copy the code</button>
+        </details>
+      </section>
+
+      <section id="step-run" class="pane" data-pane="run" role="tabpanel" aria-labelledby="h-run" hidden>
+        <h2 id="h-run">Run the experiments</h2>
+        <p id="run-empty" class="hint">No run sheet yet: make it in Design.</p>
+        <div id="run-out" hidden>
+          <div id="design-stale" class="stale" role="status" hidden>
+            <p>The design has changed since this run sheet was made.</p>
+            <p class="actions">
+              <button type="button" id="remake" class="primary">Make the new run sheet</button>
+              <button type="button" id="restore-plan" class="link">Put the design back as it was</button>
+            </p>
+          </div>
+          <div id="design-out" hidden>
+            <div id="design-summary"></div>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Where the results come from">
+            <button type="button" role="tab" id="tab-real" aria-selected="true" aria-controls="panel-real">Enter results</button>
+            <button type="button" role="tab" id="tab-simulate" aria-selected="false" aria-controls="panel-simulate" tabindex="-1">Practise with simulated results</button>
+          </div>
+          <div id="panel-real" role="tabpanel" aria-labelledby="tab-real">
+            <label id="drop" class="drop">
+              <input id="upload" type="file" accept=".xlsx" disabled>
+              <span>Drop a filled-in workbook here, or click to choose it</span>
+            </label>
+          </div>
+          <div id="panel-simulate" role="tabpanel" aria-labelledby="tab-simulate" hidden>
+            <div class="row">
+              <label><span class="term" data-term="true-process">True process</span>
+                <!-- Mirrors bootstrap.SCENARIOS (label, hint); tests/web/page/test_parity.py keeps them in step. -->
+                <select id="scenario" autocomplete="off">
+                  <option value="reactor" selected data-hint="Two strong main effects, an interaction between them, and curvature in the third factor.">Reactor yield</option>
+                  <option value="main_effects" data-hint="Each of the first three factors changes the response on its own, along a straight line.">Main effects only</option>
+                  <option value="interaction" data-hint="The effect of the first factor depends on the level of the second.">An interaction</option>
+                  <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>
+                  <option value="nothing" data-hint="No factor changes the response: whatever the analysis finds is noise.">Nothing active</option>
+                  <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
+                  <!-- bootstrap.MIXTURE_SCENARIOS: offered for a mixture's run sheet only, in place of the ones above. -->
+                  <option value="blend" data-mixture hidden data-hint="The first two components blend in synergy, and the second and third against each other.">A synergy and an antagonism</option>
+                </select>
+              </label>
+              <label><span class="term" data-term="noise">Noise</span> (standard deviation)
+                <span class="with-unit"><input id="sigma" type="number" min="0.01" step="any" value="1"><span class="unit" id="sigma-unit"></span></span>
+              </label>
+            </div>
+            <p id="scenario-hint" class="hint"></p>
+            <div class="actions">
+              <button type="button" id="simulate" class="primary" disabled>Simulate the results</button>
+              <button type="button" id="reroll" class="link" disabled>New noise</button>
+            </div>
+            <details id="truth" hidden>
+              <summary>Show the true process</summary>
+              <p id="truth-equation" class="equation"></p>
+              <div id="truth-more"></div>
+              <p id="truth-inactive" hidden></p>
+              <p id="truth-units" class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
+            </details>
+          </div>
+          <p id="run-source" class="hint"></p>
+          <div class="scroll"><table id="design-table" class="data runs"></table></div>
+          <div class="actions">
+            <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
+            <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
+            <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
+            <button type="button" id="report-view" class="button">View the report</button>
+            <button type="button" id="report" class="button">Download report (.html)</button>
+            <button type="button" id="share" class="button">Copy a link to this study</button>
+            <label class="check"><input type="checkbox" id="share-results" checked> with its results</label>
+          </div>
+          <div id="share-out" class="share" hidden>
+            <input id="share-url" readonly aria-label="A link to this study" aria-describedby="share-note">
+            <p id="share-note" class="hint"></p>
+          </div>
+        </div>
+        <details class="python" id="py-run" hidden>
+          <summary>Show the Python code</summary>
+          <p class="hint">The design and its results together, so it runs as it is.</p>
+          <pre><code></code></pre>
+          <button type="button" class="link copy">Copy the code</button>
+        </details>
+      </section>
+
+      <section id="step-analyse" class="pane" data-pane="learn" role="tabpanel" aria-labelledby="h-analyse" hidden>
+        <h2 id="h-analyse">What the results say</h2>
+        <p id="analyse-empty" class="hint">No results yet: enter them in Run, or practise with simulated ones.</p>
+        <!-- With several responses, a tab each: the analysis below is of the one chosen, with its own model. -->
+        <div id="response-picker" class="picker" role="tablist" aria-label="The response analysed" hidden></div>
+        <div id="response-panel">
+        <div class="row">
+          <label>Model
+            <select id="model">
+              <option value="">As designed</option>
+              <option value="main_effects">Main effects</option>
+              <option value="interactions">Main effects + two-factor interactions</option>
+              <option value="quadratic">Full quadratic</option>
+              <option value="terms">Terms you choose</option>
+              <!-- bootstrap.MIXTURE_MODELS: offered for a mixture's runs only, in place of the ones above. -->
+              <option value="scheffe_linear" data-mixture hidden>Linear blending</option>
+              <option value="scheffe_quadratic" data-mixture hidden>Quadratic blending</option>
+              <option value="scheffe_special_cubic" data-mixture hidden>Special cubic blending</option>
+            </select>
+          </label>
+          <!-- bootstrap.TRANSFORMS: each fitted as an increasing function of the response, inverse as -1/y. -->
+          <label id="transform-choice">Response
+            <select id="transform">
+              <option value="">As measured</option>
+              <option value="log">Its log, ln y</option>
+              <option value="sqrt">Its square root, √y</option>
+              <option value="inverse">Its inverse, -1/y</option>
+            </select>
+          </label>
+        </div>
+        <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
+        <fieldset id="terms" class="terms" hidden>
+          <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
+          <div id="term-list"></div>
+        </fieldset>
+        <div id="analysis" hidden></div>
+        <!-- The numbers a catalog study's source prints for the model fitted, beside the page's own (app.js renderPrinted). -->
+        <section id="printed" class="printed" aria-labelledby="h-printed" hidden>
+          <h3 id="h-printed">Printed in the source</h3>
+          <div id="printed-out"></div>
+        </section>
+        <div id="charts" class="charts" hidden></div>
+        <details class="python" id="py-analyse" hidden>
+          <summary>Show the Python code of this analysis</summary>
+          <p class="hint">The design, its results and their analysis together, so it runs as it is.</p>
+          <pre><code></code></pre>
+          <button type="button" class="link copy">Copy the code</button>
+        </details>
+        <!-- The best settings for the response's goal (app.js, with best.js): where to run the process, how well the
+             model knows the response there, how tightly to hold each factor, and the confirmation runs that test it. -->
+        <section id="best" class="best" aria-labelledby="h-best" hidden>
+          <h3 id="h-best">The best settings for your goal</h3>
+          <div id="best-out"></div>
+          <figure id="best-chart" class="chart" hidden>
+            <h4><button type="button" class="term" data-term="sensitivity">How tightly to hold each factor</button></h4>
+            <div class="plot"></div>
+            <figcaption id="best-chart-caption" class="hint"></figcaption>
+          </figure>
+          <div id="confirm" class="confirm" hidden>
+            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+            <div id="confirm-out" aria-live="polite"></div>
+            <p class="actions">
+              <button type="button" id="add-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+              <button type="button" id="remove-confirmation" class="link" hidden>Remove the confirmation runs</button>
+            </p>
+          </div>
+          <details class="python" id="py-best" hidden>
+            <summary>Show the Python code of these settings</summary>
+            <p class="hint">The design, its results, their analysis and the best settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        </div>
+        <!-- With two responses or more given a goal, the settings that balance them (app.js, with best.js): each
+             response's acceptable range, importance and shape, the settings with the best overall desirability, each
+             response there, the overlay of the acceptable ranges, and the confirmation runs that test them. -->
+        <section id="balance" class="best balance" aria-labelledby="h-balance" hidden>
+          <h3 id="h-balance">Balance the responses</h3>
+          <p class="hint">Each response with a goal scores a <button type="button" class="term" data-term="desirability">desirability</button>,
+            d, from 0 where it is not acceptable to 1 where it is as good as it gets. Its range says where: to maximise,
+            0 at the low end and below, 1 at the high end and above; to minimise, the other way round; for a target, 1
+            at the target and 0 at either end. <button type="button" class="term" data-term="importance">Importance</button>
+            says how much each counts in the <button type="button" class="term" data-term="overall-desirability">overall
+            desirability</button>, D, and the <button type="button" class="term" data-term="desirability-shape">good
+            end</button> how fast d rises towards it.</p>
+          <div class="scroll"><table id="balance-goals" class="data balance-goals" aria-label="Each response's goal in the balance"></table></div>
+          <p id="balance-problems" class="hint error" role="status" hidden></p>
+          <p class="actions"><button type="button" id="balance-reset" class="link" hidden>Back to the ranges the results give</button></p>
+          <div id="balance-out" aria-live="polite"></div>
+          <figure id="balance-chart" class="chart" hidden>
+            <h4><button type="button" class="term" data-term="overlay">Where every response is acceptable</button></h4>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <div id="balance-confirm" class="confirm" hidden>
+            <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
+            <div id="balance-confirm-out" aria-live="polite"></div>
+            <p class="actions">
+              <button type="button" id="add-balance-confirmation" class="button">Add 3 confirmation runs at these settings</button>
+              <button type="button" id="remove-balance-confirmation" class="link" hidden>Remove the confirmation runs</button>
+            </p>
+          </div>
+          <details class="python" id="py-balance" hidden>
+            <summary>Show the Python code of the balance</summary>
+            <p class="hint">The design, its results and the balance of the responses together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        <!-- What if (app.js, with best.js; bootstrap.predictors): the reader sets each factor, and every response's model
+             predicts there, with its intervals and its leverage, in the page's own JavaScript, so it follows each move. -->
+        <section id="what-if" class="best what-if" aria-labelledby="h-what-if" hidden>
+          <h3 id="h-what-if">What if</h3>
+          <p class="hint">Move a setting, and each response's prediction follows.</p>
+          <div id="what-if-settings" class="what-if-settings"></div>
+          <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
+          <div id="what-if-out"></div>
+          <details class="python" id="py-what-if" hidden>
+            <summary>Show the Python code of these predictions</summary>
+            <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
+             with its ranges moved the way the best settings point, and runs to add to this study, each for what its
+             design cannot say yet. -->
+        <section id="next" class="best next" aria-labelledby="h-next" hidden>
+          <h3 id="h-next">The next step</h3>
+          <div id="next-out" aria-live="polite"></div>
+        </section>
+        <!-- The study as a report (app.js, with report.js): what Learn shows, with the brief, the run sheet, the code
+             and a stamp of the releases, seeds and inputs that give the same numbers again. -->
+        <p id="learn-report" class="actions" hidden>
+          <button type="button" id="learn-report-view" class="button">View a report of this study</button>
+          <button type="button" id="learn-report-button" class="button">Download it (.html)</button>
+          <button type="button" id="learn-feedback" class="link" data-feedback="algorithm">Report this result</button>
+        </p>
+      </section>
     </div>
-    <div id="analysis" hidden></div>
-  </section>
+  </div>
+
+  <!-- Every design that can learn the study's aim, side by side on the book's nine measures. -->
+  <dialog id="compare-dialog" class="sheet" aria-labelledby="h-compare">
+    <div class="sheet__head">
+      <h2 id="h-compare">The designs compared in detail</h2>
+      <button type="button" id="compare-close" class="link" aria-label="Close the comparison">✕</button>
+    </div>
+    <p>Each design scored on
+      <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice" target="pid-book" rel="noopener">the book's
+      nine measures</a>.</p>
+    <div id="comparison" hidden></div>
+    <details id="compare-reading">
+      <summary>How to read the table</summary>
+      <p>No design is best on every row, and which row matters depends on what the experiment is for: A/p or E for
+        precise coefficients, I or G for prediction over the region, max |r| for keeping second-order effects apart,
+        and power for detecting an effect of a stated size. Each measure's name links to its definition, and the
+        book's
+        <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison" target="pid-book" rel="noopener">comparison
+        of design families</a> reads such a table row by row.</p>
+      <p>Each row is shaded to guide the eye: the greener a value, the nearer it is to that row's best, which is in bold.
+        Only the designs shown that fit the model are shaded. Each row prints as many digits as tell its designs apart;
+        the Python code below prints four significant figures.</p>
+      <p>To narrow the choice for reasons the table does not hold (the cost of a run, a setting the plant cannot hold,
+        a design the team already knows), turn a design's switch off. It moves past the thick line at the right, in
+        grey, and leaves the shading and the charts. Turn it on and it comes back to its place.</p>
+    </details>
+    <div id="compare-charts" class="charts" hidden></div>
+    <details class="python" id="py-compare" hidden>
+      <summary>Show the Python code</summary>
+      <p class="hint">The process-improve code for this comparison. Copy it and it runs as it is.</p>
+      <pre><code></code></pre>
+      <button type="button" class="link copy">Copy the code</button>
+    </details>
+  </dialog>
 
   <footer>
-    <p>How this works: <a href="https://pyodide.org">Pyodide</a> runs CPython compiled to WebAssembly. The page loads it
-      from a public CDN, installs process-improve into it, and runs the same <code>generate_design</code> and
-      <code>analyze_experiment</code> you would call in Python. The workbook is the only state; nothing is uploaded.</p>
+    <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, the
+      Python package that accompanies the book <a href="https://learnche.org/pid" target="pid-book" rel="noopener">Process Improvement using Data</a>.
+      Everything here runs in your browser tab, nothing on our server: read <a href="about.html">how Factorial works</a>.
+      Something wrong or missing? Send us <button type="button" class="link" data-feedback="general">Feedback</button>.</p>
   </footer>
 </main>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="app.js" type="module"></script>
 </body>
 </html>

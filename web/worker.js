@@ -1,70 +1,114 @@
 // Runs Python in a Web Worker, so the page never freezes while Pyodide loads
-// (about 10 s on first visit) or while a design is optimised.
+// (about 10 s on first visit) or while a design is optimised. It is a module
+// worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
-// {id, status} while it is still starting up.
+// {status, state} while it is still starting up, where state is "busy",
+// "ok" or "error" so the page can show a spinner, a tick or an error. If Python
+// cannot start, every call is answered with the reason, so nothing waits for it.
 
-const PYODIDE_VERSION = "0.28.3";
-const PYODIDE_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+// runtime.json names the Pyodide release, the packages loaded from it and the PyPI packages
+// micropip installs, each pinned; the wasm tests and CI read the same file.
+const runtime = fetch("runtime.json", { cache: "no-store" }).then((res) => {
+  if (!res.ok) throw new Error(`runtime.json could not be read (HTTP ${res.status})`);
+  return res.json();
+});
 
-importScripts(`${PYODIDE_URL}pyodide.js`);
+/** An error in one line: a Python traceback's last line names the exception and says what went wrong. */
+const oneLine = (err) => String(err?.message || err).trim().split("\n").at(-1);
 
 // The deploy step writes wheels/manifest.json naming the wheel built from this
-// commit. Without it (a local preview) the page falls back to the PyPI release.
-async function wheelSource() {
+// commit, and the plotly release its worked example was drawn with. Without it (a
+// local preview) the page falls back to the PyPI release of each.
+async function readManifest() {
   try {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
-    if (res.ok) {
-      const { wheel } = await res.json();
-      if (wheel) return new URL(`wheels/${wheel}`, self.location.href).href;
-    }
+    if (res.ok) return await res.json();
   } catch (_) {
     /* fall through to PyPI */
   }
-  return "process-improve";
+  return {};
+}
+const manifest = readManifest();
+
+async function wheelSource() {
+  const { wheel } = await manifest;
+  return wheel ? new URL(`wheels/${wheel}`, self.location.href).href : "process-improve";
+}
+
+// plotly is installed on the first chart rather than at start-up: designing and
+// analysing do not need it, and it would add its download to every visit.
+let plotly = null;
+function installPlotly(pyodide) {
+  plotly ??= (async () => {
+    self.postMessage({ status: "Installing plotly for the charts...", state: "busy" });
+    const { plotly: version } = await manifest;
+    pyodide.globals.set("_plotly", version ? `plotly==${version}` : "plotly");
+    await pyodide.runPythonAsync("import micropip\nawait micropip.install(_plotly)");
+    pyodide.globals.delete("_plotly");
+  })();
+  return plotly;
 }
 
 async function boot() {
-  const say = (status) => self.postMessage({ status });
+  const say = (status, state = "busy") => self.postMessage({ status, state });
   say("Loading Python (WebAssembly)...");
-  const pyodide = await loadPyodide({ indexURL: PYODIDE_URL });
+  const { pyodide: release, packages, micropip } = await runtime;
+  const indexURL = `https://cdn.jsdelivr.net/pyodide/v${release}/full/`;
+  const { loadPyodide } = await import(`${indexURL}pyodide.mjs`); // here, so a refused download stops boot()
+  const pyodide = await loadPyodide({ indexURL });
 
   say("Loading numpy, pandas, scipy, statsmodels, scikit-learn...");
   // Compiled packages come prebuilt from the Pyodide distribution.
-  await pyodide.loadPackage([
-    "micropip", "numpy", "pandas", "scipy", "statsmodels", "scikit-learn", "patsy", "pydantic", "pyyaml",
-  ]);
+  await pyodide.loadPackage(packages);
 
   say("Installing process-improve...");
+  pyodide.globals.set("_pypi", pyodide.toPy(micropip));
   pyodide.globals.set("_wheel", await wheelSource());
   await pyodide.runPythonAsync(`
 import micropip
-# Pure-Python dependencies come from PyPI.
-await micropip.install(["tqdm", "pyDOE3", "openpyxl"])
-# deps=False: the wheel's metadata pins numpy/pandas versions that can run
-# ahead of the Pyodide distribution, and the ones loaded above are what the
-# experiments module actually needs (tests/test_web_app.py checks this).
+# The pure-Python packages the Pyodide distribution lacks come from PyPI, at the pinned versions.
+await micropip.install(list(_pypi))
+# deps=False: every package the page runs is loaded above, from the Pyodide release or
+# pinned from PyPI, so micropip must not fetch an unpinned dependency of its own, and the
+# Pyodide release need not meet the wheel's version floors. The packages loaded above are
+# what the experiments module needs (tests/web/api/test_browser_safe.py), and the wasm
+# tier checks its answers under them against native Python's.
 await micropip.install(_wheel, deps=False)
 `);
+  pyodide.globals.delete("_pypi");
   pyodide.globals.delete("_wheel");
 
   const glue = await (await fetch("bootstrap.py", { cache: "no-store" })).text();
   await pyodide.runPythonAsync(glue);
   const version = pyodide.runPython("from importlib.metadata import version; version('process-improve')");
-  say(`Ready: process-improve ${version}`);
+  say(`Ready: process-improve ${version}`, "ok");
   return pyodide;
 }
 
-const ready = boot();
-ready.catch((err) => self.postMessage({ status: `Could not start Python: ${err.message}`, failed: true }));
+const ready = boot().catch((err) => {
+  const reason = `Could not start Python: ${oneLine(err)}`;
+  self.postMessage({ status: reason, state: "error" });
+  throw new Error(reason);
+});
+ready.catch(() => {}); // each call is answered with the reason
+
+// The page calls only the api_* entry points bootstrap.py defines; nothing else in its namespace answers.
+const ENTRY_POINT = /^api_[a-z_]+$/;
 
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
+    const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
+    if (!ENTRY_POINT.test(fn)) throw refused;
     const pyodide = await ready;
-    const reply = pyodide.globals.get(fn)(payload ?? "{}");
+    const entry = pyodide.globals.get(fn);
+    if (typeof entry !== "function") throw refused;
+    if (fn === "api_plots") await installPlotly(pyodide);
+    const reply = entry(payload ?? "{}");
     self.postMessage({ id, reply });
   } catch (err) {
-    self.postMessage({ id, reply: JSON.stringify({ ok: false, error: String(err.message || err) }) });
+    if (fn === "api_plots") plotly = null; // the next chart tries the install again
+    self.postMessage({ id, reply: JSON.stringify({ ok: false, error: oneLine(err) }) });
   }
 };

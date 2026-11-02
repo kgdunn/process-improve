@@ -510,23 +510,23 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
     """
     numeric = batch.select_dtypes(include="number")
     passthrough = batch.columns.difference(numeric.columns, sort=False)
+    values = numeric.to_numpy(dtype=float, na_value=np.nan)
 
-    row = 0
+    # Consecutive path steps with the same reference index form one group, and group
+    # ``g`` fills row ``g`` of the result. Working on the array rather than writing one
+    # pandas row per path step is what makes this fast; the values are unchanged.
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
-    synced = pd.DataFrame(np.zeros((nr, numeric.shape[1])), columns=numeric.columns)
-    synced.iloc[row, :] = numeric.iloc[md_path[0, 1], :]
-    temp: pd.Series | np.ndarray = numeric.iloc[md_path[0, 1], :]
-    for idx in np.arange(1, md_path.shape[0]):
-        if md_path[idx, 0] != md_path[idx - 1, 0]:
-            row += 1
-            synced.iloc[row, :] = temp = numeric.iloc[md_path[idx, 1], :]
-
-        else:
-            # More than one batch sample maps to this reference index (a compression in
-            # the warping path), so the synced value is the average of those samples.
-            # Pinned by tests/batch/test_dtw_align_with_path.py.
-            temp = np.vstack((temp, numeric.iloc[md_path[idx, 1], :]))
-            synced.iloc[row, :] = np.nanmean(temp, axis=0)
+    synced_values = np.zeros((nr, values.shape[1]))
+    starts = np.flatnonzero(np.r_[True, md_path[1:, 0] != md_path[:-1, 0]])
+    ends = np.r_[starts[1:], md_path.shape[0]]
+    single = ends - starts == 1
+    synced_values[np.flatnonzero(single)] = values[md_path[starts[single], 1]]
+    for group in np.flatnonzero(~single):
+        # More than one batch sample maps to this reference index (a compression in
+        # the warping path), so the synced value is the average of those samples.
+        # Pinned by tests/batch/test_dtw_align_with_path.py.
+        synced_values[group] = np.nanmean(values[md_path[starts[group] : ends[group], 1]], axis=0)
+    synced = pd.DataFrame(synced_values, columns=numeric.columns)
 
     for column in passthrough:
         # Constant within a batch, so every row gets the same value and the column keeps
@@ -581,6 +581,10 @@ _HUBER_CUTOFF = 1.345
 
 #: Smallest batch weight :func:`_batch_weights` will return, so no batch is ever silenced.
 _MIN_BATCH_WEIGHT = 1e-3
+
+#: Iterations of :func:`batch_dtw` that align every batch to the ``reference_batch``. Each later
+#: iteration aligns to the average trajectory of the iteration before it.
+_ITERATIONS_ON_THE_REFERENCE_BATCH = 3
 
 
 def _batch_weights(aligned_batches: dict, batch_weighting: str) -> np.ndarray:
@@ -721,7 +725,7 @@ def one_iteration_dtw(
             aligned_batches[batch_id] = result
             successful_alignments += 1
 
-        except ValueError as exc:  # noqa: PERF203
+        except ValueError as exc:
             # Chain the cause: a band constraint that is too narrow explains itself, and
             # that explanation is the actionable part. `from None` discarded it.
             raise ValueError(f"Failed on batch {batch_id}: {exc}") from exc
@@ -781,7 +785,7 @@ def _validate_dtw_settings(settings: dict) -> None:
         )
 
 
-def batch_dtw(  # noqa: C901, PLR0915
+def batch_dtw(  # noqa: PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
@@ -817,6 +821,11 @@ def batch_dtw(  # noqa: C901, PLR0915
                 "interpolate_time_axis_delta": 1,      # resolution of the resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
             }
+
+        Every batch is aligned to ``reference_batch`` in the first three iterations. From
+        the fourth iteration on, the reference is the average trajectory of the iteration
+        before, so the result depends less on which batch was chosen as the reference. The
+        number three is fixed, not a setting.
 
         The default settings resample the time axis to 100 points, starting at 0 and ending
         at 99, so each point is one percent of the batch's duration however long the batch
@@ -920,11 +929,8 @@ def batch_dtw(  # noqa: C901, PLR0915
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
 
-    if not check_valid_batch_dict(
-        {k: v[columns_to_align] for k, v in batches.items()},
-        no_nan=True,
-    ):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
@@ -935,7 +941,12 @@ def batch_dtw(  # noqa: C901, PLR0915
     average_batch = None
     delta_weight: np.floating | np.ndarray = np.linalg.norm(weight_vector)
     iter_step = 0
-    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
+    # The first iteration runs whatever the tolerance: it is the one that aligns the batches,
+    # and everything after the loop reads its results. A tolerance at or above the norm of
+    # the unit weights (the square root of the number of columns) used to skip it entirely.
+    while iter_step == 0 or (
+        (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"])
+    ):
         if settings["show_progress"]:
             print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
 
@@ -949,7 +960,7 @@ def batch_dtw(  # noqa: C901, PLR0915
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
-        if iter_step > 3:
+        if iter_step > _ITERATIONS_ON_THE_REFERENCE_BATCH:
             refbatch_sc = average_batch
 
         aligned_batches, average_batch = one_iteration_dtw(
@@ -1032,9 +1043,10 @@ def batch_dtw(  # noqa: C901, PLR0915
         result.synced = synced_interpolated
         aligned_df_collection.append(synced_interpolated)
 
-    # Make the batch_id label consistent
+    # Each frame's batch_id column already holds its own dictionary key. Casting the whole
+    # column to the type of the last key turned an integer key into a string one whenever
+    # the keys were of mixed types, so the caller could no longer look its batch up.
     aligned_df = pd.concat(aligned_df_collection)
-    aligned_df["batch_id"] = aligned_df["batch_id"].astype(type(batch_id))
 
     last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
@@ -1086,6 +1098,12 @@ def resample_to_reference(
     -------
     dict
         Batch data, in the standard format.
+
+    Raises
+    ------
+    ValueError
+        If a batch, the reference among them, has fewer than 2 rows: there is nothing to
+        interpolate between.
     """
     default_settings = {
         "interpolate_kind": "cubic",  # must be a valid "scipy.interpolate.interp1d" `kind`
@@ -1093,6 +1111,14 @@ def resample_to_reference(
     if settings:
         default_settings.update(settings)
     settings = default_settings
+    # Each batch's time axis is scaled to [0, 1] by dividing by its last row number, which is
+    # 0 for a single row: the division gave NaN and scipy then refused an "all-nan" axis.
+    too_short = {batch_id: batch.shape[0] for batch_id, batch in batches.items() if batch.shape[0] < 2}
+    if too_short:
+        raise ValueError(
+            f"resample_to_reference needs at least 2 rows in every batch, to interpolate between; "
+            f"these batches have fewer (batch: rows): {too_short}."
+        )
     out = {}
     target_time = np.arange(0, batches[reference_batch].shape[0])
     target_time = target_time / target_time[-1]
@@ -1210,8 +1236,8 @@ def find_reference_batch(
     if not isinstance(columns_to_align, list):
         raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
 
-    if not check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}):
-        raise ValueError("One or more batches in the input dict failed validation.")
+    # Raises, naming the batch, when one fails a check.
+    check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
@@ -1272,11 +1298,14 @@ def find_reference_batch(
     # of headroom before enough batches pass, give up with a clear error
     # rather than tripping the inner ``assert conf_level < 1.0`` (which is
     # ``python -O``-strippable).
-    start_cutoff = 0.5
     max_cutoff = 0.95
-    while spe_metrics.shape[0] < requested and start_cutoff <= max_cutoff:
-        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=start_cutoff)]
-        start_cutoff += 0.05
+    # Step in whole percent: repeatedly adding 0.05 to a float accumulates rounding
+    # error, which stopped the relaxation at 0.9000000000000004 without ever trying
+    # the 0.95 that the error below reports.
+    for cutoff_percent in range(55, round(max_cutoff * 100) + 1, 5):
+        if spe_metrics.shape[0] >= requested:
+            break
+        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=cutoff_percent / 100)]
     if spe_metrics.shape[0] < requested:
         raise ValueError(
             f"Could not find {requested} reference batches even at "

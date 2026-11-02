@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design catalog: Factorial</title>
+  <meta name="description" content="Search the designed experiments of published sources and the designs process-improve makes: filter by size, factors, model and date, see where each one sits, and open it in Factorial.">
+  <link rel="canonical" href="https://factori.al/catalog/">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Design catalog: Factorial">
+  <meta property="og:description" content="Published designed experiments and the designs process-improve makes, searchable, each one opened in Factorial with a click.">
+  <meta property="og:url" content="https://factori.al/catalog/">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main class="catalog">
+  <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <h1>Design catalog</h1>
+  <p class="lede">Experiments from textbooks and papers. See what others ran, and run it yourself in Factorial.</p>
+
+  <form class="catalog__field" id="field-form" action="fields/">
+    <label for="field">What field are you in?</label>
+    <div class="catalog__field-row">
+      <select id="field" name="field"><option value="">Every field</option></select>
+      <button type="submit" class="button primary">Show</button>
+    </div>
+  </form>
+
+  <nav class="catalog__doors" aria-label="Other ways in">
+    <a class="door" href="books/"><span class="door__title">Browse by book</span>
+      <span class="door__note">Montgomery, Box, Hunter and Hunter, and more</span></a>
+    <a class="door" href="reproduced/"><span class="door__title">Can I trust it?</span>
+      <span class="door__note">Factorial gives the textbooks' answers</span></a>
+  </nav>
+
+  <h2 class="catalog__or">Or search</h2>
+  <div class="catalog__search">
+    <div class="segmented" role="radiogroup" aria-label="Which designs to show" id="collection">
+      <button type="button" role="radio" data-value="published" aria-checked="false">Published</button>
+      <button type="button" role="radio" data-value="generated" aria-checked="false">Generated</button>
+      <button type="button" role="radio" data-value="both" aria-checked="true">Both</button>
+    </div>
+    <label class="catalog__query">
+      <span class="visually-hidden">Search</span>
+      <input id="query" type="search" autocomplete="off" spellcheck="false"
+        placeholder="4 factors, <=30 runs, quadratic, since 1990">
+    </label>
+    <p class="catalog__count" id="count" role="status" aria-live="polite">Loading the catalog...</p>
+  </div>
+  <div class="catalog__goals" role="group" aria-labelledby="goals-title">
+    <p class="hint" id="goals-title">What do you want to do?</p>
+    <button type="button" class="goal try" data-query="fractional, plackett, definitive screening, supersaturated">Screen many factors</button>
+    <button type="button" class="goal try" data-query="response surface">Find an optimum</button>
+    <button type="button" class="goal try" data-query="mixture">Blend ingredients</button>
+    <button type="button" class="goal try" data-query="blocks">Run in blocks</button>
+    <button type="button" class="goal try" data-query="survives a lost run">Survive a lost run</button>
+  </div>
+  <p class="catalog__views">
+    <button type="button" class="link" id="errata-open">Errata: every printed number that does not reproduce</button>
+    <a href="https://github.com/kgdunn/process-improve/issues/new?template=catalog_entry.yml" target="_blank" rel="noopener">Propose a
+      design for the catalog</a>
+    <a href="https://github.com/kgdunn/process-improve/issues/new?template=case_study.yml" target="_blank" rel="noopener">Share a
+      case study of your own</a>
+  </p>
+
+  <div class="catalog__body">
+    <details class="facets" id="facets-box" open>
+      <summary>Filters</summary>
+      <form id="facets" class="facets__form">
+        <fieldset>
+          <legend>Family</legend>
+          <div id="families" class="facets__list"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Application</legend>
+          <div id="topics" class="facets__list"></div>
+          <p class="hint facets__hint" id="topics-hint">A generated design has no application, so choosing one keeps the
+            published designs only.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Size</legend>
+          <div class="facets__range"><span>Runs</span>
+            <input id="runs-min" type="number" min="1" inputmode="numeric" aria-label="Fewest runs" placeholder="from">
+            <input id="runs-max" type="number" min="1" inputmode="numeric" aria-label="Most runs" placeholder="to"></div>
+          <div class="facets__range"><span>Factors</span>
+            <input id="factors-min" type="number" min="1" inputmode="numeric" aria-label="Fewest factors" placeholder="from">
+            <input id="factors-max" type="number" min="1" inputmode="numeric" aria-label="Most factors" placeholder="to"></div>
+        </fieldset>
+        <fieldset>
+          <legend>What it estimates</legend>
+          <select id="model" aria-label="The model the design estimates in full">
+            <option value="">Any model</option>
+            <option value="main_effects">Main effects</option>
+            <option value="interactions">Two-factor interactions</option>
+            <option value="quadratic">The full quadratic</option>
+          </select>
+          <select id="categorical" aria-label="Categorical factors">
+            <option value="">Categorical factors or not</option>
+            <option value="none">No categorical factor</option>
+            <option value="some">At least one categorical factor</option>
+          </select>
+        </fieldset>
+        <fieldset>
+          <legend>Robustness</legend>
+          <label class="facets__switch"><input type="checkbox" data-switch="survives"> Survives losing any run <span class="count"></span></label>
+          <select id="projection" aria-label="Factors whose every projection estimates the full quadratic">
+            <option value="0">Projections: any</option>
+            <option value="2">Any 2 factors fit the quadratic</option>
+            <option value="3">Any 3 factors fit the quadratic</option>
+            <option value="4">Any 4 factors fit the quadratic</option>
+          </select>
+          <select id="projectivity" aria-label="Projectivity of the two-level runs">
+            <option value="0">Projectivity: any</option>
+            <option value="2">Projectivity 2 or more</option>
+            <option value="3">Projectivity 3 or more</option>
+            <option value="4">Projectivity 4 or more</option>
+          </select>
+        </fieldset>
+        <fieldset>
+          <legend>Limits on the settings</legend>
+          <input id="limit" type="text" autocomplete="off" spellcheck="false" placeholder="A + B <= 1"
+            aria-label="A limit on the settings, in coded units" aria-describedby="limit-hint">
+          <p class="hint facets__hint" id="limit-hint">In coded units: A is a design's first factor, B its second, and so
+            on; -1 is a factor's low level and +1 its high. The list keeps the designs whose every run meets it.</p>
+          <p class="hint error" id="limit-error" role="status" hidden></p>
+          <label class="facets__switch"><input type="checkbox" id="limit-all"> Show the designs with runs outside it too</label>
+        </fieldset>
+        <fieldset>
+          <legend>Structure</legend>
+          <label class="facets__switch"><input type="checkbox" data-switch="blocked"> Run in blocks <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="splitPlot"> Split plot <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="mixture"> Mixture <span class="count"></span></label>
+        </fieldset>
+        <fieldset>
+          <legend>Source</legend>
+          <label class="facets__switch"><input type="checkbox" data-switch="hasData"> Printed with results <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="recomputed"> Printed numbers recomputed <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="differs"> A printed number differs <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="opens"> Opens in Factorial <span class="count"></span></label>
+          <label class="facets__switch"><input type="checkbox" data-switch="unprinted"> No source prints it <span class="count"></span></label>
+          <select id="source" aria-label="The source that prints the design"><option value="">Every source</option></select>
+        </fieldset>
+        <fieldset>
+          <legend>Date published</legend>
+          <div class="facets__range"><span>Years</span>
+            <input id="year-min" type="number" min="1900" max="2100" inputmode="numeric" aria-label="From the year" placeholder="from">
+            <input id="year-max" type="number" min="1900" max="2100" inputmode="numeric" aria-label="To the year" placeholder="to"></div>
+          <label class="facets__added">Added since
+            <select id="added"><option value="">Any date</option></select></label>
+        </fieldset>
+        <button type="reset" class="button" id="reset">Clear the filters</button>
+      </form>
+    </details>
+
+    <div class="catalog__main">
+      <figure class="catalog__map">
+        <div id="map" aria-hidden="true"></div>
+        <figcaption class="hint">Each mark is a design, placed by its factors and runs. The lines are the fewest
+          runs each model needs: a design below a line cannot estimate that model. Drag a box to filter; click a mark
+          to open its design. <button type="button" class="link map__reset" id="map-reset">Reset the map</button></figcaption>
+      </figure>
+      <figure class="catalog__timeline">
+        <svg id="year-bars" class="timeline" role="group" aria-label="Published designs by the year their source appeared"></svg>
+        <figcaption class="hint" id="timeline-caption">The published designs by the year their source appeared, in the
+          colours of their families; a diamond marks the year a family was first published. Drag across the years, or
+          choose a bar, to keep those years.
+          <span class="visually-hidden">First published:</span>
+          <ul class="timeline__marks" id="timeline-marks" aria-label="The families first published in these years"></ul>
+        </figcaption>
+      </figure>
+      <div class="catalog__listhead">
+        <label>Order <select id="sort"></select></label>
+      </div>
+      <ol id="results" class="results"></ol>
+      <button type="button" class="button" id="more" hidden>Show more</button>
+    </div>
+  </div>
+
+  <dialog id="detail" class="sheet detail" aria-labelledby="detail-title">
+    <div class="sheet__head">
+      <h2 id="detail-title"></h2>
+      <button type="button" class="link" id="detail-close" aria-label="Close">✕</button>
+    </div>
+    <div id="detail-body"></div>
+  </dialog>
+
+  <dialog id="compare" class="sheet detail" aria-labelledby="compare-title">
+    <div class="sheet__head">
+      <h2 id="compare-title">Designs side by side</h2>
+      <button type="button" class="link" data-close="compare" aria-label="Close">✕</button>
+    </div>
+    <div id="compare-body"></div>
+  </dialog>
+
+  <dialog id="errata" class="sheet detail" aria-labelledby="errata-title">
+    <div class="sheet__head">
+      <h2 id="errata-title">Errata</h2>
+      <button type="button" class="link" data-close="errata" aria-label="Close">✕</button>
+    </div>
+    <div id="errata-body"></div>
+  </dialog>
+
+  <div class="tray" id="tray" hidden>
+    <p class="tray__text" id="tray-text"></p>
+    <ul class="tray__list" id="tray-list"></ul>
+    <div class="tray__actions">
+      <button type="button" class="button primary" id="tray-open">Compare</button>
+      <button type="button" class="link" id="tray-clear">Clear</button>
+    </div>
+  </div>
+
+  <footer>
+    <p>The published designs are from the reference catalogue of
+      <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, which holds each source's runs and
+      every number it prints, with where it is printed, and recomputes them on each change to the library. The
+      numbers and short quotations belong to their sources, whose terms each design shows; the MIT licence of
+      process-improve does not cover them. <a href="../about.html">How Factorial works</a>.</p>
+  </footer>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="../catalog.js" type="module"></script>
+</body>
+</html>

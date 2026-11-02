@@ -1,17 +1,16 @@
 [project]
 name = "process-improve"
-version = "1.96.0"
+version = "2.2.2"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
-keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Batch data analysis"]
+requires-python = ">=3.11"
+keywords = ["Designed Experiments", "Design of Experiments", "DoE", "Optimal Design", "Response Surface", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Chemometrics", "Process Monitoring", "Batch data analysis"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -28,16 +27,23 @@ dependencies = [
     # MCP server, JIT speedups) live in extras; install
     # ``process-improve[all]`` to reproduce the pre-1.24.11 closure.
     "numpy>=2.2.6",
-    # Upper-bounded below pandas 3.0: pandas 3.0.x segfaults in CI when numba
-    # (the `fast` extra) is also installed, a numba/llvmlite vs numpy ABI
-    # interaction. Revisit once a numba build supports the pandas 3 / numpy 2.4
-    # stack.
-    "pandas>=2.3.3,<3.0",
+    # Both pandas majors are supported. CI's Python 3.11 jobs install the lowest
+    # version each dependency allows, so they test pandas 2.3; the newer Pythons
+    # test pandas 3.
+    "pandas>=2.3.3",
     "patsy>=1.0.2",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
     "scikit-learn>=1.7.2",
+    # Declared directly because generate_omars solves its ILP with
+    # scipy.optimize.milp (HiGHS). 1.15 is the oldest release CI runs (the
+    # Python 3.11 jobs resolve 1.15.0); older releases bundle HiGHS 1.2, which
+    # reports a node-limited stop differently and is not tested here.
+    "scipy>=1.15",
     "statsmodels>=0.14.6",
+    # Already required by scikit-learn; declared because the REML fits of the
+    # sensory mixed assessor model run their small BLAS calls on one thread.
+    "threadpoolctl>=3.5.0",
     "tqdm>=4.67.1",
 ]
 
@@ -45,7 +51,7 @@ dependencies = [
 [project.optional-dependencies]
 # ENG-13 (#295): every public-API surface that pulls in heavy optional
 # dependencies is gated by an extra. The matching ImportError raised by
-# ``process_improve._extras.require`` tells the caller which extra to
+# ``process_improve._extras.require_extra`` tells the caller which extra to
 # install.
 
 # Plotting backends (Plotly + matplotlib + seaborn + ridgeplot).
@@ -54,11 +60,6 @@ plotting = [
     "plotly>=6.5.2",
     "ridgeplot>=0.5.0",
     "seaborn>=0.13.2",
-]
-
-# Designed-experiments helpers that need ``pyDOE3``.
-expt = [
-    "pyDOE3>=1.0",
 ]
 
 # Batch process data analysis: image-IO + Excel readers used by the
@@ -79,13 +80,6 @@ mcp = ["mcp>=2.0"]
 # falls back to a no-op so the function executes as plain Python.
 fast = ["numba>=0.63.1"]
 
-# Integer-programming OMARS design generator (generate_omars). PuLP bundles the
-# CBC solver in its wheels, so no system package is required. Held below 4:
-# pulp 4.0 rebuilt its API on a Rust core (``LpVariable`` takes a single core
-# variable; ``PULP_CBC_CMD`` and ``LpStatus`` are gone), and designs_omars_ilp
-# is not yet ported to it.
-ilp = ["pulp>=2.8,<4"]
-
 # Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
 # for every platform CI tests, so no system package is required.
 control = ["osqp>=1.0"]
@@ -96,8 +90,9 @@ control = ["osqp>=1.0"]
 # this project's ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A
 # single environment cannot satisfy both, so declaring a ``pyoptex`` extra would
 # make ``uv sync --all-extras`` (used by CI) unresolvable. Install pyoptex
-# separately in its own environment; without it, D-optimal still works via the
-# built-in point-exchange fallback.
+# separately in its own environment. It is needed only for split-plot designs
+# (hard_to_change) or backend="pyoptex": every optimal design otherwise uses the
+# built-in candidate exchange.
 
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [
@@ -107,32 +102,10 @@ all = [
     "openpyxl>=3.1.5",
     "osqp>=1.0",
     "plotly>=6.5.2",
-    "pulp>=2.8,<4",
-    "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
+    "ruptures>=1.1.9",
     "scikit-image>=0.25.2",
     "seaborn>=0.13.2",
-]
-
-dev = [
-    "coverage>=7.13.1",
-    "hypothesis>=6.100",
-    "matplotlib-stubs>=0.3.11",
-    "mypy>=1.19.1,<2.4",
-    "pandas-stubs>=2.3.3.260113",
-    "plotly-stubs>=0.0.6",
-    "pre-commit>=4.5.1",
-    "pytest>=9.0.2",
-    "pytest-benchmark>=4.0.0",
-    "pytest-cov>=7.0.0",
-    "pytest-xdist>=3.8.0",
-    "pydata-sphinx-theme>=0.16.1",
-    "ruff>=0.11.0,<0.17", # upper-bound so a future ruff release cannot silently break the lint gate (see mypy)
-    "sphinx>=8.1.3",
-    "nbsphinx>=0.9.5",
-    "ipykernel>=6.29",
-    "tqdm-stubs>=0.2.1",
-    "watchdog>=6.0.0",
 ]
 
 [project.scripts]
@@ -140,20 +113,26 @@ process-improve-mcp = "process_improve.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/kgdunn/process-improve"
+Documentation = "https://kgdunn.github.io/process-improve/"
+"Try it in your browser" = "https://kgdunn.github.io/process-improve/app/"
+Textbook = "https://learnche.org/pid"
 Repository = "https://github.com/kgdunn/process-improve"
 Issues = "https://github.com/kgdunn/process-improve/issues"
+Changelog = "https://github.com/kgdunn/process-improve/blob/main/CHANGELOG.md"
 
 
 [build-system]
-requires = ["uv_build>=0.7.2,<0.13"]
+requires = ["uv_build>=0.7.2,<0.14"]
 build-backend = "uv_build"
 
 [dependency-groups]
+# The contributors' tools. A dependency group rather than an extra, so the
+# published wheel does not offer them to users (#513).
 dev = [
     "coverage>=7.13.1",
     "hypothesis>=6.100",
     "matplotlib-stubs>=0.3.11",
-    "mypy>=1.19.1,<2.4",
+    "mypy>=1.19.1,<2.5",
     "pandas-stubs>=2.3.3.260113",
     "plotly-stubs>=0.0.6",
     "pre-commit>=4.5.1",
@@ -161,9 +140,13 @@ dev = [
     # test paths in tests/test_design_generation.py and
     # tests/test_designs_optimal_pyoptex.py. Dev-group only, NOT a published
     # extra: pip cannot apply the [tool.uv] override-dependencies below, so
-    # advertising pyoptex in wheel metadata would make e.g. [expt]+[plotting]
+    # advertising pyoptex in wheel metadata would make e.g. [plotting]
     # unresolvable for pip users until upstream ships relaxed pins.
     "pyoptex>=1.2.1",
+    # Test oracle only: tests/test_classical_arrays.py and
+    # tests/test_orthogonal_arrays.py check the in-house design arrays against
+    # it. Pinned to the release those arrays were copied from.
+    "pyDOE3==1.6.2",
     "pytest>=9.0.2",
     "pytest-benchmark>=4.0.0",
     "pytest-cov>=7.0.0",
@@ -179,14 +162,17 @@ dev = [
 
 [tool.uv]
 # pyoptex 1.2.1 (PyPI) pins plotly~=5.24 and numba~=0.61, which conflict with
-# the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras. The plotly
-# relaxation is merged upstream (github.com/mborn1/pyoptex, plotly>=5.24,<7)
-# but not yet released; numba is still pinned strictly upstream. These
-# overrides match this project's own floors, so they change nothing else.
-# Drop the plotly override once a pyoptex release ships the relaxed pin.
+# the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras, and
+# pandas~=2.0, which would hold the dev environment, and so every CI job, at
+# pandas 2. The plotly relaxation is merged upstream (github.com/mborn1/pyoptex,
+# plotly>=5.24,<7) but not yet released; numba and pandas are still pinned
+# strictly upstream. These overrides match this project's own floors, so they
+# change nothing else. Drop the plotly override once a pyoptex release ships
+# the relaxed pin.
 override-dependencies = [
     "plotly>=6.5.2",
     "numba>=0.63.1",
+    "pandas>=2.3.3",
 ]
 # scipy 1.18.1 was published without CPython 3.13 wheels (cp312 only), and CI
 # re-resolves on a stale lockfile whenever this file changes, so a fresh
@@ -243,6 +229,10 @@ ignore = [
     "CPY001", # Missing copyright notice at top of file.
 
     "C408",   # Unnecessary <dict/list/tuple> call - rewrite as a literal. Disagree with this.
+
+    # A `(str, Enum)` class turned into `StrEnum` changes what str() and format()
+    # return for its members, and these enums are public API.
+    "UP042",  # Class inherits from both `str` and `enum.Enum`
 
     # Arguments
     "ARG001", # Unusued argument
@@ -365,6 +355,10 @@ convention = "numpy"
 "web/**" = [
     "INP001",  # loaded into Pyodide by web/worker.js, not imported as a package
 ]
+"deploy/**" = [
+    "INP001",  # installed on the server as commands, not imported as a package
+    "T201",    # print() is how a command run over SSH answers
+]
 "scripts/**" = [
     "ANN001",  # Type annotations not needed in helper scripts
     "ANN201",  # Return type annotations not needed in helper scripts
@@ -416,6 +410,9 @@ convention = "numpy"
 "docs/conf.py" = [
     "INP001",  # Sphinx conf.py is intentionally not in a package
 ]
+"docs/_ext/**" = [
+    "INP001",  # the docs' own Sphinx extensions, loaded from sys.path by conf.py
+]
 "docs/user_guide/case_studies/**" = [
     "T201",    # print() expected in case-study notebooks
     "ANN001",  # Type annotations not required in didactic code
@@ -452,3 +449,91 @@ docstring-quotes = "double"
 
 [tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]
+
+# Mutation testing: see "Mutation testing" in CONTRIBUTING.md. Modules join `only_mutate` one at a
+# time, each with no survivor, starting with those whose numbers users act on; the tests listed
+# are those that reach them.
+[tool.mutmut]
+source_paths = ["src"]
+only_mutate = [
+    "src/process_improve/multivariate/_limits.py",
+    "src/process_improve/monitoring/metrics.py",
+    "src/process_improve/monitoring/evop.py",
+    "src/process_improve/monitoring/control_charts.py",
+    "src/process_improve/multivariate/_nipals.py",
+    "src/process_improve/multivariate/_preprocessing.py",
+    "src/process_improve/multivariate/_projection.py",
+    "src/process_improve/multivariate/_impute.py",
+    "src/process_improve/multivariate/_robust.py",
+    "src/process_improve/multivariate/_diagnostics.py",
+    "src/process_improve/multivariate/_resampling.py",
+    "src/process_improve/multivariate/_null.py",
+    "src/process_improve/multivariate/_procrustes.py",
+    "src/process_improve/multivariate/_prm.py",
+    "src/process_improve/multivariate/_opls.py",
+    "src/process_improve/multivariate/_pca.py",
+    "src/process_improve/multivariate/_pls.py",
+    "src/process_improve/multivariate/_mbpca.py",
+    "src/process_improve/multivariate/_mbpls.py",
+    "src/process_improve/multivariate/_tpls.py",
+    "src/process_improve/multivariate/_cv_criteria.py",
+    "src/process_improve/multivariate/_plsda.py",
+    "src/process_improve/multivariate/_asca.py",
+    "src/process_improve/multivariate/_categorical.py",
+    "src/process_improve/multivariate/_adaptive.py",
+]
+# The runner drops pytest.ini's addopts: no xdist workers and no coverage inside each mutant run.
+pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
+pytest_add_cli_args_test_selection = [
+    "tests/test_multivariate_limits.py",
+    "tests/test_multivariate.py",
+    "tests/test_audit_regressions_multivariate.py",
+    "tests/test_multiblock_validation.py",
+    "tests/test_multivariate_introspection.py",
+    "tests/test_monitoring.py",
+    "tests/test_monitoring_helpers.py",
+    "tests/test_audit_regressions_univariate_monitoring.py",
+    "tests/test_evop.py",
+    "tests/test_control_chart_cusum.py",
+    "tests/test_control_chart_ewma.py",
+    "tests/test_control_chart_hw_golden.py",
+    "tests/test_nipals_quick_regress.py",
+    "tests/test_multivariate_adaptive.py",
+    "tests/test_multivariate_centring_traps.py",
+    "tests/test_multivariate_projection.py",
+    "tests/test_multivariate_pls_missing.py",
+    "tests/test_multivariate_prm.py",
+    "tests/test_contributions_missing_cells.py",
+    "tests/test_multivariate_contribution_plots.py",
+    "tests/test_multivariate_meda.py",
+    "tests/test_multivariate_resampler.py",
+    "tests/test_multivariate_null.py",
+    "tests/test_multivariate_gpa.py",
+    "tests/test_multivariate_opls.py",
+    "tests/test_multivariate_tsr.py",
+    "tests/test_pca_nipals_mixomics_crosscheck.py",
+    "tests/test_multivariate_nipals_seed.py",
+    "tests/test_r2_per_variable_cumulative.py",
+    "tests/test_multivariate_sample_weight.py",
+    "tests/test_multivariate_inversion.py",
+    "tests/test_multivariate_inversion_worked_example.py",
+    "tests/test_multivariate_feature_names.py",
+    "tests/test_sklearn_compat.py",
+    "tests/test_multivariate_robustness.py",
+    "tests/test_tool_spec.py",
+    "tests/test_multiblock_reference.py",
+    # Its FMC case study reads a script from docs/, which mutmut does not copy, and its data from the web.
+    "--deselect",
+    "tests/test_multiblock_reference.py::TestFMCReference",
+    "tests/test_multiblock_weighting.py",
+    "tests/test_multivariate_categorical.py",
+    "tests/test_mbpls_cross_validation.py",
+    "tests/test_mbpls_regressor.py",
+    "tests/test_multivariate_tpls_validation.py",
+    "tests/test_multivariate_tpls_display.py",
+    "tests/test_multivariate_tpls_feature_importance.py",
+    "tests/test_multivariate_dataframedict.py",
+    "tests/test_multivariate_cv_criteria.py",
+    "tests/test_multivariate_plsda.py",
+    "tests/test_multivariate_asca.py",
+]

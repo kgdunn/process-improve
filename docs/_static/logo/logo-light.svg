@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="process-improve">
+  <!-- A two-level factorial design in two factors, with a centre point. -->
+  <rect x="14" y="14" width="36" height="36" rx="2" fill="none" stroke="#59636e" stroke-width="3.5"/>
+  <g fill="#1f5f8f">
+    <circle cx="14" cy="14" r="7.5"/>
+    <circle cx="50" cy="14" r="7.5"/>
+    <circle cx="14" cy="50" r="7.5"/>
+    <circle cx="50" cy="50" r="7.5"/>
+  </g>
+  <circle cx="32" cy="32" r="7.5" fill="#b03a2e"/>
+</svg>

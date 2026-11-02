@@ -9,11 +9,14 @@ to dispatch by ``plot_type`` string.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from process_improve.visualization.adapters.echarts_adapter import EChartsAdapter
 from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
 from process_improve.visualization.spec import ChartSpec
+
+if TYPE_CHECKING:
+    from process_improve.experiments.region import DesignRegion
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -149,6 +152,24 @@ class BasePlot(ABC):
         Mapping ``{factor_symbol: full_name}`` used for axis labels and
         legend entries.  If a factor symbol is not present in this map
         the symbol itself is used.
+    model : str or None
+        Model for the design-quality plots (FDS, power curve, prediction
+        variance): ``"main_effects"``, ``"interactions"``, ``"quadratic"`` or a
+        formula, as in :func:`~process_improve.experiments.evaluate_design`.
+        When *None*, the formula of ``analysis_results`` is used, else the
+        richest of ``"quadratic"``, ``"interactions"`` and ``"main_effects"``
+        that the design can estimate.
+    region : DesignRegion, dict or None
+        The settings that can be run (a
+        :class:`~process_improve.experiments.region.DesignRegion` or its ``to_dict()``
+        form), whose factor ranges define the coded units the plots are drawn in.
+        The contour and prediction-variance plots shade the settings it rules out,
+        and the 3D surface leaves them out; the other plots ignore it.
+    extent : float, dict or None
+        How far the grid of the contour, 3D surface and prediction-variance plots
+        reaches from the centre, in coded units: one number for both axes, or one per
+        factor. By default each axis covers every run in ``design_data``, the axial runs
+        of a composite design included, and at least -1 to 1. The other plots ignore it.
     """
 
     def __init__(  # noqa: PLR0913
@@ -162,6 +183,9 @@ class BasePlot(ABC):
         highlight_significant: bool = True,
         confidence_level: float = 0.95,
         factor_labels: dict[str, str] | None = None,
+        model: str | None = None,
+        region: DesignRegion | dict[str, Any] | None = None,
+        extent: float | dict[str, float] | None = None,
     ) -> None:
         self.analysis_results = analysis_results or {}
         self.design_data = design_data or []
@@ -171,6 +195,9 @@ class BasePlot(ABC):
         self.highlight_significant = highlight_significant
         self.confidence_level = confidence_level
         self.factor_labels = factor_labels or {}
+        self.model = model
+        self.region = region
+        self.extent = extent
 
     @abstractmethod
     def to_spec(self) -> ChartSpec:
@@ -204,6 +231,38 @@ class BasePlot(ABC):
     # ------------------------------------------------------------------
     # Convenience helpers for subclasses
     # ------------------------------------------------------------------
+
+    def _get_region(self) -> DesignRegion | None:
+        """Return the region as a :class:`DesignRegion`, or None without one.
+
+        Returns
+        -------
+        DesignRegion or None
+
+        Raises
+        ------
+        ValueError
+            If the region is a mixture region: its proportions sum to 1, so it has no
+            two factors to draw against each other with the others held.
+        TypeError
+            If the region is neither a ``DesignRegion`` nor its dict form.
+        """
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
+
+        if self.region is None:
+            return None
+        if isinstance(self.region, DesignRegion):
+            region = self.region
+        elif isinstance(self.region, dict):
+            region = DesignRegion.from_dict(self.region)
+        else:
+            raise TypeError(f"region must be a DesignRegion or its dict form, not {type(self.region).__name__}.")
+        if region.kind != "box":
+            raise ValueError(
+                "A mixture region (or a mixture-process one) holds proportions that sum to 1, so it cannot be drawn "
+                "over two factors with the others held; draw a box region of factor settings instead."
+            )
+        return region
 
     def _get_effects(self) -> dict[str, float]:
         """Extract effects dict from analysis results.

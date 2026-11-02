@@ -112,8 +112,9 @@ def golf() -> pd.DataFrame:
     C = Club type
     T = Time of day (on the 24 hour clock)
 
-    The data are in standard order, however the actual experiments were run in
-    random order.
+    The rows are not in standard order (the first factor, H, does not alternate
+    from row to row), so code each factor from its own column, not from the row
+    position. The actual experiments were run in random order.
 
     Coded values for H, N, C and T should be used in the linear regression
     model analysis, with -1 representing the low value and +1 the high value.
@@ -220,11 +221,84 @@ def solar() -> pd.DataFrame:
     return pd.read_csv(_DATASETS_DIR / "solar.csv")
 
 
+def corrosion() -> pd.DataFrame:
+    """
+    Return the corrosion-resistance split-plot experiment from Box, Hunter and Hunter, chapter 9.
+
+    Description
+    -----------
+    Steel bars were treated with four coatings, C1 to C4, and baked at three furnace
+    temperatures, 360, 370 and 380 degrees C, to see which combination resists corrosion
+    best. Resetting the furnace temperature is slow, so the experimenters ran six heats,
+    each temperature twice, in the order given by ``Heat``; in each heat, one bar with each
+    coating was placed at a randomly chosen position in the furnace.
+
+    The heats are the whole plots, and temperature, which changes only from heat to heat,
+    is the whole-plot factor; the bars are the subplots, and coating the subplot factor.
+    Analysing these data as if the 24 bars were independent finds temperature significant
+    and coating not, the opposite of the correct split-plot analysis: see
+    ``analyze_experiment(..., analysis_type="split_plot")``.
+
+    Dimensions
+    ----------
+    A data frame containing 24 observations of 5 variables: ``Heat`` (1 to 6),
+    ``Temperature`` (degrees C), ``Position`` (1 to 4 in the furnace), ``Coating``
+    (``"C1"`` to ``"C4"``) and the response ``Resistance``.
+
+    Source
+    ------
+    Box, G. E. P., Hunter, J. S. and Hunter, W. G., Statistics for Experimenters,
+    2nd edition, Wiley, 2005, chapter 9, Table 9.1; as ``corrosion.data`` in the BHH2
+    R package.
+
+    """
+    return pd.read_csv(_DATASETS_DIR / "corrosion.csv")
+
+
+def biscuit() -> pd.DataFrame:
+    """
+    Return the NIR spectra of 72 biscuit doughs whose four main ingredients were varied.
+
+    Description
+    -----------
+    A standard short-dough biscuit recipe was varied to give a broad range of each of
+    four ingredients: fat, sucrose, dry flour and water. The near-infrared reflectance
+    spectrum of each unbaked dough was then recorded from 1100 to 2498 nm. Each run's
+    response is therefore a curve of 700 points, not one number.
+
+    The four percentages add to 98.08 in every dough (the remaining ingredients are held
+    fixed), so they are mixture components: only three of them vary independently, and a
+    model of the spectrum on the composition is a mixture model. The first 40 doughs are
+    the calibration set and the other 32 the validation set. Sample 23 (calibration) and
+    sample 61 (the 21st of the validation set) are known outliers.
+
+    Dimensions
+    ----------
+    A data frame of 72 rows and 706 columns: ``sample`` (1 to 72), ``set``
+    (``"calibration"`` or ``"validation"``), the four ingredient percentages ``fat``,
+    ``sucrose``, ``dry_flour`` and ``water``, then the reflectance at each wavelength in
+    the 700 columns ``"1100"``, ``"1102"``, ..., ``"2498"`` (nm).
+
+    Source
+    ------
+    Osborne, B. G., Fearn, T., Miller, A. R. and Douglas, S., Application of near infrared
+    reflectance spectroscopy to the compositional analysis of biscuits and biscuit doughs,
+    Journal of the Science of Food and Agriculture, 35, 99-105, 1984; as ``cookie`` in the
+    ppls R package. The values are the source's measurements, which the MIT licence of this
+    package does not cover; cite the source when you use them. See the ``NOTICE`` beside the
+    file.
+
+    """
+    return pd.read_csv(_DATASETS_DIR / "biscuit" / "biscuit.csv")
+
+
 #: Every dataset loader in this module, keyed by the name used in the R
 #: package's ``data(<name>)`` call. ``oildoe`` is also reachable under the
 #: aliases the R package documents for it.
 _LOADERS: dict[str, Callable[[], pd.DataFrame]] = {
+    "biscuit": biscuit,
     "boilingpot": boilingpot,
+    "corrosion": corrosion,
     "distillateflow": distillateflow,
     "golf": golf,
     "oildoe": oildoe,
@@ -246,7 +320,7 @@ def data(dataset: str) -> pd.DataFrame:
     Parameters
     ----------
     dataset : str
-        Name of the dataset. One of ``"boilingpot"``, ``"distillateflow"``,
+        Name of the dataset. One of ``"biscuit"``, ``"boilingpot"``, ``"corrosion"``, ``"distillateflow"``,
         ``"golf"``, ``"oildoe"``, ``"pollutant"``, ``"solar"``. The aliases
         ``"oil.doe"`` and ``"oilDOE"`` also resolve to :func:`oildoe`.
 
@@ -273,6 +347,8 @@ def data(dataset: str) -> pd.DataFrame:
     try:
         loader = _LOADERS[dataset]
     except KeyError:
-        known = ", ".join(sorted({"boilingpot", "distillateflow", "golf", "oildoe", "pollutant", "solar"}))
+        known = ", ".join(
+            sorted({"biscuit", "boilingpot", "corrosion", "distillateflow", "golf", "oildoe", "pollutant", "solar"})
+        )
         raise ValueError(f"Unknown dataset {dataset!r}. Available datasets are: {known}.") from None
     return loader()

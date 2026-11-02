@@ -361,3 +361,29 @@ def test_non_dominated_keeps_the_frontier_and_drops_the_rest() -> None:
     utilities = np.array([[2.0, 2.0], [1.0, 1.0], [1.0, 3.0], [3.0, 0.5], [2.0, 2.0]])
     keep = _non_dominated(utilities)
     assert keep.tolist() == [True, False, True, True, True]
+
+
+def test_simplex_weights_for_one_objective_is_the_single_corner() -> None:
+    """One objective has one weight vector; without the special case the lattice search would never end."""
+    assert _simplex_weights(1, 7).tolist() == [[1.0]]
+
+
+def test_front_rejects_an_unknown_goal() -> None:
+    """A misspelt goal is named, with the three accepted spellings."""
+    goals = [{"response": "yield", "goal": "maximise"}, {"response": "cost", "goal": "minimize"}]
+    with pytest.raises(ValueError, match=r"^Unknown goal 'maximise'; expected 'maximize', 'minimize' or 'target'\.$"):
+        optimize_responses([model("yield", YIELD), model("cost", COST)], goals=goals, method="pareto_front")
+
+
+def test_front_needs_goals() -> None:
+    with pytest.raises(ValueError, match=r"^Goals are required for Pareto front optimization\.$"):
+        optimize_responses([model("yield", YIELD), model("cost", COST)], method="pareto_front")
+
+
+def test_front_without_a_single_objective_optimum_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The front is anchored at each response's own optimum; when no start reaches one, there is no front."""
+    from process_improve.experiments import optimization
+
+    monkeypatch.setattr(optimization, "_multistart_slsqp", lambda *_args, **_kwargs: None)
+    with pytest.raises(RuntimeError, match=r"^Pareto front: no start converged inside the region for a single"):
+        _pareto_front([model("yield", YIELD), model("cost", COST)], MAX_MIN_GOALS, ["A", "B"])

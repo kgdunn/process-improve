@@ -1,3 +1,7 @@
+:description: Install process-improve and try its main tools in a few lines each: PCA and PLS,
+   component selection, adaptive on-line monitoring, optimal and OMARS designs, and a DoE
+   strategy.
+
 Quick Start
 ===========
 

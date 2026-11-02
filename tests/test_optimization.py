@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import re
+import warnings
+
 import numpy as np
+import pandas as pd
 import pytest
 
 from process_improve.experiments._desirability import (
@@ -12,6 +16,7 @@ from process_improve.experiments._desirability import (
     desirability_target,
     individual_desirability,
 )
+from process_improve.experiments.factor import Factor
 from process_improve.experiments.optimization import (
     _build_model_evaluator,
     _canonical_analysis,
@@ -22,6 +27,7 @@ from process_improve.experiments.optimization import (
     evaluate_model,
     optimize_responses,
 )
+from process_improve.experiments.region import DesignRegion
 from process_improve.tool_spec import get_tool_specs
 
 # ---------------------------------------------------------------------------
@@ -196,6 +202,62 @@ class TestExtractBandB:
         assert b_mat[0, 1] == pytest.approx(0.75)
         assert b_mat[1, 0] == pytest.approx(0.75)
 
+    @pytest.mark.parametrize("method", ["stationary_point", "canonical_analysis", "ridge_analysis"])
+    def test_three_factor_term_is_refused_not_dropped(self, method: str) -> None:
+        """A:B:C used to be skipped, so the 'stationary point' was not stationary for the fitted model."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 0.0},
+            *({"term": f, "coefficient": 1.0} for f in "ABC"),
+            *({"term": f"I({f} ** 2)", "coefficient": -1.0} for f in "ABC"),
+            {"term": "A:B:C", "coefficient": 5.0},
+        ]
+        model = {"response_name": "y", "factor_names": ["A", "B", "C"], "coefficients": coefficients}
+        with pytest.raises(ValueError, match=r"second-order model.*\['A:B:C'\]"):
+            optimize_responses([model], method=method)
+
+    @pytest.mark.parametrize("term", ["I(A ** 0.5)", "C(A)[T.1]", "Z"])
+    @pytest.mark.parametrize("method", ["stationary_point", "steepest_ascent"])
+    def test_unrecognised_term_names_itself(self, term: str, method: str) -> None:
+        """Terms that are not products of the factors used to surface as a bare KeyError."""
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        model["coefficients"].append({"term": term, "coefficient": 1.0})
+        with pytest.raises(ValueError, match=re.escape(f"[{term!r}]")):
+            optimize_responses([model], method=method)
+
+    def test_three_factor_term_is_evaluated_by_desirability(self) -> None:
+        """The general evaluator multiplies any number of factors, so desirability keeps working."""
+        coefficients = [{"term": "Intercept", "coefficient": 1.0}, {"term": "A:B:C", "coefficient": 2.0}]
+        assert evaluate_model(coefficients, ["A", "B", "C"], {"A": 0.5, "B": -1.0, "C": 2.0}) == pytest.approx(-1.0)
+
+    @pytest.mark.parametrize(
+        ("term", "value"),
+        [
+            ("I(A ** 3)", 0.125),
+            ("np.power(A, 3)", 0.125),
+            ("A:I(B ** 2)", 4.5),
+            ("I(A ** 2):B", 0.75),
+            ("I(A ** 2):I(B ** 2)", 2.25),
+        ],
+    )
+    def test_a_product_of_powers_is_evaluated_whole(self, term: str, value: float) -> None:
+        """I(A ** 2):B was read as I(A ** 2), dropping B; a cubic term was refused."""
+        coefficients = [{"term": term, "coefficient": 1.0}]
+        assert evaluate_model(coefficients, ["A", "B"], {"A": 0.5, "B": 3.0}) == pytest.approx(value)
+
+    def test_a_cubic_term_is_refused_by_a_second_order_analysis(self) -> None:
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        model["coefficients"].append({"term": "I(A ** 3)", "coefficient": 1.0})
+        with pytest.raises(ValueError, match=re.escape("second-order model")):
+            optimize_responses([model], method="stationary_point")
+
+    def test_desirability_finds_the_maximum_of_a_cubic(self) -> None:
+        """The cubic 3A - A^3 on [-1, 1] rises to its greatest value, 2, at A = 1, where its slope is zero."""
+        coefficients = [{"term": "A", "coefficient": 3.0}, {"term": "I(A ** 3)", "coefficient": -1.0}]
+        model = {"response_name": "y", "factor_names": ["A"], "coefficients": coefficients}
+        goals = [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
+        found = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert found["predicted_responses"]["y"] == pytest.approx(2.0, abs=1e-4)
+
 
 # ---------------------------------------------------------------------------
 # Stationary point
@@ -252,6 +314,42 @@ class TestStationaryPoint:
         result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
         assert len(result["eigenvalues"]) == 2
 
+    def test_eigenvalues_come_in_the_order_canonical_analysis_gives_them(self) -> None:
+        """Davies 11.73's eigenvalues were (-3.190, -0.069, 0.780) here and (-3.190, 0.780, -0.069) there (#796)."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 50.0},
+            *({"term": name, "coefficient": 1.0} for name in ("x1", "x2", "x3")),
+            {"term": "I(x1 ** 2)", "coefficient": -3.190},
+            {"term": "I(x2 ** 2)", "coefficient": 0.780},
+            {"term": "I(x3 ** 2)", "coefficient": -0.069},
+        ]
+        names = ["x1", "x2", "x3"]
+        found = _find_stationary_point(coefficients, names)["eigenvalues"]
+        assert found == pytest.approx(_canonical_analysis(coefficients, names)["eigenvalues"])
+        assert found == pytest.approx([-3.190, 0.780, -0.069])
+
+    @pytest.mark.parametrize("method", ["stationary_point", "canonical_analysis"])
+    def test_a_factor_name_no_term_uses_is_refused(self, method: str) -> None:
+        """A block column among the names added a zero eigenvalue, and this maximum read as a ridge (#796)."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 80.0},
+            {"term": "x1", "coefficient": 2.0},
+            {"term": "x2", "coefficient": 3.0},
+            {"term": "I(x1 ** 2)", "coefficient": -4.0},
+            {"term": "I(x2 ** 2)", "coefficient": -3.0},
+            {"term": "x1:x2", "coefficient": 1.0},
+        ]
+        found = optimize_responses(
+            [{"response_name": "y", "coefficients": coefficients, "factor_names": ["x1", "x2"]}], method=method
+        )["stationary_point"]
+        assert found["classification"] == "maximum"
+        assert found["eigenvalues"] == pytest.approx([-4.2071, -2.7929], abs=5e-5)
+        with pytest.raises(ValueError, match=r"No term of the model uses \['Block'\]"):
+            optimize_responses(
+                [{"response_name": "y", "coefficients": coefficients, "factor_names": ["x1", "x2", "Block"]}],
+                method=method,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Canonical analysis
@@ -298,6 +396,141 @@ class TestCanonicalAnalysis:
         """First-order model returns error for canonical analysis."""
         result = _canonical_analysis(_linear_2f_coeffs(), FACTOR_NAMES_2F)
         assert "error" in result
+
+
+class TestPathInputs:
+    """Inputs that used to reverse or empty a path, or ignore the bounds, without a word."""
+
+    @staticmethod
+    def _model() -> dict:
+        return {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _linear_2f_coeffs()}
+
+    @pytest.mark.parametrize(("step_size", "n_steps"), [(-1.0, 3), (0.0, 3), (float("nan"), 3), (0.5, 0), (0.5, -3)])
+    def test_steepest_path_rejects_a_non_positive_step_or_count(self, step_size: float, n_steps: int) -> None:
+        """step_size=-1 walked steepest ascent downhill; n_steps=-3 returned an empty path."""
+        with pytest.raises(ValueError, match=r"step_size|n_steps"):
+            optimize_responses([self._model()], method="steepest_ascent", step_size=step_size, n_steps=n_steps)
+
+    def test_step_size_is_a_euclidean_distance(self) -> None:
+        """The documented convention: successive points are step_size apart."""
+        steps = optimize_responses([self._model()], method="steepest_ascent", step_size=0.5, n_steps=2)
+        coded = [np.array(list(s["coded"].values())) for s in steps["steepest_path"]["steps"]]
+        assert np.linalg.norm(coded[2] - coded[1]) == pytest.approx(0.5)
+
+    def test_ridge_flags_points_outside_asymmetric_bounds(self) -> None:
+        """The ridge follows spheres; with A bounded to (0, 2) it reaches A = -1.96, which is now flagged."""
+        model = {
+            "response_name": "y",
+            "factor_names": FACTOR_NAMES_2F,
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 0.0},
+                {"term": "A", "coefficient": -1.0},
+                {"term": "B", "coefficient": 0.2},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": -1.0},
+            ],
+        }
+        bounds = {"A": (0.0, 2.0), "B": (-2.0, 2.0)}
+        with pytest.warns(UserWarning, match="cannot follow search_bounds"):
+            out = optimize_responses([model], method="ridge_analysis", search_bounds=bounds, n_steps=4)
+        path = out["ridge_analysis"]["path"]
+        assert path[0]["inside_search_bounds"] is True
+        assert path[-1]["coded"]["A"] < 0
+        assert path[-1]["inside_search_bounds"] is False
+
+    def test_ridge_with_symmetric_bounds_does_not_warn(self) -> None:
+        """The usual case, one symmetric pair for every factor, is traced as before and stays inside."""
+        model = {"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": _quadratic_2f_coeffs()}
+        out = optimize_responses([model], method="ridge_analysis", search_bounds=(-1.41, 1.41))
+        assert all(entry["inside_search_bounds"] for entry in out["ridge_analysis"]["path"])
+
+
+class TestRidgeSystems:
+    """A zero eigenvalue of B is a ridge, not a saddle (Myers, Montgomery and Anderson-Cook, sec. 6.4)."""
+
+    @staticmethod
+    def _model(b_a: float, b_b: float, b_bb: float) -> dict:
+        """Build 10 + b_a*A + b_b*B - A^2 + b_bb*B^2, flat along B when b_bb is 0."""
+        return {
+            "response_name": "y",
+            "factor_names": FACTOR_NAMES_2F,
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 10.0},
+                {"term": "A", "coefficient": b_a},
+                {"term": "B", "coefficient": b_b},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": b_bb},
+            ],
+        }
+
+    @pytest.mark.parametrize("b_bb", [0.0, 1e-12])
+    def test_stationary_ridge_of_maxima(self, b_bb: float) -> None:
+        """The surface 10 + 2A - A^2 has a line of maxima at A = 1; it used to be called a saddle."""
+        out = optimize_responses([self._model(2.0, 0.0, b_bb)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "stationary_ridge"
+        assert out["canonical_analysis"]["ridge_of"] == "maxima"
+        assert out["canonical_analysis"]["canonical_form_description"][1].endswith("(flat)")
+        point = out["stationary_point"]
+        assert point["classification"] == "stationary_ridge"
+        assert point["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+        assert point["predicted_response"] == pytest.approx(11.0)
+
+    def test_rising_ridge_has_no_stationary_point(self) -> None:
+        """Adding a linear B term makes the response keep rising along the flat direction."""
+        out = optimize_responses([self._model(2.0, 1.0, 0.0)], method="canonical_analysis")
+        assert out["canonical_analysis"]["classification"] == "rising_ridge"
+        assert out["stationary_point"]["classification"] == "rising_ridge"
+        assert "No stationary point" in out["stationary_point"]["error"]
+
+    def test_curved_surfaces_are_unchanged(self) -> None:
+        """A small but real eigenvalue keeps its sign: this is a maximum, not a ridge."""
+        out = optimize_responses([self._model(2.0, 0.0, -0.01)], method="stationary_point")["stationary_point"]
+        assert out["classification"] == "maximum"
+        assert out["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+
+    def test_a_small_eigenvalue_is_noted_and_read_as_flat_under_a_tolerance(self) -> None:
+        """BHH read an eigenvalue of 0.0017 beside -9.02 as zero (#789 B3); -0.001 beside -1 is the same case."""
+        model = [self._model(2.0, 0.0, -0.001)]
+        default = optimize_responses(model, method="canonical_analysis")
+        assert default["canonical_analysis"]["classification"] == "maximum"
+        note = default["stationary_point"]["classification_note"]
+        assert "-0.001 (0.1% of the largest)" in note
+        assert "flat_tolerance=0.05" in note
+        tolerant = optimize_responses(model, method="canonical_analysis", flat_tolerance=0.05)
+        assert tolerant["canonical_analysis"]["classification"] == "stationary_ridge"
+        assert tolerant["canonical_analysis"]["ridge_of"] == "maxima"
+        assert "classification_note" not in tolerant["stationary_point"]
+        assert tolerant["stationary_point"]["stationary_point_coded"] == pytest.approx({"A": 1.0, "B": 0.0})
+
+    @pytest.mark.parametrize(
+        ("b0", "b1", "b2", "expected"),
+        [(83.93, 10.23, 5.59, "stationary_ridge"), (82.71, 8.8, 8.19, "rising_ridge")],
+    )
+    def test_bhh_figure_15_7_c_and_d_under_a_tolerance(self, b0: float, b1: float, b2: float, expected: str) -> None:
+        """BHH Figure 15.7: (c) a line of maxima, its slope along the ridge 0.005; (d) a rising ridge, slope 2.97."""
+        model = {
+            "response_name": "y",
+            "factor_names": ["x1", "x2"],
+            "coefficients": [
+                {"term": "Intercept", "coefficient": b0},
+                {"term": "x1", "coefficient": b1},
+                {"term": "x2", "coefficient": b2},
+                {"term": "I(x1 ** 2)", "coefficient": -6.95},
+                {"term": "I(x2 ** 2)", "coefficient": -2.07},
+                {"term": "x1:x2", "coefficient": -7.59},
+            ],
+        }
+        default = optimize_responses([model], method="canonical_analysis")["canonical_analysis"]
+        assert default["classification"] == "saddle_point"  # the eigenvalue 0.0017 bends up, if only just
+        assert default["eigenvalues"] == pytest.approx([-9.0217, 0.0017], abs=5e-5)
+        tolerant = optimize_responses([model], method="canonical_analysis", flat_tolerance=0.05)
+        assert tolerant["canonical_analysis"]["classification"] == expected
+        assert tolerant["stationary_point"]["classification"] == expected
+
+    @pytest.mark.parametrize("flat_tolerance", [-0.1, 1.0])
+    def test_flat_tolerance_is_a_share_of_the_largest_eigenvalue(self, flat_tolerance: float) -> None:
+        with pytest.raises(ValueError, match="flat_tolerance must be at least 0 and below 1"):
+            optimize_responses([self._model(2.0, 0.0, -1.0)], method="stationary_point", flat_tolerance=flat_tolerance)
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +687,30 @@ class TestIndividualDesirability:
         with pytest.raises(ValueError, match="Unknown goal"):
             individual_desirability(15.0, goal)
 
+    @pytest.mark.parametrize(
+        ("goal", "match"),
+        [
+            ({"goal": "maximize", "low": 80.0, "high": 60.0}, "low < high"),
+            ({"goal": "maximize", "low": 1.0, "high": 1.0}, "low < high"),
+            ({"goal": "maximize", "low": 0.0, "high": float("inf")}, "finite"),
+            ({"goal": "maximize", "high": 1.0}, "needs both 'low' and 'high'"),
+            ({"goal": "target", "low": 0.0, "high": 50.0, "target": 100.0}, "strictly between"),
+            ({"goal": "target", "low": 0.0, "high": 50.0, "target": 0.0}, "strictly between"),
+            ({"goal": "maximize", "low": 0.0, "high": 1.0, "weight": -1.0}, "positive 'weight'"),
+            ({"goal": "maximize", "low": 0.0, "high": 1.0, "weight": 0.0}, "positive 'weight'"),
+            ({"goal": "target", "low": 0.0, "high": 2.0, "target": 1.0, "weight_high": -2.0}, "positive 'weight_high'"),
+        ],
+    )
+    def test_malformed_goal_raises(self, goal: dict, match: str) -> None:
+        """Derringer-Suich ramps need low < target < high and positive exponents."""
+        with pytest.raises(ValueError, match=match):
+            individual_desirability(0.5, goal)
+
+    def test_error_names_the_response(self) -> None:
+        """A bad goal in a multi-response problem says which response it belongs to."""
+        with pytest.raises(ValueError, match="'purity'"):
+            individual_desirability(0.5, {"response": "purity", "goal": "minimize", "low": 2.0, "high": 1.0})
+
 
 class TestCompositeDesirability:
     """Verify weighted geometric mean composite desirability."""
@@ -480,6 +737,35 @@ class TestCompositeDesirability:
     def test_empty_list(self) -> None:
         """Empty list returns 0."""
         assert composite_desirability([]) == 0.0
+
+    @pytest.mark.parametrize(
+        ("importances", "match"),
+        [
+            ([2.0, -1.0], "non-negative"),
+            ([0.0, 0.0], "at least one positive"),
+            ([1.0], "one per response"),
+        ],
+    )
+    def test_bad_importances_raise(self, importances: list[float], match: str) -> None:
+        """A negative importance can push D above 1; a short list used to fail inside zip()."""
+        with pytest.raises(ValueError, match=match):
+            composite_desirability([0.5, 0.8], importances=importances)
+
+    def test_importance_length_checked_before_optimising(self) -> None:
+        """optimize_responses names the length mismatch rather than surfacing a zip() error."""
+        model = {
+            "response_name": "y",
+            "factor_names": ["A"],
+            "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}],
+        }
+        goals = [{"response": n, "goal": "maximize", "low": 0.0, "high": 1.0} for n in ("y", "z")]
+        with pytest.raises(ValueError, match="1 importance\\(s\\) for 2 response"):
+            optimize_responses(
+                [model, dict(model, response_name="z")],
+                goals=goals,
+                method="desirability",
+                response_importance=[1.0],
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -545,6 +831,22 @@ class TestOptimizeDesirability:
         d_result = result["desirability"]
         assert "optimal_actual" in d_result
 
+    def test_result_values_are_plain_python_floats(self) -> None:
+        """Settings print as 189.47, not np.float64(189.47), and serialise without conversion."""
+        model = {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        out = optimize_responses([model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F)
+        d_result = out["desirability"]
+        for key in ("optimal_actual", "optimal_coded", "predicted_responses", "individual_desirability"):
+            assert all(type(v) is float for v in d_result[key].values()), key
+        assert type(d_result["composite_desirability"]) is float
+        assert "np.float64" not in repr(d_result["optimal_actual"])
+
+        stationary = optimize_responses([model], method="stationary_point", factor_ranges=FACTOR_RANGES_2F)
+        assert all(type(v) is float for v in stationary["stationary_point"]["stationary_point_actual"].values())
+        path = optimize_responses([model], method="steepest_ascent", factor_ranges=FACTOR_RANGES_2F)
+        assert all(type(v) is float for v in path["steepest_path"]["steps"][1]["actual"].values())
+
     def test_random_state_is_configurable(self) -> None:
         """SEC-33 (#282) sub-item 5: ``random_state`` is now a public kwarg.
 
@@ -573,6 +875,25 @@ class TestOptimizeDesirability:
         # what's reproducible; both should be high.
         assert out_a["composite_desirability"] > 0.5
         assert out_c["composite_desirability"] > 0.5
+
+    @pytest.mark.parametrize("method", ["desirability", "pareto_front"])
+    def test_random_state_reaches_the_multistart(self, method: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        """optimize_responses passes its random_state to the multistart search (reproducibility.rst rule 1)."""
+        from process_improve.experiments import optimization
+
+        seen: list[object] = []
+
+        def spy(random_state: object) -> np.random.Generator:
+            seen.append(random_state)
+            return np.random.default_rng(0)
+
+        monkeypatch.setattr(optimization, "check_random_state", spy)
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        models = [model, dict(model, response_name="z")]
+        goals = [{"response": n, "goal": "maximize", "low": 30.0, "high": 50.0} for n in ("y", "z")]
+        rng = np.random.default_rng(7)
+        optimize_responses(models, goals=goals, method=method, random_state=rng)
+        assert seen == [rng]
 
 
 # ---------------------------------------------------------------------------
@@ -609,6 +930,43 @@ class TestDesirabilityOptimumLocation:
         assert out["optimal_coded"]["B"] == pytest.approx(-1.0, abs=1e-4)
         assert out["predicted_responses"]["y"] == pytest.approx(2.0, abs=1e-4)
         assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_tight_limits_are_found_when_every_random_start_scores_zero(self) -> None:
+        """Limits [1.9, 2.0] on y = A + B: only the corner (1, 1) meets them.
+
+        Every random start lands where d = 0 and the gradient is 0, so the search
+        used to stay there and report D = 0 with optimizer_success=True.
+        """
+        model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        goals = [{"response": "y", "goal": "maximize", "low": 1.9, "high": 2.0}]
+        out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-6)
+        assert out["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["B"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_narrow_target_window_between_two_responses_is_found(self) -> None:
+        """Two responses whose acceptable windows overlap only in a thin sliver of the box."""
+        y1 = self._plane("y1", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        y2 = self._plane("y2", intercept=0.0, slope_a=1.0, slope_b=-1.0)
+        goals = [
+            {"response": "y1", "goal": "target", "low": 1.2, "target": 1.3, "high": 1.4},
+            {"response": "y2", "goal": "target", "low": 0.5, "target": 0.6, "high": 0.7},
+        ]
+        out = optimize_responses([y1, y2], goals=goals, method="desirability")["desirability"]
+        assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["A"] == pytest.approx(0.95, abs=1e-3)
+        assert out["optimal_coded"]["B"] == pytest.approx(0.35, abs=1e-3)
+
+    def test_unreachable_limits_warn_and_report_the_closest_setting(self) -> None:
+        """When no setting in the box gives D > 0, say so, and report the nearest miss rather than the centre."""
+        model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=1.0)
+        goals = [{"response": "y", "goal": "maximize", "low": 5.0, "high": 6.0}]
+        with pytest.warns(UserWarning, match="composite desirability is 0") as record:
+            out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert record[0].filename == __file__
+        assert out["composite_desirability"] == 0.0
+        assert out["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["B"] == pytest.approx(1.0, abs=1e-4)
 
     def test_two_responses_compromise_between_their_optima(self) -> None:
         """Conflicting responses settle strictly between their individual optima.
@@ -680,20 +1038,75 @@ class TestGoalMatching:
         with pytest.raises(ValueError, match="correspond one to one"):
             optimize_responses(self._models(), goals=goals, method="desirability")
 
-    def test_unnamed_goals_fall_back_to_position(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_unnamed_goals_fall_back_to_position(self) -> None:
         """Without names on both sides, position is the only reading available."""
         goals = [
             {"goal": "maximize", "low": -1.0, "high": 1.0},
             {"goal": "minimize", "low": -1.0, "high": 1.0},
         ]
-        with caplog.at_level("WARNING"):
+        with pytest.warns(UserWarning, match="by position") as record:
             out = optimize_responses(self._models(), goals=goals, method="desirability")
-        assert "by position" in caplog.text
+        assert len([w for w in record if "by position" in str(w.message)]) == 1
+        assert record[0].filename == __file__
         assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    @pytest.mark.parametrize("method", ["desirability", "pareto_front"])
+    def test_mismatched_names_raise_instead_of_pairing_by_position(self, method: str) -> None:
+        """'Yield' is not 'yield': pairing by position would minimise yield and maximise cost."""
+        goals = [
+            {"response": "Cost", "goal": "minimize", "low": -1.0, "high": 1.0},
+            {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0},
+        ]
+        with pytest.raises(ValueError, match=r"\['Cost'\] match no model.*\['cost'\] match no goal"):
+            optimize_responses(self._models(), goals=goals, method=method)
+
+    def test_duplicate_goal_names_raise(self) -> None:
+        """Two goals for one response leave the other response without one."""
+        goals = [
+            {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0},
+            {"response": "yield", "goal": "minimize", "low": -1.0, "high": 1.0},
+        ]
+        with pytest.raises(ValueError, match="one to one"):
+            optimize_responses(self._models(), goals=goals, method="desirability")
+
+    def test_one_unnamed_model_and_goal_pair_without_a_warning(self, recwarn: pytest.WarningsRecorder) -> None:
+        """A single model and a single goal can only go together, so pairing them by position is not flagged."""
+        unnamed = {key: value for key, value in self._models()[0].items() if key != "response_name"}
+        goals = [{"goal": "maximize", "low": -1.0, "high": 1.0}]
+        out = optimize_responses([unnamed], goals=goals, method="desirability")
+        assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert not [w for w in recwarn if "by position" in str(w.message)]
+
+
+class TestNoConvergedStart:
+    """When every SLSQP start fails, the desirability search says so instead of returning a setting."""
+
+    @pytest.mark.parametrize(
+        ("region", "message"),
+        [
+            pytest.param(None, "optimization produced no result", id="search-box"),
+            pytest.param(
+                DesignRegion([Factor(name="A", low=-1, high=1), Factor(name="B", low=-1, high=1)]),
+                "no start converged inside the region",
+                id="design-region",
+            ),
+        ],
+    )
+    def test_no_start_converging_raises(
+        self, monkeypatch: pytest.MonkeyPatch, region: DesignRegion | None, message: str
+    ) -> None:
+        from process_improve.experiments import optimization
+
+        monkeypatch.setattr(optimization, "_closest_to_specification", lambda *_args: None)
+        monkeypatch.setattr(optimization, "_multistart_results", lambda *_args, **_kwargs: [])
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 45.0}]
+        with pytest.raises(RuntimeError, match=f"^{message}$"):
+            optimize_responses([model], goals=goals, method="desirability", region=region)
 
 
 class TestResponseImportanceNaming:
-    """The old kwarg name said 'weights' but carried importances."""
+    """The importances are ``response_importance``; the old name, which said 'weights', is gone."""
 
     @staticmethod
     def _model() -> dict:
@@ -703,24 +1116,13 @@ class TestResponseImportanceNaming:
             "factor_names": ["A", "B"],
         }
 
-    def test_deprecated_alias_still_works(self) -> None:
-        """desirability_weights keeps working, with a warning."""
+    def test_desirability_weights_is_an_unexpected_keyword(self) -> None:
+        """Removed in 2.0.0, after its deprecation in 1.62.0."""
         goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
-        with pytest.warns(DeprecationWarning, match="response_importance"):
-            out = optimize_responses([self._model()], goals=goals, method="desirability", desirability_weights=[1.0])
-        assert out["desirability"]["composite_desirability"] > 0.0
-
-    def test_both_names_together_is_an_error(self) -> None:
-        """Passing both leaves the intent ambiguous."""
-        goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
-        with pytest.raises(ValueError, match="not both"):
-            optimize_responses(
-                [self._model()],
-                goals=goals,
-                method="desirability",
-                response_importance=[1.0],
-                desirability_weights=[2.0],
-            )
+        # Passed through a dict: a literal keyword the signature lacks fails static analysis (CodeQL).
+        removed = {"desirability_weights": [1.0]}
+        with pytest.raises(TypeError, match="unexpected keyword argument 'desirability_weights'"):
+            optimize_responses([self._model()], goals=goals, method="desirability", **removed)
 
     def test_result_carries_responses_for_the_overlay_plot(self) -> None:
         """The desirability result is directly consumable by the overlay plot."""
@@ -805,6 +1207,15 @@ class TestIntervalsAtOptimum:
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
         with pytest.raises(ValueError, match="correspond one to one"):
             optimize_responses([model], goals=goals, method="desirability", fitted_results=[fitted, fitted])
+
+    def test_a_result_that_cannot_predict_is_reported_for_its_response(self, caplog: pytest.LogCaptureFixture) -> None:
+        """An object that is not a fitted model gives that response an error entry, and a logged warning."""
+        model, _ = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        with caplog.at_level("WARNING", logger="process_improve.experiments.optimization"):
+            out = optimize_responses([model], goals=goals, method="desirability", fitted_results=[object()])
+        assert set(out["desirability"]["response_intervals"]["y"]) == {"error"}
+        assert "Could not compute intervals for response 'y'" in caplog.text
 
 
 class TestSearchBounds:
@@ -972,6 +1383,20 @@ class TestFormerStubs:
 class TestDispatcher:
     """Verify optimize_responses routes to the correct method."""
 
+    def test_a_model_that_is_not_a_dict_is_rejected(self) -> None:
+        """A string where a model dict belongs is named by position and type."""
+        with pytest.raises(TypeError, match=r"^fitted_models\[0\] must be a dict; got str\.$"):
+            optimize_responses(["y ~ A + B"], method="stationary_point")  # type: ignore[list-item]
+
+    def test_factors_without_a_range_stay_in_coded_units(self) -> None:
+        """Only the factors given a range are converted; the others are reported as coded values."""
+        model = {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        result = optimize_responses([model], method="stationary_point", factor_ranges={"A": {"low": 150, "high": 200}})
+        coded = result["stationary_point"]["stationary_point_coded"]
+        actual = result["stationary_point"]["stationary_point_actual"]
+        assert actual["B"] == coded["B"]
+        assert actual["A"] == pytest.approx(175.0 + 25.0 * coded["A"])
+
     def test_stationary_point_via_dispatcher(self) -> None:
         """Stationary point method produces stationary_point key."""
         model = {
@@ -1029,6 +1454,26 @@ class TestDispatcher:
         """Empty fitted_models list raises ValueError."""
         with pytest.raises(ValueError, match="At least one"):
             optimize_responses([], method="stationary_point")
+
+    @pytest.mark.parametrize(
+        "method", ["stationary_point", "canonical_analysis", "steepest_ascent", "steepest_descent", "ridge_analysis"]
+    )
+    def test_single_response_method_refuses_several_models(self, method: str) -> None:
+        """These methods analysed fitted_models[0] and silently ignored the rest."""
+        models = [
+            {"response_name": name, "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+            for name in ("y1", "y2")
+        ]
+        with pytest.raises(ValueError, match=f"method='{method}' analyses one response; got 2 models"):
+            optimize_responses(models, method=method)
+
+    @pytest.mark.parametrize("missing", ["factor_names", "coefficients"])
+    def test_missing_model_key_is_named(self, missing: str) -> None:
+        """A model without factor_names used to fail with KeyError('factor_names')."""
+        model = {"response_name": "y", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F}
+        del model[missing]
+        with pytest.raises(ValueError, match=f"fitted_models\\[0\\] has no '{missing}'"):
+            optimize_responses([model], method="stationary_point")
 
     def test_desirability_without_goals_raises(self) -> None:
         """Desirability method without goals raises ValueError."""
@@ -1102,3 +1547,170 @@ class TestToolWrapper:
         specs = get_tool_specs(category="experiments")
         names = [s["name"] for s in specs]
         assert "optimize_responses" in names
+
+
+# ---------------------------------------------------------------------------
+# analyze_experiment -> optimize_responses: the coefficients' scale (#513)
+# ---------------------------------------------------------------------------
+
+
+class TestCodedHandoff:
+    """The optimiser evaluates models at coded settings, so it needs coded coefficients."""
+
+    MAXIMISE = ({"goal": "maximize", "low": 10, "high": 25},)
+
+    @staticmethod
+    def _fit(coding: object = "coded", y: list[float] | None = None) -> dict:
+        from process_improve.experiments.analysis import analyze_experiment
+
+        data = pd.DataFrame(
+            {"T": [150, 200, 150, 200, 175, 175], "P": [1, 1, 3, 3, 2, 2], "y": y or [10, 18, 13, 25, 16, 16.8]}
+        )
+        return analyze_experiment(
+            data, response_column="y", model="y ~ T * P", analysis_type="coefficients", coding=coding
+        )
+
+    def test_a_coded_fit_finds_the_best_run_in_actual_units(self) -> None:
+        """Before, actual-unit coefficients were searched from -1 to +1 degC, and gave P = 1 with y = -5."""
+        best = optimize_responses([self._fit()], list(self.MAXIMISE))["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+        assert best["predicted_responses"]["y"] == pytest.approx(25.0, abs=0.1)
+
+    def test_an_actual_unit_fit_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"in actual units \(T from 150.0 to 200.0.*coding='coded'"):
+            optimize_responses([self._fit("actual")], list(self.MAXIMISE))
+
+    def test_factor_ranges_must_agree_with_the_coding(self) -> None:
+        with pytest.raises(ValueError, match="factor_ranges gives T from 140 to 210"):
+            optimize_responses([self._fit()], list(self.MAXIMISE), factor_ranges={"T": {"low": 140, "high": 210}})
+        agreeing = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        best = optimize_responses([self._fit()], list(self.MAXIMISE), factor_ranges=agreeing)["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
+
+    def test_models_coded_from_different_ranges_are_refused(self) -> None:
+        """A response missing its T = 200 runs is coded from 150 to 175; a shared range fixes that."""
+        partial = [10, np.nan, 13, np.nan, 16, 16.8]
+        goals = [{"goal": "maximize", "low": 10, "high": 25}] * 2
+        with pytest.raises(ValueError, match="code T from different ranges"):
+            optimize_responses([self._fit(), self._fit(y=partial)], goals)
+        ranges = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        optimize_responses([self._fit(ranges), self._fit(ranges, y=partial)], goals)
+
+    def test_a_ranged_fit_matches_one_on_hand_coded_data(self) -> None:
+        """Coding by ranges and passing nothing else gives what fitting coded data with factor_ranges gave."""
+        from process_improve.experiments.analysis import analyze_experiment
+
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + x[:, 0] * x[:, 1]
+        coded = pd.DataFrame({"T": x[:, 0], "P": x[:, 1], "y": y + np.linspace(-0.2, 0.2, 9)})
+        actual = coded.assign(T=175 + 25 * coded["T"], P=2 + coded["P"])
+        cube = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        kwargs = {"response_column": "y", "model": "quadratic", "analysis_type": "coefficients"}
+        by_hand = optimize_responses(
+            [analyze_experiment(coded, **kwargs)], method="stationary_point", factor_ranges=cube
+        )["stationary_point"]
+        ranged = optimize_responses([analyze_experiment(actual, coding=cube, **kwargs)], method="stationary_point")[
+            "stationary_point"
+        ]
+        assert ranged["stationary_point_actual"] == pytest.approx(by_hand["stationary_point_actual"])
+
+    def test_a_two_level_categorical_factor_stays_coded(self) -> None:
+        """Its coded range has no actual units, so its optimum is reported as -1 or +1."""
+        from process_improve.experiments.analysis import analyze_experiment
+
+        data = pd.DataFrame(
+            {"T": [150.0, 200.0] * 4, "S": ["Dry"] * 4 + ["Wet"] * 4, "y": [10, 18, 11, 19, 14, 22, 15, 23.0]}
+        )
+        fit = analyze_experiment(
+            data, response_column="y", model="main_effects", analysis_type="coefficients", coding="coded"
+        )
+        assert fit["factor_coding"]["S"] == {"low": "Dry", "high": "Wet"}
+        best = optimize_responses([fit], [{"goal": "maximize", "low": 10, "high": 23}])["desirability"]
+        assert best["optimal_actual"] == pytest.approx({"T": 200.0, "S": 1.0})
+
+
+class TestCanonicalForms:
+    """Box and Draper's B form and their ridge form re-express the quadratic exactly; the ridge form keeps its slope."""
+
+    @staticmethod
+    def _bhh() -> list[dict]:
+        """Box, Hunter and Hunter's equation 15.19: a ridge with eigenvalues -5.12 and -0.15."""
+        return [
+            {"term": "Intercept", "coefficient": 87.36},
+            {"term": "A", "coefficient": -1.39},
+            {"term": "B", "coefficient": 0.37},
+            {"term": "I(A ** 2)", "coefficient": -2.15},
+            {"term": "I(B ** 2)", "coefficient": -3.12},
+            {"term": "A:B", "coefficient": -4.88},
+        ]
+
+    @staticmethod
+    def _predict(coefficients: list[dict], x: np.ndarray) -> float:
+        c = {entry["term"]: entry["coefficient"] for entry in coefficients}
+        a, b = x
+        linear = c["Intercept"] + c["A"] * a + c["B"] * b
+        return linear + c["I(A ** 2)"] * a**2 + c["I(B ** 2)"] * b**2 + c.get("A:B", 0.0) * a * b
+
+    @pytest.mark.parametrize("coefficients", [_quadratic_2f_coeffs(), _saddle_2f_coeffs(), _bhh()])
+    def test_the_ridge_form_reproduces_the_model(self, coefficients: list[dict]) -> None:
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        form, vectors = result["ridge_form"], np.array(result["eigenvectors"])
+        origin = np.array(list(form["origin"].values()))
+        for x in np.random.default_rng(1).uniform(-2, 2, size=(5, 2)):
+            axes = vectors @ (x - origin)
+            ridge = form["ridge_axis"]
+            value = form["origin_response"] + form["linear"] * axes[ridge] + np.sum(result["eigenvalues"] * axes**2)
+            assert value == pytest.approx(self._predict(coefficients, x))
+        assert np.allclose(vectors @ origin, -np.array(form["offsets"]))
+
+    def test_the_ridge_form_of_a_ridge(self) -> None:
+        """BHH's ridge: the origin nearest the centre, 87.38, and a slope of 1.31 along the ridge."""
+        form = _canonical_analysis(self._bhh(), FACTOR_NAMES_2F)["ridge_form"]
+        assert form["origin_response"] == pytest.approx(87.377, abs=5e-4)
+        assert abs(form["linear"]) == pytest.approx(1.309, abs=5e-4)
+        assert abs(form["offsets"][0]) == pytest.approx(0.058, abs=5e-4)
+
+    def test_a_maximum_has_no_slope_along_its_smallest_axis_after_centring(self) -> None:
+        """Where a stationary point exists, the canonical axes are centred on it: y = y_s + sum lambda W^2."""
+        coefficients = _quadratic_2f_coeffs()
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        point = optimize_responses(
+            [{"response_name": "y", "factor_names": FACTOR_NAMES_2F, "coefficients": coefficients}],
+            method="stationary_point",
+        )["stationary_point"]
+        x = np.array([0.3, -0.7])
+        w = [axis["constant"] + np.dot(list(axis["coefficients"].values()), x) for axis in result["canonical_axes"]]
+        value = point["predicted_response"] + np.sum(np.array(result["eigenvalues"]) * np.square(w))
+        assert value == pytest.approx(self._predict(coefficients, x))
+
+    def test_a_rising_ridge_has_no_canonical_axes(self) -> None:
+        coefficients = [
+            {"term": "Intercept", "coefficient": 10.0},
+            {"term": "A", "coefficient": 2.0},
+            {"term": "B", "coefficient": 1.0},
+            {"term": "I(A ** 2)", "coefficient": -1.0},
+            {"term": "I(B ** 2)", "coefficient": 0.0},
+            {"term": "A:B", "coefficient": 0.0},
+        ]
+        result = _canonical_analysis(coefficients, FACTOR_NAMES_2F)
+        assert "canonical_axes" not in result
+        assert result["ridge_form"]["linear"] == pytest.approx(1.0)  # the ridge keeps rising, at slope 1
+
+    @staticmethod
+    def _two_flat_axes(slope_x3: float) -> list[dict]:
+        """Box and Draper's Table 11.1 (F), and (G) with a slope along X3: eigenvalues -2, 0 and 0."""
+        terms = [("Intercept", 0.0), ("X1", 0.0), ("X2", 0.0), ("X3", slope_x3)]
+        terms += [("I(X1 ** 2)", -2.0), ("I(X2 ** 2)", 0.0), ("I(X3 ** 2)", 0.0)]
+        return [{"term": term, "coefficient": coefficient} for term, coefficient in terms]
+
+    @pytest.mark.parametrize(("slope_x3", "classification"), [(0.0, "stationary_ridge"), (1.0, "rising_ridge")])
+    def test_two_zero_eigenvalues_give_a_finite_origin(self, slope_x3: float, classification: str) -> None:
+        """#965: the origin leaves out every flat axis, so two zero eigenvalues no longer divide by zero."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = _canonical_analysis(self._two_flat_axes(slope_x3), ["X1", "X2", "X3"])
+        form = result["ridge_form"]
+        assert result["classification"] == classification
+        assert form["origin"] == pytest.approx({"X1": 0.0, "X2": 0.0, "X3": 0.0})
+        assert form["origin_response"] == pytest.approx(0.0)
+        assert form["offsets"] == pytest.approx([0.0, 0.0, 0.0])

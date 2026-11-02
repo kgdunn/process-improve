@@ -1,0 +1,409 @@
+"""Analysing the results: ``api_analyze_runs``, which Learn calls, and ``api_analyze`` for a workbook.
+
+Factors are coded to -1 and +1 from their ranges. Terms a design cannot tell apart are
+estimated once, as their sum; a saturated two-level fit is judged with Lenth's method; and
+when the results were simulated, each coefficient carries the true value of what it estimates.
+"""
+
+from __future__ import annotations
+
+import json
+
+import numpy as np
+import pytest
+
+from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet
+
+
+def analyse(api, spec: dict, model: str = "") -> dict:
+    """Generate a design, fill its workbook with the ``quadratic`` response, and return the analysis reply."""
+    design = api.ok("api_make_design", spec)
+    return api.reply("api_analyze", {"xlsx_base64": fill_workbook(design["xlsx_base64"], quadratic), "model": model})
+
+
+def by_label(result: dict) -> dict:
+    """Index a result's coefficients by the label the page shows."""
+    return {c["label"]: c for c in result["coefficients"]}
+
+
+# --------------------------------------------------------------------------- the runs the page holds
+def test_the_worked_example_recovers_the_true_process(api, held, simulated):
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    truth = {t["term"]: t["coefficient"] for t in simulated["truth"]}
+    for c in analysis["coefficients"]:
+        assert c["ci_low"] <= truth.get(c["term"], 0.0) <= c["ci_high"], c["term"]
+    assert analysis["model"] == "quadratic"
+
+
+def test_true_values_are_what_each_coefficient_estimates(api, held, simulated):
+    """In a Box-Behnken design every term is estimated on its own, so the true values are the process's."""
+    request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
+    analysis = api.ok("api_analyze_runs", request)
+    truth = {t["term"]: t["coefficient"] for t in simulated["truth"]}
+    assert {c["term"]: c["true_value"] for c in analysis["coefficients"]} == {
+        c["term"]: truth.get(c["term"], 0.0) for c in analysis["coefficients"]
+    }, "exact, with no rounding error left on the zeros"
+
+
+def test_without_the_true_process_no_coefficient_has_a_true_value(api, held, simulated):
+    """Results typed in or uploaded have no known process: the page then leaves the "True value" column out."""
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    assert all("true_value" not in c for c in analysis["coefficients"])
+
+
+def test_an_aliased_estimate_is_set_beside_the_sum_it_estimates(api):
+    """In a 2^(3-1) design F is aliased with T:P, so its estimate is centred on F + T:P."""
+    spec = {
+        "design_type": "fractional_factorial",
+        "resolution": 3,
+        "n_center_points": 0,
+        "factors": factors_named(*"TPF"),
+    }
+    held = held_of(api.ok("api_make_design", spec))
+    sim = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 0.01})
+    analysis = api.ok(
+        "api_analyze_runs", {**held, "responses": sim["responses"], "model": "interactions", "truth": sim["truth"]}
+    )
+    true = {c["label"]: c["true_value"] for c in analysis["coefficients"]}
+    assert true["F + T·P"] == pytest.approx(1.75 + 1.5)
+    assert true["Intercept"] == pytest.approx(62 - 2.25), "F squared is 1 at every run of a two-level design"
+
+
+def test_the_model_chosen_replaces_the_one_the_design_was_made_for(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    assert api.ok("api_analyze_runs", request)["model"] == held["spec"]["model"] == "quadratic"
+    main = api.ok("api_analyze_runs", {**request, "model": "main_effects"})
+    assert main["model"] == "main_effects"
+    assert [c["term"] for c in main["coefficients"]] == ["Intercept", "T", "P", "F"]
+
+
+def test_runs_still_to_do_are_left_out_and_listed(api, held, simulated):
+    responses = [*simulated["responses"][:-2], None, None]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    assert analysis["n_completed"] == 13
+    assert analysis["pending_runs"] == [14, 15]
+
+
+def test_a_mismatched_response_list_is_refused(api, held):
+    assert "2 responses were sent for 15 runs" in api.error("api_analyze_runs", {**held, "responses": [1.0, 2.0]})
+
+
+@pytest.mark.parametrize(
+    "spec_change",
+    [
+        {"response": "__import__('os')"},
+        {"model": "y ~ T"},
+        {"factors": [{"name": "T; import os", "low": 0, "high": 1}, {"name": "P", "low": 0, "high": 1}]},
+    ],
+)
+def test_a_specification_is_data_never_code(api, held, spec_change):
+    api.error("api_analyze_runs", {**held, "spec": {**held["spec"], **spec_change}, "responses": [1.0] * 15})
+
+
+@pytest.mark.parametrize("model", ["__import__('os').system('true')", "y ~ T", ""])
+def test_model_name_from_the_request_is_never_a_formula(api, model):
+    reply = analyse(api, {"design_type": "box_behnken", "factors": FACTORS}, model=model)
+    assert reply["ok"] is (model == ""), "an empty choice means 'as designed'; anything else not in MODELS is refused"
+
+
+def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(api):
+    """Every square term calls I(), which a factor named I would hide, so the library fits I under a stand-in name.
+
+    The page shows the factor under its own name: the study is the one it makes with the factor named X.
+    """
+    pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
+
+    def study(name: str) -> tuple[dict, dict]:
+        factors = [FACTORS[0], {**FACTORS[1], "name": name}, FACTORS[2]]
+        held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": factors}))
+        simulated = api.ok("api_simulate", {**held, "scenario": "optimum", "seed": 1})  # it has a true I²
+        request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}
+        return api.ok("api_analyze_runs", request), api.ok("api_plots", request)
+
+    (analysis, charts), (as_x, charts_x) = study("I"), study("X")
+    labels = ["Intercept", "T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
+    assert [c["label"] for c in analysis["coefficients"]] == labels
+    assert [a["source"] for a in analysis["anova"]] == [*labels[1:], "Residual"]
+    assert by_label(analysis)["I²"]["term"] == "I(I ** 2)"
+    assert by_label(analysis)["I²"]["true_value"] == -2.5
+    for c, x in zip(analysis["coefficients"], as_x["coefficients"], strict=True):
+        assert c["term"] == x["term"].replace("X", "I")
+        assert (c["coefficient"], c["true_value"]) == pytest.approx((x["coefficient"], x["true_value"])), c["term"]
+    assert analysis["equation"] == as_x["equation"].replace("X", "I")
+    assert charts["contour_factors"] == ["T", "I"]
+    contour, contour_x = (json.loads(c["figures"]["contour"]) for c in (charts, charts_x))
+    assert contour["layout"]["yaxis"]["title"]["text"] == "I (bar)"
+    np.testing.assert_allclose(contour["data"][0]["z"], contour_x["data"][0]["z"])
+
+
+# --------------------------------------------------------------------------- what the fit can and cannot estimate
+def test_too_few_runs_says_how_many_are_needed(api):
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
+    xlsx = fill_workbook(design["xlsx_base64"], quadratic, blank_rows=tuple(range(8)))
+    assert "10 coefficients" in api.error("api_analyze", {"xlsx_base64": xlsx, "model": "quadratic"})
+
+
+def test_aliased_terms_are_estimated_once_as_their_chain(api):
+    """In a 2^(3-1) each main effect shares its column with an interaction: the data give their sum, once.
+
+    The fit used to list every term, each with half the sum, so T read 2 where it is 4.
+    """
+    reply = analyse(api, {"design_type": "fractional_factorial", "factors": FACTORS}, model="interactions")
+    assert reply["ok"], reply.get("error")
+    coef = by_label(reply["result"])
+    assert set(coef) == {"Intercept", "T + P·F", "P + T·F", "F + T·P"}
+    assert coef["T + P·F"]["coefficient"] == pytest.approx(4, abs=0.2)
+    assert coef["F + T·P"]["coefficient"] == pytest.approx(2, abs=0.2)
+    assert coef["T + P·F"]["aliases"] == ["T", "P:F"]
+    assert any("cannot tell these terms apart" in note for note in reply["result"]["notes"])
+
+
+def test_squares_of_a_two_level_design_are_one_chain(api):
+    """With center points the squares of a two-level design are one column, so only their total is estimable."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3}
+    result = analyse(api, spec, model="quadratic")["result"]
+    coef = by_label(result)
+    assert coef["T² + P² + F²"]["coefficient"] == pytest.approx(-5, abs=0.3)
+    assert "T²" not in coef
+    assert "(T² + P² + F²)" in result["equation"]
+
+
+def test_squares_without_center_points_are_not_estimable(api):
+    """Without center points every square is 1 at every run, the same as the intercept."""
+    spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 0}
+    result = analyse(api, spec, model="quadratic")["result"]
+    assert sorted(result["not_estimable"]) == ["F²", "P²", "T²"]
+    assert {"T", "P", "F", "T·P", "T·F", "P·F"} <= set(by_label(result))
+
+
+def test_lack_of_fit_is_tested_against_the_repeated_center_runs(api, held, simulated):
+    """Three center runs give two degrees of freedom of pure error, which the page states beside the test."""
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    assert analysis["lack_of_fit"]["df_pure_error"] == 2
+    assert 0 <= analysis["lack_of_fit"]["p_value"] <= 1
+
+
+def test_saturated_two_level_fit_is_judged_with_lenth(api):
+    """Four runs for four coefficients leave no error to test against; Lenth's method judges the effects."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    reply = analyse(api, spec, model="main_effects")
+    assert reply["ok"], reply.get("error")
+    result = reply["result"]
+    assert result["summary"]["df_residual"] == 0
+    assert {"PSE", "ME", "SME"} <= set(result["lenth"])
+    assert sorted(e["term"] for e in result["lenth"]["effects"]) == ["F", "P", "T"]
+    assert any("Lenth" in note for note in result["notes"])
+    assert not any("divide by zero" in w for w in reply["warnings"]), "numerical noise is not a warning for the reader"
+    assert any("only 3 effects" in note for note in result["notes"]), "three effects give Lenth's margins one df"
+
+
+def test_lenth_s_effects_are_twice_the_coefficients_and_the_page_says_so(api):
+    """The coefficient table and Lenth's table differ by a factor of two, which the book's hand calculations show."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    result = analyse(api, spec, model="main_effects")["result"]
+    coefficients = by_label(result)
+    for effect in result["lenth"]["effects"]:
+        assert effect["effect"] == pytest.approx(2 * coefficients[effect["label"]]["coefficient"])
+    assert any("twice its coefficient" in note for note in result["notes"])
+
+
+def test_a_saturated_fit_has_no_predicted_r_squared(api):
+    """Every run is fitted exactly, so none can be predicted from the others; the page explains the gap."""
+    spec = {"design_type": "plackett_burman", "factors": FACTORS, "n_center_points": 0}
+    summary = analyse(api, spec, model="main_effects")["result"]["summary"]
+    assert summary["r_squared_pred"] is None
+
+
+def test_lenth_margins_are_not_called_wide_with_seven_effects(api):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    workbook = fill_workbook(design["xlsx_base64"], lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
+    result = api.ok("api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})
+    assert len(result["lenth"]["effects"]) == 7
+    assert not any("margins are wide" in note for note in result["notes"])
+
+
+def test_saturated_fit_of_a_three_level_design_says_nothing_can_be_tested(api):
+    """Lenth's method needs orthogonal two-level effects, which a saturated D-optimal design does not have."""
+    spec = {"design_type": "d_optimal", "factors": FACTORS[:2], "model_type": "quadratic", "budget": 6}
+    reply = analyse(api, spec, model="quadratic")
+    assert reply["ok"], reply.get("error")
+    result = reply["result"]
+    assert result["summary"]["df_residual"] == 0
+    assert result["lenth"] is None
+    assert any("no degrees of freedom" in note for note in result["notes"])
+
+
+#: The results of the book's breaded-chicken exercise, by coded setting of D, R and P: they make
+#: the D·P and R·P interactions exactly zero.
+CHICKEN = {
+    (-1, -1, -1): 3,
+    (1, -1, -1): 9,
+    (-1, 1, -1): 3,
+    (1, 1, -1): 7,
+    (-1, -1, 1): 3,
+    (1, -1, 1): 10,
+    (-1, 1, 1): 4,
+    (1, 1, 1): 7,
+}
+
+
+def test_a_coefficient_the_results_make_zero_reads_zero(api):
+    """Least squares returns an exactly zero coefficient as round-off; the page shows 0, as the book prints it."""
+    spec = {"design_type": "full_factorial", "factors": factors_named(*"DRP"), "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    responses = [CHICKEN[tuple(int(v) for v in row)] for row in run_sheet(design)[["D", "R", "P"]].to_numpy()]
+    result = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "interactions"})
+    coefficients = by_label(result)
+    assert coefficients["D·P"]["coefficient"] == 0
+    assert coefficients["R·P"]["coefficient"] == 0
+    assert "e-1" not in result["equation"]
+
+
+def test_a_zero_effect_reads_zero_in_lenth_s_table(api):
+    """A saturated fit whose results make C exactly zero: its effect reads 0, as its coefficient does."""
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABC"), "resolution": 3}
+    design = api.ok("api_make_design", {**spec, "n_center_points": 0})
+    responses = [10 + 2 * a + b for a, b in run_sheet(design)[["A", "B"]].to_numpy()]
+    result = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "main_effects"})
+    assert {e["label"]: e["effect"] for e in result["lenth"]["effects"]}["C"] == 0
+    assert by_label(result)["C"]["coefficient"] == 0
+    assert "e-1" not in result["equation"]
+
+
+def test_a_model_the_design_cannot_fit_is_refused_plainly(api):
+    """A 9-run DSD in 3 factors cannot fit the 10-term quadratic model, whatever the data."""
+    reply = analyse(api, {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1}, model="quadratic")
+    assert not reply["ok"]
+    assert "cannot fit the quadratic model" in reply["error"]
+
+
+def test_too_few_results_for_the_model_are_reported_in_the_page_s_words(api, held, simulated):
+    """The runs may be the page's, typed in, and the runs still to do are named as the analysis names them."""
+    responses = [None] * 8 + simulated["responses"][8:]
+    assert api.error("api_analyze_runs", {**held, "responses": responses, "model": "quadratic"}) == (
+        "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete. "
+        "Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
+    )
+
+
+# --------------------------------------------------------------------------- blocks
+def _blocked(api, factors: list[dict], **options: object) -> dict:
+    return api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_blocks": 2, **options})
+
+
+def test_the_blocks_absorb_a_shift_between_them(api):
+    """A shift between blocks would otherwise sit in the error and hide the effects; fitted, it is a term of its own."""
+    design = _blocked(api, FACTORS, n_center_points=2, n_replicates=2)
+    sheet = run_sheet(design)
+    x = coded(sheet, FACTORS)
+    shift = np.where(sheet["Block"] == 2, 10.0, 0.0)
+    y = 50 + 3 * x["T"] - 2 * x["P"] + shift + np.random.default_rng(0).normal(0, 0.2, len(sheet))
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y.tolist(), "model": "main_effects"})
+    assert {a["source"]: a["df"] for a in analysis["anova"]}["Block"] == 1
+    block = [c for c in analysis["coefficients"] if c["block"]]
+    assert [c["label"] for c in block] == ["Block 1"]
+    assert block[0]["coefficient"] == pytest.approx(-5.0, abs=0.2), "block 1 lies half the shift below the average"
+    found = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert (found["T"], found["P"]) == (pytest.approx(3.0, abs=0.2), pytest.approx(-2.0, abs=0.2))
+    assert analysis["summary"]["r_squared"] > 0.99
+    assert "Block" not in analysis["equation"], "the equation is for the average block"
+    assert any(n.startswith("The blocks are fitted as a fixed effect") for n in analysis["notes"])
+
+
+def test_an_interaction_confounded_with_the_blocks_is_left_out_with_a_note(api):
+    design = _blocked(api, FACTORS[:2], n_center_points=2)
+    responses = [float(i) ** 1.5 for i in range(design["n_runs"])]
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "interactions"})
+    assert [c["term"] for c in analysis["coefficients"]] == ["Intercept", "Block1", "T", "P"]
+    assert analysis["notes"][0].startswith("T·P is confounded with the blocks: it takes one value in each block")
+    assert analysis["formula"] == "Block + T + P"
+
+
+def test_a_blocked_fraction_estimates_what_the_blocks_and_aliases_leave(api):
+    spec = {"design_type": "fractional_factorial", "factors": factors_named(*"ABCD"), "n_blocks": 2}
+    design = api.ok("api_make_design", {**spec, "n_center_points": 0})
+    responses = [3.0, 7.5, 1.25, 9.0, 4.5, 6.0, 2.0, 8.5]
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "interactions"})
+    labels = [c["label"] for c in analysis["coefficients"]]
+    assert labels == ["Intercept", "Block 1", "A", "B", "C", "D", "A·C + B·D", "A·D + B·C"]
+    assert analysis["notes"][0].startswith("A·B and C·D are confounded with the blocks")
+    assert analysis["lenth"] is not None, "saturated and orthogonal: Lenth's method judges the six factor effects"
+    assert [e["label"] for e in analysis["lenth"]["effects"]] == labels[2:]
+
+
+# --------------------------------------------------------------------------- terms the reader chooses
+def test_a_model_of_chosen_terms_recovers_a_three_factor_interaction(api):
+    names = factors_named("A", "B", "C")
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": names, "n_center_points": 2})
+    x = coded(run_sheet(design), names)
+    y = 10 + 2 * x["A"] - x["B"] + 1.5 * x["A"] * x["B"] * x["C"] + np.random.default_rng(0).normal(0, 0.1, len(x))
+    chosen = {"terms": [["A"], ["B"], ["C"], ["C", "B", "A"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": y.tolist(), "model": chosen})
+    assert analysis["model"] == "chosen"
+    assert analysis["formula"] == "A + B + C + A:B:C", "the factors of an interaction in the design's order"
+    found = {c["label"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert list(found) == ["Intercept", "A", "B", "C", "A·B·C"]
+    assert found["A·B·C"] == pytest.approx(1.5, abs=0.1)
+    assert analysis["summary"]["df_residual"] == 10 - 5
+
+
+def test_a_chosen_square_is_fitted_and_a_repeated_term_once(api):
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
+    responses = quadratic(run_sheet(design)).tolist()
+    chosen = {"terms": [["T"], ["P"], ["T", "P"], ["P", "T"], ["T", "T"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": chosen})
+    assert analysis["formula"] == "T + P + T:P + I(T ** 2)"
+    found = {c["label"]: c["coefficient"] for c in analysis["coefficients"]}
+    assert found["T²"] == pytest.approx(-5, abs=0.2)
+    assert found["T·P"] == pytest.approx(2, abs=0.2)
+
+
+def test_chosen_terms_count_toward_the_runs_a_partial_sheet_needs(api, worked_example):
+    held = worked_example["held"]
+    responses = [*worked_example["simulated"]["responses"][:3], *[None] * 12]
+    chosen = {"terms": [["T"], ["P"], ["F"], ["T", "P"]]}
+    message = api.error("api_analyze_runs", {**held, "responses": responses, "model": chosen})
+    assert message.startswith("The chosen model has 5 coefficients, so it needs at least 5 completed runs")
+
+
+def test_chosen_terms_and_blocks_are_fitted_together(api):
+    design = api.ok(
+        "api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 2, "n_center_points": 4}
+    )
+    responses = quadratic(run_sheet(design)).tolist()
+    chosen = {"terms": [["T"], ["P"], ["T", "P"], ["T", "T"]]}
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": chosen})
+    assert analysis["formula"] == "Block + T + P + T:P + I(T ** 2)"
+    assert [c["label"] for c in analysis["coefficients"]][:2] == ["Intercept", "Block 1"]
+
+
+def test_an_interaction_zero_in_every_run_is_left_out_with_a_note(api, worked_example):
+    """No run of a Box-Behnken design sets all three factors away from their centers, so T·P·F is zero throughout."""
+    held, simulated = worked_example["held"], worked_example["simulated"]
+    chosen = {"terms": [["T"], ["P"], ["F"], ["T", "P", "F"]]}
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"], "model": chosen})
+    assert analysis["formula"] == "T + P + F"
+    assert analysis["notes"][0].startswith("T·P·F cannot be estimated: it is zero in every run")
+
+
+def test_an_interaction_constant_in_every_run_is_refused_as_the_intercept_again(api):
+    """A * B = 1 in every run, so A·B cannot be told from the intercept: each was reported as half the mean (#997)."""
+    runs = [[0.5, 2.0], [1.0, 1.0], [2.0, 0.5], [0.25, 4.0], [4.0, 0.25]]
+    spec = {"design_type": "given", "factors": factors_named("A", "B"), "runs": runs}
+    held = held_of(api.ok("api_make_design", spec))
+    request = {**held, "responses": [10.0, 12.0, 11.0, 15.0, 10.5], "model": {"terms": [["A", "B"]]}}
+    assert api.error("api_analyze_runs", request) == (
+        "This design cannot fit the chosen model: only 1 of its 2 coefficients can be estimated from these 5 runs. "
+        "Choose a smaller model."
+    )
+
+
+# --------------------------------------------------------------------------- categorical factors
+def test_the_quadratic_model_has_no_square_of_a_categorical_factor(api):
+    factors = [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B", "units": ""}]
+    design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_center_points": 3})
+    responses = [float((7 * i) % 5) for i in range(design["n_runs"])]
+    analysis = api.ok("api_analyze_runs", {**held_of(design), "responses": responses, "model": "quadratic"})
+    assert "I(Supplier ** 2)" not in analysis["formula"]
+    assert not any("Supplier²" in note for note in analysis["notes"]), "nothing to explain: it was never in the model"

@@ -13,3 +13,5 @@ below are the deeper policy references it links to.
    logging
    reproducibility
    deprecation_policy
+   doe_agent_evaluation
+   functional_doe

@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._desirability import individual_desirability, overall_desirability
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _compute_grid, _evaluate_model
 from process_improve.visualization.colors import (
@@ -41,7 +41,7 @@ def _response_surface(
     n_grid: int,
 ) -> list[list[float]]:
     """Predict one response over the coded grid, row-major as ``z[y][x]``."""
-    _, _, z_matrix = _compute_grid(coef_map, factor_x, factor_y, hold_values, n_grid)
+    _, _, z_matrix = _compute_grid(coef_map, (factor_x, factor_y), hold_values, n_grid)
     return z_matrix
 
 
@@ -191,7 +191,7 @@ class DesirabilityContourPlot(BasePlot):
                 d_values = [
                     individual_desirability(surface[j][i], goal) for surface, goal in zip(surfaces, goals, strict=True)
                 ]
-                row.append(composite_desirability(d_values, importances))
+                row.append(overall_desirability(d_values, goals, importances))
             z_matrix.append(row)
 
         contour_layer = LayerSpec(

@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+import ast
+import itertools
+import json
+import re
 import warnings
+from importlib import resources
 
+import numpy as np
 import pandas as pd
 import pytest
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy import stats
 
+from process_improve.experiments import Factor, TrueProcess, generate_design
+from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
+from process_improve.experiments._analyses.diagnostics import _in_run_order
+from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
+from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
+from process_improve.experiments._analyses.prediction import _in_response_units
+from process_improve.experiments._analyses.transforms import to_model_scale, to_original_scale
 from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
@@ -120,6 +136,15 @@ class TestModelSummary:
         r2 = result["model_summary"]["r_squared"]
         assert 0 <= r2 <= 1
 
+    def test_a_constant_response_has_no_predictive_or_noise_scale(self) -> None:
+        """With no variation to explain, predicted R-squared is 0 and the signal-to-noise ratio is unbounded."""
+        df = _two_factor_data().assign(y=5.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # statsmodels' own R-squared is 0/0 here
+            result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="coefficients")
+        assert result["model_summary"]["r_squared_pred"] == 0.0
+        assert result["model_summary"]["adequate_precision"] == float("inf")
+
 
 class TestRankDeficiency:
     """A rank-deficient model is still fitted by the pseudo-inverse, so the caller has
@@ -145,6 +170,147 @@ class TestRankDeficiency:
         assert summary["rank_deficient"] is False
         assert summary["model_rank"] == summary["n_terms"] == 3
 
+    @staticmethod
+    def _plackett_burman_runs() -> pd.DataFrame:
+        """Twelve runs for eight factors, with a response driven by X1, X3 and their interaction."""
+        factors = [Factor(name=f"X{i}", low=-1, high=1) for i in range(1, 9)]
+        design = generate_design(factors, design_type="plackett_burman", n_center_points=0).design
+        truth = TrueProcess({"Intercept": 100, "X1": 10, "X3": 7, "X7": -6, "X1:X3": 8}, sigma=1.0)
+        return design.drop(columns="RunOrder").assign(y=truth.simulate(design, random_state=2))
+
+    def test_the_default_model_falls_back_to_main_effects_when_the_design_cannot_estimate_it(self) -> None:
+        """The 37-term interactions model on 12 runs reported 37 coefficients, 25 of them arbitrary."""
+        with pytest.warns(UserWarning, match="main-effects model was fitted instead"):
+            result = analyze_experiment(self._plackett_burman_runs(), response_column="y", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["model"] == "main_effects"
+        assert summary["rank_deficient"] is False
+        assert (
+            "37 terms, of which this design can estimate 12, and its interactions are not aliased in whole chains"
+            in summary["model_note"]
+        )
+        assert len(result["coefficients"]) == 9
+
+    def test_model_selection_still_searches_the_interactions_after_the_fallback(self) -> None:
+        """The stepwise search with heredity is what recovers X7 from behind the X1:X3 interaction."""
+        with pytest.warns(UserWarning, match="main-effects model was fitted instead"):
+            chosen = analyze_experiment(
+                self._plackett_burman_runs(), response_column="y", analysis_type="model_selection"
+            )["model_selection"]
+        assert chosen["candidate_model"] == "interactions"
+        assert "X1:X3" in chosen["selected_terms"]
+
+    def test_a_named_interactions_model_is_fitted_as_named(self) -> None:
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(
+                self._plackett_burman_runs(), response_column="y", model="interactions", analysis_type="coefficients"
+            )
+        assert result["model_summary"]["rank_deficient"] is True
+        assert "model_note" not in result["model_summary"]
+
+    def test_a_regular_fraction_keeps_the_default_to_test_its_alias_chains(self) -> None:
+        """2^(4-1) with D = ABC: the interactions are aliased in pairs, and each pair is tested once."""
+        x = np.array(list(itertools.product([-1, 1], repeat=3)))
+        df = pd.DataFrame(np.c_[x, x.prod(axis=1)], columns=list("ABCD"))
+        df["y"] = 10 + 3 * df["A"] + 2 * df["A"] * df["B"] + np.random.default_rng(3).standard_normal(8)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")  # the pseudo-inverse fit warns of its rank, as it should
+            summary = analyze_experiment(df, response_column="y", analysis_type="effects")["model_summary"]
+        assert summary["model"] == "interactions"
+        assert "model_note" not in summary
+        assert not any("main-effects model was fitted instead" in str(w.message) for w in caught)
+
+    @staticmethod
+    def _missing_cell_runs() -> pd.DataFrame:
+        """Twenty runs where catalyst B never meets solvent Y, with a response that has a T:P interaction."""
+        factors = [
+            Factor(name="T", low=150, high=200),
+            Factor(name="P", low=1, high=5),
+            Factor(name="catalyst", type="categorical", levels=["A", "B", "C"]),
+            Factor(name="solvent", type="categorical", levels=["X", "Y"]),
+        ]
+        rules = ["not (catalyst == 'B' and solvent == 'Y')"]
+        design = generate_design(factors, budget=20, constraints=rules, random_state=1).design.drop(columns="RunOrder")
+        rng = np.random.default_rng(0)
+        y = 10 + 2 * design["T"] - design["P"] + 1.5 * design["T"] * design["P"] + 3 * (design["catalyst"] == "B")
+        return design.assign(y=y + rng.normal(0, 0.3, len(design)))
+
+    def test_a_missing_cell_leaves_out_only_the_interaction_it_costs(self) -> None:
+        """No design over these five cells estimates catalyst:solvent in full; T:P and the rest are fitted."""
+        with pytest.warns(UserWarning, match="fitted without catalyst:solvent"):
+            result = analyze_experiment(self._missing_cell_runs(), response_column="y", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["formula"].endswith("** 2 - catalyst:solvent")
+        assert summary["rank_deficient"] is False
+        assert "no run has catalyst = 'B' with solvent = 'Y'" in summary["model_note"]
+        coefficients = {row["term"]: row["coefficient"] for row in result["coefficients"]}
+        assert "catalyst:solvent" not in " ".join(coefficients)
+        assert coefficients["T:P"] == pytest.approx(1.5, abs=0.3)
+
+    def test_a_factor_held_on_one_level_loses_its_interaction_with_that_factor(self) -> None:
+        """With feed Q, A is always run low: A:feed cannot be estimated, and A:B still is."""
+        runs = [(a, b, "P") for a, b in itertools.product([-1, 1], repeat=2)] * 2
+        runs += [(-1, b, "Q") for b in (-1, 1, -1, 1)]
+        df = pd.DataFrame(runs, columns=["A", "B", "feed"])
+        df["y"] = 5 + df["A"] + 2 * df["B"] + df["A"] * df["B"] + np.random.default_rng(4).normal(0, 0.1, len(df))
+        with pytest.warns(UserWarning, match="fitted without A:feed"):
+            summary = analyze_experiment(df, response_column="y", analysis_type="coefficients")["model_summary"]
+        assert summary["formula"].endswith("- A:feed")
+        assert summary["rank_deficient"] is False
+
+    def test_a_design_that_estimates_the_interactions_keeps_the_default(self) -> None:
+        df = pd.DataFrame(list(itertools.product([-1, 1], repeat=3)), columns=["A", "B", "C"])
+        df["y"] = [1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 9.5]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            summary = analyze_experiment(df, response_column="y", analysis_type="coefficients")["model_summary"]
+        assert summary["model"] == "interactions"
+        assert "model_note" not in summary
+
+    def test_a_factor_nested_through_another_s_indicators_is_ranked_as_given(self) -> None:
+        """Operators 1 to 4 within each of two layouts: L + I1:o + I2:o has rank 4, though coded it would have 3.
+
+        Coding the 0/1 indicators to -1/+1 makes I2 the negative of I1, so the coded columns lose one: the model is
+        not hierarchical, and coding changes it rather than re-expressing it.
+        """
+        layout = np.repeat([0, 1], 12)
+        operator = np.tile(np.repeat([0, 1, 2, 3], 3), 2)
+        df = pd.DataFrame(
+            {
+                "L": np.where(layout == 0, -1.0, 1.0),
+                "I1": (layout == 0).astype(float),
+                "I2": (layout == 1).astype(float),
+                "o": (operator == 0).astype(float) - (operator == 3),
+                "y": np.random.default_rng(0).normal(size=24),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = analyze_experiment(df, response_column="y", model="L + I1:o + I2:o", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["rank_deficient"] is False
+        assert summary["model_rank"] == summary["n_terms"] == 4
+
+    def test_an_interaction_constant_in_the_runs_is_not_estimable_beside_the_intercept(self) -> None:
+        """A * B = 1 in every run, so A:B is the intercept's column again: rank 1 of 2 (#997).
+
+        Coded to -1/+1, A:B varies, and the model was said to estimate both of its terms: the
+        warning blamed the units, and the intercept and A:B were each reported as half the mean.
+        """
+        df = pd.DataFrame({"A": [0.5, 1.0, 2.0, 0.25, 4.0], "B": [2.0, 1.0, 0.5, 4.0, 0.25]})
+        df["y"] = [10.0, 12.0, 11.0, 15.0, 10.5]
+        columns = np.column_stack([np.ones(len(df)), df["A"] * df["B"]])
+        with pytest.warns(RuntimeWarning, match="not estimable") as caught:
+            result = analyze_experiment(
+                df, response_column="y", model="y ~ A:B", analysis_type="coefficients", coding="actual"
+            )
+        summary = result["model_summary"]
+        assert summary["model_rank"] == np.linalg.matrix_rank(columns) == 1
+        assert summary["n_terms"] == 2
+        assert summary["rank_deficient"] is True
+        assert summary["ill_conditioned"] is False
+        assert not any("lost rank in floating point" in str(w.message) for w in caught)
+
     def test_rank_deficient_model_warns_and_reports(self) -> None:
         df = self._foldover_design()
         model = "A + B + I(A**2) + I(B**2) + A:B"
@@ -156,6 +322,58 @@ class TestRankDeficiency:
         assert summary["rank_deficient"] is True
         # A coefficient is still reported for every requested term.
         assert len(result["coefficients"]) == 6
+
+    @staticmethod
+    def _three_factor_ccd(units: tuple[tuple[float, float], ...]) -> pd.DataFrame:
+        """Return a rotatable three-factor CCD with each factor at ``centre + half_range * x``."""
+        x = np.array(
+            [[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)]
+            + [[s * 1.68 if i == j else 0 for j in range(3)] for i in range(3) for s in (-1, 1)]
+            + [[0, 0, 0]] * 2
+        )
+        y = 50 + 3 * x[:, 0] - 2 * x[:, 1] + x[:, 2] - 2 * x[:, 0] ** 2 + x[:, 0] * x[:, 1]
+        data = {
+            name: centre + half * x[:, i] for i, (name, (centre, half)) in enumerate(zip("TPM", units, strict=True))
+        }
+        return pd.DataFrame({**data, "y": y + np.random.default_rng(1).normal(0, 0.3, len(x))})
+
+    def test_unequal_units_are_not_blamed_on_the_design(self) -> None:
+        """In K, Pa and s the matrix lost rank in floating point; the design can estimate all ten terms."""
+        df = self._three_factor_ccd(((450.15, 0.5), (2e5, 1e3), (3600.0, 1.0)))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            summary = analyze_experiment(df, response_column="y", model="quadratic", analysis_type="anova")[
+                "model_summary"
+            ]
+        messages = [str(w.message) for w in caught if issubclass(w.category, RuntimeWarning)]
+        assert any("lost rank in floating point" in m for m in messages)
+        assert not any("not estimable from this design" in m for m in messages)
+        assert summary["model_rank"] == summary["n_terms"] == 10
+        assert summary["rank_deficient"] is False
+        assert summary["ill_conditioned"] is True
+
+    def test_a_tiny_span_far_from_zero_is_not_blamed_on_the_design(self) -> None:
+        """Spans about 1e-5 of their distance from zero: the columns as given lose rank even scaled to unit length.
+
+        The cube of the design is a 2^3 factorial, which estimates all eight terms of T * P * M.
+        """
+        df = self._three_factor_ccd(((450.15, 0.005), (2e5, 10.0), (3600.0, 0.01)))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = analyze_experiment(df, response_column="y", model="T * P * M", analysis_type="coefficients")
+        assert not any("not estimable from this design" in str(w.message) for w in caught)
+        summary = result["model_summary"]
+        assert summary["model_rank"] == summary["n_terms"] == 8
+        assert summary["ill_conditioned"] is True
+
+    def test_reasonable_units_are_silent(self) -> None:
+        df = self._three_factor_ccd(((723.15, 25.0), (2.0, 1.0), (1.0, 0.25)))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            summary = analyze_experiment(df, response_column="y", model="quadratic", analysis_type="anova")[
+                "model_summary"
+            ]
+        assert summary["ill_conditioned"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +399,99 @@ class TestAnova:
         sources = [r["source"] for r in result["anova_table"]]
         assert "A" in sources
         assert "B" in sources
+
+
+#: Davies (1956), Example 5-5: the strength of synthetic yarn in four 3 x 3 Graeco-Latin squares. Each
+#: run is "time day twist-draw strength"; the three times and three days of a square occur in it only.
+_YARN = {
+    "I": "1 4 AY 4.53;9 4 BX 4.25;12 4 CZ 3.97;1 9 CX 4.05;9 9 AZ 3.05;12 9 BY 3.61;1 12 BZ 4.4;9 12 CY 2.78;"
+    "12 12 AX 3.32",
+    "II": "2 1 CZ 3.58;6 1 BX 4.48;8 1 AY 4.29;2 3 AX 4.68;6 3 CY 3.85;8 3 BZ 3.23;2 6 BY 4.5;6 6 AZ 4.07;8 6 CX 3.71",
+    "III": "3 5 BX 4.76;7 5 AY 3.22;10 5 CZ 4.01;3 8 CY 4.54;7 8 BZ 2.97;10 8 AX 4.1;3 10 AZ 4.3;7 10 CX 3.09;"
+    "10 10 BY 3.97",
+    "IV": "4 2 AZ 4.1;5 2 BY 4.18;11 2 CX 3.46;4 7 CY 4.35;5 7 AX 4.6;11 7 BZ 3.76;4 11 BX 4.26;5 11 CZ 3.35;"
+    "11 11 AY 2.5",
+}
+
+
+def _yarn() -> pd.DataFrame:
+    runs = [run.split() for runs in _YARN.values() for run in runs.split(";")]
+    squares = [square for square, runs in _YARN.items() for _ in runs.split(";")]
+    return pd.DataFrame(
+        {
+            "Square": squares,
+            "Time": [time for time, *_ in runs],
+            "Day": [day for _, day, *_ in runs],
+            "Twist": [positions[0] for *_, positions, _ in runs],
+            "Draw": [positions[1] for *_, positions, _ in runs],
+            "Strength": [float(strength) for *_, strength in runs],
+        }
+    )
+
+
+class TestNestedFactors:
+    """A factor whose levels each sit inside one level of another lies in that other's columns (#789 B7).
+
+    statsmodels' Type II table then counted every column as a degree of freedom: Davies's Example
+    5-5 gave 3, 11 and 11 df for the squares, times and days, with sums of squares of 0.11, 0.41 and
+    0.41 and a residual on 11 df. Each row is now worked out on the rank its term adds.
+    """
+
+    MODEL = "Square + Time + Day + Twist + Draw"
+
+    def _anova(self) -> dict:
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            return analyze_experiment(_yarn(), response_column="Strength", model=self.MODEL, analysis_type="anova")
+
+    def test_the_rows_are_the_printed_table(self) -> None:
+        """Davies's table: times 6.7939 and days 2.3170 on 8 df, twist 0.5514, draw 0.6682, error 1.3413 on 12."""
+        rows = {row["source"]: row for row in self._anova()["anova_table"]}
+        printed = {"Time": (8, 6.7940), "Day": (8, 2.3170), "Twist": (2, 0.5514), "Draw": (2, 0.6682)}
+        printed["Residual"] = (12, 1.3413)  # the times are 6.7939556 in exact arithmetic: Davies prints 6.7939
+        for source, (df, sum_sq) in printed.items():
+            assert rows[source]["df"] == df, source
+            assert rows[source]["sum_sq"] == pytest.approx(sum_sq, abs=5e-5), source
+        assert rows["Time"]["F"] == pytest.approx((6.7939556 / 8) / (1.3412667 / 12), rel=1e-6)
+
+    def test_the_squares_are_refused_with_the_analysis_that_separates_them(self) -> None:
+        result = self._anova()
+        square = next(row for row in result["anova_table"] if row["source"] == "Square")
+        assert (square["df"], square["sum_sq"], square["F"], square["p_value"]) == (0, 0.0, None, None)
+        note = result["anova_note"]
+        assert "Square cannot be tested: its columns lie in those of Time and Day" in note
+        assert 'multistratum_anova(..., strata="Square/Time + Square/Day")' in note
+        assert "Time is tested on 8 of its 11 degrees of freedom" in note
+
+    def test_the_rows_add_to_the_total_less_the_squares(self) -> None:
+        rows = self._anova()["anova_table"]
+        total = float(((_yarn()["Strength"] - _yarn()["Strength"].mean()) ** 2).sum())
+        assert sum(row["sum_sq"] for row in rows) == pytest.approx(total - 0.356075, abs=1e-6)
+
+    def test_a_model_of_full_rank_gets_statsmodels_type_ii_table(self) -> None:
+        """The rank-aware rows equal anova_lm's for an unbalanced design whose matrix has full rank."""
+        rng = np.random.default_rng(5)
+        cells = {("a", "x"): 2, ("a", "y"): 1, ("b", "x"): 3, ("b", "y"): 1, ("c", "x"): 2, ("c", "y"): 2}
+        df = pd.DataFrame([cell for cell, count in cells.items() for _ in range(count)], columns=["A", "B"])
+        df["y"] = rng.normal(10, 1, len(df)) + (df["A"] == "b") * 2.0
+        fit = smf.ols("y ~ A * B", data=df).fit()
+        found, notes = _type_ii_by_rank(fit, ())
+        expected = sm.stats.anova_lm(fit, typ=2)
+        assert notes == []
+        np.testing.assert_allclose(found["sum_sq"], expected["sum_sq"], rtol=1e-10)
+        np.testing.assert_allclose(found["df"], expected["df"])
+        np.testing.assert_allclose(found["F"].iloc[:-1], expected["F"].iloc[:-1], rtol=1e-10)
+
+    def test_a_term_partly_in_the_others_is_tested_on_what_it_adds(self) -> None:
+        """Batches that each hold one level of A: B's six levels add three degrees of freedom beyond A's two."""
+        df = pd.DataFrame({"A": list("aabbccaabbcc"), "B": list("pqrstupqrstu")})
+        df["y"] = np.arange(12.0) ** 1.5
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(df, response_column="y", model="A + B", analysis_type="anova")
+        rows = {row["source"]: row for row in result["anova_table"]}
+        assert rows["A"]["df"] == 0
+        assert rows["B"]["df"] == 3
+        assert "B is tested on 3 of its 5 degrees of freedom" in result["anova_note"]
+        assert 'strata="A/B"' in result["anova_note"]
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +609,101 @@ class TestResidualDiagnostics:
         n = len(df)
         assert len(result["residual_diagnostics"]["cooks_distance"]) == n
 
+    def test_studentized_residuals(self) -> None:
+        """Each residual over its standard error, with s from all the runs and from the others."""
+        df = _two_factor_replicated()
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="residual_diagnostics")
+        diag = result["residual_diagnostics"]
+        e, h = np.asarray(diag["residuals"]), np.asarray(diag["leverage"])
+        n, p = len(df), 3  # the intercept and two main effects
+        mse = float(np.sum(e**2)) / (n - p)
+        internal = e / np.sqrt(mse * (1 - h))
+        external = internal * np.sqrt((n - p - 1) / (n - p - internal**2))
+        assert diag["studentized_residuals"] == pytest.approx(internal.tolist())
+        assert diag["externally_studentized_residuals"] == pytest.approx(external.tolist())
+
+
+def _standard_order_runs(response: str) -> pd.DataFrame:
+    """Return a 2^4 factorial in standard order, made in a randomized order, with a drift in run order or none.
+
+    ``response`` is ``"drift"`` (the response climbs one unit a run, in the order the runs
+    were made) or ``"random"`` (independent errors only).
+    """
+    df = pd.DataFrame(_full_factorial(4), columns=list("ABCD"))
+    df["RunOrder"] = np.random.default_rng(7).permutation(16) + 1
+    effects = 10 + 3 * df["A"] - 2 * df["B"] + 1.5 * df["C"]
+    noise = np.random.default_rng(2).normal(0, 1, 16)
+    df["y"] = effects + (1.0 * df["RunOrder"] + 0.3 * noise if response == "drift" else noise)
+    return df
+
+
+def _residual_diagnostics(df: pd.DataFrame) -> dict:
+    """Return the residual diagnostics of the main-effects model of ``y``."""
+    found = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="residual_diagnostics")
+    return found["residual_diagnostics"]
+
+
+class TestResidualsInRunOrder:
+    """#802 G3: the residuals' lag-1 autocorrelation in run order, which is why BHH randomize."""
+
+    def test_the_statistics_are_those_of_the_residuals_sorted_on_run_order(self) -> None:
+        """r1, its standard error and Durbin-Watson, worked by hand on the residuals in run order."""
+        df = _standard_order_runs("random")
+        diag = _residual_diagnostics(df)
+        e = np.asarray(diag["residuals"])[np.argsort(df["RunOrder"].to_numpy())]
+        centred = e - e.mean()
+        found = diag["run_order"]
+        assert found["known"] is True
+        assert found["lag1_autocorrelation"] == pytest.approx((centred[:-1] @ centred[1:]) / (centred @ centred))
+        assert found["std_error"] == pytest.approx(0.25)  # 1/sqrt(16)
+        assert found["durbin_watson"] == pytest.approx(np.sum(np.diff(e) ** 2) / (e @ e))
+        # The existing statistic keeps its meaning: the rows' order.
+        rows = np.asarray(diag["residuals"])
+        assert diag["durbin_watson"] == pytest.approx(np.sum(np.diff(rows) ** 2) / (rows @ rows))
+
+    def test_a_drift_in_run_order_gives_the_note_that_the_rows_order_misses(self) -> None:
+        """Entered in standard order, a drift in run order shows only when the residuals are sorted on it."""
+        diag = _residual_diagnostics(_standard_order_runs("drift"))
+        assert diag["run_order"]["lag1_autocorrelation"] > 2 * diag["run_order"]["std_error"]
+        assert diag["run_order"]["serially_dependent"] is True
+        assert diag["run_order"]["durbin_watson"] < 1.0
+        assert diag["durbin_watson"] > 2.0  # in the rows' (standard) order nothing looks wrong
+        assert "serially dependent" in diag["note"]
+
+    def test_independent_errors_give_no_note(self) -> None:
+        """Without a drift, the lag-1 autocorrelation in run order is within twice its standard error."""
+        diag = _residual_diagnostics(_standard_order_runs("random"))
+        assert abs(diag["run_order"]["lag1_autocorrelation"]) < 2 * diag["run_order"]["std_error"]
+        assert diag["run_order"]["serially_dependent"] is False
+        assert "note" not in diag
+
+    def test_without_a_run_order_the_rows_order_is_kept_quietly(self) -> None:
+        """No RunOrder column: durbin_watson as before, nothing checked in run order, and no note on every fit."""
+        df = _standard_order_runs("drift")
+        diag = _residual_diagnostics(df.drop(columns="RunOrder"))
+        assert diag["durbin_watson"] == pytest.approx(_residual_diagnostics(df)["durbin_watson"])
+        assert diag["run_order"] == {
+            "known": False,
+            "lag1_autocorrelation": None,
+            "std_error": None,
+            "durbin_watson": None,
+            "serially_dependent": None,
+        }
+        assert "note" not in diag
+
+    def test_a_run_order_with_repeated_values_is_not_used(self) -> None:
+        """A run order numbered again within each block does not order the runs, so the rows' order is kept."""
+        diag = _residual_diagnostics(_standard_order_runs("drift").assign(RunOrder=[1, 2, 3, 4] * 4))
+        assert diag["run_order"]["known"] is False
+        assert "repeated values" in diag["note"]
+
+    def test_residuals_without_spread_have_no_autocorrelation(self) -> None:
+        """Residuals that are all the same leave r1 as 0/0: reported as None, with no note."""
+        found, note = _in_run_order(np.zeros(4), [2, 1, 4, 3])
+        assert found["known"] is True
+        assert found["lag1_autocorrelation"] is None
+        assert note is None
+
 
 # ---------------------------------------------------------------------------
 # Lack of fit
@@ -331,6 +737,76 @@ class TestLackOfFit:
         lof = result["lack_of_fit"]
         assert "error" in lof
 
+    def test_replicates_of_a_categorical_factor_give_pure_error(self) -> None:
+        """Label columns group replicates as they are (only numeric columns are rounded)."""
+        df = pd.DataFrame(
+            {"A": [-1, 1, -1, 1] * 2, "M": ["x", "x", "y", "y"] * 2, "y": [28, 36, 18, 31, 27, 34, 19, 30.0]}
+        )
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="lack_of_fit")
+        lof = result["lack_of_fit"]
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(3.5)  # four pairs of replicates differing by 1 or 2
+        assert lof["df_lack_of_fit"] == 1
+
+    def test_a_model_using_every_distinct_setting_leaves_nothing_to_test(self) -> None:
+        """Four distinct settings and four model terms: the residual is all pure error, and is reported (#969)."""
+        result = analyze_experiment(
+            _two_factor_replicated(), response_column="y", model="interactions", analysis_type="lack_of_fit"
+        )
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(3.5)  # four pairs differing by 1, 2, 1 and 1
+        assert lof["ms_pure_error"] == pytest.approx(0.875)
+        assert lof["df_lack_of_fit"] == 0
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.0, abs=1e-9)
+        assert lof["ms_lack_of_fit"] is None
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "no degrees of freedom" in lof["note"]
+
+    def test_identical_repeats_report_a_pure_error_of_zero(self) -> None:
+        """Box and Draper (2007) Exercise 11.25, y2: the five centre runs all read 0.66 (#969).
+
+        The book prints "Untested, s^2 = 0": pure error 0 on 4 df, lack of fit on 3 df, and no F.
+        """
+        x1 = [-1, 1, -1, 1, -1.414, 1.414, 0, 0, 0, 0, 0, 0, 0]
+        x2 = [-1, -1, 1, 1, 0, 0, -1.414, 1.414, 0, 0, 0, 0, 0]
+        y2 = [0.55, 0.52, 0.67, 0.36, 0.59, 0.31, 0.54, 0.51, 0.66, 0.66, 0.66, 0.66, 0.66]
+        result = analyze_experiment(
+            pd.DataFrame({"x1": x1, "x2": x2}),
+            pd.Series(y2, name="y2"),
+            model="(x1 + x2) ** 2 + I(x1 ** 2) + I(x2 ** 2)",
+            analysis_type=["anova", "lack_of_fit"],
+        )
+        lof = result["lack_of_fit"]
+        assert "error" not in lof
+        assert lof["df_pure_error"] == 4
+        assert lof["ss_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["ms_pure_error"] == pytest.approx(0.0, abs=1e-12)
+        assert lof["df_lack_of_fit"] == 3
+        assert lof["ss_lack_of_fit"] == pytest.approx(0.00321, abs=5e-6)
+        assert lof["ms_lack_of_fit"] == pytest.approx(lof["ss_lack_of_fit"] / 3)
+        assert lof["f_statistic"] is None
+        assert lof["p_value"] is None
+        assert lof["significant"] is None
+        assert "pure error is zero" in lof["note"]
+
+    def test_round_off_in_identical_repeats_is_no_pure_error(self) -> None:
+        """Repeats of 3.3333333 leave ~1e-30 of round-off in their sum of squares, which must not give an F."""
+        df = pd.DataFrame({"A": [-1, -0.5, 0.5, 1] + [0] * 5, "y": [1.0, 2.5, 1.5, 2.0] + [3.3333333] * 5})
+        lof = analyze_experiment(df, response_column="y", model="A", analysis_type="lack_of_fit")["lack_of_fit"]
+        assert lof["df_pure_error"] == 4
+        assert 0 < lof["ss_pure_error"] < 1e-25  # round-off, not a spread
+        assert lof["f_statistic"] is None
+        assert "pure error is zero" in lof["note"]
+
+    def test_no_factor_columns(self) -> None:
+        df = _two_factor_replicated()
+        fit = smf.ols("y ~ A + B", data=df).fit()
+        assert _run_lack_of_fit(fit, df, "y", factor_cols=[]) == {"lack_of_fit": {"error": "No factor columns found."}}
+
 
 # ---------------------------------------------------------------------------
 # Curvature test
@@ -355,6 +831,20 @@ class TestCurvatureTest:
         assert ct["n_center_points"] == 3
         assert ct["n_factorial_points"] == 4
 
+    def test_the_difference_is_the_factorial_mean_less_the_centre_mean(self) -> None:
+        """BHH 15.2 (p. 516): b11 + b22 = (54.3 + 60.3 + 64.6 + 68.0)/4 - (60.3 + 62.3 + 64.3)/3 = -0.50 (#796)."""
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0, 0], "B": [-1, -1, 1, 1, 0, 0, 0]})
+        df["y"] = [54.3, 60.3, 64.6, 68.0, 60.3, 62.3, 64.3]
+        ct = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")[
+            "curvature_test"
+        ]
+        assert ct["difference"] == pytest.approx(ct["factorial_point_mean"] - ct["center_point_mean"])
+        assert ct["difference"] == pytest.approx(-0.50, abs=1e-12)
+        # The three centre runs give s = 2, so the difference's standard error is 2 sqrt(1/4 + 1/3).
+        assert ct["std_error"] == pytest.approx(2 * np.sqrt(7 / 12))
+        assert ct["t_statistic"] == pytest.approx(-0.50 / (2 * np.sqrt(7 / 12)))
+        assert ct["t_statistic"] ** 2 == pytest.approx(ct["F_statistic"])
+
     def test_curvature_without_center_points(self) -> None:
         """Verify curvature test returns error without center points."""
         df = _two_factor_data()
@@ -365,6 +855,22 @@ class TestCurvatureTest:
             analysis_type="curvature_test",
         )
         assert "error" in result["curvature_test"]
+
+    def test_curvature_needs_factorial_points(self) -> None:
+        """A Box-Behnken design has centre points but no run with every factor at +/-1."""
+        factors = [Factor(name=n, low=-1, high=1) for n in "ABC"]
+        design = generate_design(factors, design_type="box_behnken", n_center_points=3).design[list("ABC")]
+        df = design.assign(y=np.arange(len(design), dtype=float))
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")
+        assert result["curvature_test"] == {"error": "No factorial points found."}
+
+    def test_curvature_needs_replicated_runs(self) -> None:
+        """One centre run gives no pure error to test the curvature against."""
+        df = _two_factor_with_center().iloc[:5]
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="curvature_test")
+        assert result["curvature_test"] == {
+            "error": "No pure error: the test needs replicated runs, such as two or more center points."
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -387,6 +893,96 @@ class TestModelSelection:
         assert "criterion" in ms
         assert ms["direction"] == "backward"
 
+    def test_candidates_follow_the_requested_model(self) -> None:
+        """A main-effects request never selects an interaction, whatever the data say (#639)."""
+        ms = analyze_experiment(
+            _three_factor_data(), response_column="y", model="main_effects", analysis_type="model_selection"
+        )["model_selection"]
+        assert all(":" not in term for term in ms["selected_terms"])
+        assert ms["candidate_model"] == "main_effects"
+
+    def test_interaction_and_its_parents_are_found_by_backward_search(self) -> None:
+        rng = np.random.default_rng(1)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("ABCD"))
+        y = 5 + 2 * x.A + 1.5 * x.B + 1.2 * x.A * x.B + rng.normal(0, 0.3, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="interactions", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert ms["selected_formula"] == "y ~ A + B + A:B"
+        assert ms["direction"] == "backward"
+
+    def test_heredity_never_leaves_an_orphan_interaction(self) -> None:
+        """A:B alone in the truth: strong heredity brings in A and B, or drops A:B."""
+        rng = np.random.default_rng(3)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 2, columns=list("ABC"))
+        y = 3 * x.A * x.B + rng.normal(0, 0.2, len(x))
+        terms = analyze_experiment(x, pd.Series(y, name="y"), model="interactions", analysis_type="model_selection")[
+            "model_selection"
+        ]["selected_terms"]
+        for term in terms:
+            assert set(term.split(":")) <= set(terms)
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_supersaturated_design_finds_the_active_factors(self, seed: int) -> None:
+        """16 factors in 12 runs: forward search under AICc finds X00 and X05 (#639)."""
+        factors = [Factor(name=f"X{i:02d}", low=-1, high=1) for i in range(16)]
+        x = generate_design(factors, design_type="supersaturated", budget=12).design_actual[[f.name for f in factors]]
+        y = 10 + 4 * x["X00"] - 3 * x["X05"] + np.random.default_rng(seed).normal(0, 0.5, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="main_effects", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert ms["direction"] == "forward"
+        assert ms["criterion"] == "aicc"
+        assert {"X00", "X05"} <= set(ms["selected_terms"])
+        assert len(ms["selected_terms"]) <= 5
+
+    @pytest.mark.parametrize("criterion", ["aic", "bic"])
+    def test_other_criteria(self, criterion: str) -> None:
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        rng = np.random.default_rng(2)
+        x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 3, columns=list("ABC"))
+        x["y"] = 4 + 3 * x.A - 2 * x.C + rng.normal(0, 0.3, len(x))
+        ms = _run_model_selection(x, "y", list("ABC"), "main_effects", criterion)["model_selection"]
+        assert ms["criterion"] == criterion
+        assert ms["selected_terms"] == ["A", "C"]
+
+    def test_squares_need_their_main_effect(self) -> None:
+        """A quadratic search adds I(A ** 2) only once A is in (strong heredity)."""
+        rng = np.random.default_rng(4)
+        levels = [-1.0, 0.0, 1.0]
+        x = pd.DataFrame(list(itertools.product(levels, repeat=2)) * 2, columns=list("AB"))
+        y = 10 + 2 * x.A - 3 * x.A**2 + rng.normal(0, 0.2, len(x))
+        ms = analyze_experiment(x, pd.Series(y, name="y"), model="quadratic", analysis_type="model_selection")[
+            "model_selection"
+        ]
+        assert "I(A ** 2)" in ms["selected_terms"]
+        assert "A" in ms["selected_terms"]
+
+    def test_a_square_without_its_main_effect_is_proposed_alone_when_freed(self) -> None:
+        """B is best in the middle of its range: B^2 and no B. Strong heredity carries B in beside it."""
+        from process_improve.experiments._analyses.model_selection import _proposed_terms
+
+        rng = np.random.default_rng(4)
+        x = pd.DataFrame(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)) * 2, columns=list("AB"))
+        x["y"] = 10 + 2 * x.A - 3 * x.B**2 + rng.normal(0, 0.2, len(x))
+        strong = analyze_experiment(x[["A", "B"]], x["y"], model="quadratic", analysis_type="model_selection")
+        assert strong["model_selection"]["selected_terms"] == ["A", "B", "I(B ** 2)"]
+        assert _proposed_terms(x, "y", ["A", "B"], "quadratic") == ["A", "I(B ** 2)"]
+
+    def test_a_formula_model_is_searched_as_interactions_with_a_note(self) -> None:
+        ms = analyze_experiment(
+            _three_factor_data(), response_column="y", model="A + B + A:B", analysis_type="model_selection"
+        )["model_selection"]
+        assert ms["candidate_model"] == "interactions"
+        assert "searched as 'interactions'" in ms["note"]
+
+    def test_unknown_criterion(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        with pytest.raises(ValueError, match="aicc, aic, bic"):
+            _run_model_selection(_three_factor_data(), "y", ["A", "B", "C"], "main_effects", "cp")
+
 
 # ---------------------------------------------------------------------------
 # Box-Cox
@@ -406,6 +1002,14 @@ class TestBoxCox:
         assert "lambda" in bc
         assert "recommendation" in bc
         assert len(bc["transformed_values"]) == len(df)
+
+    def test_lambda_zero_is_the_log(self) -> None:
+        y = np.array([1.0, np.e, 10.0])
+        np.testing.assert_allclose(box_cox_transform(y, 0.0), np.log(y))
+
+    def test_an_interval_without_a_named_power_recommends_the_estimate(self) -> None:
+        """No named power (inverse, log, square root) lies in (0.30, 0.36), so lambda itself is suggested."""
+        assert _recommendation(0.33, (0.30, 0.36)) == "power transform (lambda=0.330)"
 
     def test_box_cox_negative_data(self) -> None:
         """Verify Box-Cox returns error for negative data."""
@@ -476,6 +1080,32 @@ class TestConfidenceIntervals:
         assert "ci_low" in ci[0]
         assert "ci_high" in ci[0]
 
+    def test_the_coefficients_intervals_are_at_the_significance_level(self) -> None:
+        """At 0.10 each coefficient's interval is b +/- t(0.95, df) s, in both scales, as confidence_intervals gives it.
+
+        The ``coefficients`` table kept its 95% intervals whatever the level asked for.
+        """
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            significance_level=0.10,
+            coding="coded",
+        )
+        assert result["confidence_level"] == pytest.approx(0.90)
+        t = stats.t.ppf(0.95, result["model_summary"]["df_residual"])
+        for row in [*result["coefficients"], *result["coefficients_actual"]]:
+            half = t * row["std_error"]
+            assert row["ci_low"] == pytest.approx(row["coefficient"] - half)
+            assert row["ci_high"] == pytest.approx(row["coefficient"] + half)
+
+        def bounds(rows: list[dict]) -> dict[str, tuple[float, float]]:
+            return {row["term"]: (row["ci_low"], row["ci_high"]) for row in rows}
+
+        expected = {term: pytest.approx(interval) for term, interval in bounds(result["coefficients"]).items()}
+        assert bounds(result["confidence_intervals"]) == expected
+
 
 # ---------------------------------------------------------------------------
 # Prediction
@@ -533,6 +1163,61 @@ class TestConfirmationTest:
         assert "results" in ct
         assert "all_within_PI" in ct
         assert len(ct["results"]) == 1
+
+    def test_repeated_runs_at_one_setting_are_judged_by_their_mean(self) -> None:
+        """The interval for the mean of m runs is predicted +/- t sqrt(se_fit**2 + s**2 / m)."""
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 1, 1], "B": [-1, -1, -1]})
+        observed = [37.0, 35.5, 36.4]
+        result = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=observed,
+        )
+        ct = result["confirmation_test"]
+        (test,) = ct["mean_tests"]
+        fit = smf.ols("y ~ A + B", data=df).fit()
+        frame = fit.get_prediction(new.iloc[[0]]).summary_frame(alpha=0.05).iloc[0]
+        half = stats.t.ppf(0.975, fit.df_resid) * np.sqrt(frame["mean_se"] ** 2 + fit.scale / 3)
+        assert test["n_runs"] == 3
+        assert test["settings"] == {"A": 1, "B": -1}
+        assert test["observed_mean"] == pytest.approx(np.mean(observed))
+        assert test["pi_low"] == pytest.approx(frame["mean"] - half)
+        assert test["pi_high"] == pytest.approx(frame["mean"] + half)
+        assert ct["confirmed"] is test["within_PI"]
+        assert len(ct["results"]) == 3  # each run is still compared on its own
+
+    def test_each_distinct_setting_gets_its_own_mean_test(self) -> None:
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 0, 1, 0], "B": [-1, 0, -1, 0]})
+        ct = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=[36.0, 27.0, 36.5, 26.5],
+        )["confirmation_test"]
+        assert [(t["settings"], t["n_runs"]) for t in ct["mean_tests"]] == [
+            ({"A": 1, "B": -1}, 2),
+            ({"A": 0, "B": 0}, 2),
+        ]
+
+    def test_a_shifted_mean_is_not_confirmed(self) -> None:
+        df = _two_factor_replicated()
+        new = pd.DataFrame({"A": [1, 1, 1], "B": [-1, -1, -1]})
+        ct = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="confirmation_test",
+            new_points=new,
+            observed_at_new=[60.0, 61.0, 59.0],
+        )["confirmation_test"]
+        assert ct["confirmed"] is False
 
     def test_confirmation_missing_args(self) -> None:
         """Verify confirmation test returns error when args missing."""
@@ -594,6 +1279,34 @@ class TestTransforms:
         )
         assert "coefficients" in result
 
+    def test_inverse_transform_fits_the_reciprocal(self) -> None:
+        df = _two_factor_replicated()
+        result = analyze_experiment(df, response_column="y", transform="inverse", analysis_type="coefficients")
+        expected = smf.ols("inv_y ~ A + B", data=df.assign(inv_y=1.0 / df["y"])).fit().params
+        fitted = {row["term"]: row["coefficient"] for row in result["coefficients"]}
+        assert fitted["A"] == pytest.approx(expected["A"])
+        assert result["model_summary"]["transform"] == "inverse"
+
+    def test_inverse_transform_refuses_a_zero_response(self) -> None:
+        df = _two_factor_replicated().assign(y=[0.0, 2, 3, 4, 5, 6, 7, 8])
+        with pytest.raises(ValueError, match=r"^transform='inverse' is undefined when the response contains zero\."):
+            analyze_experiment(df, response_column="y", transform="inverse", analysis_type="coefficients")
+
+    def test_log10_transform_gives_the_common_log_analysis(self) -> None:
+        """Anderson and Whitcomb, DOE Simplified (2007), Table 4-4: the tabletop hockey 2^4 in log10 of distance."""
+        runs = pd.DataFrame(
+            [[a, b, c, d] for d, c, b, a in itertools.product([-1, 1], repeat=4)], columns=list("ABCD"), dtype=float
+        )
+        distance = [38.2, 23.3, 3.0, 7.6, 110.0, 90.6, 20.6, 18.9, 36.6, 38.0, 47.4, 44.9, 190.0, 116.8, 137.5, 84.5]
+        model = "B + C + D + B:D"
+        found = analyze_experiment(runs, pd.Series(distance, name="y"), model=model, transform="log10")
+        rows = {row["source"]: row for row in found["anova_table"]}
+        printed = {"B": 0.60, "C": 1.11, "D": 0.99, "B:D": 0.53, "Residual": 0.19}
+        assert {k: round(rows[k]["sum_sq"], 2) for k in printed} == printed
+        assert round(rows["C"]["F"], 2) == 63.66
+        natural = analyze_experiment(runs, pd.Series(distance, name="y"), model=model, transform="log")
+        assert natural["anova_table"][0]["F"] == pytest.approx(rows["B"]["F"])  # the two logs test alike
+
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -645,8 +1358,9 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     """RunOrder / Block bookkeeping columns must not become model factors.
 
     A DesignResult frame carries a "RunOrder" (and optionally "Block") column;
-    when the whole frame is passed with the response joined, these must be
-    dropped, matching evaluate_design's filtering, rather than fitted as terms.
+    when the whole frame is passed with the response joined, these must not be
+    crossed with the factors. RunOrder is dropped; the blocks enter once, as a
+    fixed-effect contrast, never in an interaction.
     """
     df = pd.DataFrame(
         {
@@ -660,8 +1374,1458 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     res = analyze_experiment(df, response_column="y", model="interactions", analysis_type=["coefficients"])
     terms = [c["term"] for c in res["coefficients"]]
     assert not any("RunOrder" in t for t in terms)
-    assert not any("Block" in t for t in terms)
+    assert [t for t in terms if "Block" in t] == ["Block1"]
     # The real factors and their interaction are still present.
     assert "A" in terms
     assert "B" in terms
     assert "A:B" in terms
+
+
+def test_a_response_named_yield_is_analysed() -> None:
+    """'yield' is the commonest response in chemistry and a Python keyword, which patsy cannot name."""
+    from process_improve.experiments import analyze_experiment
+
+    rng = np.random.default_rng(0)
+    x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0], [0, 0]], dtype=float)
+    data = pd.DataFrame(x, columns=["A", "B"])
+    data["yield"] = 50 + 3 * x[:, 0] - 2 * x[:, 1] + rng.normal(0, 0.1, len(x))
+    out = analyze_experiment(data, response_column="yield", model="main_effects", analysis_type=["coefficients"])
+    assert out["model_summary"]["formula"].startswith("yield ~")
+    coefficients = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+    assert coefficients["A"] == pytest.approx(3, abs=0.2)
+
+
+@pytest.mark.parametrize("name", ["I", "C", "Q"])
+def test_a_response_named_as_a_patsy_function_is_analysed(name) -> None:
+    """Box and Draper's Exercise 7.9 names its responses I, II and III; a column named I hides patsy's I()."""
+    from process_improve.experiments import analyze_experiment
+
+    x = np.array([[a, b] for a in (-1.0, 0.0, 1.0) for b in (-1.0, 0.0, 1.0)])
+    data = pd.DataFrame(x, columns=["A", "B"])
+    data[name] = 10 + 2 * x[:, 0] - x[:, 1] + 3 * x[:, 0] ** 2
+    out = analyze_experiment(data, response_column=name, model="quadratic", analysis_type=["coefficients"])
+    assert out["model_summary"]["formula"].startswith(f"{name} ~")
+    coefficients = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+    assert coefficients["I(A ** 2)"] == pytest.approx(3)
+
+
+def test_a_factor_named_with_a_keyword_raises_clearly() -> None:
+    from process_improve.experiments import analyze_experiment
+
+    data = pd.DataFrame({"lambda": [-1.0, 1.0, -1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]})
+    with pytest.raises(ValueError, match=r"keyword.*for example to 'lambda_'"):
+        analyze_experiment(data, response_column="y", model="main_effects")
+
+
+def _named(value: object, old: str, new: str) -> object:
+    """Rename the factor ``old`` to ``new`` wherever it stands as a name of its own in a result."""
+    if isinstance(value, str):
+        return re.sub(rf"(?<![\w.]){re.escape(old)}(?!\w)", new, value)
+    if isinstance(value, dict):
+        return {_named(key, old, new): _named(entry, old, new) for key, entry in value.items()}
+    if isinstance(value, list):
+        return [_named(entry, old, new) for entry in value]
+    return value
+
+
+#: Every analysis that a design without whole plots or a count response can run.
+_EVERY_LEAST_SQUARES_ANALYSIS = [
+    "anova",
+    "effects",
+    "coefficients",
+    "significance",
+    "residual_diagnostics",
+    "lack_of_fit",
+    "curvature_test",
+    "model_selection",
+    "box_cox",
+    "lenth_method",
+    "confidence_intervals",
+    "prediction",
+    "confirmation_test",
+]
+
+
+def _box_behnken_analysis(names: list[str], model: str, coding: object = "auto") -> dict:
+    """Analyse one Box-Behnken design, its first factor curved, under the factor names given."""
+    from process_improve.experiments import analyze_experiment
+
+    factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
+    runs = generate_design(factors, design_type="box_behnken", n_center_points=3, random_state=1).design
+    runs = runs[["A", "B", "C"]].reset_index(drop=True)
+    noise = np.random.default_rng(1).normal(0, 0.3, len(runs))
+    y = 15 + 2 * runs["A"] - runs["B"] + 0.5 * runs["A"] * runs["B"] - 1.5 * runs["A"] ** 2 + noise
+    data = runs.set_axis(names, axis=1).assign(y=y)
+    new_points = pd.DataFrame([[0.1, 0.2, 0.0]], columns=names)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the same warnings come from both namings
+        return analyze_experiment(
+            data,
+            response_column="y",
+            model=model.format(*names),
+            analysis_type=_EVERY_LEAST_SQUARES_ANALYSIS,
+            coding=coding,
+            new_points=new_points,
+            observed_at_new=[15.0],
+        )
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param("quadratic", id="quadratic"),
+        pytest.param("y ~ {0} * {1} + {2} + I({0} ** 2)", id="formula"),
+        pytest.param("{0} + {1} + {2} + {0}:{1} + I({0} ** 2) + I({1} ** 2)", id="right-hand-side"),
+    ],
+)
+def test_a_factor_named_i_is_analysed_as_the_same_factor_named_otherwise(model: str) -> None:
+    """A factor named I hides patsy's I() in every square term; it is fitted under a stand-in, reported as I (#986)."""
+    named_i = _box_behnken_analysis(["I", "B", "C"], model)
+    named_x = _box_behnken_analysis(["X", "B", "C"], model)
+    assert named_i == _named(named_x, "X", "I")
+    assert "I(I ** 2)" in [row["term"] for row in named_i["coefficients"]]
+    assert named_i["factor_names"] == ["I", "B", "C"]
+
+
+def test_a_factor_named_i_beside_one_named_i_underscore_keeps_each_name() -> None:
+    """The stand-in for I is I_2 when a factor is named I_, which keeps its own name; ranges are given by real name."""
+    coding = {"I": {"low": -2.0, "high": 2.0}, "I_": {"low": -1.0, "high": 1.0}}
+    named_i = _box_behnken_analysis(["I", "I_", "C"], "quadratic", coding=coding)
+    named_x = _box_behnken_analysis(["X", "W", "C"], "quadratic", coding={"X": coding["I"], "W": coding["I_"]})
+    assert named_i == _named(_named(named_x, "W", "I_"), "X", "I")
+    assert {"I", "I_", "I:I_", "I(I ** 2)", "I(I_ ** 2)"} <= {row["term"] for row in named_i["coefficients"]}
+
+
+def test_the_stand_in_for_a_factor_is_not_the_name_of_the_response() -> None:
+    """With the response named I_, the factor I is fitted as I_2, not as a second column I_."""
+    from process_improve.experiments import analyze_experiment
+
+    axial = 2**0.5
+    x = np.array([-1, 1, -1, 1, 0, 0, 0, -axial, axial, 0, 0])
+    z = np.array([-1, -1, 1, 1, 0, 0, 0, 0, 0, -axial, axial])
+    data = pd.DataFrame({"I": x, "P": z, "I_": 5 + x - x**2 + z + np.random.default_rng(0).normal(0, 0.1, len(x))})
+    out = analyze_experiment(data, response_column="I_", model="quadratic", analysis_type="coefficients")
+    assert out["model_summary"]["formula"] == "I_ ~ (I + P) ** 2 + I(I ** 2) + I(P ** 2)"
+    assert out["coefficients"][4]["term"] == "I(I ** 2)"
+    assert out["coefficients"][4]["coefficient"] == pytest.approx(-1, abs=0.1)
+
+
+def test_refused_column_names_come_with_a_rename_that_fits() -> None:
+    """The rename map in the error, pasted into ``DataFrame.rename``, gives names the model takes."""
+    from process_improve.experiments import analyze_experiment
+
+    data = pd.DataFrame(
+        {"Water %": [-1.0, 1.0, -1.0, 1.0], "Temp (°C)": [-1.0, -1.0, 1.0, 1.0], "y": [1.0, 2.0, 1.5, 2.5]}
+    )
+    with pytest.raises(ValueError, match=r"Rename them") as refusal:
+        analyze_experiment(data, response_column="y", model="main_effects")
+    renames = ast.literal_eval(re.search(r"columns=(\{.*\})\)\.$", str(refusal.value)).group(1))
+    result = analyze_experiment(
+        data.rename(columns=renames), response_column="y", model="main_effects", analysis_type="coefficients"
+    )
+    assert [row["term"] for row in result["coefficients"]] == ["Intercept", "Water_pct", "Temp_deg_C"]
+
+
+# ---------------------------------------------------------------------------
+# Review findings: statistics checked against the textbook definitions
+# ---------------------------------------------------------------------------
+
+
+def _full_factorial(k: int, replicates: int = 1) -> np.ndarray:
+    """Two-level full factorial in coded units, stacked ``replicates`` times."""
+    return np.vstack([np.array(list(itertools.product([-1.0, 1.0], repeat=k)))] * replicates)
+
+
+class TestEffectsCoding:
+    """Effects are the change from the low to the high level, whatever units the factors are in."""
+
+    def test_categorical_factor_effect_is_the_difference_of_level_means(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1], "B": ["lo", "lo", "hi", "hi"], "y": [28.0, 36.0, 18.0, 31.0]})
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+        coding = result["effects_coding"]["B"]
+        high = df.y[coding["high"] == df.B].mean()
+        low = df.y[coding["low"] == df.B].mean()
+        assert result["effects"]["B"] == pytest.approx(high - low)
+        assert abs(result["effects"]["B"]) == pytest.approx(7.5)
+
+    def test_actual_unit_factor_effect_is_slope_times_range(self) -> None:
+        df = pd.DataFrame({"A": [150, 170, 150, 170], "B": [-1, -1, 1, 1], "y": [28.0, 36.0, 18.0, 31.0]})
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+        assert result["effects"]["A"] == pytest.approx(10.5)  # mean at 170 minus mean at 150
+        assert result["effects"]["B"] == pytest.approx(-7.5)
+        assert result["effects_coding"] == {"A": {"low": 150.0, "high": 170.0}}
+
+    def test_lenth_uses_the_same_coded_effects(self) -> None:
+        x = _full_factorial(3)
+        df = pd.DataFrame(x * 10 + 100, columns=list("ABC"))  # actual units 90 and 110
+        df["y"] = 50 + 4 * x[:, 0] + np.array([0.1, -0.2, 0.3, 0.0, -0.1, 0.2, -0.3, 0.1])
+        lenth = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="lenth_method")
+        effects = {e["term"]: e["effect"] for e in lenth["lenth_method"]["effects"]}
+        assert effects["A"] == pytest.approx(8.0, abs=0.2)
+
+    @pytest.mark.parametrize("scale", [1.0, 10.0])
+    def test_a_square_is_its_coefficient_not_twice_it(self, scale: float) -> None:
+        """The square's column runs from 0 to 1, so its effect is the coefficient itself (#513).
+
+        A main effect still is twice its coefficient: the change from the low to the high
+        level. ``scale`` puts A in actual units (10, 20, 30), coded to -1, 0, +1 first.
+        """
+        x = np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)))
+        noise = np.array([0.05, -0.02, 0.01, -0.04, 0.03, 0.0, -0.01, 0.02, -0.03])
+        df = pd.DataFrame({"A": 20 + scale * x[:, 0] if scale != 1.0 else x[:, 0], "B": x[:, 1]})
+        df["y"] = 10 + 2 * x[:, 0] + 0.5 * x[:, 1] + 3 * x[:, 0] ** 2 + noise
+        for analysis in ("effects", "lenth_method"):
+            result = analyze_experiment(df, response_column="y", model="quadratic", analysis_type=analysis)
+            effects = (
+                result["effects"]
+                if analysis == "effects"
+                else {e["term"]: e["effect"] for e in result["lenth_method"]["effects"]}
+            )
+            square = next(term for term in effects if "A ** 2" in term)
+            assert effects[square] == pytest.approx(3.0, abs=0.1)
+            assert effects["A"] == pytest.approx(4.0, abs=0.1)
+
+    def test_a_three_level_categorical_has_no_single_effect(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1] * 3, "M": ["a", "a", "b", "b", "c", "c"], "y": [1.0, 2, 3, 4, 5, 7]})
+        with pytest.raises(ValueError, match="two-level"):
+            analyze_experiment(df, response_column="y", model="main_effects", analysis_type="effects")
+
+
+class TestBlocks:
+    """A Block column enters the model as a fixed effect (Montgomery, DAE chapter 7)."""
+
+    @staticmethod
+    def _blocked() -> pd.DataFrame:
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["Block"] = [1] * 8 + [2] * 8
+        rng = np.random.default_rng(0)
+        df["y"] = 20 + 1.0 * df.A + 0.6 * df.B + np.where(df.Block == 2, 6.0, 0.0) + 0.5 * rng.standard_normal(16)
+        return df
+
+    def test_block_variation_is_removed_from_the_error(self) -> None:
+        result = analyze_experiment(
+            self._blocked(), response_column="y", model="main_effects", analysis_type=["anova", "significance"]
+        )
+        rows = {r["source"]: r for r in result["anova_table"]}
+        assert rows["Block"]["df"] == 1
+        assert rows["Block"]["p_value"] < 1e-6
+        assert sum(r["df"] for r in result["anova_table"]) == 15
+        assert set(result["significant_terms"]) == {"A", "B"}
+
+    def test_three_blocks_are_one_anova_row_with_two_df(self) -> None:
+        df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
+        df["Block"] = ["a"] * 4 + ["b"] * 4 + ["c"] * 4
+        df["y"] = 10 + 2 * df.A + df.Block.map({"a": 0.0, "b": 3.0, "c": -1.0}) + np.linspace(-0.2, 0.2, 12)
+        rows = {
+            r["source"]: r for r in analyze_experiment(df, response_column="y", model="main_effects")["anova_table"]
+        }
+        assert rows["Block"]["df"] == 2
+        assert sum(r["df"] for r in rows.values()) == 11
+
+    def test_prediction_without_a_block_is_for_the_average_block(self) -> None:
+        df = self._blocked()
+        result = analyze_experiment(
+            df,
+            response_column="y",
+            model="main_effects",
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [0.0], "B": [0.0], "C": [0.0]}),
+        )
+        assert result["predictions"][0]["predicted"] == pytest.approx(df.y.mean())
+
+    def test_an_explicit_formula_naming_block_fits_it_as_a_named_model_does(self) -> None:
+        df = self._blocked()
+        types = ["coefficients", "anova", "effects"]
+        named = analyze_experiment(df, response_column="y", model="main_effects", analysis_type=types)
+        explicit = analyze_experiment(df, response_column="y", model="y ~ Block + A + B + C", analysis_type=types)
+        assert {c["term"]: c["coefficient"] for c in explicit["coefficients"]} == pytest.approx(
+            {c["term"]: c["coefficient"] for c in named["coefficients"]}
+        )
+        assert [(r["source"], r["df"]) for r in explicit["anova_table"]] == [
+            (r["source"], r["df"]) for r in named["anova_table"]
+        ]
+        assert set(explicit["effects"]) == {"A", "B", "C"}
+
+    def test_three_blocks_named_in_a_formula_are_one_factor_not_a_number(self) -> None:
+        df = pd.DataFrame(_full_factorial(2, replicates=3), columns=["A", "B"])
+        df["Block"] = [1] * 4 + [2] * 4 + [3] * 4
+        df["y"] = 10 + 2 * df.A + df.Block.map({1: 0.0, 2: 3.0, 3: -1.0}) + np.linspace(-0.2, 0.2, 12)
+        rows = {
+            r["source"]: r for r in analyze_experiment(df, response_column="y", model="Block + A + B")["anova_table"]
+        }
+        assert rows["Block"]["df"] == 2  # a straight line through the labels 1, 2, 3 would have one
+        assert sum(r["df"] for r in rows.values()) == 11
+
+    def test_an_explicit_formula_without_block_warns_that_blocks_are_not_modelled(self) -> None:
+        with pytest.warns(UserWarning, match="blocks are not added to an explicit formula"):
+            analyze_experiment(self._blocked(), response_column="y", model="A + B")
+
+    def test_a_mixture_model_warns_that_blocks_are_not_modelled(self) -> None:
+        df = pd.DataFrame(
+            [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] * 2,
+            columns=["x1", "x2", "x3"],
+        )
+        df["Block"] = [1] * 6 + [2] * 6
+        df["y"] = 10 * df.x1 + 12 * df.x2 + 8 * df.x3 + np.arange(12) * 0.01
+        with pytest.warns(UserWarning, match="blocks are not added"):
+            analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+    @pytest.mark.parametrize("block", ["Block", "C(Block)", "C(Block, Sum)", "C(Block, Treatment(1))"])
+    def test_pure_error_is_within_blocks_however_the_formula_writes_the_block(self, block: str) -> None:
+        """Box and Draper (2007), exercise 7.12: a central composite design in two blocks (#968).
+
+        The centre runs 80, 81, 79 and 71, 69, 70 give 2 + 2 = 4 on 4 df within blocks; pooled
+        across blocks they gave 154 on 5 df, more than the residual, and a negative lack of fit.
+        """
+        r2 = np.sqrt(2)
+        runs = pd.DataFrame(
+            {
+                "Block": [1] * 7 + [2] * 7,
+                "x1": [-1, 1, -1, 1, 0, 0, 0, -r2, r2, 0, 0, 0, 0, 0],
+                "x2": [-1, -1, 1, 1, 0, 0, 0, 0, 0, -r2, r2, 0, 0, 0],
+                "y": [73, 85, 83, 79, 80, 81, 79, 67, 73, 69, 71, 71, 69, 70],
+            }
+        )
+        model = f"y ~ {block} + x1 + x2 + I(x1 ** 2) + I(x2 ** 2) + x1:x2"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(4.0), 4)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(0.201, abs=5e-4), 3)
+
+    @pytest.mark.dataset
+    def test_pure_error_within_blocks_with_a_treatment_coded_block(self) -> None:
+        """Box and Draper (2007), exercise 11.20 (answer p. 703): pure error 227 on 5 df, lack of fit 2,198 on 6."""
+        catalogue = resources.files("process_improve.datasets.experiments") / "reference_catalogue"
+        entry = next(
+            e
+            for e in json.loads((catalogue / "box-draper-2007.json").read_text(encoding="utf-8"))["experiments"]
+            if e["name"] == "box-draper-11-ex-11-20-rubber-tensile-strength"
+        )
+        runs = pd.DataFrame(entry["runs"]["rows"], columns=entry["runs"]["columns"]).drop(columns="Run")
+        runs["Block"] = runs["Block"].astype(int)
+        squares = " + ".join(f"I(x{i} ** 2)" for i in range(1, 6))
+        model = f"y ~ C(Block, Treatment(1)) + (x1 + x2 + x3 + x4 + x5) ** 2 + {squares}"
+        lof = analyze_experiment(runs, response_column="y", model=model, analysis_type="lack_of_fit")["lack_of_fit"]
+        assert (lof["ss_pure_error"], lof["df_pure_error"]) == (pytest.approx(227.33, abs=0.01), 5)
+        assert (lof["ss_lack_of_fit"], lof["df_lack_of_fit"]) == (pytest.approx(2198.5, abs=0.1), 6)
+
+    def test_a_reference_level_written_as_a_string_names_the_integer_levels(self) -> None:
+        """Blocks numbered 1 and 2 have the integer levels; ``Treatment('1')`` names a string (follow-up to #1043)."""
+        message = (
+            "C(Block, Treatment('1')) asks for the level '1', which column 'Block' does not have: its levels are "
+            "[1, 2]. Write the level as the column holds it, as in C(Block, Treatment(1))."
+        )
+        with pytest.raises(ValueError, match=re.escape(message)):
+            analyze_experiment(self._blocked(), response_column="y", model="y ~ C(Block, Treatment('1')) + A + B + C")
+
+    def test_pure_error_above_the_residual_is_an_error_not_a_negative_lack_of_fit(self) -> None:
+        """Replicates grouped across blocks that the model fits: the lack of fit would be below zero (#968)."""
+        df = pd.DataFrame({"Block": [1, 1, 1, 2, 2, 2], "A": [-1, 0, 0, 1, 0, 0], "y": [5, 6, 7, 15, 16, 17]})
+        fit = smf.ols("y ~ C(Block) + A", data=df).fit()
+        lof = _run_lack_of_fit(fit, df, "y", factor_cols=["A"])["lack_of_fit"]
+        assert set(lof) == {"error"}
+        assert "pure-error sum of squares" in lof["error"]
+
+
+class TestTransformedResponse:
+    """The model is fitted on the transformed response; every comparison is made on that scale."""
+
+    @staticmethod
+    def _lognormal() -> pd.DataFrame:
+        rng = np.random.default_rng(2)
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = np.exp(3 + 0.5 * x[:, 0] + 0.3 * x[:, 1] + 0.05 * rng.standard_normal(len(x)))
+        return df
+
+    def test_confirmation_run_at_the_true_mean_is_inside_the_interval(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform="log",
+            analysis_type=["prediction", "confirmation_test"],
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+            observed_at_new=[float(np.exp(3.8))],
+        )
+        confirmation = result["confirmation_test"]
+        assert confirmation["all_within_PI"] is True
+        assert confirmation["results"][0]["observed_transformed"] == pytest.approx(3.8)
+        assert confirmation["scale"] == "log of the response"
+        assert result["prediction_scale"] == "log of the response"
+
+    @pytest.mark.parametrize("transform", ["log", "log10", "sqrt", "inverse", "box_cox"])
+    def test_a_prediction_is_put_back_in_the_response_units(self, transform: str) -> None:
+        """The median is the prediction put back; each interval's ends are put back, low before high."""
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform=transform,
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+        )
+        record = result["predictions"][0]
+        info = {"transform": transform, "box_cox_lambda": result["model_summary"].get("box_cox_lambda")}
+        back = record["response_units"]
+        assert back["median"] == pytest.approx(float(to_original_scale(record["predicted"], info)))
+        if transform in ("log", "log10", "box_cox"):  # the scales on which this model is the true one
+            assert back["median"] == pytest.approx(np.exp(3.8), rel=0.02), "the lognormal's median, exp(3 + 0.5 + 0.3)"
+        for low, high in (("ci_low", "ci_high"), ("pi_low", "pi_high")):
+            # an end is None where the interval is unbounded: 1/y's prediction interval can hold 0
+            assert back[low] is None or back[low] < back["median"], low
+            assert back[high] is None or back["median"] < back[high], high
+            if None not in (back[low], back[high]):
+                assert [back[low], back[high]] == pytest.approx(
+                    sorted(to_original_scale([record[low], record[high]], info))
+                )
+
+    def test_an_untransformed_prediction_has_no_second_scale(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            analysis_type="prediction",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+        )
+        assert "response_units" not in result["predictions"][0]
+
+    @pytest.mark.parametrize(
+        ("transform", "lmbda"),
+        [
+            ("log", None),
+            ("log10", None),
+            ("sqrt", None),
+            ("inverse", None),
+            ("box_cox", 0.37),
+            ("box_cox", -0.8),
+            ("box_cox", 0.0),
+        ],
+    )
+    def test_putting_back_undoes_the_transform(self, transform: str, lmbda: float | None) -> None:
+        info = {"transform": transform, "box_cox_lambda": lmbda}
+        y = np.array([0.2, 1.0, 3.5, 40.0])
+        assert to_original_scale(to_model_scale(y, info), info) == pytest.approx(y)
+
+    def test_an_end_past_the_transform_s_range_is_the_response_s_edge(self) -> None:
+        """√y below 0 is y = 0; 1/y through 0 leaves y unbounded on the far side of the prediction."""
+        root = _in_response_units(
+            {"predicted": 1.0, "ci_low": 0.5, "ci_high": 1.5, "pi_low": -0.5, "pi_high": 2.5}, {"transform": "sqrt"}
+        )
+        assert (root["pi_low"], root["pi_high"]) == (0.0, 6.25)
+        inverse = _in_response_units(
+            {"predicted": 0.5, "ci_low": 0.25, "ci_high": 1.0, "pi_low": -0.5, "pi_high": 2.0},
+            {"transform": "inverse"},
+        )
+        assert (inverse["median"], inverse["ci_low"], inverse["ci_high"]) == (2.0, 1.0, 4.0)
+        assert (inverse["pi_low"], inverse["pi_high"]) == (0.5, None)
+
+    def test_box_cox_lambda_is_reported_and_reused(self) -> None:
+        result = analyze_experiment(
+            self._lognormal(),
+            response_column="y",
+            model="main_effects",
+            transform="box_cox",
+            analysis_type="confirmation_test",
+            new_points=pd.DataFrame({"A": [1.0], "B": [1.0], "C": [0.0]}),
+            observed_at_new=[float(np.exp(3.8))],
+        )
+        lmbda = result["model_summary"]["box_cox_lambda"]
+        assert result["model_summary"]["transform"] == "box_cox"
+        assert result["confirmation_test"]["results"][0]["observed_transformed"] == pytest.approx(
+            np.expm1(lmbda * 3.8) / lmbda
+        )
+
+    @pytest.mark.parametrize(
+        ("transform", "values", "match"),
+        [
+            ("Log", [28.0, 36, 18, 31, 29, 27], "Unknown transform"),
+            ("log", [28.0, 36, -18, 31, 29, 27], "positive"),
+            ("log", [28.0, 0, 18, 31, 29, 27], "positive"),
+            ("box_cox", [28.0, 36, -18, 31, 29, 27], "positive"),
+            ("sqrt", [28.0, 36, -18, 31, 29, 27], "non-negative"),
+        ],
+    )
+    def test_a_transform_that_cannot_apply_raises(self, transform: str, values: list[float], match: str) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0], "B": [-1, -1, 1, 1, 0, 0], "y": values})
+        with pytest.raises(ValueError, match=match):
+            analyze_experiment(df, response_column="y", model="main_effects", transform=transform)
+
+
+class TestCurvaturePureError:
+    """Montgomery, DAE section 6.8: F = SS_curvature / MS_pure_error on (1, nC - 1) df."""
+
+    @staticmethod
+    def _example_6_6(shift: float = 0.0) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, 0, 0, 0],
+                "y": [39.3, 40.9, 40.0, 41.5, *(np.array([40.3, 40.5, 40.7, 40.2, 40.6]) + shift)],
+            }
+        )
+
+    def test_montgomery_example_6_6(self) -> None:
+        result = analyze_experiment(self._example_6_6(), response_column="y", analysis_type="curvature_test")
+        curvature = result["curvature_test"]
+        assert curvature["ss_curvature"] == pytest.approx(0.0027, abs=1e-4)
+        assert curvature["ms_pure_error"] == pytest.approx(0.043, abs=1e-4)
+        assert curvature["df_pure_error"] == 4
+        assert curvature["F_statistic"] == pytest.approx(0.063, abs=1e-3)
+        assert curvature["significant"] is False
+
+    def test_real_curvature_is_detected_whatever_the_model(self) -> None:
+        df = self._example_6_6(shift=1.0)
+        for model in ("main_effects", "interactions"):
+            curvature = analyze_experiment(df, response_column="y", model=model, analysis_type="curvature_test")[
+                "curvature_test"
+            ]
+            assert curvature["F_statistic"] == pytest.approx(55.36, abs=0.01)
+            assert curvature["p_value"] == pytest.approx(0.00174, abs=1e-5)
+            assert curvature["significant"] is True
+
+    def test_significance_level_sets_the_flag(self) -> None:
+        curvature = analyze_experiment(
+            self._example_6_6(shift=1.0), response_column="y", analysis_type="curvature_test", significance_level=1e-4
+        )["curvature_test"]
+        assert curvature["significant"] is False
+        assert curvature["significance_level"] == 1e-4
+
+
+class TestMixtureAnalysis:
+    """Cornell's yarn-elongation data (Experiments with Mixtures, 3rd ed., Table 2.3)."""
+
+    @staticmethod
+    def _yarn() -> pd.DataFrame:
+        points = {
+            (1, 0, 0): [11.0, 12.4],
+            (0.5, 0.5, 0): [15.0, 14.8, 16.1],
+            (0, 1, 0): [8.8, 10.0],
+            (0, 0.5, 0.5): [10.0, 9.7, 11.8],
+            (0, 0, 1): [16.8, 16.0],
+            (0.5, 0, 0.5): [17.7, 16.4, 16.6],
+        }
+        return pd.DataFrame([(*p, y) for p, ys in points.items() for y in ys], columns=["x1", "x2", "x3", "y"])
+
+    def test_cox_effects_include_the_blending_terms(self) -> None:
+        # Fitted model 11.7 x1 + 9.4 x2 + 16.4 x3 + 19.0 x1x2 + 11.4 x1x3 - 9.6 x2x3: the response
+        # change from the opposite face's midpoint to the vertex is 1.2, -7.5 and 1.1.
+        result = analyze_experiment(
+            self._yarn(), response_column="y", model="scheffe_quadratic", analysis_type="effects"
+        )
+        assert result["effects"] == pytest.approx({"x1": 1.2, "x2": -7.5, "x3": 1.1}, abs=1e-9)
+        assert result["effect_range"] == {c: pytest.approx([0.0, 1.0]) for c in ("x1", "x2", "x3")}
+
+    def test_the_default_model_for_mixture_data_is_scheffe(self) -> None:
+        result = analyze_experiment(self._yarn(), response_column="y", analysis_type="anova")
+        assert result["model_summary"]["model"] == "scheffe_quadratic"
+        assert result["model_summary"]["rank_deficient"] is False
+        assert result["anova_table"][0]["source"] == "Linear mixture"
+
+    def test_notes_do_not_overwrite_each_other_and_inestimable_terms_are_listed(self) -> None:
+        df = self._yarn()
+        df = df[(df[["x1", "x2", "x3"]] > 0).sum(axis=1) == 1].iloc[:4]  # vertices only: x1:x2:x3 inestimable
+        df = pd.concat([df, self._yarn().iloc[2:5], self._yarn().iloc[9:12], self._yarn().iloc[14:]], ignore_index=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(
+                df,
+                response_column="y",
+                model="scheffe_special_cubic",
+                analysis_type=["anova", "significance", "effects", "lenth_method"],
+            )
+        assert "linear blending terms are tested together" in result["anova_note"]
+        assert "Cox direction" in result["effects_note"]
+        assert "Lenth" in result["lenth_note"]
+        assert "note" not in result
+        assert result["not_estimable_terms"] == ["x1:x2:x3"]
+
+
+class TestMixtureConstant:
+    """A mixture model holds a constant on blends rounded for printing, and from a formula too (#964)."""
+
+    SCHEFFE_QUADRATIC = "y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 - 1"
+
+    @staticmethod
+    def _lattice(decimals: int | None = None) -> pd.DataFrame:
+        """Return a {3, 2} lattice, its centroid and three axial blends; y = 10x1 + 12x2 + 8x3 + 6x1x2 - 4x1x3 + e."""
+        third, sixth = 1 / 3, 1 / 6
+        blends = np.array(
+            [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [0.5, 0.5, 0],
+                [0.5, 0, 0.5],
+                [0, 0.5, 0.5],
+                [third, third, third],
+                [2 * third, sixth, sixth],
+                [sixth, 2 * third, sixth],
+                [sixth, sixth, 2 * third],
+            ]
+        )
+        x1, x2, x3 = blends.T
+        y = 10 * x1 + 12 * x2 + 8 * x3 + 6 * x1 * x2 - 4 * x1 * x3 + np.random.default_rng(1).normal(0, 0.5, 10)
+        shown = blends if decimals is None else blends.round(decimals)
+        return pd.DataFrame(shown, columns=["x1", "x2", "x3"]).assign(y=y)
+
+    @staticmethod
+    def _fit(df: pd.DataFrame, model: str | None, **kwargs: object) -> dict:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return analyze_experiment(df, response_column="y", model=model, **kwargs)
+
+    def test_rounded_blends_give_the_centred_summary_of_the_exact_blends(self) -> None:
+        exact = self._fit(self._lattice(), "scheffe_quadratic")["model_summary"]
+        with pytest.warns(UserWarning, match="not to 1 exactly"):
+            rounded = analyze_experiment(self._lattice(3), response_column="y", model="scheffe_quadratic")
+        summary = rounded["model_summary"]
+        assert exact["df_model"] == summary["df_model"] == 5
+        # The blends differ in the third decimal, and the residual sum of squares is small, so the
+        # two agree to the rounding of the data and not further.
+        assert summary["r_squared"] == pytest.approx(exact["r_squared"], abs=1e-3)
+        assert summary["f_statistic"] == pytest.approx(exact["f_statistic"], rel=0.1)
+        assert summary["ss_total"] == pytest.approx(exact["ss_total"])  # about the mean, not about zero
+
+    def test_rounded_blends_are_mixture_data_by_default(self) -> None:
+        assert self._fit(self._lattice(3), None)["model_summary"]["model"] == "scheffe_quadratic"
+
+    def test_box_draper_table_16_1_with_the_centroid_printed_as_0_333(self) -> None:
+        # Box and Draper (2007), Table 16.1: the centroid printed 0.333 sums to 0.999.
+        df = pd.DataFrame(
+            [
+                [1, 0, 0, 10.9],
+                [0, 1, 0, 14.4],
+                [0, 0, 1, 2.0],
+                [0.5, 0.5, 0, 11.6],
+                [0.5, 0, 0.5, 6.9],
+                [0, 0.5, 0.5, 8.7],
+                [0.333, 0.333, 0.333, 8.9],
+            ],
+            columns=["x1", "x2", "x3", "y"],
+        )
+        printed = self._fit(df, "scheffe_linear")["model_summary"]
+        exact = self._fit(df.where(df != 0.333, 1 / 3), "scheffe_linear")["model_summary"]
+        assert round(printed["r_squared"], 3) == round(exact["r_squared"], 3) == 0.986
+        assert printed["df_model"] == exact["df_model"] == 2
+        assert round(exact["f_statistic"], 1) == 144.3
+        assert printed["f_statistic"] == pytest.approx(exact["f_statistic"], rel=0.01)
+
+    @pytest.mark.parametrize("decimals", [None, 3])
+    def test_an_explicit_scheffe_formula_is_analysed_as_the_scheffe_model(self, decimals: int | None) -> None:
+        df = self._lattice(decimals)
+        analyses = ["anova", "significance", "effects", "lenth_method"]
+        keyword = self._fit(df, "scheffe_quadratic", analysis_type=analyses)
+        formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analyses)
+        assert formula["anova_table"][0]["source"] == "Linear mixture"
+        assert formula["anova_table"] == keyword["anova_table"]
+        assert formula["effects"] == pytest.approx(keyword["effects"])
+        assert formula["linear_blending_p_value"] == pytest.approx(keyword["linear_blending_p_value"])
+        assert formula["lenth_method"] is None
+        drop = {"formula", "model"}
+        assert {k: v for k, v in formula["model_summary"].items() if k not in drop} == pytest.approx(
+            {k: v for k, v in keyword["model_summary"].items() if k not in drop}
+        )
+
+    def test_a_formula_of_pseudo_components_tests_its_linear_blending_as_one_block(self) -> None:
+        # Box and Draper (2007), Section 16.2, Snee's gasoline blends: x1 + x2 + x3 enter as one component.
+        df = pd.DataFrame(
+            {
+                "x1": [0.25, 0.25, 0.25, 0.15, 0.25, 0.15, 0.15, 0.15, 0.20],
+                "x2": [0.4, 0.4, 0.2, 0.4, 0.2, 0.2, 0.4, 0.2, 0.3],
+                "x3": [0.10, 0.03, 0.10, 0.03, 0.03, 0.10, 0.10, 0.03, 0.065],
+                "x4": [0.25, 0.32, 0.45, 0.42, 0.52, 0.55, 0.35, 0.62, 0.435],
+                "y": [2.6, 2.0, 1.2, 1.7, 0.7, 0.7, 1.8, 0.2, 1.2],
+            }
+        )
+        result = self._fit(df, "y ~ I(x1 + x2 + x3) + x4 - 1", analysis_type=["anova", "effects"])
+        model_rows = [row for row in result["anova_table"] if row["source"] != "Residual"]
+        assert [(row["source"], row["df"]) for row in model_rows] == [("Linear mixture", 1)]
+        assert result["model_summary"]["df_model"] == 1
+        assert set(result["effects"]) == {"x1", "x2", "x3", "x4"}
+
+    def test_one_linear_blending_term_has_no_linear_mixture_row(self) -> None:
+        # I(x1 + x2 + x3) is the constant itself: with one linear term there are no coefficients to compare.
+        result = self._fit(self._lattice(), "y ~ I(x1 + x2 + x3) + x1:x2 + x1:x3 + x2:x3 - 1")
+        sources = [row["source"] for row in result["anova_table"] if row["source"] != "Residual"]
+        assert sources == ["x1:x2", "x1:x3", "x2:x3"]
+
+    def test_a_scheffe_model_of_settings_that_do_not_sum_to_1_warns(self) -> None:
+        df = self._lattice()
+        df.loc[7, "x1"] = 0.75  # this blend sums to 1.083
+        with pytest.warns(UserWarning, match="holds no constant"):
+            analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+
+class TestAliasChainsInTests:
+    """Exactly aliased terms are tested once, so the ANOVA degrees of freedom add up to N - 1."""
+
+    def test_replicated_half_fraction(self) -> None:
+        x = _full_factorial(3)
+        x = np.vstack([np.c_[x, x.prod(axis=1)]] * 2)  # 2^(4-1), D = ABC, twice
+        rng = np.random.default_rng(3)
+        df = pd.DataFrame(x, columns=list("ABCD"))
+        df["y"] = 10 + 3 * x[:, 0] + 2 * x[:, 0] * x[:, 1] + rng.standard_normal(16)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(df, response_column="y", analysis_type=["anova", "significance", "effects"])
+        table = result["anova_table"]
+        assert sum(r["df"] for r in table) == 15
+        assert sum(r["sum_sq"] for r in table) == pytest.approx(((df.y - df.y.mean()) ** 2).sum())
+        assert result["significant_terms"] == ["A", "A:B + C:D"]
+        assert {r["source"] for r in table} - {"Residual"} == set(result["effects"])
+
+    def test_anova_reports_its_sum_of_squares_type_and_mean_squares(self) -> None:
+        result = analyze_experiment(_two_factor_with_center(), response_column="y", model="main_effects")
+        assert result["anova_type"] == "II"
+        for row in result["anova_table"]:
+            assert row["mean_sq"] == pytest.approx(row["sum_sq"] / row["df"])
+
+
+class TestSaturatedModel:
+    def test_significance_and_residual_tests_say_there_is_no_error(self) -> None:
+        df = pd.DataFrame(_full_factorial(3), columns=list("ABC"))
+        df["y"] = [60, 72, 54, 68, 52, 83, 45, 80.0]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(
+                df, response_column="y", model="(A+B+C)**3", analysis_type=["significance", "residual_diagnostics"]
+            )
+        assert result["significant_terms"] == []
+        assert len(result["not_estimable_terms"]) == 7
+        assert "lenth_method" in result["significance_note"]
+        diagnostics = result["residual_diagnostics"]
+        assert diagnostics["shapiro_wilk"]["p_value"] is None
+        assert diagnostics["breusch_pagan"]["p_value"] is None
+        assert diagnostics["run_order"]["lag1_autocorrelation"] is None
+        assert "no residual degrees of freedom" in diagnostics["note"]
+
+
+class TestLenthDefinition:
+    """Lenth (1989): PSE trims strictly below 2.5 s0, and SME uses gamma = (1 + 0.95**(1/m)) / 2."""
+
+    def test_pse_and_sme_match_lenth(self) -> None:
+        x = _full_factorial(3)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        effects = {"A": 1.0, "B": 1.0, "C": 1.0, "A:B": 2.0, "A:C": 2.0, "B:C": 2.0, "A:B:C": 8.0}
+        df["y"] = sum(e / 2 * np.prod([df[f] for f in term.split(":")], axis=0) for term, e in effects.items())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lenth = analyze_experiment(df, response_column="y", model="(A+B+C)**3", analysis_type="lenth_method")[
+                "lenth_method"
+            ]
+        # s0 = 1.5 * 2 = 3, so 8 > 2.5 s0 is trimmed: PSE = 1.5 * median(1, 1, 1, 2, 2, 2).
+        assert lenth["PSE"] == pytest.approx(2.25)
+        assert lenth["SME"] / lenth["PSE"] == pytest.approx(9.008, abs=1e-3)  # Lenth's table, m = 7
+
+    def test_an_effect_exactly_at_the_cutoff_is_trimmed(self, monkeypatch) -> None:
+        """The trim is strict (|c| < 2.5 s0), checked on exact effects.
+
+        Fitted coefficients carry rounding noise, which decides the side of an effect placed
+        exactly on the cut-off, so the boundary is tested with the coefficients given directly.
+        """
+        from types import SimpleNamespace
+
+        from process_improve.experiments._analyses import lenth as lenth_module
+
+        effects = pd.Series([1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 7.5], index=["A", "B", "C", "A:B", "A:C", "B:C", "A:B:C"])
+        estimable = SimpleNamespace(
+            coefficients=effects / 2, spans=pd.Series(2.0, index=effects.index)
+        )  # -1/+1 columns
+        monkeypatch.setattr(lenth_module, "estimable_effects", lambda _fit: estimable)
+        out = lenth_module._run_lenth_method(None)["lenth_method"]
+        # s0 = 1.5 * 2 = 3, and 7.5 = 2.5 s0 exactly: not strictly below, so it is trimmed.
+        assert out["PSE"] == 2.25
+
+
+class TestReviewedInputs:
+    def test_lack_of_fit_uses_the_significance_level(self) -> None:
+        a = 1.414
+        df = pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, -a, a, 0, 0, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, -a, a, 0, 0, 0, 0, 0],
+                "y": [76.5, 78.0, 77.0, 79.5, 75.6, 78.4, 77.0, 78.5, 79.9, 80.3, 80.0, 79.7, 79.8],
+            }
+        )
+        lof = analyze_experiment(
+            df, response_column="y", model="main_effects", analysis_type="lack_of_fit", significance_level=1e-6
+        )["lack_of_fit"]
+        assert lof["p_value"] < 0.01
+        assert lof["significant"] is False
+
+    def test_missing_responses_are_dropped_before_every_analysis(self) -> None:
+        a = 1.414
+        df = pd.DataFrame(
+            {
+                "A": [-1, 1, -1, 1, -a, a, 0, 0, 0, 0, 0, 0, 0],
+                "B": [-1, -1, 1, 1, 0, 0, -a, a, 0, 0, 0, 0, 0],
+                "y": [76.5, 78.0, 77.0, 79.5, 75.6, 78.4, 77.0, 78.5, np.nan, 80.3, 80.0, 79.7, 79.8],
+            }
+        )
+        with pytest.warns(UserWarning, match="1 run"):
+            result = analyze_experiment(
+                df, response_column="y", model="quadratic", analysis_type=["lack_of_fit", "model_selection"]
+            )
+        assert result["model_summary"]["n_obs"] == 12
+        assert result["lack_of_fit"]["df_pure_error"] == 3
+        assert result["lack_of_fit"]["df_lack_of_fit"] == 3
+        assert np.isfinite(result["model_selection"]["criterion_value"])
+
+    def test_confirmation_needs_one_observation_per_point(self) -> None:
+        new = pd.DataFrame({"A": [0.5, -0.5], "B": [0.5, 0.0]})
+        for observed in ([30.0], [30.0, 31.0, 99.0]):
+            with pytest.raises(ValueError, match="one observation per new point"):
+                analyze_experiment(
+                    _two_factor_with_center(),
+                    response_column="y",
+                    model="main_effects",
+                    analysis_type="confirmation_test",
+                    new_points=new,
+                    observed_at_new=observed,
+                )
+
+    def test_a_formula_for_another_response_raises(self) -> None:
+        df = _two_factor_with_center().assign(z=[1.0, 2, 3, 4, 5, 6, 7])
+        with pytest.raises(ValueError, match="response being analysed is 'y'"):
+            analyze_experiment(df, response_column="y", model="z ~ A + B")
+
+    def test_a_formula_uses_only_the_columns_it_names(self) -> None:
+        df = _two_factor_replicated().assign(z=np.arange(8.0))
+        lof = analyze_experiment(df, response_column="y", model="y ~ A + B", analysis_type="lack_of_fit")["lack_of_fit"]
+        assert lof["df_pure_error"] == 4  # replicates over A and B; z, not in the formula, does not split them
+
+    def test_a_formula_may_name_a_keyword_response(self) -> None:
+        df = _two_factor_with_center().rename(columns={"y": "yield"})
+        result = analyze_experiment(df, response_column="yield", model="yield ~ A + B")
+        assert result["model_summary"]["formula"] == "yield ~ A + B"
+
+    def test_formula_term_cap(self) -> None:
+        names = [chr(65 + i) for i in range(8)]
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(rng.choice([-1.0, 1.0], size=(32, 8)), columns=names)
+        df["y"] = rng.standard_normal(32)
+        with pytest.raises(ValueError, match="max_formula_terms"):
+            analyze_experiment(df, response_column="y", model="(" + "+".join(names) + ")**8")
+
+    def test_an_unnamed_series_takes_the_response_column_name(self) -> None:
+        df = _two_factor_data()[["A", "B"]]
+        series = pd.Series([28.0, 36, 18, 31])
+        result = analyze_experiment(df, series, response_column="y", model="main_effects", analysis_type="effects")
+        assert result["effects"]["A"] == pytest.approx(10.5)
+        with pytest.raises(ValueError, match="unnamed Series"):
+            analyze_experiment(df, series, analysis_type="effects")
+
+    def test_quadratic_model_skips_squares_of_categorical_factors(self) -> None:
+        df = pd.DataFrame({"A": [-1, 1, -1, 1, 0, 0], "M": ["a", "b", "a", "b", "a", "b"], "y": [1.0, 2, 3, 5, 2, 3]})
+        result = analyze_experiment(df, response_column="y", model="quadratic")
+        assert result["model_summary"]["formula"] == "y ~ (A + M) ** 2 + I(A ** 2)"
+
+
+class TestBoxCoxProfile:
+    """Box and Cox (1964): lambda maximises the profile likelihood of the fitted model."""
+
+    def test_additive_data_need_no_transform(self) -> None:
+        rng = np.random.default_rng(1)
+        x = _full_factorial(3, replicates=2)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = 20 + 15 * x[:, 0] + 3 * x[:, 1] + 0.5 * rng.standard_normal(len(x))
+        box_cox = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="box_cox")["box_cox"]
+        assert box_cox["lambda"] == pytest.approx(0.977, abs=0.002)
+        assert box_cox["lambda_ci"][0] < 1.0 < box_cox["lambda_ci"][1]
+        assert box_cox["recommendation"].startswith("no transform")
+
+    def test_multiplicative_data_recommend_a_log(self) -> None:
+        df = TestTransformedResponse._lognormal()
+        box_cox = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="box_cox")["box_cox"]
+        assert box_cox["lambda_ci"][0] < 0.0 < box_cox["lambda_ci"][1]
+        assert box_cox["recommendation"] == "log transform"
+
+
+class TestModelSelectionCriterion:
+    """AICc of Hurvich and Tsai (1989), and Scheffe models searched without an intercept."""
+
+    def test_aicc_counts_the_error_variance(self) -> None:
+        import statsmodels.formula.api as smf
+
+        from process_improve.experiments._analyses import model_selection as ms
+
+        x = _full_factorial(3)
+        df = pd.DataFrame(x, columns=list("ABC"))
+        df["y"] = 5 + 2 * x[:, 0] + x[:, 1] + 0.3 * np.random.default_rng(0).standard_normal(8)
+        score = ms._Scorer(df, df.y.to_numpy(), ms._candidate_terms(list("ABC"), "main_effects"), "aicc")
+        for included in (frozenset({"A", "B"}), frozenset({"A", "B", "C"})):
+            n, p = 8, 1 + len(included)
+            ssr = smf.ols("y ~ " + " + ".join(sorted(included)), df).fit().ssr
+            hurvich_tsai = n * np.log(ssr / n) + n * (n + p) / (n - p - 2) + n * np.log(2 * np.pi)
+            assert score(included) == pytest.approx(hurvich_tsai)
+        saturated = ms._Scorer(df, df.y.to_numpy(), ms._candidate_terms(list("ABC"), "interactions"), "aicc")
+        assert saturated(frozenset({"A", "B", "C", "A:B", "A:C"})) == np.inf  # n - p - 2 = 0
+
+    def test_scheffe_model_selection_keeps_the_linear_blending_terms_and_no_intercept(self) -> None:
+        df = TestMixtureAnalysis._yarn()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = analyze_experiment(
+                df, response_column="y", model="scheffe_quadratic", analysis_type="model_selection"
+            )
+        chosen = result["model_selection"]
+        assert chosen["selected_formula"].startswith("y ~ -1 + x1 + x2 + x3")
+        assert chosen["candidate_model"] == "scheffe_quadratic"
+        assert "note" not in chosen
+        assert chosen["n_terms"] == len(chosen["selected_terms"])
+
+    def test_n_terms_counts_the_intercept_like_model_summary(self) -> None:
+        result = analyze_experiment(
+            _three_factor_data(), response_column="y", model="main_effects", analysis_type="model_selection"
+        )
+        chosen = result["model_selection"]
+        assert chosen["n_terms"] == len(chosen["selected_terms"]) + 1
+
+
+# ---------------------------------------------------------------------------
+# Terms are tested at the centre of the design, whatever the factors' units
+# ---------------------------------------------------------------------------
+
+
+class TestTestsAtTheCentre:
+    """The ANOVA and the significance list do not depend on where the factors' units put zero."""
+
+    CCD = np.array(
+        [[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0], [0, 0]]
+    )
+
+    def _ccd(self, T: np.ndarray) -> pd.DataFrame:
+        x = self.CCD
+        y = 60 + x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + 0.8 * x[:, 0] * x[:, 1]
+        return pd.DataFrame({"T": T, "P": x[:, 1], "y": y + np.random.default_rng(3).normal(0, 0.4, len(x))})
+
+    @staticmethod
+    def _anova(data: pd.DataFrame, model: str) -> dict[str, float]:
+        table = analyze_experiment(data, response_column="y", model=model, analysis_type="anova")["anova_table"]
+        return {row["source"]: row["p_value"] for row in table if row["p_value"] is not None}
+
+    def test_a_quadratic_anova_is_the_same_in_any_units(self) -> None:
+        """T's test is adjusted for T**2; measured from 0 degC that turns it into a test of the curvature."""
+        coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
+        for T in (175 + 25 * self.CCD[:, 0], 448.15 + 25 * self.CCD[:, 0]):
+            assert self._anova(self._ccd(T), "quadratic") == pytest.approx(coded, rel=1e-6)
+        as_given = smf.ols("y ~ T + P + T:P + I(T ** 2) + I(P ** 2)", data=self._ccd(175 + 25 * self.CCD[:, 0])).fit()
+        p_as_given = sm.stats.anova_lm(as_given, typ=2)["PR(>F)"]
+        assert coded["T"] == pytest.approx(0.0513, abs=1e-4)  # borderline at the centre
+        assert p_as_given["T"] == pytest.approx(p_as_given["I(T ** 2)"], rel=0.1)  # what was reported: T**2's
+
+    def test_significance_agrees_with_the_anova_in_any_units(self) -> None:
+        """With T in degC, P's slope was tested at 0 degC (p = 0.09) and P was left out."""
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["anova", "significance"]}
+        for T in ([150.0, 200.0, 150.0, 200.0, 175.0, 175.0], [423.15, 473.15, 423.15, 473.15, 448.15, 448.15]):
+            data = pd.DataFrame({"T": T, "P": [1, 1, 3, 3, 2, 2], "y": [10.0, 18.0, 13.0, 25.0, 16.0, 16.8]})
+            result = analyze_experiment(data, **kwargs)
+            assert result["significant_terms"] == ["T", "P", "T:P"]
+
+    def test_a_model_that_coding_would_change_is_tested_as_given(self) -> None:
+        """``T:P`` without ``P`` is a different model once P is centred, so it is not centred."""
+        data = self._ccd(175 + 25 * self.CCD[:, 0])
+        expected = sm.stats.anova_lm(smf.ols("y ~ T + T:P", data=data).fit(), typ=2)["PR(>F)"].dropna()
+        assert self._anova(data, "y ~ T + T:P") == pytest.approx(expected.to_dict())
+
+    @pytest.mark.parametrize("model", ["z1 + I(z2 - 0.2 * z1) - 1", "z1 - 1"])
+    def test_an_i_term_that_mixes_factors_is_tested_as_given(self, model: str) -> None:
+        """Box and Draper (2007) Table 3.6: z1 and z2 - 0.2 z1 are orthogonal, so SS(z1) = 12 in either model.
+
+        Coding z2 to -1/+1 makes I(z2 - 0.2 * z1) a column no longer orthogonal to z1, with the
+        same fitted values, and SS(z1) was 14.97 (#963).
+        """
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        result = analyze_experiment(
+            data, response_column="y", model=model, analysis_type=["anova", "coefficients"], coding="actual"
+        )
+        table = {row["source"]: row["sum_sq"] for row in result["anova_table"]}
+        assert table["z1"] == pytest.approx(12.0)
+        if "I(" in model:
+            assert table["I(z2 - 0.2 * z1)"] == pytest.approx(4.5)
+            assert table["Residual"] == pytest.approx(1.5)
+            assert _terms(result) == pytest.approx({"z1": 2.0, "I(z2 - 0.2 * z1)": 2.5})
+
+    def test_units_too_unequal_for_floating_point_are_tested_coded(self) -> None:
+        """A tiny span far from zero loses the fit's rank; the coded fit, which keeps it, is tested."""
+        coded = self._anova(self._ccd(self.CCD[:, 0]), "quadratic")
+        assert self._anova(self._ccd(1e6 + 0.01 * self.CCD[:, 0]), "quadratic") == pytest.approx(coded, rel=1e-4)
+
+    def test_categorical_terms_keep_their_names(self) -> None:
+        data = pd.DataFrame(
+            {"T": [150.0, 200.0] * 4, "S": ["Dry"] * 4 + ["Wet"] * 4, "y": [10, 18, 11, 20, 14, 22, 15, 24.0]}
+        )
+        result = analyze_experiment(data, response_column="y", model="y ~ T * S", analysis_type="significance")
+        assert set(result["significant_terms"] + result["not_significant_terms"]) == {"T", "S[T.Wet]", "T:S[T.Wet]"}
+
+
+# The coefficients' scale: coding="actual", "coded", or ranges (#513)
+# ---------------------------------------------------------------------------
+
+
+def _reactor(kelvin: bool = False) -> pd.DataFrame:
+    """Return a 2^2 factorial in actual units with two centre runs: T in degC (or K), P in bar."""
+    T = np.array([150.0, 200.0, 150.0, 200.0, 175.0, 175.0])
+    return pd.DataFrame(
+        {"T": T + 273.15 if kelvin else T, "P": [1, 1, 3, 3, 2, 2], "y": [10.0, 18.0, 13.0, 25.0, 16.0, 16.8]}
+    )
+
+
+def _terms(result: dict, key: str = "coefficient") -> dict[str, float]:
+    return {row["term"]: row[key] for row in result["coefficients"]}
+
+
+class TestCoding:
+    """``coding`` sets the scale of the coefficients and their confidence intervals."""
+
+    def test_actual_is_the_fit_as_given(self) -> None:
+        result = analyze_experiment(
+            _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding="actual"
+        )
+        assert result["coding"] == "actual"
+        assert _terms(result)["T"] == pytest.approx(0.12)
+        assert result["factor_coding"] == {"T": {"low": 150.0, "high": 200.0}, "P": {"low": 1.0, "high": 3.0}}
+
+    def test_coded_coefficients_are_half_the_effects(self) -> None:
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "effects"],
+            coding="coded",
+        )
+        assert result["coding"] == "coded"
+        coefficients = _terms(result)
+        for term, effect in result["effects"].items():
+            assert coefficients[term] == pytest.approx(effect / 2)
+
+    def test_a_coded_main_effect_is_tested_at_the_centre(self) -> None:
+        """On the actual scale P is tested at 0 degC, and misses what the ANOVA finds."""
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["coefficients", "anova"]}
+        actual = analyze_experiment(_reactor(), coding="actual", **kwargs)
+        coded = analyze_experiment(_reactor(), coding="coded", **kwargs)
+        anova_p = next(row["p_value"] for row in coded["anova_table"] if row["source"] == "P")
+        assert _terms(coded, "p_value")["P"] == pytest.approx(anova_p)
+        assert _terms(actual)["P"] < 0 < _terms(coded)["P"]
+        assert _terms(actual, "p_value")["P"] > 0.05 > anova_p
+
+    def test_the_unit_of_temperature_does_not_change_coded_coefficients(self) -> None:
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+        celsius, kelvin = (analyze_experiment(_reactor(k), coding="coded", **kwargs) for k in (False, True))
+        assert _terms(kelvin, "p_value") == pytest.approx(_terms(celsius, "p_value"))
+        actual = [
+            _terms(analyze_experiment(_reactor(k), coding="actual", **kwargs), "p_value")["P"] for k in (False, True)
+        ]
+        assert actual[0] != pytest.approx(actual[1], rel=0.1)
+
+    def test_a_range_puts_minus_and_plus_one_at_its_levels(self) -> None:
+        """A central composite design's extremes are its axial runs; a range codes from the cube instead."""
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + x[:, 0] * x[:, 1]
+        y = y + np.array([0.3, -0.2, 0.1, -0.1, 0.2, -0.3, 0.1, 0.2, -0.1])
+        coded_data = pd.DataFrame({"T": x[:, 0], "P": x[:, 1], "y": y})
+        actual_data = coded_data.assign(T=175 + 25 * coded_data["T"], P=2 + coded_data["P"])
+        cube = {"T": {"low": 150, "high": 200}, "P": {"low": 1, "high": 3}}
+        kwargs = {"response_column": "y", "model": "quadratic", "analysis_type": "coefficients"}
+        expected = _terms(analyze_experiment(coded_data, **kwargs))
+        assert _terms(analyze_experiment(actual_data, coding=cube, **kwargs)) == pytest.approx(expected)
+        axial = _terms(analyze_experiment(actual_data, coding="coded", **kwargs))
+        assert axial["T"] == pytest.approx(1.414 * expected["T"])
+
+    def test_coded_data_is_left_as_it_is(self) -> None:
+        kwargs = {"response_column": "y", "model": "interactions", "analysis_type": "coefficients"}
+        coded = analyze_experiment(_two_factor_replicated(), coding="coded", **kwargs)
+        assert coded["coefficients"] == analyze_experiment(_two_factor_replicated(), **kwargs)["coefficients"]
+        assert "factor_coding" not in coded
+
+    def test_categorical_factors(self) -> None:
+        """Two levels are coded -1/+1 as for the effects; more levels get sum-to-zero contrasts."""
+        T = [150.0, 200.0] * 6
+        y = [10.0, 18.0, 12.0, 21.0, 9.0, 16.0, 11.0, 19.0, 12.0, 22.0, 8.0, 15.0]
+        kwargs = {"response_column": "y", "model": "interactions", "analysis_type": "coefficients", "coding": "coded"}
+        two = analyze_experiment(pd.DataFrame({"T": T, "S": ["Dry", "Wet"] * 3 + ["Wet", "Dry"] * 3, "y": y}), **kwargs)
+        assert two["factor_coding"]["S"] == {"low": "Dry", "high": "Wet"}
+        assert "S" in _terms(two)
+        three = analyze_experiment(pd.DataFrame({"T": T, "S": ["a", "a", "b", "b", "c", "c"] * 2, "y": y}), **kwargs)
+        assert {"S[S.a]", "S[S.b]", "T:S[S.a]", "T:S[S.b]"} <= set(_terms(three))
+        assert _terms(three)["Intercept"] == pytest.approx(np.mean(y))  # balanced: the grand mean
+        assert "S" not in three["factor_coding"]
+
+    def test_confidence_intervals_follow_the_coding(self) -> None:
+        result = analyze_experiment(
+            _reactor(),
+            response_column="y",
+            model="y ~ T * P",
+            analysis_type=["coefficients", "confidence_intervals"],
+            coding="coded",
+        )
+        intervals = {row["term"]: (row["ci_low"], row["ci_high"]) for row in result["confidence_intervals"]}
+        for row in result["coefficients"]:
+            assert intervals[row["term"]] == pytest.approx((row["ci_low"], row["ci_high"]))
+
+    def test_other_analyses_do_not_change(self) -> None:
+        kwargs = {"response_column": "y", "model": "y ~ T * P", "analysis_type": ["anova", "effects"]}
+        actual = analyze_experiment(_reactor(), **kwargs)
+        coded = analyze_experiment(_reactor(), coding="coded", **kwargs)
+        assert coded["anova_table"] == actual["anova_table"]
+        assert coded["effects"] == actual["effects"]
+
+    def test_a_model_that_changes_when_coded_warns(self) -> None:
+        """``T:P`` without ``P`` is a different model once P is centred."""
+        with pytest.warns(UserWarning, match="fits the data differently"):
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T + T:P", analysis_type="coefficients", coding="coded"
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding="coded"
+            )
+
+    def test_badly_scaled_units_are_blamed_on_the_fit_not_the_model(self) -> None:
+        """A tiny span far from zero loses the fit's rank in floating point; coding repairs it."""
+        x = np.array([[-1, -1], [1, -1], [-1, 1], [1, 1], [-1.414, 0], [1.414, 0], [0, -1.414], [0, 1.414], [0, 0]])
+        y = 60 + 4 * x[:, 0] + 2 * x[:, 1] - 3 * x[:, 0] ** 2 - x[:, 1] ** 2 + np.linspace(-0.2, 0.2, 9)
+        data = pd.DataFrame({"T": 1e6 + 0.01 * x[:, 0], "P": 1e7 + 0.1 * x[:, 1], "y": y})
+        with pytest.warns(UserWarning, match="lost rank in floating point"):
+            result = analyze_experiment(
+                data, response_column="y", model="quadratic", analysis_type="coefficients", coding="coded"
+            )
+        reference = analyze_experiment(
+            pd.DataFrame({"T": x[:, 0] / 1.414, "P": x[:, 1] / 1.414, "y": y}),
+            response_column="y",
+            model="quadratic",
+            analysis_type="coefficients",
+        )
+        assert _terms(result) == pytest.approx(_terms(reference))
+
+    def test_a_mixture_model_has_no_coded_scale(self) -> None:
+        mixture = TestMixtureAnalysis._yarn()
+        with pytest.raises(ValueError, match="mixture model has no coded scale"):
+            analyze_experiment(
+                mixture, response_column="y", model="scheffe_quadratic", analysis_type="coefficients", coding="coded"
+            )
+        actual = analyze_experiment(
+            mixture, response_column="y", model="scheffe_quadratic", analysis_type="coefficients"
+        )
+        assert actual["coding"] == "actual"
+        assert "factor_coding" not in actual  # proportions are not to be recoded by optimize_responses
+
+    def test_a_range_for_a_categorical_factor_is_refused(self) -> None:
+        data = pd.DataFrame({"T": [150.0, 200.0] * 2, "S": ["Dry", "Dry", "Wet", "Wet"], "y": [10.0, 18.0, 13.0, 22.0]})
+        with pytest.raises(ValueError, match="'S', a categorical factor"):
+            analyze_experiment(
+                data,
+                response_column="y",
+                model="main_effects",
+                analysis_type="coefficients",
+                coding={"S": {"low": 0, "high": 1}},
+            )
+
+    @pytest.mark.parametrize(
+        ("coding", "match"),
+        [
+            ("nonsense", "must be 'actual', 'coded'"),
+            (3, "must be 'actual', 'coded'"),
+            ({"Q": {"low": 1, "high": 2}}, "not a factor"),
+            ({"T": {"low": 200, "high": 150}}, "finite low < high"),
+            ({"T": (150, 200)}, "finite low < high"),
+            ({"T": {"low": 150, "high": np.inf}}, "finite low < high"),
+        ],
+    )
+    def test_invalid_coding(self, coding: object, match: str) -> None:
+        with pytest.raises(ValueError, match=match):
+            analyze_experiment(
+                _reactor(), response_column="y", model="y ~ T * P", analysis_type="coefficients", coding=coding
+            )
+
+
+_REACTOR_COEFFICIENTS = {"response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+
+
+class TestDefaultCoding:
+    """Since 2.0.0 the default scale of the coefficients is ``"auto"``, and a call says nothing about it."""
+
+    def test_the_default_is_auto_and_silent(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            default = analyze_experiment(_reactor(), **_REACTOR_COEFFICIENTS)
+        auto = analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)
+        actual = analyze_experiment(_reactor(), coding="actual", **_REACTOR_COEFFICIENTS)
+        assert default["coding"] == "coded"
+        assert default["coefficients"] == auto["coefficients"]
+        assert default["coefficients_actual"] == actual["coefficients"]  # the scale the default gave before 2.0
+        assert "coding_note" not in default
+
+    def test_none_means_auto(self) -> None:
+        none = analyze_experiment(_reactor(), coding=None, **_REACTOR_COEFFICIENTS)
+        assert none["coding"] == "coded"
+        assert (
+            none["coefficients"]
+            == analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)["coefficients"]
+        )
+
+    def test_a_mixture_model_keeps_actual(self) -> None:
+        kwargs = {"response_column": "y", "model": "scheffe_quadratic", "analysis_type": "coefficients"}
+        default = analyze_experiment(TestMixtureAnalysis._yarn(), **kwargs)
+        actual = analyze_experiment(TestMixtureAnalysis._yarn(), coding="actual", **kwargs)
+        assert default["coding"] == actual["coding"] == "actual"
+        assert default["coefficients"] == actual["coefficients"]
+
+    def test_auto_codes_and_keeps_the_actual_equation(self) -> None:
+        auto = analyze_experiment(_reactor(), coding="auto", **_REACTOR_COEFFICIENTS)
+        coded = analyze_experiment(_reactor(), coding="coded", **_REACTOR_COEFFICIENTS)
+        actual = analyze_experiment(_reactor(), coding="actual", **_REACTOR_COEFFICIENTS)
+        assert auto["coding"] == "coded"
+        assert auto["coefficients"] == coded["coefficients"]
+        assert auto["coefficients_actual"] == actual["coefficients"]
+        assert "coefficients_actual" not in actual
+
+    def test_coded_data_has_no_second_table(self) -> None:
+        data = _reactor().assign(T=[-1, 1, -1, 1, 0, 0], P=[-1, -1, 1, 1, 0, 0])
+        assert "coefficients_actual" not in analyze_experiment(data, **_REACTOR_COEFFICIENTS)
+
+    @pytest.mark.parametrize("coding", [{}, {"coding": None}], ids=["omitted", "null"])
+    def test_the_agent_tool_defaults_to_auto(self, coding: dict) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        rows = _reactor().to_dict("records")
+        request = {"design_matrix": rows, "response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+        default = execute_tool_call("analyze_experiment", {**request, **coding})
+        assert default["coding"] == "coded"
+        assert "coefficients_actual" in default
+        assert "coding_note" not in default
+        actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
+        assert actual["coding"] == "actual"
+        assert "coefficients_actual" not in actual
+
+
+class TestNoCodedScale:
+    """An ``I()`` term such as ``I(xi ** 0.5)`` has no value where the coded factor is negative (#963)."""
+
+    #: Box and Draper (2007) Table 8.4, the polymer catalyst data fitted as Y = b0 + b1 xi^(1/2) in Eq. (8.5.26).
+    DATA = pd.DataFrame({"xi": [0.5, 1.5, 2.5, 3.5, 4.5], "Y": [28.45, 47.78, 64.35, 74.67, 83.65]})
+
+    @pytest.mark.parametrize(
+        ("model", "column"),
+        [("I(xi ** 0.5)", np.sqrt), ("I(1 / xi)", np.reciprocal), ("I(xi ** -1)", np.reciprocal)],
+    )
+    @pytest.mark.parametrize("coding", ["actual", "auto"])
+    def test_it_fits_as_given(self, model: str, column, coding: str) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model=model, analysis_type=["anova", "coefficients"], coding=coding
+        )
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(column(self.DATA["xi"]))).fit()
+        assert result["coding"] == "actual"
+        assert [row["coefficient"] for row in result["coefficients"]] == pytest.approx(list(expected.params))
+        assert result["anova_table"][0]["sum_sq"] == pytest.approx(expected.ess)
+        assert result["model_summary"]["model_rank"] == 2
+
+    @pytest.mark.parametrize("coding", ["coded", {"xi": {"low": 0.5, "high": 4.5}}])
+    def test_a_coded_scale_is_refused(self, coding) -> None:
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(
+                self.DATA, response_column="Y", model="I(xi ** 0.5)", analysis_type="coefficients", coding=coding
+            )
+
+    def test_a_square_keeps_the_coded_scale(self) -> None:
+        result = analyze_experiment(
+            self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="coefficients"
+        )
+        assert result["coding"] == "coded"
+
+    @pytest.mark.parametrize("analysis", ["effects", "lenth_method"])
+    @pytest.mark.parametrize("model", ["I(xi ** 0.5)", "I(1 / xi)"])
+    def test_effects_are_refused(self, model: str, analysis: str) -> None:
+        """Coded, xi runs from -1 to +1: the square root was NaN, so two runs were dropped, and 1 / 0 failed."""
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(self.DATA, response_column="Y", model=model, analysis_type=analysis)
+
+    def test_effects_of_a_term_that_mixes_factors_are_refused(self) -> None:
+        """Box and Draper (2007) Table 3.6: once z2 is centred, I(z2 - 0.2 * z1) is another column."""
+        data = pd.DataFrame({"z1": [1.0, 1, 1], "z2": [0.8, 0.2, -0.4], "y": [4.0, 1, 1]})
+        with pytest.raises(ValueError, match="has no coded scale"):
+            analyze_experiment(data, response_column="y", model="z1 + I(z2 - 0.2 * z1) - 1", analysis_type="effects")
+
+    def test_a_polynomial_keeps_its_effects(self) -> None:
+        """Twice the coefficient on the coded xi; the square's column runs from 0 to 1, so its coefficient."""
+        result = analyze_experiment(self.DATA, response_column="Y", model="xi + I(xi ** 2)", analysis_type="effects")
+        coded = (self.DATA["xi"] - 2.5) / 2.0
+        expected = sm.OLS(self.DATA["Y"], sm.add_constant(pd.concat([coded, coded**2], axis=1))).fit().params
+        assert result["effects"] == pytest.approx({"xi": 2 * expected.iloc[1], "I(xi ** 2)": expected.iloc[2]})
+        assert result["effects_coding"] == {"xi": {"low": 0.5, "high": 4.5}}
+
+    def test_factors_already_coded_keep_their_effects(self) -> None:
+        """Nothing is refitted, so the term keeps its meaning: its coefficient times its column's span of 3."""
+        data = pd.DataFrame({"x": [-1.0, 0, 1, -1, 0, 1], "y": [3.0, 1, 4, 2.5, 1.2, 4.4]})
+        result = analyze_experiment(data, response_column="y", model="x + I(3 * x ** 2 - 2)", analysis_type="effects")
+        fit = smf.ols("y ~ x + I(3 * x ** 2 - 2)", data=data).fit()
+        assert result["effects"]["I(3 * x ** 2 - 2)"] == pytest.approx(3 * fit.params["I(3 * x ** 2 - 2)"])
+        assert "effects_coding" not in result
+
+
+class TestStandardisedCoefficients:
+    """Each coefficient's ``standardised_coefficient``: the coefficient times s(its column) / s(response)."""
+
+    @staticmethod
+    def _rows(result: dict) -> dict[str, dict]:
+        return {row["term"]: row for row in result["coefficients"]}
+
+    def test_it_is_the_coefficient_in_standard_deviations_and_the_intercept_has_none(self) -> None:
+        data = pd.DataFrame({"T": [150, 200, 150, 200, 175], "P": [1, 1, 3, 3, 2], "y": [10, 14, 11, 19, 13]})
+        result = analyze_experiment(
+            data, response_column="y", model="y ~ T + P", analysis_type="coefficients", coding="actual"
+        )
+        rows = self._rows(result)
+        spread = data["y"].std(ddof=1)
+        for term in ("T", "P"):
+            expected = rows[term]["coefficient"] * data[term].std(ddof=1) / spread
+            assert rows[term]["standardised_coefficient"] == pytest.approx(expected)
+        assert rows["Intercept"]["standardised_coefficient"] == 0.0
+
+    def test_it_does_not_depend_on_the_units_of_a_main_effect(self) -> None:
+        """Without interactions or squares, coding a factor rescales its coefficient and column alike."""
+        data = pd.DataFrame({"T": [150, 200, 150, 200, 175], "P": [1, 1, 3, 3, 2], "y": [10, 14, 11, 19, 13]})
+        common = {"response_column": "y", "model": "y ~ T + P", "analysis_type": "coefficients"}
+        actual = self._rows(analyze_experiment(data, coding="actual", **common))
+        coded = self._rows(analyze_experiment(data, coding="coded", **common))
+        assert actual["T"]["coefficient"] != pytest.approx(coded["T"]["coefficient"])
+        for term in ("T", "P"):
+            assert actual[term]["standardised_coefficient"] == pytest.approx(coded[term]["standardised_coefficient"])
+
+    def test_a_response_that_does_not_vary_has_none(self) -> None:
+        data = _two_factor_data().assign(y=5.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = analyze_experiment(data, response_column="y", model="y ~ A + B", analysis_type="coefficients")
+        assert all(np.isnan(row["standardised_coefficient"]) for row in result["coefficients"])
+
+
+#: BHH's blood coagulation times (Table 6.1): four diets, in seconds.
+_BLOOD = {
+    "A": [62, 60, 63, 59],
+    "B": [63, 67, 71, 64, 65, 66],
+    "C": [68, 66, 71, 67, 68, 68],
+    "D": [56, 62, 60, 61, 63, 64, 63, 59],
+}
+
+#: NIST 5.5.4.2, yarn elongation of three-component blends (proportions X1, X2, X3).
+_ELONGATION = [
+    (0.0, 0.0, 1.0, 16.8), (0.0, 0.0, 1.0, 16.0), (0.0, 0.5, 0.5, 10.0), (0.0, 0.5, 0.5, 9.7),
+    (0.0, 0.5, 0.5, 11.8), (0.0, 1.0, 0.0, 8.8), (0.0, 1.0, 0.0, 10.0), (0.5, 0.0, 0.5, 17.7),
+    (0.5, 0.0, 0.5, 16.4), (0.5, 0.0, 0.5, 16.6), (0.5, 0.5, 0.0, 15.0), (0.5, 0.5, 0.0, 14.8),
+    (0.5, 0.5, 0.0, 16.1), (1.0, 0.0, 0.0, 11.0), (1.0, 0.0, 0.0, 12.4),
+]  # fmt: skip
+
+#: Montgomery's vascular graft (Example 4.1): yield at four extrusion pressures, in six batches of resin.
+_GRAFT = {
+    "8500": [90.3, 89.2, 98.2, 93.9, 87.4, 97.9],
+    "8700": [92.5, 89.5, 90.6, 94.7, 87.0, 95.8],
+    "8900": [85.5, 90.8, 89.6, 86.2, 88.0, 93.4],
+    "9100": [82.5, 89.5, 85.6, 87.4, 78.9, 90.7],
+}
+
+
+class TestSumsOfSquaresConventions:
+    """The sums and R-squared values in the conventions sources print (#789 B1)."""
+
+    def test_the_crude_total_is_the_correction_for_the_mean_plus_the_corrected_total(self) -> None:
+        """BHH Table 6.4: 98,644 = 98,304 + 228 + 112."""
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        summary = analyze_experiment(data, response_column="y", model="y ~ diet")["model_summary"]
+        assert summary["ss_total_uncorrected"] == pytest.approx(98644)
+        assert summary["ss_mean"] == pytest.approx(98304)
+        assert summary["ss_model"] == pytest.approx(228)
+        assert summary["ss_residual"] == pytest.approx(112)
+        assert summary["ss_total"] == pytest.approx(340)
+        assert summary["coefficient_of_variation"] == pytest.approx(100 * np.sqrt(112 / 20) / 64)
+
+    def test_a_model_without_an_intercept_gives_its_sums_about_zero_and_says_its_rows_do_not_add_up(self) -> None:
+        """NIST 5.5.4.2 prints the uncorrected model and total sums, 2878.27 and 2884.83.
+
+        The formula is the Scheffe quadratic model, and its ANOVA is that model's (#964): the linear
+        blending as one block, then each blending term, none of which add up to the model's sums.
+        """
+        data = pd.DataFrame(_ELONGATION, columns=["X1", "X2", "X3", "y"])
+        model = "y ~ X1 + X2 + X3 + X1:X2 + X1:X3 + X2:X3 - 1"
+        result = analyze_experiment(data, response_column="y", model=model)
+        summary = result["model_summary"]
+        assert summary["ss_model_uncorrected"] == pytest.approx(2878.27, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(2884.83, abs=0.005)
+        assert summary["ss_model"] == pytest.approx(128.30, abs=0.005)  # about the mean: the blends span a constant
+        assert summary["ss_residual"] == pytest.approx(6.56, abs=0.005)
+        assert "do not add up to a model sum of squares" in result["anova_note"]
+        scheffe = analyze_experiment(data, response_column="y", model="scheffe_quadratic")
+        assert result["anova_table"] == scheffe["anova_table"]
+        assert result["anova_table"][0]["source"] == "Linear mixture"
+
+    def test_a_model_with_an_intercept_has_no_such_note(self) -> None:
+        rows = [(diet, y) for diet, values in _BLOOD.items() for y in values]
+        data = pd.DataFrame(rows, columns=["diet", "y"])
+        assert "anova_note" not in analyze_experiment(data, response_column="y", model="y ~ diet")
+
+    def test_r_squared_without_the_blocks_as_design_expert_reports_it(self) -> None:
+        """Montgomery Example 4.1: R² 0.6185, adjusted 0.5422 and predicted 0.0234, and C.V. 3.01%."""
+        rows = [(p, str(b), y) for p, values in _GRAFT.items() for b, y in enumerate(values, start=1)]
+        data = pd.DataFrame(rows, columns=["pressure", "Block", "y"])
+        summary = analyze_experiment(data, response_column="y", model="main_effects")["model_summary"]
+        assert summary["r_squared_without_blocks"] == pytest.approx(0.6185, abs=5e-5)
+        assert summary["r_squared_adj_without_blocks"] == pytest.approx(0.5422, abs=5e-5)
+        assert summary["r_squared_pred_without_blocks"] == pytest.approx(0.0234, abs=5e-5)
+        assert summary["ss_blocks"] == pytest.approx(192.25, abs=0.005)
+        assert summary["coefficient_of_variation"] == pytest.approx(3.01, abs=0.005)
+        assert summary["ss_total_uncorrected"] == pytest.approx(193999.31, abs=0.005)
+        unblocked = analyze_experiment(data.drop(columns="Block"), response_column="y", model="main_effects")
+        assert "r_squared_without_blocks" not in unblocked["model_summary"]
+
+    def test_with_nothing_left_to_test_the_values_without_blocks_are_none(self) -> None:
+        data = pd.DataFrame({"x": [-1, 1, -1, 1], "Block": ["1", "1", "2", "2"], "y": [1.0, 3.0, 2.0, 5.0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            summary = analyze_experiment(data, response_column="y", model="y ~ x + Block + x:Block")["model_summary"]
+        assert summary["r_squared_without_blocks"] is None
+        assert summary["coefficient_of_variation"] is None
+
+
+# ---------------------------------------------------------------------------
+# Data the analysis cannot use, refused by name (#1000, #1002, #1005)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "gap",
+    [{"y": [np.nan] * 4}, {"B": [np.nan, -1.0, np.nan, 1.0], "y": [10.0, np.nan, 11.0, np.nan]}],
+    ids=["no-response", "each-run-missing-something"],
+)
+def test_data_with_no_complete_run_is_refused(gap):
+    """#1000: with every run dropped, the fit failed inside numpy on an empty table."""
+    df = pd.DataFrame({"A": [-1.0, 1.0, -1.0, 1.0], "B": [-1.0, -1.0, 1.0, 1.0], "y": [10.0, 12.0, 11.0, 15.0]})
+    with pytest.raises(ValueError, match="No run has a value in every one of y, A, B"):
+        analyze_experiment(df.assign(**gap), response_column="y")
+
+
+def test_a_keyword_response_beside_a_column_named_like_its_stand_in_is_analysed():
+    """#1002: "yield" is fitted as "yield_", which was taken, so the stand-in became "yield__", refused as dunder."""
+    df = pd.DataFrame(
+        {"A": [-1, 1, -1, 1, 0, 0.0], "yield": [10, 14, 11, 16, 12.5, 13.0], "yield_": [1, 2, 3, 4, 5, 6.0]}
+    )
+    out = analyze_experiment(df, response_column="yield", model="yield ~ A")
+    x = np.column_stack([np.ones(6), df["A"]])
+    _, residual, *_ = np.linalg.lstsq(x, df["yield"].to_numpy(), rcond=None)
+    assert out["response_name"] == "yield"
+    assert out["model_summary"]["ss_residual"] == pytest.approx(float(residual[0]))
+
+
+def test_a_response_too_large_for_its_squares_is_refused_and_a_rescaled_one_fits_alike():
+    """#1005: squares near 1e600 overflow; any change of units leaves R-squared and the F test alone."""
+    df = pd.DataFrame(
+        {"A": [-1.0, 1.0, -1.0, 1.0, 0.0], "B": [-1.0, -1.0, 1.0, 1.0, 0.0], "y": [1.0, 2.0, 1.5, 3.0, 1.8]}
+    )
+    base = analyze_experiment(df, response_column="y", model="y ~ A + B")["model_summary"]
+    big = analyze_experiment(df.assign(y=df["y"] * 1e150), response_column="y", model="y ~ A + B")["model_summary"]
+    assert big["r_squared"] == pytest.approx(base["r_squared"])
+    assert big["f_p_value"] == pytest.approx(base["f_p_value"])
+    with pytest.raises(ValueError, match=r"too large in its units to analyse.*largest value is 3e\+300"):
+        analyze_experiment(df.assign(y=df["y"] * 1e300), response_column="y", model="y ~ A + B")

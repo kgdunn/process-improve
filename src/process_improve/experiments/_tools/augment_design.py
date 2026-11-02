@@ -22,7 +22,7 @@ class AugmentDesignInput(BaseModel):
         min_length=2,
         description=(
             "Current design matrix as list of dicts with factor names as keys "
-            "and coded values (-1/+1) as values. "
+            "and coded values (-1/+1) as values, or proportions for a mixture design. "
             "Example: [{'A': -1, 'B': -1}, {'A': 1, 'B': -1}, ...]"
         ),
     )
@@ -72,20 +72,58 @@ class AugmentDesignInput(BaseModel):
             "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
         ),
     )
+    factor_names: list[str] | None = Field(
+        None,
+        description=(
+            "The factor columns of existing_design. Default: every column except RunOrder and Block, refusing "
+            "any that does not look like a coded factor (such as a measured response). Name the factors when "
+            "the design also carries responses."
+        ),
+    )
+    random_state: int | None = Field(
+        42,
+        ge=0,
+        description="Seed for the exchange's random starts (add_runs_optimal). Default 42, for reproducible runs.",
+    )
+    hard_limits: list[str] | None = Field(
+        None,
+        description=(
+            "Factors whose coded -1 and +1 are limits of the process (a safety limit, an instrument's range): "
+            "no new run may set them past those levels. With any named, add_axial_points and upgrade_to_rsm put "
+            "the axial runs on the faces (alpha = 1) unless alpha is given, and refuse an alpha above 1."
+        ),
+    )
+    region: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Limits on the settings that every new run keeps to, as {'factors': [...], 'constraints': [...]}: "
+            "pass metadata['region'] from generate_design, whose factors' low and high are the design's -1 and +1. "
+            "add_runs_optimal then chooses runs inside the limits, add_center_points moves the centre runs to the "
+            "region's central setting when the centre breaks a limit, and any other new run that breaks a limit "
+            "is refused with the run and the limit named."
+        ),
+    )
 
 
 @tool_spec(
     name="augment_design",
     description=(
-        "Extend or modify an existing experimental design. Supports foldover (de-alias all "
-        "2-factor interactions), semifold (de-alias specific interactions with fewer runs), "
+        "Extend or modify an existing experimental design. Supports foldover (separates main effects "
+        "from 2-factor interactions: resolution III becomes IV, while 2-factor interactions aliased "
+        "through even-length words stay aliased), semifold (half the runs; partially de-aliases the "
+        "effects aliased through words containing the fold factor, leaving them correlated), "
         "adding center points (test for curvature), adding axial/star points (upgrade to CCD "
         "for response surface modeling), D-optimal augmentation (add runs to maximize information), "
         "upgrade to RSM (convert screening design to response surface design), add blocks "
         "(retroactively confound block effects with high-order interactions), and replication "
         "(improve precision estimates). "
+        "A mixture design, whose runs are blends with proportions that sum to 1, takes three of these: "
+        "add_axial_points adds its axial check blends (each midway between the centroid of the simplex "
+        "and a vertex), add_center_points adds runs at the centroid, and replicate copies the runs; the "
+        "others are refused. "
         "Always returns the augmented design matrix plus an explanation of what changed in the "
-        "alias structure and design properties."
+        "alias structure (which effects are now uncorrelated, which only partially de-aliased, and "
+        "which still fully aliased) and in the design properties."
     ),
     input_model=AugmentDesignInput,
     examples="""
@@ -101,11 +139,23 @@ class AugmentDesignInput(BaseModel):
         -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
                 alpha="rotatable", target_model="quadratic")``
 
+    # "Make it a response surface design, but pressure cannot go past 3 bar (coded +1)"
+        -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
+                hard_limits=["Pressure"])``
+
+    # "Add axial check blends to my simplex-centroid mixture design"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_axial_points")``
+
     # "Add 6 D-optimal runs to improve my design"
         -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
                 n_additional_runs=6, target_model="interactions")``
+
+    # "One run could not be made; add 4 runs that keep to the new limit 3*T + 5*D <= 600"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
+                n_additional_runs=4, region={"factors": [...], "constraints": ["3*T + 5*D <= 600"]})``
     """,
     category="experiments",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
 )
 def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
     """Augment an existing design."""
@@ -121,6 +171,10 @@ def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
             fold_on=spec.fold_on,
             alpha=spec.alpha,
             generators=spec.generators,
+            random_state=spec.random_state,
+            factor_names=spec.factor_names,
+            hard_limits=spec.hard_limits,
+            region=spec.region,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

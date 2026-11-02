@@ -104,6 +104,18 @@ def test_monitor_with_initial_conditions(aligned_nylon: dict) -> None:
     assert len(result.spe) == monitor.n_timesteps_
 
 
+def test_t2_limit_needs_as_many_observed_cells_as_components() -> None:
+    """One tag observed once cannot spread two score estimates over two dimensions, so no T2 limit exists there.
+
+    A ridge lets the projection itself run; the per-sample covariance check is what refuses.
+    """
+    rng = np.random.default_rng(0)
+    one_tag = {i: pd.DataFrame({"a": rng.normal(size=8).cumsum()}) for i in range(1, 13)}
+    model = BatchPCA(n_components=2).fit(one_tag)
+    with pytest.raises(ValueError, match=r"after 1 sample\(s\) span fewer than 2 dimensions"):
+        BatchMonitor(model, ridge=0.1).fit(one_tag)
+
+
 def test_predict_online_rejects_unexpected_initial_conditions(aligned_nylon: dict) -> None:
     """Passing a Z block to a model fitted without one is rejected."""
     model = BatchPCA(n_components=2).fit({k: v for k, v in aligned_nylon.items() if k <= 10})

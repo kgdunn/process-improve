@@ -38,6 +38,7 @@ class VisualizeDoeInput(BaseModel):
         "steepest_ascent_path",
         "fds_plot",
         "power_curve",
+        "correlation_map",
     ] = Field(
         ...,
         description="Type of DOE plot to generate.",
@@ -86,13 +87,13 @@ class VisualizeDoeInput(BaseModel):
     name="visualize_doe",
     description=(
         "Generate DOE visualisations from analysis results or design data. "
-        "Supports 21 plot types: significance plots (pareto, half_normal, daniel), "
+        "Supports 22 plot types: significance plots (pareto, half_normal, daniel), "
         "factor-effect plots (main_effects, interaction, perturbation), "
         "diagnostic plots (residuals_vs_fitted, normal_probability, residuals_vs_order, box_cox), "
         "response-surface plots (contour, surface_3d, prediction_variance), "
         "cube plot (cube_plot), square plot (square_plot), "
         "optimisation plots (desirability_contour, overlay, ridge_trace, steepest_ascent_path), "
-        "and design-quality plots (fds_plot, power_curve). "
+        "and design-quality plots (fds_plot, power_curve, correlation_map). "
         "Returns both Plotly and ECharts configurations for dual-backend rendering. "
         "Pass analysis_results from fit_linear_model or analyze_experiment, or raw design_data."
     ),

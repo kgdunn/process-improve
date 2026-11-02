@@ -1,0 +1,36 @@
+name: Factorial, the browser app
+description: A problem with a result, a change to the page, or other feedback on Factorial at factori.al
+title: "[Factorial] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For [Factorial](https://factori.al/), the browser app of process-improve. The app's Feedback
+        dialog fills this form in when it cannot send a report itself: from a copy of the app at
+        another address, or when factori.al could not take the report.
+
+        An issue is public. Leave out anything you would not want anyone to read: your study's
+        data, and your email address. To send those to the maintainer alone, use the Feedback
+        button on https://factori.al/.
+  - type: input
+    id: topic
+    attributes:
+      label: Topic
+      description: Algorithm or model, Interface suggestion, or General.
+    validations:
+      required: false
+  - type: textarea
+    id: message
+    attributes:
+      label: What happened, or what you suggest
+      description: For a result, what you did, what the page showed and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What the app reported
+      description: The app's build, the versions it runs, the tab on show and its last Python errors. The Feedback dialog fills this in.
+      render: text
+    validations:
+      required: false

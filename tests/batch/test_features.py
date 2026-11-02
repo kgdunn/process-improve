@@ -58,6 +58,44 @@ def test_age_col_specification(batch_data: pd.DataFrame) -> None:
     assert slopes.shape == (1, 2)
 
 
+def test_default_tags_exclude_the_batch_and_phase_columns() -> None:
+    """With no tags given, every column but the batch and phase identifiers is summarised per batch and phase."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 1, 2, 2],
+            "Phase": ["heat", "heat", "hold", "hold", "heat", "hold"],
+            "temp": [10.0, 20.0, 30.0, 50.0, 5.0, 7.0],
+        }
+    )
+    means = features.f_mean(data, batch_col="Batch", phase_col="Phase")
+    assert list(means.columns) == ["temp_mean"]
+    assert means["temp_mean"].to_dict() == {(1, "heat"): 15.0, (1, "hold"): 40.0, (2, "heat"): 5.0, (2, "hold"): 7.0}
+
+
+def test_a_feature_leaves_the_callers_dataframe_unchanged() -> None:
+    """The fake batch and phase grouping columns go on a copy, not on the caller's frame (#513)."""
+    data = pd.DataFrame({"temp": [10.0, 20.0, 30.0], "time": [0.0, 1.0, 2.0]})
+    before = data.copy()
+
+    features.f_mean(data, tags=["temp"])
+    features.f_area(data, time_tag="time", tags=["temp"])
+
+    pd.testing.assert_frame_equal(data, before)
+
+
+def test_slope_against_an_x_axis_column_of_the_batch() -> None:
+    """Without age_col the x-axis is read from the batch's own column; with all tags it includes itself (slope 1)."""
+    ramps = pd.DataFrame(
+        {
+            "Batch": [1] * 4 + [2] * 4,
+            "time": [0.0, 1.0, 2.0, 3.0] * 2,
+            "temp": [10.0, 12.0, 14.0, 16.0, 9.0, 6.0, 3.0, 0.0],
+        }
+    )
+    slopes = features.f_slope(ramps, x_axis_tag="time", batch_col="Batch").droplevel("__phase_grouper__")
+    assert slopes.to_dict() == {"time_slope": {1: 1.0, 2: 1.0}, "temp_slope": {1: 2.0, 2: -3.0}}
+
+
 def test_data_preprocessing(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
@@ -106,6 +144,17 @@ def test_f_robust_mad(batch_data: pd.DataFrame) -> None:
     assert list(mad.columns) == ["Temp1_robust_mad", "Temp2_robust_mad", "Pressure1_robust_mad"]
     assert mad.shape == std.shape
     assert (mad.values > 0).all()
+
+
+def test_scale_features_omit_a_missing_value_alike() -> None:
+    """f_iqr omits a missing value, as f_std and f_robust_mad do, instead of returning NaN for the batch (#513)."""
+    data = pd.DataFrame({"Batch": [1, 1, 1, 1, 1], "temp": [1.0, 2.0, np.nan, 3.0, 4.0]})
+    complete = data.dropna()
+    for feature in (features.f_iqr, features.f_std, features.f_robust_mad):
+        with_gap = feature(data, tags=["temp"], batch_col="Batch").iloc[0, 0]
+        without = feature(complete, tags=["temp"], batch_col="Batch").iloc[0, 0]
+        assert with_gap == pytest.approx(without), feature.__name__
+    assert features.f_iqr(data, tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(1.5)
 
 
 def test_f_agemin_agemax(batch_data: pd.DataFrame) -> None:
@@ -162,6 +211,30 @@ def test_sum_features(batch_data: pd.DataFrame) -> None:
         batch_col="Batch",
         time_tag="UCI_minutes",
     ).values[0] == pytest.approx([-73095.6162, -207910.839, 1648.069279], rel=1e-7)
+
+
+@pytest.mark.parametrize("as_index", [False, True], ids=["time-column", "time-index"])
+def test_f_area_on_a_datetime_axis_is_in_value_seconds(as_index: bool) -> None:
+    """A datetime or timedelta axis is measured in seconds: 2.0 for 3 minutes gives 360, not a timedelta (#513)."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 1],
+            "time": pd.to_datetime(["2026-01-01 00:00", "2026-01-01 00:01", "2026-01-01 00:02", "2026-01-01 00:03"]),
+            "temp": [2.0, 2.0, 2.0, 2.0],
+        }
+    )
+    if as_index:
+        data = data.set_index("time")
+    area = features.f_area(data, time_tag="time", tags=["temp"], batch_col="Batch")
+    assert area.iloc[0, 0] == pytest.approx(360.0)
+
+    in_columns = data.reset_index() if as_index else data
+    elapsed = in_columns.assign(time=pd.to_timedelta([0, 1, 2, 3], unit="min"))
+    assert features.f_area(elapsed, time_tag="time", tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(
+        360.0
+    )
+    minutes = in_columns.assign(time=[0.0, 1.0, 2.0, 3.0])
+    assert features.f_area(minutes, time_tag="time", tags=["temp"], batch_col="Batch").iloc[0, 0] == pytest.approx(6.0)
 
 
 # Extreme features
@@ -231,6 +304,27 @@ def test_cross_with_nan() -> None:
     assert len(result) == 1
 
 
+def test_cross_on_a_text_index_returns_positions() -> None:
+    """An index that cannot be interpolated (text labels) gives the 0-based positions just before each crossing."""
+    series = pd.Series([-1.0, 1.0, -1.0], index=["a", "b", "c"])
+    np.testing.assert_array_equal(cross(series, threshold=0), [0, 1])
+
+
+@pytest.mark.parametrize(
+    ("tag", "exc", "match"),
+    [
+        (["temp"], TypeError, r"tag must be a string; got list\."),
+        ("nope", KeyError, r"Desired tag \['nope'\] not found in the dataframe\."),
+    ],
+    ids=["tag-given-as-a-list", "tag-not-in-the-data"],
+)
+def test_f_crossing_needs_one_existing_tag(tag: object, exc: type, match: str) -> None:
+    """f_crossing looks for one named tag and says which one it could not use."""
+    data = pd.DataFrame({"Batch": [1, 1, 1], "time": [0.0, 1.0, 2.0], "temp": [-1.0, 0.5, 2.0]})
+    with pytest.raises(exc, match=match):
+        features.f_crossing(data, tag=tag, time_tag="time", batch_col="Batch")  # type: ignore[arg-type]
+
+
 def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     """f_crossing should find threshold crossings per batch."""
     df = batch_data
@@ -244,6 +338,23 @@ def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     )
     assert result.shape[1] == 1  # one feature column
     assert "Temp1" in result.columns[0]
+
+
+@pytest.mark.parametrize("only_index", [False, True], ids=["time-value", "index"])
+def test_f_crossing_is_nan_for_a_batch_that_never_crosses(only_index: bool) -> None:
+    """A batch with no crossing gets the documented NaN, not an empty array (#513)."""
+    data = pd.DataFrame(
+        {
+            "Batch": [1, 1, 1, 2, 2, 2],
+            "time": [0.0, 1.0, 2.0, 0.0, 1.0, 2.0],
+            "temp": [-1.0, 1.0, 2.0, 5.0, 6.0, 7.0],
+        }
+    )
+    crossing = features.f_crossing(data, tag="temp", time_tag="time", batch_col="Batch", only_index=only_index)
+    by_batch = crossing["temp_cross-0"].droplevel("__phase_grouper__")
+    assert by_batch[1] == (0 if only_index else 0.5)
+    assert isinstance(by_batch[2], float)
+    assert np.isnan(by_batch[2])
 
 
 def test_f_elbow_returns_x_value(batch_data: pd.DataFrame) -> None:
@@ -289,6 +400,24 @@ def test_f_elbow_no_elbow_records_nan() -> None:
     value = result.iloc[0, 0]
     assert isinstance(value, float)
     assert np.isnan(value)
+
+
+@pytest.mark.parametrize("only_index", [False, True], ids=["x-value", "index"])
+def test_f_elbow_records_nan_for_a_tag_never_measured_in_a_batch(only_index: bool) -> None:
+    """A batch whose tag is all missing has no elbow, so it gets NaN while the other batch keeps its elbow."""
+    n = 30
+    x = np.arange(n, dtype=float)
+    data = pd.DataFrame(
+        {
+            "Batch": ["B1"] * n + ["B2"] * n,
+            "time": np.r_[x, x],
+            "signal": np.r_[np.where(x < 15, 0.0, 2.0 * (x - 15)), np.full(n, np.nan)],
+        }
+    )
+    elbows = features.f_elbow(data, x_axis_tag="time", tags=["signal"], batch_col="Batch", only_index=only_index)
+    by_batch = elbows["signal_elbow"].droplevel("__phase_grouper__")
+    assert by_batch["B1"] == 15.0  # x equals the sample index here, so both readings agree
+    assert np.isnan(by_batch["B2"])
 
 
 class TestFRupture:

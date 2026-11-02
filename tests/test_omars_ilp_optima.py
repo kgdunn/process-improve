@@ -8,7 +8,7 @@ the optimum exactly; a regression to a heuristic (or a broken enumeration)
 shows up as a worse metric.
 
 These cells run on the enumeration path with a pinned ``n_runs``, which needs
-no ILP solve, so the tests do not require pulp or a working CBC binary.
+no ILP solve.
 """
 
 from __future__ import annotations

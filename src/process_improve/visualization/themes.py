@@ -65,7 +65,9 @@ THEME_BRAND: str = "pi_brand"
 #: Names of every theme registered by :func:`register_themes`.
 THEME_NAMES: tuple[str, ...] = (THEME_TUFTE, THEME_ECONOMIST, THEME_JOURNAL, THEME_BRAND)
 
-#: Theme applied as the Plotly default when the package is imported.
+#: Theme this library's plots request explicitly (via ``template=``) unless the
+#: caller overrides it. Importing does **not** change ``plotly.io.templates.default``;
+#: call :func:`set_theme` to opt a whole session in.
 DEFAULT_THEME: str = THEME_JOURNAL
 
 # ---------------------------------------------------------------------------
@@ -270,10 +272,31 @@ def _build_templates() -> dict[str, go.layout.Template]:
 def register_themes() -> None:
     """Register all process-improve themes in ``plotly.io.templates``.
 
-    Safe to call repeatedly; existing registrations are simply overwritten.
+    Safe to call repeatedly; existing registrations are simply overwritten. plotly is
+    imported here as well as when this module is first imported, so the themes can be
+    registered after plotly is installed into a running process: in a browser under
+    Pyodide it is installed when the first chart is drawn, after process-improve has
+    been imported without it.
     """
+    global go, pio  # noqa: PLW0603 - bind plotly if it arrived after this module was imported
+    import plotly.graph_objects as go  # noqa: PLC0415
+    import plotly.io as pio  # noqa: PLC0415
+
     for name, template in _build_templates().items():
         pio.templates[name] = template
+
+
+def ensure_themes() -> None:
+    """Register the themes unless plotly already has them.
+
+    The themes are registered when :mod:`process_improve.visualization` is imported, if
+    plotly is installed then; a figure drawn later calls this so that it never names a
+    template plotly does not know.
+    """
+    import plotly.io as plotly_io  # noqa: PLC0415
+
+    if DEFAULT_THEME not in plotly_io.templates:
+        register_themes()
 
 
 def set_theme(name: str = DEFAULT_THEME) -> None:

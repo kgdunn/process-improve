@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pytest
 from pydantic import BaseModel, ConfigDict
+from scipy import stats
 
 # Importing the univariate tools module triggers @tool_spec registration.
 import process_improve.multivariate.tools
@@ -192,6 +195,64 @@ class TestExecuteToolCall:
 
         with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
             execute_tool_call("robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"})
+
+
+class _WarnInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str
+    as_dict: bool = True
+
+
+@tool_spec(name="test_dummy_warns", description="Warn, then return.", input_model=_WarnInput)
+def _warns(spec: _WarnInput) -> dict | int:
+    warnings.warn(spec.message, RuntimeWarning, stacklevel=2)
+    warnings.warn(spec.message, RuntimeWarning, stacklevel=2)  # the same warning twice is reported once
+    warnings.warn("a second, different warning", UserWarning, stacklevel=2)
+    return {"ok": True} if spec.as_dict else 42
+
+
+@tool_spec(name="test_dummy_warns_numpy", description="Warn from inside numpy.", input_model=_EmptyInput)
+def _warns_numpy(spec: _EmptyInput) -> dict:
+    warnings.warn_explicit("divide by zero encountered", RuntimeWarning, "/site-packages/numpy/linalg/_x.py", 1)
+    # loky counts a Mac's cores with text=True and no encoding, which PYTHONWARNDEFAULTENCODING reports
+    warnings.warn_explicit("'encoding' argument not specified", EncodingWarning, "/site-packages/joblib/x.py", 1)
+    warnings.warn("the library's own advice", UserWarning, stacklevel=2)
+    return {"ok": True}
+
+
+class TestToolWarningsReachTheCaller:
+    """A warning a tool raises is returned in its result, where a model calling the tool reads it."""
+
+    def test_the_numerical_packages_own_warnings_and_encoding_warnings_are_left_out(self) -> None:
+        result = execute_tool_call("test_dummy_warns_numpy", {})
+        assert result["library_warnings"] == [{"category": "UserWarning", "message": "the library's own advice"}]
+
+    def test_each_warning_is_returned_once_in_the_order_raised(self) -> None:
+        result = execute_tool_call("test_dummy_warns", {"message": "the design leaves no error df"})
+        assert result["ok"] is True
+        assert result["library_warnings"] == [
+            {"category": "RuntimeWarning", "message": "the design leaves no error df"},
+            {"category": "UserWarning", "message": "a second, different warning"},
+        ]
+
+    def test_a_tool_raising_no_warning_gets_no_library_warnings_key(self) -> None:
+        assert "library_warnings" not in execute_tool_call("robust_summary_stats", {"values": [1, 2, 3]})
+
+    def test_a_result_that_is_not_a_dict_raises_its_warnings_again(self) -> None:
+        with pytest.warns(RuntimeWarning, match="not a dict"):
+            assert execute_tool_call("test_dummy_warns", {"message": "not a dict", "as_dict": False}) == 42
+
+    def test_the_warning_filters_are_restored_after_the_call(self) -> None:
+        before = list(warnings.filters)
+        execute_tool_call("test_dummy_warns", {"message": "restore the filters"})
+        assert warnings.filters == before
+
+    def test_calls_on_two_threads_each_get_only_their_own_warnings(self) -> None:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda m: execute_tool_call("test_dummy_warns", {"message": m}), ["one", "two"]))
+        for message, result in zip(["one", "two"], results, strict=True):
+            assert result["library_warnings"][0]["message"] == message
+            assert len(result["library_warnings"]) == 2
 
 
 # The pre-pydantic ``_filter_to_declared_keys`` helper was deleted in the
@@ -451,8 +512,10 @@ class TestTtestTwoSamples:
             "ttest_two_samples",
             {"group_a": [1, 2, 3], "group_b": [4, 5, 6]},
         )
-        for key in ("p_value", "z_value", "conf_int_lower", "conf_int_upper", "interpretation"):
+        for key in ("p_value", "t_value", "conf_int_lower", "conf_int_upper", "interpretation"):
             assert key in result
+        # 2.0.0 removed the misleading aliases of t_value and std_error_of_difference.
+        assert {"z_value", "pooled_std"}.isdisjoint(result)
 
     def test_result_json_serialisable(self) -> None:
         """Verify the result is JSON-serialisable."""
@@ -499,6 +562,15 @@ class TestTtestPairedSamples:
         )
         for key in ("differences_mean", "p_value", "z_value", "significant", "interpretation"):
             assert key in result
+
+    def test_differences_std_is_the_standard_deviation_of_the_differences(self) -> None:
+        """It was the standard error of their mean, sqrt(n) too small (#782)."""
+        result = execute_tool_call("ttest_paired_samples", {"group_a": [2, 4, 6, 8], "group_b": [1, 2, 3, 4]})
+        differences = np.array([1.0, 2.0, 3.0, 4.0])
+        assert result["differences_std"] == pytest.approx(differences.std(ddof=1))  # 1.291
+        assert result["std_error_of_mean_difference"] == pytest.approx(differences.std(ddof=1) / 2)
+        assert result["t_value"] == pytest.approx(stats.ttest_1samp(differences, 0).statistic)  # 3.873
+        assert result["z_value"] == result["t_value"]
 
     def test_result_json_serialisable(self) -> None:
         """Verify the result is JSON-serialisable."""
@@ -550,6 +622,23 @@ class TestWithinBetweenVariance:
 # ---------------------------------------------------------------------------
 # Multivariate tool wrapper tests (improving multivariate/tools.py coverage)
 # ---------------------------------------------------------------------------
+
+
+class TestGetMultivariateToolSpecs:
+    def test_returns_the_six_tools_the_module_registers(self) -> None:
+        """The helper returns exactly the module's six tools, each filed under the multivariate category."""
+        from process_improve.multivariate.tools import get_multivariate_tool_specs
+
+        specs = get_multivariate_tool_specs()
+        assert {s["name"] for s in specs} == {
+            "fit_pca",
+            "fit_pls",
+            "scale_data",
+            "detect_multivariate_outliers",
+            "pca_predict",
+            "pls_predict",
+        }
+        assert {s["category"] for s in specs} == {"multivariate"}
 
 
 class TestFitPca:
@@ -640,6 +729,33 @@ class TestPcaPredict:
         assert "error" not in pred_result
         assert len(pred_result["scores"]) == 5
 
+    def test_t2_leaves_out_a_component_with_no_spread(self) -> None:
+        """Three rows give three components, the third with no spread: it adds nothing to T² (#1026).
+
+        Three centred rows span two dimensions, so the third score sd is ~1e-16, and a new row
+        off that plane got a T² near 1e30. It is now ``sum (t_a / s_a)^2`` over the first two.
+        """
+        data = [[1.0, 2.0, 0.5], [2.0, 1.0, 3.0], [4.0, 3.5, 1.0]]
+        model_params = execute_tool_call("fit_pca", {"data": data, "n_components": 3})["model_params"]
+        s = np.array(model_params["scaling_factor_for_scores"])
+        assert s[2] < 1e-12
+        pred_result = execute_tool_call("pca_predict", {"new_data": [[0.0, 5.0, 2.0]], "model_params": model_params})
+        t = np.array(pred_result["scores"])
+        assert abs(t[0, 2]) > 0.1  # the new row is well off the plane
+        assert pred_result["hotellings_t2"] == pytest.approx([np.sum(t[0, :2] ** 2 / s[:2] ** 2)], rel=1e-12)
+
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, not read as a component with no spread.
+
+        Read that way it would drop out of T², and the corrupt model would give a T² that looks right.
+        """
+        data = np.random.default_rng(7).standard_normal((20, 3)).tolist()
+        model_params = execute_tool_call("fit_pca", {"data": data, "n_components": 2})["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pca_predict", {"new_data": data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
+
 
 class TestPlsPredict:
     """Tests for the pls_predict tool wrapper."""
@@ -662,6 +778,36 @@ class TestPlsPredict:
         )
         assert "error" not in pred_result
         assert len(pred_result["y_hat"]) == 5
+
+    def test_t2_leaves_out_a_component_with_no_spread(self) -> None:
+        """A component whose score sd is ~0 adds nothing to T², as in ``PLS.diagnose`` (#1026).
+
+        The model's second score sd is set to 1e-17, as a rank-deficient fit leaves it, so the
+        T² of a new row is ``(t_1 / s_1)^2`` alone.
+        """
+        rng = np.random.default_rng(42)
+        x_data = rng.standard_normal((30, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call("fit_pls", {"x_data": x_data, "y_data": y_data, "n_components": 2})
+        model_params = fit_result["model_params"]
+        model_params["scaling_factor_for_scores"][1] = 1e-17
+        s = model_params["scaling_factor_for_scores"][0]
+        pred_result = execute_tool_call("pls_predict", {"new_data": [[1.0, -2.0, 0.5]], "model_params": model_params})
+        t = np.array(pred_result["scores"])
+        assert abs(t[0, 1]) > 0.1
+        assert pred_result["hotellings_t2"] == pytest.approx([(t[0, 0] / s) ** 2], rel=1e-12)
+
+    @pytest.mark.parametrize("score_sd", [[float("nan"), 1.0], [-1.0, 1.0], []])
+    def test_refuses_a_score_sd_no_fit_gives(self, score_sd: list[float]) -> None:
+        """A NaN, negative or missing score sd is refused, as ``pca_predict`` refuses it."""
+        rng = np.random.default_rng(7)
+        x_data = rng.standard_normal((20, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call("fit_pls", {"x_data": x_data, "y_data": y_data, "n_components": 2})
+        model_params = fit_result["model_params"]
+        model_params["scaling_factor_for_scores"] = score_sd
+        pred_result = execute_tool_call("pls_predict", {"new_data": x_data[:2], "model_params": model_params})
+        assert "finite, non-negative" in pred_result["error"]
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,212 @@
+"""Blocking in ``generate_design(n_blocks=...)`` and ``augment_design(..., "add_blocks")``."""
+
+from __future__ import annotations
+
+import itertools
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from process_improve.experiments import _blocking, augment_design, generate_design
+from process_improve.experiments._blocking import confounding_blocks, exchange_blocks
+from process_improve.experiments.factor import Factor
+
+
+def _factors(k: int) -> list[Factor]:
+    return [Factor(name=f"x{i}", low=0, high=10) for i in range(k)]
+
+
+def _within_block_centred(x: np.ndarray, blocks: np.ndarray) -> np.ndarray:
+    out = x.copy()
+    for b in np.unique(blocks):
+        out[blocks == b] -= x[blocks == b].mean(axis=0)
+    return out
+
+
+@pytest.mark.parametrize(("k", "n_blocks"), [(3, 2), (4, 2), (4, 4), (5, 4), (6, 8), (7, 8)])
+def test_factorial_blocks_are_orthogonal_to_main_effects_and_interactions(k: int, n_blocks: int) -> None:
+    """With blocks from confounded words, main effects and 2FIs keep their full information."""
+    result = generate_design(_factors(k), "full_factorial", n_blocks=n_blocks, n_center_points=0)
+    x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+    blocks = result.design["Block"].to_numpy()
+    model = np.column_stack([x, *[x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]])
+    centred = _within_block_centred(model, blocks)
+    # Every main effect stays orthogonal to blocks; 2FIs too, except any the blocks confound.
+    confounded = set(result.metadata["blocking"]["confounded_with"])
+    assert np.allclose(centred[:, :k], x)
+    pairs = [(a, b) for a in range(k) for b in range(a + 1, k)]
+    for column, (i, j) in zip(centred.T[k:], pairs, strict=True):
+        if f"x{i}x{j}" not in confounded:
+            np.testing.assert_allclose(column, x[:, i] * x[:, j])
+    assert np.all(np.bincount(blocks)[1:] == len(x) // n_blocks)
+
+
+def test_four_blocks_of_a_two_to_the_four_confound_only_one_interaction() -> None:
+    """Every 4-block scheme of a 2^4 confounds some two-factor interaction; never a main effect (#bug: D was)."""
+    result = generate_design(_factors(4), "full_factorial", n_blocks=4, n_center_points=0)
+    confounded = result.metadata["blocking"]["confounded_with"]
+    assert all(len(word) >= 4 for word in confounded)  # "x2x3" or longer: no single factor
+    assert sum(len(word) == 4 for word in confounded) == 1
+
+
+def test_runs_are_randomised_within_blocks_and_blocks_run_in_turn() -> None:
+    result = generate_design(_factors(4), "full_factorial", n_blocks=2, n_center_points=2, random_state=3)
+    blocks = result.design["Block"].tolist()
+    assert blocks == sorted(blocks)
+    assert blocks.count(1) == blocks.count(2) == 9
+
+
+@pytest.mark.parametrize(("design_type", "k"), [("box_behnken", 4), ("dsd", 6)])
+def test_other_designs_block_by_exchange(design_type: str, k: int) -> None:
+    result = generate_design(_factors(k), design_type, n_blocks=2)
+    assert result.metadata["blocking"]["method"] == "exchange"
+    x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+    blocks = result.design["Block"].to_numpy()
+    # Main effects keep (nearly) all of their information once each block has its own mean.
+    full = (x - x.mean(axis=0)).T @ (x - x.mean(axis=0))
+    blocked = _within_block_centred(x, blocks).T @ _within_block_centred(x, blocks)
+    assert np.linalg.det(blocked) >= 0.95 * np.linalg.det(full)
+
+
+def test_a_model_the_design_cannot_estimate_in_one_block_is_passed_over() -> None:
+    """With centre runs as their only third level, the squares of two factors are the same column.
+
+    The quadratic model is then singular however the runs are split, and the exchange used to
+    maximise a determinant that was rounding error: the blocks it picked differed between platforms.
+    The third factor is categorical, so its centre runs sit at its labels, coded -1 and +1.
+    """
+    cube = np.array(list(itertools.product((-1.0, 1.0), repeat=3)))
+    design = np.vstack([cube, cube, [[0.0, 0.0, -1.0], [0.0, 0.0, 1.0]]])
+    blocking = exchange_blocks(design, 2, np.random.default_rng(42))
+    assert blocking.model == "interactions"
+
+
+def test_a_factorial_with_a_categorical_factor_is_blocked_for_the_model_it_can_estimate() -> None:
+    """Centre runs at one of a categorical factor's labels make the design irregular, so the exchange blocks it.
+
+    Blocked for its interactions, it keeps nearly all of their information: an odd block of
+    nine runs cannot balance the supplier. The blocks picked for the singular quadratic kept 92%.
+    """
+    factors = [*_factors(2), Factor(name="supplier", type="categorical", levels=["A", "B"])]
+    result = generate_design(factors, "full_factorial", n_blocks=2, n_replicates=2, n_center_points=2, random_state=42)
+    assert result.metadata["blocking"]["method"] == "exchange"
+    assert result.metadata["blocking"]["model"] == "interactions"
+    x = result.design[["x0", "x1"]].to_numpy(dtype=float)
+    supplier = result.design["supplier"].map({"A": -1.0, "B": 1.0}).to_numpy(dtype=float)
+    x = np.column_stack([x, supplier])
+    model = np.column_stack([x, x[:, 0] * x[:, 1], x[:, 0] * x[:, 2], x[:, 1] * x[:, 2]])
+    full = (model - model.mean(axis=0)).T @ (model - model.mean(axis=0))
+    blocked = _within_block_centred(model, result.design["Block"].to_numpy())
+    assert np.linalg.det(blocked.T @ blocked) / np.linalg.det(full) > 0.98
+
+
+def test_a_later_start_must_beat_an_earlier_one_by_more_than_rounding(monkeypatch) -> None:
+    """Starts that reach the same value, to rounding, keep the first: rounding differs between platforms."""
+    design = np.vstack([np.array(list(itertools.product((-1.0, 1.0), repeat=3)))] * 2)
+    values = iter([5.0, 5.0 + 1e-14, 5.0 - 1e-14, 5.0 + 2e-14])
+    monkeypatch.setattr(_blocking, "_climb", lambda _x, labels, _n_blocks: (labels.copy(), next(values)))
+    first = np.random.default_rng(0).permutation(np.arange(16) % 2)
+    blocking = exchange_blocks(design, 2, np.random.default_rng(0))
+    np.testing.assert_array_equal(blocking.labels, first + 1)
+
+
+def test_blocks_must_be_a_power_of_two_for_a_factorial() -> None:
+    with pytest.raises(ValueError, match="2, 4, 8"):
+        confounding_blocks(np.array([[-1, -1], [1, -1], [-1, 1], [1, 1]], dtype=float), 3, ["a", "b"])
+
+
+def test_too_many_blocks_for_the_runs_raises() -> None:
+    with pytest.raises(ValueError, match="between 2 and half"):
+        exchange_blocks(np.eye(4), 3, np.random.default_rng(1))
+
+
+def test_blocks_with_fixed_runs_raise_unless_the_exchange_blocks_them() -> None:
+    """E-optimal designs are blocked afterwards, which cannot move runs already made; D-optimal ones block them in."""
+    fixed = pd.DataFrame({"x0": [0.0], "x1": [0.0]})
+    with pytest.raises(ValueError, match="fixed_runs"):
+        generate_design(_factors(2), "e_optimal", budget=8, fixed_runs=fixed, n_blocks=2)
+    result = generate_design(_factors(2), "d_optimal", budget=8, fixed_runs=fixed, n_blocks=2)
+    assert result.design["Block"].iloc[0] == 1
+    assert (result.design["Block"].iloc[1:] == 2).all()
+
+
+def test_add_blocks_never_confounds_a_main_effect() -> None:
+    """augment_design used ABCD and ABC as generators for 4 blocks, whose product D is a main effect."""
+    base = generate_design(_factors(4), "full_factorial", n_center_points=0)
+    design = base.design[[f"x{i}" for i in range(4)]]
+    result = augment_design(design, "add_blocks", n_additional_runs=4)
+    blocks = np.array([row["Block"] for row in result["augmented_design"]])
+    x = design.to_numpy(dtype=float)
+    np.testing.assert_allclose(_within_block_centred(x, blocks), x)
+    assert all(len(word) >= 4 for word in result["confounded_with"])
+
+
+class TestCentralCompositeBlocks:
+    """A CCD is blocked by its portions: the axial runs in one block, the cube runs in the others (#513)."""
+
+    @staticmethod
+    def _quadratic_terms(x: np.ndarray) -> np.ndarray:
+        k = x.shape[1]
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        return np.column_stack([x, *pairs, x**2])
+
+    def _block_correlation(self, result, k: int) -> float:
+        """Largest |correlation| between a block indicator and any term of the full quadratic model."""
+        x = result.design[[f"x{i}" for i in range(k)]].to_numpy(dtype=float)
+        blocks = result.design["Block"].to_numpy()
+        indicators = np.column_stack([(blocks == b).astype(float) for b in np.unique(blocks)])
+        terms = self._quadratic_terms(x)
+        a, b = indicators - indicators.mean(axis=0), terms - terms.mean(axis=0)
+        return float(np.max(np.abs(a.T @ b) / np.outer(np.linalg.norm(a, axis=0), np.linalg.norm(b, axis=0))))
+
+    @pytest.mark.parametrize(("k", "n_replicates"), [(2, 1), (3, 1), (4, 1), (3, 2)])
+    def test_two_blocks_are_orthogonal_to_the_quadratic_model(self, k: int, n_replicates: int) -> None:
+        result = generate_design(_factors(k), "ccd", n_blocks=2, n_center_points=6, n_replicates=n_replicates)
+        blocking = result.metadata["blocking"]
+        assert (blocking["method"], blocking["orthogonal"]) == ("ccd_portions", True)
+        assert result.metadata["alpha_rule"] == "orthogonal_blocks"
+        assert self._block_correlation(result, k) == pytest.approx(0.0, abs=1e-12)
+        cube_runs = n_replicates * 2**k
+        assert sorted(np.bincount(result.design["Block"])[1:].tolist()) == sorted(
+            [cube_runs + 3, (result.n_runs - cube_runs - 3)]
+        )
+
+    def test_two_factors_in_two_blocks_take_root_two(self) -> None:
+        """Montgomery's example: a 2^2 cube and three centre runs per block is rotatable and orthogonally blocked."""
+        result = generate_design(_factors(2), "ccd", n_blocks=2, n_center_points=6)
+        assert result.alpha == pytest.approx(np.sqrt(2))
+
+    def test_three_blocks_split_the_cube_by_confounding(self) -> None:
+        """With two centre runs in each cube block, all three blocks are orthogonal to every term."""
+        result = generate_design(_factors(3), "ccd", n_blocks=3, n_center_points=4)
+        assert result.metadata["blocking"]["confounded_with"] == ["x0x1x2"]
+        assert result.metadata["blocking"]["orthogonal"]
+        assert self._block_correlation(result, 3) == pytest.approx(0.0, abs=1e-12)
+
+    def test_a_chosen_alpha_is_kept_and_its_blocks_reported(self) -> None:
+        result = generate_design(_factors(3), "ccd", n_blocks=2, alpha="rotatable")
+        assert result.alpha == pytest.approx(8**0.25)
+        assert result.metadata["blocking"]["orthogonal"] is False
+
+    def test_the_block_count_must_suit_the_portions(self) -> None:
+        with pytest.raises(ValueError, match="2, 3, 5, 9"):
+            generate_design(_factors(3), "ccd", n_blocks=4)
+
+    def test_losing_an_interaction_to_blocks_warns(self) -> None:
+        """Four cube blocks of a 2^4 confound a two-factor interaction, which the quadratic model then loses."""
+        with pytest.warns(UserWarning, match="confounds x2:x3 with blocks"):
+            generate_design(_factors(4), "ccd", n_blocks=5)
+
+
+def test_blocking_alpha_matches_the_orthogonality_condition() -> None:
+    from process_improve.experiments._blocking import squares_orthogonal_to_blocks
+    from process_improve.experiments.designs_response_surface import blocking_alpha
+
+    alpha = blocking_alpha(8, 3, 3, 2)
+    cube = np.array([[a, b, c] for a in (-1, 1) for b in (-1, 1) for c in (-1, 1)], dtype=float)
+    star = np.vstack([sign * alpha * np.eye(3)[i] for i in range(3) for sign in (-1, 1)])
+    design = np.vstack([cube, np.zeros((3, 3)), star, np.zeros((2, 3))])
+    labels = np.array([1] * 11 + [2] * 8)
+    assert squares_orthogonal_to_blocks(design, labels)
+    assert not squares_orthogonal_to_blocks(design * np.r_[np.ones(11), 1.1 * np.ones(8)][:, None], labels)

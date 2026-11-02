@@ -242,13 +242,12 @@ def _apply_hint(
     factors = parsed["factors"]
     direction = parsed["direction"]
     is_quadratic = parsed["is_quadratic"]
+    # The parsed outputs are matched from the same names that key *coefficients*.
     applied_outputs = parsed["outputs"] or list(coefficients.keys())
     sign_map = {"+": 1.0, "-": -1.0, None: 0.0}
     has_dir = direction is not None
 
     for out_name in applied_outputs:
-        if out_name not in coefficients:
-            continue
         out_coefs = coefficients[out_name]
         sign = sign_map[direction]
 

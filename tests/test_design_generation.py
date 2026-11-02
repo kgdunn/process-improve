@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import itertools
+import warnings
+
 import numpy as np
 import pytest
 
-from process_improve.experiments.designs import _auto_select, generate_design
+from process_improve.experiments.designs import _DESIGN_REGISTRY, _OPTIMAL_FAMILIES, _auto_select, generate_design
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
 _HAS_PYOPTEX = False
@@ -71,6 +74,31 @@ class TestFactor:
         f = Factor(name="x1", type="mixture")
         assert f.low == 0.0
         assert f.high == 1.0
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"low": float("nan"), "high": 1}, "finite"),
+            ({"low": 0, "high": float("inf")}, "finite"),
+            ({"type": "mixture", "low": 0.8, "high": 0.2}, "must be less than"),
+            ({"type": "mixture", "low": -0.2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "high": 2}, "0 <= low < high <= 1"),
+            ({"type": "mixture", "low": float("nan")}, "finite"),
+            ({"type": "categorical", "levels": ["a", None]}, "cannot be missing"),
+            ({"type": "categorical", "levels": [1, float("nan")]}, "cannot be missing"),
+            ({"type": "categorical", "levels": ["a", "b", "a"]}, "distinct"),
+        ],
+    )
+    def test_invalid_bounds_and_levels_raise(self, kwargs: dict, match: str) -> None:
+        """NaN bounds turned every row of the design into NaN; bad mixture bounds failed late or not at all."""
+        with pytest.raises(ValueError, match=match):
+            Factor(name="F", **kwargs)
+
+    def test_from_data_on_missing_data_raises(self) -> None:
+        import pandas as pd
+
+        with pytest.raises(ValueError, match="finite"):
+            Factor.from_data(pd.Series([float("nan")] * 3, name="A"))
 
     def test_from_data_continuous_infers_range(self) -> None:
         """from_data should infer low/high from the data when not given."""
@@ -187,8 +215,8 @@ class TestFullFactorial:
     def test_reproducible_randomization(self) -> None:
         """Same seed should produce the same run order."""
         factors = _continuous_factors(3, "ABC")
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=123, n_center_points=0)
         assert r1.run_order == r2.run_order
         # run_order should be a permutation
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
@@ -196,8 +224,8 @@ class TestFullFactorial:
     def test_different_seeds_different_order(self) -> None:
         """Different seeds should produce different run orders."""
         factors = _continuous_factors(4)  # 16 runs to reduce chance of collision
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=1, n_center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=999, n_center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_state=1, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_state=999, n_center_points=0)
         # run_order should be a permutation of original rows (1-based)
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
         assert sorted(r2.run_order) == list(range(1, r2.n_runs + 1))
@@ -284,6 +312,24 @@ class TestPlackettBurman:
             vals = result.design[col].unique()
             assert set(vals) <= {-1.0, 1.0}
 
+    @pytest.mark.parametrize(
+        ("k", "construction", "sizes"), [(23, "I+C(paley_q=23)", {0, 8}), (35, "cyclic_row_36", {4, 12})]
+    )
+    def test_24_and_36_runs_are_the_cyclic_designs_plackett_and_burman_printed(
+        self, k: int, construction: str, sizes: set[int]
+    ) -> None:
+        """Not the 12-run design doubled, nor Paley's second construction: no product of three columns is aliased.
+
+        |J|, the absolute sum of a product of three columns, takes only the sizes of the designs written
+        from Plackett and Burman's rows (Montgomery's Table 8.23); the doubled 24-run design has |J| = 24.
+        """
+        result = generate_design(_continuous_factors(k), design_type="plackett_burman", n_center_points=0)
+        assert result.metadata["construction"] == construction
+        x = result.design[result.factor_names].to_numpy(dtype=float)
+        j_sizes = {abs(round(np.prod(x[:, list(c)], axis=1).sum())) for c in itertools.combinations(range(k), 3)}
+        assert j_sizes == sizes
+        assert np.allclose(x.T @ x, len(x) * np.eye(k))
+
 
 # ---------------------------------------------------------------------------
 # Box-Behnken
@@ -358,11 +404,88 @@ class TestCCD:
         max_abs = max(result.design[col].abs().max() for col in result.factor_names)
         assert max_abs > 1.0
 
+    def test_axial_runs_beyond_the_ranges_are_recorded_and_warned_about(self) -> None:
+        """A rotatable CCD asked for -0.68 wt% silane, without a word."""
+        factors = [Factor(name="Silane", low=0, high=2, units="wt%"), Factor(name="Ra", low=1, high=5)]
+        with pytest.warns(UserWarning, match=r"Silane from -0\.4142 to 2\.414 wt% against a range of 0 to 2"):
+            result = generate_design(factors, design_type="ccd", alpha="rotatable")
+        beyond = result.metadata["runs_beyond_ranges"]
+        assert beyond["Silane"] == {"lowest": pytest.approx(1 - 2**0.5), "highest": pytest.approx(1 + 2**0.5)}
+        assert set(beyond) == {"Silane", "Ra"}
+
+    @pytest.mark.parametrize("alpha", ["face_centered", "inscribed"])
+    def test_a_ccd_inside_the_ranges_is_silent(self, alpha: str) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            result = generate_design(_continuous_factors(3, "ABC"), design_type="ccd", alpha=alpha)
+        assert "runs_beyond_ranges" not in result.metadata
+
+    def test_a_hard_limit_makes_the_default_ccd_face_centred(self) -> None:
+        """A rotatable CCD steps past a range that is a limit of the process: 0.59 bar on a 1 to 3 bar vessel."""
+        factors = [
+            Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True),
+            Factor(name="T", low=20, high=60),
+        ]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            result = generate_design(factors, design_type="ccd")
+        assert result.alpha == pytest.approx(1.0)
+        assert result.design_actual["Pressure"].between(1, 3).all()
+        assert "hard limit" in result.metadata["alpha_reason"]
+
+    def test_a_ccd_past_a_hard_limit_is_refused(self) -> None:
+        factors = [
+            Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True),
+            Factor(name="T", low=20, high=60),
+        ]
+        with pytest.raises(ValueError, match=r"past their hard limits: Pressure from 0\.5858 to 3\.414 bar"):
+            generate_design(factors, design_type="ccd", alpha="rotatable")
+
+    def test_an_alpha_asked_for_is_kept_inside_hard_limits(self) -> None:
+        factors = [Factor(name="Pressure", low=1, high=3, hard_limits=True), Factor(name="T", low=20, high=60)]
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        assert "alpha_reason" not in result.metadata
+        assert result.design_actual["Pressure"].between(1, 3).all()
+
     def test_inscribed(self) -> None:
         """Inscribed CCD keeps all points within the coded cube."""
         factors = _continuous_factors(2, "AB")
         result = generate_design(factors, design_type="ccd", alpha="inscribed")
         assert result.n_factors == 2
+
+    def test_inscribed_reports_the_axial_to_cube_ratio(self) -> None:
+        """The inscribed CCD shrinks the cube to +/-1/alpha; alpha is the ratio, not the 1.0 of the axial runs."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        coded = result.design[result.factor_names].to_numpy(dtype=float)
+        cube = coded[np.all(coded != 0, axis=1)]
+        assert result.alpha == pytest.approx(8**0.25)
+        assert np.allclose(np.abs(cube), 1 / result.alpha)
+        assert result.metadata["face"] == "inscribed"
+        assert result.metadata["alpha_rule"] == "inscribed"
+
+    @pytest.mark.parametrize(
+        ("alpha", "face", "rule"),
+        [
+            ("rotatable", "circumscribed", "rotatable"),
+            ("face_centered", "faced", "face_centered"),
+            (1.5, "circumscribed", "user"),
+        ],
+    )
+    @pytest.mark.parametrize("cube", ["full", "fractional"])
+    def test_face_names_the_geometry_in_both_cube_types(
+        self, alpha: str | float, face: str, rule: str, cube: str
+    ) -> None:
+        """'face' meant the geometry for a full cube but the alpha rule for a fractional one."""
+        result = generate_design(_continuous_factors(5, "ABCDE"), design_type="ccd", alpha=alpha, cube=cube)
+        assert result.metadata["face"] == face
+        assert result.metadata["alpha_rule"] == rule
+
+    @pytest.mark.parametrize("alpha", ["rotatable", "face_centered", "inscribed", None, 1.5])
+    def test_one_factor_raises_value_error(self, alpha: str | float | None) -> None:
+        """pyDOE3 guards n > 1 with an assert, so the outcome depended on python -O."""
+        with pytest.raises(ValueError, match="at least 2 factors"):
+            generate_design(_continuous_factors(1, "A"), design_type="ccd", alpha=alpha)
 
     def test_orthogonal_default(self) -> None:
         """An explicit 'orthogonal' alpha is accepted."""
@@ -427,11 +550,37 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", cube="fractional", alpha="rotatable", n_center_points=6)
         assert result.alpha == pytest.approx(16**0.25)  # 16-run cube -> alpha = 2.0
 
-    def test_fractional_cube_rejects_low_resolution(self) -> None:
-        """A sub-resolution-V cube is rejected: the quadratic model would be inestimable."""
+    def test_fractional_cube_that_aliases_interactions_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """E = ABC aliases AB with CE and so on: the full quadratic model is not estimable, a reduced one is."""
         factors = _continuous_factors(5, "ABCDE")
-        with pytest.raises(ValueError, match="resolution V"):
-            generate_design(factors, design_type="ccd", cube="fractional", generators=["E=ABC"])
+        with caplog.at_level("WARNING"):
+            result = generate_design(factors, design_type="ccd", cube="fractional", generators=["E=ABC"])
+        assert "not estimable" in caplog.text
+        assert result.metadata["full_quadratic_estimable"] is False
+        assert "A:B = C:E" in result.metadata["aliased_interactions"]
+        assert len(result.metadata["aliased_interactions"]) == 3
+
+    def test_default_half_fraction_that_aliases_interactions_raises(self) -> None:
+        """Four factors: the half fraction I = ABCD aliases AB with CD, so the default cube is refused."""
+        with pytest.raises(ValueError, match="aliases two-factor interactions in pairs"):
+            generate_design(_continuous_factors(4, "ABCD"), design_type="ccd", cube="fractional")
+
+    @pytest.mark.parametrize(("k", "generators", "n_cube"), [(3, None, 4), (4, ["D=AB"], 8)])
+    def test_small_composite_design(self, k: int, generators: list[str] | None, n_cube: int) -> None:
+        """Hartley's small composite designs: cube runs aliasing interactions only with main effects.
+
+        Three factors in 4 + 6 runs and four in 8 + 8 (Nunez Ares and Goos 2020, Table 1), centre runs aside.
+        """
+        factors = _continuous_factors(k, "ABCD"[:k])
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", generators=generators, n_center_points=0
+        )
+        assert result.n_runs == n_cube + 2 * k
+        assert result.metadata["full_quadratic_estimable"] is True
+        x = result.design[result.factor_names].to_numpy(dtype=float)
+        pairs = [x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]
+        quadratic = np.column_stack([np.ones(len(x)), x, x**2, *pairs])
+        assert np.linalg.matrix_rank(quadratic) == quadratic.shape[1]  # the full quadratic model is estimable
 
     def test_full_cube_default_unchanged(self) -> None:
         """The default full cube is unchanged: 32 cube + 10 axial + 6 centre = 48 runs."""
@@ -494,6 +643,70 @@ class TestCCD:
 # ---------------------------------------------------------------------------
 # DSD (Definitive Screening Design)
 # ---------------------------------------------------------------------------
+
+
+class TestCentreRunsAndReplicates:
+    """``n_center_points`` counts the centre runs of the whole design; replicates repeat the other runs (#513)."""
+
+    @staticmethod
+    def _centre_runs(result, names: str) -> int:
+        coded = result.design[list(names)].to_numpy(dtype=float)
+        return int(np.all(np.isclose(coded, 0.0), axis=1).sum())
+
+    def test_a_replicated_factorial_keeps_its_centre_runs(self) -> None:
+        result = generate_design(_continuous_factors(3, "ABC"), "full_factorial", n_center_points=3, n_replicates=2)
+        assert result.n_runs == 2 * 8 + 3
+        assert self._centre_runs(result, "ABC") == 3
+
+    @pytest.mark.parametrize("design_type", ["ccd", "box_behnken", "dsd"])
+    def test_designs_with_centre_runs_of_their_own(self, design_type: str) -> None:
+        once = generate_design(_continuous_factors(3, "ABC"), design_type, n_center_points=3)
+        twice = generate_design(_continuous_factors(3, "ABC"), design_type, n_center_points=3, n_replicates=2)
+        assert self._centre_runs(twice, "ABC") == self._centre_runs(once, "ABC") == 3
+        assert twice.n_runs == 2 * (once.n_runs - 3) + 3
+
+    @pytest.mark.parametrize(("cube", "names"), [("full", "ABC"), ("fractional", "ABCDE")])
+    def test_a_replicated_ccd_keeps_its_squares_orthogonal(self, cube: str, names: str) -> None:
+        """The orthogonal axial distance allows for replicated cube and axial runs but single centre runs."""
+        result = generate_design(
+            _continuous_factors(len(names), names), "ccd", cube=cube, n_center_points=3, n_replicates=2
+        )
+        squares = result.design[list(names)].to_numpy(dtype=float) ** 2
+        correlation = np.corrcoef((squares - squares.mean(axis=0)).T)
+        np.testing.assert_allclose(correlation[np.triu_indices(len(names), 1)], 0.0, atol=1e-12)
+
+    def test_a_categorical_dsd_has_no_centre_runs_to_keep_single(self) -> None:
+        """With no continuous factor no run is at the centre, so replication repeats every run."""
+        factors = [Factor(name=name, type="categorical", levels=["L", "H"]) for name in "ABC"]
+        once = generate_design(factors, "dsd")
+        assert generate_design(factors, "dsd", n_replicates=2).n_runs == 2 * once.n_runs
+
+    def test_the_budget_counts_centre_runs_once(self) -> None:
+        assert generate_design(_continuous_factors(3, "ABC"), "full_factorial", budget=19, n_replicates=2).n_runs == 19
+        with pytest.raises(ValueError, match="budget"):
+            generate_design(_continuous_factors(3, "ABC"), "full_factorial", budget=18, n_replicates=2)
+
+
+class TestOrthogonalAlpha:
+    """The axial distance that makes a CCD's squared columns orthogonal."""
+
+    def test_a_design_replicated_whole_keeps_its_alpha(self) -> None:
+        from process_improve.experiments.designs_response_surface import orthogonal_alpha
+
+        assert orthogonal_alpha(16, 34, n_axial_replicates=2) == pytest.approx(orthogonal_alpha(8, 17))
+
+    @pytest.mark.parametrize(("replicates", "n_center"), [(1, 3), (2, 3), (3, 1)])
+    def test_it_makes_the_squares_orthogonal(self, replicates: int, n_center: int) -> None:
+        from process_improve.experiments.designs_response_surface import orthogonal_alpha
+
+        cube = np.array([[a, b] for a in (-1.0, 1.0) for b in (-1.0, 1.0)])
+        n_runs = replicates * (4 + 4) + n_center
+        alpha = orthogonal_alpha(replicates * 4, n_runs, n_axial_replicates=replicates)
+        star = np.array([[-alpha, 0], [alpha, 0], [0, -alpha], [0, alpha]])
+        runs = np.vstack([np.tile(np.vstack([cube, star]), (replicates, 1)), np.zeros((n_center, 2))])
+        squares = runs**2
+        centred = squares - squares.mean(axis=0)
+        assert centred[:, 0] @ centred[:, 1] == pytest.approx(0.0, abs=1e-12)
 
 
 class TestDSD:
@@ -603,7 +816,7 @@ class TestDOptimal:
     def test_pyoptex_backend(self) -> None:
         """D-optimal via pyoptex should report the backend in metadata."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.metadata.get("backend") == "pyoptex"
         assert result.metadata.get("metric_value") is not None
 
@@ -614,6 +827,13 @@ class TestDOptimal:
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
+
+    @pytest.mark.parametrize("given", [{"expression": "A + B <= 0.5"}, "A + B <= 0.5"])
+    def test_constraints_as_dicts_or_expressions(self, given: dict | str) -> None:
+        """A JSON round trip of a Constraint (a recommend_strategy stage's design_params) gives a dict."""
+        factors = [Factor(name=n, low=0, high=1) for n in "AB"]
+        result = generate_design(factors, design_type="d_optimal", budget=6, constraints=[given])
+        assert (result.design_actual["A"] + result.design_actual["B"]).max() <= 0.5 + 1e-9
 
 
 # ---------------------------------------------------------------------------
@@ -628,7 +848,7 @@ class TestIOptimal:
     def test_basic(self) -> None:
         """I-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -654,7 +874,7 @@ class TestAOptimal:
     def test_basic(self) -> None:
         """A-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0)
+        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0, backend="pyoptex")
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -710,7 +930,35 @@ class TestSplitPlot:
             n_center_points=0,
         )
         assert result.metadata.get("hard_to_change") == ["A"]
-        assert result.metadata.get("backend") == "pyoptex"
+        assert result.metadata.get("backend") == "split_plot_exchange"
+
+
+class TestHardToChangeRefused:
+    """``hard_to_change`` on a design type that cannot build split plots raises instead of being dropped."""
+
+    @pytest.mark.parametrize("design_type", sorted(set(_DESIGN_REGISTRY) - _OPTIMAL_FAMILIES))
+    def test_non_optimal_design_type_raises(self, design_type: str) -> None:
+        """Every design type outside the optimal families refuses it, naming the factors and the way out."""
+        with pytest.raises(ValueError, match=r"hard_to_change=\['A'\] asks for a split-plot design.*d_optimal"):
+            generate_design(_continuous_factors(4, "ABCD"), design_type=design_type, hard_to_change=["A"])
+
+    def test_empty_list_is_not_a_request(self) -> None:
+        """An empty list asks for no split plots, so a CCD is built as usual."""
+        result = generate_design(_continuous_factors(3, "ABC"), design_type="ccd", hard_to_change=[])
+        assert result.design_type == "ccd"
+
+    @pytest.mark.filterwarnings("ignore:hard_to_change.*is ignored:UserWarning")
+    def test_unset_design_type_still_chooses_d_optimal(self) -> None:
+        """With design_type unset, a split-plot request is still routed to the D-optimal family."""
+        result = generate_design(_continuous_factors(3, "ABC"), budget=12, hard_to_change=["A"])
+        assert result.design_type == "d_optimal"
+
+    def test_mixture_components_get_no_optimal_hint(self) -> None:
+        """All-mixture factors are auto-routed to a mixture design, and the message does not point at d_optimal."""
+        factors = [Factor(name=f"x{i}", type="mixture") for i in range(3)]
+        with pytest.raises(ValueError, match="Split-plot mixture designs are not supported") as info:
+            generate_design(factors, hard_to_change=["x0"])
+        assert "Use design_type" not in str(info.value)
 
 
 # ---------------------------------------------------------------------------
@@ -749,13 +997,14 @@ class TestMixture:
         with pytest.raises(ValueError, match="at least 2"):
             generate_design(factors, design_type="mixture")
 
-    def test_simplex_centroid_run_count(self) -> None:
-        """Simplex-centroid for k components has 2^k - 1 runs."""
+    def test_default_run_count_follows_the_model(self) -> None:
+        """The default (quadratic Scheffe) design is the {k, 2} lattice plus the centroid, not 2^k - 1 runs."""
         for k in (3, 4, 5):
             factors = [Factor(name=f"x{i}", type="mixture") for i in range(k)]
             result = generate_design(factors, design_type="mixture")
-            assert result.n_runs == 2**k - 1
-            assert result.metadata["method"] == "simplex_centroid"
+            assert result.n_runs == k * (k + 1) // 2 + 1
+            expected = "simplex_centroid" if k == 3 else "simplex_lattice_degree_2_plus_centroid"
+            assert result.metadata["method"] == expected
 
     def test_values_in_unit_interval(self) -> None:
         """All mixture proportions must lie in [0, 1]."""
@@ -765,14 +1014,14 @@ class TestMixture:
         assert proportions.min() >= -1e-12
         assert proportions.max() <= 1.0 + 1e-12
 
-    def test_budget_triggers_simplex_lattice(self) -> None:
-        """Tight budget should downgrade to a simplex-lattice of degree 2."""
+    def test_budget_below_the_default_design_gives_a_d_optimal_subset(self) -> None:
+        """A budget is a ceiling: below the 6-run default design, the runs come from the D-optimal engine."""
         factors = [Factor(name=f"x{i}", type="mixture") for i in range(5)]
-        # Simplex-centroid would need 2^5 - 1 = 31 runs; cap at 10.
-        result = generate_design(factors, design_type="mixture", budget=10)
-        assert result.metadata["method"] == "simplex_lattice_degree_2"
-        # {5, 2} lattice has k*(k+1)/2 = 15 points.
-        assert result.n_runs == 15
+        result = generate_design(factors, design_type="mixture", budget=5, model_type="scheffe_linear")
+        assert result.metadata["method"] == "d_optimal_extreme_vertices"
+        assert result.n_runs == 5
+        with pytest.raises(ValueError, match=r"budget=4 run.*which has 5 coefficients"):  # below the 5 terms (#957)
+            generate_design(factors, design_type="mixture", budget=4, model_type="scheffe_linear")
 
 
 # ---------------------------------------------------------------------------
@@ -815,10 +1064,16 @@ class TestAutoSelect:
         assert result == "plackett_burman"
 
     def test_budget_allows_half_fraction(self) -> None:
-        """Auto-select should pick fractional_factorial when budget allows half-fraction."""
+        """Auto-select picks fractional_factorial when the half fraction and its 3 centre points fit."""
         factors = _continuous_factors(5, "ABCDE")
-        result = _auto_select(factors, budget=16, constraints=None, hard_to_change=None)
+        result = _auto_select(factors, budget=19, constraints=None, hard_to_change=None)
         assert result == "fractional_factorial"
+
+    def test_budget_below_half_fraction_with_centre_points(self) -> None:
+        """16 runs hold the 2^(5-1) fraction but not its centre points; the 8-run Plackett-Burman fits."""
+        factors = _continuous_factors(5, "ABCDE")
+        assert _auto_select(factors, budget=16, constraints=None, hard_to_change=None) == "plackett_burman"
+        assert generate_design(factors, budget=16, n_center_points=0).design_type == "fractional_factorial"
 
     def test_auto_select_through_generate_design(self) -> None:
         """generate_design with no design_type should auto-select."""

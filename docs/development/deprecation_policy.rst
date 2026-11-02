@@ -1,3 +1,6 @@
+:description: How process-improve retires public API: what counts as public, how a change is
+   announced, warned about and removed across releases, and how to change a default.
+
 Deprecation Policy
 ==================
 
@@ -88,6 +91,36 @@ should be updated to emit a ``DeprecationWarning`` rather than
 raising immediately. The helper is a single place to enforce
 the message format.
 
+Changing a default
+------------------
+
+A new default that changes the *numbers* a call returns, rather than
+retiring a name, follows the same schedule. Its risk is different: code
+that keeps running, now on other results, is wrong without being broken.
+So:
+
+- The parameter's default becomes ``None``, which resolves to the old
+  value until ``(X+1).0`` and to the new one from then.
+- The warning is a ``FutureWarning``, not a ``DeprecationWarning``.
+  Python shows a ``FutureWarning`` to end users by default; it hides a
+  ``DeprecationWarning`` outside ``__main__`` and test runs, so the
+  people whose results will change would never see it.
+- It is issued only by calls whose result the new default would change,
+  and passing the parameter, to either value, silences it. A call the
+  change leaves alone stays quiet.
+- Where the result is a dict that an agent or a tool reads, it also
+  carries the warning's text (as ``analyze_experiment``'s
+  ``coding_note`` did), since a warning does not reach them.
+- Where possible, the new behaviour keeps what the old one gave, under
+  an unmistakable name (``coefficients_actual``), so that nobody loses a
+  result they relied on.
+- At ``(X+1).0`` the default becomes the new value, and the warning and
+  the note are removed. ``None`` stays accepted, as the new value, where
+  a caller or a tool schema can still pass it.
+
+``analyze_experiment``'s ``coding`` was the first example: announced in
+1.98.0, its default changed from ``"actual"`` to ``"auto"`` in 2.0.0.
+
 When a deprecation is unavoidable mid-cycle
 -------------------------------------------
 
@@ -127,11 +160,15 @@ Tracking and rollout
   exist; they currently raise rather than warn. Migrating them
   to emit ``DeprecationWarning`` is in scope for the next
   Wave-7 PR (`ENG-22 <https://github.com/kgdunn/process-improve/issues/304>`_).
-- A ``tools/check_deprecations.py`` script will be added to
-  list everything currently deprecated and its scheduled
-  removal version. The script is run in CI; a deprecation
-  past its removal version fails the build, so we cannot
-  forget to delete the shim.
+- ``tests/test_deprecation_policy.py`` reads every
+  ``warnings.warn(..., DeprecationWarning)`` call in ``src/``
+  and checks its message against the format above, so the
+  message is written as a string literal (an f-string is
+  fine) where the call is made. It also
+  compares the removal version with the ``version`` in
+  ``pyproject.toml``: once the package reaches it, the test
+  fails, so we cannot forget to delete the shim. The test
+  runs in CI with the rest of the suite.
 
 Cross-references
 ----------------

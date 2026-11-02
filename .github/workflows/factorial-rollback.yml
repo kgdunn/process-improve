@@ -1,0 +1,44 @@
+name: "Factorial: roll back"
+
+# Switch factori.al back to the build before the live one, or to a build kept on the server,
+# named by the commit it was built from. The server keeps the last five builds switched to,
+# and a second rollback goes further back rather than returning to the build the first one
+# left (deploy/factorial/README.md). The job's summary shows the live build and those kept.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "The full commit to switch to. Empty: the build before the live one."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: factorial
+      url: https://factori.al/
+    # Shared with docs.yml's deploy-factorial, so a rollback never runs during a deploy.
+    concurrency:
+      group: factorial
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions/factorial-ssh
+      - uses: ./.github/actions/factorial-ssh
+        with:
+          key: ${{ secrets.FACTORIAL_SSH_KEY }}
+          known-hosts: ${{ vars.FACTORIAL_KNOWN_HOSTS }}
+      - name: Switch factori.al back
+        shell: bash
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          # shellcheck disable=SC2029 # the commit is named here, on the runner, for the server to check
+          if [ -n "$COMMIT" ]; then ssh factorial "activate $COMMIT"; else ssh factorial rollback; fi
+          { echo '```'; ssh factorial status; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

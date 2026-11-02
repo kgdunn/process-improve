@@ -20,7 +20,10 @@ class RecommendStrategyInput(BaseModel):
     factors: list[dict[str, Any]] = Field(
         ...,
         min_length=1,
-        description="All candidate experimental factors.",
+        description=(
+            "All candidate experimental factors, as for generate_design. Add 'hard_limits': true to a factor "
+            "whose low and high are limits of the process; the plan then keeps every stage inside them."
+        ),
     )
     responses: list[dict[str, Any]] | None = Field(
         None,
@@ -33,7 +36,10 @@ class RecommendStrategyInput(BaseModel):
     )
     constraints: list[dict[str, Any]] | None = Field(
         None,
-        description="Factor-space constraints. Each entry: expression (str), optional type ('linear'|'nonlinear').",
+        description=(
+            "Factor-space constraints. Each entry: expression (str), optional type ('linear'|'nonlinear'), "
+            "which is informational only."
+        ),
     )
     hard_to_change_factors: list[str] | None = Field(
         None,

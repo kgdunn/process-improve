@@ -21,27 +21,40 @@ from __future__ import annotations
 
 import itertools
 import logging
+import re
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 from patsy import dmatrix
 
-try:
-    from pyDOE3 import fullfact
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
+from process_improve._random import check_random_state
+from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
+from process_improve.experiments._lm import (
+    real_names,
+    stand_ins_for,
+    validate_contrast_levels,
+    validate_identifiers_are_safe,
+    with_stand_ins,
+)
+from process_improve.experiments.designs_response_surface import blocking_alpha, orthogonal_alpha
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
-    _word_to_str,
+    _roman,
+    _signed_defining_relation,
+    _signed_word_str,
     evaluate_design,
 )
-from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.experiments.factor import FactorType
+from process_improve.experiments.models import validate_formula_is_safe
+from process_improve.experiments.region import DesignRegion
+
+if TYPE_CHECKING:
+    from process_improve.experiments.designs_constrained import _Region
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +75,9 @@ class _AugmentContext:
     fold_on: str | None
     alpha: str | float | None
     generators: list[str] | None
+    random_state: int | np.random.Generator | None = 42
+    hard_limits: tuple[str, ...] = ()
+    region: DesignRegion | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -69,38 +85,133 @@ class _AugmentContext:
 # ---------------------------------------------------------------------------
 
 
-def _safe_evaluate(design: pd.DataFrame, generators: list[str] | None, model: str | None = None) -> dict[str, Any]:
-    """Evaluate design metrics, returning empty dict on failure."""
+def _safe_evaluate(design: pd.DataFrame, model: str | None = None) -> dict[str, Any]:
+    """Evaluate D-efficiency and degrees of freedom, returning an empty dict (with a warning) on failure."""
     try:
-        metrics = ["d_efficiency", "degrees_of_freedom"]
-        if generators:
-            metrics.extend(["alias_structure", "resolution"])
-        return evaluate_design(design, model=model, metric=metrics)
+        return evaluate_design(design, model=model, metric=["d_efficiency", "degrees_of_freedom"])
     except (ValueError, KeyError, np.linalg.LinAlgError) as exc:
-        # Evaluation may not apply to every design; return no metrics but log so
-        # the failure is not silent, and let unexpected error types propagate.
+        # Evaluation may not apply to every design; return no metrics, say so, and let
+        # unexpected error types propagate.
         logger.warning("Design evaluation skipped: %s", exc)
+        warnings.warn(f"Design metrics were not computed: {exc}", UserWarning, stacklevel=5)
         return {}
+
+
+#: Below this, two effect columns count as uncorrelated; above 1 minus it, as fully aliased.
+_ALIAS_TOL = 1e-9
+
+
+def _effect_columns(design: pd.DataFrame, factor_names: list[str]) -> dict[str, np.ndarray]:
+    """Centred, unit-length columns of every main effect and two-factor interaction.
+
+    A column that is constant (an effect aliased with the intercept) is left out,
+    since it has no correlation to report.
+    """
+    x = design[factor_names].to_numpy(dtype=float)
+    raw = {name: x[:, i] for i, name in enumerate(factor_names)}
+    for (i, a), (j, b) in itertools.combinations(enumerate(factor_names), 2):
+        raw[f"{a}:{b}"] = x[:, i] * x[:, j]
+    columns = {}
+    for name, column in raw.items():
+        centred = column - column.mean()
+        norm = float(np.linalg.norm(centred))
+        if norm > _ALIAS_TOL:
+            columns[name] = centred / norm
+    return columns
+
+
+def _alias_changes(before: pd.DataFrame, after: pd.DataFrame, factor_names: list[str]) -> list[str]:
+    """Describe how the aliasing among main effects and two-factor interactions changed.
+
+    Pairs of effects whose columns are identical (up to sign) in the existing design
+    are aliased; each pair is then looked up in the augmented design. A pair is only
+    reported as separated when the two columns are uncorrelated there: a pair that
+    is merely correlated (a semifold leaves ``|r| = 1/3``) still cannot be estimated
+    independently, and a pair the new runs do not touch stays fully aliased.
+    Interactions of three or more factors are not considered, and mixture blends get no
+    lines: their proportions sum to 1, so they have no main effects to alias.
+    """
+    if _are_blends(after[factor_names]):
+        return []
+    cols_before = _effect_columns(before, factor_names)
+    cols_after = _effect_columns(after, factor_names)
+    names = [n for n in cols_before if n in cols_after]
+    pairs = [
+        (a, b)
+        for a, b in itertools.combinations(names, 2)
+        if abs(float(cols_before[a] @ cols_before[b])) > 1 - _ALIAS_TOL
+    ]
+    if not pairs:
+        return []
+
+    r_after = {(a, b): abs(float(cols_after[a] @ cols_after[b])) for a, b in pairs}
+    still = [f"{a} = {b}" for (a, b), r in r_after.items() if r > 1 - _ALIAS_TOL]
+    partial = [f"{a} with {b} (|r| = {r:.2f})" for (a, b), r in r_after.items() if _ALIAS_TOL < r <= 1 - _ALIAS_TOL]
+    involved = {name for pair in pairs for name in pair}
+    cleared = [n for n in names if n in involved and all(r <= _ALIAS_TOL for pair, r in r_after.items() if n in pair)]
+
+    lines = ["Aliasing among main effects and two-factor interactions (higher-order interactions not considered):"]
+    if cleared:
+        lines.append(f"  Now uncorrelated with every effect they were aliased with: {', '.join(cleared)}.")
+    if partial:
+        lines.append(
+            "  Partially de-aliased, still correlated and so not estimable independently of each other: "
+            f"{'; '.join(partial)}."
+        )
+    if still:
+        lines.append(f"  Still fully aliased: {'; '.join(still)}.")
+    return lines
+
+
+def _resolution_lines(resolution_before: int | None, resolution_after: int | str | None) -> list[str]:
+    """Report the resolution change; *resolution_after* is an int, ``"full"``, or None when not regular."""
+    if resolution_before is None:
+        return []
+    before = _roman(resolution_before)
+    if resolution_after == "full":
+        return [f"Resolution {before} -> no defining words remain: the augmented design is a full factorial."]
+    if not isinstance(resolution_after, int):
+        return []
+    if resolution_after == resolution_before:
+        return [f"Resolution unchanged at {before}."]
+    return [f"Resolution changed from {before} to {_roman(resolution_after)}."]
 
 
 def _explain_changes(  # noqa: PLR0913
     before: pd.DataFrame,
     after: pd.DataFrame,
     factor_names: list[str],
-    augmentation_type: str,
-    generators_before: list[str] | None = None,
-    generators_after: list[str] | None = None,
+    generators: list[str] | None = None,
     extra_notes: list[str] | None = None,
+    resolution_after: int | str | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Generate before/after comparison narrative.
+
+    Parameters
+    ----------
+    before, after : DataFrame
+        The existing and the augmented design.
+    factor_names : list[str]
+        Factor columns.
+    generators : list[str] or None
+        The existing design's generators, from which its resolution is read.
+    extra_notes : list[str] or None
+        Handler-specific lines.
+    resolution_after : int, "full" or None
+        The augmented design's resolution, ``"full"`` for a full factorial, or
+        None when it is not a regular fraction (or not known).
 
     Returns
     -------
     tuple[str, dict, dict]
         (explanation_text, before_metrics, after_metrics)
     """
-    before_metrics = _safe_evaluate(before[factor_names], generators_before)
-    after_metrics = _safe_evaluate(after[factor_names], generators_after)
+    before_metrics = _safe_evaluate(before[factor_names])
+    after_metrics = _safe_evaluate(after[factor_names])
+    resolution_before = _resolution(generators, factor_names)
+    if resolution_before is not None:
+        before_metrics["resolution"] = resolution_before
+        after_metrics["resolution"] = resolution_after if isinstance(resolution_after, int) else None
 
     lines: list[str] = []
 
@@ -115,14 +226,7 @@ def _explain_changes(  # noqa: PLR0913
     if d_before is not None and d_after is not None:
         lines.append(f"D-efficiency: {d_before:.1f}% -> {d_after:.1f}%.")
 
-    # Resolution
-    res_before = before_metrics.get("resolution")
-    res_after = after_metrics.get("resolution")
-    if res_before is not None and res_after is not None:
-        if res_after > res_before:
-            lines.append(f"Resolution improved from {res_before} to {res_after}.")
-        elif res_after == res_before:
-            lines.append(f"Resolution unchanged at {res_before}.")
+    lines.extend(_resolution_lines(resolution_before, resolution_after))
 
     # Degrees of freedom
     dof_before = before_metrics.get("degrees_of_freedom", {})
@@ -130,22 +234,23 @@ def _explain_changes(  # noqa: PLR0913
     if "residual" in dof_before and "residual" in dof_after:
         lines.append(f"Residual degrees of freedom: {dof_before['residual']} -> {dof_after['residual']}.")
 
-    # Alias diff
-    aliases_before = set(before_metrics.get("alias_structure", []))
-    aliases_after = set(after_metrics.get("alias_structure", []))
-    removed = aliases_before - aliases_after
-    if removed:
-        lines.append("De-aliased effects:")
-        for chain in sorted(removed):
-            effect = chain.split(" = ")[0].strip()
-            lines.append(f"  {effect} is now independently estimable.")
+    alias_lines = _alias_changes(before, after, factor_names)
+    lines.extend(alias_lines)
 
     # Extra notes from the handler
     if extra_notes:
         lines.extend(extra_notes)
 
-    explanation = " ".join(lines) if not removed and not extra_notes else "\n".join(lines)
+    explanation = " ".join(lines) if not alias_lines and not extra_notes else "\n".join(lines)
     return explanation, before_metrics, after_metrics
+
+
+def _resolution(generators: list[str] | None, factor_names: list[str]) -> int | None:
+    """Resolution of the regular fraction *generators* define: its shortest defining word."""
+    if not generators:
+        return None
+    words = _defining_relation_from_generators(generators, factor_names)
+    return min((len(w) for w in words), default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -162,30 +267,29 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
     # Compute new defining relation after foldover
     notes: list[str] = []
     generators_after = None
+    resolution_after: int | str | None = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-        # After full foldover, odd-length words are eliminated (confounded with
-        # the block indicator).  Even-length words survive.
-        surviving = [w for w in words if len(w) % 2 == 0]
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
+        # Negating every factor flips the sign of every odd-length word in the second
+        # half, so the odd words no longer hold in the combined design (each is now
+        # confounded with the contrast between the two halves). Even-length words hold,
+        # with the same sign, in both halves and survive: the 2FI chains they create are
+        # still aliased.
+        surviving = [(w, s) for w, s in words if len(w) % 2 == 0]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
             notes.append(f"New defining relation: {', '.join(generators_after)}.")
+            resolution_after = min(len(w) for w, _ in surviving)
         else:
-            notes.append("All defining words eliminated - design is now full resolution.")
+            resolution_after = "full"
 
-        eliminated = [w for w in words if len(w) % 2 != 0]
+        eliminated = [(w, s) for w, s in words if len(w) % 2 != 0]
         if eliminated:
-            eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
+            eliminated_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in eliminated]
             notes.append(f"Eliminated defining words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        generators_after,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes, resolution_after
     )
 
     return {
@@ -224,27 +328,28 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
     notes: list[str] = [f"Folded on factor: {fold_factor}."]
     generators_after = None
     if ctx.generators:
-        words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
-        # Semifold on factor F eliminates words that contain F
-        surviving = [w for w in words if fold_idx not in w]
-        eliminated = [w for w in words if fold_idx in w]
+        words = _signed_defining_relation(ctx.generators, ctx.factor_names)
+        # The added half repeats half of the runs with the fold factor's sign switched.
+        # A word without it holds, with its sign, in every run and survives. A word
+        # containing it holds in the original runs and is reversed in the added ones, so
+        # it no longer holds anywhere: effects aliased through it become partially aliased
+        # (Mee and Peralta, 2000), correlated rather than independent, and the combined
+        # design is not a regular fraction.
+        surviving = [(w, s) for w, s in words if fold_idx not in w]
+        broken = [(w, s) for w, s in words if fold_idx in w]
         if surviving:
-            generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
-            notes.append(f"Surviving defining words: {', '.join(generators_after)}.")
-        else:
-            notes.append("All defining words eliminated - design is now full resolution.")
-        if eliminated:
-            eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
-            notes.append(f"De-aliased by removing words: {', '.join(eliminated_strs)}.")
+            generators_after = [f"I={_signed_word_str(w, s, ctx.factor_names)}" for w, s in surviving]
+            notes.append(f"Defining words that still hold in every run: {', '.join(generators_after)}.")
+        if broken:
+            broken_strs = [_signed_word_str(w, s, ctx.factor_names) for w, s in broken]
+            notes.append(
+                f"Words containing {fold_factor} ({', '.join(broken_strs)}) now hold in only part of the runs: "
+                "effects aliased through them are partially de-aliased, not independent. The combined design is "
+                "not a regular fraction, so it has no resolution in the usual sense."
+            )
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        generators_after,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -289,29 +394,146 @@ def _auto_select_fold_factor(ctx: _AugmentContext) -> str:
     return best_factor
 
 
-def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
-    """Append center point rows (all zeros in coded units)."""
-    df = ctx.existing_design[ctx.factor_names].copy()
-    n_center = ctx.n_additional_runs if ctx.n_additional_runs is not None else 3
+#: Within this of 1, the proportions of a run sum to 1. Proportions printed to four decimals stay inside it.
+_BLEND_TOL = 1e-3
 
-    center_rows = pd.DataFrame(
-        np.zeros((n_center, len(ctx.factor_names))),
-        columns=ctx.factor_names,
-    )
-    augmented = pd.concat([df, center_rows], ignore_index=True)
+#: The augmentations a mixture design takes. The others would add runs that are not blends.
+_FOR_BLENDS = frozenset({"add_axial_points", "add_center_points", "replicate"})
+
+
+def _are_blends(design: pd.DataFrame) -> bool:
+    """Return True when every run is a mixture blend: two or more proportions in [0, 1] that sum to 1."""
+    if design.shape[1] < 2 or not all(pd.api.types.is_numeric_dtype(t) for t in design.dtypes):
+        return False
+    values = design.to_numpy(dtype=float)
+    inside = bool(((values >= -_BLEND_TOL) & (values <= 1 + _BLEND_TOL)).all())
+    return inside and bool(np.allclose(values.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_TOL))
+
+
+def _simplex(design: pd.DataFrame) -> tuple[np.ndarray, float]:
+    """Return the lowest proportions L of the blends and the span 1 - sum(L) of the simplex they span.
+
+    The simplex has the vertices L + (1 - sum(L)) e_i: the whole simplex when every L is 0, and
+    an L-pseudocomponent simplex otherwise.
+
+    Raises
+    ------
+    ValueError
+        If a vertex of that simplex is not among the runs. The runs then come from a region that
+        is not a simplex (a component has an upper bound), and a point placed on the simplex
+        could fall outside it.
+    """
+    values = design.to_numpy(dtype=float)
+    low = values.min(axis=0)
+    span = 1.0 - float(low.sum())
+    vertices = low + span * np.eye(values.shape[1])
+    missing = [
+        name
+        for name, vertex in zip(design.columns, vertices, strict=True)
+        if not (np.abs(values - vertex) <= _BLEND_TOL).all(axis=1).any()
+    ]
+    if missing:
+        msg = (
+            f"The blends do not reach every vertex of the simplex they span: none is the vertex richest in "
+            f"{missing}. Their region is not a simplex, so its axial check blends and centroid are not known "
+            "from the runs."
+        )
+        raise ValueError(msg)
+    return low, span
+
+
+def _blend_text(blend: np.ndarray) -> str:
+    """Write a blend as its proportions to four significant figures."""
+    return "(" + ", ".join(f"{v:.4g}" for v in blend) + ")"
+
+
+def _augment_axial_check_blends(ctx: _AugmentContext, df: pd.DataFrame) -> dict[str, Any]:
+    """Add a mixture design's axial check blends: one on each axis, midway between the centroid and a vertex.
+
+    On the simplex of the runs, the blend on the axis of component i has (k + 1) / (2k) of
+    component i and 1 / (2k) of each other component (Cornell 2002).
+    """
+    if ctx.alpha is not None:
+        msg = (
+            "alpha sets the distance of a star point. The runs are mixture blends, and their axial points are "
+            "the axial check blends, midway between the centroid and each vertex: leave alpha unset."
+        )
+        raise ValueError(msg)
+    k = len(ctx.factor_names)
+    low, span = _simplex(df)
+    blends = low + span * (np.eye(k) + 1.0 / k) / 2.0
+    axial_df = pd.DataFrame(blends, columns=ctx.factor_names)
+    augmented = pd.concat([df, axial_df], ignore_index=True)
 
     notes = [
-        f"Added {n_center} center point(s) at the midpoint of all factors.",
-        "Center points enable testing for curvature (quadratic effects).",
+        (
+            f"The runs are mixture blends, so the axial points are the {k} axial check blends, each midway "
+            f"between the centroid of the simplex and one vertex, such as {_blend_text(blends[0])}."
+        ),
+        "They put runs inside the simplex, where the fit of the model can be checked.",
     ]
+    explanation, before_m, after_m = _explain_changes(
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
+    )
+
+    return {
+        "augmented_design": augmented.to_dict(orient="records"),
+        "new_runs": axial_df.to_dict(orient="records"),
+        "n_runs_before": len(ctx.existing_design),
+        "n_runs_after": len(augmented),
+        "explanation": explanation,
+        "before_metrics": before_m,
+        "after_metrics": after_m,
+    }
+
+
+def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
+    """Append center point rows (all zeros in coded units).
+
+    With a region whose limits rule out the centre of the box, the runs go to the region's
+    central setting instead (:meth:`DesignRegion.centroid`).
+    """
+    df = ctx.existing_design[ctx.factor_names].copy()
+    n_center = ctx.n_additional_runs if ctx.n_additional_runs is not None else 3
+    if _are_blends(df):
+        low, span = _simplex(df)
+        centre = low + span / len(ctx.factor_names)
+        notes = [
+            (
+                "The runs are mixture blends, so the center point is the centroid of the simplex, "
+                f"{_blend_text(centre)}: added {n_center} run(s) there."
+            ),
+            "Repeated, the centroid gives an estimate of the pure error.",
+        ]
+    else:
+        centre = np.zeros(len(ctx.factor_names))
+        notes = [
+            f"Added {n_center} center point(s) at the midpoint of all factors.",
+            "Center points enable testing for curvature (quadratic effects).",
+        ]
+    if ctx.region is not None and not ctx.region.feasible(centre[None, :])[0]:
+        broken = ", ".join(ctx.region.broken_limits(centre[None, :])[0])
+        centre = _coded_centre(ctx.region)
+        notes = [
+            (
+                f"Added {n_center} run(s) at the region's central setting, {_settings_text(ctx.region, centre)}: "
+                f"the centre of the box breaks {broken}."
+            ),
+            (
+                "Repeated runs there give pure error. The curvature test that compares centre runs with the "
+                "factorial runs needs them at the centre of the box, so fit a model with squared terms instead."
+            ),
+        ]
+
+    center_rows = pd.DataFrame(np.tile(centre, (n_center, 1)), columns=ctx.factor_names)
+    augmented = pd.concat([df, center_rows], ignore_index=True)
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design,
         augmented,
         ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
         ctx.generators,
         notes,
+        _resolution(ctx.generators, ctx.factor_names),
     )
 
     return {
@@ -329,8 +551,7 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
     """Append one or more complete copies of the existing design.
 
     The number of copies is ``ctx.n_additional_runs`` (default 1 when
-    ``ctx.n_additional_runs`` is ``None``). Passing 0 is not supported and
-    raises ``ValueError`` from the underlying ``pd.concat`` call.
+    ``ctx.n_additional_runs`` is ``None``); :func:`augment_design` refuses 0.
     """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_copies = ctx.n_additional_runs if ctx.n_additional_runs is not None else 1
@@ -346,10 +567,9 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
         ctx.existing_design,
         augmented,
         ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
         ctx.generators,
         notes,
+        _resolution(ctx.generators, ctx.factor_names),
     )
 
     return {
@@ -364,12 +584,13 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
-    """Add 2k axial (star) points to create a CCD structure."""
+    """Add 2k axial (star) points to create a CCD structure, or a mixture design's axial check blends."""
     df = ctx.existing_design[ctx.factor_names].copy()
+    if _are_blends(df):
+        return _augment_axial_check_blends(ctx, df)
     k = len(ctx.factor_names)
 
-    # Determine alpha value
-    alpha_value = _compute_alpha(df, ctx.factor_names, ctx.alpha)
+    alpha_value = _axial_distance(ctx, df)
 
     # Generate 2k axial points
     axial = np.zeros((2 * k, k))
@@ -382,17 +603,12 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
 
     notes = [
         f"Added {2 * k} axial (star) points with alpha = {alpha_value:.4f}.",
+        *_hard_limit_notes(ctx),
         "The design now supports estimation of quadratic (second-order) effects.",
         "Consider adding center points if not already present.",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -407,10 +623,43 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
     }
 
 
+def _axial_distance(ctx: _AugmentContext, design: pd.DataFrame, n_new_centers: int = 0) -> float:
+    """Return the axial distance for *ctx*: face-centred by default when a factor has hard limits.
+
+    A region makes every factor's range a hard limit, since its runs stay inside the box.
+
+    Raises
+    ------
+    ValueError
+        If the axial distance asked for is above 1 while a factor has hard limits: those axial
+        runs would set it past them.
+    """
+    default = "face_centered" if ctx.hard_limits else "rotatable"
+    alpha = _compute_alpha(design, ctx.factor_names, ctx.alpha if ctx.alpha is not None else default, n_new_centers)
+    if ctx.hard_limits and alpha > 1 + _ALIAS_TOL:
+        limits = "the region's ranges" if ctx.region is not None else f"the hard limits of {', '.join(ctx.hard_limits)}"
+        msg = (
+            f"alpha = {alpha:.4g} puts axial runs past {limits}; "
+            "use alpha='face_centered' (alpha = 1) to keep them on the faces of the cube."
+        )
+        raise ValueError(msg)
+    return alpha
+
+
+def _hard_limit_notes(ctx: _AugmentContext) -> list[str]:
+    """Say why the axial runs sit on the faces of the cube, when hard limits put them there."""
+    if not ctx.hard_limits or ctx.alpha is not None:
+        return []
+    if ctx.region is not None:
+        return ["The axial runs sit on the faces of the cube: the region's ranges are limits."]
+    return [f"The axial runs sit on the faces of the cube: the ranges of {', '.join(ctx.hard_limits)} are hard limits."]
+
+
 def _compute_alpha(
     design: pd.DataFrame,
     factor_names: list[str],
     alpha: str | float | None,
+    n_new_centers: int = 0,
 ) -> float:
     """Compute the axial distance alpha.
 
@@ -422,6 +671,9 @@ def _compute_alpha(
         Factor column names.
     alpha : str, float, or None
         ``"rotatable"``, ``"face_centered"``, ``"orthogonal"``, or numeric.
+    n_new_centers : int
+        Centre runs added alongside the axial runs, which the orthogonal
+        distance has to count.
     """
     if isinstance(alpha, (int, float)):
         return float(alpha)
@@ -437,10 +689,8 @@ def _compute_alpha(
     elif alpha == "face_centered":
         return 1.0
     elif alpha == "orthogonal":
-        # Orthogonal block alpha for CCD
-        n_axial = 2 * k
-        n_total = n_factorial + n_axial
-        return float(np.sqrt(k * (np.sqrt(n_total) - np.sqrt(n_factorial)) / 2))
+        # Quadratic columns mutually orthogonal, counting every existing run and the 2k new axial runs.
+        return orthogonal_alpha(n_factorial, len(design) + 2 * k + n_new_centers)
     else:
         raise ValueError(f"Unknown alpha type: {alpha!r}. Use 'rotatable', 'face_centered', 'orthogonal', or numeric.")
 
@@ -451,8 +701,7 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     The returned RHS is validated before it can reach ``patsy.dmatrix`` so a
     custom ``model`` string cannot smuggle in arbitrary Python (SEC-14).
     """
-    for name in factor_names:
-        validate_identifier_is_safe(name)
+    validate_identifiers_are_safe(factor_names)
 
     joined = " + ".join(factor_names)
     if model == "main_effects":
@@ -465,86 +714,174 @@ def _build_model_rhs(factor_names: list[str], model: str) -> str:
     else:
         rhs = model
 
-    validate_formula_is_safe(rhs, factor_names, allow_transforms=True)
+    stand_ins = stand_ins_for(rhs, factor_names)  # as _model_matrix fits it
+    validate_formula_is_safe(
+        with_stand_ins(rhs, stand_ins), [stand_ins.get(name, name) for name in factor_names], allow_transforms=True
+    )
     return rhs
 
 
-def _greedy_d_optimal_select(
-    current: pd.DataFrame,
-    candidates: pd.DataFrame,
-    n_to_add: int,
-    factor_names: list[str],
-    model: str,
-) -> tuple[pd.DataFrame, list[pd.DataFrame]]:
-    """Greedily select *n_to_add* D-optimal points from *candidates*."""
-    rhs = _build_model_rhs(factor_names, model)
-    new_rows: list[pd.DataFrame] = []
+def _model_matrix(rhs: str, frame: pd.DataFrame) -> pd.DataFrame:
+    """Return patsy's model matrix of ``rhs`` over ``frame``, with the terms under the factors' own names.
 
-    for _ in range(min(n_to_add, len(candidates))):
-        best_idx = -1
-        best_det = -np.inf
+    A factor whose name the formula calls, as ``I`` in a square term, is fitted under a stand-in
+    name (see :func:`~process_improve.experiments._lm.stand_ins_for`, #986).
+    """
+    validate_contrast_levels(rhs, frame)
+    stand_ins = stand_ins_for(rhs, frame.columns)
+    matrix = dmatrix(with_stand_ins(rhs, stand_ins), frame.rename(columns=stand_ins), return_type="dataframe")
+    return matrix.set_axis(real_names(list(matrix.columns), stand_ins), axis=1)
 
-        for idx in candidates.index:
-            trial = pd.concat([current, candidates.iloc[[idx]]], ignore_index=True)
-            X_trial = np.asarray(dmatrix(rhs, trial, return_type="dataframe"), dtype=float)
-            sign, logdet = np.linalg.slogdet(X_trial.T @ X_trial)
-            det_val = logdet if sign > 0 else -np.inf
-            if det_val > best_det:
-                best_det = det_val
-                best_idx = idx
 
-        if best_idx < 0:
-            break
+def _model_rows(rhs: str, factor_names: list[str], existing: pd.DataFrame, candidates: np.ndarray) -> tuple:
+    """Model-matrix rows for the existing runs and the candidates, from one patsy build.
 
-        new_row = candidates.loc[[best_idx]]
-        current = pd.concat([current, new_row], ignore_index=True)
-        new_rows.append(new_row)
-        candidates = candidates.drop(best_idx).reset_index(drop=True)
+    Building both from one frame keeps any stateful transform in a custom formula
+    (``center(A)``, say) on a single scale.
+    """
+    stacked = pd.concat([existing, pd.DataFrame(candidates, columns=factor_names)], ignore_index=True)
+    rows = np.asarray(_model_matrix(rhs, stacked), dtype=float)
+    return rows[: len(existing)], rows[len(existing) :]
 
-    return current, new_rows
+
+#: A square in a custom formula, as ``I(A ** 2)``.
+_SQUARE_TERM = re.compile(r"I\(\s*(\w+)\s*\*\*\s*2\s*\)")
+
+
+def _polynomial_terms(rhs: str, factor_names: list[str]) -> list[tuple[int, ...]] | None:
+    """Read a custom formula written term by term as main effects, ``A:B`` products and ``I(A ** 2)`` squares.
+
+    Returns each term as the positions of the factors it multiplies, or None for any other
+    formula, which then goes through patsy.
+    """
+    position = {name: i for i, name in enumerate(factor_names)}
+    terms: dict[tuple[int, ...], None] = {}
+    for text in (t.strip() for t in rhs.split("+")):
+        square = _SQUARE_TERM.fullmatch(text)
+        names = [square.group(1)] * 2 if square else [part.strip() for part in text.split(":")]
+        if not names or any(n not in position for n in names) or len(names) > 2:
+            return None
+        terms[tuple(sorted(position[n] for n in names))] = None
+    return list(terms)
+
+
+def _polynomial_rows(points: np.ndarray, terms: list[tuple[int, ...]]) -> np.ndarray:
+    """Return the model rows of coded points: the intercept, then each term's product of factor columns."""
+    columns = [np.ones(len(points))] + [np.prod(points[:, list(term)], axis=1) for term in terms]
+    return np.column_stack(columns)
+
+
+#: Target models whose columns ``designs_constrained.model_matrix`` builds directly, without patsy.
+_NAMED_MODELS = ("main_effects", "interactions", "quadratic")
+
+
+def _exchange_rows(
+    region: _Region, model: str, rhs: str, factor_names: list[str], existing: pd.DataFrame
+) -> tuple[np.ndarray, Callable[[np.ndarray, np.ndarray], np.ndarray]]:
+    """Return the existing runs' model rows, and a function giving the model rows of coded candidate points.
+
+    A named model is expanded with numpy (the same columns as its patsy formula, in
+    another order, which no criterion depends on), which keeps the exchange's polish
+    cheap; a custom formula goes through patsy, built together with the existing runs
+    so stateful transforms share their scale.
+    """
+    from process_improve.experiments.designs_constrained import model_matrix  # noqa: PLC0415
+
+    if model in _NAMED_MODELS:
+        coded = existing[factor_names].to_numpy(dtype=float)
+        fixed = model_matrix(region, coded, np.empty((len(coded), 0), dtype=int), model)
+        return fixed, lambda points, cats: model_matrix(region, points, cats, model)
+    terms = _polynomial_terms(rhs, factor_names)
+    if terms is not None:
+        coded = existing[factor_names].to_numpy(dtype=float)
+        return _polynomial_rows(coded, terms), lambda points, _cats: _polynomial_rows(points, terms)
+    fixed = _model_rows(rhs, factor_names, existing, np.empty((0, len(factor_names))))[0]
+    return fixed, lambda points, _cats: _model_rows(rhs, factor_names, existing, points)[1]
+
+
+def _engine_region(ctx: _AugmentContext) -> _Region:
+    """Return the constrained engine's region: the box of coded factors, cut by the limits of *ctx*'s region."""
+    from process_improve.experiments.designs_constrained import _Region, parse_constraint  # noqa: PLC0415
+    from process_improve.experiments.factor import Factor  # noqa: PLC0415
+
+    if ctx.region is None:
+        return _Region([Factor(name=n, low=-1, high=1) for n in ctx.factor_names], [], [])
+    names = set(ctx.region.names)
+    limits = [g for c in ctx.region.constraints for g in parse_constraint(c.expression, names)]
+    return _Region(list(ctx.region.factors), [], limits)
 
 
 def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
-    """Add D-optimal runs to the existing design."""
+    """Add D-optimal runs to the existing design, which stays fixed.
+
+    The runs come from a Fedorov exchange over a candidate grid in coded units, with
+    the existing runs as fixed rows. For a quadratic model on a 3-level or sampled grid,
+    a coordinate exchange on a 5-level lattice then polishes the design from each start
+    (see ``select_runs``). Unlike a one-run-at-a-time greedy search, the exchange can
+    start from a design that cannot yet estimate the target model, as every screening
+    design aimed at a quadratic model is. When the requested runs cannot supply the
+    rank the existing runs lack, a ``ValueError`` says how many are needed.
+    Candidates may repeat, which replicates a run where the criterion wants it.
+    With a region, the candidates and the polish keep to its limits, as for a design
+    ``generate_design`` makes inside them.
+    """
+    from process_improve.experiments.designs_constrained import (  # noqa: PLC0415
+        _FEASIBILITY_TOL,
+        CandidatePool,
+        Criterion,
+        PolishLattice,
+        _missing_rank,
+        build_candidates,
+        polish_levels,
+        select_runs,
+    )
+
     if ctx.n_additional_runs is None:
         raise ValueError("n_additional_runs is required for add_runs_optimal.")
 
-    df = ctx.existing_design[ctx.factor_names].copy()
-    k = len(ctx.factor_names)
+    df = ctx.existing_design[ctx.factor_names].astype(float)
     model = ctx.target_model or "interactions"
+    rhs = _build_model_rhs(ctx.factor_names, model)  # validated before patsy sees it (SEC-14)
 
-    # Generate candidate set: 3-level full factorial (-1, 0, +1)
-    candidates_raw = fullfact([3] * k) - 1.0
-    candidates = pd.DataFrame(candidates_raw, columns=ctx.factor_names)
+    region = _engine_region(ctx)
+    grid_model = model if model in ("main_effects", "interactions") else "quadratic"
+    coded, cats, counts = build_candidates(region, None, grid_model)
+    f_fixed, rows_of = _exchange_rows(region, model, rhs, ctx.factor_names, df)
+    f_cand = rows_of(coded, cats)
+    n_parameters = f_cand.shape[1]
+    if np.linalg.matrix_rank(np.vstack([f_fixed, f_cand])) < n_parameters:
+        where = "settings the region allows" if region.inequalities else "candidate grid"
+        raise ValueError(f"The {where} cannot support the {model!r} model; use a simpler target_model.")
 
-    # Remove candidates that are already in the design (within tolerance)
-    existing_tuples = set(map(tuple, np.round(df.values, 8)))
-    mask = ~candidates.apply(lambda row: tuple(np.round(row.values, 8)) in existing_tuples, axis=1)
-    candidates = candidates[mask].reset_index(drop=True)
-
-    if len(candidates) == 0:
-        raise ValueError("No candidate points available after filtering existing design points.")
-
-    augmented, new_rows = _greedy_d_optimal_select(
-        df,
-        candidates,
-        ctx.n_additional_runs,
-        ctx.factor_names,
-        model,
+    missing = _missing_rank(f_fixed, n_parameters)
+    if ctx.n_additional_runs < missing:
+        raise ValueError(
+            f"The {len(df)} existing run(s) span only {n_parameters - missing} of the {n_parameters} coefficients of "
+            f"the {model} model, so at least {missing} new run(s) are needed; n_additional_runs="
+            f"{ctx.n_additional_runs} is too few. Use n_additional_runs >= {missing} or a simpler target_model."
+        )
+    n_new = ctx.n_additional_runs
+    levels = polish_levels(counts)
+    lattice = None
+    if levels is not None and (grid_model == "quadratic" or region.inequalities):  # the box's corners need no polish
+        inside = (lambda points, _cats: region.slack(points) <= _FEASIBILITY_TOL) if region.inequalities else None
+        lattice = PolishLattice(levels, rows_of, inside)
+    pool = CandidatePool(coded, cats, f_cand, lattice)
+    _rows, new_coded, _cats, _value = select_runs(
+        pool, n_new, f_fixed, check_random_state(ctx.random_state), Criterion.d()
     )
-    new_runs_df = pd.concat(new_rows, ignore_index=True) if new_rows else pd.DataFrame(columns=ctx.factor_names)
+    new_runs_df = pd.DataFrame(new_coded, columns=ctx.factor_names)
+    augmented = pd.concat([df, new_runs_df], ignore_index=True)
+
     notes = [
-        f"Added {len(new_rows)} D-optimal run(s) to maximize information for the {model} model.",
+        f"Added {n_new} D-optimal run(s) to maximize information for the {model} model.",
         "Existing runs were preserved; only new runs were optimized.",
     ]
+    if ctx.region is not None and ctx.region.constraints:
+        limits = "; ".join(c.expression for c in ctx.region.constraints)
+        notes.append(f"The new runs keep to the region's limits: {limits}.")
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -558,52 +895,117 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
     }
 
 
+#: upgrade_to_rsm tops the centre runs up to this many, the usual three to five for a CCD, unless
+#: n_additional_runs sets the second stage's centre runs.
+_RSM_CENTER_RUNS = 5
+
+
+def _second_stage_blocks(existing: pd.DataFrame) -> tuple[list[Any], Any]:
+    """Return the block of every existing run and the one block of the second stage's runs.
+
+    An existing ``Block`` column keeps its labels, and the second stage is the next whole
+    number after them (or after the count of blocks, for labels that are not whole numbers);
+    without one, the existing runs are block 1 and the new runs block 2.
+    """
+    if "Block" not in existing.columns:
+        return [1] * len(existing), 2
+    labels = existing["Block"]
+    if pd.api.types.is_integer_dtype(labels):
+        return labels.tolist(), int(labels.max()) + 1
+    return labels.tolist(), int(labels.nunique()) + 1
+
+
+def _model_support(design: pd.DataFrame, factor_names: list[str], model: str) -> tuple[int, int, list[str]]:
+    """Return the model's coefficient count, the rank the design gives it, and the terms that cannot all be estimated.
+
+    The terms are those with weight in the null space of the model matrix: some
+    combination of their columns is zero on every run, so they are aliased.
+    """
+    rhs = _build_model_rhs(factor_names, model)
+    frame = _model_matrix(rhs, design[factor_names].astype(float))
+    x = frame.to_numpy(dtype=float)
+    _u, singular, vt = np.linalg.svd(x, full_matrices=True)
+    rank = int((singular > singular.max() * max(x.shape) * np.finfo(float).eps).sum())
+    null_space = vt[rank:]
+    aliased = [
+        str(term)
+        for term, w in zip(frame.columns, np.abs(null_space).max(axis=0, initial=0.0), strict=True)
+        if w > 1e-8
+    ]
+    return x.shape[1], rank, aliased
+
+
 def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
-    """Upgrade a screening/factorial design to an RSM (CCD) design."""
+    """Upgrade a screening/factorial design to an RSM (CCD) design.
+
+    Adds 2k axial runs and ``n_additional_runs`` centre runs as a second stage (by
+    default, enough to bring the centre runs to five), then checks that the target
+    model (default quadratic) can be estimated. It cannot when the cube is a
+    resolution III or IV fraction, whose aliased two-factor interactions are zero on
+    every axial and centre run; that is reported, with a warning, rather than claimed
+    away. A ``Block`` column marks the two stages, which are run at different times,
+    and the result gives the axial distance at which they block orthogonally.
+    """
     df = ctx.existing_design[ctx.factor_names].copy()
     k = len(ctx.factor_names)
+    model = ctx.target_model or "quadratic"
 
-    # Detect existing center points
+    # Detect existing center points; the second stage adds the centre runs asked for, or tops them up to five
     center_mask = (df.abs() < 1e-10).all(axis=1)
     n_existing_centers = int(center_mask.sum())
+    if ctx.n_additional_runs is not None:
+        n_new_centers = ctx.n_additional_runs
+    else:
+        n_new_centers = max(0, _RSM_CENTER_RUNS - n_existing_centers)
 
-    # Add axial points
-    alpha_val = ctx.alpha if ctx.alpha is not None else "rotatable"
-    alpha_numeric = _compute_alpha(df, ctx.factor_names, alpha_val)
+    alpha_numeric = _axial_distance(ctx, df, n_new_centers)
 
     axial = np.zeros((2 * k, k))
     for i in range(k):
         axial[2 * i, i] = alpha_numeric
         axial[2 * i + 1, i] = -alpha_numeric
     axial_df = pd.DataFrame(axial, columns=ctx.factor_names)
-
-    # Add center points if needed (target 3-5 total)
-    n_target_centers = max(3, 5 - n_existing_centers)
-    n_new_centers = max(0, n_target_centers - n_existing_centers)
-    center_df = pd.DataFrame(
-        np.zeros((n_new_centers, k)),
-        columns=ctx.factor_names,
-    )
+    center_df = pd.DataFrame(np.zeros((n_new_centers, k)), columns=ctx.factor_names)
 
     new_runs = pd.concat([axial_df, center_df], ignore_index=True)
     augmented = pd.concat([df, new_runs], ignore_index=True)
+    if "Block" not in ctx.factor_names:
+        first, second = _second_stage_blocks(ctx.existing_design)
+        augmented["Block"] = [*first, *[second] * len(new_runs)]
+        new_runs["Block"] = second
 
     notes = [
         f"Upgraded to Central Composite Design (CCD) with alpha = {alpha_numeric:.4f}.",
         f"Added {2 * k} axial points and {n_new_centers} center point(s).",
-        "The design now supports estimation of a full quadratic (second-order) model.",
+        *_hard_limit_notes(ctx),
     ]
     if n_existing_centers > 0:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
+    n_cube = int((~center_mask).sum())
+    orthogonal = blocking_alpha(n_cube, n_existing_centers, k, n_new_centers)
+    if abs(alpha_numeric - orthogonal) <= 1e-6 * orthogonal:
+        notes.append(f"At alpha = {alpha_numeric:.4f} the two stages block orthogonally.")
+    else:
+        notes.append(
+            f"The two stages block orthogonally at alpha = {orthogonal:.4f} with these centre runs; at "
+            f"alpha = {alpha_numeric:.4f} the block effect is correlated with the estimates of the squared terms."
+        )
+    n_coefficients, rank, aliased = _model_support(augmented, ctx.factor_names, model)
+    if rank == n_coefficients:
+        notes.append(f"The design now supports the {model} model: all {n_coefficients} coefficients are estimable.")
+    else:
+        message = (
+            f"The {model} model has {n_coefficients} coefficients but the upgraded design supports only {rank}: "
+            f"{', '.join(aliased)} cannot all be estimated. Axial and centre runs are zero on every interaction "
+            "column, so interactions aliased in the cube stay aliased; a central composite design needs a "
+            "resolution V cube. Add runs that separate those interactions first (for a half fraction, its "
+            "other half), or use 'add_runs_optimal' with this target_model."
+        )
+        notes.append(message)
+        warnings.warn(message, UserWarning, stacklevel=3)
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design,
-        augmented,
-        ctx.factor_names,
-        ctx.augmentation_type,
-        ctx.generators,
-        ctx.generators,
-        notes,
+        ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
     )
 
     return {
@@ -612,6 +1014,9 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         "n_runs_before": len(ctx.existing_design),
         "n_runs_after": len(augmented),
         "alpha": float(alpha_numeric),
+        "orthogonal_blocking_alpha": orthogonal,
+        "n_estimable": rank,
+        "n_coefficients": n_coefficients,
         "explanation": explanation,
         "before_metrics": before_m,
         "after_metrics": after_m,
@@ -619,64 +1024,42 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
-    """Retroactively assign blocks by confounding with high-order interactions."""
+    """Assign existing runs to blocks: by confounding interaction words in a regular two-level design, else by exchange.
+
+    See :mod:`process_improve.experiments._blocking`. In a two-level factorial the block
+    contrasts are chosen so that no main effect is confounded with blocks (and as few
+    two-factor interactions as possible); every block contrast, including the products
+    of the generators, is reported.
+    """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_blocks = ctx.n_additional_runs if ctx.n_additional_runs is not None else 2
-    k = len(ctx.factor_names)
-
     if n_blocks < 2:
         raise ValueError("Number of blocks must be at least 2.")
-
-    # Determine how many confounding columns needed: 2^b blocks requires b columns
-    b = int(np.ceil(np.log2(n_blocks)))
-    n_blocks_actual = 2**b  # round up to power of 2
-
-    # Choose the highest-order interactions for confounding
-    # Generate all interactions from order k down to order 2
-    confounding_columns: list[tuple[str, np.ndarray]] = []
-    for order in range(k, 1, -1):
-        for combo in itertools.combinations(range(k), order):
-            if len(confounding_columns) >= b:
-                break
-            col_product = np.ones(len(df))
-            for idx in combo:
-                col_product *= df.iloc[:, idx].to_numpy()
-            word = "".join(ctx.factor_names[i] for i in combo)
-            confounding_columns.append((word, col_product))
-        if len(confounding_columns) >= b:
-            break
-
-    if len(confounding_columns) < b:
-        raise ValueError(
-            f"Cannot create {n_blocks_actual} blocks with {k} factors. "
-            f"Need {b} confounding columns but only found {len(confounding_columns)}."
-        )
-
-    # Assign blocks using signs of confounding columns
-    block_assignment = np.zeros(len(df), dtype=int)
-    for i, (_word, col) in enumerate(confounding_columns[:b]):
-        block_assignment += (col > 0).astype(int) * (2**i)
-    block_assignment += 1  # 1-based
-
+    numeric = df.to_numpy(dtype=float)
+    if is_regular_two_level(numeric):
+        blocking = confounding_blocks(numeric, n_blocks, ctx.factor_names)
+        notes = [
+            f"Assigned {n_blocks} blocks with generators {', '.join(blocking.generators)}.",
+            f"Confounded with blocks: {', '.join(blocking.confounded_with)} (no main effect).",
+        ]
+    else:
+        blocking = exchange_blocks(numeric, n_blocks, check_random_state(ctx.random_state))
+        notes = [
+            (
+                f"Assigned {n_blocks} blocks by exchange, keeping the {blocking.model} model estimable with a "
+                "separate mean in every block."
+            ),
+        ]
     augmented = df.copy()
-    augmented["Block"] = block_assignment.tolist()
-
-    confounded_words = [word for word, _ in confounding_columns[:b]]
-    notes = [
-        f"Assigned {n_blocks_actual} blocks by confounding with: {', '.join(confounded_words)}.",
-        f"Block effect is aliased with the {', '.join(confounded_words)} interaction(s).",
-        "Block effects should be orthogonal to main effects and low-order interactions.",
-    ]
-    explanation = "\n".join(notes)
-
+    augmented["Block"] = blocking.labels.tolist()
     return {
         "augmented_design": augmented.to_dict(orient="records"),
         "new_runs": [],
         "n_runs_before": len(ctx.existing_design),
         "n_runs_after": len(augmented),
-        "n_blocks": n_blocks_actual,
-        "confounded_with": confounded_words,
-        "explanation": explanation,
+        "n_blocks": n_blocks,
+        "confounded_with": blocking.confounded_with,
+        "explanation": "\n".join(notes),
     }
 
 
@@ -697,8 +1080,159 @@ _AUGMENT_REGISTRY: dict[str, Callable[[_AugmentContext], dict[str, Any]]] = {
 
 
 # ---------------------------------------------------------------------------
+# Limits on the settings: a region the new runs keep to
+# ---------------------------------------------------------------------------
+
+
+def _checked_region(region: DesignRegion | dict[str, Any] | None, factor_names: list[str]) -> DesignRegion | None:
+    """Return *region* over the design's factors, in their order; None without a region.
+
+    Raises
+    ------
+    ValueError
+        If the region holds mixture components or a categorical factor, does not hold exactly
+        the design's factors, or leaves no setting to run.
+    """
+    if region is None:
+        return None
+    region = DesignRegion.from_dict(region) if isinstance(region, dict) else region
+    if region.kind != "box":
+        raise ValueError("augment_design takes a region of process factors; this region holds mixture components.")
+    categorical = [f.name for f in region.factors if f.type == FactorType.categorical]
+    if categorical:
+        msg = f"augment_design works on numeric factors in coded units; the region's {categorical} are categorical."
+        if region.rules is not None:
+            msg += f" Augment the runs at one level, over {region._given_example()}."
+        raise ValueError(msg)
+    missing = [n for n in factor_names if n not in region.names]
+    extra = [n for n in region.names if n not in factor_names]
+    if missing or extra:
+        parts = [f"lacks {missing}"] * bool(missing) + [f"also holds {extra}"] * bool(extra)
+        raise ValueError(f"The region must hold exactly the design's factors {factor_names}: it {' and '.join(parts)}.")
+    if region.is_empty():
+        limits = "; ".join(c.expression for c in region.constraints)
+        raise ValueError(f"The region's limits leave no setting to run: {limits}.")
+    by_name = {f.name: f for f in region.factors}
+    return DesignRegion([by_name[n] for n in factor_names], region.constraints)
+
+
+def _actual_settings(region: DesignRegion, coded: np.ndarray) -> np.ndarray:
+    """Return coded runs in the region's actual units."""
+    low = np.array([f.low for f in region.factors], dtype=float)
+    high = np.array([f.high for f in region.factors], dtype=float)
+    return (low + high) / 2 + np.asarray(coded, dtype=float) * (high - low) / 2
+
+
+def _settings_text(region: DesignRegion, coded: np.ndarray) -> str:
+    """Describe one coded run in the region's actual units, as ``"T = 150, D = 60"``."""
+    values = _actual_settings(region, coded)
+    return ", ".join(f"{name} = {value:.6g}" for name, value in zip(region.names, values, strict=True))
+
+
+def _coded_centre(region: DesignRegion) -> np.ndarray:
+    """Return the region's central setting (:meth:`DesignRegion.centroid`) in coded units.
+
+    Raises
+    ------
+    ValueError
+        If no setting of the region is found to average, which a region too thin for its sample gives.
+    """
+    middle = region.centroid()
+    if middle is None:
+        raise ValueError("No setting of the region was found to place the centre runs at; the region is too thin.")
+    low = np.array([f.low for f in region.factors], dtype=float)
+    high = np.array([f.high for f in region.factors], dtype=float)
+    actual = np.array([middle[name] for name in region.names], dtype=float)
+    return (actual - (low + high) / 2) / ((high - low) / 2)
+
+
+def _existing_outside(ctx: _AugmentContext) -> list[Any]:
+    """Return the index labels of the existing runs outside the region, warning when there are any."""
+    if ctx.region is None:
+        return []
+    coded = ctx.existing_design[ctx.factor_names].to_numpy(dtype=float)
+    outside = ~ctx.region.feasible(coded)
+    labels = ctx.existing_design.index[outside].tolist()
+    if labels:
+        broken = dict.fromkeys(limit for limits in ctx.region.broken_limits(coded[outside]) for limit in limits)
+        warnings.warn(
+            f"{len(labels)} run(s) of the existing design lie outside the region (index {labels}), breaking "
+            f"{'; '.join(broken)}. They are kept as given, and no new run is placed outside the region.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return labels
+
+
+def _refuse_runs_outside(ctx: _AugmentContext, new_runs: list[dict[str, Any]]) -> None:
+    """Raise when a new run breaks a limit of the region, naming each such setting and the limits it breaks.
+
+    Raises
+    ------
+    ValueError
+        If any new run lies outside the region.
+    """
+    if ctx.region is None or not new_runs:
+        return
+    coded = pd.DataFrame(new_runs)[ctx.factor_names].to_numpy(dtype=float)
+    broken = ctx.region.broken_limits(coded)
+    n_outside = sum(1 for limits in broken if limits)
+    if not n_outside:
+        return
+    settings: dict[str, list[str]] = {}
+    for run, limits in zip(coded, broken, strict=True):
+        if limits:
+            settings.setdefault(_settings_text(ctx.region, run), limits)
+    shown = "; ".join(f"({text}) breaks {', '.join(limits)}" for text, limits in list(settings.items())[:5])
+    more = f"; and {len(settings) - 5} more setting(s)" if len(settings) > 5 else ""
+    advice = ""
+    if ctx.augmentation_type != "add_runs_optimal":
+        advice = " Use augmentation_type='add_runs_optimal', which chooses every new run inside the region."
+    msg = f"{ctx.augmentation_type} would add {n_outside} run(s) outside the region: {shown}{more}.{advice}"
+    raise ValueError(msg)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def _resolve_factor_names(design: pd.DataFrame, factor_names: list[str] | None) -> list[str]:
+    """Return the factor columns of *design*, refusing columns that are not coded factors.
+
+    Raises
+    ------
+    ValueError
+        If *factor_names* names a missing column or repeats one, or, when it is
+        None, if a candidate column is non-numeric, or lies wholly on one side
+        of 0 while reaching beyond [-1, 1]. A coded factor is either spread
+        across 0 or held at a level within [-1, 1]; a measured response such as
+        a yield of 10 to 16 is neither.
+    """
+    if factor_names is not None:
+        missing = [n for n in factor_names if n not in design.columns]
+        if missing or len(set(factor_names)) != len(factor_names) or not factor_names:
+            msg = f"factor_names must name distinct columns of the design; got {factor_names}, missing {missing}."
+            raise ValueError(msg)
+        return list(factor_names)
+
+    names = [c for c in design.columns if c not in RESERVED_COLUMN_NAMES]
+
+    def looks_coded(column: pd.Series) -> bool:
+        if not pd.api.types.is_numeric_dtype(column):
+            return False
+        low, high = float(column.min()), float(column.max())
+        return low < 0 < high or max(abs(low), abs(high)) <= 1.0
+
+    not_coded = [c for c in names if not looks_coded(design[c])]
+    if not_coded:
+        msg = (
+            f"Column(s) {not_coded} do not look like factors in coded units (numeric, and either spread across 0 "
+            "or within [-1, 1]); a response column would be augmented as if it were a factor. Pass "
+            "factor_names=[...] naming the factor columns, or drop the other columns."
+        )
+        raise ValueError(msg)
+    return names
 
 
 def augment_design(  # noqa: PLR0913
@@ -709,6 +1243,10 @@ def augment_design(  # noqa: PLR0913
     fold_on: str | None = None,
     alpha: str | float | None = None,
     generators: list[str] | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    factor_names: list[str] | None = None,
+    hard_limits: list[str] | None = None,
+    region: DesignRegion | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Extend or modify an existing experimental design.
 
@@ -716,18 +1254,28 @@ def augment_design(  # noqa: PLR0913
     ----------
     existing_design : DataFrame
         The current design matrix with factor columns in coded units (-1/+1).
+        Only the factor columns are augmented and returned; see *factor_names*.
     augmentation_type : str
         One of ``"foldover"``, ``"semifold"``, ``"add_center_points"``,
         ``"add_axial_points"``, ``"add_runs_optimal"``, ``"upgrade_to_rsm"``,
-        ``"add_blocks"``, ``"replicate"``.
+        ``"add_blocks"``, ``"replicate"``. A mixture design, whose runs are blends
+        (proportions that sum to 1), takes three of them: ``"add_axial_points"`` adds
+        its axial check blends, each midway between the centroid of the simplex and a
+        vertex, ``"add_center_points"`` adds runs at the centroid, and ``"replicate"``
+        copies the runs.
     target_model : str or None
         Desired model after augmentation: ``"main_effects"``,
-        ``"interactions"``, ``"quadratic"``.  Used by ``"add_runs_optimal"``
-        and ``"upgrade_to_rsm"``.
+        ``"interactions"``, ``"quadratic"``. ``"add_runs_optimal"`` chooses
+        runs for it (default ``"interactions"``); ``"upgrade_to_rsm"`` checks
+        that the upgraded design can estimate it (default ``"quadratic"``),
+        warning and listing the aliased terms when it cannot.
     n_additional_runs : int or None
-        Budget for additional runs.  Interpretation depends on the
-        augmentation type (number of center points, number of D-optimal
-        runs, number of blocks, ...). For ``"replicate"``, this is the
+        Budget for additional runs, a positive whole number. Interpretation
+        depends on the augmentation type (number of center points, number of
+        D-optimal runs, number of blocks, ...). For ``"upgrade_to_rsm"`` it is
+        the number of centre runs in the second stage, beside the axial runs;
+        the default of ``None`` brings the centre runs to five. A regular two-level design
+        splits into 2, 4, 8, ... blocks; another count raises. For ``"replicate"``, this is the
         number of complete copies of the existing design that are appended
         (each copy adds ``len(existing_design)`` runs); the default of
         ``None`` becomes 1 complete copy.
@@ -741,6 +1289,34 @@ def augment_design(  # noqa: PLR0913
     generators : list[str] or None
         Generator strings from the original design (e.g. ``["D=ABC"]``).
         Needed for meaningful alias analysis in foldover/semifold.
+    random_state : int, numpy.random.Generator or None, default 42
+        Seeds the exchange's random starts for ``"add_runs_optimal"``; the default
+        keeps the result reproducible, and ``None`` draws fresh starts.
+    factor_names : list[str] or None
+        The factor columns. ``None`` takes every column except ``RunOrder`` and
+        ``Block``, and then refuses a column that does not look like a coded
+        factor (non-numeric, or all on one side of 0 and beyond [-1, 1]), such
+        as a response measured on the runs: augmenting it as a factor would add
+        axial runs on it or negate it in a foldover. Name the factors to keep
+        other columns out.
+    hard_limits : list[str] or None
+        The factors whose coded -1 and +1 are limits of the process (see
+        ``Factor.hard_limits``): no new run may set them past those levels. With any
+        named, ``"add_axial_points"`` and ``"upgrade_to_rsm"`` put their axial runs on
+        the faces of the cube (alpha = 1) unless *alpha* is given, and refuse an alpha
+        above 1. Every other augmentation keeps its new runs inside -1 to +1 anyway.
+    region : DesignRegion, dict or None
+        Limits on the settings that every new run keeps to: a region of the design's
+        factors (see :class:`~process_improve.experiments.region.DesignRegion`), or its
+        dict form, such as ``metadata["region"]`` of the design ``generate_design`` made.
+        The region's factors give the coding: their ``low`` and ``high`` are the design's
+        -1 and +1. ``"add_runs_optimal"`` then chooses its runs among the settings the
+        limits allow, and ``"add_center_points"`` puts the centre runs at the region's
+        central setting when the centre of the box breaks a limit. The ranges are limits
+        too, so axial runs sit on the faces of the cube, as with *hard_limits*. Any other
+        new run that breaks a limit (a folded run, an axial or centre run, a copy) is
+        refused, and the message names it and the limit. Existing runs outside the region
+        are kept, with a ``UserWarning``.
 
     Returns
     -------
@@ -749,13 +1325,22 @@ def augment_design(  # noqa: PLR0913
         ``"new_runs"`` (list of dicts), ``"n_runs_before"``,
         ``"n_runs_after"``, ``"explanation"`` (narrative),
         ``"before_metrics"``, ``"after_metrics"``, and
-        augmentation-specific keys.
+        augmentation-specific keys. With a *region*,
+        ``"existing_runs_outside_region"`` lists the index labels of the existing
+        runs outside it.
 
     Raises
     ------
     ValueError
-        If *augmentation_type* is unknown, or if required parameters
-        are missing for the requested augmentation.
+        If *augmentation_type* is unknown, if required parameters are missing
+        for the requested augmentation, if a column would be treated as a
+        factor without looking like one (see *factor_names*), if *hard_limits*
+        names a column that is not a factor, if axial runs would pass a hard
+        limit, if *region* does not hold exactly the design's numeric factors or
+        leaves no setting, or if a new run would break one of its limits. For a
+        mixture design, also if the augmentation is not one of the three it takes,
+        if *alpha* is given for its axial points, or if its blends do not reach
+        every vertex of the simplex they span (the region is then not a simplex).
 
     Examples
     --------
@@ -774,7 +1359,27 @@ def augment_design(  # noqa: PLR0913
         available = sorted(_AUGMENT_REGISTRY.keys())
         raise ValueError(f"Unknown augmentation_type={augmentation_type!r}. Choose from: {', '.join(available)}.")
 
-    factor_names = [c for c in existing_design.columns if c not in ("RunOrder", "Block")]
+    if n_additional_runs is not None and (
+        isinstance(n_additional_runs, bool) or int(n_additional_runs) != n_additional_runs or n_additional_runs < 1
+    ):
+        msg = (
+            f"n_additional_runs must be a positive whole number (runs, centre points, copies or blocks); "
+            f"got {n_additional_runs!r}."
+        )
+        raise ValueError(msg)
+    factor_names = _resolve_factor_names(existing_design, factor_names)
+    if augmentation_type not in _FOR_BLENDS and _are_blends(existing_design[factor_names]):
+        msg = (
+            f"augmentation_type={augmentation_type!r} is for factors in coded units, and the runs are mixture "
+            "blends (the proportions of each run sum to 1). A mixture design takes 'add_axial_points' (its axial "
+            "check blends), 'add_center_points' (its centroid) or 'replicate'."
+        )
+        raise ValueError(msg)
+    unknown = sorted(set(hard_limits or []) - set(factor_names))
+    if unknown:
+        raise ValueError(f"hard_limits names {unknown}, which are not factors of the design: {factor_names}.")
+    checked = _checked_region(region, factor_names)
+    limited = set(hard_limits or []) | (set(factor_names) if checked is not None else set())  # the region's box
 
     ctx = _AugmentContext(
         existing_design=existing_design,
@@ -785,7 +1390,14 @@ def augment_design(  # noqa: PLR0913
         fold_on=fold_on,
         alpha=alpha,
         generators=generators,
+        random_state=random_state,
+        hard_limits=tuple(n for n in factor_names if n in limited),
+        region=checked,
     )
 
-    handler = _AUGMENT_REGISTRY[augmentation_type]
-    return handler(ctx)
+    outside = _existing_outside(ctx)
+    result = _AUGMENT_REGISTRY[augmentation_type](ctx)
+    _refuse_runs_outside(ctx, result.get("new_runs") or [])
+    if checked is not None:
+        result["existing_runs_outside_region"] = outside
+    return result

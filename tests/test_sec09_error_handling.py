@@ -21,8 +21,8 @@ class TestSafeEvaluateLogsAndNarrows:
             raise ValueError("not applicable to this design")
 
         monkeypatch.setattr(augment, "evaluate_design", _boom)
-        with caplog.at_level(logging.WARNING):
-            result = augment._safe_evaluate(self._design(), generators=None)
+        with caplog.at_level(logging.WARNING), pytest.warns(UserWarning, match="not computed"):
+            result = augment._safe_evaluate(self._design())
         assert result == {}
         assert "Design evaluation skipped" in caplog.text
 
@@ -32,7 +32,7 @@ class TestSafeEvaluateLogsAndNarrows:
 
         monkeypatch.setattr(augment, "evaluate_design", _boom)
         with pytest.raises(RuntimeError, match="genuine bug"):
-            augment._safe_evaluate(self._design(), generators=None)
+            augment._safe_evaluate(self._design())
 
 
 class TestBreuschPaganFailureLogged:

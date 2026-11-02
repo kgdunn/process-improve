@@ -10,6 +10,7 @@ and surfaces to ``tool_safety`` / ``mcp_server`` at call time
 from __future__ import annotations
 
 import importlib
+import re
 
 import pytest
 
@@ -75,6 +76,15 @@ class TestEnvVarOverride:
         with pytest.raises(ValueError, match="not a valid integer"):
             _ = settings.max_cells
 
+    def test_invalid_float_raises_on_first_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A float knob names the variable and the value it could not parse."""
+        monkeypatch.setenv(ENV_VAR_NAMES["tool_timeout"], "abc")
+        settings.reload()
+        with pytest.raises(
+            ValueError, match=r"^Environment variable PROCESS_IMPROVE_TOOL_TIMEOUT='abc' is not a valid float\.$"
+        ):
+            _ = settings.tool_timeout
+
 
 class TestCacheBehaviour:
     """First read pins the value; subsequent reads return the cache."""
@@ -109,6 +119,29 @@ class TestCodeOverride:
         settings.max_cells = "5000"  # type: ignore[assignment]
         assert settings.max_cells == 5_000
 
+    @pytest.mark.parametrize("name", list(DEFAULTS))
+    def test_every_setter_round_trips_a_value_of_its_type(self, name: str) -> None:
+        """Each knob's setter writes through, coercing a string to the knob's declared type."""
+        default = DEFAULTS[name]
+        new_value = (not default) if isinstance(default, bool) else default * 2
+        setattr(settings, name, new_value if isinstance(default, bool) else str(new_value))
+        assert getattr(settings, name) == new_value
+        assert type(getattr(settings, name)) is type(default)
+
+    @pytest.mark.parametrize(
+        ("name", "message"),
+        [
+            pytest.param("dataset_fetch_timeout", "could not convert string to float", id="float-knob"),
+            pytest.param("max_string", "invalid literal for int", id="int-knob"),
+        ],
+    )
+    def test_a_setter_refuses_a_value_it_cannot_coerce(self, name: str, message: str) -> None:
+        """A non-numeric string fails in the setter, leaving the cached value alone."""
+        before = getattr(settings, name)
+        with pytest.raises(ValueError, match=message):
+            setattr(settings, name, "lots")
+        assert getattr(settings, name) == before
+
     def test_setter_observed_by_tool_safety(self) -> None:
         """A code-override surfaces through the legacy module-level shim."""
         tool_safety = importlib.import_module("process_improve.tool_safety")
@@ -116,13 +149,14 @@ class TestCodeOverride:
         # The legacy ``DEFAULT_TIMEOUT_S`` name still resolves -- but it
         # now resolves to whatever ``settings.tool_timeout`` is right now,
         # not whatever it was at import time.
-        assert tool_safety.DEFAULT_TIMEOUT_S == 99.0
+        with pytest.warns(DeprecationWarning, match="DEFAULT_TIMEOUT_S"):
+            assert tool_safety.DEFAULT_TIMEOUT_S == 99.0
 
 
 class TestLegacyShim:
     """The five ``DEFAULT_*`` names that ``tool_safety`` used to export
     forward to the new settings, so existing imports keep working
-    (ENG-22 deprecation candidate for v2.0).
+    (ENG-22). Each read warns: deprecated since 2.0.0, removed in 3.0.
     """
 
     @pytest.mark.parametrize(
@@ -135,9 +169,23 @@ class TestLegacyShim:
             ("DEFAULT_MEMORY_MB", "max_memory_mb"),
         ],
     )
-    def test_legacy_name_forwards_to_settings(self, legacy: str, knob: str) -> None:
+    def test_legacy_name_warns_and_forwards_to_settings(self, legacy: str, knob: str) -> None:
         tool_safety = importlib.import_module("process_improve.tool_safety")
-        assert getattr(tool_safety, legacy) == getattr(settings, knob)
+        message = (
+            f"process_improve.tool_safety.{legacy} is deprecated since 2.0.0 and will be removed in 3.0; "
+            f"use process_improve.config.settings.{knob} instead."
+        )
+        with pytest.warns(DeprecationWarning, match=re.escape(message)) as record:
+            value = getattr(tool_safety, legacy)
+        assert value == getattr(settings, knob)
+        # stacklevel=2 points the warning at the caller, not at tool_safety itself.
+        assert record[0].filename == __file__
+
+    def test_from_import_of_a_legacy_name_warns(self) -> None:
+        settings.max_cells = 1234
+        with pytest.warns(DeprecationWarning, match=r"settings\.max_cells instead"):
+            from process_improve.tool_safety import DEFAULT_MAX_CELLS
+        assert DEFAULT_MAX_CELLS == 1234
 
     def test_unknown_attribute_still_raises(self) -> None:
         tool_safety = importlib.import_module("process_improve.tool_safety")

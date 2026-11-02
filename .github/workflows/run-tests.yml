@@ -13,8 +13,11 @@ on:
     branches: [main]
   pull_request:
     branches: ['**']
-  # schedule:
-  #   - cron: "0 4 * * *"
+  # Nightly, so the Windows and macOS jobs, which a pull request does not run, and a new release of a
+  # dependency are tested on a day nothing is merged. 04:17 UTC, off the hour most schedules start on.
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
 
 # The workflow only reads the repository; the default token needs no
 # write scopes (codecov uploads use their own OIDC/token path).
@@ -64,48 +67,153 @@ jobs:
     - name: Type-check with mypy
       run: uv run mypy src/process_improve
 
-  # The no-install browser app (web/) runs the wheel under Pyodide. This
-  # builds the wheel and drives a design -> analyse round trip under real
-  # Pyodide in Node, so a new dependency with no WebAssembly build, or an
-  # import that reaches for one, fails here and not on a reader's screen.
+  # The browser app (web/) in a browser and under Pyodide. tests/web/e2e drives the page
+  # in Chromium with its Python answered natively; tests/web/live runs the built app in
+  # Chromium with Pyodide; tests/web/wasm asks the app's Python under Pyodide in Node.js
+  # what native Python is asked, and compares. A dependency with no WebAssembly build, a
+  # page that no longer reads a reply, or a step that breaks in the browser fails here and
+  # not on a reader's screen. The rest of tests/web runs in every test job.
   web-app:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@v7
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: "22"
-    - name: Build the wheel
-      run: uv build --wheel --out-dir dist/web
-    - name: Install Pyodide for Node
-      working-directory: web
-      run: npm install --no-save --no-package-lock pyodide@0.28.3
-    - name: Round trip under Pyodide
-      run: node web/test-wasm.mjs dist/web/process_improve-*.whl
+    - name: Read the Pyodide release the page runs
+      id: runtime
+      run: echo "pyodide=$(jq -r .pyodide web/runtime.json)" >> "$GITHUB_OUTPUT"
+    # Pyodide for Node.js keeps the packages it downloads in its own directory, so the
+    # cache saves the CDN round trips too.
+    - name: Cache Pyodide for Node.js
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/process-improve/node
+        key: pyodide-node-${{ steps.runtime.outputs.pyodide }}
+    - name: Install Pyodide for Node.js
+      run: >-
+        npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock
+        pyodide@${{ steps.runtime.outputs.pyodide }}
+    # Under the tests, Pyodide downloads each wheel it lacks from the CDN, and one download
+    # that came back cut short failed all 40 Pyodide tests ("typing_inspection-0.4.2-py3-none-any.whl
+    # is not a zip file"; annotated_types another time). Fetch here every wheel web/runtime.json
+    # needs, with its dependencies, checked against Pyodide's lock file and fetched again on a
+    # mismatch; Pyodide then reads them from node_modules.
+    - name: Fetch the Pyodide wheels the app loads
+      shell: bash
+      run: |
+        python3 - <<'EOF'
+        import hashlib, json, pathlib, re, sys, time, urllib.request
+
+        runtime = json.loads(pathlib.Path("web/runtime.json").read_text(encoding="utf-8"))
+        pyodide = pathlib.Path.home() / ".cache/process-improve/node/node_modules/pyodide"
+        lock = {
+            re.sub(r"[-_.]+", "-", name).lower(): package
+            for name, package in json.loads((pyodide / "pyodide-lock.json").read_text(encoding="utf-8"))["packages"].items()
+        }
+        cdn = f"https://cdn.jsdelivr.net/pyodide/v{runtime['pyodide']}/full/"
+        todo, seen = list(runtime["packages"]), set()
+        while todo:
+            name = re.sub(r"[-_.]+", "-", todo.pop()).lower()
+            if name in seen:
+                continue
+            seen.add(name)
+            package = lock[name]
+            todo += package["depends"]
+            wheel = pyodide / package["file_name"]
+            for attempt in range(4):
+                if wheel.is_file() and hashlib.sha256(wheel.read_bytes()).hexdigest() == package["sha256"]:
+                    break
+                if attempt:
+                    print(f"::warning::{wheel.name} does not match pyodide-lock.json; fetching it again")
+                    time.sleep(2**attempt)
+                try:
+                    urllib.request.urlretrieve(cdn + package["file_name"], wheel)
+                except OSError as error:
+                    print(f"::warning::{wheel.name}: {error}")
+            else:
+                sys.exit(f"{wheel.name} does not match pyodide-lock.json after 3 downloads")
+        print(f"{len(seen)} Pyodide packages match pyodide-lock.json")
+        EOF
+    - name: Cache the downloads of the page in the browser
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/process-improve/cdn
+        key: web-app-cdn-${{ hashFiles('web/runtime.json') }}
+    # The browser Playwright drives. Its download took 25 s in some runs and 7 to 10 min in
+    # others (#926); kept here, the install below finds it and installs only the system
+    # packages. tests/web/_browser.py holds the Playwright pin, so a new pin starts a new cache.
+    - name: Cache Chromium for Playwright
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/web/_browser.py') }}
+    - name: Install Chromium for Playwright
+      run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+    - name: Build the app
+      run: uv run python scripts/build_web_app.py -o dist/web-app
+    - name: The app in a browser and under Pyodide, and its JavaScript under Node.js
+      run: >-
+        uv run --with playwright==1.64.1 pytest tests/web/e2e tests/web/live tests/web/wasm tests/web/js
+        --e2e --live --wasm --web-app=dist/web-app --e2e-artifacts=e2e-artifacts --no-cov
+    - name: Keep a trace and screenshots of each failing browser test
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: web-app-e2e-artifacts
+        path: e2e-artifacts
+        retention-days: 7
 
   test:
     strategy:
       fail-fast: false
       matrix:
         # Minimum and primary supported Python on all three operating systems, so the
-        # oldest interpreter the package claims to support is finally validated off
-        # Linux (#449). The two intermediate versions run on ubuntu only: that is 8 jobs
-        # rather than the 12-job full product, and the OS extremes at min and max Python
-        # catch platform problems without doubling the bill.
-        python-version: ["3.10", "3.13"]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # oldest interpreter the package claims to support is validated off Linux
+        # (#449). The intermediate version runs on ubuntu only: the OS extremes at min
+        # and max Python catch platform problems without the full product's bill.
+        # A pull request runs Windows and macOS at Python 3.13 only, on the tests it can
+        # affect (`--affected-since`, below), so they cost a few minutes, not the whole
+        # suite. Two changes reached main red on a platform the pull request never ran:
+        # a default text encoding on Windows (#994) and a floating-point last digit on
+        # macOS (#1007). Pushes to main and the nightly run add Windows and macOS at 3.11.
+        # Python 3.13 on ubuntu is the `coverage` job below, so it is excluded here.
+        python-version: ["3.11", "3.12", "3.13"]
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
         experimental: [false]
-        include:
-          - python-version: "3.11"
+        # Each row runs the suite in two duration-balanced halves (`--shard`, as the
+        # `coverage` job does). The same job took 16 min on one runner and 31 min on
+        # another (#926), so a whole-suite row set the pull request's time by chance;
+        # halves cost two job setups more and end about 14 min sooner.
+        shard: [1, 2]
+        exclude:
+          - python-version: "3.13"
             os: ubuntu-latest
-            experimental: false
           - python-version: "3.12"
-            os: ubuntu-latest
-            experimental: false
+            os: windows-latest
+          - python-version: "3.12"
+            os: macos-latest
+          # On a pull request only: 'none' matches no row, so pushes and nightly keep 3.11.
+          - python-version: ${{ github.event_name == 'pull_request' && '3.11' || 'none' }}
+            os: windows-latest
+          - python-version: ${{ github.event_name == 'pull_request' && '3.11' || 'none' }}
+            os: macos-latest
+        include:
+          # The minimum Python installs the lowest release of each dependency that
+          # pyproject.toml allows, so its rows test the declared floors (pandas 2.3,
+          # numpy 2.2, scipy 1.15) and the other rows test the newest releases.
+          - python-version: "3.11"
+            resolution: lowest-direct
+          # The 3.12 row runs under `python -O` (ENG-15): it catches validation
+          # `assert`s that -O strips (SEC-08, SEC-17 / #266), and the other rows run
+          # with asserts on. It was a job of its own, one more whole suite per run (#926).
+          - python-version: "3.12"
+            optimize: "1"
           # Free-threaded (no-GIL) Python (3.13t / 3.14t) is intentionally NOT
           # tested yet. Several dependencies still lack free-threaded (cp31Xt)
           # wheels and fall back to building from source, which fails on the
@@ -117,6 +225,10 @@ jobs:
           # Re-add them once the free-threaded wheel ecosystem has caught up
           # (tracked in issue #43).
     runs-on: ${{ matrix.os }}
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
     continue-on-error: ${{ matrix.experimental }}
     defaults:
       run:
@@ -129,51 +241,143 @@ jobs:
       uses: ./.github/actions/setup-env
       with:
         python-version: ${{ matrix.python-version }}
+        resolution: ${{ matrix.resolution || 'highest' }}
     # Test building & distribution. These used to run before the editable sync; the
     # composite action does the sync, so they follow it now. Neither reads the project
     # venv: `uv build` uses its own build environment, and the import check runs in an
-    # ephemeral `--isolated --no-project` environment.
+    # ephemeral `--isolated --no-project` environment. One half of each row is enough.
     - name: Test building the distributions
+      if: matrix.shard == 1
       run: uv build
     - name: Check if the built package can be installed and imported
+      if: matrix.shard == 1
       run: uv run --isolated --with . --no-project -- python -c "import process_improve"
-    # This is where the actual unit and integration tests start
-    - name: Test with pytest
-      run: uv run pytest --cov-report=xml
-    - name: Upload coverage to Codecov
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-      uses: codecov/codecov-action@v7
-      with:
-        files: ./coverage.xml
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: false
+    # This is where the actual unit and integration tests start. Coverage is
+    # measured once, by the `coverage` job; tracing every line costs these cells
+    # about twice the time for a number nothing reads.
+    # On a pull request these rows run only the tests the change can reach
+    # (`--affected-since`, tests/_selection.py). The `coverage` job still runs the
+    # whole suite on every pull request, so a test the static selection misses is
+    # caught there; pushes to main and the nightly run test everything here too.
+    - name: Test with pytest, half ${{ matrix.shard }} of 2
+      # PYTHONOPTIMIZE=1 is `python -O` for every interpreter the run starts, the xdist
+      # workers included; the flag alone would reach only the controller. It is empty,
+      # so asserts stay on, in every row but 3.12's.
+      env:
+        PYTHONOPTIMIZE: ${{ matrix.optimize }}
+        AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/2 $AFFECTED
 
-  # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
-  # SEC-08 swept ~105 sites; SEC-17 (#266) swept the multivariate / bivariate /
-  # batch / experiments / monitoring sites that survived. This job now runs as
-  # a blocking check so a regression turns CI red.
-  test-under-dash-O:
+  # The whole suite on the primary platform, with coverage, split into
+  # duration-balanced shards (`--shard`, tests/_selection.py). Adding a shard is
+  # one more number in the list: `strategy.job-total` follows it.
+  coverage:
     runs-on: ubuntu-latest
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
-    - name: Test with pytest under python -O
-      # Strip the default --cov / --pdb / -n auto / --exitfirst options;
-      # for -O detection we want the full failure surface, not the first one.
-      run: uv run python -O -m pytest -o "addopts=" -v --tb=short
+    # The 96% gate cannot apply to one shard of the suite, so it is switched off
+    # here and `coverage-report` applies it to the combined data. The total this
+    # step prints covers only this shard. `--store-durations` measures this shard's
+    # files again, as tests/.test_durations.json is meant to be measured, so that
+    # `coverage-report` can combine the shards into a fresh copy of it.
+    - name: Test with pytest, shard ${{ matrix.shard }} of ${{ strategy.job-total }}
+      run: uv run pytest --shard=${{ matrix.shard }}/${{ strategy.job-total }} --cov-fail-under=0 --store-durations
+    - name: Keep this shard's coverage data and durations
+      run: |
+        mv .coverage .coverage.shard-${{ matrix.shard }}
+        mv tests/.test_durations.json .test_durations.shard-${{ matrix.shard }}.json
+    - uses: actions/upload-artifact@v7
+      with:
+        name: coverage-shard-${{ matrix.shard }}
+        path: |
+          .coverage.shard-${{ matrix.shard }}
+          .test_durations.shard-${{ matrix.shard }}.json
+        include-hidden-files: true
+        retention-days: 1
+
+  coverage-report:
+    needs: coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - name: Set up the project environment
+      uses: ./.github/actions/setup-env
+      with:
+        python-version: "3.13"
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: coverage-shard-*
+        merge-multiple: true
+    # The shards' durations, combined into the file `--shard` balances on. It warns when
+    # the shards measured loads far apart; refreshing tests/.test_durations.json is then a
+    # download of the `test-durations` artifact. It runs before the gate, so a coverage dip
+    # does not lose it.
+    - name: Combine the shards' test durations
+      run: >-
+        uv run python tools/shard_durations.py tests/.test_durations.json
+        .test_durations.shard-*.json -o test-durations.json
+    - uses: actions/upload-artifact@v7
+      with:
+        name: test-durations
+        path: test-durations.json
+        retention-days: 30
+    - name: Combine the shards and apply the 96% gate
+      run: |
+        uv run coverage combine
+        uv run coverage xml
+        uv run coverage report --fail-under=96
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v7
+      with:
+        files: ./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+    # Patch gate (#678): every source line a pull request changes must run under the
+    # tests. Total coverage drifts toward the coverage of new code, so holding each
+    # change to 100% moves the total up with each change, with no clean-up drive. A line
+    # that cannot run in CI carries `# pragma: no cover` and its reason, which a reviewer
+    # sees in the diff. It runs after the Codecov upload so a failure here still reports.
+    # uvx runs diff-cover in its own environment: no dev dependency, uv.lock untouched.
+    - name: Coverage of the lines this pull request changes
+      if: github.event_name == 'pull_request'
+      run: >-
+        uvx --from diff-cover==10.6.0 diff-cover coverage.xml
+        --compare-branch=origin/${{ github.base_ref }} --fail-under=100
 
   test-free-threaded:
     # Free-threaded CPython (PEP 703), #43. Every dependency ships wheels for it,
     # numba included since 0.67, so the package installs and the whole suite runs.
-    # pandas 2.x's parser extension does not yet declare free-threading support,
-    # so importing pandas would turn the GIL back on; PYTHON_GIL=0 keeps it off, so
-    # this job exercises the package the way a free-threaded user runs it.
+    # An extension module that does not declare free-threading support turns the
+    # GIL back on when imported, as pandas 2.x's parser extension did; pandas 3,
+    # which this job resolves, declares it. PYTHON_GIL=0 keeps the GIL off either
+    # way, so this job exercises the package the way a free-threaded user runs it.
     runs-on: ubuntu-latest
+    # Python warns when code reads or writes text in the platform's default encoding,
+    # cp1252 on Windows (#994); tests/conftest.py fails the run when the call is ours.
+    env:
+      PYTHONWARNDEFAULTENCODING: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]  # two halves, as the `test` rows run (#926)
     steps:
     - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0  # `--affected-since` needs the base branch
     - name: Set up the project environment
       uses: ./.github/actions/setup-env
       with:
@@ -186,6 +390,26 @@ jobs:
     - name: Test with pytest, without the GIL
       env:
         PYTHON_GIL: "0"
-      # Coverage is gated in the main matrix; here the question is only whether
-      # everything passes.
-      run: uv run pytest --no-cov
+        AFFECTED: ${{ github.event_name == 'pull_request' && format('--affected-since=origin/{0}', github.base_ref) || '' }}
+      # Coverage is gated in the `coverage` job; here the question is only whether
+      # everything passes. A pull request runs only the affected tests, as the `test` rows do.
+      run: uv run pytest --no-cov --shard=${{ matrix.shard }}/${{ strategy.job-total }} $AFFECTED
+
+  # The one check to require in branch protection: green only when every job
+  # above it succeeded, so a green pull request has passed the whole suite on
+  # Python 3.13 (`coverage`) and the tests it can affect on the other rows. It
+  # has to inspect the results itself: a job that merely `needs` the others is
+  # skipped when one fails, and GitHub counts a skipped required check as passed. `coverage-report` is left out on purpose, so a
+  # coverage dip shows red there without blocking a merge.
+  ci-passed:
+    name: CI passed
+    if: ${{ !cancelled() }}
+    needs: [lint, typecheck, web-app, test, coverage, test-free-threaded]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check that every job succeeded
+      env:
+        RESULTS: ${{ join(needs.*.result, ' ') }}
+      run: |
+        echo "Job results: $RESULTS"
+        for result in $RESULTS; do [ "$result" = success ] || exit 1; done

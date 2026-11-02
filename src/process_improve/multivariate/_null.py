@@ -53,30 +53,26 @@ __all__ = [
     "check_predictive_signal",
     "class_enrichment",
     "count_discoveries_under_null",
-    "permutation_q2",
-    "pipeline_null",
 ]
 
 
-def _as_frame(values: pd.DataFrame | pd.Series | np.ndarray, like: pd.DataFrame) -> pd.DataFrame:
-    """Coerce a callable's return value to a frame with ``like``'s labels."""
-    if isinstance(values, pd.DataFrame):
-        return values
-    array = np.asarray(values, dtype=float)
+def _as_predictions(values: pd.DataFrame | pd.Series | np.ndarray, like: pd.DataFrame) -> np.ndarray:
+    """Return a callable's predictions as an array of ``like``'s shape, compared with it position by position."""
+    array = np.asarray(values)
     if array.ndim == 1:
-        array = array.reshape(-1, 1)
+        array = array[:, np.newaxis]
     if array.shape != like.shape:
         raise ValueError(
             f"fit_predict returned predictions of shape {array.shape}, but the response block is "
             f"{like.shape}. It must return one out-of-sample prediction per row and per attribute."
         )
-    return pd.DataFrame(array, index=like.index, columns=like.columns)
+    return array
 
 
-def _q2_per_column(observed: pd.DataFrame, predicted: pd.DataFrame) -> np.ndarray:
+def _q2_per_column(observed: pd.DataFrame, predicted: np.ndarray) -> np.ndarray:
     """Return 1 - PRESS / TSS per column, NaN where a column has no variance."""
     truth = observed.to_numpy(dtype=float)
-    fitted = predicted.to_numpy(dtype=float)
+    fitted = np.asarray(predicted, dtype=float)  # None, as a missing prediction, reads as NaN
     usable = np.isfinite(truth) & np.isfinite(fitted)
     out = np.full(truth.shape[1], np.nan)
     for position in range(truth.shape[1]):
@@ -106,9 +102,10 @@ def _permute_rows(y: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
 def _loo_fit_predict(n_components: int) -> Callable:
     """Return the default ``fit_predict``: leave-one-out cross-validated PLS.
 
-    The **raw** blocks are handed to :class:`PLS` with ``scale=True``, so each
-    leave-one-out fold derives its own centring and scaling constants from the
-    training rows only (:meth:`PLS.cross_validate` refits a clone per fold).
+    The **raw** blocks are handed to :class:`PLS`, which scales by default, so
+    each leave-one-out fold (:meth:`PLS.cross_validate`'s default) derives its own
+    centring and scaling constants from the training rows only (it refits a clone
+    per fold).
     Scaling the blocks *before* calling this leaks the held-out row's mean and
     spread into the fold, which is the trap the ``fit_predict`` documentation
     warns about, so do not pre-scale.
@@ -118,8 +115,13 @@ def _loo_fit_predict(n_components: int) -> Callable:
         # PLS needs at least one component and cannot use more than the block
         # supports; leave-one-out also costs a row.
         a = max(1, min(int(n_components), x.shape[1], x.shape[0] - 2))
-        model = PLS(n_components=a, scale=True).fit(x, y)
-        return model.cross_validate(x, y, cv="loo", show_progress=False).y_hat_cv
+        model = PLS(n_components=a).fit(x, y)
+        result = model.cross_validate(
+            x,
+            y,
+            show_progress=False,  # pragma: no mutate - None hides tqdm's bar as False does
+        )
+        return result.y_hat_cv
 
     return fit_predict
 
@@ -192,7 +194,10 @@ def check_predictive_signal(  # noqa: PLR0913
             performance a shuffled response reaches one time in twenty.
         ``p_value``
             The fraction of permutations reaching at least ``q2_observed``,
-            computed as ``(1 + count) / (n_perm + 1)``.
+            computed as ``(1 + count) / (n_used + 1)`` where ``n_used`` is the
+            number of permutations that produced a usable :math:`Q^2`
+            (reported as ``n_permutations``), so a permutation whose fit
+            degenerates is left out of both the numerator and the denominator.
         ``n_permutations``
             Permutations that produced a usable :math:`Q^2`.
 
@@ -212,13 +217,17 @@ def check_predictive_signal(  # noqa: PLR0913
     out-of-sample. Develop with ``n_perm`` around 50, then raise it for the
     number you intend to report, keeping the p-value floor below in mind.
 
-    The p-value uses the ``(1 + count) / (n_perm + 1)`` form, which counts the
+    The p-value uses the ``(1 + count) / (n_used + 1)`` form, which counts the
     observed statistic as one of its own null draws so the result can never be
-    exactly zero. That also puts a floor on it: **the smallest attainable
-    p-value is** ``1 / (n_perm + 1)``. The default 500 permutations cannot report
-    anything below 0.002, so choose ``n_perm`` with the threshold you intend to
-    apply in mind, and remember that a multiplicity correction over many
-    attributes needs a floor well below the corrected threshold.
+    exactly zero. ``n_used`` is the number of permutations whose fit produced a
+    usable :math:`Q^2`; it equals ``n_perm`` when every permutation succeeds,
+    and otherwise is smaller (reported as ``n_permutations`` on each row). That
+    also puts a floor on the p-value: **the smallest attainable p-value is**
+    ``1 / (n_used + 1)``, at best ``1 / (n_perm + 1)``. The default 500
+    permutations cannot report anything below 0.002, so choose ``n_perm`` with
+    the threshold you intend to apply in mind, and remember that a multiplicity
+    correction over many attributes needs a floor well below the corrected
+    threshold.
 
     See Also
     --------
@@ -248,13 +257,13 @@ def check_predictive_signal(  # noqa: PLR0913
     if fit_predict is None:
         fit_predict = _loo_fit_predict(n_components)
 
-    observed = _q2_per_column(y, _as_frame(fit_predict(x, y), y))
+    observed = _q2_per_column(y, _as_predictions(fit_predict(x, y), y))
 
     rng = np.random.default_rng(seed)
     null = np.full((int(n_perm), y.shape[1]), np.nan)
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
-        null[index, :] = _q2_per_column(y_perm, _as_frame(fit_predict(x, y_perm), y_perm))
+        null[index, :] = _q2_per_column(y_perm, _as_predictions(fit_predict(x, y_perm), y_perm))
 
     rows: list[dict[str, object]] = []
     for position, attribute in enumerate(y.columns):
@@ -333,12 +342,6 @@ def count_discoveries_under_null(
             Number of names selected on the real response.
         ``null_mean``, ``null_p95``
             Mean and 95th percentile of the selection count under permutation.
-        ``empirical_fdr``
-            .. deprecated:: 1.77.0
-                The old name for the ratio below, kept for one release and
-                clipped to ``[0, 1]`` as it always was. Prefer
-                ``null_to_observed_ratio``, which is unclipped. Will be removed
-                in 2.0.0.
         ``null_to_observed_ratio``
             ``null_mean / observed``; ``NaN`` when nothing was selected. Read it
             as "of the names this procedure returned, about this fraction is
@@ -390,11 +393,11 @@ def count_discoveries_under_null(
             "the empirical FDR cannot be read as a property of the data. Seed the selector (or "
             "make it deterministic) and re-run.",
             SpecificationWarning,
-            stacklevel=2,
+            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
         )
 
     rng = np.random.default_rng(seed)
-    counts = np.empty(int(n_perm), dtype=float)
+    counts = np.empty(int(n_perm))
     for index in range(int(n_perm)):
         y_perm = _permute_rows(y, rng)
         counts[index] = len(_names(select(x, y_perm)))
@@ -403,15 +406,12 @@ def count_discoveries_under_null(
     null_mean = float(counts.mean())
     # Deliberately unclipped: a ratio above 1 says shuffling beat the real
     # response, and that is the reading most worth surfacing.
-    ratio = float(null_mean / observed) if observed else float("nan")
+    ratio = float(null_mean / observed) if observed else np.nan
     return {
         "observed": observed,
         "null_mean": null_mean,
         "null_p95": float(np.percentile(counts, 95)),
         "null_to_observed_ratio": ratio,
-        # Deprecated since 1.77.0, removed in 2.0.0: the same quantity under its
-        # old name, still clipped so an existing caller sees no change in value.
-        "empirical_fdr": float(np.clip(ratio, 0.0, 1.0)) if observed else float("nan"),
         "null_counts": counts,
         "selected": selected,
     }
@@ -506,7 +506,7 @@ def class_enrichment(
     in_top = len(matched)
 
     if class_size == 0 or n_drawn == 0:
-        p_value = float("nan")
+        p_value = np.nan
     else:
         p_value = float(hypergeom.sf(in_top - 1, len(names), class_size, n_drawn))
 
@@ -518,54 +518,3 @@ def class_enrichment(
         "p_value": p_value,
         "matched": matched,
     }
-
-
-# ---------------------------------------------------------------------------
-# Deprecated aliases - removal scheduled for 2.0.0
-# ---------------------------------------------------------------------------
-
-
-def permutation_q2(
-    fit_predict: Callable,
-    x: pd.DataFrame,
-    y: pd.DataFrame,
-    n_perm: int = 500,
-    seed: int = 0,
-) -> pd.DataFrame:
-    """Forward to :func:`check_predictive_signal`; emits a :class:`DeprecationWarning`.
-
-    .. deprecated:: 1.77.0
-        Use :func:`check_predictive_signal` instead. Note the argument order
-        changed: the blocks come first and ``fit_predict`` is now optional.
-        Will be removed in 2.0.0.
-    """
-    warnings.warn(
-        "process_improve.multivariate.permutation_q2 is deprecated since 1.77.0 and will be "
-        "removed in 2.0.0; use check_predictive_signal instead. Note the argument order changed: "
-        "check_predictive_signal(x, y, fit_predict=None, ...).",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    return check_predictive_signal(x, y, fit_predict, n_perm=n_perm, seed=seed)
-
-
-def pipeline_null(
-    select: Callable,
-    x: pd.DataFrame,
-    y: pd.DataFrame,
-    n_perm: int = 500,
-    seed: int = 0,
-) -> dict:
-    """Forward to :func:`count_discoveries_under_null`; emits a :class:`DeprecationWarning`.
-
-    .. deprecated:: 1.77.0
-        Use :func:`count_discoveries_under_null` instead. Will be removed in
-        2.0.0.
-    """
-    warnings.warn(
-        "process_improve.multivariate.pipeline_null is deprecated since 1.77.0 and will be "
-        "removed in 2.0.0; use count_discoveries_under_null instead.",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    return count_discoveries_under_null(select, x, y, n_perm=n_perm, seed=seed)

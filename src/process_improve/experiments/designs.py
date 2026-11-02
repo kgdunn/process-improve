@@ -22,35 +22,73 @@ Examples
 
 from __future__ import annotations
 
+import functools
+import itertools
+import logging
+import math
+import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
-try:
-    from pyDOE3 import ff2n
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
+from process_improve.experiments._classical import ff2n
+from process_improve.experiments._rules import mentions
+from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
+from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType, as_constraints
+from process_improve.experiments.omars import _full_second_order, _quadratic_columns
 
-    ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-
-from process_improve.experiments.designs_utils import build_design_result
-from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Dispatch handlers - each returns (coded_matrix, metadata_dict)
 # ---------------------------------------------------------------------------
 
 
+def _factor_codes(factor: Factor) -> np.ndarray:
+    """Coded settings a full factorial gives ``factor``.
+
+    -1 and +1 for a continuous factor; its ``levels`` (actual values inside
+    ``[low, high]``) coded to ``[-1, 1]`` when given; the level codes of a categorical
+    factor (see :func:`~process_improve.experiments.designs_utils.categorical_codes`).
+    """
+    if factor.type == FactorType.categorical:
+        return categorical_codes(len(factor.levels or []))
+    if not factor.levels:
+        return np.array([-1.0, 1.0])
+    low, high = float(factor.low), float(factor.high)  # type: ignore[arg-type]
+    values = np.unique(np.asarray(factor.levels, dtype=float))
+    if values.min() < low or values.max() > high:
+        raise ValueError(f"Factor {factor.name!r}: levels {values.tolist()} must lie within low={low} and high={high}.")
+    return (values - (low + high) / 2.0) / ((high - low) / 2.0)
+
+
 def _dispatch_full_factorial(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    """Full 2^k factorial using pyDOE3.ff2n (returns -1/+1)."""
-    k = len(factors)
-    coded_matrix = ff2n(k)
-    return coded_matrix, {}
+    """Full factorial: every combination of every factor's levels, first factor changing fastest.
+
+    Two-level factors give the 2^k design in standard order (``ff2n``); a continuous factor with
+    ``levels`` or a categorical factor with more than two levels gives the general
+    (mixed-level) full factorial. More than ``settings.max_factors_combinatorial``
+    factors raise ``ValueError`` (SEC-19), as :func:`designs_factorial.full_factorial` does.
+    """
+    from process_improve.config import settings  # noqa: PLC0415
+
+    cap = settings.max_factors_combinatorial
+    if len(factors) > cap:
+        raise ValueError(
+            f"A full factorial in {len(factors)} factors exceeds the SEC-19 combinatorial cap of {cap} factors "
+            f"(at least 2**{len(factors)} runs). Use a fractional factorial or a Plackett-Burman design, or raise "
+            "settings.max_factors_combinatorial if this is intentional."
+        )
+    sets = [_factor_codes(f) for f in factors]
+    if all(len(codes) == 2 and codes.tolist() == [-1.0, 1.0] for codes in sets):
+        return ff2n(len(factors)), {}
+    grid = np.array(list(itertools.product(*sets[::-1])))[:, ::-1]
+    return grid, {"levels_per_factor": [len(codes) for codes in sets]}
 
 
 def _dispatch_fractional_factorial(
@@ -59,11 +97,61 @@ def _dispatch_fractional_factorial(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
 
+    if _three_level_fraction(factors, kwargs.get("generators")):
+        from process_improve.experiments.designs_three_level import dispatch_three_level_fraction  # noqa: PLC0415
+
+        codes = [_factor_codes(f) for f in factors]
+        return dispatch_three_level_fraction(factors, kwargs["generators"], codes, kwargs.get("resolution"))
     return dispatch_fractional_factorial(
         factors,
         resolution=kwargs.get("resolution"),
         generators=kwargs.get("generators"),
+        n_runs=kwargs.get("fraction_runs"),
     )
+
+
+def _fraction_runs(
+    design_type: str | None, factors: list[Factor], budget: int | None, overhead: _RunOverhead
+) -> int | None:
+    """Return the runs of the fraction a budget sizes, or ``None`` when the budget does not size it.
+
+    A budget sizes a two-level fractional factorial asked for by name and without generators: the
+    fraction is the largest power of two that fits once the centre runs are set aside and the
+    replicates divided out, capped at the half fraction (#956). Rounding down warns. The caller
+    passes ``design_type=None`` when the budget must not size the design: generators fix the
+    fraction, and an automatically chosen design is sized by its own rules.
+
+    Raises
+    ------
+    ValueError
+        If the budget leaves fewer runs than the smallest fraction of these factors.
+    """
+    if design_type != "fractional_factorial" or budget is None:
+        return None
+    k = len(factors)
+    n_center_points, n_replicates = overhead
+    room = (budget - n_center_points) // n_replicates
+    smallest = 2 ** math.ceil(math.log2(k + 1))
+    if room < smallest:
+        raise ValueError(
+            f"budget={budget} leaves {max(room, 0)} run(s) for a fractional factorial of {k} factors once "
+            f"{n_center_points} centre run(s) and {n_replicates} replicate(s) are counted; the smallest such "
+            f"fraction has {smallest} runs. Give a larger budget, or use 'plackett_burman' or 'supersaturated'."
+        )
+    n_runs = min(2 ** int(math.log2(room)), 2 ** (k - 1))
+    if n_runs != room:
+        reason = (
+            f"the half fraction of {k} factors has {n_runs} runs (use design_type='full_factorial' for all {2**k})"
+            if n_runs == 2 ** (k - 1)
+            else f"a two-level fraction has a power-of-two number of runs, so {n_runs} is the largest that fits"
+        )
+        warnings.warn(
+            f"budget={budget} leaves {room} run(s) for the fraction after {n_center_points} centre run(s) and "
+            f"{n_replicates} replicate(s); {reason}.",
+            category=UserWarning,
+            stacklevel=3,
+        )
+    return n_runs
 
 
 def _dispatch_plackett_burman(
@@ -97,6 +185,8 @@ def _dispatch_ccd(
         cube=kwargs.get("cube", "full"),
         generators=kwargs.get("generators"),
         resolution=kwargs.get("resolution"),
+        n_replicates=kwargs.get("n_replicates", 1),
+        n_blocks=kwargs.get("blocks"),
     )
 
 
@@ -106,7 +196,9 @@ def _dispatch_dsd(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
-    return dispatch_dsd(factors)
+    return dispatch_dsd(
+        factors, budget=kwargs.get("budget"), categorical_method=kwargs.get("categorical_method", "dsd")
+    )
 
 
 def _dispatch_omars(
@@ -132,54 +224,54 @@ def _dispatch_omars_ilp(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_omars_ilp import _dispatch_omars_ilp as _run  # noqa: PLC0415
 
-    return _run(factors, budget=kwargs.get("budget"))
-
-
-def _dispatch_d_optimal(
-    factors: list[Factor],
-    **kwargs: Any,  # noqa: ANN401
-) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_d_optimal  # noqa: PLC0415
-
-    return dispatch_d_optimal(
+    return _run(
         factors,
         budget=kwargs.get("budget"),
-        hard_to_change=kwargs.get("hard_to_change"),
-        constraints=kwargs.get("constraints"),
-        model_type=kwargs.get("model_type", "interactions"),
-        fixed_runs=kwargs.get("fixed_runs"),
+        random_state=kwargs.get("random_state"),
+        center_runs=kwargs.get("center_runs", 1),
     )
 
 
-def _dispatch_i_optimal(
+def _dispatch_optimal_family(
+    criterion: str,
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_i_optimal  # noqa: PLC0415
+    from process_improve.experiments.designs_optimal import _dispatch_optimal, _OptimalRequest  # noqa: PLC0415
 
-    return dispatch_i_optimal(
+    request = _OptimalRequest(
         factors,
         budget=kwargs.get("budget"),
         hard_to_change=kwargs.get("hard_to_change"),
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
         fixed_runs=kwargs.get("fixed_runs"),
+        random_state=kwargs.get("random_state"),
+        candidates=kwargs.get("candidates"),
+        backend=kwargs.get("backend", "auto"),
+        n_blocks=kwargs.get("n_blocks"),
     )
+    return _dispatch_optimal(criterion, request)
 
 
-def _dispatch_a_optimal(
+def _dispatch_supersaturated(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
-    from process_improve.experiments.designs_optimal import dispatch_a_optimal  # noqa: PLC0415
+    from process_improve.experiments.designs_supersaturated import dispatch_supersaturated  # noqa: PLC0415
 
-    return dispatch_a_optimal(
-        factors,
-        budget=kwargs.get("budget"),
-        hard_to_change=kwargs.get("hard_to_change"),
-        constraints=kwargs.get("constraints"),
-        model_type=kwargs.get("model_type", "interactions"),
-        fixed_runs=kwargs.get("fixed_runs"),
+    return dispatch_supersaturated(factors, budget=kwargs.get("budget"))
+
+
+def _dispatch_space_filling(
+    method: str,
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_space_filling import space_filling_design  # noqa: PLC0415
+
+    return space_filling_design(
+        factors, kwargs.get("budget"), method, kwargs.get("constraints"), kwargs.get("random_state")
     )
 
 
@@ -189,7 +281,13 @@ def _dispatch_mixture(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_mixture import dispatch_mixture  # noqa: PLC0415
 
-    return dispatch_mixture(factors, budget=kwargs.get("budget"))
+    return dispatch_mixture(
+        factors,
+        budget=kwargs.get("budget"),
+        constraints=kwargs.get("constraints"),
+        model_type=kwargs.get("model_type", "interactions"),
+        random_state=kwargs.get("random_state"),
+    )
 
 
 def _dispatch_taguchi(
@@ -205,6 +303,122 @@ def _dispatch_taguchi(
 # Registry
 # ---------------------------------------------------------------------------
 
+#: Space-filling design types (see designs_space_filling.py); none adds centre points.
+_SPACE_FILLING = ("latin_hypercube", "maximin_lhs", "uniform", "sobol", "halton", "maximin", "maxpro")
+
+#: Design types chosen by an optimality criterion; the only ones that take fixed_runs or candidates.
+_OPTIMAL_FAMILIES = frozenset({"d_optimal", "i_optimal", "a_optimal", "e_optimal", "g_optimal", "k_optimal"})
+
+
+#: Design types that accept categorical factors: the optimal families with any number of
+#: levels, the full factorial and Taguchi arrays with the levels the design provides,
+#: and the two-level designs with two-level categorical factors.
+_CATEGORICAL_ANY_LEVELS = frozenset({"full_factorial", "taguchi", *_OPTIMAL_FAMILIES})
+_CATEGORICAL_TWO_LEVELS = frozenset({"fractional_factorial", "plackett_burman", "dsd"})
+
+
+#: Levels of every factor of a three-level fractional factorial (:mod:`.designs_three_level`).
+_THREE_LEVELS = 3
+
+
+def _three_level_fraction(factors: list[Factor], generators: list[str] | None) -> bool:
+    """Say whether a fractional factorial is a 3^(k-p) fraction: generators given, and three levels to every factor."""
+    return bool(generators) and bool(factors) and all(len(set(f.levels or [])) == _THREE_LEVELS for f in factors)
+
+
+def _refuse_unsupported_categorical(factors: list[Factor], design_type: str, generators: list[str] | None) -> None:
+    """Raise one clear message when ``design_type`` cannot place a categorical factor."""
+    categorical = [f for f in factors if f.type == FactorType.categorical]
+    if not categorical or design_type in _CATEGORICAL_ANY_LEVELS:
+        return
+    if design_type in _CATEGORICAL_TWO_LEVELS:
+        many = [f.name for f in categorical if len(f.levels or []) != 2]
+        if not many or (design_type == "fractional_factorial" and _three_level_fraction(factors, generators)):
+            return
+        raise ValueError(
+            f"design_type={design_type!r} takes two-level categorical factors only; {many} have more levels. "
+            "Use 'full_factorial', 'taguchi' or an optimal design ('d_optimal', 'i_optimal')."
+        )
+    raise ValueError(
+        f"design_type={design_type!r} needs continuous factors, but {[f.name for f in categorical]} are "
+        "categorical. Use 'd_optimal' or 'i_optimal' (any levels), 'dsd', 'fractional_factorial' or "
+        "'plackett_burman' (two-level categorical factors), 'full_factorial' or 'taguchi'."
+    )
+
+
+def _is_mixture_process(factors: list[Factor]) -> bool:
+    """Say whether the factors are mixture components together with process factors."""
+    is_mixture = [f.type == FactorType.mixture for f in factors]
+    return any(is_mixture) and not all(is_mixture)
+
+
+def _refuse_unenforced_rules(
+    factors: list[Factor], constraints: list[Constraint] | None, design_type: str, meta: dict
+) -> None:
+    """Refuse a design that does not follow constraints naming categorical factors.
+
+    Other constraints a design family cannot follow are reported with a warning. A
+    constraint on the levels usually says that a combination cannot be run at all (two
+    materials that react, a catalyst that degrades when hot), and a run sheet holding one
+    could be run by someone who never saw the warning, so it is refused instead.
+    """
+    categorical = [f.name for f in factors if f.type == FactorType.categorical]
+    if meta.get("constraints_enforced") or not categorical:
+        return
+    named = [c.expression for c in constraints or [] if mentions(c.expression, categorical)]
+    if named:
+        raise ValueError(
+            f"design_type={design_type!r} cannot follow the constraints {named}, which name categorical factors. "
+            "Use an optimal design ('d_optimal', 'i_optimal', ...), which places runs only in the combinations "
+            "of levels and settings the constraints allow."
+        )
+
+
+def _refuse_mixture_process(factors: list[Factor], design_type: str) -> None:
+    """Raise when mixture components beside process factors are given to a family that cannot place them.
+
+    The proportions must sum to 1 while the process factors range freely, so only the
+    optimal families, which choose runs from candidates in that region, build these designs
+    (see :mod:`~process_improve.experiments.designs_mixture_process`).
+    """
+    if _is_mixture_process(factors) and design_type not in _OPTIMAL_FAMILIES:
+        process = [f.name for f in factors if f.type != FactorType.mixture]
+        raise ValueError(
+            f"Mixture components together with process factors {process} need an optimal design: use "
+            f"design_type='d_optimal' (or one of {sorted(_OPTIMAL_FAMILIES - {'d_optimal'})}), or leave design_type "
+            f"unset; design_type={design_type!r} cannot place them."
+        )
+
+
+def _refuse_mixture_in_box_family(factors: list[Factor], design_type: str) -> None:
+    """Raise when mixture components are given to a family that places runs in the factor box.
+
+    Those families return coded +/-1 settings, which are not proportions and do not sum to 1.
+    """
+    from process_improve.experiments.designs_space_filling import ANY_REGION  # noqa: PLC0415
+
+    if not any(f.type == FactorType.mixture for f in factors):
+        return
+    allowed = {"mixture", *_OPTIMAL_FAMILIES, *ANY_REGION}
+    if design_type not in allowed:
+        raise ValueError(
+            f"design_type={design_type!r} places runs in a box of factor settings, so it cannot give mixture "
+            f"proportions that sum to 1. Use one of {sorted(allowed)}."
+        )
+
+
+#: Moved to :func:`process_improve.experiments.factor.as_constraints`; kept for callers of the old name.
+_as_constraints = as_constraints
+
+
+def _refuse_duplicate_names(factors: list[Factor]) -> None:
+    """Raise when two factors share a name: their columns would silently collapse into one."""
+    names = [f.name for f in factors]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        raise ValueError(f"Factor names must be unique; {duplicates} appear more than once.")
+
+
 _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "full_factorial": _dispatch_full_factorial,
     "fractional_factorial": _dispatch_fractional_factorial,
@@ -214,11 +428,16 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "dsd": _dispatch_dsd,
     "omars": _dispatch_omars,
     "omars_ilp": _dispatch_omars_ilp,
-    "d_optimal": _dispatch_d_optimal,
-    "i_optimal": _dispatch_i_optimal,
-    "a_optimal": _dispatch_a_optimal,
+    "d_optimal": functools.partial(_dispatch_optimal_family, "d_optimal"),
+    "i_optimal": functools.partial(_dispatch_optimal_family, "i_optimal"),
+    "a_optimal": functools.partial(_dispatch_optimal_family, "a_optimal"),
+    "e_optimal": functools.partial(_dispatch_optimal_family, "e_optimal"),
+    "g_optimal": functools.partial(_dispatch_optimal_family, "g_optimal"),
+    "k_optimal": functools.partial(_dispatch_optimal_family, "k_optimal"),
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
+    "supersaturated": _dispatch_supersaturated,
+    **{name: functools.partial(_dispatch_space_filling, name) for name in _SPACE_FILLING},
 }
 
 
@@ -226,12 +445,33 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
 # Auto-selection
 # ---------------------------------------------------------------------------
 
+_DEFAULT_CENTER_POINTS = 3
+
+
+def _default_center_points(factors: list[Factor]) -> int:
+    """Return the centre runs a design gets when none are asked for: none when every factor is categorical.
+
+    A categorical factor has no centre, so a "centre run" of a design with only categorical factors
+    repeats one of its cells: a 3 x 3 factorial would get three of its diagonal cells twice.
+    """
+    if factors and all(f.type == FactorType.categorical for f in factors):
+        return 0
+    return _DEFAULT_CENTER_POINTS
+
+
+class _RunOverhead(NamedTuple):
+    """Runs a design gains beyond its own structure: appended centre points, and replicates."""
+
+    n_center_points: int = _DEFAULT_CENTER_POINTS
+    n_replicates: int = 1
+
 
 def _auto_select(
     factors: list[Factor],
     budget: int | None,
     constraints: list[Constraint] | None,
     hard_to_change: list[str] | None,
+    overhead: _RunOverhead | None = None,
 ) -> str:
     """Choose the best design type based on factors, budget, and constraints.
 
@@ -240,11 +480,15 @@ def _auto_select(
     factors : list[Factor]
         Factor specifications.
     budget : int or None
-        Maximum number of runs the experimenter can afford.
+        Maximum number of runs the experimenter can afford, centre points and
+        replicates included.
     constraints : list[Constraint] or None
         Factor-space constraints.
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
+    overhead : _RunOverhead or None
+        Centre points a factorial or Plackett-Burman design would add, and replicates
+        of the whole design; ``None`` means 3 centre points and no replicates.
 
     Returns
     -------
@@ -254,26 +498,358 @@ def _auto_select(
     k_mixture = sum(1 for f in factors if f.type == FactorType.mixture)
     k = len(factors) - k_mixture
 
-    # Mixture factors dominate
-    if k_mixture > 0 and k_mixture == len(factors):
-        return "mixture"
+    # Mixture factors dominate; beside process factors, only the optimal designs place them
+    if k_mixture > 0:
+        return "mixture" if k_mixture == len(factors) else "d_optimal"
 
     # Constraints or split-plot -> D-optimal
     if constraints or hard_to_change:
         return "d_optimal"
 
-    effective_budget = budget if budget is not None else float("inf")
+    return _auto_select_by_budget(
+        factors, k, budget if budget is not None else float("inf"), overhead or _RunOverhead()
+    )
 
-    if k <= 5 and effective_budget >= 2**k:
+
+def _fractional_factorial_runs(k: int) -> int:
+    """Return the runs in the fraction ``generate_design`` builds automatically for ``k >= 3`` factors.
+
+    The half fraction below six factors, and from six factors the smallest resolution IV
+    fraction: ``N`` runs hold up to ``N / 2`` factors at resolution IV.
+    """
+    if k < 6:
+        return 2 ** (k - 1)
+    return 1 << (2 * k - 1).bit_length()
+
+
+def _auto_select_by_budget(  # noqa: PLR0911
+    factors: list[Factor],
+    k: int,
+    budget: float,
+    overhead: _RunOverhead,
+) -> str:
+    """Pick the unconstrained design family that fits ``budget`` runs for ``k`` process factors.
+
+    A family fits when its runs times the replicates, plus the centre points it adds
+    (which are not replicated), stay within the budget. When none fits, the Plackett-Burman design is chosen and a
+    warning is logged.
+    """
+    from process_improve.experiments.designs_screening import plackett_burman_runs  # noqa: PLC0415
+
+    n_center_points, n_replicates = overhead
+
+    def fits(n_runs: int, n_center: int = n_center_points) -> bool:
+        return n_runs * n_replicates + n_center <= budget
+
+    full_runs = int(np.prod([len(_factor_codes(f)) for f in factors]))
+    if k <= 5 and fits(full_runs):
         return "full_factorial"
+    if any(f.type == FactorType.categorical and len(f.levels or []) > 2 for f in factors):
+        # Only the full factorial and the optimal designs place a factor at more than two levels.
+        return "full_factorial" if fits(full_runs) else "d_optimal"
+    # Fewer runs than main effects: a supersaturated design screens them all, when one exists
+    # for this budget without fully aliased factors.
+    if all(f.type == FactorType.continuous for f in factors) and n_replicates == 1:
+        from process_improve.experiments.designs_supersaturated import supersaturated_available  # noqa: PLC0415
 
-    if k >= 6 and effective_budget <= 2 * k + 1:
+        if supersaturated_available(k, budget):
+            return "supersaturated"
+    pb_runs = plackett_burman_runs(k)
+    if k >= 6 and budget <= 2 * k + 1 and fits(pb_runs):
         return "plackett_burman"
-
-    if effective_budget >= 2 ** (k - 1):
+    if k >= 3 and fits(_fractional_factorial_runs(k)):
         return "fractional_factorial"
+    if fits(pb_runs):
+        return "plackett_burman"
+    if fits(len(factors) + 1, 0):  # an optimal design for the main effects
+        return "d_optimal"
+    logger.warning(
+        "No design for %d factors fits a budget of %d runs; the Plackett-Burman design has %d runs, centre "
+        "points and replicates included.",
+        len(factors),
+        budget,
+        pb_runs * n_replicates + n_center_points,
+    )
+    return "plackett_burman"
 
-    return "d_optimal"
+
+def _n_parameters(factors: list[Factor], model_type: str) -> int:
+    """Return the number of coefficients in the model ``model_type`` names for these factors."""
+    from process_improve.experiments.designs_optimal import _n_model_parameters  # noqa: PLC0415
+
+    if _is_mixture_process(factors):
+        from process_improve.experiments.designs_mixture_process import (  # noqa: PLC0415
+            category_levels,
+            mixture_process_model,
+        )
+
+        mixture = [f.name for f in factors if f.type == FactorType.mixture]
+        process = [f.name for f in factors if f.type != FactorType.mixture]
+        return mixture_process_model(mixture, process, model_type, category_levels(factors)).n_parameters
+    return _n_model_parameters(factors, model_type)
+
+
+def _model_that_fits(factors: list[Factor], model_type: str, budget: int) -> str:
+    """Return *model_type*, or the largest smaller model an automatically chosen optimal design can fit in *budget*."""
+    order = ["quadratic", "interactions", "main_effects"]
+    if model_type not in order:
+        return model_type
+    for candidate in order[order.index(model_type) :]:
+        if _n_parameters(factors, candidate) <= budget:
+            if candidate != model_type:
+                logger.warning(
+                    "A budget of %d runs cannot estimate the %r model, so the automatically chosen D-optimal "
+                    "design is built for the %r model.",
+                    budget,
+                    model_type,
+                    candidate,
+                )
+            return candidate
+    return model_type
+
+
+# ---------------------------------------------------------------------------
+# Argument checks
+# ---------------------------------------------------------------------------
+
+#: Design types that append ``n_center_points`` centre runs after building the design.
+_ADDS_CENTER_POINTS = frozenset({"full_factorial", "fractional_factorial", "plackett_burman"})
+#: Design types that place ``n_center_points`` centre runs inside their own structure.
+_BUILDS_CENTER_POINTS = frozenset({"ccd", "box_behnken"})
+#: Design types with centre runs of their own; ``n_center_points`` is then the total, at least theirs.
+_OWN_CENTER_RUNS = frozenset({"dsd", "omars", "omars_ilp"})
+
+#: Design types whose run count the design structure fixes, so a budget cannot change it.
+_FIXED_SIZE = frozenset({"full_factorial", "fractional_factorial", "plackett_burman", "box_behnken", "ccd", "taguchi"})
+
+
+def _center_points_by_rule(
+    n_center_points: int | str | None,
+    design_type: str | None,
+    factors: list[Factor],
+    alpha: str | float | None,
+    ccd: dict[str, Any],
+) -> tuple[int | None, str | float | None]:
+    """Turn a rule named for a CCD's centre runs into their number, and the axial distance it assumes.
+
+    Box and Hunter's rules hold for a rotatable design in one block, so the design is made rotatable.
+    *ccd* holds the composite design's ``cube``, ``generators``, ``resolution``, ``n_replicates`` and
+    ``n_blocks``. A number of centre runs (or ``None``) passes through unchanged.
+    """
+    if not isinstance(n_center_points, str):
+        return n_center_points, alpha
+    from process_improve.experiments.designs_response_surface import (  # noqa: PLC0415
+        _fractional_cube,
+        ccd_center_points,
+    )
+
+    if design_type != "ccd":
+        raise ValueError(
+            f"n_center_points={n_center_points!r} names a rule for a central composite design; "
+            f"design_type={design_type!r} takes a number of centre runs."
+        )
+    if alpha not in (None, "rotatable") or (ccd["n_blocks"] or 1) > 1:
+        raise ValueError(
+            f"n_center_points={n_center_points!r} is Box and Hunter's rule for a rotatable CCD in one block; "
+            f"with alpha={alpha!r} and n_blocks={ccd['n_blocks']!r}, give the number of centre runs instead."
+        )
+    k = len(factors)
+    cube_runs = (
+        2**k if ccd["cube"] == "full" else len(_fractional_cube(factors, ccd["generators"], ccd["resolution"])[0])
+    )
+    return ccd_center_points(n_center_points, cube_runs, k, ccd["n_replicates"]), "rotatable"
+
+
+def _check_counts(n_center_points: int | None, n_replicates: int, n_blocks: int | None) -> None:
+    """Raise for a centre-point, replicate or block count that cannot be meant literally."""
+    if n_center_points is not None and (int(n_center_points) != n_center_points or n_center_points < 0):
+        raise ValueError(f"n_center_points must be a whole number >= 0; got {n_center_points}.")
+    if int(n_replicates) != n_replicates or n_replicates < 1:
+        raise ValueError(f"n_replicates must be a whole number >= 1; got {n_replicates}.")
+    if n_blocks is not None and (int(n_blocks) != n_blocks or n_blocks < 1):
+        raise ValueError(f"n_blocks must be a whole number >= 1, or None; got {n_blocks}.")
+
+
+def _refuse_unused_arguments(
+    design_type: str, n_center_points: int | None, resolution: int | None, generators: list[str] | None, cube: str
+) -> None:
+    """Raise when an argument is given to a design type that would silently ignore it."""
+    takes_centers = _ADDS_CENTER_POINTS | _BUILDS_CENTER_POINTS | _OWN_CENTER_RUNS
+    if n_center_points and design_type not in takes_centers:
+        hint = " Seed a centre run with fixed_runs instead." if design_type in _OPTIMAL_FAMILIES else ""
+        raise ValueError(
+            f"design_type={design_type!r} does not add centre points, so n_center_points={n_center_points} "
+            f"cannot be honoured; leave it unset or 0.{hint}"
+        )
+    uses_fraction = design_type == "fractional_factorial" or (design_type == "ccd" and cube == "fractional")
+    if not uses_fraction and (resolution is not None or generators is not None):
+        raise ValueError(
+            f"resolution and generators define a fractional factorial; design_type={design_type!r}"
+            + (" with cube='full'" if design_type == "ccd" else "")
+            + " does not use them. Use design_type='fractional_factorial', or a CCD with cube='fractional'."
+        )
+
+
+def _refuse_categorical_method(design_type: str, categorical_method: str) -> None:
+    """Raise when ``categorical_method`` asks a design type other than a DSD for ORTH-augment, which only a DSD has."""
+    if categorical_method != "dsd" and design_type != "dsd":
+        raise ValueError(
+            f"categorical_method={categorical_method!r} chooses how a DSD adds two-level categorical factors; "
+            f"design_type={design_type!r} does not use it."
+        )
+
+
+def _blocks_from_generators(design_type: str, block_generators: list[str], n_blocks: int | None) -> int:
+    """Return the number of blocks the block generators make, refusing them on a design they cannot block."""
+    if design_type not in ("full_factorial", "fractional_factorial"):
+        raise ValueError(
+            "block_generators confound interaction words with blocks in a two-level full or fractional "
+            f"factorial; design_type={design_type!r} is blocked otherwise. Leave block_generators unset."
+        )
+    if isinstance(block_generators, str) or not block_generators:
+        raise ValueError(
+            f"block_generators must be a list of one or more words, such as ['ADE', 'BCE']; got {block_generators!r}."
+        )
+    return 2 ** len(block_generators) if n_blocks is None else n_blocks
+
+
+def _center_mask(coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray:
+    """Mark the runs with every non-categorical factor at its centre (0 in coded units)."""
+    columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
+    if not columns or coded_matrix.dtype == object:
+        return np.zeros(len(coded_matrix), dtype=bool)
+    return np.all(np.isclose(coded_matrix[:, columns].astype(float), 0.0), axis=1)
+
+
+def _center_runs_built_in(coded_matrix: np.ndarray, factors: list[Factor]) -> int:
+    """Count the runs with every non-categorical factor at its centre (0 in coded units)."""
+    return int(_center_mask(coded_matrix, factors).sum())
+
+
+def _own_center_rows(design_type: str, coded_matrix: np.ndarray, factors: list[Factor]) -> np.ndarray | None:
+    """Return the centre runs a design builds in, which replication leaves single; None for the others.
+
+    In a CCD, Box-Behnken, DSD or OMARS design a centre run is part of the construction,
+    and ``n_center_points`` counts the design's centre runs. Elsewhere a run at the centre
+    is an ordinary run (an optimal design may choose one), replicated with the rest.
+    """
+    if design_type in _BUILDS_CENTER_POINTS | _OWN_CENTER_RUNS:
+        return _center_mask(coded_matrix, factors)
+    return None
+
+
+def _total_runs(n_rows: int, own_center_rows: np.ndarray | None, extra_center_points: int, n_replicates: int) -> int:
+    """Count the runs of the finished design: the replicated runs, then the centre runs once."""
+    n_own = 0 if own_center_rows is None else int(own_center_rows.sum())
+    return (n_rows - n_own) * n_replicates + n_own + extra_center_points
+
+
+def _extra_center_points(
+    design_type: str, n_center_points: int | None, coded_matrix: np.ndarray, factors: list[Factor]
+) -> int:
+    """Centre runs to append to the dispatched design."""
+    if design_type in _ADDS_CENTER_POINTS:
+        return _default_center_points(factors) if n_center_points is None else n_center_points
+    if design_type in _OWN_CENTER_RUNS and n_center_points is not None:
+        return max(n_center_points - _center_runs_built_in(coded_matrix, factors), 0)
+    return 0
+
+
+def _warn_if_no_error_df(
+    design_type: str, coded_matrix: np.ndarray, extra_center_points: int, n_replicates: int, factors: list[Factor]
+) -> None:
+    """Warn when a DSD or OMARS design leaves ``analyze_omars`` no degrees of freedom to estimate error.
+
+    The staged analysis estimates the error variance from what the full second-order model in the
+    continuous factors cannot fit. The default design for an even number of factors has none left,
+    so the analysis would fail once the responses are in.
+    """
+    columns = [j for j, f in enumerate(factors) if f.type != FactorType.categorical]
+    if design_type not in _OWN_CENTER_RUNS or not columns:
+        return
+    runs = coded_matrix[:, columns].astype(float)
+    own = _center_mask(coded_matrix, factors)
+    runs = np.vstack([np.tile(runs[~own], (n_replicates, 1)), runs[own], np.zeros((extra_center_points, len(columns)))])
+    second_order = _full_second_order(runs, _quadratic_columns(runs))
+    if runs.shape[0] > np.linalg.matrix_rank(np.hstack([np.ones((runs.shape[0], 1)), runs, second_order])):
+        return
+    warnings.warn(
+        f"This {design_type!r} design leaves no degrees of freedom for error once the full second-order model is "
+        "fitted, so analyze_omars cannot test any effect. Add centre runs (for example n_center_points=3) or "
+        "give a larger budget.",
+        category=UserWarning,
+        stacklevel=3,
+    )
+
+
+def _alpha_inside_limits(design_type: str, alpha: str | float | None, factors: list[Factor]) -> str | float | None:
+    """Return a CCD's axial distance: face-centred when none is given and a factor's range is a hard limit.
+
+    The default axial distance steps past the ranges, which a hard limit forbids.
+    """
+    if design_type == "ccd" and alpha is None and any(f.hard_limits for f in factors):
+        return "face_centered"
+    return alpha
+
+
+def _note_alpha_chosen(meta: dict, given: str | float | None, used: str | float | None) -> None:
+    """Record why the axial distance is not the one asked for, when hard limits chose it."""
+    if used != given:
+        meta["alpha_reason"] = (
+            "face-centred: a factor's range is a hard limit, and axial runs further out would pass it"
+        )
+
+
+def _note_runs_beyond_ranges(design_type: str, coded_matrix: np.ndarray, factors: list[Factor], meta: dict) -> None:
+    """Record, and warn about, runs that set a continuous factor beyond its low or high value; refuse a hard limit.
+
+    A CCD with ``alpha`` above 1 (rotatable, orthogonal or circumscribed) puts its axial
+    runs at plus or minus ``alpha`` in coded units, which is past the ranges the
+    factors were given. That is intended when the ranges are a convenient scale, and
+    impossible when they are limits: a negative concentration, a temperature the
+    equipment cannot reach. ``meta["runs_beyond_ranges"]`` maps each such factor to
+    the lowest and highest setting the design asks for, in its own units. A factor
+    whose range is a hard limit (``Factor.hard_limits``) cannot be set there, so the
+    design is refused instead.
+    """
+    beyond: dict[str, dict[str, float]] = {}
+    for j, factor in enumerate(factors):
+        if factor.type != FactorType.continuous or factor.low is None or factor.high is None:
+            continue
+        column = coded_matrix[:, j].astype(float)
+        if column.min() >= -1 - 1e-9 and column.max() <= 1 + 1e-9:
+            continue
+        mid, half = (factor.high + factor.low) / 2, (factor.high - factor.low) / 2
+        beyond[factor.name] = {"lowest": float(mid + column.min() * half), "highest": float(mid + column.max() * half)}
+    if not beyond:
+        return
+    meta["runs_beyond_ranges"] = beyond
+    by_name = {f.name: f for f in factors}
+
+    def said(names: list[str]) -> str:
+        return "; ".join(
+            f"{name} from {beyond[name]['lowest']:.4g} to {beyond[name]['highest']:.4g}"
+            f"{' ' + by_name[name].units if by_name[name].units else ''}"
+            f" against a range of {by_name[name].low:.4g} to {by_name[name].high:.4g}"
+            for name in names
+        )
+
+    remedy = (
+        " Use alpha='face_centered' to keep every run inside the ranges, or 'inscribed' to shrink the cube so the "
+        "axial runs reach the ranges exactly."
+        if design_type == "ccd"
+        else ""
+    )
+    hard = [name for name in beyond if by_name[name].hard_limits]
+    if hard:
+        raise ValueError(f"This {design_type!r} design sets factors past their hard limits: {said(hard)}.{remedy}")
+    detail = said(list(beyond))
+    remedy = f" If the ranges are limits, mark them with hard_limits=True.{remedy}" if remedy else ""
+    warnings.warn(
+        f"This {design_type!r} design sets factors beyond the ranges given: {detail}.{remedy}",
+        category=UserWarning,
+        stacklevel=3,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -285,18 +861,22 @@ def generate_design(  # noqa: PLR0913
     factors: list[Factor],
     design_type: str | None = None,
     budget: int | None = None,
-    n_center_points: int = 3,
+    n_center_points: int | str | None = None,
     n_replicates: int = 1,
     n_blocks: int | None = None,
     resolution: int | None = None,
     generators: list[str] | None = None,
     alpha: str | float | None = None,
     cube: str = "full",
+    categorical_method: str = "dsd",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
     fixed_runs: pd.DataFrame | None = None,
-    random_seed: int = 42,
+    candidates: pd.DataFrame | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    backend: str = "auto",
+    block_generators: list[str] | None = None,
 ) -> DesignResult:
     """Generate an experimental design matrix.
 
@@ -306,84 +886,196 @@ def generate_design(  # noqa: PLR0913
         Factor specifications.  Each ``Factor`` has a *name*, *type*
         (``"continuous"``, ``"categorical"``, ``"mixture"``), *low*/*high*
         bounds (for continuous), *levels* (for categorical), and optional
-        *units*.
+        *units*. The names ``"RunOrder"`` and ``"Block"`` are reserved for the
+        columns the design adds.
     design_type : str or None
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
         ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``, ``"mixture"``, ``"taguchi"``.
+        ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"`` (smallest worst-case prediction
+        variance over the region), ``"k_optimal"`` (best-conditioned ``X'X``), ``"mixture"``,
+        ``"taguchi"``, ``"supersaturated"``, and the
+        space-filling types ``"latin_hypercube"``, ``"maximin_lhs"``, ``"uniform"``, ``"sobol"``,
+        ``"halton"``, ``"maximin"`` and ``"maxpro"`` (``budget`` runs, default ``10 * k``).
         If ``None``, the design type is chosen automatically based on the
-        factor count, budget, and constraints.
+        factor count, budget, and constraints, so that the design, centre points
+        and replicates included, fits within *budget* (a warning is logged when no
+        design does). *resolution* or *generators* choose a fractional factorial.
+        An automatically chosen fractional factorial for six or more factors is
+        the smallest one of resolution IV, and an automatically chosen D-optimal
+        design is built for the largest model, up to *model_type*, that *budget* can
+        estimate.
     budget : int or None
-        Maximum number of runs the experimenter can afford.
-    n_center_points : int
-        Number of center-point replicates (default 3).  For designs that
-        embed their own center points (CCD, Box-Behnken), this parameter
-        controls the count within the design structure.
+        Maximum number of runs the experimenter can afford, centre points and
+        replicates included. The optimal, mixture, space-filling and supersaturated
+        designs, and OMARS with a budget, are built to it (OMARS to the largest
+        foldover size within it). A fractional factorial without *generators* is the
+        minimum-aberration fraction of the largest power of two of runs that fits, at
+        most the half fraction, with a ``UserWarning`` when that is fewer runs than the
+        budget leaves; with *resolution* as well, it must reach it. A family whose size
+        the design structure fixes (full factorials, a fraction from *generators*,
+        Plackett-Burman, Box-Behnken, CCD, Taguchi) raises
+        ``ValueError`` when it needs more runs than *budget*. A DSD with a budget
+        above its minimal size gains fake factors (error degrees of freedom); for an
+        odd number of factors (5, 7, 9 or 11, all continuous), a budget of ``2k + 1``
+        or ``2k + 2`` runs gives Jones and Nachtsheim's (2011) design of ``2k + 1``
+        runs, two fewer than the default, whose main effects are slightly correlated.
+    n_center_points : int, str or None
+        Number of centre runs in the whole design: they are not replicated with
+        *n_replicates*. ``None`` (the default) means 3 for the full and
+        fractional factorials, Plackett-Burman, CCD and Box-Behnken designs, and the
+        design's own centre runs for the others. A design whose factors are all
+        categorical has no centre, so ``None`` gives it none: a 3 x 3 factorial has
+        9 runs. Give a number to add runs to it anyway. CCD and Box-Behnken designs place
+        them within the design structure. For a DSD or OMARS design it is the total
+        number of centre runs, at least the one the design has (two for a DSD with
+        categorical factors). A DSD or OMARS design that leaves the full second-order
+        model no error degrees of freedom (the default for an even number of factors)
+        warns, since :func:`analyze_omars` could not test its effects; extra centre runs
+        fix that. Any other design type takes no centre points, so a positive value
+        raises ``ValueError``. For a CCD, ``"uniform_precision"`` or ``"orthogonal"``
+        sets the number by Box and Hunter's rule for a rotatable design in one block
+        (:func:`~process_improve.experiments.designs_response_surface.ccd_center_points`),
+        and makes the design rotatable: four factors get 7 or 12 centre runs.
     n_replicates : int
-        Number of full replicates of the design (default 1 = no replication).
+        Number of replicates of the design's runs, centre runs excepted (default 1 =
+        no replication): a 2^3 factorial with ``n_center_points=3`` and
+        ``n_replicates=2`` has 16 factorial runs and 3 centre runs. A CCD's orthogonal
+        axial distance allows for it. Cannot be combined with *fixed_runs*.
     n_blocks : int or None
-        Number of blocks.
+        Number of blocks the runs are made in (days, batches, raw-material lots), with
+        a ``Block`` column on the design. A regular two-level factorial confounds chosen
+        interactions with the blocks. A CCD puts its axial runs in a block of their own
+        and its cube runs in the others (``n_blocks`` 2, 3, 5, ...), the cube split by
+        confounding as a factorial is; without *alpha* it takes the axial distance at
+        which the blocks are orthogonal to every model term, squares included
+        (``alpha_rule`` ``"orthogonal_blocks"``; Box and Hunter 1957), and
+        ``metadata["blocking"]["orthogonal"]`` says whether they are. A D-, A- or I-optimal design from the built-in
+        exchange chooses its runs for the model with the blocks as fixed effects, so the
+        factor effects are estimated as precisely as they can be once block-to-block
+        differences are removed (``metadata["blocking"]["method"]`` is
+        ``"optimal_exchange"``); with *fixed_runs*, those runs are the first block, and
+        the new runs fill the others. Any other design is split into near-equal blocks
+        after it is built.
     resolution : int or None
-        Desired minimum resolution for fractional factorials (III=3, IV=4, V=5).
+        Desired minimum resolution for fractional factorials (III=3, IV=4, V=5),
+        and for the cube of a CCD with ``cube="fractional"``.
         The design is the minimum-aberration fraction with the fewest runs that
         reaches it. Without *resolution* or *generators*, a fractional factorial
         is the half fraction 2^(k-1), of resolution k. The result reports the
-        resolution the design achieves.
+        resolution the design achieves. With *generators*, generators that fall
+        short of it raise ``ValueError``. Any other design type raises
+        ``ValueError``.
     generators : list[str] or None
-        Explicit generators for fractional factorials,
-        e.g. ``["D=ABC", "E=AC"]``.
+        Explicit generators for fractional factorials (and the cube of a CCD with
+        ``cube="fractional"``), e.g. ``["D=ABC", "E=AC"]``; ``"D=-ABC"`` gives the
+        alternate fraction. When every factor has three levels (a continuous factor with
+        three ``levels``, or a categorical factor with three), the generators make a
+        3^(k-p) fraction in arithmetic modulo 3: ``"D=A2BC2"`` sets
+        x_D = 2 x_A + x_B + 2 x_C (mod 3), the digits 0, 1 and 2 being each factor's
+        levels from the lowest (see :mod:`~process_improve.experiments.designs_three_level`).
+        Any other design type raises ``ValueError``.
     alpha : str, float, or None
-        Axial distance for CCD designs: ``"rotatable"``,
-        ``"face_centered"``, ``"orthogonal"``, or a numeric value.
-
-        .. note::
-           A numeric ``alpha`` is only honored when ``cube="fractional"``.
-           For ``cube="full"`` (the default) the underlying pyDOE3
-           ``ccdesign`` call does not accept an arbitrary axial distance,
-           so a numeric value is silently treated as ``"orthogonal"``.
+        Axial distance for CCD designs: ``"rotatable"``, ``"face_centered"``,
+        ``"inscribed"``, ``"orthogonal"`` (the default), or a positive number. Any
+        other value raises ``ValueError``.
     cube : str
         For CCD designs, how to build the cube (factorial) portion:
         ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
-        uses a resolution-V (or higher) fractional factorial, keeping the run
-        count practical for k >= 5.  When ``"fractional"`` and *generators* is
-        given, those generators define the cube; otherwise a minimum-aberration
-        half-fraction is chosen automatically.
+        uses a fractional factorial, keeping the run count practical for k >= 5.
+        When ``"fractional"`` and *generators* or *resolution* is given, they
+        define the cube; otherwise it is the minimum-aberration half-fraction,
+        which must leave the full quadratic model estimable (resolution V, or for
+        three factors Hartley's small composite design). A cube given that aliases
+        two-factor interactions in pairs is built with a warning, for a model with
+        one interaction of each pair; ``metadata["aliased_interactions"]`` lists the pairs.
+    categorical_method : {"dsd", "orth"}
+        For a DSD with two-level categorical factors, how they are added (Jones and
+        Nachtsheim 2013): ``"dsd"`` (default), the DSD-augment method, two centre runs
+        and a little correlation between a categorical and the other main effects; or
+        ``"orth"``, the ORTH-augment method, every main effect orthogonal to every other
+        (up to four categorical factors) but partly aliased with some second-order
+        effects, in the same runs for one categorical factor and two more centre runs
+        for more. Any other design type refuses ``"orth"``.
     constraints : list[Constraint] or None
-        Constraints on the factor space.
+        Inequalities on the continuous factors, in actual units, e.g.
+        ``Constraint(expression="3*T + 5*D <= 600")``; a dict of ``Constraint`` fields or
+        a bare expression string is accepted too. Honoured by the optimal
+        families (``"d_optimal"``, chosen automatically when constraints are given,
+        ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"`` and
+        ``"k_optimal"``), whose runs are selected
+        from a candidate set of feasible points; by ``"mixture"`` (linear constraints
+        in the proportions); and by the ``"sobol"``, ``"halton"``, ``"maximin"`` and
+        ``"maxpro"`` space-filling designs. Other design types do not enforce them and set
+        ``metadata["constraints_enforced"] = False``.
     hard_to_change : list[str] or None
-        Names of hard-to-change factors (triggers split-plot structure).
+        Names of hard-to-change factors, for a split-plot design: they are set once for
+        each whole plot, and the design is D-, I- or A-optimal on the generalised least
+        squares information ``X'V^-1 X``, with the whole-plot variance half the run-to-run
+        variance. Only the optimal families build one, so any other *design_type* raises
+        ``ValueError``; with *design_type* unset, a D-optimal design is chosen.
     model_type : str
         Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
-        ``"a_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
-        (default), or ``"quadratic"``.  With a categorical factor present,
+        ``"a_optimal"``, ``"e_optimal"``, ``"g_optimal"``, ``"k_optimal"``) are built
+        for: ``"main_effects"``, ``"interactions"`` (default), or ``"quadratic"``.  With a categorical factor present,
         ``"quadratic"`` builds a partial response-surface model (quadratics on
         the continuous factors only; the categorical enters as a main effect
         plus its interactions), since a categorical factor has no square.
         Ignored by the classical (non-optimal) design families.
     fixed_runs : pandas.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
-        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, which use
-        pyoptex). One row per fixed run, one column per factor, in the same coding as the returned
-        design: continuous factors in coded ``[-1, 1]`` units, categorical factors as level labels.
+        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"e_optimal"``,
+        ``"g_optimal"``, ``"k_optimal"``). One row per
+        fixed run, one column per factor, in the same coding as the returned design: continuous
+        factors in coded ``[-1, 1]`` units, categorical factors as level labels.
         The fixed runs occupy the first rows of the result and ``budget`` counts them, so
         ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
         ``ValueError`` if given for a non-optimal ``design_type``.
-    random_seed : int
-        Seed for reproducible randomization (default 42).
+    candidates : pandas.DataFrame or None
+        The settings the runs must be chosen from, for the optimal families only: for
+        example historical operating points, the discrete settings a piece of
+        equipment offers, or blends that can actually be made up. One row per
+        candidate, one column per factor, in actual units (categorical factors as
+        labels, mixtures as proportions). Replaces the generated candidate grid, so it
+        also defines the region I-optimality averages over. Rows that break a
+        constraint are dropped. A candidate may be chosen more than once, and
+        ``metadata["selected_candidates"]`` counts the picks per index label.
+    random_state : int, numpy.random.Generator or None
+        Seeds the run-order randomisation and any random search (default 42, so the
+        same call gives the same design). ``None`` draws fresh entropy; see
+        :doc:`/development/reproducibility`.
+    backend : {"auto", "exchange", "pyoptex"}
+        Engine for the optimal families. ``"auto"`` (default) and ``"exchange"`` use the
+        built-in engines, so the same call gives the same design whether or not the
+        optional pyoptex package is installed: the coordinate exchange of
+        :func:`~process_improve.experiments.designs_split_plot.split_plot_design` for a
+        split-plot design (``hard_to_change``), the candidate exchange otherwise.
+        ``"pyoptex"`` asks for pyoptex's coordinate exchange.
+    block_generators : list[str] or None
+        The interaction words that define the blocks of a two-level full or fractional
+        factorial, in place of the words the library would choose: ``["ADE", "BCE"]``
+        makes four blocks, with ADE, BCE and their product ABCD confounded with them
+        (join names longer than one letter with ``*``). *n_blocks*, when given, must be
+        2 to the power of their number. Words that confound a main effect, depend on
+        each other, or lie in the fraction's defining relation are refused. For a
+        fraction, ``metadata["blocking"]["aliases"]`` lists each confounded word's
+        aliases, which go with it to the blocks.
 
     Returns
     -------
     DesignResult
         Contains ``design`` (coded ``Expt``), ``design_actual`` (actual-units
         ``Expt``), ``run_order``, and design metadata (generators, defining
-        relation, resolution, etc.).
+        relation, resolution, etc.). ``generators``, ``defining_relation`` and
+        ``resolution`` describe the design built, and are ``None`` for a design
+        without a defining relation.
 
     Raises
     ------
     ValueError
-        If *design_type* is unknown, or if factor/budget constraints
-        cannot be satisfied.
+        If *design_type* is unknown, if factor/budget constraints
+        cannot be satisfied, or if an argument is given that the design type
+        cannot honour.
 
     Examples
     --------
@@ -398,69 +1090,112 @@ def generate_design(  # noqa: PLR0913
     # --- Validate ----------------------------------------------------------
     if not factors:
         raise ValueError("At least one factor must be provided.")
+    constraints = _as_constraints(constraints)
+    ccd = {"cube": cube, "generators": generators, "resolution": resolution, "n_replicates": n_replicates}
+    ccd["n_blocks"] = n_blocks
+    n_center_points, alpha = _center_points_by_rule(n_center_points, design_type, factors, alpha, ccd)
+    _check_counts(n_center_points, n_replicates, n_blocks)
 
+    auto_selected = design_type is None
     if design_type is None:
-        design_type = _auto_select(factors, budget, constraints, hard_to_change)
+        design_type, resolution, model_type = _auto_design(
+            factors,
+            {
+                "budget": budget,
+                "constraints": constraints,
+                "hard_to_change": hard_to_change,
+                "candidates": candidates,
+                "resolution": resolution,
+                "generators": generators,
+                "model_type": model_type,
+                "overhead": _RunOverhead(
+                    _default_center_points(factors) if n_center_points is None else n_center_points, n_replicates
+                ),
+            },
+        )
+        if design_type == "supersaturated" and budget is not None:
+            # The budget is a ceiling: the largest unaliased supersaturated run count under it.
+            from process_improve.experiments.designs_supersaturated import supersaturated_runs  # noqa: PLC0415
+
+            budget = supersaturated_runs(len(factors), budget)
 
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
-
-    if fixed_runs is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
-        raise ValueError(
-            f"fixed_runs (design augmentation) is only supported for the optimal design families "
-            f"(d_optimal, i_optimal, a_optimal); got design_type={design_type!r}."
-        )
+    _refuse_optimal_only_arguments(design_type, candidates, fixed_runs, hard_to_change, factors)
+    _refuse_duplicate_names(factors)
+    refuse_reserved_names(factors)
+    _refuse_mixture_process(factors, design_type)
+    _refuse_mixture_in_box_family(factors, design_type)
+    _refuse_unsupported_categorical(factors, design_type, generators)
+    _refuse_unused_arguments(design_type, n_center_points, resolution, generators, cube)
+    _refuse_categorical_method(design_type, categorical_method)
+    if block_generators is not None:
+        n_blocks = _blocks_from_generators(design_type, block_generators, n_blocks)
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
+    alpha_given, alpha = alpha, _alpha_inside_limits(design_type, alpha, factors)
 
     # Build kwargs for the dispatch handler
     dispatch_kwargs: dict[str, Any] = {
         "budget": budget,
-        "n_center_points": n_center_points,
+        "n_center_points": _default_center_points(factors) if n_center_points is None else n_center_points,
+        "center_runs": max(n_center_points or 1, 1),
         "resolution": resolution,
         "generators": generators,
+        "fraction_runs": _fraction_runs(
+            None if generators or auto_selected else design_type,
+            factors,
+            budget,
+            _RunOverhead(_default_center_points(factors) if n_center_points is None else n_center_points, n_replicates),
+        ),
         "alpha": alpha,
         "cube": cube,
+        "categorical_method": categorical_method,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
         "model_type": model_type,
         "fixed_runs": fixed_runs,
+        "random_state": random_state,
+        "candidates": candidates,
+        "backend": backend,
+        # The optimal designs build blocks into the runs they choose; replicated, they are blocked afterwards.
+        "n_blocks": n_blocks if n_replicates == 1 else None,
+        "n_replicates": n_replicates,
+        # A CCD is blocked by its portions, replicated or not; its axial distance depends on it.
+        "blocks": n_blocks,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
+    _note_alpha_chosen(meta, alpha_given, alpha)
+    _refuse_unenforced_rules(factors, constraints, design_type, meta)
+    if constraints and not meta.get("constraints_enforced"):
+        # Only the optimal, mixture and sobol/halton/maximin paths honour constraints; say so on the result.
+        logger.warning(
+            "design_type=%r does not enforce constraints; use an optimal design ('d_optimal', 'i_optimal', ...), "
+            "'mixture', or the 'sobol', 'halton' or 'maximin' space-filling designs.",
+            design_type,
+        )
+        meta["constraints_enforced"] = False
+    all_mixture = all(f.type == FactorType.mixture for f in factors)
+    if all_mixture or meta.get("constraints_enforced"):
+        # Record the region the runs were placed in, so evaluate_design and
+        # optimize_responses can work over the same region (see DesignRegion).
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
 
-    # --- Determine center-point handling -----------------------------------
-    # Designs that embed their own center points (CCD, Box-Behnken)
-    # already include them; don't add more.
-    designs_with_embedded_centers = {
-        "ccd",
-        "box_behnken",
-        "dsd",
-        "omars",
-        "omars_ilp",
-        "mixture",
-        "d_optimal",
-        "i_optimal",
-        "a_optimal",
-    }
+        meta["region"] = DesignRegion(factors, constraints if meta.get("constraints_enforced") else None).to_dict()
 
-    # Optimal designs from pyoptex produce a pre-optimized run order
-    # (especially important for split-plot).  Skip randomization for these.
-    optimal_designs = {"d_optimal", "i_optimal", "a_optimal"}
-    effective_seed: int | None = random_seed
-    if design_type in optimal_designs and meta.get("backend") == "pyoptex":
-        effective_seed = None  # signal to build_design_result to skip randomization
-    extra_center_points = 0 if design_type in designs_with_embedded_centers else n_center_points
+    extra_center_points = _extra_center_points(design_type, n_center_points, coded_matrix, factors)
+    _warn_if_no_error_df(design_type, coded_matrix, extra_center_points, n_replicates, factors)
+    if not all_mixture and design_type != "mixture":
+        _note_runs_beyond_ranges(design_type, coded_matrix, factors, meta)
+    own_center_rows = _own_center_rows(design_type, coded_matrix, factors)
+    if budget is not None and not auto_selected:
+        n_runs = _total_runs(coded_matrix.shape[0], own_center_rows, extra_center_points, n_replicates)
+        _refuse_over_budget(design_type, n_runs, budget)
 
-    # Mixture designs return proportions (actual units), not coded
-    is_actual = design_type == "mixture"
-
-    # Extract resolution/generators/defining_relation from metadata
-    result_generators = generators or meta.get("generators_used")
-    # The design's own resolution, which can exceed the minimum asked for.
-    result_resolution = meta.get("resolution") or resolution
-    result_alpha = meta.pop("alpha_value", None)
+    # A split-plot optimal design keeps its run order: the whole plots are part of the solution.
+    split_plot = design_type in _OPTIMAL_FAMILIES and "whole_plot" in meta
 
     return build_design_result(
         coded_matrix=coded_matrix,
@@ -468,12 +1203,95 @@ def generate_design(  # noqa: PLR0913
         design_type=design_type,
         n_center_points=extra_center_points,
         n_replicates=n_replicates,
+        center_rows=own_center_rows,
         n_blocks=n_blocks,
-        random_seed=effective_seed,
-        generators=result_generators,
+        random_state=random_state,
+        generators=meta.get("generators_used"),
         defining_relation=meta.get("defining_relation"),
-        resolution=result_resolution,
-        alpha=result_alpha,
+        resolution=meta.get("resolution"),
+        alpha=meta.pop("alpha_value", None),
         metadata=meta,
-        is_actual=is_actual,
+        # Mixture designs return proportions (actual units), not coded
+        is_actual=design_type == "mixture" or all_mixture,
+        n_leading_fixed=int(meta.get("n_fixed_runs", 0)),
+        randomize=not split_plot,
+        block_generators=block_generators,
     )
+
+
+def _refuse_optimal_only_arguments(
+    design_type: str,
+    candidates: pd.DataFrame | None,
+    fixed_runs: pd.DataFrame | None,
+    hard_to_change: list[str] | None,
+    factors: list[Factor],
+) -> None:
+    """Raise when an argument only the optimal families honour is given to another design type.
+
+    ``candidates``, ``fixed_runs`` and ``hard_to_change`` are those arguments. Only the
+    optimal families build split-plot structure; any other design type would drop
+    ``hard_to_change`` and randomise every run, resetting the hard-to-change factors from
+    run to run.
+    """
+    families = ", ".join(sorted(_OPTIMAL_FAMILIES))
+    if hard_to_change and design_type not in _OPTIMAL_FAMILIES:
+        if all(f.type == FactorType.mixture for f in factors):
+            hint = "Split-plot mixture designs are not supported."
+        else:
+            hint = "Use design_type='d_optimal' or 'i_optimal', or leave design_type unset to choose one."
+        raise ValueError(
+            f"hard_to_change={list(hard_to_change)} asks for a split-plot design, which only the optimal design "
+            f"families ({families}) build; design_type={design_type!r} would randomise every run. {hint}"
+        )
+    if candidates is not None and design_type not in _OPTIMAL_FAMILIES:
+        raise ValueError(
+            f"candidates is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
+        )
+    if fixed_runs is not None and design_type not in _OPTIMAL_FAMILIES:
+        raise ValueError(
+            f"fixed_runs (design augmentation) is only supported for the optimal design families ({families}); "
+            f"got design_type={design_type!r}."
+        )
+
+
+def _refuse_over_budget(design_type: str, n_runs: int, budget: int) -> None:
+    """Raise when a design type of fixed size needs more runs than the budget."""
+    if design_type in _FIXED_SIZE and n_runs > budget:
+        raise ValueError(
+            f"design_type={design_type!r} gives {n_runs} runs (centre points and replicates included), more than "
+            f"budget={budget}. Use fewer centre points or replicates, a smaller design, or design_type=None to "
+            "choose one that fits."
+        )
+
+
+def _auto_design(factors: list[Factor], options: dict[str, Any]) -> tuple[str, int | None, str]:
+    """Return the design type, resolution and model type for ``generate_design(design_type=None)``.
+
+    *options* holds ``generate_design``'s ``budget``, ``constraints``, ``hard_to_change``,
+    ``candidates``, ``resolution``, ``generators`` and ``model_type``, and the run
+    ``overhead``.
+    """
+    resolution, model_type, budget = options["resolution"], options["model_type"], options["budget"]
+    if options["candidates"] is not None:
+        # A candidate set means "choose runs from these", which only the optimal families do.
+        design_type = "d_optimal"
+    elif resolution is not None or options["generators"] is not None:
+        # Only a fractional factorial takes a resolution or generators.
+        design_type = "fractional_factorial"
+    else:
+        design_type = _auto_select(
+            factors, budget, options["constraints"], options["hard_to_change"], options["overhead"]
+        )
+    if (
+        design_type == "fractional_factorial"
+        and resolution is None
+        and options["generators"] is None
+        and len(factors) >= 6
+    ):
+        # Screening many factors: the smallest resolution IV fraction (main effects clear of
+        # two-factor interactions), not the half fraction (512 runs for 10 factors).
+        resolution = 4
+    if design_type == "d_optimal" and budget is not None:
+        model_type = _model_that_fits(factors, model_type, budget)
+    return design_type, resolution, model_type

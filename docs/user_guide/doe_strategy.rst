@@ -33,11 +33,11 @@ Multi-stage workflows
 Most experimental programs follow a three-stage sequence:
 
 1. **Screening** - Identify the vital few factors from many candidates.
-   Typical designs: Plackett-Burman, Definitive Screening Design (DSD), or
+   Typical designs: Definitive Screening Design (DSD), Plackett-Burman, or
    fractional factorial.
 2. **Optimization** - Fit a response surface model for the significant
-   factors.  Typical designs: Central Composite Design (CCD), Box-Behnken,
-   or D-optimal.
+   factors.  Typical designs: face-centred Central Composite Design (CCD),
+   Box-Behnken, or D-optimal.
 3. **Confirmation** - Run replicates at the predicted optimum to verify
    that the model predictions hold.
 
@@ -49,6 +49,27 @@ the results.  For example, after screening:
 - 2–5 significant factors: proceed to optimization.
 - 6+ significant factors: sub-group factors or run additional screening.
 - Curvature detected at center points: augment the factorial to a CCD.
+
+Six or more continuous factors are screened with a DSD by default. Its main
+effects are orthogonal to every two-factor interaction and square, whereas in a
+12-run Plackett-Burman design each interaction biases the main effects of the
+factors outside it by a third of its size, which can hide a real factor. The DSD
+gets the centre runs that leave its analysis (``analyze_omars``) four degrees of
+freedom for error; under a budget too tight for them, it keeps only its own.
+
+Conditional stages
+~~~~~~~~~~~~~~~~~~
+
+An optimisation stage is often not needed. When the screening design can test
+for curvature (a DSD, or a two-level design with centre runs), the optimisation
+stage after it is *conditional*: ``stage["conditional"]`` is ``True`` and
+``stage["run_if"]`` names the evidence that calls for it and the analysis that
+gives that evidence. Without that evidence, the screening model already locates
+the best settings and the study goes straight to confirmation.
+``minimum_total_runs`` counts the runs when no conditional stage is called for,
+and ``total_estimated_runs`` counts them all. A screening design that cannot
+test for curvature, such as a Plackett-Burman design with a categorical factor,
+is followed by an optimisation stage that is always run.
 
 Budget allocation
 ~~~~~~~~~~~~~~~~~
@@ -100,7 +121,7 @@ A 7-factor fermentation problem with a budget of 40 runs:
 This outputs::
 
    Stage 1: Screening
-     Design: plackett_burman, Runs: 8
+     Design: plackett_burman, Runs: 11
      Purpose: Screen 7 candidate factors to identify the vital few.
    Stage 2: Optimization
      Design: ccd, Runs: 19
@@ -110,8 +131,10 @@ This outputs::
      Purpose: Run replicates at the predicted optimum to verify the model predictions. ...
 
 The engine selected Plackett-Burman screening (the fermentation domain
-default), a CCD for response surface optimization, and 3 confirmation
-replicates - all within the 40-run budget.
+default) with 3 centre runs, a face-centred CCD for response surface
+optimization, and 3 confirmation replicates - all within the 40-run budget.
+The CCD is conditional on the centre runs showing curvature, so the study needs
+14 runs when they do not and 33 when they do.
 
 Interpreting the Output
 -----------------------
@@ -128,9 +151,17 @@ Interpreting the Output
      - Ordered list of experimental stages.  Each stage contains
        ``stage_number``, ``stage_name``, ``design_type``, ``design_params``,
        ``factors``, ``estimated_runs``, ``purpose``, ``success_criteria``,
-       and ``transition_rules``.
+       ``transition_rules``, ``conditional`` and ``run_if`` (see
+       `Conditional stages`_).  ``design_type`` and ``design_params`` are a
+       ``generate_design`` call: ``generate_design(factors,
+       design_type=stage["design_type"], **stage["design_params"])`` builds the
+       stage.  The confirmation stage (``"replicates_at_optimum"``) is the
+       exception: its runs are replicates at the optimum that
+       ``optimize_responses`` finds.
    * - ``total_estimated_runs``
-     - Sum of estimated runs across all stages.
+     - Sum of estimated runs across all stages, the conditional ones included.
+   * - ``minimum_total_runs``
+     - Sum of estimated runs across the stages that are not conditional.
    * - ``budget_allocation``
      - Dictionary mapping stage names to allocated run counts.
    * - ``reasoning``
@@ -168,24 +199,32 @@ adjusts stage complexity accordingly:
 
 .. code-block:: python
 
-   for b in [60, 40, 20, None]:
-       result = recommend_strategy(factors=factors, budget=b, domain="fermentation")
-       print(
-           f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, "
-           f"{len(result['stages'])} stages"
+   for b in [60, 25, 20, None]:
+       result = recommend_strategy(
+           factors=factors, responses=responses, budget=b, domain="fermentation"
        )
+       designs = [stage["design_type"] for stage in result["stages"]]
+       print(f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, {designs}")
 
 ::
 
-   Budget=  60: 30 runs, 3 stages
-   Budget=  40: 30 runs, 3 stages
-   Budget=  20: 18 runs, 3 stages
-   Budget=None: 30 runs, 3 stages
+   Budget=  60: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
+   Budget=  25: 23 runs, ['dsd', 'replicates_at_optimum']
+   Budget=  20: 20 runs, ['dsd', 'replicates_at_optimum']
+   Budget=None: 33 runs, ['plackett_burman', 'ccd', 'replicates_at_optimum']
 
-With a tight budget, the engine reduces center points, chooses more
-economical designs, and may issue warnings in ``result["risks"]`` about
-underpowered designs.  When ``budget=None``, the ideal allocation is used
-without constraint.
+With a tight budget, the engine changes the designs, not only their run
+counts: it drops center points, replaces a stage's design with a smaller one
+(a Plackett-Burman screen, a D-optimal quadratic design), and plans a single
+Definitive Screening Design when separate screening and optimization stages
+cannot fit. It plans that DSD too, for six or more factors, when the reduction
+would take the centre runs out of the screening design: the optimisation stage
+would then have to be run whatever the screening showed, and one DSD both
+screens and tests for curvature. The budget must hold the conditional stages
+too, since the screening may call for them. ``estimated_runs`` is always the size of the design the
+stage's ``design_params`` build, and ``result["risks"]`` says what was
+reduced, or that the budget is below the smallest plan. When ``budget=None``,
+the ideal designs are used without constraint.
 
 Using Prior Knowledge
 ---------------------
@@ -232,9 +271,11 @@ entirely:
 
 ::
 
-   No prior: 3 stages
-   Low confidence: 3 stages
+   No prior: 2 stages
+   Low confidence: 2 stages
    High confidence: 1 stages
+
+(With no response to optimise, seven factors get no optimisation stage.)
 
 Domain-Specific Strategies
 --------------------------
@@ -264,7 +305,7 @@ weights.  Eight domains are available:
      - Mixture handling; avoids extreme factor combinations.
    * - ``"extraction"``
      - Fractional factorial / CCD
-     - Rotatable CCD for good boundary prediction.
+     - Strongly quadratic responses; a rotatable CCD where the ranges are not hard limits.
    * - ``"analytical_method"``
      - Fractional factorial / CCD
      - AQbD / ICH Q2/Q14; includes robustness study stage.
@@ -289,10 +330,11 @@ Comparing two domains on the same factors shows how design choices differ:
 
 ::
 
-   fermentation: plackett_burman, 8 screening runs
-   cell_culture: definitive_screening, 15 screening runs
+   fermentation: plackett_burman, 11 screening runs
+   cell_culture: dsd, 20 screening runs
 
-Fermentation uses Plackett-Burman (efficient, many-factor screening), while
+Fermentation uses Plackett-Burman (efficient, many-factor screening, here with
+3 centre runs), while
 cell culture uses a Definitive Screening Design because it combines screening
 and curvature detection in a single stage - saving an entire experimental
 cycle when each run takes 2–3 weeks.
@@ -302,13 +344,16 @@ Hard-to-Change Factors
 
 When some factors are expensive or time-consuming to reset between runs
 (e.g. reactor temperature, equipment configuration), flag them with
-``hard_to_change_factors``.  The engine wraps affected stages in a
-split-plot structure:
+``hard_to_change_factors``.  ``generate_design`` builds split-plot structure in
+the optimal designs, so each stage that contains a hard-to-change factor becomes
+a D-optimal split-plot design of the same size, with ``hard_to_change`` naming
+its whole-plot factors:
 
 .. code-block:: python
 
    result = recommend_strategy(
        factors=factors,
+       responses=responses,
        budget=40,
        domain="fermentation",
        hard_to_change_factors=["Temperature"],
@@ -316,22 +361,25 @@ split-plot structure:
 
    for stage in result["stages"]:
        params = stage["design_params"]
-       if params.get("split_plot"):
-           print(f"{stage['stage_name']}: split-plot design")
-           print(f"  Whole-plot (hard to change): {params['whole_plot_factors']}")
-           print(f"  Sub-plot (easy to change):   {params['subplot_factors']}")
+       if "hard_to_change" in params:
+           print(f"{stage['stage_name']}: {stage['design_type']}, {params['model_type']} model")
+           print(f"  Whole-plot (hard to change): {params['hard_to_change']}")
 
 ::
 
-   Screening: split-plot design
+   Screening: d_optimal, main_effects model
      Whole-plot (hard to change): ['Temperature']
-     Sub-plot (easy to change):   ['pH', 'Glucose', 'Yeast extract', 'Agitation', ...]
+   Optimization: d_optimal, quadratic model
+     Whole-plot (hard to change): ['Temperature']
 
 With split-plot designs, runs are grouped within whole-plot factor levels
-to minimize the number of hard-to-change factor resets.  The output risks
-will include a reminder that standard ANOVA gives incorrect p-values for
-split-plot experiments - a restricted maximum likelihood (REML) analysis
-is needed instead.
+to minimize the number of hard-to-change factor resets. The design records each
+run's whole plot in a ``WholePlot`` column. The output risks include a reminder
+that standard ANOVA gives incorrect p-values for split-plot experiments: runs in
+one whole plot share its error, so ordinary least squares makes the
+hard-to-change factors look more significant than they are. Analyse the results
+with ``analysis_type="split_plot"``, a restricted maximum likelihood (REML) fit
+that tests each factor against the right error; see :ref:`split-plot-analysis`.
 
 Multiple Responses
 ------------------
@@ -355,9 +403,20 @@ When optimizing for more than one response, define each with its own goal:
 
 The strategy structure is the same - the engine plans the experimental
 stages needed to build models for all responses simultaneously.  After
-running the experiments, use
+running the experiments, fit each response with
+:func:`~process_improve.experiments.analyze_experiment` and
+``coding="coded"``, and pass the results to
 :func:`~process_improve.experiments.optimize_responses` with desirability
 functions to find the best trade-off across responses.
+
+The optimiser evaluates the models at coded settings, from -1 to +1, so it
+needs coefficients on that scale. Fitted in actual units (degrees, minutes,
+bar), a model's coefficients would be searched over -1 to +1 of those units,
+so the optimiser refuses them and says how to refit. Coded coefficients
+carry the ranges they were coded from, so the optimum comes back in actual
+units as well. When the data's extremes are not the levels that should be
+-1 and +1, as with a central composite design's axial runs, give the ranges
+instead: ``coding={"T": {"low": 150, "high": 200}, ...}``.
 
 See Also
 --------

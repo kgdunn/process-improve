@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.10"
-# dependencies = ["process-improve[expt,plotting]"]
+# requires-python = ">=3.11"
+# dependencies = ["process-improve[plotting]>=1.98"]
 # ///
 """Generic dispatcher for the process-improve tool registry.
 
@@ -59,7 +59,7 @@ def _load_registry() -> Any:
     except ImportError as exc:  # pragma: no cover - environment guard
         sys.exit(
             f"Could not import process_improve ({exc}).\n"
-            "Install it with:  pip install 'process-improve[expt,plotting]'\n"
+            "Install it with:  pip install 'process-improve[plotting]'\n"
             "or run this script with:  uv run --script doe_tool.py ..."
         )
     discover_tools()
@@ -78,7 +78,7 @@ def _read_input(raw: str | None) -> dict[str, Any]:
         if not raw.lstrip().startswith("{"):
             if not candidate.is_file():
                 sys.exit(f"Input file not found: {raw}")
-            raw = candidate.read_text()
+            raw = candidate.read_text(encoding="utf-8")
 
     if not raw.strip():
         return {}
@@ -95,7 +95,7 @@ def _emit(payload: Any, output: str | None) -> None:
     """Write the result to a file or to stdout."""
     text = json.dumps(payload, indent=2, default=str)
     if output:
-        Path(output).write_text(text)
+        Path(output).write_text(text, encoding="utf-8")
         print(f"Wrote {output}")
     else:
         print(text)

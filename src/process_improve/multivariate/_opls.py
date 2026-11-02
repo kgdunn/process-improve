@@ -40,30 +40,8 @@ from sklearn.utils.validation import check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
 from ._preprocessing import MCUVScaler
-
-#: Constructor parameters OPLS accepts for API parity with PLS but does not use, mapped to
-#: their defaults. The Trygg-Wold single-response algorithm is closed form, so neither an
-#: iteration cap nor a convergence tolerance has anything to bind to. They stay on the
-#: signature through the deprecation window so ``get_params`` / ``set_params`` / ``clone``
-#: keep working for code that already passes them.
-_DEPRECATED_INERT_PARAMS: typing.Final = {"max_iter": 1000, "tol": epsqrt}
-
-
-def _warn_about_inert_parameters(model: OPLS) -> None:
-    """Warn once per fit for each inert parameter the caller set away from its default."""
-    for name, default in _DEPRECATED_INERT_PARAMS.items():
-        if getattr(model, name) != default:
-            warnings.warn(
-                f"process_improve.multivariate.OPLS(..., {name}=...) is deprecated since "
-                f"1.96.0 and has no effect; it will be removed in 2.0. The single-response "
-                f"O-PLS algorithm is closed form and never iterates, so {name} has nothing "
-                f"to act on. Remove the argument.",
-                category=DeprecationWarning,
-                stacklevel=3,
-            )
-
 
 if typing.TYPE_CHECKING:
     from ._pls import DataMatrix
@@ -82,28 +60,14 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
     n_orthogonal_components : int
         Number of Y-orthogonal components to extract (``Ao``). The model has a
         total of ``1 + n_orthogonal_components`` components, matching an ordinary
-        PLS model with that many latent variables.
+        PLS model with that many latent variables. As for PCA and PLS, the total is
+        at most the number of rows or of columns, whichever is smaller; a larger
+        request is reduced to it, with a warning.
     scale : bool, default=True
         Mean-center and unit-variance-scale X and y internally before fitting
         (with :class:`MCUVScaler`). Predictions and ``beta_coefficients_`` are
         returned on the original data scale. Set ``False`` when the inputs are
         already scaled.
-    max_iter : int, default=1000
-        Deprecated since 1.96.0 and ignored; it will be removed in 2.0. The
-        single-response Trygg-Wold algorithm used here is closed form: the
-        predictive weight is :math:`X'y` normalised, and the orthogonal
-        components come from a loop that runs exactly
-        ``n_orthogonal_components`` times. Nothing iterates to convergence, so
-        there is no loop for a cap to bound. Setting it to anything but the
-        default raises a :class:`DeprecationWarning`.
-    tol : float, default=sqrt(machine epsilon)
-        Deprecated since 1.96.0 and ignored; it will be removed in 2.0. It was
-        documented as guarding rank-deficient projections, but the only such
-        guard is the :func:`safe_inverse` of ``P_o' W_o``, which takes a
-        condition-number ceiling (default :math:`1/\epsilon`, about 4.5e15),
-        not a magnitude floor like this one (about 1.5e-8). The two are
-        different quantities, so this value never reached that guard. Setting
-        it to anything but the default raises a :class:`DeprecationWarning`.
     copy : bool, default=True
         Whether to copy X and y before fitting.
 
@@ -180,14 +144,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         n_orthogonal_components: int,
         *,
         scale: bool = True,
-        max_iter: int = 1000,
-        tol: float = epsqrt,
         copy: bool = True,
     ):
         self.n_orthogonal_components = n_orthogonal_components
         self.scale = scale
-        self.max_iter = max_iter
-        self.tol = tol
         self.copy = copy
 
     def __sklearn_tags__(self):
@@ -199,10 +159,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
     def get_feature_names_out(self, input_features=None) -> np.ndarray:  # noqa: ANN001, ARG002
         """Return the component labels produced by :meth:`transform`."""
-        check_is_fitted(self, "predictive_weights_")
+        check_is_fitted(self)
         return np.asarray(self._component_names, dtype=object)
 
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> OPLS:  # noqa: C901, PLR0915
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> OPLS:  # noqa: PLR0915
         """Fit the O-PLS model.
 
         Parameters
@@ -216,39 +176,37 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         -------
         OPLS
             The fitted model (``self``).
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If X has no variance left for a component, as when there are more
+            components than the rank of the centred X.
         """
-        _warn_about_inert_parameters(self)
-
-        if hasattr(Y, "ndim") and Y.ndim == 1:
-            Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
-
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self,
-            X,
-            reset=True,
-            accept_sparse=False,
-            ensure_min_samples=2,
-            ensure_min_features=1,
-            dtype="numeric",
-            ensure_all_finite=True,
-        )
-        if feature_columns is None:
-            feature_columns = pd.RangeIndex(X_arr.shape[1])
-        if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
-        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        if not isinstance(Y, pd.DataFrame):
-            Y = pd.DataFrame(Y, index=sample_index)
+        X_arr = validate_data(self, X, ensure_min_samples=2)
+        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)  # an array's labels are positions
+        # Y is read by position, so its own row labels need not match X's; a Series keeps its name.
+        Y = pd.DataFrame(Y)
         if Y.shape[1] != 1:
             raise ValueError(f"OPLS supports a single response only; Y has {Y.shape[1]} columns.")
 
-        self.n_samples_ = X.shape[0]
+        self.n_samples_, n_features = X.shape
         self.n_targets_ = 1
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
             raise ValueError("n_orthogonal_components must be >= 0.")
+        most = min(self.n_samples_, n_features)
+        if 1 + n_ortho > most:
+            warnings.warn(
+                "The requested number of components is more than can be computed from data. The maximum number "
+                f"of components is the minimum of either the number of rows ({self.n_samples_}) or the number of "
+                f"columns ({n_features}).",
+                SpecificationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
+            n_ortho = most - 1
         # Fitted attribute: 1 predictive plus n_ortho orthogonal components.
         # OPLS has no n_components constructor parameter, so the resolved
         # count lives only on the fitted attribute (#505).
@@ -256,15 +214,16 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
         self._x_scaler: MCUVScaler | None = None
         self._y_scaler: MCUVScaler | None = None
+        units: np.ndarray | float = 1.0  # takes beta from the scaled space to the data's units
         if self.scale:
             self._x_scaler = MCUVScaler().fit(X)
             self._y_scaler = MCUVScaler().fit(Y)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)
+            units = self._y_scaler.scale_.to_numpy() / self._x_scaler.scale_.to_numpy()[:, np.newaxis]
 
-        Xmat = X.to_numpy(dtype=float)
-        y = Y.to_numpy(dtype=float)  # (N, 1)
-        n_features = Xmat.shape[1]
+        Xmat = X.to_numpy()
+        y = Y.to_numpy()  # (N, 1)
         target_name = Y.columns
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
@@ -276,9 +235,11 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         P_o = np.zeros((n_features, n_ortho))
         T_o = np.zeros((self.n_samples_, n_ortho))
         Xd = Xmat.copy()
+        size = float(np.linalg.norm(Xmat))
         for i in range(n_ortho):
+            _check_variance_left(Xd, size, i)
             t = Xd @ w_p  # (N, 1)
-            p = (Xd.T @ t) / (t.T @ t).item()  # (K, 1)
+            p = Xd.T @ t  # (K, 1): the loading on t, up to the scale that normalising w_o drops
             # Orthogonal weight: the part of the loading orthogonal to w_p.
             w_o = p - (w_p.T @ p).item() * w_p
             w_o = w_o / np.linalg.norm(w_o)
@@ -290,6 +251,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             T_o[:, [i]] = t_o
 
         # Predictive component on the filtered (orthogonal-corrected) X.
+        _check_variance_left(Xd, size, n_ortho)
         t_p = Xd @ w_p  # (N, 1)
         p_p = (Xd.T @ t_p) / (t_p.T @ t_p).item()  # (K, 1)
         q_p = (y.T @ t_p).item() / (t_p.T @ t_p).item()  # scalar
@@ -301,18 +263,11 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             filt = np.eye(n_features)
         self._osc_filter = filt  # (K, K)
         self._w_p = w_p
-        self._W_o = W_o
-        self._P_o = P_o
         self._p_p = p_p
         self._q_p = q_p
 
-        # beta on the (optionally) scaled space, then map back to original units.
-        beta_scaled = (filt @ w_p) * q_p  # (K, 1)
-        beta = beta_scaled.copy()
-        if self._x_scaler is not None and self._y_scaler is not None:
-            x_scale = self._x_scaler.scale_.to_numpy()[:, np.newaxis]
-            y_scale = self._y_scaler.scale_.to_numpy()[np.newaxis, :]
-            beta = beta * (y_scale / x_scale)
+        # beta on the (optionally) scaled space, mapped back to the original units.
+        beta = (filt @ w_p) * q_p * units  # (K, 1)
 
         # --- Public / backing attributes ---
         component_names = ["t_predictive"] + [f"t_orthogonal_{i}" for i in range(1, n_ortho + 1)]
@@ -343,7 +298,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         self.x_filtered_ = pd.DataFrame(Xmat @ filt, index=X.index, columns=X.columns)
         x_hat = t_p @ p_p.T + T_o @ P_o.T
         residuals = Xmat - x_hat
-        self._spe = np.sqrt(np.sum(residuals**2, axis=1)).reshape(-1, 1) * np.ones((1, self.n_components_))
+        self._spe = np.tile(np.sqrt(np.sum(residuals**2, axis=1))[:, np.newaxis], (1, self.n_components_))
 
         # Cumulative Hotelling's T2 across the combined score space.
         std = self.scaling_factor_for_scores_.to_numpy()
@@ -448,7 +403,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         --------
         PLS.invert : the equivalent inversion via the null space.
         """
-        check_is_fitted(self, "predictive_weights_")
+        check_is_fitted(self)
 
         y_arr = np.atleast_1d(np.asarray(_as_scalar(y_desired), dtype=float))
         if y_arr.size != 1:
@@ -466,8 +421,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         tau_p = y_scaled / self._q_p  # single division (paper Eq. 28)
 
         # Minimum-norm input: predictive contribution only, no orthogonal part.
-        x_new_scaled = (tau_p * self._p_p).reshape(1, -1)  # (1, K)
-        x_new_df = pd.DataFrame(x_new_scaled, columns=self._feature_names, index=[0])
+        x_new_scaled = (tau_p * self._p_p).T  # (1, K)
+        x_new_df = pd.DataFrame(x_new_scaled, columns=self._feature_names)
         if self._x_scaler is not None:
             x_new_df = self._x_scaler.inverse_transform(x_new_df)
 
@@ -478,21 +433,31 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             predictive_score=tau_p,
             y_hat=y_hat_value,
             orthogonal_space_basis=self.orthogonal_loadings_.copy(),
-            orthogonal_space_dimension=int(self.n_orthogonal_components),
+            orthogonal_space_dimension=self.n_components_ - 1,
         )
 
     # ------------------------------------------------------------------ #
-    def _prepare(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index]:
+    def _prepare(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index | None]:
         """Validate new X, capture its index, and move it to the scaled space."""
-        check_is_fitted(self, "predictive_weights_")
+        check_is_fitted(self)
         index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(self, X, reset=False, accept_sparse=False, dtype="numeric", ensure_all_finite=True)
-        if index is None:
-            index = pd.RangeIndex(X_arr.shape[0])
-        X_df = pd.DataFrame(X_arr, index=index, columns=self._feature_names)
+        X_arr = validate_data(self, X, reset=False)  # pragma: no mutate - reset=None reads as reset=False
+        X_df = pd.DataFrame(X_arr, columns=self._feature_names)  # named, for the scaler's feature check
         if self._x_scaler is not None:
             X_df = self._x_scaler.transform(X_df)
-        return X_df.to_numpy(dtype=float), index
+        return X_df.to_numpy(), index
+
+
+def _check_variance_left(remaining: np.ndarray, size: float, extracted: int) -> None:
+    """Refuse another component when the deflated X has no variance left, as PLS does.
+
+    Relative to the norm ``size`` of the X fitted, so data in small units are not taken for none.
+    """
+    if np.linalg.norm(remaining) <= epsqrt * size:
+        raise NotEnoughVarianceError(
+            "There is no variance left in the data array for X: cannot compute any more components beyond "
+            f"component {extracted}."
+        )
 
 
 def _as_scalar(value: float | np.ndarray | pd.Series | pd.DataFrame) -> float | np.ndarray:

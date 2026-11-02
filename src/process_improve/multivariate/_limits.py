@@ -36,14 +36,15 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     -------
     float
         The Hotelling's T2 limit at the given level of confidence. Returns
-        ``inf`` when ``n_components == n_rows``.
+        ``0.0`` when ``n_components == 0`` and ``inf`` when ``n_components == n_rows``.
 
     Raises
     ------
     ValueError
-        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive, or
-        if ``n_components`` exceeds ``n_rows`` (which would otherwise return a
-        silent NaN from a negative F denominator degrees of freedom).
+        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive,
+        if ``n_components`` is negative, or if ``n_components`` exceeds
+        ``n_rows`` (which would otherwise return a silent NaN from a negative
+        F denominator degrees of freedom).
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -60,8 +61,13 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
             f"n_components ({n_components}) cannot exceed n_rows ({n_rows}); "
             "a model cannot have more components than observations."
         )
+    if n_components == 0:
+        # With no components T2 is zero for every observation, and so is its limit: the
+        # formula below tends to 0 as A -> 0, but scipy cannot evaluate an F distribution
+        # with 0 numerator degrees of freedom and returned NaN.
+        return 0.0
     if n_components == n_rows:
-        return float("inf")
+        return float("inf")  # pragma: no mutate - float('INF') is the same value
     return (
         n_components
         * (n_rows - 1)
@@ -89,9 +95,12 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The squared prediction error limit at the given level of confidence.
+        The SPE limit at the requested confidence level, on the same square-root
+        scale as entries of ``model.spe_`` (see :func:`spe_calculation` for the
+        chi-square approximation underlying it). Compare an observation's
+        ``spe_`` value directly against the returned limit.
     """
-    check_is_fitted(model, "spe_")
+    check_is_fitted(model, "spe_")  # pragma: no mutate - None checks the same fitted state
 
     return spe_calculation(
         spe_values=model.spe_.iloc[:, model.n_components_ - 1],
@@ -112,8 +121,10 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The limit, above which we judge observations in the model to have a different correlation
-        structure than those values which were used to build the model.
+        The SPE limit at the requested confidence level, on the square-root scale
+        (directly comparable to entries of ``model.spe_``, which are stored on the same
+        scale). Observations above it have a different correlation structure than those
+        used to build the model.
 
     Notes
     -----
@@ -160,7 +171,7 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
         # Every SPE is exactly zero: a perfect fit.
         return 0.0
     relative_spread = float(np.sqrt(variance_spe)) / center_spe
-    if relative_spread <= epsqrt:
+    if relative_spread <= epsqrt:  # pragma: no mutate - differs from < only at exact equality
         return float(np.sqrt(center_spe))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
@@ -195,6 +206,11 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
         Array of length ``n_components`` with the positive score limit for
         each component.
 
+    Raises
+    ------
+    ValueError
+        If ``conf_level`` is outside (0, 1).
+
     References
     ----------
     Score limits: the limit is ``t_{(1 + conf_level) / 2, N - 1} * s_a``.
@@ -202,10 +218,11 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     since ``sqrt(F(1, N - 1))`` is exactly the two-sided ``t_{N - 1}``
     quantile.
     """
-    assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
-    check_is_fitted(model, "scores_")
+    if not 0.0 < conf_level < 1.0:
+        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    check_is_fitted(model, "scores_")  # pragma: no mutate - None checks the same fitted state
 
-    scores = np.asarray(model.scores_, dtype=float)
+    scores = np.asarray(model.scores_, dtype=float)  # pragma: no mutate - the scores are already float
     std_per_component = scores.std(axis=0, ddof=1)
     critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, scores.shape[0] - 1)
     return critical_value * std_per_component
@@ -240,14 +257,19 @@ def ellipse_coordinates(  # noqa: PLR0913
     n_points : int, optional
         Number of points to use in the ellipse; by default 100.
     n_components : int
-        Number of components `A` in the fitted model. Required to look up the
-        Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
+        Number of components `A` in the fitted model. Used to bound
+        `score_horiz`/`score_vert` to a valid component index. The Hotelling's
+        T^2 limit for the ellipse itself is computed with 2 degrees of freedom
+        regardless of `A`, since the ellipse is the joint confidence region for
+        the two plotted scores (see Background below).
     scaling_factor_for_scores : pd.Series
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
+        Required, although the signature defaults to ``None``; omitting it raises
+        :class:`TypeError`.
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the
-        Hotelling's T^2 limit; must be strictly positive.
+        Hotelling's T^2 limit on 2 and ``N - 2`` degrees of freedom; must be strictly positive.
 
     Returns
     -------
@@ -275,13 +297,17 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"score_horiz must lie in [1, {n_components}]; got {score_horiz}.")
     if not 1 <= score_vert <= n_components:
         raise ValueError(f"score_vert must lie in [1, {n_components}]; got {score_vert}.")
-    if not 0 < conf_level < 1:
+    if not 0 < conf_level < 1:  # pragma: no mutate - hotellings_t2_limit repeats this check
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
-    if n_rows <= 0:
+    if n_rows <= 0:  # pragma: no mutate - hotellings_t2_limit refuses n_rows below 2 too
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_points < 2:
         raise ValueError(f"n_points must be >= 2 to draw an ellipse; got {n_points}.")
-    assert scaling_factor_for_scores is not None  # required for the ellipse scaling
+    if scaling_factor_for_scores is None:
+        raise TypeError(
+            "scaling_factor_for_scores is required: pass the per-component score standard deviations "
+            f"(model.scaling_factor_for_scores_); got {scaling_factor_for_scores}."
+        )
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     # The ellipse is the joint confidence region for the TWO plotted scores,

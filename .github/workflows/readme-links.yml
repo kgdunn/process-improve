@@ -1,0 +1,51 @@
+name: README links
+
+# The links into this repository are checked offline on every pull request
+# (tests/test_readme_guards.py). Links to other sites, such as the textbook,
+# openmv.net, PyPI and the badges, can break with no change here, so this job
+# requests every one of them: weekly, and on pull requests that touch the pages.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - README.md
+      - SKLEARN_COMPATIBILITY.md
+      - tools/check_readme_links.py
+      - .github/workflows/readme-links.yml
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # Standard library only: no install step.
+      - name: Request every link in README.md and SKLEARN_COMPATIBILITY.md
+        run: python tools/check_readme_links.py
+
+      # A failed scheduled run is easy to miss, so it opens an issue (one at a time).
+      - name: Open an issue when the weekly check fails
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="README links are broken"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh issue create --title "$title" --body "The weekly README link check failed: $RUN_URL"
+          fi

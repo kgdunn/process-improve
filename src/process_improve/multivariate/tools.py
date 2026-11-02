@@ -24,16 +24,18 @@ def _validate_matrix_shape(data: list, name: str) -> None:
     """Reject oversize matrix inputs at the MCP boundary (SEC-19 #268).
 
     Caps ``len(data)`` against ``settings.max_matrix_rows`` and the
-    first row's width against ``settings.max_matrix_cols``. A 1 x 1M
+    widest row against ``settings.max_matrix_cols``. A 1 x 1M
     matrix passes the ``max_cells`` budget but blows up SVD; this is
-    the dimension-aware guard.
+    the dimension-aware guard. The widest row, not the first, is what
+    counts: ``pd.DataFrame`` pads short rows with NaN up to the longest
+    one, so a narrow first row followed by a wide one would otherwise
+    build a frame wider than the cap. A flat list is one column, and an
+    empty matrix has no columns.
     """
     n_rows = len(data)
     if n_rows > settings.max_matrix_rows:
         raise ValueError(f"{name} has {n_rows} rows; the cap is settings.max_matrix_rows={settings.max_matrix_rows}.")
-    if n_rows == 0:
-        return
-    n_cols = len(data[0]) if hasattr(data[0], "__len__") else 1
+    n_cols = max((len(row) if hasattr(row, "__len__") else 1 for row in data), default=0)
     if n_cols > settings.max_matrix_cols:
         raise ValueError(
             f"{name} has {n_cols} columns; the cap is settings.max_matrix_cols={settings.max_matrix_cols}."
@@ -98,6 +100,32 @@ def _validate_model_params(  # noqa: C901
             raise ValueError(f"model_params[{key!r}]={value} exceeds the cap of {cap}.")
         if value < 0:
             raise ValueError(f"model_params[{key!r}]={value} must be non-negative.")
+
+
+def _t2_score_sds(model_params: dict) -> np.ndarray:
+    """Return the score standard deviations T² divides by, refusing a corrupt payload.
+
+    A fitted model's score sds are finite and non-negative. ``_t2_score_sd`` reads any
+    other value as a component with no spread and leaves it out, so a NaN or negative
+    sd in a hand-made ``model_params`` would give a plausible T² instead of an error.
+
+    Parameters
+    ----------
+    model_params : dict
+        The ``model_params`` payload of ``pca_predict`` or ``pls_predict``.
+
+    Returns
+    -------
+    np.ndarray of shape (n_components,)
+        The divisors, with ``inf`` for each component T² leaves out.
+    """
+    from process_improve.multivariate._diagnostics import _t2_score_sd  # noqa: PLC0415
+
+    score_sd = np.asarray(model_params["scaling_factor_for_scores"], dtype=float)
+    if score_sd.ndim != 1 or score_sd.size == 0 or not np.all(np.isfinite(score_sd)) or np.any(score_sd < 0):
+        msg = "model_params['scaling_factor_for_scores'] must be a non-empty list of finite, non-negative numbers."
+        raise ValueError(msg)
+    return _t2_score_sd(score_sd)
 
 
 _MULTIVARIATE_TOOL_NAMES: list[str] = []
@@ -500,7 +528,8 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
         means = np.array(spec.model_params["means"])
         stds = np.array(spec.model_params["stds"])
         loadings = np.array(spec.model_params["loadings"])
-        scaling_factors = np.array(spec.model_params["scaling_factor_for_scores"])
+        # A component with no spread carries no T², by the rule PCA.diagnose uses (#1026)
+        scaling_factors = _t2_score_sds(spec.model_params)
         n_components = spec.model_params["n_components"]
         n_samples = spec.model_params["n_samples"]
         train_spe_values = np.array(spec.model_params["spe_values"])
@@ -607,7 +636,8 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
         direct_weights = np.array(spec.model_params["direct_weights"])
         x_loadings = np.array(spec.model_params["x_loadings"])
         y_loadings = np.array(spec.model_params["y_loadings"])
-        scaling_factors = np.array(spec.model_params["scaling_factor_for_scores"])
+        # A component with no spread carries no T², by the rule PCA.diagnose uses (#1026)
+        scaling_factors = _t2_score_sds(spec.model_params)
         n_components = spec.model_params["n_components"]
         n_samples = spec.model_params["n_samples"]
         train_spe_values = np.array(spec.model_params["spe_values"])

@@ -32,7 +32,7 @@ from process_improve.visualization.spec import (
     LayerSpec,
     PanelSpec,
 )
-from process_improve.visualization.themes import DEFAULT_THEME
+from process_improve.visualization.themes import DEFAULT_THEME, ensure_themes
 from process_improve.visualization.types import AnnotationType, MarkType
 
 # ``SURFACE_COLORSCALE`` is a ``list[list[float | str]]`` (e.g. ``[[0.0, "#fff"], ...]``),
@@ -61,6 +61,7 @@ class PlotlyAdapter(AbstractAdapter):
         dict
             Plotly figure dict with ``data`` and ``layout`` keys.
         """
+        ensure_themes()
         n = len(spec.panels)
         if n == 0:
             return go.Figure().to_dict()
@@ -85,6 +86,7 @@ class PlotlyAdapter(AbstractAdapter):
         dict
             Plotly figure dict.
         """
+        ensure_themes()
         return self._single_panel(panel, panel.title).to_dict()
 
     # ------------------------------------------------------------------
@@ -164,7 +166,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Layer → Plotly trace
     # ------------------------------------------------------------------
 
-    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: C901, PLR0911
+    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: PLR0911
         """Convert a :class:`LayerSpec` to a Plotly trace.
 
         Returns
@@ -210,11 +212,8 @@ class PlotlyAdapter(AbstractAdapter):
         if mark == MarkType.scatter:
             return self._scatter_trace(layer, x_vals, y_vals), on_secondary
 
-        if mark == MarkType.text:
-            return self._text_trace(layer, x_vals, y_vals), on_secondary
-
-        # Fallback to scatter
-        return self._scatter_trace(layer, x_vals, y_vals), on_secondary
+        # MarkType.text: ``mark`` is a MarkType, and every other member returns above.
+        return self._text_trace(layer, x_vals, y_vals), on_secondary
 
     def _bar_trace(
         self,
@@ -317,8 +316,10 @@ class PlotlyAdapter(AbstractAdapter):
         }
 
         # Only forward the optional keys when set: passing zmin/zmax of None
-        # would override plotly's own auto-ranging.
-        for key in ("zmin", "zmax", "ncontours"):
+        # would override plotly's own auto-ranging. ``fillcolor`` shades the
+        # excluded side of a constraint contour (``contours.type`` "constraint"),
+        # and ``hoverinfo`` "skip" keeps such a layer out of the hover labels.
+        for key in ("zmin", "zmax", "ncontours", "fillcolor", "hoverinfo"):
             value = layer.style.get(key)
             if value is not None:
                 trace_kwargs[key] = value
@@ -344,15 +345,16 @@ class PlotlyAdapter(AbstractAdapter):
         )
 
     def _heatmap_trace(self, layer: LayerSpec) -> go.Heatmap:
-        x_vals = layer.style.get("x_grid", [])
-        y_vals = layer.style.get("y_grid", [])
-        z_matrix = layer.style.get("z_matrix", [])
+        """Build a heatmap from the layer's grid; ``zmin``, ``zmax`` and ``colorscale`` in its style fix the colours."""
+        style = layer.style
         return go.Heatmap(
-            x=x_vals,
-            y=y_vals,
-            z=z_matrix,
+            x=style.get("x_grid", []),
+            y=style.get("y_grid", []),
+            z=style.get("z_matrix", []),
             name=layer.name,
-            colorscale=_SURFACE_COLORSCALE,
+            colorscale=style.get("colorscale", _SURFACE_COLORSCALE),
+            zmin=style.get("zmin"),
+            zmax=style.get("zmax"),
         )
 
     def _text_trace(
@@ -417,7 +419,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Annotations → Plotly shapes / annotations
     # ------------------------------------------------------------------
 
-    def _add_annotation(  # noqa: C901, PLR0912
+    def _add_annotation(
         self,
         fig: go.Figure,
         ann: Annotation,
@@ -425,9 +427,8 @@ class PlotlyAdapter(AbstractAdapter):
         row: int | None = None,
         col: int | None = None,
     ) -> None:
-        at = ann.annotation_type
-        if isinstance(at, str):
-            at = AnnotationType(at)
+        # A member or its plain string value: AnnotationType is a str-Enum, so both convert.
+        at = AnnotationType(ann.annotation_type)
 
         color = ann.style.get("color", DOE_PALETTE["threshold_me"])
         dash = ann.style.get("dash", "dash")
@@ -509,6 +510,6 @@ class PlotlyAdapter(AbstractAdapter):
                     col=col or "all",
                 )
 
-        elif at == AnnotationType.label:
+        else:  # AnnotationType.label, the one member left
             msg = "AnnotationType.label is declared in the spec vocabulary but not implemented in the Plotly adapter."
             raise NotImplementedError(msg)

@@ -24,6 +24,10 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 
 if TYPE_CHECKING:
     from process_improve.experiments.models import Model
+    from process_improve.experiments.region import DesignRegion
+
+
+_BACKENDS = ("both", "plotly", "echarts")
 
 
 def visualize_doe(  # noqa: PLR0913
@@ -38,6 +42,8 @@ def visualize_doe(  # noqa: PLR0913
     confidence_level: float = 0.95,
     factor_labels: dict[str, str] | None = None,
     backend: str = "both",
+    model: str | None = None,
+    region: DesignRegion | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate a DOE visualisation.
 
@@ -68,14 +74,37 @@ def visualize_doe(  # noqa: PLR0913
         bar/legend entries (e.g. ``{"A": "Temperature [°C]"}``).
     backend : str
         ``"both"``, ``"plotly"``, or ``"echarts"``.
+    model : str or None
+        Model the design-quality plots (``"fds_plot"``, ``"power_curve"``,
+        ``"prediction_variance"``) are computed for, as in
+        :func:`~process_improve.experiments.evaluate_design`.  When *None*, the
+        formula of *analysis_results* is used, else the richest of
+        ``"quadratic"``, ``"interactions"`` and ``"main_effects"`` that the
+        design can estimate.
+    region : DesignRegion, dict or None
+        The settings that can be run, as a
+        :class:`~process_improve.experiments.region.DesignRegion` or its ``to_dict()``
+        form; its factor ranges define the coded units. The ``"contour"`` and
+        ``"prediction_variance"`` plots shade the settings it rules out (with the
+        factors not plotted held at *hold_values*), and ``"surface_3d"`` leaves
+        them out; the other plot types ignore it. With *None* the figures are
+        those of the whole cube.
 
     Returns
     -------
     dict[str, Any]
         Keys: ``plot_type``, ``title``, ``plotly`` (Plotly figure dict),
         ``echarts`` (ECharts option dict), ``data`` (raw computed data).
+
+    Raises
+    ------
+    ValueError
+        If *backend* is not one of ``"both"``, ``"plotly"`` or ``"echarts"``.
     """
     from process_improve.experiments.visualization.plots.registry import create_plot  # noqa: PLC0415
+
+    if backend not in _BACKENDS:
+        raise ValueError(f"backend must be one of {', '.join(map(repr, _BACKENDS))}; got backend={backend!r}.")
 
     plot = create_plot(
         plot_type=plot_type,
@@ -87,6 +116,8 @@ def visualize_doe(  # noqa: PLR0913
         highlight_significant=highlight_significant,
         confidence_level=confidence_level,
         factor_labels=factor_labels,
+        model=model,
+        region=region,
     )
 
     spec = plot.to_spec()

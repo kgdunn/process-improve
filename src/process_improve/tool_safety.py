@@ -30,58 +30,130 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing
+import os
 import sys
 import threading
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 from process_improve.config import settings
 
-# Prefer ``fork`` on Linux: the worker inherits the parent's imported
-# numpy/registry/etc., which makes startup and tool-dispatch much cheaper
-# than re-importing on every spawn. macOS is excluded because Apple's
-# Accelerate framework (used by numpy) is not fork-safe and Python 3.13
-# emits a DeprecationWarning when a multi-threaded parent forks; Windows
-# does not support fork at all. On those platforms we fall back to the
-# platform default (spawn).
-_DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = None
-if sys.platform.startswith("linux"):
+
+def _default_mp_context(
+    platform: str = sys.platform, free_threaded: bool | None = None
+) -> multiprocessing.context.BaseContext | None:
+    """Return the multiprocessing context the worker pool uses on ``platform``.
+
+    Prefer ``fork`` on Linux: the worker inherits the parent's imported
+    numpy/registry/etc., which makes startup and tool-dispatch much cheaper
+    than re-importing on every spawn. macOS is excluded because Apple's
+    Accelerate framework (used by numpy) is not fork-safe and Python 3.13
+    emits a DeprecationWarning when a multi-threaded parent forks; Windows
+    does not support fork at all. On those platforms, and wherever ``fork``
+    is unavailable, return None: the pool then uses the platform default
+    (spawn).
+
+    A free-threaded build (``free_threaded``, by default whether the GIL is
+    off) uses ``forkserver`` instead. Its threads run truly in parallel, so a
+    fork from a thread while another holds a lock leaves that lock held in the
+    child for ever: concurrent tool calls then deadlock and time out.
+    ``forkserver`` forks each worker from a single-threaded server process.
+    """
+    if not platform.startswith("linux"):
+        return None
+    if free_threaded is None:
+        free_threaded = not getattr(sys, "_is_gil_enabled", lambda: True)()
     try:
-        _DEFAULT_MP_CONTEXT = multiprocessing.get_context("fork")
+        return multiprocessing.get_context("forkserver" if free_threaded else "fork")
     except ValueError:
-        _DEFAULT_MP_CONTEXT = None
+        return None
+
+
+_DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = _default_mp_context()
+
+#: True on a thread while it submits a tool call to a worker pool: a ``fork`` pool forks its
+#: worker inside ``submit``. The fork hooks below act on those forks only.
+_forking_a_worker = threading.local()
+
+
+def _hold_warnings_lock() -> None:
+    """Hold the warnings module's lock while this module forks a worker, so no other thread holds it.
+
+    From Python 3.14 every warning, and ``warnings.catch_warnings``, takes one lock for the
+    whole process. A worker forked while another thread holds that lock inherits it held by a
+    thread the worker does not have, so the worker's first warning waits forever. A parent
+    with threads warns at each ``fork()``, so two threads forking at once is enough, and
+    ``execute_tool_call`` records warnings on every call: on the free-threaded build about one
+    worker in five hung. Python 3.13 and earlier have no such lock.
+    """
+    lock = getattr(warnings, "_lock", None)
+    if lock is not None and getattr(_forking_a_worker, "active", False):
+        lock.__enter__()
+
+
+def _release_warnings_lock() -> None:
+    """Release the lock :func:`_hold_warnings_lock` took, in the parent and in the worker.
+
+    The worker's one thread is the thread that forked it, so it owns the lock it inherited.
+    """
+    lock = getattr(warnings, "_lock", None)
+    if lock is not None and getattr(_forking_a_worker, "active", False):
+        lock.__exit__(None, None, None)
+
+
+if hasattr(os, "register_at_fork"):  # POSIX
+    os.register_at_fork(
+        before=_hold_warnings_lock, after_in_parent=_release_warnings_lock, after_in_child=_release_warnings_lock
+    )
 
 # ---------------------------------------------------------------------------
-# Legacy default-name compatibility shims (ENG-22: deprecate, remove in v2.0).
+# Legacy default-name compatibility shims (ENG-22: deprecated since 2.0.0,
+# remove in 3.0).
 # ---------------------------------------------------------------------------
 # Some callers imported these by name (``from process_improve.tool_safety
 # import DEFAULT_TIMEOUT_S``). The new home for the actual values is
-# ``process_improve.config.settings``; the shims below stay so existing
-# imports keep resolving, but resolve to whatever the settings object
-# currently reports rather than freezing the value at import time.
+# ``process_improve.config.settings``. The shims below keep existing imports
+# resolving, to whatever the settings object currently reports rather than
+# the value at import time. Until 2.0.0 they forwarded silently, so the
+# deprecation policy's announce and warn cycle starts with that release.
+
+#: Each legacy module-level name and the :data:`settings` attribute it forwards to.
+_LEGACY_TO_SETTINGS: dict[str, str] = {
+    "DEFAULT_TIMEOUT_S": "tool_timeout",
+    "DEFAULT_MAX_CELLS": "max_cells",
+    "DEFAULT_MAX_STRING": "max_string",
+    "DEFAULT_MAX_DEPTH": "max_depth",
+    "DEFAULT_MEMORY_MB": "max_memory_mb",
+}
 
 
 def __getattr__(name: str) -> Any:  # noqa: ANN401
-    """Forward legacy ``DEFAULT_*`` reads to :data:`settings`.
+    """Forward legacy ``DEFAULT_*`` reads to :data:`settings`, with a deprecation warning.
 
     Lets ``from process_improve.tool_safety import DEFAULT_TIMEOUT_S``
-    keep working, but the value is no longer frozen at module import:
-    a test that overrides ``settings.tool_timeout`` will see the new
-    value through both the new and the legacy name.
+    keep working, but the value is not frozen at module import: a test
+    that overrides ``settings.tool_timeout`` sees the new value through
+    both the new and the legacy name.
+
+    .. deprecated:: 2.0.0
+        The ``DEFAULT_*`` names will be removed in 3.0. Read the
+        attribute of :data:`process_improve.config.settings` instead.
     """
-    legacy_to_settings = {
-        "DEFAULT_TIMEOUT_S": "tool_timeout",
-        "DEFAULT_MAX_CELLS": "max_cells",
-        "DEFAULT_MAX_STRING": "max_string",
-        "DEFAULT_MAX_DEPTH": "max_depth",
-        "DEFAULT_MEMORY_MB": "max_memory_mb",
-    }
-    if name in legacy_to_settings:
-        return getattr(settings, legacy_to_settings[name])
+    if name in _LEGACY_TO_SETTINGS:
+        attr = _LEGACY_TO_SETTINGS[name]
+        warnings.warn(
+            f"process_improve.tool_safety.{name} is deprecated since 2.0.0 and will be removed in 3.0; "
+            f"use process_improve.config.settings.{attr} instead.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(settings, attr)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -289,13 +361,27 @@ def _validate_against_model(tool_name: str, tool_input: dict[str, Any], model_cl
 # ---------------------------------------------------------------------------
 
 
+def _address_space_in_use() -> int:
+    """Return the bytes of address space this process has mapped; 0 where ``/proc`` does not say (macOS)."""
+    try:
+        return int(Path("/proc/self/statm").read_text(encoding="ascii").split()[0]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError):
+        return 0
+
+
 def _apply_memory_limit(memory_mb: int) -> None:
-    """Apply an address-space limit to the current process (POSIX)."""
+    """Allow the current process ``memory_mb`` more of address space than it has mapped (POSIX).
+
+    ``RLIMIT_AS`` counts address space reserved, not memory in use, and an allocator may
+    reserve far ahead: the free-threaded build's maps about 1.5 GiB on importing the package
+    while using about 250 MiB. A cap of ``memory_mb`` alone was then below what the worker
+    already had, and every new mapping failed, however small.
+    """
     try:
         import resource  # noqa: PLC0415  POSIX-only
     except ImportError:
         return  # Windows: no-op
-    limit_bytes = memory_mb * 1024 * 1024
+    limit_bytes = _address_space_in_use() + memory_mb * 1024 * 1024
     # Some sandboxes disallow raising the hard limit; ignore silently.
     with contextlib.suppress(ValueError, OSError):
         resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
@@ -304,9 +390,9 @@ def _apply_memory_limit(memory_mb: int) -> None:
 def _pool_initializer(memory_mb: int) -> None:
     """Run inside each worker process before it accepts tasks.
 
-    Imports run *before* the memory cap is applied so that large
-    data files loaded at import time (e.g. pyDOE3's orthogonal-array
-    tables) do not count against the per-call budget.
+    Imports run *before* the memory cap is applied so that what the
+    package and its dependencies load at import time does not count
+    against the per-call budget.
     """
     # Warm the registry so the first real call doesn't pay discovery cost.
     from process_improve.tool_spec import discover_tools  # noqa: PLC0415
@@ -443,9 +529,9 @@ def safe_execute_tool_call(  # noqa: PLR0913
     max_cells, max_string, max_depth:
         Input-size limits. See :func:`validate_input`.
     memory_mb:
-        RSS cap applied to the worker subprocess via ``RLIMIT_AS`` (POSIX).
-        On overrun the subprocess dies and :class:`ToolMemoryExceededError`
-        is raised.
+        Address space the worker subprocess may map beyond what its imports
+        mapped, applied via ``RLIMIT_AS`` (POSIX). On overrun the subprocess
+        dies and :class:`ToolMemoryExceededError` is raised.
     executor:
         Optional caller-provided pool. When *None* (default) a PRIVATE pool
         is created for this call and torn down afterwards, so each call runs
@@ -504,7 +590,11 @@ def safe_execute_tool_call(  # noqa: PLR0913
     # process-global state, reclaimed memory) with no cross-thread coupling,
     # at the same cost as the old create-per-call recycling.
     pool = executor if executor is not None else _create_pool(memory_mb)
-    future = pool.submit(_worker_run, tool_name, tool_input)
+    _forking_a_worker.active = True
+    try:
+        future = pool.submit(_worker_run, tool_name, tool_input)
+    finally:
+        _forking_a_worker.active = False
 
     try:
         return future.result(timeout=timeout)

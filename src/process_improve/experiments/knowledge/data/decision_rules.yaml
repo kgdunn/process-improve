@@ -12,7 +12,7 @@
     primary: plackett_burman
     rationale: "PB in 12 runs screens up to 11 factors at resolution III"
     alternatives:
-      - design: definitive_screening
+      - design: dsd
         rationale: "DSD estimates some quadratic effects but needs 2k+1 runs"
   explanation:
     novice: >
@@ -39,7 +39,7 @@
     primary: fractional_factorial
     rationale: "Resolution IV fraction provides clean main effects"
     alternatives:
-      - design: definitive_screening
+      - design: dsd
         rationale: "DSD adds curvature detection in 2k+1 runs"
       - design: full_factorial
         rationale: "Feasible for 4 factors (16 runs) if budget allows"
@@ -149,7 +149,7 @@
     - {key: goal, op: "==", value: screening}
     - {key: curvature_important, op: "==", value: true}
   recommend:
-    primary: definitive_screening
+    primary: dsd
     rationale: "DSDs detect curvature during screening at 2k+1 runs"
     alternatives:
       - design: plackett_burman
@@ -175,8 +175,10 @@
   conditions:
     - {key: has_hard_to_change, op: "==", value: true}
   recommend:
-    primary: split_plot
-    rationale: "Split-plot structure accounts for restriction on randomization"
+    primary: d_optimal
+    rationale: >-
+      A D-optimal split-plot design accounts for the restriction on randomization:
+      name the factors in generate_design(..., design_type="d_optimal", hard_to_change=[...])
     alternatives:
       - design: full_factorial
         rationale: "If the hard-to-change factor can be re-set for each run"

@@ -13,8 +13,8 @@ univariate
 experiments
     Factorial and response surface experiment designs.
 monitoring
-    Control charts (Shewhart, and a robust Holt-Winters chart that blends
-    Shewhart and CUSUM-like behaviour) and process capability metrics.
+    Control charts (Shewhart, EWMA, CUSUM, and a robust Holt-Winters chart that
+    blends Shewhart and CUSUM-like behaviour) and process capability metrics.
 batch
     Batch process data analysis.
 regression

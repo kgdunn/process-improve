@@ -233,9 +233,12 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     folds a conference matrix ``C`` of order ``m`` over its negative and adds a
     center run, giving ``[C; -C; 0]``.  ``m = k`` for even ``k`` (``2k + 1``
     runs) and ``m = k + 1`` with the last column dropped for odd ``k``
-    (``2k + 3`` runs).  This yields the minimal OMARS design for ``k`` factors;
-    a future enumerator will expand coverage to the larger, non-foldover
-    members of the OMARS family.
+    (``2k + 3`` runs).  This yields the definitive screening design, the
+    conference-matrix member of the foldover OMARS family.  It is not the
+    smallest OMARS design for odd ``k``: ``2k + 1`` runs suffice, for example
+    the foldover of the identity matrix with a centre run.  For larger designs,
+    with error degrees of freedom for a second-order model, see
+    :func:`~process_improve.experiments.generate_omars`.
 
     Parameters
     ----------

@@ -116,6 +116,17 @@ def test_transform_wrong_length_raises(aligned_nylon: dict) -> None:
         model.transform(shorter)
 
 
+@pytest.mark.parametrize("entry_point", ["predict_online", "predict_online_trace"])
+def test_online_entry_points_reject_a_different_tag_set(entry_point: str) -> None:
+    """A running batch must unfold to the training columns; a renamed tag does not."""
+    good = _synthetic_good_batches(n_batches=6, n_timesteps=10)
+    model = BatchPCA(n_components=2).fit(good)
+    renamed = good["g0"].rename(columns={"A": "nope"})
+    args = (renamed, 4) if entry_point == "predict_online" else (renamed,)
+    with pytest.raises(ValueError, match=r"The batch does not unfold to the training column layout\."):
+        getattr(model, entry_point)(*args)
+
+
 def test_initial_conditions_must_be_dataframe() -> None:
     """A non-DataFrame Z block is rejected."""
     good = _synthetic_good_batches(n_batches=4)

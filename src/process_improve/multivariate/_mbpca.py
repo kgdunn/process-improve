@@ -7,6 +7,7 @@ Holds :class:`MBPCA`, the hierarchical / superblock multi-block PCA transformer.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import logging
 import time
 import typing
@@ -20,8 +21,15 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _HotellingsT2LimitMixin
-from ._common import SpecificationWarning, _nz, _scale_block_contributions, epsqrt
-from ._diagnostics import _select_rows
+from ._common import (
+    SpecificationWarning,
+    _nz,
+    _scale_block_contributions,
+    epsqrt,
+    informative_widths,
+    resolve_loop_settings,
+)
+from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
@@ -52,20 +60,6 @@ def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
                 f"All X-blocks must have the same row count. Block '{name}' has "
                 f"{X[name].shape[0]} rows; expected {n_samples}."
             )
-
-
-def _resolve_missing_data_settings(missing_data_settings: dict | None, algo: str) -> dict:
-    """Resolve and validate the iterative-algorithm settings for the NIPALS path."""
-    settings = {"md_tol": epsqrt, "md_max_iter": 1000}
-    if isinstance(missing_data_settings, dict):
-        settings.update(missing_data_settings)
-    settings["md_max_iter"] = int(settings["md_max_iter"])
-    if algo == "nipals":
-        if not settings["md_tol"] < 10:  # the historical ceiling, kept verbatim
-            raise ValueError("Tolerance should not be too large.")
-        if not settings["md_tol"] > epsqrt**1.95:
-            raise ValueError("Tolerance must exceed machine precision.")
-    return settings
 
 
 def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], block_names: Sequence[str]) -> None:
@@ -125,72 +119,97 @@ def _seed_super_score(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) 
     Mirrors the single-block PCA / PLS seeding (#195). No RNG is involved, so the fit is
     reproducible without a ``random_state``, and the highest-variance column is closest to
     the leading component. The sign convention applied after convergence makes the fitted
-    signs independent of this seed. NaN is replaced by 0 for the missing-data path.
+    signs independent of this seed. NaN is replaced by 0 for the missing-data path, in a
+    copy, so the seed is not a view of the block.
     """
     col_ssq = {name: np.nansum(x_def[name] ** 2, axis=0) for name in context.block_names}
-    start_block = max(context.block_names, key=lambda name: float(np.max(col_ssq[name], initial=0.0)))
+    start_block = max(context.block_names, key=lambda name: float(np.max(col_ssq[name])))
     start_col = int(np.argmax(col_ssq[start_block]))
-    return np.nan_to_num(x_def[start_block][:, start_col].astype(float).copy())
+    return np.nan_to_num(x_def[start_block][:, start_col])
 
 
 def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) -> _MBPCAComponent:
-    """Iterate the super-score to convergence on the currently deflated blocks."""
+    """Iterate the super-score to convergence on the currently deflated blocks.
+
+    The first pass always runs. A centred seed changes by about its own size in that pass,
+    so a tolerance above 1 used to end the loop before it began and leave no loadings.
+    """
     t_super = _seed_super_score(x_def, context)
-    prev = t_super + 1.0
     t_b_summary = np.zeros((context.n_samples, context.n_blocks))
     local_loadings: dict[str, np.ndarray] = {}
     local_scores: dict[str, np.ndarray] = {}
-    p_s = np.zeros(context.n_blocks)
-    itern = 0
 
-    # Relative convergence criterion (#504): the change between two successive super-score
-    # iterations is judged against the size of the current super-score, so the decision is
-    # invariant to a global rescaling of the data. The denominator is floored via ``_nz``
-    # so an all-zero super-score cannot divide by zero.
-    while (
-        np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > context.tol and itern < context.max_iter
-    ):
+    # On the dense path each loading is normalised as soon as it is formed, so dividing it by
+    # the score's sum of squares first would change nothing; nor would dividing a score by
+    # the sum of squares of a loading of unit length.
+    for itern in itertools.count(1):
         prev = t_super
         if context.algo == "nipals":
             # Mask-aware NIPALS: each projection is a per-column (or per-row) regression
             # that uses only the entries that are not NaN, and divides by the masked sum of
             # squares. Reuses the same primitives as single-block PCA NIPALS.
-            t_super_col = t_super.reshape(-1, 1)
+            t_super_col = t_super[:, np.newaxis]
             for b_idx, name in enumerate(context.block_names):
-                p_b = quick_regress(x_def[name], t_super_col).flatten()
-                p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
-                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+                p_b = quick_regress(x_def[name], t_super_col, per="column").flatten()
+                p_b = p_b / _nz(float(np.sqrt(ssq(p_b))))
+                t_b = quick_regress(x_def[name], p_b[:, np.newaxis], per="row").flatten() / context.sqrt_kb[name]
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
                 t_b_summary[:, b_idx] = t_b
         else:
             for b_idx, name in enumerate(context.block_names):
-                p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
+                p_b = x_def[name].T @ t_super
                 p_b = p_b / _nz(float(np.linalg.norm(p_b)))
-                t_b = x_def[name] @ p_b / _nz(float(p_b @ p_b)) / context.sqrt_kb[name]
+                t_b = x_def[name] @ p_b / context.sqrt_kb[name]
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
                 t_b_summary[:, b_idx] = t_b
-        p_s = t_b_summary.T @ t_super / _nz(float(t_super @ t_super))
+        p_s = t_b_summary.T @ t_super
         p_s = p_s / _nz(float(np.linalg.norm(p_s)))
-        t_super = t_b_summary @ p_s / _nz(float(p_s @ p_s))
-        itern += 1
+        t_super = t_b_summary @ p_s
+        # Relative convergence criterion (#504): the change between two successive super-score
+        # iterations is judged against the size of the current super-score, so the decision is
+        # invariant to a global rescaling of the data. The denominator is floored via ``_nz``
+        # so an all-zero super-score cannot divide by zero.
+        change = np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super)))
+        if change <= context.tol or itern >= context.max_iter:
+            break
 
-    # Sign convention: largest |super_loading| element positive.
-    flip_idx = int(np.argmax(np.abs(p_s)))
-    if p_s[flip_idx] < 0:
-        p_s = -p_s
-        t_super = -t_super
-        for name in context.block_names:
-            local_loadings[name] = -local_loadings[name]
-            local_scores[name] = -local_scores[name]
-
-    return _MBPCAComponent(
+    component = _MBPCAComponent(
         super_scores=t_super,
         super_loadings=p_s,
         block_loadings=local_loadings,
         block_scores=local_scores,
         iterations=itern,
+    )
+    return _apply_sign_convention(component, context)
+
+
+def _deflation_loadings(component: _MBPCAComponent, context: _MBPCALoopContext) -> dict[str, np.ndarray]:
+    """Scale each block loading by its super loading and block size: the loading that deflates it."""
+    return {
+        name: component.block_loadings[name] * component.super_loadings[b_idx] * context.sqrt_kb[name]
+        for b_idx, name in enumerate(context.block_names)
+    }
+
+
+def _apply_sign_convention(component: _MBPCAComponent, context: _MBPCALoopContext) -> _MBPCAComponent:
+    """Flip the component so its largest-magnitude deflation loading, over all blocks, is positive.
+
+    This is single-block PCA's convention, so the fitted signs do not depend on the seed,
+    and a one-block model has PCA's signs (#586). The super loading is not flipped, and
+    cannot decide the sign: its element for block b is proportional to ``t_b' t``, which
+    flipping the whole component leaves unchanged. (With no missing data that is
+    ``||X_b' t||``, never negative, so the old convention keyed on it never fired.)
+    """
+    loadings = _deflation_loadings(component, context)
+    stacked = np.nan_to_num(np.concatenate([loadings[name] for name in context.block_names]))
+    if stacked[int(np.argmax(np.abs(stacked)))] >= 0:
+        return component
+    return component._replace(
+        super_scores=-component.super_scores,
+        block_loadings={name: -loading for name, loading in component.block_loadings.items()},
+        block_scores={name: -scores for name, scores in component.block_scores.items()},
     )
 
 
@@ -198,11 +217,8 @@ def _deflate(
     x_def: dict[str, np.ndarray], component: _MBPCAComponent, context: _MBPCALoopContext
 ) -> dict[str, np.ndarray]:
     """Remove this component from every block, using the super-score and the scaled block loading."""
-    deflated = {}
-    for b_idx, name in enumerate(context.block_names):
-        p_deflate = component.block_loadings[name] * component.super_loadings[b_idx] * context.sqrt_kb[name]
-        deflated[name] = x_def[name] - np.outer(component.super_scores, p_deflate)
-    return deflated
+    loadings = _deflation_loadings(component, context)
+    return {name: x_def[name] - np.outer(component.super_scores, loadings[name]) for name in context.block_names}
 
 
 @dataclasses.dataclass
@@ -256,20 +272,17 @@ class _MBPCAArrays:
         """Store the cumulative R2X and SPE left after this component was removed."""
         for b_idx, name in enumerate(context.block_names):
             ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
-            # R^2 is undefined for a zero-variance block/column; report NaN rather than
-            # dividing by zero (inf/nan + warning) or 1.0.
-            self.r2_x_block_cum[b_idx, a] = (
-                1 - np.sum(ssq_remain_per_var) / initial.per_block[name] if initial.per_block[name] > 0 else np.nan
-            )
-            per_var = initial.per_variable[name]
-            self.r2_x_var_cum[name][:, a] = np.where(
-                per_var > 0, 1 - ssq_remain_per_var / np.where(per_var > 0, per_var, 1.0), np.nan
-            )
+            self.r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / initial.per_block[name]
+            self.r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / initial.per_variable[name]
             self.block_spe[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
 
 
 class _InitialSumsOfSquares(typing.NamedTuple):
-    """What each block held before any component was removed, the reference every R2X is against."""
+    """What each block held before any component was removed, the reference every R2X is against.
+
+    R2X is undefined for a block or a column with nothing to explain, so its sum of squares is
+    held as NaN: every R2X divided by it is NaN, without the warning a division by 0 gives.
+    """
 
     per_block: dict[str, float]
     per_variable: dict[str, np.ndarray]
@@ -277,9 +290,11 @@ class _InitialSumsOfSquares(typing.NamedTuple):
     @classmethod
     def of(cls, x_blocks_pp: dict[str, np.ndarray]) -> _InitialSumsOfSquares:
         """Measure the preprocessed blocks before the first deflation."""
+        per_variable = {name: np.nansum(values**2, axis=0) for name, values in x_blocks_pp.items()}
+        per_block = {name: float(np.sum(values)) for name, values in per_variable.items()}
         return cls(
-            per_block={name: float(np.nansum(values**2)) for name, values in x_blocks_pp.items()},
-            per_variable={name: np.nansum(values**2, axis=0) for name, values in x_blocks_pp.items()},
+            per_block={name: total if total > 0 else np.nan for name, total in per_block.items()},
+            per_variable={name: np.where(values > 0, values, np.nan) for name, values in per_variable.items()},
         )
 
 
@@ -305,14 +320,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         Number of super-components (consensus latent variables) to extract.
     max_iter : int, default=500
         Maximum NIPALS iterations per component in the hierarchical outer loop.
-    tol : float or None, default=None
+    tol : float, default=``epsqrt`` (about 1.5e-8)
         Relative convergence tolerance on the super-score change: the norm of
         the change between two successive super-score iterations, divided by
-        the norm of the current super-score vector (#504). ``None`` uses
-        ``epsqrt`` (about 1.49e-8), the same default as PCA / PLS / TPLS. The
-        legacy absolute tolerance ``np.finfo(float).eps ** (9/10)`` (about
-        8.2e-15) sits below the floating-point oscillation floor of a relative
-        criterion, so it would never be reached in practice.
+        the norm of the current super-score vector (#504). The same default,
+        and the same meaning, as on PCA / PLS / TPLS. It used to default to
+        ``None`` and be resolved to ``epsqrt`` inside ``fit``; the literal is
+        the default now, which removes a branch and lets ``get_params`` report
+        the value that will actually be used (#588). The legacy absolute
+        tolerance ``np.finfo(float).eps ** (9/10)`` (about 8.2e-15) sits below
+        the floating-point oscillation floor of a relative criterion, so it
+        would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -327,17 +345,23 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
           results).
 
     missing_data_settings : dict or None, default=None
-        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
-        (convergence tolerance on the score-vector change between
-        iterations), ``md_max_iter`` (maximum NIPALS iterations per
-        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
+        MBPCA reads no keys from it. The keys ``md_tol`` and ``md_max_iter``
+        were removed in 2.0 and raise a :class:`ValueError`; set ``tol`` and
+        ``max_iter`` instead.
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The number of components fitted. Everything after ``fit`` reads it, not the
+        ``n_components`` parameter, so ``set_params`` without a refit changes nothing.
     block_names_ : list[str]
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
         Number of variables in each X-block.
+    block_informative_widths_ : dict[str, int]
+        Number of variables in each block whose values vary (at least 1). The block
+        weighting divides by its square root, so constant columns do not lower a
+        block's weight.
     n_samples_ : int
         Number of rows fitted.
     n_features_in_ : int
@@ -360,10 +384,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     block_spe_ : dict[str, pd.DataFrame]
         Per-block squared prediction error per sample and component.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
-        Per-block cumulative Hotelling's T^2 per sample and component.
+        Per-block cumulative Hotelling's T^2 per sample and component. Each component is
+        scaled by its block scores' second moment about zero, as ``super_hotellings_t2_`` is
+        by ``explained_variance_``.
     block_vip_ : dict[str, pd.Series]
         Per-block variable-importance in projection, indexed by variable
-        name inside each block.
+        name inside each block. Computed from ``block_loadings_``, each component
+        weighted by its share of that block's X variance
+        (``r2_x_per_block_per_component_``), as a PCA VIP is.
     r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
         Cumulative R^2X per block and component.
     r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)
@@ -430,7 +458,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
-        "tol": [float, None],
+        "tol": [float],
         "algorithm": [str],
         "missing_data_settings": [dict, None],
     }
@@ -440,8 +468,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         n_components: int,
         *,
         max_iter: int = 500,
-        tol: float | None = None,
-        algorithm: str = "auto",
+        tol: float = epsqrt,
+        algorithm: str = "auto",  # pragma: no mutate - _resolve_algorithm lowercases it, so "AUTO" is the same default
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
@@ -470,20 +498,26 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         _validate_blocks(X)
         self._record_data_shape(X)
         algo = self._resolve_algorithm(X)
-        # Resolve the iterative-algorithm settings. Only the validation inside is
-        # load-bearing today: the resolved ``md_tol`` / ``md_max_iter`` do not yet reach
-        # the NIPALS path, which uses ``tol`` and ``max_iter``.
-        _resolve_missing_data_settings(self.missing_data_settings, algo)
+        # The resolved settings reach the loop. They used to be computed here and dropped,
+        # so the caller's loop settings were validated and then ignored (#588).
+        settings = resolve_loop_settings(
+            tol=self.tol,
+            max_iter=self.max_iter,
+            missing_data_settings=self.missing_data_settings,
+            estimator_name="MBPCA",
+        )
         if algo == "nipals":
             _reject_degenerate_missingness(X, self.block_names_)
 
         x_blocks_pp = self._preprocess(X)
+        self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPCALoopContext(
             algo=algo,
             block_names=self.block_names_,
-            sqrt_kb={name: float(np.sqrt(width)) for name, width in self.block_widths_.items()},
-            tol=epsqrt if self.tol is None else float(self.tol),
-            max_iter=self.max_iter,
+            # Block weighting: X_b / sqrt(K_b), K_b counting the columns that vary (#913)
+            sqrt_kb=self._block_scale(),
+            tol=float(settings["md_tol"]),
+            max_iter=int(settings["md_max_iter"]),
             n_samples=self.n_samples_,
         )
 
@@ -504,6 +538,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         self._store_explained_variation(work)
         self._store_diagnostics(work)
         return self
+
+    def _block_scale(self) -> dict[str, float]:
+        """Return what each block is divided by: the square root of its count of varying columns (#913).
+
+        A model fitted before that count was kept divides by its full width, as it was fitted.
+        """
+        widths = getattr(self, "block_informative_widths_", self.block_widths_)
+        return {name: float(np.sqrt(widths[name])) for name in self.block_names_}
 
     def _record_data_shape(self, X: dict[str, pd.DataFrame]) -> None:
         """Record the block names, widths, row and column labels, and counts this fit is over."""
@@ -542,7 +584,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def _preprocess(self, X: dict[str, pd.DataFrame]) -> dict[str, np.ndarray]:
         """Mean-centre and unit-variance scale each block independently."""
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
-        return {name: self.preproc_[name].transform(X[name]).values.astype(float) for name in self.block_names_}
+        return {name: self.preproc_[name].transform(X[name]).to_numpy() for name in self.block_names_}
 
     def _component_names(self) -> list[int]:
         """Column labels for every per-component frame: 1-based component numbers."""
@@ -561,7 +603,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.DataFrame(work.block_loadings[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
-        self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / max(1, self.n_samples_ - 1)
+        # fit() has at least two rows: each block's MCUVScaler refuses fewer
+        self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / (self.n_samples_ - 1)
         self.scaling_factor_for_super_scores_ = pd.Series(
             np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
         )
@@ -570,7 +613,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """Record the per-component timing and iteration counts, and warn about any that did not converge."""
         converged = work.iterations < self.max_iter
         self.fitting_info_ = {"timing": work.timing, "iterations": work.iterations, "converged": converged}
-        logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, list(work.iterations))
+        logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, work.iterations.tolist())
         if np.all(converged):
             return
         failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
@@ -578,16 +621,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             f"MBPCA NIPALS did not converge within max_iter={self.max_iter} for "
             f"component(s) {failed}; results for those components may be unreliable.",
             SpecificationWarning,
-            stacklevel=3,
+            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
         )
 
     def _store_explained_variation(self, work: _MBPCAArrays) -> None:
         """Turn the cumulative R2X into the cumulative, per-component and per-variable frames."""
         component_names = self._component_names()
-        r2_x_block_per_a = np.zeros_like(work.r2_x_block_cum)
-        r2_x_block_per_a[:, 0] = work.r2_x_block_cum[:, 0]
-        if self.n_components_ > 1:
-            r2_x_block_per_a[:, 1:] = np.diff(work.r2_x_block_cum, axis=1)
+        r2_x_block_per_a = np.diff(work.r2_x_block_cum, prepend=0.0)
 
         self.r2_x_per_block_cumulative_ = pd.DataFrame(
             work.r2_x_block_cum, index=self.block_names_, columns=component_names
@@ -607,7 +647,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             r2 = r2_x_block_per_a[b_idx, :]
             if np.sum(r2) > 0:
                 p = self.block_loadings_[name].values
-                vip_b = np.sqrt(self.block_widths_[name] * np.sum(r2 * p**2, axis=1) / np.sum(r2))
+                vip_b = np.sqrt(self.block_informative_widths_[name] * np.sum(r2 * p**2, axis=1) / np.sum(r2))
             else:
                 vip_b = np.zeros(self.block_widths_[name])
             self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
@@ -619,17 +659,15 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.DataFrame(work.block_spe[name], index=self._sample_index, columns=component_names)
             for name in self.block_names_
         }
-        block_t2: dict[str, np.ndarray] = {}
-        for name in self.block_names_:
-            scores_np = self.block_scores_[name].values
-            score_var = np.var(scores_np, axis=0, ddof=1)
-            score_var = np.where(score_var > 0, score_var, 1.0)
-            block_t2[name] = np.cumsum((scores_np**2) / score_var, axis=1)
+        # Scaled by the second moment about zero, as the super T2 is by explained_variance_
         self.block_hotellings_t2_ = {
-            name: pd.DataFrame(block_t2[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(
+                cumulative_block_t2(self.block_scores_[name].values), index=self._sample_index, columns=component_names
+            )
             for name in self.block_names_
         }
-        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
+        super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
         super_t2 = np.cumsum((work.super_scores**2) / super_score_var, axis=1)
         self.super_hotellings_t2_ = pd.DataFrame(super_t2, index=self._sample_index, columns=component_names)
 
@@ -642,27 +680,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """Project new data; return super_scores, block_scores, block_spe, hotellings_t2.
 
         The rename (since 1.38.4, #395) matches :meth:`PCA.diagnose` and
-        :meth:`PLS.diagnose`; :meth:`predict` is kept as a deprecation
-        shim.
+        :meth:`PLS.diagnose`. The deprecated ``predict`` alias was removed in
+        2.0.
         """
         check_is_fitted(self, "super_loadings_")
         return self._project(X)
-
-    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
-        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
-
-        .. deprecated:: 1.38.4
-            Use :meth:`MBPCA.diagnose` instead. ``predict`` matches the
-            sklearn-convention name but MBPCA isn't a regressor; the
-            historical return is a diagnostics Bunch. The rename aligns
-            with :meth:`PCA.diagnose`. Will be removed in 2.0.0.
-        """
-        warnings.warn(
-            "MBPCA.predict is deprecated and will be removed in 2.0.0; use MBPCA.diagnose instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.diagnose(X)
 
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):
@@ -671,7 +693,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         if missing:
             raise ValueError(f"Missing X-blocks for prediction: {sorted(missing)}.")
 
-        x_pp: dict[str, np.ndarray] = {}
+        x_def: dict[str, np.ndarray] = {}
         sample_index = None
         for name in self.block_names_:
             block = X[name]
@@ -679,27 +701,27 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
                 raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
-            x_pp[name] = self.preproc_[name].transform(block).values.astype(float)
+            x_def[name] = self.preproc_[name].transform(block).to_numpy()
             if sample_index is None:
                 sample_index = block.index
 
-        n_components = int(self.n_components)
-        n_new = next(iter(x_pp.values())).shape[0]
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        n_components = self.n_components_
+        n_new = next(iter(x_def.values())).shape[0]
+        sqrt_kb = self._block_scale()
 
         super_scores = np.zeros((n_new, n_components))
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
-        x_def = {name: x_pp[name].copy() for name in self.block_names_}
 
+        # The block and super loadings have unit length, so each score is a plain product.
         for a in range(n_components):
             t_b_row = np.zeros((n_new, len(self.block_names_)))
             for b_idx, name in enumerate(self.block_names_):
                 p_b = self.block_loadings_[name].values[:, a]
-                t_b = x_def[name] @ p_b / _nz(p_b @ p_b) / sqrt_kb[name]
+                t_b = x_def[name] @ p_b / sqrt_kb[name]
                 block_scores[name][:, a] = t_b
                 t_b_row[:, b_idx] = t_b
             p_s = self.super_loadings_.values[:, a]
-            t_super = t_b_row @ p_s / _nz(p_s @ p_s)
+            t_super = t_b_row @ p_s
             super_scores[:, a] = t_super
             for b_idx, name in enumerate(self.block_names_):
                 p_b = self.block_loadings_[name].values[:, a]
@@ -716,7 +738,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
             for name in self.block_names_
         }
-        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
+        super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
         hotellings_t2 = pd.Series(
             np.sum((super_scores**2) / super_score_var, axis=1), index=sample_index, name="Hotelling's T²"
         )
@@ -760,14 +783,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         result = self._project(X)
         super_scores = result.super_scores.values  # (N, A)
         sample_index = next(iter(result.block_scores.values())).index
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        sqrt_kb = self._block_scale()
 
         out: dict[str, pd.DataFrame] = {}
         for b_idx, name in enumerate(self.block_names_):
             block = X[name]
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
-            x_pp = self.preproc_[name].transform(block).values.astype(float)
+            x_pp = self.preproc_[name].transform(block).to_numpy()
             # X_b reconstruction summed over components
             p_b = self.block_loadings_[name].values  # (K_b, A)
             p_s = self.super_loadings_.values[b_idx, :]  # (A,)
@@ -789,7 +812,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         missing = set(self.block_names_) - set(X)
         if missing:
             raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= int(component) <= a_max):
             msg = f"component must be a 1-based index within 1..{a_max}, got {component}."
             raise ValueError(msg)
@@ -802,21 +825,16 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if sample_index is None:
                 sample_index = block.index
-            x_def[name] = self.preproc_[name].transform(block).values.astype(float)
+            x_def[name] = self.preproc_[name].transform(block).to_numpy()
 
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        # The block and super loadings have unit length, so each score is a plain product.
+        sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
             t_b_row = np.column_stack(
-                [
-                    x_def[name]
-                    @ self.block_loadings_[name].values[:, a]
-                    / _nz(float(self.block_loadings_[name].values[:, a] @ self.block_loadings_[name].values[:, a]))
-                    / sqrt_kb[name]
-                    for name in self.block_names_
-                ]
+                [x_def[name] @ self.block_loadings_[name].values[:, a] / sqrt_kb[name] for name in self.block_names_]
             )
             p_s = self.super_loadings_.values[:, a]
-            t_super = t_b_row @ p_s / _nz(float(p_s @ p_s))
+            t_super = t_b_row @ p_s
             for b_idx, name in enumerate(self.block_names_):
                 p_b = self.block_loadings_[name].values[:, a]
                 x_def[name] = x_def[name] - np.outer(t_super, p_b * p_s[b_idx] * sqrt_kb[name])
@@ -854,13 +872,12 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         deflated, sample_index = self._deflated_blocks(X, component)
         a = int(component) - 1
         p_s = self.super_loadings_.values[:, a]
-        super_norm = _nz(float(p_s @ p_s))
+        sqrt_kb = self._block_scale()
 
+        # The block and super loadings have unit length: the products p_b'p_b and p_s'p_s are 1.
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
-            sqrt_kb = float(np.sqrt(self.block_widths_[name]))
-            p_b = self.block_loadings_[name].values[:, a]
-            weight = p_b / _nz(float(p_b @ p_b)) / sqrt_kb * (p_s[b_idx] / super_norm)
+            weight = self.block_loadings_[name].values[:, a] / sqrt_kb[name] * p_s[b_idx]
             raw[name] = deflated[name] * weight
 
         raw = _scale_block_contributions(raw, scaling)
@@ -896,7 +913,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
         """Scatter plot of MBPCA super-scores for two components."""
         check_is_fitted(self, "super_scores_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
         x = self.super_scores_[pc_horiz].to_numpy()
@@ -924,7 +941,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def super_loadings_bar_plot(self, component: int = 1) -> go.Figure:
         """Bar plot of MBPCA super-loadings for a single component."""
         check_is_fitted(self, "super_loadings_")
-        a_max = int(self.n_components)
+        a_max = self.n_components_
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         loadings = self.super_loadings_[component]
@@ -939,16 +956,16 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, iterations and timing."""
         check_is_fitted(self, "super_scores_")
-        rows: list[str] = [f"MBPCA model: {self.n_components} component(s), {len(self.block_names_)} X-block(s)"]
+        rows: list[str] = [f"MBPCA model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)"]
         header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_)
         rows.append(header)
         rows.append("-" * len(header))
         src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-        for a in range(self.n_components):
+        for a in range(self.n_components_):
             cells = [f"{a + 1:>3d}"]
             cells.extend(f"{src.loc[name].iloc[a]:>9.4f}" for name in self.block_names_)
             rows.append(" | ".join(cells))
         rows.append("")
-        rows.append(f"  Iterations per PC: {list(self.fitting_info_['iterations'])}")
+        rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
         return "\n".join(rows)

@@ -14,6 +14,8 @@ import pathlib
 import pandas as pd
 import pytest
 
+from process_improve.experiments import datasets
+
 # execute_tool_call calls discover_tools(), which imports
 # process_improve.experiments.tools and triggers all @tool_spec
 # registrations - no explicit import is needed here.
@@ -35,17 +37,24 @@ class TestCreateFactorialDesign:
         assert "error" not in result
         assert result["n_runs"] == 8
         assert result["n_factors"] == 3
-        # Names may have a "[coded]" suffix - just check the supplied stems are present.
-        joined = " ".join(result["factor_names"])
-        for stem in ("Temperature", "Pressure", "Time"):
-            assert stem in joined
+        assert result["factor_names"] == ["Temperature", "Pressure", "Time"]
+        assert set(result["design"][0]) == {"Temperature", "Pressure", "Time"}
 
     def test_default_factor_names(self) -> None:
         """Without explicit names the wrapper should still succeed."""
         result = execute_tool_call("create_factorial_design", {"n_factors": 2})
         assert "error" not in result
         assert result["n_runs"] == 4
-        assert len(result["factor_names"]) == 2
+        assert result["factor_names"] == ["A", "B"]
+        assert set(result["design"][0]) == {"A", "B"}
+
+    @pytest.mark.parametrize("names", [["T", "P"], ["T", "P", "Q", "R"], ["T", "T", "P"]])
+    def test_names_must_match_n_factors(self, names: list[str]) -> None:
+        """Two names with n_factors=3 used to give a 2-factor design reported as 3 factors."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("create_factorial_design", {"n_factors": 3, "factor_names": names})
 
     def test_invalid_n_factors_returns_error(self) -> None:
         """A bad n_factors is rejected by the pydantic Field constraint."""
@@ -53,6 +62,15 @@ class TestCreateFactorialDesign:
 
         with pytest.raises(ToolInputInvalidError):
             execute_tool_call("create_factorial_design", {"n_factors": 0})
+
+    def test_a_design_over_the_factor_cap_is_an_error_envelope(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The SEC-19 cap on 2**k rows comes back as {"error": ...} naming the cap."""
+        from process_improve.config import settings
+
+        monkeypatch.setattr(settings, "max_factors_combinatorial", 3)
+        result = execute_tool_call("create_factorial_design", {"n_factors": 4})
+        assert set(result) == {"error"}
+        assert result["error"].startswith("nfactors=4 exceeds the SEC-19 combinatorial cap of 3;")
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +214,27 @@ class TestGenerateDesign:
         assert "error" not in result
         assert "alpha" in result
 
+    def test_dataclass_metadata_is_returned_as_plain_json(self) -> None:
+        """The OMARS search report is a dataclass; the tool hands it back as a JSON-serialisable dict."""
+        result = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [{"name": name, "low": -1, "high": 1} for name in "ABC"],
+                "design_type": "omars_ilp",
+                "budget": 13,
+            },
+        )
+        report = result["metadata"]["omars_search"]
+        assert isinstance(report, dict)
+        assert report["n_factors"] == 3
+        json.dumps(result)
+
+    def test_frame_metadata_becomes_records(self) -> None:
+        from process_improve.experiments._tools.generate_design import _jsonable
+
+        frame = pd.DataFrame({"run": [1, 2], "block": ["a", "b"]})
+        assert _jsonable({"blocks": [frame]}) == {"blocks": [[{"run": 1, "block": "a"}, {"run": 2, "block": "b"}]]}
+
     def test_invalid_factor_returns_error(self) -> None:
         """A continuous factor without low/high should be reported as an error."""
         result = execute_tool_call(
@@ -253,6 +292,64 @@ class TestEvaluateDesign:
 # ---------------------------------------------------------------------------
 
 
+def _dsd_rows(n_center_points: int | None, sigma: float = 0.5, seed: int = 5) -> list[dict]:
+    """Eight-factor DSD runs, coded, with a response in which A, C, F and A:C are active."""
+    from process_improve.experiments import Factor, TrueProcess, generate_design
+
+    factors = [Factor(name=name, low=-1, high=1) for name in "ABCDEFGH"]
+    kwargs = {} if n_center_points is None else {"n_center_points": n_center_points}
+    design = generate_design(factors, design_type="dsd", **kwargs).design.drop(columns="RunOrder")
+    truth = TrueProcess({"Intercept": 50, "A": 6, "C": -4, "F": 5, "A:C": 4}, sigma=sigma)
+    return design.assign(y=truth.simulate(design, random_state=seed)).to_dict("records")
+
+
+class TestAnalyzeOmars:
+    """The staged DSD / OMARS analysis, reachable as a tool."""
+
+    def test_finds_the_active_main_effects_and_interaction_of_a_dsd(self) -> None:
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "y"})
+        assert result["success"] is True
+        assert sorted(result["active_main_effects"]) == ["A", "C", "F"]
+        assert result["active_interactions"] == ["A:C"]
+        assert result["active_quadratics"] == []
+        assert result["model_formula"] == "y ~ A + C + F + A:C"
+
+    def test_its_model_formula_fits_and_optimises_through_the_other_tools(self) -> None:
+        rows = _dsd_rows(3)
+        formula = execute_tool_call("analyze_omars", {"design_matrix": rows, "response_column": "y"})["model_formula"]
+        fit = execute_tool_call(
+            "analyze_experiment",
+            {"design_matrix": rows, "response_column": "y", "model": formula, "analysis_type": "coefficients"},
+        )
+        best = execute_tool_call(
+            "optimize_responses",
+            {"fitted_models": [fit], "goals": [{"response": "y", "goal": "maximize", "low": 30, "high": 80}]},
+        )
+        assert best["desirability"]["optimal_coded"] == pytest.approx({"A": 1, "C": 1, "F": 1}, abs=1e-6)
+
+    def test_a_dsd_without_error_degrees_of_freedom_reports_failure(self) -> None:
+        """The 17-run DSD of eight factors fills every degree of freedom of the full second-order model."""
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(None), "response_column": "y"})
+        assert result["success"] is False
+        assert result["initial_error_df"] == 0
+        assert result["model_formula"] is None
+
+    def test_run_order_and_block_columns_are_not_factors(self) -> None:
+        rows = [dict(row, RunOrder=i, Block=1) for i, row in enumerate(_dsd_rows(3))]
+        result = execute_tool_call("analyze_omars", {"design_matrix": rows, "response_column": "y"})
+        assert result["factor_names"] == list("ABCDEFGH")
+
+    def test_an_unknown_response_column_is_an_error(self) -> None:
+        result = execute_tool_call("analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "z"})
+        assert "response_column 'z'" in result["error"]
+
+    def test_an_unknown_factor_name_is_an_error(self) -> None:
+        result = execute_tool_call(
+            "analyze_omars", {"design_matrix": _dsd_rows(3), "response_column": "y", "factor_names": ["A", "Q"]}
+        )
+        assert "['Q']" in result["error"]
+
+
 class TestAnalyzeExperiment:
     def test_anova_on_factorial(self) -> None:
         """ANOVA on a replicated 2^2 design should succeed."""
@@ -275,6 +372,61 @@ class TestAnalyzeExperiment:
             },
         )
         assert "error" not in result
+
+    def test_residuals_are_checked_in_the_run_order_the_rows_carry(self) -> None:
+        """A RunOrder column reaches residual_diagnostics through the tool, and its result serialises."""
+        y = [28.0, 36.0, 18.0, 31.0, 27.5, 36.5, 17.5, 31.5]
+        settings = [(-1, -1), (1, -1), (-1, 1), (1, 1)] * 2
+        orders = [5, 2, 8, 3, 1, 7, 4, 6]
+        rows = [
+            {"A": a, "B": b, "RunOrder": order, "y": value}
+            for (a, b), order, value in zip(settings, orders, y, strict=True)
+        ]
+        spec = {"design_matrix": rows, "response_column": "y", "model": "y ~ A*B"}
+        result = execute_tool_call("analyze_experiment", {**spec, "analysis_type": "residual_diagnostics"})
+        found = json.loads(json.dumps(result))["residual_diagnostics"]["run_order"]
+        assert found["known"] is True
+        assert found["std_error"] == pytest.approx(8**-0.5)
+        assert isinstance(found["serially_dependent"], bool)
+
+    def test_split_plot_with_a_named_whole_plot_column(self) -> None:
+        """The tool passes ``whole_plot`` through: BHH's corrosion heats, temperature tested on 3 df."""
+        rows = datasets.corrosion().drop(columns="Position").astype({"Temperature": str}).to_dict("records")
+        result = execute_tool_call(
+            "analyze_experiment",
+            {
+                "design_matrix": rows,
+                "response_column": "Resistance",
+                "analysis_type": "split_plot",
+                "whole_plot": "Heat",
+            },
+        )
+        tests = {row["source"]: row for row in result["split_plot"]["tests"]}
+        assert tests["Temperature"]["df_denominator"] == pytest.approx(3.0)
+        assert result["split_plot"]["significant_terms"] == ["Coating", "Temperature:Coating"]
+
+    def test_coded_coefficients_hand_off_to_optimize_responses(self) -> None:
+        """Coefficients on actual units are refused; coded ones, the default, give the optimum in actual units."""
+        rows = [
+            {"T": t, "P": p, "y": y}
+            for t, p, y in [
+                (150, 1, 10.0),
+                (200, 1, 18.0),
+                (150, 3, 13.0),
+                (200, 3, 25.0),
+                (175, 2, 16.0),
+                (175, 2, 16.8),
+            ]
+        ]
+        request = {"design_matrix": rows, "response_column": "y", "model": "y ~ T * P", "analysis_type": "coefficients"}
+        goal = [{"goal": "maximize", "low": 10, "high": 25}]
+        actual = execute_tool_call("analyze_experiment", {**request, "coding": "actual"})
+        refused = execute_tool_call("optimize_responses", {"fitted_models": [actual], "goals": goal})
+        assert "coding='coded'" in refused["error"]
+        for coding in ({}, {"coding": "coded"}):  # the default, "auto", is "coded" here
+            coded = execute_tool_call("analyze_experiment", {**request, **coding})
+            best = execute_tool_call("optimize_responses", {"fitted_models": [coded], "goals": goal})
+            assert best["desirability"]["optimal_actual"] == pytest.approx({"T": 200.0, "P": 3.0})
 
     def test_invalid_response_column_returns_error(self) -> None:
         """Referencing a missing response column should return an error dict."""
@@ -326,6 +478,32 @@ class TestAnalyzeExperiment:
 # ---------------------------------------------------------------------------
 # optimize_responses
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("generate_design", {"random_state": -1}),
+        ("augment_design", {"random_state": -1}),
+        ("evaluate_design", {"random_state": -1}),
+        ("optimize_responses", {"random_state": -1}),
+    ],
+)
+def test_negative_seed_is_rejected_by_the_schema(tool: str, args: dict) -> None:
+    """A negative seed reached numpy and came back as 'expected non-negative integer'."""
+    base = {
+        "generate_design": {"factors": [{"name": "A", "low": 0, "high": 1}, {"name": "B", "low": 0, "high": 1}]},
+        "augment_design": {"existing_design": [{"A": -1, "B": -1}, {"A": 1, "B": 1}], "augmentation_type": "foldover"},
+        "evaluate_design": {"design_matrix": [{"A": -1, "B": -1}, {"A": 1, "B": 1}]},
+        "optimize_responses": {
+            "fitted_models": [
+                {"factor_names": ["A"], "coefficients": [{"term": "A", "coefficient": 1.0}], "response_name": "y"}
+            ],
+            "method": "steepest_ascent",
+        },
+    }[tool]
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call(tool, {**base, **args})
 
 
 class TestOptimizeResponses:
@@ -392,10 +570,58 @@ class TestOptimizeResponses:
         result = self._rising_plane_call()
         assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
 
+    @pytest.mark.parametrize("bounds", [[-1.5], [-1.5, 1.5, 99.0], {"A": [-2.0]}, {"A": [-2.0, 2.0, 3.0]}])
+    def test_search_bounds_must_be_a_pair(self, bounds: object) -> None:
+        """One number escaped as an IndexError; three had the third silently dropped."""
+        with pytest.raises(ToolInputInvalidError):
+            self._rising_plane_call(search_bounds=bounds)
+
     def test_malformed_search_bounds_returns_an_error(self) -> None:
         """A reversed pair is reported, not silently accepted."""
         result = self._rising_plane_call(search_bounds=[1.0, -1.0])
         assert "low < high" in result["error"]
+
+    def test_desirability_weights_is_an_unknown_key(self) -> None:
+        """Removed in 2.0.0: the schema refuses it as any key it does not know; response_importance remains."""
+        removed = {"desirability_weights": [1.0]}  # a key the schema no longer has, sent as an agent would
+        with pytest.raises(ToolInputInvalidError, match="desirability_weights"):
+            self._rising_plane_call(**removed)
+        assert "error" not in self._rising_plane_call(response_importance=[1.0])
+
+    def test_analyze_experiment_result_feeds_optimize_responses(self) -> None:
+        """The documented generate -> analyze -> optimize pipeline, with no hand-editing of the result."""
+        design = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [{"name": "T", "low": 150, "high": 200}, {"name": "P", "low": 1, "high": 5}],
+                "design_type": "ccd",
+            },
+        )
+        rows = [
+            dict(r, y=40 + 5 * r["T"] - 2 * r["P"] - 3 * r["T"] ** 2 - 1.5 * r["P"] ** 2 + 1.5 * r["T"] * r["P"])
+            for r in design["design_coded"]
+        ]
+        fitted = execute_tool_call(
+            "analyze_experiment",
+            {"design_matrix": rows, "response_column": "y", "model": "quadratic", "analysis_type": ["coefficients"]},
+        )
+        assert fitted["response_name"] == "y"
+        assert fitted["factor_names"] == ["T", "P"]
+        result = execute_tool_call("optimize_responses", {"fitted_models": [fitted], "method": "stationary_point"})
+        assert result["stationary_point"]["classification"] == "maximum"
+        # Solve 2 B x = -b for b = (5, -2), B = [[-3, 0.75], [0.75, -1.5]].
+        assert result["stationary_point"]["stationary_point_coded"]["T"] == pytest.approx(16 / 21)
+
+    def test_model_without_factor_names_names_the_key(self) -> None:
+        """The error says what is missing, not just the bare key."""
+        result = execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [{"coefficients": [{"term": "Intercept", "coefficient": 1.0}]}],
+                "method": "stationary_point",
+            },
+        )
+        assert "has no 'factor_names'" in result["error"]
 
     def test_invalid_method_returns_error(self) -> None:
         """Unknown method is rejected by the pydantic Literal."""
@@ -520,6 +746,14 @@ class TestDoeKnowledge:
         )
         assert "error" not in result
 
+    def test_a_context_value_of_the_wrong_type_is_an_error_envelope(self) -> None:
+        """A rule compares n_factors with a number; text there is reported back instead of raising."""
+        result = execute_tool_call(
+            "doe_knowledge",
+            {"query": "screening", "topic": "design_selection", "context": {"n_factors": "seven"}},
+        )
+        assert result == {"error": "'>=' not supported between instances of 'str' and 'int'"}
+
 
 # ---------------------------------------------------------------------------
 # recommend_strategy
@@ -584,6 +818,17 @@ class TestTradeOffTable:
         assert cell["exists"] is False
         assert "cannot accommodate" in cell["reason"]
 
+    def test_existing_design_beyond_the_search_is_not_reported_impossible(self) -> None:
+        """2^(12-7) designs exist; the cell used to read exists: False, 'too many factors for the budget'."""
+        result = execute_tool_call("trade_off_table", {"runs": [32, 64], "factors": [12]})
+        result["cells"] += execute_tool_call("trade_off_table", {"runs": [64], "factors": [11]})["cells"]
+        cells = {(c["runs"], c["factors"]): c for c in result["cells"]}
+        assert cells[32, 12]["exists"] is None
+        assert result["table"]["32"]["12"] == "?"
+        assert "The design exists" in cells[32, 12]["reason"]
+        assert cells[64, 11]["exists"] is True
+        assert cells[64, 11]["label"] == "2^(11-5) IV"
+
     def test_over_budget_cell_reports_replication(self) -> None:
         """A budget larger than the full factorial is replication, not an error."""
         result = execute_tool_call("trade_off_table", {"runs": [32], "factors": [3]})
@@ -616,3 +861,84 @@ class TestTradeOffTable:
         specs = {s["name"]: s for s in get_experiments_tool_specs()}
         assert "trade_off_table" in specs
         assert specs["trade_off_table"]["input_schema"]["additionalProperties"] is False
+
+
+def test_generate_design_tool_offers_every_design_type() -> None:
+    """The tool's design_type choices are exactly generate_design's registry (omars was missing)."""
+    import typing
+
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput
+    from process_improve.experiments.designs import _DESIGN_REGISTRY
+
+    annotation = GenerateDesignInput.model_fields["design_type"].annotation
+    literal = next(arg for arg in typing.get_args(annotation) if typing.get_origin(arg) is typing.Literal)
+    assert set(typing.get_args(literal)) == set(_DESIGN_REGISTRY)
+
+
+def test_generate_design_tool_enforces_constraints_and_returns_the_region() -> None:
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+
+    spec = GenerateDesignInput(
+        factors=[{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}],
+        design_type="i_optimal",
+        budget=10,
+        model_type="quadratic",
+        constraints=["3*T + 5*D <= 600"],
+    )
+    out = generate_design_tool(spec)
+    assert "error" not in out, out
+    assert all(3 * r["T"] + 5 * r["D"] <= 600 + 1e-9 for r in out["design_actual"])
+    assert out["metadata"]["region"]["constraints"][0]["expression"] == "3*T + 5*D <= 600"
+    import json
+
+    json.dumps(out)  # JSON-serialisable for MCP transport
+
+
+def test_region_round_trips_through_the_tools() -> None:
+    """generate_design -> evaluate_design -> optimize_responses, all inside the constrained region."""
+    from process_improve.experiments._tools.evaluate_design import EvaluateDesignInput, evaluate_design_tool
+    from process_improve.experiments._tools.generate_design import GenerateDesignInput, generate_design_tool
+    from process_improve.experiments._tools.optimize_responses import OptimizeResponsesInput, optimize_responses_tool
+
+    factors = [{"name": "T", "low": 100, "high": 150}, {"name": "D", "low": 20, "high": 60}]
+    design = generate_design_tool(
+        GenerateDesignInput(
+            factors=factors,
+            design_type="d_optimal",
+            budget=10,
+            model_type="quadratic",
+            constraints=["3*T + 5*D <= 600"],
+        )
+    )
+    region = design["metadata"]["region"]
+    coded = [{k: r[k] for k in ("T", "D")} for r in design["design_coded"]]
+    inside = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region=region)
+    )
+    cube = evaluate_design_tool(
+        EvaluateDesignInput(design_matrix=coded, model="quadratic", metric="g_efficiency", region="cuboidal")
+    )
+    assert inside["g_efficiency"] > 10 * cube["g_efficiency"]
+
+    model = {
+        "response_name": "y",
+        "factor_names": ["T", "D"],
+        "coefficients": [
+            {"term": "Intercept", "coefficient": 60.0},
+            {"term": "T", "coefficient": 8.0},
+            {"term": "D", "coefficient": 6.0},
+            {"term": "I(T ** 2)", "coefficient": -2.0},
+            {"term": "I(D ** 2)", "coefficient": -3.0},
+        ],
+    }
+    best = optimize_responses_tool(
+        OptimizeResponsesInput(
+            fitted_models=[model],
+            goals=[{"response": "y", "goal": "maximize", "low": 40, "high": 75}],
+            factor_ranges={"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}},
+            region=region,
+        )
+    )
+    optimum = best["desirability"]["optimal_actual"]
+    assert best["desirability"]["within_region"]
+    assert 3 * optimum["T"] + 5 * optimum["D"] <= 600 + 1e-6

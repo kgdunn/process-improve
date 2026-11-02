@@ -25,14 +25,12 @@ class DoeKnowledgeInput(BaseModel):
         "design_properties",
         "design_types",
         "analysis_methods",
-        "interpretation",
         "troubleshooting",
         "diagnostics",
         "optimization",
         "statistical_concepts",
         "screening",
         "response_surface",
-        "worked_examples",
         "",
     ] = Field(
         "",
@@ -56,8 +54,8 @@ class DoeKnowledgeInput(BaseModel):
     name="doe_knowledge",
     description=(
         "Retrieve DOE (Design of Experiments) domain knowledge: design-type descriptions, "
-        "design-selection decision logic, statistical concept definitions, residual-diagnostic "
-        "troubleshooting guides, interpretation guidance, and worked examples. "
+        "design-selection decision logic, statistical concept definitions, and residual-diagnostic "
+        "troubleshooting guides. "
         "Use this tool whenever the user asks a conceptual DOE question, needs help choosing "
         "a design, or wants to understand how to interpret DOE results."
     ),

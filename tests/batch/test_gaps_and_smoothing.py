@@ -248,6 +248,32 @@ class TestSmoothTrajectories:
         assert len(out["tiny"]) == 7
         assert out["tiny"]["y"].notna().all()
 
+    @pytest.mark.parametrize(
+        ("values", "kwargs"),
+        [
+            ([np.nan] * 20, {"method": "savgol", "window": 11, "polyorder": 2}),
+            ([1.0, 4.0, 2.0, 8.0], {"method": "savgol", "window": 5, "polyorder": 3}),
+            ([1.0, np.nan, 7.0, *[np.nan] * 17], {"method": "lowess"}),
+        ],
+        ids=["savgol-nothing-observed", "savgol-even-window-shrinks-to-polyorder", "lowess-two-observations"],
+    )
+    def test_a_column_too_sparse_for_its_filter_is_returned_unchanged(self, values: list, kwargs: dict) -> None:
+        """Too few observations to fit the local polynomial leaves the column exactly as it came."""
+        raw = pd.DataFrame({"y": values})
+        with warnings.catch_warnings():
+            # A four-sample batch is shorter than the window; that warning is pinned elsewhere.
+            warnings.simplefilter("ignore", UserWarning)
+            out = smooth_trajectories({"B": raw}, **kwargs)["B"]["y"]
+        np.testing.assert_array_equal(out.to_numpy(), raw["y"].to_numpy())
+
+    def test_lowess_reproduces_a_straight_line_without_flagging_it(self) -> None:
+        """A line is fitted exactly with and without robustness, so nothing collapsed and nothing is reported."""
+        line = np.linspace(2.0, 12.0, 40)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            out = smooth_trajectories({"B": pd.DataFrame({"y": line})}, method="lowess", frac=0.3)["B"]["y"]
+        np.testing.assert_allclose(out.to_numpy(), line, rtol=0, atol=1e-9)
+
     def test_missing_samples_stay_missing(self) -> None:
         """Neither filter can see through a gap, and neither pretends to."""
         rng = np.random.default_rng(2)

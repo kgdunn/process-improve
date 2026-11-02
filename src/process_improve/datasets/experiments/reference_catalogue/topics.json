@@ -1,0 +1,47 @@
+{
+ "schema": 1,
+ "about": [
+  "The subject-matter topics of the reference catalogue: what each experiment or design is about, not how it is",
+  "designed or analysed (design.type says that). Each entry of a source lists one or two topic ids in topics, the",
+  "main one first. The vocabulary is kept between 20 and 40 topics. Each topic names the nearest classes of two",
+  "standards, so the catalogue can be rolled up to either one: isic, the industry view (UN ISIC Rev. 4: a section",
+  "letter, a two-digit division or a three-digit group), and ford, the research view (OECD Fields of Research and",
+  "Development, Frascati Manual 2015). An empty isic list or a null ford means that standard has no fitting class."
+ ],
+ "standards": {
+  "isic": {"title": "International Standard Industrial Classification of All Economic Activities, Revision 4", "publisher": "United Nations Statistics Division", "year": 2008, "url": "https://unstats.un.org/unsd/classifications/Econ/isic", "codes": "a section letter, a two-digit division or a three-digit group"},
+  "ford": {"title": "Fields of Research and Development, Frascati Manual 2015, Table 2.2", "publisher": "OECD", "year": 2015, "url": "https://doi.org/10.1787/9789264239012-en", "fields": {"1.2": "Computer and information sciences", "1.3": "Physical sciences", "2.1": "Civil engineering", "2.2": "Electrical engineering, electronic engineering, information engineering", "2.3": "Mechanical engineering", "2.4": "Chemical engineering", "2.5": "Materials engineering", "2.6": "Medical engineering", "2.7": "Environmental engineering", "2.9": "Industrial biotechnology", "2.11": "Other engineering and technologies", "3.1": "Basic medicine", "3.2": "Clinical medicine", "3.3": "Health sciences", "4.1": "Agriculture, forestry, and fisheries", "5.1": "Psychology and cognitive sciences", "5.2": "Economics and business", "5.3": "Education"}}
+ },
+ "topics": [
+  {"id": "agriculture", "label": "Agriculture and horticulture", "description": "Crops, seeds, plants, soil fertility and weed control.", "isic": ["01"], "ford": "4.1"},
+  {"id": "food-beverages", "label": "Food and beverages", "description": "Cooking, baking, fermentation of food, drinks and their packaging.", "isic": ["10", "11"], "ford": "2.11"},
+  {"id": "textiles", "label": "Textiles, apparel and footwear", "description": "Fibres, yarn, fabric, dyeing, wear of cloth and shoe soles.", "isic": ["13", "14", "15"], "ford": "2.5"},
+  {"id": "paper", "label": "Paper and pulp", "description": "Pulping, bleaching and the strength of paper.", "isic": ["17"], "ford": "2.5"},
+  {"id": "chemical-processes", "label": "Chemical reactions and processes", "description": "Reactors, yield, conversion, impurity, catalysts, separation and chemical plant operation.", "isic": ["201"], "ford": "2.4"},
+  {"id": "formulated-products", "label": "Formulated chemical products", "description": "Coatings, paints, adhesives, detergents, polishes, agrochemicals and other mixtures sold as products.", "isic": ["202"], "ford": "2.4"},
+  {"id": "pharmaceuticals", "label": "Pharmaceuticals", "description": "Drug substances and drug products: synthesis, dosage, bioactivity and quality testing.", "isic": ["21"], "ford": "3.1"},
+  {"id": "bioprocessing", "label": "Bioprocessing and fermentation", "description": "Bioreactors, cell culture, fermentation and products made by living cells.", "isic": ["21"], "ford": "2.9"},
+  {"id": "plastics-rubber", "label": "Plastics, rubber and polymers", "description": "Polymers, moulding, extrusion, film, tyres and rubber compounding.", "isic": ["22"], "ford": "2.5"},
+  {"id": "construction", "label": "Construction and building materials", "description": "Cement, mortar, concrete, bricks and structural members.", "isic": ["23", "F"], "ford": "2.1"},
+  {"id": "metals", "label": "Metals and metallurgy", "description": "Smelting, casting, alloys, heat treatment, plating and welding.", "isic": ["24", "25"], "ford": "2.5"},
+  {"id": "machining", "label": "Machining and mechanical engineering", "description": "Cutting, grinding, drilling, polishing, assembly, mechanical parts and machinery.", "isic": ["259", "28"], "ford": "2.3"},
+  {"id": "semiconductors", "label": "Semiconductors and electronic assembly", "description": "Wafer processing (etching, deposition, lithography, doping), bonding, printed circuit boards and soldering.", "isic": ["261"], "ford": "2.2"},
+  {"id": "electrical-electronic", "label": "Electrical and electronic equipment", "description": "Circuits, batteries, motors, sensors, displays, insulation and appliances.", "isic": ["26", "27"], "ford": "2.2"},
+  {"id": "automotive", "label": "Vehicles and engines", "description": "Cars and trucks, engines, fuel economy and exhaust emissions.", "isic": ["29"], "ford": "2.3"},
+  {"id": "aerospace-defence", "label": "Aerospace and defence", "description": "Aircraft, rockets and propellants, aerodynamics, radar and defence systems.", "isic": ["303", "842"], "ford": "2.3"},
+  {"id": "energy", "label": "Energy, fuels and mining", "description": "Power generation, solar and wind energy, fuels and drilling.", "isic": ["B", "19", "D"], "ford": "2.7"},
+  {"id": "environment", "label": "Environment, water and waste", "description": "Water and waste-water treatment, pollution, emissions to air and water, recycling and remediation.", "isic": ["E"], "ford": "2.7"},
+  {"id": "medical-devices", "label": "Medical devices and diagnostics", "description": "Implants, grafts and diagnostic reagents.", "isic": ["325"], "ford": "2.6"},
+  {"id": "biomedical", "label": "Biomedical research and medicine", "description": "Clinical and animal studies, physiology, nutrition, cell biology and public health.", "isic": ["86", "721"], "ford": "3.2"},
+  {"id": "physical-sciences", "label": "Physical sciences", "description": "Physics experiments: light, heat, aerosols and mechanics studied for their own sake.", "isic": ["721"], "ford": "1.3"},
+  {"id": "measurement", "label": "Measurement and laboratory testing", "description": "Test methods, gauges, sampling, analytical chemistry and comparisons of laboratories, operators or instruments.", "isic": ["712"], "ford": null},
+  {"id": "computing", "label": "Computing, software and networks", "description": "Software, operating systems, computer networks and web pages.", "isic": ["62", "63"], "ford": "1.2"},
+  {"id": "business", "label": "Business, marketing and finance", "description": "Sales, retail displays, advertising, pricing, profit and fundraising.", "isic": ["47", "64", "65", "66", "73"], "ford": "5.2"},
+  {"id": "operations", "label": "Service operations and logistics", "description": "Staffing, waiting times, delivery, transport, productivity and public services.", "isic": ["H", "56", "N"], "ford": "5.2"},
+  {"id": "education", "label": "Education", "description": "Teaching methods, examinations and enrolment.", "isic": ["85"], "ford": "5.3"},
+  {"id": "sport-recreation", "label": "Sport, exercise and recreation", "description": "Golf, cycling, running, swimming and other sport, exercise and leisure.", "isic": ["93"], "ford": "3.3"},
+  {"id": "human-factors", "label": "Psychology and human factors", "description": "Human performance, perception and behaviour: reaction, focus, typing and detection by operators.", "isic": [], "ford": "5.1"},
+  {"id": "household", "label": "Household and everyday life", "description": "Experiments at home or in a classroom with no industry: kitchen physics, home energy, hobbies, toys and personal routines.", "isic": ["T"], "ford": null},
+  {"id": "general", "label": "No stated application", "description": "Abstract factors (A, B, x1, ...) and designs the source prints without an application.", "isic": [], "ford": null}
+ ]
+}

@@ -15,9 +15,6 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     """
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
-    Return the index into the vectors `x` and `y` [the vectors must have the same length], where
-    the elbow point occurs.
-
     Using a robust linear fit, sorts the samples in X (independent variable)
     and takes the first 5 samples from the left, and the last 5 from the right,
     then fits two linear regressions and computes the intersection of the two
@@ -29,8 +26,24 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     the median of the accumulated intersection points; the median location is
     where the intersections should stabilise.
 
+    Both axes are first scaled to span 0 to 1, so that "closest" does not add up
+    distances in two different units. The elbow is therefore the same whatever
+    units `x` and `y` are in: time in seconds or in hours gives the same index.
+
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Independent-variable values. Must have the same length as `y`. NaN
+        entries are dropped pairwise with `y` before fitting; more than 10
+        finite pairs must remain.
+    y : np.ndarray
+        Dependent-variable values. Must have the same length as `x`.
+    max_iter : int, optional
+        Number of evenly spaced window sizes to sweep when accumulating
+        intersection points. Default is 41.
 
     Returns
     -------
@@ -40,6 +53,12 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
         Returns ``np.nan`` when the intersection sweep produced only
         NaNs (for example, when every candidate line pair was
         near-parallel), so no consensus intersection could be formed.
+
+    Raises
+    ------
+    ValueError
+        If `x` and `y` have different lengths, or if 10 or fewer finite
+        pairs remain after NaN entries are dropped.
     """
     start = 5
     # assert divmod(max_iter, 2)[1]  # must be odd number; to ensure we calculate the median later
@@ -66,19 +85,22 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     if len(x) <= 10:
         raise ValueError("Requires more than 10 values in the vectors (not including missing data).")
     idx_sort = x.argsort()
-    x = x[idx_sort]
-    y = y[idx_sort]
+    x = _scale_to_unit_range(x[idx_sort])
+    y = _scale_to_unit_range(y[idx_sort])
     N = x.size
 
     int_x_list: list[float] = []
     int_y_list: list[float] = []
+    # On fewer than about 2 * max_iter points the floored window sizes repeat, so each size is
+    # fitted once. A repeat still adds its intersection again, which keeps the median unchanged.
+    intersections: dict[int, tuple] = {}
     for i in np.floor(np.linspace(0, int(N / 2 - start) + 1, max_iter)):
         idx = int(start + i)
-        lo_x, lo_y = x[0:idx], y[0:idx]
-        hi_x, hi_y = x[-idx:], y[-idx:]
-        lft = fit_robust_lm(lo_x, lo_y)
-        rgt = fit_robust_lm(hi_x, hi_y)
-        int_x, int_y = find_line_intersection(lft[1], lft[0], rgt[1], rgt[0])
+        if idx not in intersections:
+            lft = fit_robust_lm(x[0:idx], y[0:idx])
+            rgt = fit_robust_lm(x[-idx:], y[-idx:])
+            intersections[idx] = find_line_intersection(lft[1], lft[0], rgt[1], rgt[0])
+        int_x, int_y = intersections[idx]
         int_x_list.append(int_x)
         int_y_list.append(int_y)
 
@@ -93,6 +115,12 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
         return np.nan
 
     return int(np.argmin(calculate_line_length(mid_x, mid_y, x, y)))
+
+
+def _scale_to_unit_range(values: np.ndarray) -> np.ndarray:
+    """Shift and scale ``values`` to span 0 to 1; a constant vector is only shifted, to 0."""
+    span = float(np.ptp(values))
+    return (values - values.min()) / (span if span > 0 else 1.0)
 
 
 def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:

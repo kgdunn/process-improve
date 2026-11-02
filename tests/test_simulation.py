@@ -8,7 +8,13 @@ import numpy as np
 import pytest
 
 from process_improve.simulation.context import simulator_host_context
-from process_improve.simulation.model import materialize_model, simulate
+from process_improve.simulation.model import (
+    materialize_model,
+    simulate,
+    validate_factors,
+    validate_noise_level,
+    validate_outputs,
+)
 from process_improve.simulation.tools import (
     CreateSimulatorInput,
     RevealSimulatorInput,
@@ -190,6 +196,52 @@ class TestCreateSimulator:
             )
 
 
+@pytest.mark.parametrize(
+    ("validator", "argument", "exc", "match"),
+    [
+        (validate_factors, [], ValueError, r"'factors' must be a non-empty list of dicts\."),
+        (validate_factors, ["flow"], TypeError, r"Each factor must be a dict\."),
+        (
+            validate_factors,
+            [{"low": 0.0, "high": 1.0}],
+            ValueError,
+            r"Each factor must have a non-empty 'name' string\.",
+        ),
+        (
+            validate_factors,
+            [{"name": "A", "low": "x", "high": 1}],
+            TypeError,
+            r"Factor 'A': 'low' and 'high' must be numbers\.",
+        ),
+        (validate_outputs, ({"name": "y"},), ValueError, r"'outputs' must be a non-empty list of dicts\."),
+        (validate_outputs, ["recovery"], TypeError, r"Each output must be a dict\."),
+        (validate_outputs, [{"units": "%"}], ValueError, r"Each output must have a non-empty 'name' string\."),
+        (validate_outputs, [{"name": "y"}, {"name": "y"}], ValueError, r"Duplicate output name: 'y'\."),
+        (
+            validate_noise_level,
+            "loud",
+            ValueError,
+            r"'noise_level' must be one of \['low', 'medium', 'high'\], got 'loud'\.",
+        ),
+    ],
+    ids=[
+        "no-factors",
+        "factor-not-a-dict",
+        "factor-without-a-name",
+        "factor-bounds-not-numbers",
+        "outputs-not-a-list",
+        "output-not-a-dict",
+        "output-without-a-name",
+        "duplicate-output-names",
+        "unknown-noise-level",
+    ],
+)
+def test_validators_reject_malformed_specs(validator: object, argument: object, exc: type, match: str) -> None:
+    """The public spec validators reject each malformed input by themselves, not only behind the pydantic model."""
+    with pytest.raises(exc, match=match):
+        validator(argument)  # type: ignore[operator]
+
+
 # ---------------------------------------------------------------------------
 # simulate_process: noise semantics, clipping, drift
 # ---------------------------------------------------------------------------
@@ -274,6 +326,27 @@ class TestSimulateProcess:
         )
         assert result["settings"]["flow"] == 300.0
         assert any("clipped" in w for w in result["warnings"])
+
+    def test_below_range_settings_clipped(self):
+        """A setting under the declared low is raised to it, and the warning says by how much."""
+        sim = _make_sim()
+        result = _simulate_process(
+            sim_id=sim["sim_id"],
+            settings={"flow": 50.0, "pH": 9.0, "surfactant": 45.0},
+            simulator_state=sim["_private"],
+        )
+        assert result["settings"]["flow"] == 100.0
+        assert result["warnings"] == ["Factor 'flow'=50.0 below low=100.0; clipped to 100.0."]
+
+    def test_zero_range_factor_sits_at_its_centre(self):
+        """A factor with low == high is held at coded 0, exactly like the centre of a real range."""
+        private = _make_sim()["_private"]
+        flat = {**private, "factors": [*private["factors"][:2], {"name": "surfactant", "low": 45.0, "high": 45.0}]}
+        ranged = {**private, "factors": [*private["factors"][:2], {"name": "surfactant", "low": 40.0, "high": 50.0}]}
+        settings = {"flow": 150.0, "pH": 8.0, "surfactant": 45.0}
+        at_flat = simulate(flat, settings, random_state=0)
+        assert at_flat["outputs"] == simulate(ranged, settings, random_state=0)["outputs"]
+        assert at_flat["warnings"] == []
 
     def test_missing_factor_uses_midrange(self):
         sim = _make_sim()
@@ -458,6 +531,23 @@ class TestStructuralHints:
         model = materialize_model(sim["_private"])
         assert "flow" in model["per_output"]["recovery"]["quadratic"]
         assert abs(model["per_output"]["recovery"]["quadratic"]["flow"]) >= 1.0
+
+    @pytest.mark.parametrize(
+        ("hint", "sign"),
+        [("positive quadratic effect of flow", 1.0), ("negative quadratic effect of flow", -1.0)],
+        ids=["convex", "concave"],
+    )
+    def test_quadratic_hint_with_a_direction_sets_the_curvature_sign(self, hint: str, sign: float):
+        """A signed quadratic hint fixes the sign of the curvature on every output it names (all, by default)."""
+        model = materialize_model(_make_sim(seed=42, structural_hints=[hint])["_private"])
+        for out_coefs in model["per_output"].values():
+            assert 1.5 <= sign * out_coefs["quadratic"]["flow"] <= 3.0
+
+    @pytest.mark.parametrize("hint", ["flow matters", 123], ids=["no-direction-or-curvature", "not-text"])
+    def test_hints_that_say_nothing_leave_the_model_unchanged(self, hint: object):
+        """A hint with no direction or curvature, or one that is not text, is ignored."""
+        private = _make_sim(seed=42)["_private"]
+        assert materialize_model({**private, "structural_hints": [hint]}) == materialize_model(private)
 
 
 # ---------------------------------------------------------------------------

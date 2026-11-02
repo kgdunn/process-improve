@@ -47,6 +47,47 @@ The following compositions are verified by tests in
 | `cross_val_score(pipe, X, y, cv=RepeatedKFold(...))` | ✅ | #390 |
 | `GridSearchCV(pipe, {"pls__n_components": [...]}).fit(X, y)` | ✅ | #390 |
 | `clone(pipe).fit(X, y)` | ✅ | #390 |
+| `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(sparse_output=False), categorical))` | ✅ | #399, example below |
+
+#### Mixing scaled numeric and one-hot columns
+
+`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need centring and
+scaling get it while categorical columns are encoded alongside. `tests/test_readme.py` runs
+this example and checks its output:
+
+```python
+import numpy as np
+import pandas as pd
+from sklearn.compose import make_column_transformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+
+from process_improve.multivariate import PLS, MCUVScaler
+
+rng = np.random.default_rng(0)
+X = pd.DataFrame(rng.normal(size=(30, 3)), columns=["temp", "pressure", "flow"])
+X["batch_type"] = rng.choice(["A", "B", "C"], size=30)
+y = 2 * X["temp"] - X["flow"] + rng.normal(scale=0.1, size=30)
+
+ct = make_column_transformer(
+    (MCUVScaler(), ["temp", "pressure", "flow"]),
+    (OneHotEncoder(sparse_output=False), ["batch_type"]),
+).set_output(transform="pandas")
+pipe = Pipeline([("ct", ct), ("pls", PLS(n_components=3))]).fit(X, y)
+print(list(pipe.named_steps["pls"].x_loadings_.index))  # ['mcuvscaler__temp', 'mcuvscaler__pressure', 'mcuvscaler__flow', 'onehotencoder__batch_type_A', 'onehotencoder__batch_type_B', 'onehotencoder__batch_type_C']
+```
+
+Two arguments there are doing real work:
+
+- **`OneHotEncoder(sparse_output=False)`.** The encoder's default output is a sparse matrix.
+  NIPALS centres and scales every column, which destroys sparsity, so `PLS` and `PCA` reject
+  sparse input rather than silently densifying it, and pandas output cannot hold a sparse
+  block either: scikit-learn raises `ValueError` when `set_output(transform="pandas")` meets a
+  sparse encoder.
+- **`set_output(transform="pandas")`.** Without it the transformer hands over a bare ndarray,
+  so a loading can only be labelled `0`, `1`, `2`; with it, `get_feature_names_out` reaches
+  `x_loadings_.index` and a loading reads as "the one-hot column for `batch_type == B`". The
+  numbers are identical either way.
 
 ### API conventions
 
@@ -128,8 +169,10 @@ fixture scope. Pipeline interop for those classes is tracked in #395.
   `MCUVScaler` + `PLS` Pipeline. Untested.
 - **#398** — `HalvingGridSearchCV` / `HalvingRandomSearchCV` interop.
   Untested.
-- **#399** — `make_column_transformer` with `MCUVScaler` + `OneHotEncoder`
-  on disjoint column subsets. Untested.
+- **#399**: `make_column_transformer` with `MCUVScaler` + `OneHotEncoder`
+  on disjoint column subsets works with a dense encoder and is tested (see
+  "Mixing scaled numeric and one-hot columns"). A sparse encoder is refused
+  by design, for the reason given there.
 
 ### Outstanding unscoped finding
 

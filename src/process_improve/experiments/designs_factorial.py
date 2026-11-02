@@ -8,18 +8,35 @@ from .structures import c, create_names, expand_grid
 
 
 def full_factorial(nfactors: int, names: list | None = None) -> list:
-    """Create a full factorial (2^k) design for the case when there are `nfactors` [integer] number of factors.
+    """Create a two-level full factorial (2^k) design in coded units.
 
-    The optional list of `names` can be provided. The entries in the list
-    should be strings. If not provided, the names will be created.
+    Parameters
+    ----------
+    nfactors : int
+        Number of factors, k. The design has ``2**k`` runs.
+    names : list of str or None
+        One name per factor. If ``None``, names are created (``A``, ``B``, ...).
+
+    Returns
+    -------
+    list[Column]
+        One ``Column`` per factor, each of length ``2**k``, holding the coded
+        settings -1 and +1 in standard (Yates) order.
 
     Raises
     ------
     ValueError
-        If ``nfactors < 1`` (the empty design is undefined) or
+        If ``nfactors < 1`` (the empty design is undefined),
         ``nfactors > settings.max_factors_combinatorial`` (SEC-19 #268:
         a request for 2**40 rows is a memory-exhaustion attack, not a
-        legitimate design).
+        legitimate design), or *names* does not hold ``nfactors`` distinct names.
+
+    Examples
+    --------
+    >>> from process_improve.experiments.designs_factorial import full_factorial
+    >>> columns = full_factorial(2, names=["Temp", "Pressure"])
+    >>> len(columns), len(columns[0])
+    (2, 4)
     """
     nfactors = int(nfactors)
     if nfactors < 1:
@@ -33,6 +50,9 @@ def full_factorial(nfactors: int, names: list | None = None) -> list:
         )
     if names is None:
         names = create_names(nfactors)
+    names = list(names)
+    if len(names) != nfactors or len(set(names)) != len(names):
+        raise ValueError(f"names must hold nfactors={nfactors} distinct names; got {names}.")
 
     # Expand the full factorial out into variables
-    return expand_grid(**dict(zip(names, [c(-1, +1)] * len(names), strict=False)))
+    return expand_grid(**{name: c(-1, +1) for name in names})

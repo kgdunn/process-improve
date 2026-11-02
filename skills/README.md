@@ -75,7 +75,7 @@ both is the best of it.
 ## Requirements
 
 ```bash
-pip install 'process-improve[expt,plotting]'
+pip install 'process-improve[plotting]'
 ```
 
 Each script also carries a PEP 723 header, so `uv run --script <script>` will

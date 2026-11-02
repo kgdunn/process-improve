@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.experiments._tools import _TOOL_EXPECTED_EXCEPTIONS, _register, logger
 from process_improve.tool_spec import clean, tool_spec
+
+#: A coded (low, high) pair, as JSON: exactly two numbers.
+_Pair = Annotated[list[float], Field(min_length=2, max_length=2)]
 
 
 class OptimizeResponsesInput(BaseModel):
@@ -20,9 +23,12 @@ class OptimizeResponsesInput(BaseModel):
         ...,
         min_length=1,
         description=(
-            "One or more fitted models from analyze_experiment. Each entry must "
-            "include 'coefficients' (list of {term, coefficient}), 'factor_names' "
-            "(list of strings), and optionally 'response_name', 'mse_residual', 'r_squared'."
+            "One or more fitted models: the result of analyze_experiment with 'coefficients' among its "
+            "analysis_type values, fitted with coding='coded' (models are evaluated at coded settings, -1 to +1; "
+            "one with actual-unit coefficients is refused), can be passed as it is. Each entry must include "
+            "'coefficients' (list of "
+            "{term, coefficient}) and 'factor_names' (list of strings), and optionally 'response_name'. "
+            "stationary_point, canonical_analysis, steepest_ascent/descent and ridge_analysis take exactly one model."
         ),
     )
     goals: list[dict[str, Any]] | None = Field(
@@ -30,8 +36,10 @@ class OptimizeResponsesInput(BaseModel):
         description=(
             "Per-response optimisation goals. Each entry: response (str, matched against the model's "
             "response_name so the two lists need not be in the same order), "
-            "goal ('maximize'|'minimize'|'target'), low, high, optional target, "
+            "goal ('maximize'|'minimize'|'target'|'in_range'), low, high, optional target, "
             "weight, weight_high, importance. Required for 'desirability' method. "
+            "'in_range' holds that response between low and high and leaves it out of the composite; "
+            "at least one goal must be of another kind. "
             "'weight' shapes that response's own desirability ramp; 'importance' sets how much the "
             "response counts relative to the others in the composite. They are different things."
         ),
@@ -52,12 +60,17 @@ class OptimizeResponsesInput(BaseModel):
         None,
         description=(
             'Factor bounds in actual units, e.g. {"Temperature": {"low": 150, "high": 200}}. '
-            "Used to convert coded settings to actual units in the output."
+            "Used to convert coded settings to actual units in the output. A coded analyze_experiment result "
+            "supplies its own factors' ranges; a range given here must agree with them."
         ),
     )
     step_size: float = Field(
         0.5,
-        description="Step size in coded units for steepest ascent/descent (default 0.5).",
+        gt=0.0,
+        description=(
+            "Euclidean distance in coded units between successive points of a steepest ascent/descent path "
+            "(default 0.5)."
+        ),
     )
     n_steps: int = Field(
         10,
@@ -81,7 +94,7 @@ class OptimizeResponsesInput(BaseModel):
         lt=1.0,
         description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
     )
-    search_bounds: list[float] | dict[str, list[float]] | None = Field(
+    search_bounds: _Pair | dict[str, _Pair] | None = Field(
         None,
         description=(
             "Coded region to search, as [low, high] applied to every factor, or a mapping from factor "
@@ -90,10 +103,6 @@ class OptimizeResponsesInput(BaseModel):
             "or minus alpha: pass [-1.41, 1.41] for a two-factor rotatable central composite design so "
             "the search covers the region the experiment actually explored."
         ),
-    )
-    desirability_weights: list[float] | None = Field(
-        None,
-        description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
     )
     ridge_direction: Literal["maximize", "minimize"] = Field(
         "maximize",
@@ -105,6 +114,43 @@ class OptimizeResponsesInput(BaseModel):
         description=(
             "Target number of weight vectors for method='pareto_front' (default 21). The front returned "
             "is usually smaller, since dominated and duplicate solutions are dropped."
+        ),
+    )
+    region: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Region the optimum must lie in, for 'desirability' and 'pareto_front': pass metadata['region'] "
+            "from generate_design, so the recommended settings satisfy the design's constraints (and sum "
+            "to 1 for a mixture). The result then reports 'within_region'."
+        ),
+    )
+    flat_tolerance: float = Field(
+        1e-8,
+        ge=0.0,
+        lt=1.0,
+        description=(
+            "For 'stationary_point' and 'canonical_analysis': an eigenvalue of the pure-quadratic matrix at most "
+            "this share of the largest in size is read as zero, so the surface is classified as a ridge along it "
+            "(default 1e-8, rounding only). 0.05 reads a small estimated eigenvalue as flat, as the textbooks do; "
+            "the result's 'classification_note' says when one is below 5% of the largest."
+        ),
+    )
+    random_state: int = Field(
+        42,
+        ge=0,
+        description=(
+            "Seed for the random starting points of 'desirability' and 'pareto_front' (default 42). "
+            "Try another seed to check that the optimum does not depend on where the search began."
+        ),
+    )
+    n_alternatives: int = Field(
+        0,
+        ge=0,
+        le=10,
+        description=(
+            "For 'desirability': how many other settings that do almost as well to report beside the best, "
+            "under 'alternatives': local optima with at least 95% of the best composite desirability, at "
+            "least 0.5 apart in coded units. Useful when another setting is cheaper, safer or easier to run."
         ),
     )
 
@@ -132,14 +178,16 @@ def _as_bounds(
         "what to use when the stationary point falls outside the region the experiment covered, or is a "
         "saddle), and 'pareto_front' (the set of non-dominated compromises across two or more responses, "
         "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
-        "Each fitted_model must include coefficients (as returned by analyze_experiment with "
-        "analysis_type='coefficients'), factor_names, and response_name. "
-        "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
+        "Each fitted_model must include coefficients and factor_names, which analyze_experiment returns "
+        "(with analysis_type='coefficients'), and response_name; its result can be passed as it is. "
+        "For desirability, each goal specifies whether to maximize, minimize, or target a value, or to "
+        "hold the response within limits ('in_range'). "
         "The desirability result also carries a 'responses' list, pairing each model's coefficients "
         "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
         "to see the region where every response is simultaneously within specification."
     ),
     input_model=OptimizeResponsesInput,
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 42},
     examples="""
     # "Find the stationary point of my quadratic model"
         -> ``optimize_responses(fitted_models=[{"response_name": "yield",
@@ -154,6 +202,12 @@ def _as_bounds(
         -> ``optimize_responses(fitted_models=[model1, model2],
                 goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
                        {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
+                method="desirability")``
+
+    # "Maximise yield, but keep the molecular weight between 3200 and 3400"
+        -> ``optimize_responses(fitted_models=[yield_model, mn_model],
+                goals=[{"response": "yield", "goal": "maximize", "low": 70, "high": 80},
+                       {"response": "mn", "goal": "in_range", "low": 3200, "high": 3400}],
                 method="desirability")``
 
     # "Optimize two responses, counting yield twice as heavily as cost"
@@ -171,6 +225,12 @@ def _as_bounds(
         -> ``optimize_responses(fitted_models=[model], method="ridge_analysis",
                 n_steps=10, search_bounds=[-1.41, 1.41])``
 
+    # "Best settings that respect the design's constraint 3*T + 5*D <= 600"
+        -> ``optimize_responses(fitted_models=[model],
+                goals=[{"response": "yield", "goal": "maximize", "low": 40, "high": 75}],
+                factor_ranges={"T": {"low": 100, "high": 150}, "D": {"low": 20, "high": 60}},
+                region=<metadata["region"] returned by generate_design>)``
+
     # "Show me the trade-off between yield and cost, not a single weighted answer"
         -> ``optimize_responses(fitted_models=[model1, model2],
                 goals=[{"response": "yield", "goal": "maximize"},
@@ -183,6 +243,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
     """Optimize experimental responses."""
     try:
         from process_improve.experiments.optimization import optimize_responses  # noqa: PLC0415
+        from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
 
         result = optimize_responses(
             fitted_models=spec.fitted_models,
@@ -194,9 +255,12 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             response_importance=spec.response_importance,
             significance_level=spec.significance_level,
             search_bounds=_as_bounds(spec.search_bounds),
-            desirability_weights=spec.desirability_weights,
             ridge_direction=spec.ridge_direction,
             n_pareto_points=spec.n_pareto_points,
+            region=DesignRegion.from_dict(spec.region) if spec.region is not None else None,
+            random_state=spec.random_state,
+            n_alternatives=spec.n_alternatives,
+            flat_tolerance=spec.flat_tolerance,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

@@ -8,18 +8,14 @@ numpy array.  Post-processing is handled by ``designs_utils.build_design_result`
 
 from __future__ import annotations
 
+import itertools
 import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-try:
-    from pyDOE3 import bbdesign, ccdesign
-except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
-    from process_improve._extras import _MissingExtra
-
-    bbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
-    ccdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
+from process_improve.experiments._classical import bbdesign, ccdesign
+from process_improve.experiments._finite_fields import MAX_ORDER, conference_matrix, conference_order_at_least
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
@@ -34,6 +30,8 @@ def dispatch_ccd(  # noqa: PLR0913
     cube: str = "full",
     generators: list[str] | None = None,
     resolution: int | None = None,
+    n_replicates: int = 1,
+    n_blocks: int | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Central Composite Design (CCD).
 
@@ -44,20 +42,21 @@ def dispatch_ccd(  # noqa: PLR0913
     n_center_points : int
         Number of center points (split between cube and axial portions).
     alpha : str, float, or None
-        Axial distance.  Accepted string values: ``"rotatable"``,
-        ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
-        alpha directly.  Defaults to ``"orthogonal"``.
-
-        .. note::
-           A numeric ``alpha`` is only honored when ``cube="fractional"``.
-           For ``cube="full"`` (the default) the underlying pyDOE3
-           ``ccdesign`` call does not accept an arbitrary axial distance,
-           so a numeric value is silently treated as ``"orthogonal"``.
+        Axial distance: ``"rotatable"`` (``F ** 0.25`` for ``F`` cube runs),
+        ``"face_centered"`` (1), ``"inscribed"`` (axial runs at +/-1, the cube
+        shrunk inside a rotatable design), ``"orthogonal"`` (the default: the
+        distance that makes the quadratic columns mutually orthogonal, see
+        :func:`orthogonal_alpha`), or a positive number used as the distance
+        itself. Any other value raises ``ValueError``.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
-        the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
-        higher) fractional factorial, keeping the run count practical for
-        k >= 5.
+        the complete 2^k factorial; ``"fractional"`` uses a fractional factorial,
+        keeping the run count practical for k >= 5. By default it must leave the full
+        quadratic model estimable: of resolution V, or a small composite design whose
+        cube aliases interactions only with main effects (Hartley, 1959). A cube given
+        by *generators* or *resolution* that aliases interactions in pairs is built
+        with a warning; ``full_quadratic_estimable`` and ``aliased_interactions`` in
+        the metadata say what it can estimate.
     generators : list[str] or None
         Explicit cube generators (e.g. ``["E=ABCD"]``), used only when
         ``cube="fractional"``.  When omitted, a minimum-aberration
@@ -65,63 +64,261 @@ def dispatch_ccd(  # noqa: PLR0913
     resolution : int or None
         Desired minimum cube resolution, used only when ``cube="fractional"``
         and *generators* is not given.
+    n_replicates : int
+        How many times the cube and axial runs will be replicated (the centre runs
+        are not), which the orthogonal axial distance depends on.
+    n_blocks : int or None
+        Blocks the design will be run in: the axial runs in one, the cube runs in the
+        others. Without *alpha*, the axial distance is then the one that blocks the
+        design orthogonally (:func:`blocking_alpha`), recorded as ``alpha_rule``
+        ``"orthogonal_blocks"``.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata (includes ``alpha_value``).
+        Coded design matrix and metadata: ``alpha_value``, the ratio of the axial
+        distance to the cube's half-width (for the inscribed design, whose cube is
+        shrunk, the axial runs sit at +/-1 and the cube at +/-1/alpha); ``face``, the
+        geometry (``"circumscribed"``, ``"faced"`` or ``"inscribed"``); and
+        ``alpha_rule``, how alpha was chosen (``"orthogonal"``, ``"rotatable"``,
+        ``"face_centered"``, ``"inscribed"``, ``"orthogonal_blocks"`` or ``"user"``);
+        and ``axial_portion``, which rows are the axial runs and their centre runs.
+
+    Raises
+    ------
+    ValueError
+        If fewer than two factors are given, or *alpha* or *cube* is not recognised.
 
     Notes
     -----
-    Center points are embedded in the CCD structure itself (via pyDOE3's
+    Center points are embedded in the CCD structure itself (via ``ccdesign``'s
     ``center`` parameter).  The caller should set ``n_center_points=0`` in
     ``build_design_result`` to avoid adding duplicate center points.
     """
-    if cube == "fractional":
-        return _dispatch_ccd_fractional(factors, n_center_points, alpha, generators, resolution)
-    if cube != "full":
+    if len(factors) < 2:
+        raise ValueError(f"A central composite design needs at least 2 factors, got {len(factors)}.")
+    if cube not in ("full", "fractional"):
         raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
-
     k = len(factors)
+    if cube == "fractional":
+        cube_runs, cube_meta = _fractional_cube(factors, generators, resolution)
+    else:
+        cube_runs, cube_meta = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1], {}
 
-    # Map alpha string to pyDOE3 face and alpha parameters.
-    # pyDOE3 alpha accepts: "orthogonal"/"o", "rotatable"/"r"
-    # pyDOE3 face accepts: "circumscribed"/"ccc", "inscribed"/"cci", "faced"/"ccf"
-    face = "circumscribed"
-    alpha_str = "orthogonal"
-    if isinstance(alpha, str):
-        alpha_lower = alpha.lower()
-        if alpha_lower in ("face_centered", "face centered", "ccf", "faced"):
-            face = "faced"
-            alpha_str = "orthogonal"
-        elif alpha_lower in ("inscribed", "cci"):
-            face = "inscribed"
-            alpha_str = "orthogonal"
-        elif alpha_lower in ("rotatable", "r"):
-            face = "circumscribed"
-            alpha_str = "rotatable"
-        else:
-            # "orthogonal" or default
-            face = "circumscribed"
-            alpha_str = "orthogonal"
-    elif isinstance(alpha, (int, float)):
-        alpha_str = "orthogonal"
-        face = "circumscribed"
+    if n_blocks is not None and n_blocks > 1 and alpha is None:
+        # Blocked, with no axial distance asked for: the one that blocks orthogonally.
+        n_center_cube = n_center_points // 2
+        distance = blocking_alpha(
+            n_replicates * len(cube_runs), n_center_cube, k, n_center_points - n_center_cube, n_replicates
+        )
+        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": "orthogonal_blocks"}
+    elif cube == "fractional":
+        distance, rule = _resolve_fractional_axial_distance(alpha, len(cube_runs), k, n_center_points, n_replicates)
+        coded_matrix = _stack_ccd(cube_runs, distance, n_center_points)
+        meta = {"alpha_value": distance, "face": _geometry(distance), "alpha_rule": rule}
+    else:
+        coded_matrix, meta = _full_ccd(k, n_center_points, alpha, n_replicates)
+    # Rows run cube, cube centre runs, axial runs, axial centre runs; mark the axial portion.
+    axial = np.arange(len(coded_matrix)) >= len(cube_runs) + n_center_points // 2
+    return coded_matrix, {**meta, **cube_meta, "axial_portion": axial.tolist()}
 
-    # Split center points between cube and axial portions
-    n_center_cube = max(1, n_center_points // 2)
-    n_center_axial = max(1, n_center_points - n_center_cube)
 
-    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha=alpha_str, face=face)
+def _full_ccd(k: int, n_center_points: int, alpha: str | float | None, n_replicates: int) -> tuple[np.ndarray, dict]:
+    """Build a CCD on the full 2^k cube, with *alpha* as :func:`dispatch_ccd` takes it."""
+    kind = _axial_kind(alpha)
+    rule = _ALPHA_NAMES[kind][0] if isinstance(kind, str) else "user"
+    if kind == "orthogonal":
+        r = n_replicates
+        kind = orthogonal_alpha(r * 2**k, r * (2**k + 2 * k) + n_center_points, n_axial_replicates=r)
 
-    # Determine actual alpha value used
-    alpha_value: float | None = None
-    if face == "ccf":
-        alpha_value = 1.0
-    elif coded_matrix.shape[0] > 0:
+    if isinstance(kind, float):
+        # An axial distance ccdesign cannot take: build the 2^k cube, the 2k axial runs and the centre runs here.
+        cube_runs = np.array(list(itertools.product((-1.0, 1.0), repeat=k)))[:, ::-1]
+        coded_matrix = _stack_ccd(cube_runs, kind, n_center_points)
+        return coded_matrix, {"alpha_value": kind, "face": _geometry(kind), "alpha_rule": rule}
+
+    # Centre runs are split between the cube and axial blocks, as ccdesign does.
+    n_center_cube = n_center_points // 2
+    face = {"faced": "faced", "inscribed": "inscribed"}.get(kind, "circumscribed")
+    coded_matrix = ccdesign(k, center=(n_center_cube, n_center_points - n_center_cube), alpha="rotatable", face=face)
+    if face == "inscribed":
+        # The axial runs sit at +/-1 and the cube is shrunk to +/-1/alpha.
+        cube_rows = coded_matrix[np.all(coded_matrix != 0, axis=1)]
+        alpha_value = float(1.0 / np.min(np.abs(cube_rows)))
+    else:
         alpha_value = float(np.max(np.abs(coded_matrix)))
+    return coded_matrix, {"alpha_value": alpha_value, "face": face, "alpha_rule": rule}
 
-    return coded_matrix, {"alpha_value": alpha_value, "face": face}
+
+def _geometry(alpha: float) -> str:
+    """Name the geometry of a CCD whose cube is at +/-1 and axial runs at +/-alpha."""
+    return "faced" if np.isclose(alpha, 1.0) else "circumscribed"
+
+
+def orthogonal_alpha(n_cube_runs: int, n_runs: int, n_axial_replicates: int = 1) -> float:
+    """Axial distance that makes the quadratic columns of a central composite design mutually orthogonal.
+
+    ``alpha = (F * (sqrt(N) - sqrt(F)) ** 2 / (4 * s ** 2)) ** (1 / 4)`` for ``F`` cube runs,
+    each axial point run ``s`` times, and ``N`` runs in all, centre runs included (Box and
+    Hunter 1957; Myers, Montgomery and Anderson-Cook, *Response Surface Methodology*,
+    section 7.4, for ``s = 1``). With it the centred squared columns are orthogonal, so the
+    quadratic coefficients are estimated independently of one another.
+
+    The squares of two factors are both non-zero only on the cube runs, so their
+    product sums to ``F``; each has the sum ``F + 2 s alpha**2``; the centred columns
+    are orthogonal when ``F N = (F + 2 s alpha**2) ** 2``. A design replicated whole
+    (``F``, ``s`` and ``N`` all times ``r``) keeps its alpha; one whose centre runs are
+    not replicated has relatively fewer of them, and a smaller alpha.
+
+    Parameters
+    ----------
+    n_cube_runs : int
+        Runs in the cube (factorial) portion, full or fractional, replicates included.
+    n_runs : int
+        Every run of the design: cube, axial and centre runs.
+    n_axial_replicates : int
+        How many times each of the ``2k`` axial points is run.
+
+    Returns
+    -------
+    float
+        The axial distance in coded units.
+    """
+    gap = np.sqrt(n_runs) - np.sqrt(n_cube_runs)
+    return float((n_cube_runs * gap**2 / (4 * n_axial_replicates**2)) ** 0.25)
+
+
+#: Box and Hunter's (1957) rules for the number of centre runs of a rotatable central composite design.
+CENTER_POINT_RULES = ("uniform_precision", "orthogonal")
+
+
+def ccd_center_points(rule: str, n_cube_runs: int, n_factors: int, n_replicates: int = 1) -> int:
+    r"""Return the number of centre runs of a rotatable central composite design by Box and Hunter's rule.
+
+    In a rotatable CCD, with ``alpha = F ** 0.25`` for ``F`` cube runs, the variance of a prediction
+    depends only on its distance from the centre. The centre runs set how it changes with that
+    distance, through the design's pure fourth moment
+
+    .. math::
+
+        \lambda_4 = \frac{N F}{r\,(F + 2\sqrt{F})^2},
+
+    with ``N`` runs in all, of which ``r (F + 2k)`` are the cube and axial runs (the design run
+    ``r`` times, its centre runs once) for ``k`` factors (Box and Hunter 1957; Myers, Montgomery and
+    Anderson-Cook, *Response Surface Methodology*, section 7.4).
+
+    - ``"uniform_precision"``: the variance at the centre equals the variance one unit from it, in
+      Box and Hunter's unit of distance: the root mean square of a factor over the runs. That needs
+      :math:`\lambda_4 = (k + 3 + \sqrt{9k^2 + 14k - 7}) / (4(k + 2))`.
+    - ``"orthogonal"``: :math:`\lambda_4 = 1`, which makes the centred squared columns orthogonal,
+      so the quadratic coefficients are estimated independently of one another. The number is then
+      :math:`r(4\sqrt{F} + 4 - 2k)`.
+
+    Parameters
+    ----------
+    rule : str
+        ``"uniform_precision"`` or ``"orthogonal"``.
+    n_cube_runs : int
+        ``F``, the runs of one copy of the cube, full or fractional.
+    n_factors : int
+        ``k``, the number of factors.
+    n_replicates : int
+        ``r``, how many times the cube and axial runs are run.
+
+    Returns
+    -------
+    int
+        The number of centre runs, rounded to the nearest whole run and at least 1.
+
+    Raises
+    ------
+    ValueError
+        If *rule* is not one of :data:`CENTER_POINT_RULES`.
+
+    Examples
+    --------
+    Box and Hunter's table for four factors, 16 cube runs:
+
+    >>> ccd_center_points("uniform_precision", 16, 4), ccd_center_points("orthogonal", 16, 4)
+    (7, 12)
+    """
+    if rule not in CENTER_POINT_RULES:
+        msg = f"rule must be one of {CENTER_POINT_RULES}; got {rule!r}."
+        raise ValueError(msg)
+    k, r, root = n_factors, n_replicates, np.sqrt(n_cube_runs)
+    if rule == "orthogonal":
+        n_center = r * (4 * root + 4 - 2 * k)
+    else:
+        lambda_4 = (k + 3 + np.sqrt(9 * k**2 + 14 * k - 7)) / (4 * (k + 2))
+        n_center = lambda_4 * r * (n_cube_runs + 2 * root) ** 2 / n_cube_runs - r * (n_cube_runs + 2 * k)
+    return max(round(float(n_center)), 1)
+
+
+def blocking_alpha(
+    n_cube_runs: int, n_center_cube: int, n_factors: int, n_center_axial: int, n_axial_replicates: int = 1
+) -> float:
+    """Axial distance at which a CCD's cube and axial blocks are orthogonal to the squares too.
+
+    ``alpha**2 = F (2 k s + c_a) / (2 s (F + c_c))`` for ``F`` cube runs and ``c_c`` centre
+    runs in the cube blocks, ``k`` factors whose ``2k`` axial points are each run ``s``
+    times, and ``c_a`` centre runs in the axial block (Box and Hunter 1957; Montgomery,
+    *Design and Analysis of Experiments*, section 11.4). Each block then holds the same
+    share of every factor's sum of squares as of the runs. With two factors, a 2^2 cube
+    and three centre runs in each block it is ``sqrt(2)``, rotatable too.
+
+    Parameters
+    ----------
+    n_cube_runs : int
+        Runs in the cube portion, replicates included.
+    n_center_cube : int
+        Centre runs in the cube blocks.
+    n_factors : int
+        Number of factors ``k``.
+    n_center_axial : int
+        Centre runs in the axial block.
+    n_axial_replicates : int
+        How many times each axial point is run.
+
+    Returns
+    -------
+    float
+        The axial distance in coded units.
+    """
+    f, s = n_cube_runs, n_axial_replicates
+    return float(np.sqrt(f * (2 * n_factors * s + n_center_axial) / (2 * s * (f + n_center_cube))))
+
+
+#: Accepted spellings of each named axial distance.
+_ALPHA_NAMES = {
+    "faced": ("face_centered", "face centered", "face_centred", "ccf", "faced"),
+    "inscribed": ("inscribed", "cci"),
+    "rotatable": ("rotatable", "r"),
+    "orthogonal": ("orthogonal", "o"),
+}
+
+
+def _axial_kind(alpha: str | float | None) -> str | float:
+    """Resolve ``alpha`` to ``"faced"``, ``"inscribed"``, ``"rotatable"``, ``"orthogonal"`` or a positive number.
+
+    Raises
+    ------
+    ValueError
+        For an unknown name or a non-positive number, instead of silently using the
+        orthogonal distance.
+    """
+    if alpha is None:
+        return "orthogonal"
+    if isinstance(alpha, (int, float)) and not isinstance(alpha, bool):
+        if not alpha > 0:
+            raise ValueError(f"A numeric alpha (the axial distance) must be positive; got {alpha}.")
+        return float(alpha)
+    if isinstance(alpha, str):
+        for kind, names in _ALPHA_NAMES.items():
+            if alpha.lower() in names:
+                return kind
+    options = ", ".join(repr(names[0]) for names in _ALPHA_NAMES.values())
+    raise ValueError(f"Unknown alpha {alpha!r} for a central composite design; use {options} or a positive number.")
 
 
 def _resolve_fractional_axial_distance(
@@ -129,141 +326,193 @@ def _resolve_fractional_axial_distance(
     n_cube_runs: int,
     k: int,
     n_center_points: int,
+    n_replicates: int = 1,
 ) -> tuple[float, str]:
     """Axial (star-point) distance for a fractional-cube CCD.
 
-    Mirrors pyDOE3's :func:`star` formulas, but uses the actual number of
+    Mirrors the classical axial-distance formulas, but uses the actual number of
     fractional cube runs *n_cube_runs* in place of the full ``2**k``.
 
     Parameters
     ----------
     alpha : str, float, or None
         ``"face_centered"`` (alpha = 1), ``"rotatable"``
-        (alpha = n_cube_runs ** 0.25), ``"orthogonal"`` / None (the orthogonal
-        formula), or a numeric value used directly.
+        (alpha = n_cube_runs ** 0.25), ``"orthogonal"`` / None
+        (:func:`orthogonal_alpha`), or a numeric value used directly.
     n_cube_runs : int
         Number of runs in the (fractional) cube portion.
     k : int
         Number of factors.
     n_center_points : int
-        Total number of center points; split between the cube and axial blocks
-        for the orthogonal-alpha formula.
+        Total number of center points, which count towards the run total in
+        :func:`orthogonal_alpha`.
+    n_replicates : int
+        How many times the cube and axial runs will be replicated (the centre runs are not).
 
     Returns
     -------
     tuple[float, str]
-        The axial distance and a short label for the design metadata.
+        The axial distance and the rule that chose it, recorded as ``alpha_rule``.
     """
-    if isinstance(alpha, (int, float)) and not isinstance(alpha, bool):
-        return float(alpha), "user"
-
-    alpha_lower = alpha.lower() if isinstance(alpha, str) else None
-    if alpha_lower in ("face_centered", "face centered", "ccf", "faced"):
-        return 1.0, "faced"
-    if alpha_lower in ("rotatable", "r"):
+    kind = _axial_kind(alpha)
+    if isinstance(kind, float):
+        return kind, "user"
+    if kind == "faced":
+        return 1.0, "face_centered"
+    if kind == "rotatable":
         return float(n_cube_runs**0.25), "rotatable"
-    if alpha_lower in ("inscribed", "cci"):
+    if kind == "inscribed":
         raise ValueError(
             "alpha='inscribed' is not supported with cube='fractional'; "
             "use 'face_centered', 'rotatable', 'orthogonal', or a numeric alpha."
         )
 
-    # "orthogonal", None, or any other string: orthogonal axial distance.
-    n_center_cube = n_center_points // 2
-    n_center_axial = n_center_points - n_center_cube
-    n_axial = 2 * k
-    a = (k * (1 + n_center_axial / n_axial) / (1 + n_center_cube / n_cube_runs)) ** 0.5
-    return float(a), "orthogonal"
+    r = n_replicates
+    total = r * (n_cube_runs + 2 * k) + n_center_points
+    return orthogonal_alpha(r * n_cube_runs, total, n_axial_replicates=r), "orthogonal"
 
 
-def _dispatch_ccd_fractional(
-    factors: list[Factor],
-    n_center_points: int,
-    alpha: str | float | None,
-    generators: list[str] | None,
-    resolution: int | None,
+def _aliased_interactions(cube: np.ndarray, names: list[str]) -> list[str]:
+    """Return the pairs of two-factor interactions whose columns in the cube are the same, or opposite in sign."""
+    pairs = list(itertools.combinations(range(cube.shape[1]), 2))
+    products = np.column_stack([cube[:, i] * cube[:, j] for i, j in pairs])
+    same = np.isclose(np.abs(products.T @ products), cube.shape[0])
+    label = [f"{names[i]}:{names[j]}" for i, j in pairs]
+    return [f"{label[a]} = {label[b]}" for a, b in zip(*np.nonzero(np.triu(same, k=1)), strict=True)]
+
+
+def _fractional_cube(
+    factors: list[Factor], generators: list[str] | None, resolution: int | None
 ) -> tuple[np.ndarray, dict]:
-    """Build a CCD whose cube portion is a resolution-V fractional factorial.
+    """Build the fractional factorial cube of a CCD.
 
     The cube is generated by reusing
-    :func:`process_improve.experiments.designs_screening.dispatch_fractional_factorial`,
-    then the axial (star) runs and the center runs are stacked on top.
+    :func:`process_improve.experiments.designs_screening.dispatch_fractional_factorial`.
+    Without *generators* or *resolution*, it is the minimum-aberration half-fraction (the
+    last factor the product of all the others).
 
-    Parameters
-    ----------
-    factors : list[Factor]
-        Continuous factors (at least 3).
-    n_center_points : int
-        Total number of center runs (added once, not split).
-    alpha : str, float, or None
-        Axial distance specification; see
-        :func:`_resolve_fractional_axial_distance`.
-    generators : list[str] or None
-        Explicit cube generators.  When omitted, a minimum-aberration
-        half-fraction (last factor = product of all the others) is used.
-    resolution : int or None
-        Desired minimum cube resolution; used only when *generators* is None.
+    The composite design estimates the full quadratic model when no two of the cube's
+    two-factor interactions are aliased with each other (Hartley, 1959): a cube of
+    resolution V or more, or a small composite design such as the half fraction of three
+    factors, where a main effect is aliased with an interaction that the axial runs then
+    separate. A cube asked for by *generators* or *resolution* that aliases interactions in
+    pairs is built, with a warning, for a model that holds one interaction of each pair.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata, including ``alpha_value``,
-        ``generators_used``, ``defining_relation``, and ``resolution``.
+        The cube runs, and ``cube``, ``generators_used``, ``defining_relation``,
+        ``resolution``, ``full_quadratic_estimable`` and ``aliased_interactions`` (the
+        pairs of interactions the cube cannot tell apart) for the metadata.
+
+    Raises
+    ------
+    ValueError
+        For fewer than 3 factors, a cube that aliases main effects with each other, or a
+        default half fraction that aliases interactions in pairs.
     """
     from process_improve.experiments.designs_screening import dispatch_fractional_factorial  # noqa: PLC0415
-    from process_improve.experiments.evaluate import (  # noqa: PLC0415
-        _defining_relation_from_generators,
-        _word_to_str,
-    )
 
-    k = len(factors)
-    if k < 3:
+    if len(factors) < 3:
         raise ValueError("A fractional-cube CCD requires at least 3 factors; use cube='full' for fewer.")
-
     factor_names = [f.name for f in factors]
-
-    if generators is None and resolution is None:
-        # Minimum-aberration half-fraction: last factor = product of all the others.
+    asked = generators is not None or resolution is not None
+    if not asked:
         generators = [f"{factor_names[-1]}={''.join(factor_names[:-1])}"]
-
     cube, frac_meta = dispatch_fractional_factorial(factors, resolution=resolution, generators=generators)
-    n_cube_runs = cube.shape[0]
-
-    # Record the cube's generators, defining relation, and (true) resolution.
-    used_generators = frac_meta.get("generators_used") or generators
-    res = frac_meta.get("resolution")
-    defining_relation: list[str] | None = None
-    if used_generators:
-        words = _defining_relation_from_generators(used_generators, factor_names)
-        defining_relation = [f"I={_word_to_str(w, factor_names)}" for w in words]
-        if words:
-            res = min(len(w) for w in words)
-
-    if res is not None and res < 5:
+    res = frac_meta.get("resolution")  # 3 or more: dispatch_fractional_factorial refuses generators that alias mains
+    aliased = _aliased_interactions(cube, factor_names)
+    if aliased and not asked:
         raise ValueError(
-            f"The fractional cube has resolution {res}, but a CCD needs resolution V or higher so the "
-            "full quadratic model is estimable. Supply resolution-V generators or use cube='full'."
+            f"The half fraction of {len(factors)} factors aliases two-factor interactions in pairs "
+            f"({', '.join(aliased[:3])}{', ...' if len(aliased) > 3 else ''}), so the full quadratic model is not "
+            "estimable. Supply generators that alias interactions only with main effects (a small composite "
+            "design), a resolution of 5 or more, or use cube='full'."
         )
+    if aliased:
+        logger.warning(
+            "The CCD's fractional cube aliases %d pairs of two-factor interactions (%s): the full quadratic model "
+            "is not estimable, only a model with one interaction of each pair.",
+            len(aliased),
+            ", ".join(aliased[:3]) + (", ..." if len(aliased) > 3 else ""),
+        )
+    return cube, {
+        "cube": "fractional",
+        "generators_used": frac_meta.get("generators_used") or generators,
+        "defining_relation": frac_meta.get("defining_relation"),
+        "resolution": res,
+        "full_quadratic_estimable": not aliased,
+        "aliased_interactions": aliased,
+    }
 
-    axial_distance, face = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, n_center_points)
 
-    # Axial (star) runs: 2k rows at +/- axial_distance, zeros elsewhere.
+def _stack_ccd(cube: np.ndarray, axial_distance: float, n_center_points: int) -> np.ndarray:
+    """Stack a CCD: the cube, half the centre runs, the ``2k`` axial runs, the other centre runs.
+
+    The centre runs are split between the cube and axial portions as ``ccdesign`` does,
+    so each portion can be a block of its own.
+    """
+    k = cube.shape[1]
     star = np.zeros((2 * k, k))
     for i in range(k):
         star[2 * i : 2 * i + 2, i] = (-axial_distance, axial_distance)
+    n_center_cube = n_center_points // 2
+    return np.vstack([cube, np.zeros((n_center_cube, k)), star, np.zeros((n_center_points - n_center_cube, k))])
 
-    center = np.zeros((max(0, n_center_points), k))
 
-    coded_matrix = np.vstack([cube, star, center])
-    meta = {
-        "alpha_value": axial_distance,
-        "face": face,
-        "cube": "fractional",
-        "generators_used": used_generators,
-        "defining_relation": defining_relation,
-        "resolution": res,
-    }
-    return coded_matrix, meta
+def _cyclic_blocks(base: tuple[int, ...], k: int) -> tuple[tuple[int, ...], ...]:
+    """Develop the block ``base`` cyclically modulo ``k``: the ``k`` blocks ``base + i``."""
+    return tuple(tuple(sorted((j + i) % k for j in base)) for i in range(k))
+
+
+#: Box and Behnken's (1960) blocks, Table 4: each block carries a two-level factorial in the
+#: factors it names, with every other factor at its centre. Factors are numbered from 0 here,
+#: from 1 in the paper. Six, nine, ten, twelve and sixteen factors use partially balanced
+#: designs (two pairs of factors can meet in a different number of blocks); seven and eleven
+#: use balanced ones. Seven factors are written cyclically on the Fano plane, the published
+#: table up to a relabelling of the factors; the others are as printed. Pairing every two
+#: factors, as ``bbdesign`` does for any k, gives the published design for three to five
+#: factors but more runs from six on: 60, 84 and 144 instead of 48, 56 and 120 at 6, 7 and 9.
+_BOX_BEHNKEN_BLOCKS: dict[int, tuple[tuple[int, ...], ...]] = {
+    6: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (0, 3, 4), (1, 4, 5), (0, 2, 5)),
+    7: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (3, 4, 6), (0, 4, 5), (1, 5, 6), (0, 2, 6)),
+    # Five sets of three blocks; the fifth repeats the first, so the pairs within a block of
+    # the first set (the paper's first associates) meet twice.
+    9: (
+        *((0, 3, 6), (1, 4, 7), (2, 5, 8)),
+        *((0, 1, 2), (3, 4, 5), (6, 7, 8)),
+        *((0, 4, 8), (2, 3, 7), (1, 5, 6)),
+        *((0, 5, 7), (1, 3, 8), (2, 4, 6)),
+        *((0, 3, 6), (1, 4, 7), (2, 5, 8)),
+    ),
+    10: (
+        (1, 5, 6, 9),
+        (0, 1, 4, 9),
+        (1, 2, 6, 7),
+        (1, 3, 5, 8),
+        (0, 7, 8, 9),
+        (2, 3, 4, 9),
+        (0, 3, 6, 7),
+        (2, 4, 6, 8),
+        (0, 2, 5, 8),
+        (3, 4, 5, 7),
+    ),
+    11: _cyclic_blocks((0, 1, 2, 4, 7), 11),
+    12: _cyclic_blocks((0, 1, 4, 6), 12),
+    # Six sets of four blocks, each set a partition of the sixteen factors.
+    16: (
+        *((0, 1, 5, 8), (2, 3, 7, 10), (4, 9, 12, 13), (6, 11, 14, 15)),
+        *((1, 2, 6, 9), (0, 3, 4, 11), (5, 10, 13, 14), (7, 8, 12, 15)),
+        *((1, 4, 5, 12), (3, 6, 7, 14), (0, 8, 9, 13), (2, 10, 11, 15)),
+        *((2, 5, 6, 13), (0, 4, 7, 15), (1, 9, 10, 14), (3, 8, 11, 12)),
+        *((0, 2, 12, 14), (1, 3, 13, 15), (4, 6, 8, 10), (5, 7, 9, 11)),
+        *((3, 5, 9, 15), (2, 4, 8, 14), (0, 6, 10, 12), (1, 7, 11, 13)),
+    ),
+}
+
+#: Factor counts whose blocks of five carry the half fraction ``x1 x2 x3 x4 x5 = +1`` (Table 4,
+#: design 8) rather than the full 2^5 factorial.
+_BOX_BEHNKEN_HALF_FRACTION = frozenset({11})
 
 
 def dispatch_box_behnken(
@@ -271,6 +520,13 @@ def dispatch_box_behnken(
     n_center_points: int = 3,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Box-Behnken design.
+
+    Three to five factors: a two-level factorial in every pair of factors
+    (``bbdesign``), which is the published design. Six, seven, nine, ten, eleven, twelve
+    and sixteen factors: the published blocks in ``_BOX_BEHNKEN_BLOCKS`` (48, 56, 120,
+    160, 176, 192 and 384 runs plus centre points). Box and Behnken published no design
+    for eight, thirteen to fifteen, or more than sixteen factors: these pair every two
+    factors, and ``metadata["construction"]`` says ``"all_pairs"``.
 
     Parameters
     ----------
@@ -282,187 +538,307 @@ def dispatch_box_behnken(
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix (-1 / 0 / +1) and metadata.
+        Coded design matrix (-1 / 0 / +1) and metadata with the ``construction``.
 
     Notes
     -----
     Center points are embedded in the BB structure.  The caller should set
     ``n_center_points=0`` in ``build_design_result``.
+
+    References
+    ----------
+    Box, G. E. P. and Behnken, D. W. (1960). Some new three level designs for the study
+    of quantitative variables. *Technometrics*, 2(4), 455-475.
     """
     k = len(factors)
     if k < 3:
         raise ValueError("Box-Behnken designs require at least 3 factors.")
-    coded_matrix = bbdesign(k, center=n_center_points)
-    return coded_matrix, {}
+    blocks = _BOX_BEHNKEN_BLOCKS.get(k)
+    if blocks is None:
+        construction = "published_pairs" if k <= 5 else "all_pairs"
+        return bbdesign(k, center=n_center_points), {"construction": construction}
+    half = k in _BOX_BEHNKEN_HALF_FRACTION
+    rows = []
+    for block in blocks:
+        for corner in itertools.product((-1.0, 1.0), repeat=len(block)):
+            if half and np.prod(corner) < 0:
+                continue
+            row = np.zeros(k)
+            row[list(block)] = corner
+            rows.append(row)
+    rows.extend(np.zeros(k) for _ in range(n_center_points))
+    size = {3: "three", 4: "four", 5: "five"}[len(blocks[0])]
+    return np.asarray(rows), {"construction": f"published_blocks_of_{size}"}
 
 
-def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
+def dsd_conference_order(n_factors: int) -> int:
+    """Return the order of the conference matrix a definitive screening design for ``n_factors`` factors is built from.
+
+    ``n_factors`` itself when it is even and ``n_factors + 1`` when it is odd, stepped up
+    to the next order where a conference matrix can be built: none exists at 22 or 34,
+    so 21 and 22 factors use order 24, and 33 and 34 factors use order 38 (36 needs a
+    construction not implemented here). The extra columns are fake factors, dropped
+    from the design.
+
+    Raises
+    ------
+    ValueError
+        For fewer than 3 factors.
+    """
+    if n_factors < 3:
+        raise ValueError("Definitive Screening Designs require at least 3 factors.")
+    return conference_order_at_least(n_factors + n_factors % 2)
+
+
+def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: str = "dsd") -> int:
+    """Return the number of runs in the definitive screening design for ``n_factors`` factors.
+
+    ``2m + 1`` for the conference order ``m`` of :func:`dsd_conference_order`: the familiar
+    ``2k + 1`` for even ``k`` and ``2k + 3`` for odd ``k``, except where the order steps up.
+    Two-level categorical factors (counted in ``n_factors``) need two centre runs instead
+    of one (Jones and Nachtsheim 2013), and four with the ORTH-augment method
+    (``categorical_method="orth"``) when there are two or more of them.
+
+    Examples
+    --------
+    >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22), dsd_run_count(6, n_categorical=2)
+    (13, 17, 49, 14)
+    >>> dsd_run_count(6, n_categorical=2, categorical_method="orth")
+    16
+    """
+    return 2 * dsd_conference_order(n_factors) + _dsd_centre_runs(n_categorical, categorical_method)
+
+
+#: Jones and Nachtsheim's (2011) definitive screening designs of ``2k + 1`` runs for an odd number
+#: ``k`` of factors, from their Figure 1: one word per run, ``+`` and ``-`` for +1 and -1, the centre
+#: run last. No conference matrix has an odd order, so the authors found these by coordinate exchange;
+#: they keep the fold-over structure, but their main effects are correlated.
+_DSD_2011_ODD: dict[int, str] = {
+    5: "0++-- 0--++ +0--+ -0++- +-0+- -+0-+ +-+0+ -+-0- ++++0 ----0 00000",
+    7: "0+-+-+- 0-+-+-+ -0+-++- +0-+--+ +-0++++ -+0---- +--0+-- -++0-++ --++0-- ++--0++ -+-++0+ +-+--0- "
+    "+++++-0 -----+0 0000000",
+    9: "0++++++++ 0-------- +0+-+--+- -0-+-++-+ -+0-+-+-- +-0+-+-++ --+0+---+ ++-0-+++- +-+-0++-- -+-+0--++ "
+    "----+0+++ ++++-0--- ++--++0-+ --++--0+- ---+++-0- +++---+0+ -++--+-+0 +--++-+-0 000000000",
+    11: "0-+-----+-+ 0+-+++++-+- -0--+----++ +0++-++++-- --0++++---+ ++0----+++- ---0-++-++- +++0+--+--+ "
+    "+--+0+-++++ -++-0-+---- --++-0-+-+- ++--+0+-+-+ ---++-0++-- +++--+0--++ -+++--+0+++ +---++-0--- "
+    "-+---+-+0-+ +-+++-+-0+- +-----++-0+ -+++++--+0- ++-+------0 --+-++++++0 00000000000",
+}
+
+
+def _dsd_2011(k: int) -> tuple[np.ndarray, dict]:
+    """Return Jones and Nachtsheim's (2011) design of ``2k + 1`` runs for an odd ``k`` of 5 to 11, and its metadata."""
+    level = {"+": 1.0, "-": -1.0, "0": 0.0}
+    design = np.array([[level[c] for c in run] for run in _DSD_2011_ODD[k].split()])
+    correlations = np.corrcoef(design, rowvar=False)
+    largest = float(np.abs(correlations[np.triu_indices(k, 1)]).max())
+    meta = {
+        "construction": "jones_nachtsheim_2011",
+        "conference_order": None,
+        "fake_factors": 0,
+        "note": (
+            f"Jones and Nachtsheim's (2011) design of {2 * k + 1} runs for {k} factors, from their Figure 1: two runs "
+            f"fewer than the conference-matrix design, but its main effects are correlated (|r| up to {largest:.3g}) "
+            "and it has no fake factors to leave error degrees of freedom."
+        ),
+    }
+    return design, meta
+
+
+#: How a DSD takes two-level categorical factors (Jones and Nachtsheim 2013): ``"dsd"``, the
+#: DSD-augment method, or ``"orth"``, the ORTH-augment method.
+CATEGORICAL_METHODS = ("dsd", "orth")
+
+
+def _dsd_centre_runs(n_categorical: int, categorical_method: str) -> int:
+    """Return a DSD's centre runs: one, two with categorical factors, four for ORTH-augment's two or more."""
+    if categorical_method not in CATEGORICAL_METHODS:
+        msg = f"categorical_method must be one of {CATEGORICAL_METHODS}; got {categorical_method!r}."
+        raise ValueError(msg)
+    if not n_categorical:
+        return 1
+    return 4 if categorical_method == "orth" and n_categorical > 1 else 2
+
+
+def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
+    """Conference order for ``k`` factors and ``extra`` centre runs: the minimal one, or the largest within ``budget``.
+
+    Columns beyond ``k`` are fake factors (Jones and Nachtsheim 2017): they are not run as
+    factors, but the foldover keeps them orthogonal to everything, so they give the
+    analysis error degrees of freedom free of any second-order effect.
+    """
+    minimal = dsd_conference_order(k)
+    if budget is None:
+        return minimal
+    if budget < 2 * minimal + extra:
+        smaller = (
+            f" ({2 * k + 1} for Jones and Nachtsheim's 2011 design, whose main effects are correlated)"
+            if extra == 1 and k in _DSD_2011_ODD
+            else ""
+        )
+        raise ValueError(
+            f"A definitive screening design for {k} factors needs at least {2 * minimal + extra} runs{smaller}; "
+            f"budget={budget} is too small."
+        )
+    order = minimal
+    while order + 2 <= MAX_ORDER and 2 * (order + 2) + extra <= budget:
+        order += 2
+    while conference_order_at_least(order) != order:  # step down to an order that can be built
+        order -= 2
+    return order
+
+
+def dispatch_dsd(
+    factors: list[Factor], budget: int | None = None, categorical_method: str = "dsd"
+) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
-    Follows the conference-matrix-based construction of Jones & Nachtsheim
-    (2011).  For *k* factors the DSD has ``2k + 1`` runs when *k* is even
-    (using a conference matrix of order *k*) and ``2k + 3`` runs when *k*
-    is odd (using a conference matrix of order ``k + 1`` and dropping the
-    last column; Xiao, Lin & Bai 2012).  The design can estimate all main
-    effects and quadratic effects and detect two-factor interactions with
-    minimal confounding, provided the underlying conference matrix is
-    genuine (``C.T @ C == (m-1) * I``).
+    The conference-matrix construction of Jones and Nachtsheim (2011), as given by
+    Xiao, Lin and Bai (2012): with ``C`` a conference matrix of order ``m``
+    (``C'C = (m - 1) I``), the design is ``[C; -C; 0]`` with ``2m + 1`` runs, and its
+    first ``k`` columns are the factors. ``m`` is ``k`` for even ``k`` and ``k + 1`` for
+    odd ``k``, stepped up where no conference matrix of that order can be built (see
+    :func:`dsd_conference_order`). Main effects are then orthogonal to each other and
+    to every quadratic and two-factor interaction column.
 
-    The Paley construction used by :func:`_conference_matrix` produces a
-    genuine conference matrix whenever ``m - 1`` is an odd prime.  For other
-    *m* the function falls back to a cyclic approximation and logs a
-    warning; the resulting DSD will still run but its main-effects
-    orthogonality may be degraded.
+    Conference matrices come from :mod:`process_improve.experiments._finite_fields`:
+    Paley's construction over GF(q) for every prime power ``q = m - 1`` (including 9,
+    25, 27, 49) and the doubling of an antisymmetric matrix (orders 16, 40, 56, ...).
+    Every matrix is checked against ``C'C = (m - 1) I`` before use; no approximate
+    matrix is ever used.
+
+    Two-level categorical factors use the DSD-augment method of Jones and Nachtsheim
+    (2013): a categorical factor takes a conference-matrix column like any other, its
+    two zeros (one in each half of the foldover) become ``+z`` and ``-z``, and the
+    single centre run becomes two, with the categorical factors at ``+b`` and ``-b``.
+    The signs are chosen to maximise the determinant of the main-effects information
+    matrix. Every main effect stays orthogonal to every second-order effect, and the
+    continuous main effects stay orthogonal to each other. Resolving the zeros costs
+    some orthogonality between a categorical main effect and the other main effects:
+    it is slightly correlated with each continuous main effect (``|r|`` about 0.17 for
+    four continuous factors and one categorical factor in 14 runs) and with the other
+    categorical main effects.
+
+    The ORTH-augment method (``categorical_method="orth"``, Jones and Nachtsheim 2013,
+    Section 3) keeps every main effect orthogonal to every other instead, in the same
+    runs for one categorical factor and two more runs for two to four. The price is
+    that the main effects are no longer clear of the second-order effects: each is
+    partly aliased with some quadratic effects and two-factor interactions (the
+    paper's Table 5). A categorical factor's two zeros both become ``+1``, which leaves
+    it orthogonal to the other columns of the foldover but adds 2 to its sum; centre
+    runs balance it. One categorical factor takes two centre runs at ``-1``. Two to
+    four take four, whose categorical settings are the columns of a 4 x 4 block with
+    one ``+1`` in each column and each row, orthogonal to each other. More than four
+    reuse the block's columns in turn, so a categorical factor is correlated only with
+    those that share its column: ``2 n_B (c - 2 n_B - 2)`` nonzero off-diagonal entries
+    of the main-effects information matrix for ``c`` categorical factors, ``n_B = c // 4``.
+
+    A ``budget`` larger than the minimal design adds fake factors: the conference
+    matrix of the largest buildable order whose design fits the budget is used, and its
+    extra columns are left out. Jones and Nachtsheim (2017) recommend this, because the
+    unused columns give error degrees of freedom free of any second-order effect, which
+    the analysis of a DSD (:func:`process_improve.experiments.analyze_omars`) needs.
+
+    A ``budget`` of ``2k + 1`` or ``2k + 2`` runs for an odd ``k`` of 5, 7, 9 or 11 continuous
+    factors, too small for the conference-matrix design, gives Jones and Nachtsheim's (2011)
+    design of ``2k + 1`` runs instead (their Figure 1). It saves two runs; its main effects are
+    still orthogonal to every second-order effect, but correlated with each other (``|r|`` up to
+    0.25, 0.167, 0.125 and 0.3), and it has no fake factors, so the full second-order model leaves
+    it no error degrees of freedom. The metadata's ``note`` says so.
 
     Parameters
     ----------
     factors : list[Factor]
-        Continuous factors.
+        At least three factors: continuous, or categorical with exactly two levels.
+    budget : int or None
+        Largest number of runs. ``None`` gives the minimal design.
+    categorical_method : {"dsd", "orth"}
+        How two-level categorical factors are added: DSD-augment (the default) or
+        ORTH-augment.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata.  Metadata includes the name of
-        the conference-matrix construction that was used.
+        Coded design matrix (categorical factors at -1 / +1) and metadata:
+        ``construction``, ``conference_order``, ``fake_factors`` and, with categorical
+        factors, ``n_categorical`` and ``categorical_method``.
 
     References
     ----------
-    .. [1] Jones, B. and Nachtsheim, C. J. (2011).  "A class of three-level
-       designs for definitive screening in the presence of second-order
-       effects."  *Journal of Quality Technology*, 43(1):1-15.
-    .. [2] Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
-       definitive screening designs using conference matrices."  *Journal
-       of Quality Technology*, 44(1):2-8.
+    * Jones, B. and Nachtsheim, C. J. (2011).  "A class of three-level
+      designs for definitive screening in the presence of second-order
+      effects."  *Journal of Quality Technology*, 43(1):1-15.
+    * Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
+      definitive screening designs using conference matrices."  *Journal
+      of Quality Technology*, 44(1):2-8.
+    * Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
+      designs with added two-level categorical factors."  *Journal of Quality
+      Technology*, 45(2):121-129.
+    * Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
+      selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
     """
     k = len(factors)
-    if k < 3:
-        raise ValueError("Definitive Screening Designs require at least 3 factors.")
-
-    # For even k, use a conference matrix of order k (-> 2k + 1 runs).
-    # For odd k, use a conference matrix of order k + 1 and drop the last
-    # column so the design has k factors and 2(k+1) + 1 = 2k + 3 runs.
-    m = k if k % 2 == 0 else k + 1
-    C, construction = _conference_matrix(m)
-
-    zero_row = np.zeros((1, m))
-    coded_matrix = np.vstack([C, -C, zero_row])
-
-    if k % 2 == 1:
-        coded_matrix = coded_matrix[:, :k]
-
-    return coded_matrix, {"construction": construction}
-
-
-def _is_prime(n: int) -> bool:
-    """Return True iff *n* is a (positive) prime."""
-    if n < 2:
-        return False
-    if n < 4:
-        return True
-    if n % 2 == 0:
-        return False
-    i = 3
-    while i * i <= n:
-        if n % i == 0:
-            return False
-        i += 2
-    return True
+    categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]
+    for j in categorical:
+        if len(factors[j].levels or []) != 2:
+            raise ValueError(
+                f"Factor {factors[j].name!r} has {len(factors[j].levels or [])} levels; definitive screening "
+                "designs take two-level categorical factors only (Jones and Nachtsheim 2013). Use "
+                'design_type="d_optimal" or "i_optimal" for a factor with more levels.'
+            )
+    extra = _dsd_centre_runs(len(categorical), categorical_method)
+    if budget is not None and not categorical and k in _DSD_2011_ODD and 2 * k + 1 <= budget < dsd_run_count(k):
+        return _dsd_2011(k)
+    m = _dsd_order_for_budget(k, extra, budget)
+    conference, construction = conference_matrix(m)
+    folded = np.vstack([conference, -conference]).astype(float)[:, :k]
+    meta: dict = {"construction": construction, "conference_order": m, "fake_factors": m - k}
+    if not categorical:
+        return np.vstack([folded, np.zeros((1, k))]), meta
+    meta["n_categorical"], meta["categorical_method"] = len(categorical), categorical_method
+    augment = _orth_augment if categorical_method == "orth" else _dsd_augment
+    return augment(folded, categorical), meta
 
 
-def _paley_conference_matrix(q: int) -> np.ndarray:
-    """Build a conference matrix of order ``q + 1`` via Paley's construction.
-
-    Requires *q* to be an odd prime.  Works for both ``q ≡ 1 (mod 4)``
-    (symmetric conference matrix, "Paley type II") and ``q ≡ 3 (mod 4)``
-    (skew-symmetric conference matrix, "Paley type I").  In both cases
-    ``C.T @ C == q * I``.
-
-    Parameters
-    ----------
-    q : int
-        An odd prime.
-
-    Returns
-    -------
-    np.ndarray
-        ``(q + 1) x (q + 1)`` matrix with 0s on the diagonal and ±1
-        off-diagonal.
-    """
-    # Legendre symbol χ : GF(q) -> {-1, 0, 1}
-    quadratic_residues = {(x * x) % q for x in range(1, q)}
-    chi = np.zeros(q, dtype=int)
-    for x in range(1, q):
-        chi[x] = 1 if x in quadratic_residues else -1
-
-    # Jacobsthal matrix Q[a, b] = χ(b - a)
-    q_matrix = np.zeros((q, q), dtype=int)
-    for a in range(q):
-        for b in range(q):
-            q_matrix[a, b] = chi[(b - a) % q]
-
-    n = q + 1
-    c_matrix = np.zeros((n, n), dtype=int)
-    c_matrix[0, 1:] = 1
-    if q % 4 == 1:
-        # Symmetric Paley conference matrix.
-        c_matrix[1:, 0] = 1
-    else:
-        # Skew-symmetric Paley conference matrix (q ≡ 3 mod 4).
-        c_matrix[1:, 0] = -1
-    c_matrix[1:, 1:] = q_matrix
-    return c_matrix
+#: Up to this many categorical factors, every sign choice of the DSD-augment method is tried.
+_MAX_EXHAUSTIVE_CATEGORICAL = 7
 
 
-def _cyclic_conference_matrix(k: int) -> np.ndarray:
-    """Legacy cyclic approximation of a conference matrix.
+def _dsd_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
+    """Jones and Nachtsheim's (2013) DSD-augment: resolve the categorical columns' zeros and add two centre runs."""
+    n_half, k = folded.shape[0] // 2, folded.shape[1]
+    zero_rows = [int(np.flatnonzero(folded[:n_half, j] == 0)[0]) for j in categorical]
+    c = len(categorical)
+    if c <= _MAX_EXHAUSTIVE_CATEGORICAL:
+        candidates = (np.array(signs) for signs in itertools.product((-1.0, 1.0), repeat=2 * c))
+    else:  # one-at-a-time flips of an alternating pattern, linear in c (the paper uses an exchange here)
+        seed = np.where(np.arange(2 * c) % 2 == 0, 1.0, -1.0)
+        candidates = (seed * np.where(np.arange(2 * c) == i, -1.0, 1.0) for i in range(-1, 2 * c))
+    best, best_value = folded, -np.inf
+    for signs in candidates:
+        design = np.vstack([folded, np.zeros((2, k))])
+        for position, (j, row) in enumerate(zip(categorical, zero_rows, strict=True)):
+            design[row, j], design[row + n_half, j] = signs[position], -signs[position]
+            design[-2, j], design[-1, j] = signs[c + position], -signs[c + position]
+        model = np.column_stack([np.ones(len(design)), design])
+        value = float(np.linalg.slogdet(model.T @ model)[1])
+        if value > best_value + 1e-12:
+            best, best_value = design, value
+    return best
 
-    Does **not** satisfy ``C.T @ C == (k - 1) * I`` in general; used only as
-    a fallback when no Paley construction is available for the requested
-    order.
-    """
-    c_matrix = np.zeros((k, k))
-    half = (k - 1) // 2
-    sequence = [1] * half + [-1] * (k - 1 - half)
-    for i in range(k):
-        for j in range(k):
-            if i != j:
-                idx = (j - i - 1) % (k - 1) if j > i else (j - i) % (k - 1)
-                c_matrix[i, j] = sequence[idx]
-    return c_matrix
+
+#: The categorical settings of ORTH-augment's four centre runs, a column per categorical factor
+#: in turn: each column sums to -2 and the columns are orthogonal.
+_ORTH_CENTRE_BLOCK = np.array([[-1, -1, -1, 1], [-1, -1, 1, -1], [-1, 1, -1, -1], [1, -1, -1, -1]], dtype=float)
 
 
-def _conference_matrix(m: int) -> tuple[np.ndarray, str]:
-    """Construct an ``m x m`` conference matrix.
-
-    Uses Paley's construction when ``m - 1`` is an odd prime (covering
-    ``m ∈ {4, 6, 8, 12, 14, 18, 20, 24, 30, 32, 38, 42, 44, 48, 54, 60, 62,
-    68, 72, 74, 80, 84, 90, 98, ...}``), which returns a genuine conference
-    matrix with ``C.T @ C == (m - 1) * I``.  For other orders (e.g.
-    ``m ∈ {10, 16, 22, 26, 28, 34, 36, 40, ...}``) no Paley construction
-    with a prime *q* is available; the function falls back to a cyclic
-    approximation and logs a warning.
-
-    Parameters
-    ----------
-    m : int
-        Desired order of the conference matrix.
-
-    Returns
-    -------
-    tuple[np.ndarray, str]
-        The matrix and a short string identifying the construction used
-        (e.g. ``"paley_q=13"`` or ``"cyclic_fallback"``).
-    """
-    q = m - 1
-    if q >= 3 and q % 2 == 1 and _is_prime(q):
-        return _paley_conference_matrix(q).astype(float), f"paley_q={q}"
-
-    logger.warning(
-        "No Paley conference-matrix construction known for order m=%d "
-        "(q = m - 1 = %d is not an odd prime); falling back to a cyclic "
-        "approximation. The resulting DSD's main-effects orthogonality "
-        "may be degraded.",
-        m,
-        q,
-    )
-    return _cyclic_conference_matrix(m), "cyclic_fallback"
+def _orth_augment(folded: np.ndarray, categorical: list[int]) -> np.ndarray:
+    """Jones and Nachtsheim's (2013) ORTH-augment: categorical zeros set to +1, and centre runs to balance them."""
+    n_half, k = folded.shape[0] // 2, folded.shape[1]
+    design = folded.copy()
+    for j in categorical:
+        row = int(np.flatnonzero(folded[:n_half, j] == 0)[0])
+        design[row, j] = design[row + n_half, j] = 1.0  # the same sign in both halves: orthogonal to the rest
+    centre = np.zeros((2 if len(categorical) == 1 else 4, k))
+    for i, j in enumerate(categorical):
+        centre[:, j] = -1.0 if len(categorical) == 1 else _ORTH_CENTRE_BLOCK[:, i % 4]
+    return np.vstack([design, centre])

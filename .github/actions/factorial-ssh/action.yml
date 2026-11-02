@@ -1,0 +1,40 @@
+name: Reach factori.al over SSH
+description: >
+  Write the deploy key, the server's host key and an SSH config, so the job's later steps can
+  run `ssh factorial <request>`. On the server the key runs one command whatever it asks
+  (deploy/factorial/factorial_deploy.py), and the host key is pinned, so the job refuses any
+  other machine that answers as factori.al.
+
+inputs:
+  key:
+    description: The deploy key's private half, the `factorial` environment's FACTORIAL_SSH_KEY secret.
+    required: true
+  known-hosts:
+    description: The server's host key, as a known_hosts line; the FACTORIAL_KNOWN_HOSTS variable.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write the deploy key, the host key and the SSH config
+      shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        umask 077
+        mkdir -p ~/.ssh
+        printf '%s\n' "$KEY" > ~/.ssh/factorial
+        printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts_factorial
+        cat >> ~/.ssh/config <<'EOF'
+        Host factorial
+          HostName factori.al
+          User factorial
+          IdentityFile ~/.ssh/factorial
+          IdentitiesOnly yes
+          UserKnownHostsFile ~/.ssh/known_hosts_factorial
+          StrictHostKeyChecking yes
+          BatchMode yes
+          ConnectTimeout 30
+          ServerAliveInterval 15
+        EOF

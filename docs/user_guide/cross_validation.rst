@@ -31,13 +31,12 @@ Element-wise Cross-Validation (PCA)
    ``selection_rule``.
 
 Holding out individual cells, rather than whole rows, is what keeps a
-prediction independent of the value being predicted. Under the deprecated
-``cv_scheme="row_wise"`` scheme a held-out row flows back through
-``transform()`` into its own prediction, so PRESS shrinks monotonically and
-reaches zero once the components equal the variables. It measures compression
-rather than prediction and cannot select a component count. It is kept for one
-more release cycle and emits a ``DeprecationWarning``; it will be removed in
-2.0.
+prediction independent of the value being predicted. When a whole row is held
+out and projected back through ``transform()``, its own values flow into its
+prediction, so PRESS shrinks monotonically and reaches zero once the
+components equal the variables. That measures compression rather than
+prediction and cannot select a component count, which is why the
+``cv_scheme="row_wise"`` scheme that did this was removed in 2.0.
 
 Choosing among the schemes
 --------------------------
@@ -74,7 +73,7 @@ differ in what they hold out and what they cost.
 
 The three new schemes factorise the matrix directly, so they raise on a block
 with missing cells, and they ignore ``scale_inside_folds``, ``n_repeats``,
-``n_iter`` and ``tol``. They hold nothing out in folds that could disagree, so
+``ekf_max_iter`` and ``ekf_tol``. They hold nothing out in folds that could disagree, so
 they report no per-fold spread and ``selection_rule="1se"`` has nothing to work
 with.
 
@@ -228,8 +227,9 @@ deliberately different choices (autoscale versus Pareto, say) become the
 same model and a comparison between them shows no difference. Both
 selectors emit a ``SpecificationWarning`` when they receive an ``X`` that
 is already centred and unit-variance scaled. If you must keep your own
-scaling, pass ``scale_inside_folds=False``; the scaling then leaks from the
-full dataset into every fold, and a warning says so.
+scaling, pass ``scale_inside_folds=False``, and for PLS ``scale=False`` as
+well, since a ``PLS(scale=True)`` fold model autoscales its own rows; the
+scaling then leaks from the full dataset into every fold, and a warning says so.
 
 The result is a ``Bunch`` with:
 

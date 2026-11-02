@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.10"
-# dependencies = ["process-improve[expt,plotting]", "kaleido"]
+# requires-python = ">=3.11"
+# dependencies = ["process-improve[plotting]>=1.98", "kaleido"]
 # ///
 """Render a ``visualize_doe`` result to an image or an interactive page.
 
@@ -58,7 +58,7 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not path.is_file():
         sys.exit(f"No such file: {path}")
     try:
-        payload = json.loads(path.read_text())
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         sys.exit(f"{path} is not valid JSON: {exc}")
     if not isinstance(payload, dict):
@@ -75,7 +75,7 @@ def _build_spec(args: argparse.Namespace) -> dict[str, Any]:
         from process_improve.tool_spec import discover_tools, execute_tool_call
     except ImportError as exc:  # pragma: no cover - environment guard
         sys.exit(
-            f"Could not import process_improve ({exc}).\nInstall it with:  pip install 'process-improve[expt,plotting]'"
+            f"Could not import process_improve ({exc}).\nInstall it with:  pip install 'process-improve[plotting]'"
         )
     discover_tools()
 
@@ -103,7 +103,7 @@ def _write(spec: dict[str, Any], output: Path) -> None:
     suffix = output.suffix.lower()
 
     if suffix == ".json":
-        output.write_text(json.dumps(spec, indent=2, default=str))
+        output.write_text(json.dumps(spec, indent=2, default=str), encoding="utf-8")
         return
 
     figure_spec = spec.get("plotly")

@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import statsmodels.formula.api as smf
 from sklearn.utils import Bunch
 from statsmodels.regression.linear_model import RegressionResultsWrapper
+
+from ._shared import has_error_variance
 
 #: Two model columns whose cosine is within this of plus or minus one are aliased.
 _ALIASED = 1e-9
@@ -42,8 +45,13 @@ def alias_chains(ols_result: RegressionResultsWrapper) -> list[list[tuple[str, f
         where each term's column is ``factor`` times the leader's (``-1`` for an
         anti-alias in a coded design). A term aliased with nothing is a chain of one.
     """
-    exog = np.asarray(ols_result.model.exog, dtype=float)
-    names = [str(name) for name in ols_result.model.exog_names]
+    return alias_chains_of(
+        np.asarray(ols_result.model.exog, dtype=float), [str(n) for n in ols_result.model.exog_names]
+    )
+
+
+def alias_chains_of(exog: np.ndarray, names: list[str]) -> list[list[tuple[str, float]]]:
+    """Group the columns of a model matrix into chains of exact aliases, as :func:`alias_chains` does for a fit."""
     norms = np.linalg.norm(exog, axis=0)
     usable = norms > 0
     unit = np.divide(exog, norms, out=np.zeros_like(exog), where=usable)
@@ -64,6 +72,42 @@ def alias_chains(ols_result: RegressionResultsWrapper) -> list[list[tuple[str, f
     return chains
 
 
+def _chain_label(chain: list[tuple[str, float]]) -> str:
+    """Name a chain by its members, signed: ``"A:B + C:D"``, or ``"A:B - C:D"`` for an anti-alias."""
+    (leader, _), *rest = chain
+    return leader + "".join(f" {'+' if factor > 0 else '-'} {term}" for term, factor in rest)
+
+
+def chain_reduced_fit(ols_result: RegressionResultsWrapper) -> tuple[RegressionResultsWrapper, dict[str, str]]:
+    """Refit on one column per alias chain, so each chain is tested once, under its chain name.
+
+    The pseudo-inverse fit of a model with exactly aliased terms lists every member of
+    a chain as a separate term with the same test, so an ANOVA counts the chain's sum of
+    squares and degrees of freedom once per member. Dropping all but each chain's
+    leader (and every term aliased with the intercept) leaves a full-rank fit with the
+    same residuals, whose leader coefficient is the chain's coefficient.
+
+    Parameters
+    ----------
+    ols_result : RegressionResultsWrapper
+        A statsmodels OLS result fitted from a formula.
+
+    Returns
+    -------
+    tuple[RegressionResultsWrapper, dict[str, str]]
+        The reduced fit (``ols_result`` itself when nothing is aliased) and a map from each
+        retained leader's column name to its chain name.
+    """
+    chains = alias_chains(ols_result)
+    drop = [term for chain in chains for term, _ in chain[1:]]
+    if not drop:
+        return ols_result, {}
+    labels = {chain[0][0]: _chain_label(chain) for chain in chains if len(chain) > 1 and chain[0][0] != "Intercept"}
+    model = ols_result.model
+    reduced = smf.ols(model.formula, data=model.data.frame, drop_cols=drop).fit()
+    return reduced, labels
+
+
 def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     """Return one coefficient per alias chain, the part of the fit the design determines.
 
@@ -81,29 +125,34 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
     -------
     Bunch
         ``coefficients`` (a Series, one entry per chain, the intercept excluded),
-        ``std_errors`` (the same, or None without residual degrees of freedom),
-        ``chains`` (chain name to its member terms, for chains of two or more) and
+        ``std_errors`` (the same, or None without residual degrees of freedom or a prior sigma),
+        ``chains`` (chain name to its member terms, for chains of two or more),
         ``confounded_with_mean`` (terms aliased with the intercept, which no
-        effect can be estimated for).
+        effect can be estimated for) and ``spans`` (the range of each chain's leading
+        column over the runs: 2 for a -1/+1 term, 1 for the square of one; an effect is
+        the coefficient times its span).
     """
+    exog = np.asarray(ols_result.model.exog, dtype=float)
     params = ols_result.params.to_numpy(dtype=float)
     position = {str(name): k for k, name in enumerate(ols_result.model.exog_names)}
-    covariance = ols_result.cov_params().to_numpy() if int(ols_result.df_resid) > 0 else None
+    covariance = ols_result.cov_params().to_numpy() if has_error_variance(ols_result) else None
     labels: list[str] = []
     coefficients: list[float] = []
     errors: list[float] = []
     chains: dict[str, list[str]] = {}
     confounded: list[str] = []
+    spans: list[float] = []
     for chain in alias_chains(ols_result):
         (leader, _), *rest = chain
         if leader == "Intercept":
             confounded.extend(term for term, _ in rest)
             continue
-        label = leader + "".join(f" {'+' if factor > 0 else '-'} {term}" for term, factor in rest)
+        label = _chain_label(chain)
         members = [position[term] for term, _ in chain]
         weights = np.array([factor for _, factor in chain])
         labels.append(label)
         coefficients.append(float(weights @ params[members]))
+        spans.append(float(np.ptp(exog[:, members[0]])))
         if covariance is not None:
             errors.append(float(np.sqrt(weights @ covariance[np.ix_(members, members)] @ weights)))
         if rest:
@@ -113,4 +162,5 @@ def estimable_effects(ols_result: RegressionResultsWrapper) -> Bunch:
         std_errors=pd.Series(errors, index=labels, dtype=float) if covariance is not None else None,
         chains=chains,
         confounded_with_mean=confounded,
+        spans=pd.Series(spans, index=labels, dtype=float),
     )

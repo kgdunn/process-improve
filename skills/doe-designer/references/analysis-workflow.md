@@ -77,7 +77,11 @@ Run `residual_diagnostics` every time and actually read it.
   a reagent degrading, an instrument going out of calibration. If run order
   was recorded, this is detectable; if the runs were not randomised, it is
   indistinguishable from a factor effect, which is precisely why
-  randomisation matters.
+  randomisation matters. Keep the design's `RunOrder` column in
+  `design_matrix`: `residual_diagnostics` then reports the residuals' lag-1
+  autocorrelation in run order under `run_order`, with a `note` when it is
+  more than twice its standard error. The top-level `durbin_watson` is in the
+  rows' order, which means little for results entered in standard order.
 - **Outliers**: investigate before deleting. A point that is genuinely a
   transcription error can go. A point that is merely inconvenient stays. If
   one is dropped, say so in the report and show the analysis both ways.
@@ -112,9 +116,11 @@ Three cautions worth passing to the user every time:
 - **Never extrapolate** beyond the factor ranges studied. The model has no
   information there and will happily produce a confident number anyway.
 - **Confirm.** Run the predicted optimum, at least in triplicate, and check it
-  with `confirmation_test`. If the confirmation runs fall outside the
-  prediction interval, the model is wrong somewhere and the result should not
-  be used until that is understood.
+  with `confirmation_test`. Read its `confirmed` verdict, which compares the
+  mean of the runs with the prediction interval for a mean of that many runs;
+  `all_within_PI` checks each run separately and fails a correct model about
+  one time in seven with three runs. If `confirmed` is false, the model is
+  wrong somewhere and the result should not be used until that is understood.
 
 ## Analysing a design you did not generate
 

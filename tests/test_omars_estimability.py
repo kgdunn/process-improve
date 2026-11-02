@@ -14,8 +14,7 @@ second-order parameters, so no foldover of that size can fit the full
 second-order model, however cleverly its runs are chosen.
 
 Both directions are tested here: the bound holds universally, and it is
-attained. None of it needs a solver, so unlike ``tests/test_omars_ilp.py`` this
-module is not gated on CBC and runs everywhere.
+attained. None of it needs a solver.
 """
 
 from __future__ import annotations
@@ -232,7 +231,7 @@ class TestHalfBounds:
 
 
 class TestGenerateOmarsRefusesSubFrontierSizes:
-    """The validation runs before any solver call, so this needs no CBC."""
+    """The validation runs before any solver call."""
 
     @pytest.mark.parametrize(("k", "n_runs"), [(4, 19), (4, 17), (5, 27), (5, 29), (6, 41)])
     def test_sub_frontier_n_runs_is_refused(self, k: int, n_runs: int) -> None:

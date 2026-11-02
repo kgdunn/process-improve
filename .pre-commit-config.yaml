@@ -45,7 +45,7 @@ repos:
             args: ["--django"]
             # Helpers and fixture builders that live beside the tests but are not tests:
             # pytest must not collect them, which is why they are named this way.
-            exclude: ^tests/(_[^/]+\.py|fixtures/.*/prepare_fixture\.py)$
+            exclude: ^tests/((.+/)?_[^/]+\.py|fixtures/.*/prepare_fixture\.py)$
 
     - repo: https://github.com/pre-commit/mirrors-mypy
       rev: v1.19.1

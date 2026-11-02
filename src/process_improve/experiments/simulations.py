@@ -18,12 +18,28 @@ sequential experimentation, one run at a time, with the fewest number of runs.
 
 from __future__ import annotations
 
+import math
+import numbers
+
 import numpy as np
 
 from process_improve._random import check_random_state
 
 # Below this cooking time nothing pops, so the simulator refuses to answer.
 _POPCORN_MINIMUM_TIME = 77.0
+
+
+def _finite_number(value: object, message: str) -> float:
+    """Return ``value`` as a float, raising ``ValueError(message)`` unless it is a finite number.
+
+    Strings and ``None`` are refused too: numpy raised ``TypeError`` on them.
+    """
+    if isinstance(value, np.ndarray):  # a 0-d array holds one number
+        value = value.item()
+    number = float(value) if isinstance(value, numbers.Real) else math.nan
+    if not math.isfinite(number):
+        raise ValueError(message)
+    return number
 
 
 def popcorn(
@@ -64,12 +80,13 @@ def popcorn(
     Raises
     ------
     ValueError
-        If `t` is not a single finite number, or is below 77 seconds.
+        If `t` is not a single finite number (a string or ``None`` included), or
+        is below 77 seconds.
 
     Examples
     --------
-    >>> popcorn(t=135, random_state=13)  # doctest: +SKIP
-    94
+    >>> popcorn(t=135, random_state=13)
+    95
 
     Source
     ------
@@ -85,13 +102,12 @@ def popcorn(
 
     if np.ndim(time_taken) > 0:
         raise ValueError("Cooking popcorn batches in parallel is (intentionally) not allowed.")
-    if not np.isfinite(time_taken):
-        raise ValueError("Please provide finite numeric values as inputs.")
+    time_taken = _finite_number(time_taken, "Please provide finite numeric values as inputs.")
     if time_taken < _POPCORN_MINIMUM_TIME:
         raise ValueError("No popcorn was made: please cook for a longer time.")
 
     rng = check_random_state(random_state)
-    coded = (float(time_taken) - 135.0) / 15.0
+    coded = (time_taken - 135.0) / 15.0
     y = coded * 15 - 2.4 * coded * coded + 93 + rng.uniform(0.0, 1.0) * 6 - 3.0
     return max(0, round(y))
 
@@ -142,7 +158,8 @@ def grocery(
     Raises
     ------
     ValueError
-        If either input is a vector, is not finite, or is negative.
+        If either input is a vector, is not a finite number (a string or ``None``
+        included), or is negative.
 
     Source
     ------
@@ -162,8 +179,8 @@ def grocery(
     if np.ndim(P) > 0 or np.ndim(H) > 0:
         raise ValueError("Running the grocery store experiments in parallel is (intentionally) not allowed.")
 
-    if not np.isfinite(P) or not np.isfinite(H):
-        raise ValueError("All function inputs must be finite numbers.")
+    P = _finite_number(P, "All function inputs must be finite numbers.")
+    H = _finite_number(H, "All function inputs must be finite numbers.")
     if P < 0:
         raise ValueError("Please provide a positive sales price, P.")
     if H < 0:
@@ -222,12 +239,13 @@ def manufacture(
     Raises
     ------
     ValueError
-        If either input is a vector, is not finite, or is negative.
+        If either input is a vector, is not a finite number (a string or ``None``
+        included), or is negative.
 
     Examples
     --------
-    >>> manufacture(p=1.5, t=320, random_state=42)  # doctest: +SKIP
-    601
+    >>> manufacture(p=1.5, t=320, random_state=42)
+    600
 
     Source
     ------
@@ -247,8 +265,8 @@ def manufacture(
     if np.ndim(P) > 0 or np.ndim(T) > 0:
         raise ValueError("Running the manufacturing experiments in parallel is (intentionally) not allowed.")
 
-    if not np.isfinite(P) or not np.isfinite(T):
-        raise ValueError("All function inputs must be finite numbers.")
+    P = _finite_number(P, "All function inputs must be finite numbers.")
+    T = _finite_number(T, "All function inputs must be finite numbers.")
     if P < 0:
         raise ValueError("Please provide a positive sales price, P.")
     if T < 0:

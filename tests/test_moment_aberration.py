@@ -288,6 +288,14 @@ def test_single_level_column_is_rejected() -> None:
         moment_aberration(design)
 
 
+def test_missing_value_is_rejected() -> None:
+    """A missing cell is refused, not coded as the high level."""
+    design = _basic_design(3).astype(float)
+    design.iloc[0, 0] = np.nan
+    with pytest.raises(ValueError, match="missing values"):
+        moment_aberration(design)
+
+
 def test_too_few_runs_is_rejected() -> None:
     """At least two runs are needed to form a pair."""
     with pytest.raises(ValueError, match="at least 2"):

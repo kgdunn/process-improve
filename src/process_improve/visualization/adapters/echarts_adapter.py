@@ -8,10 +8,12 @@ Produces raw Python dicts that match the `ECharts option specification
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from process_improve.visualization.adapters.base import AbstractAdapter
 from process_improve.visualization.colors import (
+    CANNOT_RUN_FILL,
     DOE_PALETTE,
 )
 from process_improve.visualization.spec import (
@@ -120,8 +122,30 @@ class EChartsAdapter(AbstractAdapter):
                 option["yAxis"] = {"type": "value", "name": panel.y_title}
 
             option["grid"] = {"containLabel": True}
+            heatmap = next((layer for layer in panel.layers if layer.mark == MarkType.heatmap), None)
+            if heatmap is not None:
+                self._heatmap_axes(option, heatmap)
 
         return option
+
+    def _heatmap_axes(self, option: dict[str, Any], layer: LayerSpec) -> None:
+        """Give a heatmap's panel category axes from its grid, and the colour scale ECharts needs to draw it.
+
+        ``zmin`` and ``zmax`` in the layer's style fix the scale; otherwise it spans the values.
+        """
+        style = layer.style
+        values = [v for row in style.get("z_matrix", []) for v in row if v is not None and math.isfinite(v)]
+        option["xAxis"] = {"type": "category", "data": list(style.get("x_grid", [])), "name": option["xAxis"]["name"]}
+        option["yAxis"] = {"type": "category", "data": list(style.get("y_grid", [])), "name": option["yAxis"]["name"]}
+        option["tooltip"] = {"trigger": "item"}
+        option["visualMap"] = {
+            "min": style.get("zmin", min(values, default=0.0)),
+            "max": style.get("zmax", max(values, default=1.0)),
+            "calculable": True,
+            "orient": "horizontal",
+            "left": "center",
+            "bottom": 0,
+        }
 
     # ------------------------------------------------------------------
     # Multi-panel rendering
@@ -222,7 +246,7 @@ class EChartsAdapter(AbstractAdapter):
             return self._scatter_series(layer), False
 
         if mark in (MarkType.contour, MarkType.heatmap):
-            return self._heatmap_series(layer), False
+            return self._grid_series(layer), False
 
         if mark == MarkType.surface:
             return self._surface_series(layer), True
@@ -236,8 +260,8 @@ class EChartsAdapter(AbstractAdapter):
         if mark == MarkType.boxplot:
             return self._boxplot_series(layer), False
 
-        # Fallback
-        return self._scatter_series(layer), False
+        # Every MarkType member is handled above; a member added later renders as a scatter.
+        return self._scatter_series(layer), False  # pragma: no cover - no MarkType member reaches here
 
     def _bar_series(self, layer: LayerSpec) -> dict[str, Any]:
         data = [row[layer.y.field] for row in layer.data] if layer.y else []
@@ -349,6 +373,52 @@ class EChartsAdapter(AbstractAdapter):
             "emphasis": {"itemStyle": {"shadowBlur": 10}},
         }
 
+    def _grid_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build the series of a grid layer: a masked heatmap for a constraint contour, else a heatmap."""
+        if layer.style.get("contours", {}).get("type") == "constraint":
+            return self._constraint_series(layer)
+        return self._heatmap_series(layer)
+
+    def _constraint_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build a masked heatmap: the cells a constraint contour excludes, in its fill colour.
+
+        ECharts has no constraint contour, so the cells on the side of
+        ``contours.value`` that ``contours.operation`` does not keep are drawn, one
+        ``[x, y, 1]`` per cell, and the cells kept are left out. The grid is the one a
+        contour's response is drawn on (see :meth:`_heatmap_series`), so the mask covers
+        the response cell for cell; drawn after it, it sits on top. The fill colour is the
+        series' own, and the series is silent, without a tooltip.
+
+        Raises
+        ------
+        ValueError
+            If ``style['z_matrix']`` does not match ``x_grid`` and ``y_grid`` (as for
+            :meth:`_heatmap_series`), or the operation is not one of ``<``, ``<=``,
+            ``>`` and ``>=``.
+        """
+        contours = layer.style.get("contours", {})
+        value = float(contours.get("value", 0.0))
+        operation = contours.get("operation", "<=")
+        keeps = {
+            "<": lambda z: z < value,
+            "<=": lambda z: z <= value,
+            ">": lambda z: z > value,
+            ">=": lambda z: z >= value,
+        }
+        if operation not in keeps:
+            msg = f"A constraint contour on layer {layer.name!r} has operation {operation!r}; use <, <=, > or >=."
+            raise ValueError(msg)
+        kept = keeps[operation]
+        cells = self._heatmap_series(layer)["data"]
+        return {
+            "type": "heatmap",
+            "name": layer.name,
+            "data": [[x, y, 1] for x, y, z in cells if z is not None and math.isfinite(z) and not kept(z)],
+            "itemStyle": {"color": layer.style.get("fillcolor", CANNOT_RUN_FILL)},
+            "silent": True,
+            "tooltip": {"show": False},
+        }
+
     def _surface_series(self, layer: LayerSpec) -> dict[str, Any]:
         z_matrix = layer.style.get("z_matrix", [])
         return {
@@ -424,9 +494,7 @@ class EChartsAdapter(AbstractAdapter):
         mark_areas: list[list[dict[str, Any]]] = []
 
         for ann in annotations:
-            at = ann.annotation_type
-            if isinstance(at, str):
-                at = AnnotationType(at)
+            at = AnnotationType(ann.annotation_type)
 
             color = ann.style.get("color", DOE_PALETTE["threshold_me"])
             dash = ann.style.get("dash", "solid")
@@ -488,9 +556,9 @@ class EChartsAdapter(AbstractAdapter):
                         ]
                     )
 
-            elif at == AnnotationType.label:
+            else:  # AnnotationType.label, the one member without an ECharts rendering
                 msg = (
-                    "AnnotationType.label is declared in the spec vocabulary but not implemented "
+                    f"AnnotationType.{at.name} is declared in the spec vocabulary but not implemented "
                     "in the ECharts adapter."
                 )
                 raise NotImplementedError(msg)

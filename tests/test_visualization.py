@@ -11,8 +11,11 @@ import json
 import math
 from typing import Any
 
+import numpy as np
+import pandas as pd
 import pytest
 
+from process_improve.experiments import DesignRegion, Factor
 from process_improve.experiments._desirability import (
     composite_desirability,
     desirability_maximize,
@@ -20,14 +23,17 @@ from process_improve.experiments._desirability import (
     desirability_target,
     individual_desirability,
 )
+from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
 )
+from process_improve.experiments.visualization.plots.surfaces import _clip_line
 from process_improve.visualization.adapters import EChartsAdapter, PlotlyAdapter
-from process_improve.visualization.spec import ChartSpec
-from process_improve.visualization.types import DOEPlotType
+from process_improve.visualization.colors import CANNOT_RUN_FILL
+from process_improve.visualization.spec import ChartSpec, LayerSpec, PanelSpec
+from process_improve.visualization.types import DOEPlotType, MarkType
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -487,6 +493,17 @@ class TestResidualsVsFittedPlot:
         assert len(spec.panels[0].layers) == 1
         # Should have zero reference line annotation
         assert len(spec.panels[0].annotations) >= 1
+        assert spec.panels[0].x_title == "Fitted Values"
+
+    def test_x_axis_names_the_response(self, residual_diagnostics: dict) -> None:
+        plot = create_plot(
+            "residuals_vs_fitted",
+            analysis_results={"residual_diagnostics": residual_diagnostics},
+            response_column="Conversion",
+        )
+        panel = plot.to_spec().panels[0]
+        assert panel.x_title == "Fitted Conversion"
+        assert panel.layers[0].x.title == "Fitted Conversion"
 
 
 class TestNormalProbabilityPlot:
@@ -657,6 +674,255 @@ class TestContourPlot:
         assert contour_trace["contours"]["showlabels"] is True
 
 
+#: Davies 11.7, Table 11-7: a 2^3 factorial completed to a composite design, axial runs at plus or minus 2 (coded).
+_DAVIES_COMPOSITE = [
+    (-1, -1, -1, 55.9), (-1, -1, 1, 63.3), (-1, 1, -1, 67.5), (-1, 1, 1, 68.8), (1, -1, -1, 70.6),
+    (1, -1, 1, 68.0), (1, 1, -1, 68.6), (1, 1, 1, 62.4), (0, 0, 0, 66.9), (2, 0, 0, 65.4),
+    (-2, 0, 0, 56.9), (0, 2, 0, 67.5), (0, -2, 0, 65.0), (0, 0, 2, 68.9), (0, 0, -2, 60.3),
+]  # fmt: skip
+
+
+def _second_order_matrix(coefficients: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
+    """Return b and B of y = b0 + x'b + x'Bx for a two-factor quadratic in A and B."""
+    c = {row["term"]: row["coefficient"] for row in coefficients}
+    return np.array([c["A"], c["B"]]), np.array([[c["I(A ** 2)"], c["A:B"] / 2], [c["A:B"] / 2, c["I(B ** 2)"]]])
+
+
+def _cross(u: np.ndarray | list[float], v: np.ndarray | list[float]) -> float:
+    """Return the cross product of two vectors in the plane: zero when they are parallel."""
+    return float(u[0] * v[1] - u[1] * v[0])
+
+
+class TestContourOverTheDesign:
+    """The contour plot covers the design's runs, in coded or actual units, with the canonical analysis drawn (#799)."""
+
+    @staticmethod
+    def _composite(alpha: float) -> list[dict[str, Any]]:
+        points = [(-1, -1), (1, -1), (-1, 1), (1, 1), (-alpha, 0), (alpha, 0), (0, -alpha), (0, alpha), (0, 0)]
+        return [{"A": a, "B": b, "y": 0.0} for a, b in points]
+
+    def test_the_grid_covers_a_composite_designs_axial_runs(self, quadratic_coefficients: list) -> None:
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            design_data=self._composite(2.0),
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        ).to_spec()
+        style = spec.panels[0].layers[0].style
+        assert (style["x_grid"][0], style["x_grid"][-1]) == (-2.0, 2.0)
+        assert (style["y_grid"][0], style["y_grid"][-1]) == (-2.0, 2.0)
+        assert spec.metadata["extent"] == {"A": 2.0, "B": 2.0}
+
+    def test_without_runs_beyond_the_cube_the_grid_is_the_cube(self, quadratic_coefficients: list) -> None:
+        spec = create_plot(
+            "contour", analysis_results={"coefficients": quadratic_coefficients}, factors_to_plot=["A", "B"]
+        ).to_spec()
+        style = spec.panels[0].layers[0].style
+        assert (style["x_grid"][0], style["x_grid"][-1]) == (-1.0, 1.0)
+
+    @pytest.mark.parametrize(("extent", "expected"), [(1.5, (1.5, 1.5)), ({"A": 3.0}, (3.0, 2.0))])
+    def test_an_extent_overrides_the_design(
+        self, quadratic_coefficients: list, extent: float | dict[str, float], expected: tuple
+    ) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            design_data=self._composite(2.0),
+            response_column="y",
+            factors_to_plot=["A", "B"],
+            extent=extent,
+        )
+        assert tuple(plot.to_spec().metadata["extent"].values()) == expected
+
+    @pytest.mark.parametrize("extent", [0.0, -1.0, float("nan")])
+    def test_an_extent_must_be_a_positive_number(self, quadratic_coefficients: list, extent: float) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            extent=extent,
+        )
+        with pytest.raises(ValueError, match="positive number of coded units"):
+            plot.to_spec()
+
+    @pytest.mark.parametrize("plot_type", ["surface_3d", "prediction_variance"])
+    def test_the_other_surface_plots_cover_the_axial_runs_too(
+        self, quadratic_coefficients: list, plot_type: str
+    ) -> None:
+        design = [{**run, "y": float(k)} for k, run in enumerate(self._composite(math.sqrt(2)))]
+        spec = create_plot(
+            plot_type,
+            analysis_results={"coefficients": quadratic_coefficients},
+            design_data=design,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        ).to_spec()
+        assert spec.panels[0].layers[0].style["x_grid"][-1] == pytest.approx(math.sqrt(2))
+
+    def test_the_stationary_point_and_the_canonical_axes_are_drawn(self, quadratic_coefficients: list) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            overlays=["stationary_point", "canonical_axes"],
+        )
+        layers = {layer.name: layer for layer in plot.to_spec().panels[0].layers}
+        b, big_b = _second_order_matrix(quadratic_coefficients)
+        stationary = -0.5 * np.linalg.solve(big_b, b)
+        marker = layers["Stationary point (maximum)"].data[0]
+        assert (marker["x"], marker["y"]) == pytest.approx(tuple(stationary))
+        values, vectors = np.linalg.eigh(big_b)
+        axes = [layer for name, layer in layers.items() if name.startswith("Canonical axis")]
+        assert len(axes) == 2
+        for layer in axes:
+            (x0, y0), (x1, y1) = ((p["x"], p["y"]) for p in layer.data)
+            value = float(layer.name.rsplit(" ", 1)[1])
+            vector = vectors[:, int(np.argmin(np.abs(values - value)))]
+            assert _cross(vector, [x1 - x0, y1 - y0]) == pytest.approx(0.0, abs=1e-9), "along its eigenvector"
+            assert _cross([x1 - x0, y1 - y0], stationary - [x0, y0]) == pytest.approx(0.0, abs=1e-9), "through it"
+            assert max(abs(x0), abs(y0)) == pytest.approx(1.0), "from the edge of the plot"
+            assert max(abs(x1), abs(y1)) == pytest.approx(1.0), "to the edge of the plot"
+        traces = [trace for trace in plot.to_plotly()["data"] if trace.get("mode") == "lines"]
+        assert len(traces) == 2
+
+    def test_davies_composite_design_is_drawn_with_its_axial_runs_and_canonical_axes(self) -> None:
+        """Davies 11.7 (Fig. 11-9): eigenvalues -3.190, 0.780 and -0.069, axial runs at plus or minus 2."""
+        design = [dict(zip(("T", "c", "t", "y"), row, strict=True)) for row in _DAVIES_COMPOSITE]
+        result = analyze_experiment(
+            pd.DataFrame(design), response_column="y", model="quadratic", analysis_type="coefficients", coding="coded"
+        )
+        spec = create_plot(
+            "contour",
+            analysis_results=result,
+            design_data=design,
+            response_column="y",
+            factors_to_plot=["T", "c"],
+            hold_values={"t": 0.0},
+            overlays=["stationary_point", "canonical_axes"],
+        ).to_spec()
+        assert spec.metadata["extent"] == {"T": 2.0, "c": 2.0}
+        values = sorted(round(axis["eigenvalue"], 3) for axis in spec.metadata["canonical_axes"])
+        assert values == [-3.19, -0.069, 0.78]
+
+    def test_actual_units_move_every_layer_and_the_reference_lines(self, quadratic_coefficients: list) -> None:
+        coding = {"A": {"low": 100.0, "high": 150.0}, "B": {"low": 1.0, "high": 3.0}}
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients, "factor_coding": coding},
+            design_data=self._composite(2.0),
+            response_column="y",
+            factors_to_plot=["A", "B"],
+            overlays=["stationary_point"],
+            units="actual",
+        )
+        panel = plot.to_spec().panels[0]
+        style = panel.layers[0].style
+        assert (style["x_grid"][0], style["x_grid"][-1]) == (75.0, 175.0)
+        assert (style["y_grid"][0], style["y_grid"][-1]) == (0.0, 4.0)
+        b, big_b = _second_order_matrix(quadratic_coefficients)
+        stationary = -0.5 * np.linalg.solve(big_b, b)
+        marker = next(layer for layer in panel.layers if layer.name.startswith("Stationary")).data[0]
+        assert marker["x"] == pytest.approx(125 + 25 * stationary[0])
+        runs = next(layer for layer in panel.layers if layer.name == "Experimental runs").data
+        assert {(round(p["x"], 6), round(p["y"], 6)) for p in runs} >= {(175.0, 2.0), (125.0, 4.0), (75.0, 2.0)}
+        assert [(a.axis, a.value) for a in panel.annotations] == [("x", 125.0), ("y", 2.0)]
+        assert panel.backend_hints["equal_aspect"] is False
+
+    def test_actual_units_can_come_from_the_region(self, quadratic_coefficients: list) -> None:
+        region = DesignRegion([Factor(name="A", low=100, high=150), Factor(name="B", low=20, high=60)])
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            region=region,
+            units="actual",
+        ).to_spec()
+        assert spec.panels[0].layers[0].style["y_grid"][-1] == 60.0
+
+    def test_actual_units_need_the_factors_ranges(self, quadratic_coefficients: list) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            units="actual",
+        )
+        with pytest.raises(ValueError, match="needs the range of 'A'"):
+            plot.to_spec()
+
+    def test_the_canonical_overlays_need_a_second_order_model(self) -> None:
+        first_order = [
+            {"term": "Intercept", "coefficient": 40.0},
+            {"term": "A", "coefficient": 5.25},
+            {"term": "B", "coefficient": -3.5},
+        ]
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": first_order},
+            factors_to_plot=["A", "B"],
+            overlays="stationary_point",
+        )
+        with pytest.raises(ValueError, match="canonical analysis"):
+            plot.to_spec()
+
+    def test_the_canonical_overlays_need_a_model_of_second_order_at_most(self) -> None:
+        cubic = [
+            {"term": "Intercept", "coefficient": 40.0},
+            {"term": "A", "coefficient": 5.25},
+            {"term": "B", "coefficient": -3.5},
+            {"term": "I(A ** 2)", "coefficient": -2.0},
+            {"term": "I(B ** 2)", "coefficient": -1.0},
+            {"term": "I(A ** 3)", "coefficient": 0.5},
+        ]
+        plot = create_plot(
+            "contour", analysis_results={"coefficients": cubic}, factors_to_plot=["A", "B"], overlays="stationary_point"
+        )
+        with pytest.raises(ValueError, match=r"canonical analysis of the model: .* needs a second-order model"):
+            plot.to_spec()
+
+    def test_an_axis_along_a_held_factor_is_not_drawn(self) -> None:
+        """C has no interaction, so one canonical axis is C alone: it crosses the plotted plane at one point."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 50.0},
+            {"term": "A", "coefficient": 2.0},
+            {"term": "B", "coefficient": -1.0},
+            {"term": "C", "coefficient": 0.5},
+            {"term": "A:B", "coefficient": 1.0},
+            {"term": "I(A ** 2)", "coefficient": -3.0},
+            {"term": "I(B ** 2)", "coefficient": -2.0},
+            {"term": "I(C ** 2)", "coefficient": -1.0},
+        ]
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients},
+            factors_to_plot=["A", "B"],
+            hold_values={"C": 0.0},
+            overlays=["canonical_axes"],
+        ).to_spec()
+        drawn = sorted(round(axis["eigenvalue"], 3) for axis in spec.metadata["canonical_axes"])
+        assert drawn == [-3.207, -1.793], "the eigenvalues of A and B's 2 x 2 part, not C's -1"
+        assert sum(layer.name.startswith("Canonical axis") for layer in spec.panels[0].layers) == 2
+
+    @pytest.mark.parametrize(
+        ("point", "direction", "ends"),
+        [
+            pytest.param((0.0, 0.5), (1.0, 0.0), ((-1.0, 0.5), (1.0, 0.5)), id="along x, inside"),
+            pytest.param((0.0, 2.0), (1.0, 0.0), None, id="along x, above the box"),
+            pytest.param((3.0, 0.0), (1.0, 1.0), None, id="past the corner"),
+            pytest.param((0.0, 0.0), (0.0, 0.0), None, id="no direction in the plane"),
+        ],
+    )
+    def test_a_line_is_cut_to_the_plotted_box(self, point: tuple, direction: tuple, ends: tuple | None) -> None:
+        assert _clip_line(point, direction, (1.0, 1.0)) == ends
+
+    @pytest.mark.parametrize(
+        ("options", "message"), [({"units": "metric"}, "units must be"), ({"overlays": ["ridge"]}, "Unknown overlays")]
+    )
+    def test_unknown_options_are_refused(self, quadratic_coefficients: list, options: dict, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            create_plot("contour", analysis_results={"coefficients": quadratic_coefficients}, **options)
+
+
 class TestSurface3DPlot:
     def test_spec_structure(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
@@ -679,6 +945,332 @@ class TestPredictionVariancePlot:
         )
         spec = plot.to_spec()
         assert spec.plot_type == "prediction_variance"
+
+
+# ---------------------------------------------------------------------------
+# Surface plots over a region: the settings that cannot be run
+# ---------------------------------------------------------------------------
+
+#: A with B and C, coded from their actual ranges; the heat limit cuts the A-B square on a diagonal.
+REGION_FACTORS = [
+    Factor(name="A", low=100, high=150),
+    Factor(name="B", low=20, high=60),
+    Factor(name="C", low=0, high=10),
+]
+STRAIGHT = "3*A + 5*B <= 600"
+CURVED = "A**2/2500 + B + C >= 26"
+
+
+def _coded_grid(x_grid: list[float], y_grid: list[float]) -> tuple[np.ndarray, np.ndarray]:
+    """Return the grid's points as rows (x, y), y slowest, as a plot's ``z_matrix`` is laid out."""
+    gx, gy = np.meshgrid(x_grid, y_grid)
+    return gx.ravel(), gy.ravel()
+
+
+class TestRegionShading:
+    @pytest.fixture
+    def region(self) -> DesignRegion:
+        return DesignRegion(REGION_FACTORS, [STRAIGHT, CURVED])
+
+    def test_the_shading_comes_after_the_response_and_before_the_runs(
+        self, quadratic_coefficients: list, design_data_2f: list, region: DesignRegion
+    ) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+            region=region,
+        )
+        names = [layer.name for layer in plot.to_spec().panels[0].layers]
+        assert names == ["Response", "Cannot be run", "Experimental runs"]
+        data = plot.to_plotly()["data"]
+        assert [trace["type"] for trace in data] == ["contour", "contour", "scatter"]
+        assert data[0]["name"] == "Response", "the response stays data[0]"
+        shading = data[1]
+        assert shading["contours"] == {"type": "constraint", "operation": "<=", "value": 0, "showlabels": False}
+        assert shading["fillcolor"] == CANNOT_RUN_FILL
+        assert (shading["hoverinfo"], shading["showscale"]) == ("skip", False)
+        assert "fillcolor" not in data[0]
+        assert "hoverinfo" not in data[0]
+
+    @pytest.mark.parametrize("hold_c", [-1.0, 0.0, 0.6])
+    def test_the_slack_is_at_most_zero_exactly_where_a_setting_can_be_run(
+        self, quadratic_coefficients: list, region: DesignRegion, hold_c: float
+    ) -> None:
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            hold_values={"C": hold_c},
+            region=region,
+        ).to_spec()
+        style = spec.panels[0].layers[1].style
+        x, y = _coded_grid(style["x_grid"], style["y_grid"])
+        allowed = region.feasible(np.column_stack([x, y, np.full(x.size, hold_c)]))
+        slack = np.asarray(style["z_matrix"]).ravel()
+        np.testing.assert_array_equal(slack <= 0, allowed)
+        np.testing.assert_array_equal(slack > 0, ~allowed, err_msg="the side a constraint contour shades")
+        assert 0 < allowed.mean() < 1
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+
+    @pytest.mark.parametrize("plot_type", ["contour", "prediction_variance", "surface_3d"])
+    @pytest.mark.parametrize(
+        "limit",
+        [
+            "sqrt(A - 120) + B <= 70",  # NaN below A = 120: those settings cannot be run
+            "log(A - 100) + B <= 50",  # minus infinity along A = 100, the log of 0: the limit holds there
+        ],
+    )
+    def test_settings_where_a_limit_cannot_be_evaluated_are_shaded(
+        self, plot_type: str, limit: str, quadratic_coefficients: list, design_data_2f: list
+    ) -> None:
+        """``sqrt(A - 120)`` is undefined below A = 120; those settings cannot be run, and NaN there was left clear.
+
+        A NaN slack fails both ``<= 0`` and ``> 0``, and a figure's JSON writes it (and inf) as null,
+        which Plotly leaves unshaded and the ECharts mask drops. ``log(A - 100)`` is minus infinity
+        along the plot's A = 100 edge instead, which meets the limit: that edge stays clear, so the
+        slack there must go below zero, not above it with the settings that cannot be evaluated.
+        """
+        region = DesignRegion(REGION_FACTORS[:2], [limit])
+        kwargs: dict[str, Any] = {"factors_to_plot": ["A", "B"], "region": region}
+        if plot_type == "prediction_variance":
+            kwargs.update(design_data=design_data_2f, response_column="y")
+        else:
+            kwargs["analysis_results"] = {"coefficients": quadratic_coefficients}
+        plot = create_plot(plot_type, **kwargs)
+        spec = plot.to_spec()
+        layer = spec.panels[0].layers[0 if plot_type == "surface_3d" else 1]
+        x, y = _coded_grid(layer.style["x_grid"], layer.style["y_grid"])
+        with np.errstate(invalid="ignore", divide="ignore"):
+            allowed = region.feasible(np.column_stack([x, y]))
+        if limit.startswith("log"):
+            edge = np.isclose(x, -1.0)
+            assert edge.sum() == len(layer.style["y_grid"])
+            assert allowed[edge].all(), "log(0) is minus infinity, so the limit holds all along A = 100"
+        assert 0.3 < 1 - allowed.mean() < 0.5
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+        z = np.asarray(layer.style["z_matrix"], dtype=float).ravel()
+        if plot_type == "surface_3d":
+            np.testing.assert_array_equal(np.isnan(z), ~allowed)
+            return
+        assert np.isfinite(z).all(), "inf and NaN would reach the figure as null"
+        np.testing.assert_array_equal(z > 0, ~allowed)
+        mask = plot.to_echarts()["series"][1]["data"]
+        assert len(mask) == int((~allowed).sum())
+
+    @pytest.mark.parametrize("plot_type", ["contour", "surface_3d"])
+    @pytest.mark.parametrize(("x", "y", "held"), [("A", "C", "B"), ("C", "B", "A"), ("B", "A", "C")])
+    def test_any_pair_of_the_regions_factors_is_shaded_by_name(
+        self, plot_type: str, x: str, y: str, held: str, quadratic_coefficients: list
+    ) -> None:
+        """The shading looks each factor up by name: plotted along x, along y, or held.
+
+        Every other test plots A and B, the region's first two factors, where filling the
+        region's first column with the x grid and its second with the y grid gives the same.
+        """
+        region = DesignRegion(REGION_FACTORS, [STRAIGHT, CURVED, "A + 10*C <= 150"])
+        spec = create_plot(
+            plot_type,
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=[x, y],
+            hold_values={held: -0.6},
+            region=region,
+        ).to_spec()
+        layer = spec.panels[0].layers[0 if plot_type == "surface_3d" else 1]
+        gx, gy = _coded_grid(layer.style["x_grid"], layer.style["y_grid"])
+        coded = np.zeros((gx.size, 3))
+        coded[:, region.names.index(x)], coded[:, region.names.index(y)] = gx, gy
+        coded[:, region.names.index(held)] = -0.6
+        allowed = region.feasible(coded)
+        assert 0.05 < allowed.mean() < 0.95
+        z = np.asarray(layer.style["z_matrix"], dtype=float).ravel()
+        if plot_type == "surface_3d":
+            np.testing.assert_array_equal(np.isnan(z), ~allowed)
+        else:
+            np.testing.assert_array_equal(z > 0, ~allowed)
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+
+    def test_a_straight_limit_has_a_linear_slack_so_its_edge_is_drawn_straight(
+        self, quadratic_coefficients: list
+    ) -> None:
+        spec = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            region=DesignRegion(REGION_FACTORS, [STRAIGHT]),
+        ).to_spec()
+        style = spec.panels[0].layers[1].style
+        x, y = _coded_grid(style["x_grid"], style["y_grid"])
+        slack = np.asarray(style["z_matrix"]).ravel()
+        fit, *_ = np.linalg.lstsq(np.column_stack([np.ones_like(x), x, y]), slack, rcond=None)
+        np.testing.assert_allclose(fit[0] + fit[1] * x + fit[2] * y, slack, atol=1e-9)
+        assert spec.metadata["cannot_run_share"] == pytest.approx(0.375, abs=0.02)
+
+    def test_the_held_factors_move_the_slice(self, quadratic_coefficients: list) -> None:
+        region = DesignRegion(REGION_FACTORS, ["A + 10*C <= 150"])
+        shares = [
+            create_plot(
+                "contour",
+                analysis_results={"coefficients": quadratic_coefficients},
+                factors_to_plot=["A", "B"],
+                hold_values={"C": c},
+                region=region,
+            )
+            .to_spec()
+            .metadata["cannot_run_share"]
+            for c in (-1.0, 0.0, 1.0)
+        ]
+        assert shares[0] == 0.0, "with C at its low end every A can be run"
+        assert shares[0] < shares[1] < shares[2]
+
+    def test_the_surface_leaves_out_the_settings_that_cannot_be_run(
+        self, quadratic_coefficients: list, region: DesignRegion
+    ) -> None:
+        def surface(region: DesignRegion | None = None) -> tuple[ChartSpec, np.ndarray]:
+            plot = create_plot(
+                "surface_3d",
+                analysis_results={"coefficients": quadratic_coefficients},
+                factors_to_plot=["A", "B"],
+                region=region,
+            )
+            spec = plot.to_spec()
+            return spec, np.asarray(spec.panels[0].layers[0].style["z_matrix"], dtype=float)
+
+        _, everywhere = surface()
+        spec, limited = surface(region=region)
+        style = spec.panels[0].layers[0].style
+        x, y = _coded_grid(style["x_grid"], style["y_grid"])
+        allowed = region.feasible(np.column_stack([x, y, np.zeros(x.size)])).reshape(limited.shape)
+        np.testing.assert_array_equal(np.isnan(limited), ~allowed)
+        np.testing.assert_array_equal(limited[allowed], everywhere[allowed])
+        assert spec.metadata["cannot_run_share"] == pytest.approx(1 - allowed.mean())
+        assert len(spec.panels[0].layers) == 1
+
+    def test_the_prediction_variance_is_shaded_too(self, design_data_3f: list, region: DesignRegion) -> None:
+        plot = create_plot(
+            "prediction_variance",
+            design_data=design_data_3f,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+            hold_values={"C": 0.5},
+            region=region.to_dict(),
+        )
+        spec = plot.to_spec()
+        layers = spec.panels[0].layers
+        assert [layer.name for layer in layers] == ["SPV", "Cannot be run"]
+        x, y = _coded_grid(layers[1].style["x_grid"], layers[1].style["y_grid"])
+        allowed = region.feasible(np.column_stack([x, y, np.full(x.size, 0.5)]))
+        np.testing.assert_array_equal(np.asarray(layers[1].style["z_matrix"]).ravel() <= 0, allowed)
+        assert [trace["name"] for trace in plot.to_plotly()["data"]] == ["SPV", "Cannot be run"]
+
+    @pytest.mark.parametrize("plot_type", ["contour", "surface_3d", "prediction_variance"])
+    def test_without_limits_the_figure_is_unchanged(
+        self, plot_type: str, quadratic_coefficients: list, design_data_3f: list
+    ) -> None:
+        """No region, region=None and a region without limits draw the same figure, in both backends."""
+        kwargs: dict[str, Any] = {"factors_to_plot": ["A", "B"]}
+        if plot_type == "prediction_variance":
+            kwargs.update(design_data=design_data_3f, response_column="y")
+        else:
+            kwargs.update(analysis_results={"coefficients": quadratic_coefficients})
+        figures = [
+            json.dumps(visualize_doe(plot_type=plot_type, **kwargs, **extra), sort_keys=True)
+            for extra in ({}, {"region": None}, {"region": DesignRegion(REGION_FACTORS)})
+        ]
+        assert figures[0] == figures[1] == figures[2]
+        assert "cannot_run_share" not in figures[0]
+        assert "Cannot be run" not in figures[0]
+
+    def test_echarts_draws_the_settings_that_cannot_be_run_as_a_masked_heatmap(
+        self, quadratic_coefficients: list, region: DesignRegion
+    ) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            region=region,
+        )
+        style = plot.to_spec().panels[0].layers[1].style
+        option = plot.to_echarts()
+        json.dumps(option, allow_nan=False)
+        response, mask = option["series"]
+        assert (response["type"], response["name"]) == ("heatmap", "Response")
+        assert (mask["type"], mask["name"], mask["silent"]) == ("heatmap", "Cannot be run", True)
+        assert mask["itemStyle"] == {"color": CANNOT_RUN_FILL}
+        x, y = _coded_grid(style["x_grid"], style["y_grid"])
+        ruled_out = np.asarray(style["z_matrix"]).ravel() > 0
+        assert mask["data"] == [[a, b, 1] for a, b in zip(x[ruled_out], y[ruled_out], strict=True)]
+        assert len(response["data"]) == len(x)
+
+    @pytest.mark.parametrize(
+        ("operation", "excluded"),
+        [
+            ("<=", [[1.0, 0.0, 1]]),
+            ("<", [[0.0, 0.0, 1], [1.0, 0.0, 1]]),
+            (">=", [[-1.0, 0.0, 1]]),
+            (">", [[-1.0, 0.0, 1], [0.0, 0.0, 1]]),
+        ],
+    )
+    def test_echarts_masks_the_side_a_constraint_contour_excludes(self, operation: str, excluded: list) -> None:
+        layer = LayerSpec(
+            mark=MarkType.contour,
+            data=[],
+            name="limit",
+            style={
+                "x_grid": [-1.0, 0.0, 1.0],
+                "y_grid": [0.0],
+                "z_matrix": [[-1.0, 0.0, 1.0]],
+                "contours": {"type": "constraint", "operation": operation, "value": 0},
+            },
+        )
+        option = EChartsAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+        assert option["series"][0]["data"] == excluded
+        assert option["series"][0]["itemStyle"] == {"color": CANNOT_RUN_FILL}
+
+    def test_echarts_refuses_an_equality_constraint_contour(self) -> None:
+        layer = LayerSpec(
+            mark=MarkType.contour,
+            data=[],
+            name="limit",
+            style={
+                "x_grid": [0.0],
+                "y_grid": [0.0],
+                "z_matrix": [[0.0]],
+                "contours": {"type": "constraint", "operation": "="},
+            },
+        )
+        with pytest.raises(ValueError, match="operation '='"):
+            EChartsAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+
+    def test_visualize_doe_passes_the_region_through(self, quadratic_coefficients: list, region: DesignRegion) -> None:
+        result = visualize_doe(
+            plot_type="contour",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            region=region.to_dict(),
+        )
+        assert [trace["name"] for trace in result["plotly"]["data"]] == ["Response", "Cannot be run"]
+        assert [series["name"] for series in result["echarts"]["series"]] == ["Response", "Cannot be run"]
+
+    def test_a_region_a_plot_cannot_use_is_refused(self, quadratic_coefficients: list) -> None:
+        def contour(region: Any) -> ChartSpec:  # noqa: ANN401
+            return create_plot(
+                "contour",
+                analysis_results={"coefficients": quadratic_coefficients},
+                factors_to_plot=["A", "B"],
+                region=region,
+            ).to_spec()
+
+        mixture = DesignRegion([Factor(name=n, type="mixture", low=0, high=1) for n in "AB"])
+        with pytest.raises(ValueError, match="mixture region"):
+            contour(mixture)
+        elsewhere = DesignRegion([Factor(name=n, low=0, high=1) for n in "XY"], ["X + Y <= 1"])
+        with pytest.raises(ValueError, match="include neither 'A' nor 'B'"):
+            contour(elsewhere)
+        with pytest.raises(TypeError, match="DesignRegion or its dict form"):
+            contour("A + B <= 1")
 
 
 # ---------------------------------------------------------------------------
@@ -1907,7 +2499,8 @@ class TestFDSPlotEdgeCases:
         spec = plot.to_spec()
         assert "no design data" in spec.title.lower()
 
-    def test_single_factor(self, design_data_2f: list) -> None:
+    def test_factors_to_plot_does_not_shrink_the_design(self, design_data_2f: list) -> None:
+        """The FDS curve belongs to the whole design, whatever factors_to_plot says."""
         plot = create_plot(
             "fds_plot",
             design_data=design_data_2f,
@@ -1915,7 +2508,7 @@ class TestFDSPlotEdgeCases:
             factors_to_plot=["A"],
         )
         spec = plot.to_spec()
-        assert "need at least 2" in spec.title.lower()
+        assert spec.metadata["n_factors"] == 2
 
 
 class TestPowerCurvePlotEdgeCases:

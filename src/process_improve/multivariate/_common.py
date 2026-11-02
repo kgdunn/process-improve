@@ -30,6 +30,9 @@ __all__ = [
     "SpecificationWarning",
     "UncentredDataWarning",
     "epsqrt",
+    "informative_widths",
+    "y_is_exhausted",
+    "y_reach",
 ]
 
 #: Component-selection rules supported by ``PLS.select_n_components``.
@@ -86,6 +89,89 @@ def _nz(denominator: float) -> float:
     projection, since the numerator collapses with the same vector.
     """
     return max(_DENOM_FLOOR, denominator)
+
+
+#: The ``missing_data_settings`` keys removed in 2.0, and the constructor parameter that
+#: replaced each one. ``md_method`` is not here: it names the imputation algorithm, which
+#: is the one axis ``missing_data_settings`` still owns.
+_REMOVED_MD_KEYS: dict[str, str] = {"md_tol": "tol", "md_max_iter": "max_iter"}
+
+#: The historical bounds on the NIPALS tolerance, kept verbatim from the per-estimator
+#: checks this helper replaced. The ceiling is arbitrary but catches a caller who passed a
+#: percentage; the floor is where a relative comparison stops being meaningful.
+_TOL_CEILING = 10.0
+
+
+def resolve_loop_settings(
+    *,
+    tol: float,
+    max_iter: int,
+    missing_data_settings: dict | None,
+    validate: bool = True,
+    estimator_name: str = "",
+) -> dict:
+    """Resolve one estimator's ``tol`` and ``max_iter`` into the mapping its NIPALS loop reads.
+
+    Every latent-variable estimator that iterates resolves its loop settings here, so the
+    rule is defined once instead of five times (#588). The constructor's ``tol`` and
+    ``max_iter`` supply the values, and any other keys of a caller's
+    ``missing_data_settings`` are added alongside them.
+
+    The keys ``md_tol`` and ``md_max_iter``, which used to override ``tol`` and
+    ``max_iter``, were removed in 2.0 and are refused. They described a convergence
+    setting as a missing-data setting, which it is not: the loop runs, and needs a
+    tolerance, whether or not a cell is missing. Other unknown keys pass through, but
+    these two raise, because ignoring a convergence setting a caller asked for would
+    change the fit without saying so.
+
+    Parameters
+    ----------
+    tol : float
+        The estimator's convergence tolerance, relative to the norm of the score vector.
+    max_iter : int
+        The estimator's per-component iteration cap.
+    missing_data_settings : dict or None
+        The caller's dict, or None. Keys other than the removed two are passed through
+        untouched, so an estimator with its own keys (``md_method`` on ``PLS``) still sees
+        them.
+    validate : bool, default=True
+        Whether to check the resolved tolerance against its historical bounds. Passed as
+        False by the paths that do not iterate (a direct SVD fit), where the tolerance
+        governs nothing and an out-of-range value is harmless.
+    estimator_name : str
+        Used in the error message, so the reader knows which class to change.
+
+    Returns
+    -------
+    dict
+        The loop settings under the internal keys ``md_tol`` and ``md_max_iter``, plus any
+        other keys the caller supplied.
+
+    Raises
+    ------
+    ValueError
+        If ``missing_data_settings`` holds ``md_tol`` or ``md_max_iter``, or if the
+        resolved tolerance is out of bounds.
+    """
+    settings: dict = {"md_tol": tol, "md_max_iter": max_iter}
+    if isinstance(missing_data_settings, dict):
+        removed = [key for key in _REMOVED_MD_KEYS if key in missing_data_settings]
+        if removed:
+            where = f"{estimator_name}(missing_data_settings=...)" if estimator_name else "missing_data_settings"
+            keys = " and ".join(repr(key) for key in removed)
+            replacements = ", ".join(f"{_REMOVED_MD_KEYS[key]}={missing_data_settings[key]!r}" for key in removed)
+            raise ValueError(
+                f"{where} no longer takes {keys}, removed in 2.0. Pass {replacements} to the constructor instead."
+            )
+        settings.update(missing_data_settings)
+
+    settings["md_max_iter"] = int(settings["md_max_iter"])
+    if validate:
+        if not settings["md_tol"] < _TOL_CEILING:
+            raise ValueError(f"Tolerance should not be too large; got {settings['md_tol']}.")
+        if not settings["md_tol"] > epsqrt**1.95:
+            raise ValueError(f"Tolerance must exceed machine precision; got {settings['md_tol']}.")
+    return settings
 
 
 def _reject_sparse(X: object, estimator_name: str) -> None:
@@ -242,6 +328,27 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
     return X
 
 
+def _component_curve(values: np.ndarray | pd.Series | list[float], name: str) -> np.ndarray:
+    """Return a per-component curve as a float array whose entry ``i`` belongs to ``i + 1`` components.
+
+    Every selection rule below returns a position plus one, which is a component count
+    only when the curve starts at one component and skips none. An array or list cannot
+    say otherwise, so it is taken as that; a count that was not evaluated keeps its place
+    as NaN. A Series can say otherwise, through its index, and is refused unless the
+    index is ``1..A``: dropping it would turn a curve indexed from 2 into an answer one
+    count too small, with no sign of it (#513).
+
+    Raises
+    ------
+    ValueError
+        If ``values`` is a Series whose index is not ``1..A``.
+    """
+    if isinstance(values, pd.Series) and not values.index.equals(pd.RangeIndex(1, len(values) + 1)):
+        msg = f"{name} must be indexed by component count 1..{len(values)}; got {values.index.tolist()}."
+        raise ValueError(msg)
+    return np.asarray(values, dtype=float)
+
+
 def _recommend_n_components_q2(
     q2_cumulative: np.ndarray | pd.Series | list[float],
     *,
@@ -259,8 +366,10 @@ def _recommend_n_components_q2(
     This is a Wold's-R-style heuristic: parsimonious and cheap, but the
     threshold is absolute and hand-tuned. Prefer the 1-SE rule
     (:func:`_recommend_n_components_one_se`) when per-fold errors are available.
+    Entry ``i`` of the curve must belong to ``i + 1`` components; see
+    :func:`_component_curve`.
     """
-    q2 = np.asarray(q2_cumulative, dtype=float)
+    q2 = _component_curve(q2_cumulative, "q2_cumulative")
     recommended = 1
     previous = 0.0
     for a, value in enumerate(q2, start=1):
@@ -290,11 +399,12 @@ def _recommend_n_components_one_se(
     integer hyperparameters like the number of latent variables.
 
     Non-finite entries in ``mean_error`` are skipped. The selection always
-    returns at least ``1``. If ``se_error`` at the minimum is non-finite or
-    zero, the rule degenerates to the argmin.
+    returns at least ``1``. If ``se_error`` at the minimum is non-finite, zero
+    or negative, the rule degenerates to the argmin. Entry ``i`` of each curve
+    must belong to ``i + 1`` components; see :func:`_component_curve`.
     """
-    mean = np.asarray(mean_error, dtype=float)
-    se = np.asarray(se_error, dtype=float)
+    mean = _component_curve(mean_error, "mean_error")
+    se = _component_curve(se_error, "se_error")
     if mean.shape != se.shape:
         raise ValueError(f"mean_error and se_error must have the same shape; got {mean.shape} and {se.shape}.")
     if mean.ndim != 1:
@@ -306,12 +416,10 @@ def _recommend_n_components_one_se(
         return 1
     masked = np.where(finite, mean, np.inf)
     best = int(np.argmin(masked))
-    se_best = se[best] if np.isfinite(se[best]) else 0.0
-    threshold = masked[best] + se_best
-    for a, value in enumerate(masked, start=1):
-        if value <= threshold:
-            return a
-    return best + 1
+    # Floored at zero, so the minimum always meets its own threshold and the search
+    # below always finds a count.
+    se_best = float(se[best]) if np.isfinite(se[best]) and se[best] > 0 else 0.0
+    return int(np.flatnonzero(masked <= masked[best] + se_best)[0]) + 1
 
 
 def _select_n_components(
@@ -326,10 +434,11 @@ def _select_n_components(
 
     See :data:`SelectionRule` for the rule semantics. Raises ``ValueError`` if
     a rule is requested without the data it needs (``"1se"`` needs
-    ``se_error``; ``"q2_increment"`` needs ``q2_cumulative``).
+    ``se_error``; ``"q2_increment"`` needs ``q2_cumulative``), or if a curve it
+    reads is a Series not indexed ``1..A`` (see :func:`_component_curve`).
     """
     if rule == "min":
-        mean = np.asarray(mean_error, dtype=float)
+        mean = _component_curve(mean_error, "mean_error")
         if not np.isfinite(mean).any():
             return 1
         return int(np.nanargmin(mean)) + 1
@@ -501,16 +610,136 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     """
     if scaling == "none":
         return blocks
+    # A missing cell's contribution is NaN, so both scalings skip NaN, as the single-block
+    # score_contributions does: NaN in the max or a row's sum left the bars unscaled.
     if scaling == "maximum":
-        largest = max((float(np.abs(v).max()) for v in blocks.values() if v.size), default=0.0)
+        largest = max((float(np.nanmax(np.abs(v))) for v in blocks.values() if np.isfinite(v).any()), default=0.0)
         scalar = largest if largest > epsqrt else 1.0
         return {name: values / scalar for name, values in blocks.items()}
     if scaling == "within":
-        totals = sum(np.abs(values).sum(axis=1) for values in blocks.values())
+        totals = sum(np.nansum(np.abs(values), axis=1) for values in blocks.values())
         per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
+
+
+def largest_ssq_column(values: np.ndarray) -> np.ndarray:
+    """Return a copy of the column of ``values`` with the largest sum of squares, as an ``(N, 1)`` array.
+
+    NIPALS seeds its iteration from this column (#195). Any non-degenerate seed converges to
+    the same component, but the first column can be constant (all zero after preprocessing),
+    and then the iteration has nothing to follow. The highest-variance column also needs
+    fewer iterations. Missing cells are skipped in the sum and set to 0 in the returned column.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        An ``(N, K)`` array, possibly with NaN.
+
+    Returns
+    -------
+    np.ndarray
+        The chosen column, ``(N, 1)``, float, NaN replaced by 0.
+    """
+    ssq = np.nansum(values**2, axis=0)
+    # Autoscaled columns all have the same sum of squares up to round-off, so a plain argmax picks
+    # whichever is one ulp larger on this platform. Take the first column within round-off of the
+    # largest instead: the start, and so the iteration count, is then the same everywhere.
+    start_col = int(np.flatnonzero(ssq >= ssq.max() * (1 - 1e-9))[0])
+    return np.nan_to_num(values[:, [start_col]].astype(float))
+
+
+def _cross_size(x_blocks: list[np.ndarray], y: np.ndarray) -> float:
+    """Return ``sqrt(sum_b ||X_b' Y||^2)``, missing cells counted as zero: how much of Y the blocks can still reach."""
+    y0 = np.nan_to_num(y)
+    return float(np.sqrt(sum(np.sum((np.nan_to_num(x).T @ y0) ** 2) for x in x_blocks)))
+
+
+def y_reach(x_blocks: list[np.ndarray], y: np.ndarray) -> tuple[float, float]:
+    """Return what :func:`y_is_exhausted` compares against: ``||X'Y||`` and Y's sum of squares, before any component."""
+    return _cross_size(x_blocks, y), float(np.nansum(y**2))
+
+
+def y_is_exhausted(
+    estimator: str, a: int, x_blocks: list[np.ndarray], y: np.ndarray, initial: tuple[float, float]
+) -> bool:
+    """Return whether component ``a + 1`` has nothing left in Y to explain, warning when it has (#913).
+
+    When what is left of Y is uncorrelated with what is left of X (``X'Y`` about zero
+    after deflation), the next component has no direction to find: NIPALS then changes
+    sign at every iteration and reaches ``max_iter``, and its warning points at the
+    iteration settings rather than at the number of components. This happens in designed
+    experiments, where one component of orthogonal coded factors already gives the
+    least-squares fit. ``X'Y`` is judged against its size before the first component.
+
+    The caller then fits that component, and every later one, along the largest
+    direction left in X (NIPALS with X as its own target, which converges to the leading
+    principal component of the deflated X). Its Y-loading is about zero, so the
+    predictions, R²Y and a cross-validated PRESS stay as they were at ``a`` components,
+    every fitted frame keeps the number of components asked for, and ``P'W`` stays
+    invertible. The caller asks once: deflating X along a direction of X keeps ``X'Y``
+    about zero.
+
+    Parameters
+    ----------
+    estimator : str
+        Name used in the warning.
+    a : int
+        Number of components fitted so far.
+    x_blocks : list[np.ndarray]
+        The deflated X (one array, or one per block).
+    y : np.ndarray
+        The deflated Y.
+    initial : tuple[float, float]
+        :func:`y_reach` of the data before the first component.
+
+    Returns
+    -------
+    bool
+        True when the fit should stop at ``a`` components.
+    """
+    initial_cross, initial_ssy = initial
+    if a == 0 or _cross_size(x_blocks, y) > epsqrt * initial_cross:
+        return False
+    r2y = 1.0 - float(np.nansum(y**2)) / initial_ssy if initial_ssy > 0 else 0.0
+    warnings.warn(
+        f"{estimator}: from component {a + 1} on there is nothing left in Y that X can explain: what is left of Y "
+        f"is uncorrelated with what is left of X (R²Y stays at {r2y:.4g}). The data support {a} component(s); "
+        "each later one takes the largest direction left in X and leaves the predictions unchanged.",
+        SpecificationWarning,
+        stacklevel=4,
+    )
+    return True
+
+
+def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
+    """Return, per preprocessed block, the number of columns whose values vary, at least 1 (#913).
+
+    A multiblock model divides each block by the square root of its width, so that blocks
+    of unequal width carry equal weight. A constant column carries no information: centring
+    and scaling turn it into a column of zeros. Counted in the width, it lowered the
+    weight of its block, and the fit changed although the data had not. A column with
+    fewer than two observed values is constant too.
+
+    Parameters
+    ----------
+    blocks : dict[str, np.ndarray]
+        Each block after centring and scaling, ``(n_samples, K_b)``, NaN where missing.
+
+    Returns
+    -------
+    dict[str, int]
+        The count of varying columns per block, at least 1 so a block of constants
+        divides by 1.
+    """
+    out: dict[str, int] = {}
+    for name, values in blocks.items():
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value has no spread
+            spread = np.nanstd(values, axis=0)
+        out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
+    return out
 
 
 class BlockSet(dict):

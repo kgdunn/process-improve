@@ -60,3 +60,16 @@ def test_raincloud_applies_explicit_template() -> None:
     """An explicit `template` overrides the package default."""
     fig = raincloud(pd.Series([1.0, 2.0, 3.0]), template="plotly_white")
     assert fig.layout.template.layout.plot_bgcolor == "white"
+
+
+def test_raincloud_without_plotly_raises_the_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without the plotting extra the call fails at once with an ImportError naming the extra to install."""
+    import importlib
+
+    from process_improve._extras import _MissingExtra
+
+    # The package re-exports the function under the module's name, so fetch the module itself.
+    raincloud_module = importlib.import_module("process_improve.visualization.raincloud")
+    monkeypatch.setattr(raincloud_module, "go", _MissingExtra("plotly", "plotting"))
+    with pytest.raises(ImportError, match=r"pip install 'process-improve\[plotting\]'"):
+        raincloud(pd.Series([1.0, 2.0, 3.0]))

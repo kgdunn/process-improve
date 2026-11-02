@@ -29,10 +29,12 @@ import functools
 import itertools
 import logging
 import math
+import numbers
 import re
 import warnings
 from collections.abc import Callable, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -40,7 +42,17 @@ from patsy import PatsyError
 from scipy import optimize
 
 from process_improve._random import check_random_state
-from process_improve.experiments._desirability import composite_desirability, individual_desirability
+from process_improve.experiments._desirability import (
+    SCORED_GOALS,
+    check_goal,
+    check_importances,
+    individual_desirability,
+    overall_desirability,
+)
+from process_improve.experiments._uniform_sampling import UniformSampler
+
+if TYPE_CHECKING:
+    from process_improve.experiments.region import DesignRegion
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +75,9 @@ _METHODS = {
 # ---------------------------------------------------------------------------
 
 
+_POWER = re.compile(r"I\((\w+)\s*\*\*\s*(\d+)\)|(?:np\.)?power\((\w+)\s*,\s*(\d+)\)")
+
+
 def _parse_term(term: str) -> tuple[str, ...]:
     """Classify a coefficient term name into its components.
 
@@ -71,29 +86,81 @@ def _parse_term(term: str) -> tuple[str, ...]:
     tuple[str, ...]
         Empty tuple for ``"Intercept"``, single-element for linear,
         ``("A", "B")`` for interaction ``"A:B"``, ``("A", "A")`` for
-        quadratic ``"I(A ** 2)"``.
+        quadratic ``"I(A ** 2)"``, and each factor of a product of powers
+        repeated as often as the power multiplies it: ``("A", "A", "A")`` for
+        ``"I(A ** 3)"``, ``("A", "B", "B")`` for ``"A:I(B ** 2)"``.
     """
     if term == "Intercept":
         return ()
 
-    # Quadratic: ``I(A ** 2)`` (older statsmodels) or
-    # ``np.power(A, 2)`` / ``power(A, 2)`` (newer). Both spellings
-    # appear in the wild depending on the installed statsmodels /
-    # patsy version. SEC-27 (#276): if either is missed, the term
-    # silently falls through to the linear branch and the
+    # A power is ``I(A ** 2)`` (older statsmodels) or ``np.power(A, 2)`` /
+    # ``power(A, 2)`` (newer). Both spellings appear in the wild depending on
+    # the installed statsmodels / patsy version. SEC-27 (#276): if either is
+    # missed, the term silently falls through to the linear branch and the
     # downstream surface / optimisation produces wrong results.
-    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(r"(?:np\.)?power\((\w+)\s*,\s*2\)", term)
-    if m:
-        name = m.group(1)
-        return (name, name)
+    components: list[str] = []
+    for part in term.split(":"):
+        m = _POWER.fullmatch(part.strip())
+        if m:
+            components += [m.group(1) or m.group(3)] * int(m.group(2) or m.group(4))
+        else:
+            components.append(part)
+    return tuple(components)
 
-    # Interaction: A:B
-    if ":" in term:
-        parts = term.split(":")
-        return tuple(parts)
 
-    # Linear: plain factor name
-    return (term,)
+def _parsed_terms(
+    coefficients: list[dict[str, Any]],
+    factor_names: list[str],
+    *,
+    max_order: int | None = None,
+) -> list[tuple[tuple[str, ...], float]]:
+    """Parse every coefficient's term, refusing terms the model evaluation cannot represent.
+
+    Parameters
+    ----------
+    coefficients : list[dict]
+        Each with ``"term"`` and ``"coefficient"``.
+    factor_names : list[str]
+        The factors a term may be built from.
+    max_order : int or None
+        The largest number of factors a term may multiply together; 2 for the
+        second-order analyses, which work with ``b`` and ``B`` only. ``None``
+        allows any product.
+
+    Returns
+    -------
+    list[tuple[tuple[str, ...], float]]
+        The parsed components of each term, with its coefficient.
+
+    Raises
+    ------
+    ValueError
+        If a term names something other than a product of whole powers of the
+        factors (a categorical ``C(A)[T.1]``, a misspelt factor), or has more than
+        *max_order* components (``A:B:C`` or ``I(A ** 3)`` in a second-order
+        analysis, which would otherwise be dropped and the analysis run on a
+        truncated model).
+    """
+    parsed = [(_parse_term(entry["term"]), float(entry["coefficient"])) for entry in coefficients]
+    known = set(factor_names)
+    unknown = [e["term"] for e, (parts, _) in zip(coefficients, parsed, strict=True) if not set(parts) <= known]
+    if unknown:
+        msg = (
+            f"Cannot evaluate the model term(s) {unknown}: a term must be the intercept, a factor, or a product of "
+            "factors and their whole powers such as 'A:B', 'I(A ** 2)' or 'A:I(B ** 2)', over the factors "
+            f"{factor_names}."
+        )
+        raise ValueError(msg)
+    if max_order is not None:
+        too_high = [e["term"] for e, (parts, _) in zip(coefficients, parsed, strict=True) if len(parts) > max_order]
+        if too_high:
+            msg = (
+                f"This analysis needs a second-order model, with linear, two-factor interaction and squared "
+                f"terms only; the model also has {too_high}. Use method='desirability' or 'pareto_front', "
+                "which evaluate any polynomial, or refit without those terms."
+            )
+            raise ValueError(msg)
+    return parsed
 
 
 def _build_model_evaluator(
@@ -117,11 +184,7 @@ def _build_model_evaluator(
         same order as *factor_names*.
     """
     name_to_idx = {n: i for i, n in enumerate(factor_names)}
-    parsed: list[tuple[tuple[str, ...], float]] = []
-    for entry in coefficients:
-        term = entry["term"]
-        coef = float(entry["coefficient"])
-        parsed.append((_parse_term(term), coef))
+    parsed = _parsed_terms(coefficients, factor_names)
 
     def _eval(x: np.ndarray) -> float:
         y = 0.0
@@ -186,6 +249,12 @@ def _extract_b_and_B(  # noqa: N802
     For a second-order model ``y = b0 + b'x + x'Bx``, returns
     ``(b0, b, B)`` where *B* is symmetric with off-diagonal elements
     equal to half the interaction coefficients.
+
+    Raises
+    ------
+    ValueError
+        If a term is not part of a second-order model in *factor_names*; see
+        :func:`_parsed_terms`.
     """
     k = len(factor_names)
     name_to_idx = {n: i for i, n in enumerate(factor_names)}
@@ -193,16 +262,12 @@ def _extract_b_and_B(  # noqa: N802
     b = np.zeros(k)
     B = np.zeros((k, k))
 
-    for entry in coefficients:
-        term = entry["term"]
-        coef = float(entry["coefficient"])
-        components = _parse_term(term)
-
+    for components, coef in _parsed_terms(coefficients, factor_names, max_order=2):
         if len(components) == 0:
             b0 = coef
         elif len(components) == 1:
             b[name_to_idx[components[0]]] = coef
-        elif len(components) == 2:
+        else:  # two components: _parsed_terms(max_order=2) refuses anything longer
             i = name_to_idx[components[0]]
             j = name_to_idx[components[1]]
             if i == j:
@@ -221,11 +286,102 @@ def _extract_b_and_B(  # noqa: N802
 # ---------------------------------------------------------------------------
 
 
+#: An eigenvalue of *B* this small, relative to the largest in magnitude, is
+#: zero: the surface is flat along its eigenvector (a ridge), not curved. The
+#: default of the ``flat_tolerance`` argument.
+_FLAT_EIGENVALUE_TOL = 1e-8
+
+#: An eigenvalue below this share of the largest in size, though above the flat
+#: tolerance, gets a note: the surface is nearly flat along its eigenvector, and
+#: the data may not tell it from a ridge (#789 B3).
+_NEARLY_FLAT = 0.05
+
+
+@dataclass
+class _SurfaceShape:
+    """The shape of a second-order surface ``b0 + b'x + x'Bx``, read off the eigenvalues of *B*."""
+
+    classification: str
+    flat: np.ndarray  # True for an eigenvalue that counts as zero
+    drifts: bool  # b has a component along a flat direction, so there is no stationary point
+    ridge_of: str | None = None  # "maxima" or "minima" for a ridge system, else None
+
+
+def _surface_shape(
+    b: np.ndarray, eigenvalues: np.ndarray, eigenvectors: np.ndarray, flat_tolerance: float = _FLAT_EIGENVALUE_TOL
+) -> _SurfaceShape:
+    """Classify the surface, treating eigenvalues at most ``flat_tolerance`` of the largest in size as a ridge.
+
+    All curved directions bending down gives a maximum, all bending up a
+    minimum, and both a saddle. When some eigenvalue is zero the surface is a
+    ridge system (Myers, Montgomery and Anderson-Cook, *Response Surface
+    Methodology*, sec. 6.4): a *stationary ridge*, a line or plane of equal
+    optima, when *b* has no component along the flat directions, and a *rising
+    ridge*, with no stationary point, when it has one and the response keeps
+    changing along them. The slope along the flat directions is judged as their
+    eigenvalues are: at most ``flat_tolerance`` of the largest eigenvalue in size
+    is none, so a ridge whose estimated slope is small is stationary.
+    """
+    scale = float(np.abs(eigenvalues).max())
+    flat = np.abs(eigenvalues) <= flat_tolerance * scale
+    slope = float(np.linalg.norm(eigenvectors[:, flat].T @ b))
+    drifts = slope > max(_FLAT_EIGENVALUE_TOL * max(1.0, float(np.linalg.norm(b))), flat_tolerance * scale)
+    curved = eigenvalues[~flat]
+    if np.all(curved < 0):
+        kind, ridge_of = "maximum", "maxima"
+    elif np.all(curved > 0):
+        kind, ridge_of = "minimum", "minima"
+    else:
+        return _SurfaceShape("saddle_point", flat, drifts)
+    if not flat.any():
+        return _SurfaceShape(kind, flat, drifts)
+    return _SurfaceShape("rising_ridge" if drifts else "stationary_ridge", flat, drifts, ridge_of)
+
+
+def _eigen_by_size(B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the eigenvalues of *B*, largest in size first, and their eigenvectors as columns in the same order."""
+    eigenvalues, eigenvectors = np.linalg.eigh(B)
+    order = np.argsort(-np.abs(eigenvalues), kind="stable")
+    return eigenvalues[order], eigenvectors[:, order]
+
+
+def _refuse_unused_factors(coefficients: list[dict[str, Any]], factor_names: list[str]) -> None:
+    """Refuse a factor name that no model term uses: it would add a zero eigenvalue to *B* (#796 item 4).
+
+    A row and column of zeros in *B* reads as a direction along which the surface is
+    flat, so a maximum would be called a stationary ridge. Such a name is not a factor
+    of the model: a block column, or a copy of a factor in other units.
+    """
+    used = {part for parts, _ in _parsed_terms(coefficients, factor_names) for part in parts}
+    unused = [name for name in factor_names if name not in used]
+    if unused:
+        msg = (
+            f"No term of the model uses {unused}, so the second-order analysis would read each as a direction "
+            "along which the surface is flat, and could call a maximum or minimum a ridge. Leave them out of "
+            "factor_names."
+        )
+        raise ValueError(msg)
+
+
+def _nearly_flat_note(eigenvalues: np.ndarray, shape: _SurfaceShape) -> str | None:
+    """Say when a curved direction has an eigenvalue below :data:`_NEARLY_FLAT` of the largest in size."""
+    scale = float(np.abs(eigenvalues).max())
+    small = [i for i, ev in enumerate(eigenvalues) if not shape.flat[i] and abs(ev) < _NEARLY_FLAT * scale]
+    if not small:
+        return None
+    sizes = ", ".join(f"{eigenvalues[i]:.4g} ({100 * abs(eigenvalues[i]) / scale:.2g}% of the largest)" for i in small)
+    return (
+        f"The surface is nearly flat along the eigenvector of the eigenvalue {sizes}: the data may not tell this "
+        f"{shape.classification.replace('_', ' ')} from a ridge. flat_tolerance={_NEARLY_FLAT} reads it as flat."
+    )
+
+
 def _find_stationary_point(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Find the stationary point of a second-order response surface model.
 
@@ -247,41 +403,59 @@ def _find_stationary_point(
         Defaults to the factorial cube ``(-1, 1)`` for each factor when
         ``None``; supply a wider region for e.g. a central composite
         design's axial distance.
+    flat_tolerance : float
+        An eigenvalue of ``B`` at most this share of the largest in size is
+        read as zero, a direction along which the surface is flat.
 
     Returns
     -------
     dict
-        ``stationary_point_coded``, ``predicted_response``, ``classification``,
-        ``eigenvalues`` (list of floats, spectrum of the pure-quadratic
-        matrix ``B``), and ``inside_design_space`` (bool, whether the
-        stationary point falls inside ``search_bounds``). Also includes
-        ``stationary_point_actual`` when ``factor_ranges`` is provided.
-        Returns a dict with a single ``error`` key instead when the model
-        has no quadratic/interaction terms or ``B`` is singular.
+        ``stationary_point_coded``, ``predicted_response``, ``classification``
+        (``"maximum"``, ``"minimum"``, ``"saddle_point"`` or
+        ``"stationary_ridge"``), ``eigenvalues`` (list of floats, spectrum of
+        the pure-quadratic matrix ``B``, largest in size first, as
+        :func:`_canonical_analysis` gives them), and ``inside_design_space`` (bool,
+        whether the stationary point falls inside ``search_bounds``). Also
+        includes ``stationary_point_actual`` when ``factor_ranges`` is provided.
+        For a stationary ridge, where an eigenvalue is zero and every point
+        along its eigenvector is equally good, the point reported is the one
+        nearest the design centre and ``ridge_of`` says whether the ridge is
+        one of ``"maxima"`` or ``"minima"``. ``classification_note`` says when
+        an eigenvalue is small next to the largest though not flat, so the
+        surface may be a ridge.
+
+        Returns a dict with an ``error`` key instead when the model has no
+        quadratic or interaction terms, or when there is no stationary point
+        (a rising ridge, or a saddle that drifts along a flat direction); the
+        latter also carries ``classification`` and ``eigenvalues``.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
     # Check that B has quadratic terms (not purely first-order)
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - cannot find stationary point."}
+    _refuse_unused_factors(coefficients, factor_names)
 
-    try:
-        # Solve 2*B*x_s = -b
-        x_s = np.linalg.solve(2.0 * B, -b)
-    except np.linalg.LinAlgError:
-        return {"error": "Singular B matrix - stationary point does not exist."}
+    eigenvalues, eigenvectors = _eigen_by_size(B)
+    shape = _surface_shape(b, eigenvalues, eigenvectors, flat_tolerance)
+    if shape.drifts:
+        return {
+            "error": (
+                "No stationary point: B has a zero eigenvalue and the linear terms keep the response changing along "
+                "its eigenvector (a rising ridge). Use 'ridge_analysis' or steepest ascent/descent to follow it."
+            ),
+            "classification": shape.classification,
+            "eigenvalues": [float(e) for e in eigenvalues],
+        }
+
+    # Solve 2*B*x_s = -b in the eigenbasis. Along a flat direction b has no
+    # component, so any step there is equally stationary; take none, which gives
+    # the stationary point nearest the centre.
+    curved = ~shape.flat
+    x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
 
     # Predicted response at stationary point
     y_s = float(b0 + b @ x_s + x_s @ B @ x_s)
-
-    # Classification from eigenvalues
-    eigenvalues = np.linalg.eigvalsh(B)
-    if np.all(eigenvalues < 0):
-        classification = "maximum"
-    elif np.all(eigenvalues > 0):
-        classification = "minimum"
-    else:
-        classification = "saddle_point"
 
     # Is the stationary point inside the region the experiment covered? The
     # default region is the factorial cube; a central composite design reaches
@@ -292,23 +466,17 @@ def _find_stationary_point(
     result: dict[str, Any] = {
         "stationary_point_coded": {n: float(x_s[i]) for i, n in enumerate(factor_names)},
         "predicted_response": y_s,
-        "classification": classification,
+        "classification": shape.classification,
         "eigenvalues": [float(e) for e in eigenvalues],
         "inside_design_space": inside_design_space,
     }
+    if shape.ridge_of is not None:
+        result["ridge_of"] = shape.ridge_of
+    if note := _nearly_flat_note(eigenvalues, shape):
+        result["classification_note"] = note
 
     if factor_ranges:
-        actual = {}
-        for i, name in enumerate(factor_names):
-            if name in factor_ranges:
-                lo = factor_ranges[name]["low"]
-                hi = factor_ranges[name]["high"]
-                center = (lo + hi) / 2.0
-                half_range = (hi - lo) / 2.0
-                actual[name] = center + x_s[i] * half_range
-            else:
-                actual[name] = float(x_s[i])
-        result["stationary_point_actual"] = actual
+        result["stationary_point_actual"] = _coded_to_actual(result["stationary_point_coded"], factor_ranges)
 
     return result
 
@@ -321,49 +489,112 @@ def _find_stationary_point(
 def _canonical_analysis(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Canonical analysis of a second-order response surface model.
 
     Computes eigenvalues and eigenvectors of the *B* matrix to determine
-    the shape and orientation of the response surface.
+    the shape and orientation of the response surface, largest eigenvalue in
+    size first. An eigenvalue at most ``flat_tolerance`` of the largest in size
+    is read as zero.
 
     Returns
     -------
     dict
-        ``eigenvalues``, ``eigenvectors``, ``classification``,
-        ``canonical_form_description``.
+        ``eigenvalues``, ``eigenvectors``, ``classification`` (``"maximum"``,
+        ``"minimum"``, ``"saddle_point"``, ``"stationary_ridge"`` or
+        ``"rising_ridge"``), and ``canonical_form_description``, which labels
+        each canonical axis concave, convex, or flat (a zero eigenvalue). A
+        ridge also carries ``ridge_of``, ``"maxima"`` or ``"minima"``, and
+        ``classification_note`` says when an eigenvalue is small next to the
+        largest though not flat.
+
+        ``ridge_form`` is the surface in the ridge form of Box and Draper (2007,
+        Eq. 11.1.2), the form a ridge is read in: y = y0 + theta * X_k + sum of lambda_i X_i^2,
+        with X_i = v_i'(x - x0). Its axis ``k`` is that of the smallest
+        eigenvalue in size, the ridge's direction, and its ``origin`` x0 is the
+        point nearest the design centre where the response stops changing
+        along every other axis that is not flat. It holds the ``origin`` (coded), the
+        ``origin_response`` y0 there, the ``linear`` coefficient theta along
+        the ridge, v_k'b, and each axis's ``offset``, the constant c_i of the
+        plane X_i = v_i'x + c_i = 0. The form is exact for any surface: a
+        maximum, minimum or saddle is a ridge whose theta is zero and whose
+        smallest eigenvalue is not. The one exception is a slope along a flat
+        axis other than ``k``, which only a surface with several flat axes
+        can have, and which the form leaves out (#971 K2). It is not Box and Draper's B canonical
+        form, which is centred on the stationary point (below).
+
+        When the surface has a stationary point x_s, ``canonical_axes`` gives
+        each canonical variable W_i = v_i'(x - x_s) as its ``constant``,
+        -v_i'x_s, and ``coefficients``: Box and Draper's B canonical form is
+        y = y_s + sum of lambda_i W_i^2. Their A canonical form, the axes
+        rotated about the design centre with a slope theta_i = v_i'b along
+        each, y = b0 + sum of theta_i X_i + sum of lambda_i X_i^2, is not
+        returned.
     """
-    _b0, _b, B = _extract_b_and_B(coefficients, factor_names)
+    b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
     if np.allclose(B, 0):
         return {"error": "Model has no quadratic or interaction terms - canonical analysis not applicable."}
+    _refuse_unused_factors(coefficients, factor_names)
 
-    eigenvalues, eigenvectors = np.linalg.eigh(B)
-
-    # Sort by absolute value (largest first)
-    order = np.argsort(-np.abs(eigenvalues))
-    eigenvalues = eigenvalues[order]
-    eigenvectors = eigenvectors[:, order]
-
-    if np.all(eigenvalues < 0):
-        classification = "maximum"
-    elif np.all(eigenvalues > 0):
-        classification = "minimum"
-    else:
-        classification = "saddle_point"
+    eigenvalues, eigenvectors = _eigen_by_size(B)
+    shape = _surface_shape(b, eigenvalues, eigenvectors, flat_tolerance)
 
     desc_parts = []
-    for i, ev in enumerate(eigenvalues):
-        w_name = f"W{i + 1}"
-        direction = "concave" if ev < 0 else "convex"
-        desc_parts.append(f"{w_name}: eigenvalue={ev:.4f} ({direction})")
+    for i, (ev, is_flat) in enumerate(zip(eigenvalues, shape.flat, strict=True)):
+        direction = "flat" if is_flat else ("concave" if ev < 0 else "convex")
+        desc_parts.append(f"W{i + 1}: eigenvalue={ev:.4f} ({direction})")
 
-    return {
+    result: dict[str, Any] = {
         "eigenvalues": [float(e) for e in eigenvalues],
         "eigenvectors": [[float(v) for v in eigenvectors[:, i]] for i in range(len(eigenvalues))],
-        "classification": classification,
+        "classification": shape.classification,
         "canonical_form_description": desc_parts,
         "factor_names": factor_names,
+        "ridge_form": _ridge_form((b0, b, B), eigenvalues, eigenvectors, factor_names, shape.flat),
+    }
+    if not shape.drifts:  # a stationary point exists: the B canonical form's axes are centred on it
+        curved = ~shape.flat
+        x_s = eigenvectors[:, curved] @ (-0.5 * (eigenvectors[:, curved].T @ b) / eigenvalues[curved])
+        result["canonical_axes"] = [
+            {
+                "constant": float(-eigenvectors[:, i] @ x_s),
+                "coefficients": dict(zip(factor_names, map(float, eigenvectors[:, i]), strict=True)),
+            }
+            for i in range(len(eigenvalues))
+        ]
+    if shape.ridge_of is not None:
+        result["ridge_of"] = shape.ridge_of
+    if note := _nearly_flat_note(eigenvalues, shape):
+        result["classification_note"] = note
+    return result
+
+
+def _ridge_form(
+    surface: tuple[float, np.ndarray, np.ndarray],
+    eigenvalues: np.ndarray,
+    eigenvectors: np.ndarray,
+    factor_names: list[str],
+    flat: np.ndarray,
+) -> dict[str, Any]:
+    """Return Box and Draper's ridge form (Eq. 11.1.2), taking the last axis (the smallest eigenvalue) as the ridge.
+
+    The origin x0 = -1/2 sum over the other curved axes of (v_i'b / lambda_i) v_i is the point nearest
+    the centre where the gradient has no component along them, so the form keeps one linear term, along
+    the ridge. An axis whose eigenvalue is *flat* has no such point and is left out, as the last axis
+    is (#965). *surface* is the fitted quadratic's intercept, linear vector b and matrix B.
+    """
+    b0, b, B = surface
+    others = ~flat
+    others[-1] = False
+    origin = eigenvectors[:, others] @ (-0.5 * (eigenvectors[:, others].T @ b) / eigenvalues[others])
+    return {
+        "ridge_axis": len(eigenvalues) - 1,
+        "origin": dict(zip(factor_names, map(float, origin), strict=True)),
+        "origin_response": float(b0 + b @ origin + origin @ B @ origin),
+        "linear": float(eigenvectors[:, -1] @ b),
+        "offsets": [float(-eigenvectors[:, i] @ origin) for i in range(len(eigenvalues))],
     }
 
 
@@ -380,10 +611,10 @@ def _steepest_path(  # noqa: PLR0913
     direction: str = "ascent",
     factor_ranges: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
-    """Generate a table of steps along the steepest ascent (or descent).
+    """Return the path of steepest ascent (or descent) from the design centre, for ``optimize_responses``.
 
-    Uses only the first-order (linear) coefficients to determine
-    direction.  Steps start at the design centre (all coded = 0).
+    :func:`~process_improve.experiments.sequential.steepest_path` sets the path out; this steps
+    ``step_size``, a distance in coded units, as ``optimize_responses`` does.
 
     Parameters
     ----------
@@ -392,7 +623,10 @@ def _steepest_path(  # noqa: PLR0913
     factor_names : list[str]
         Ordered factor names.
     step_size : float
-        Step magnitude in coded units (default 0.5).
+        Euclidean distance, in coded units, between successive points on the
+        path (default 0.5). Each step moves every factor in proportion to its
+        linear coefficient, so a factor moves by ``step_size * b_j / ||b||``.
+        Must be positive.
     n_steps : int
         Number of steps to take away from the design centre (default 10).
         The returned ``steps`` list has ``n_steps + 1`` entries because it
@@ -405,59 +639,29 @@ def _steepest_path(  # noqa: PLR0913
     Returns
     -------
     dict
-        ``steps`` list and ``direction_vector``.
+        The path as :func:`~process_improve.experiments.sequential.steepest_path` returns it,
+        or ``{"error": ...}`` when every linear coefficient is zero.
+
+    Raises
+    ------
+    ValueError
+        If *step_size* is not a positive finite number or *n_steps* < 1: a
+        negative step would walk the path the wrong way.
     """
-    evaluator = _build_model_evaluator(coefficients, factor_names)
+    from process_improve.experiments.sequential import NoSteepestDirectionError, steepest_path  # noqa: PLC0415
 
-    # Extract linear coefficients only
-    name_to_idx = {n: i for i, n in enumerate(factor_names)}
-    b = np.zeros(len(factor_names))
-    for entry in coefficients:
-        components = _parse_term(entry["term"])
-        if len(components) == 1 and components[0] in name_to_idx:
-            b[name_to_idx[components[0]]] = float(entry["coefficient"])
-
-    if np.allclose(b, 0):
+    if not (np.isfinite(step_size) and step_size > 0):
+        msg = f"step_size must be a positive number of coded units; got {step_size}."
+        raise ValueError(msg)
+    if n_steps < 1:
+        msg = f"n_steps must be at least 1; got {n_steps}."
+        raise ValueError(msg)
+    model = {"coefficients": coefficients, "factor_names": factor_names, "factor_coding": factor_ranges or {}}
+    goal = "minimize" if direction == "descent" else "maximize"
+    try:
+        return steepest_path(model, step_size, n_steps, goal=goal)
+    except NoSteepestDirectionError:
         return {"error": "All linear coefficients are zero - no steepest direction."}
-
-    # Direction: normalize, then scale by step_size
-    norm = np.linalg.norm(b)
-    direction_vec = b / norm
-    if direction == "descent":
-        direction_vec = -direction_vec
-
-    steps = []
-    for step_num in range(n_steps + 1):
-        x_coded = direction_vec * step_size * step_num
-        predicted = float(evaluator(x_coded))
-
-        step_entry: dict[str, Any] = {
-            "step": step_num,
-            "coded": {n: float(x_coded[i]) for i, n in enumerate(factor_names)},
-            "predicted_response": predicted,
-        }
-
-        if factor_ranges:
-            actual = {}
-            for i, name in enumerate(factor_names):
-                if name in factor_ranges:
-                    lo = factor_ranges[name]["low"]
-                    hi = factor_ranges[name]["high"]
-                    center = (lo + hi) / 2.0
-                    half_range = (hi - lo) / 2.0
-                    actual[name] = center + x_coded[i] * half_range
-                else:
-                    actual[name] = float(x_coded[i])
-            step_entry["actual"] = actual
-
-        steps.append(step_entry)
-
-    return {
-        "direction": direction,
-        "direction_vector": {n: float(direction_vec[i]) for i, n in enumerate(factor_names)},
-        "step_size": step_size,
-        "steps": steps,
-    }
 
 
 def _resolve_search_bounds(
@@ -529,13 +733,12 @@ def _align_goals_to_models(
 ) -> list[dict[str, Any]]:
     """Return *goals* reordered to match *fitted_models*.
 
-    Goals were previously consumed in list order while ``goal["response"]`` was
-    documented as the key that ties a goal to its model. Passing the two lists
-    in different orders therefore optimised the wrong thing without complaint.
-
-    When every model names its response and every goal names a matching one, the
-    goals are reordered by name. Otherwise the original positional order is kept,
-    with a warning, since that is the only interpretation left.
+    When every model names its response and every goal names one, the goals are
+    reordered by name, and names that do not pair up one to one are an error:
+    pairing them by position instead would optimise each response against another
+    response's goal whenever the lists are in different orders. When either side
+    leaves a name out, the goals are taken in list order, with a warning when there
+    is more than one response, since position is then the only reading left.
 
     Parameters
     ----------
@@ -552,7 +755,9 @@ def _align_goals_to_models(
     Raises
     ------
     ValueError
-        If the two lists differ in length.
+        If the two lists differ in length, or if both sides name every response
+        but the names do not correspond one to one (a typo, a case difference, or
+        a duplicate).
     """
     if len(goals) != len(fitted_models):
         msg = f"Got {len(fitted_models)} fitted model(s) but {len(goals)} goal(s); they must correspond one to one."
@@ -562,23 +767,317 @@ def _align_goals_to_models(
     goal_names = [g.get("response") for g in goals]
 
     if any(n is None for n in model_names) or any(n is None for n in goal_names):
-        logger.warning(
-            "Matching goals to fitted models by position: not every model has 'response_name' and not every "
-            "goal has 'response'. Name both to have them matched by name instead."
-        )
+        if len(goals) > 1:
+            warnings.warn(
+                "Matching goals to fitted models by position: not every model has 'response_name' and not every "
+                "goal has 'response'. Name both to have them matched by name instead.",
+                UserWarning,
+                stacklevel=4,
+            )
         return goals
 
+    model_keys = [str(n) for n in model_names]
     by_name = {str(g["response"]): g for g in goals}
-    if len(by_name) != len(goals) or set(by_name) != {str(n) for n in model_names}:
-        logger.warning(
-            "Matching goals to fitted models by position: the goal 'response' names %s do not correspond "
-            "one to one with the model 'response_name' values %s.",
-            sorted(str(n) for n in goal_names),
-            sorted(str(n) for n in model_names),
+    if len(by_name) != len(goals) or len(set(model_keys)) != len(model_keys) or set(by_name) != set(model_keys):
+        unmatched_goals = sorted(set(by_name) - set(model_keys))
+        unmatched_models = sorted(set(model_keys) - set(by_name))
+        msg = (
+            f"The goals' 'response' names {[str(n) for n in goal_names]} do not correspond one to one with the "
+            f"models' 'response_name' values {model_keys}: goal name(s) {unmatched_goals} match no model and "
+            f"model name(s) {unmatched_models} match no goal, and each name must appear once on each side. "
+            "Fix the names (they are case-sensitive), or leave 'response' out of every goal to pair them by position."
         )
-        return goals
+        raise ValueError(msg)
 
-    return [by_name[str(n)] for n in model_names]
+    return [by_name[key] for key in model_keys]
+
+
+@dataclass
+class _SearchSpace:
+    """Where SLSQP may look: bounds, scipy constraint dicts, and feasible starting points."""
+
+    bounds: list[tuple[float, float]]
+    constraints: list[dict[str, Any]]
+    starts: list[np.ndarray]
+
+
+def _search_space(
+    factor_names: list[str],
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    region: DesignRegion | None,
+    rng: np.random.Generator,
+    n_starts: int,
+) -> _SearchSpace:
+    """Translate a search box, and optionally a :class:`DesignRegion`, into SLSQP inputs.
+
+    Without a region the search is the coded box, started from its centre and from
+    random points in it. With a box region its constraints become inequality
+    constraints on top of that box. A mixture region replaces the box: its component
+    bounds become the bounds, ``sum(x) = 1`` an equality constraint, and its linear
+    constraints inequalities. A mixture-process region does both: the components'
+    part as a mixture region's, the process factors' as a box region's. The starts are
+    then drawn uniformly from the feasible set itself, since a start outside it can
+    leave SLSQP stranded at an infeasible point.
+    """
+    bounds = _resolve_search_bounds(search_bounds, factor_names)
+    lows, highs = np.array(bounds).T
+    if region is None:
+        starts = [(lows + highs) / 2.0, *(rng.uniform(lows, highs) for _ in range(n_starts - 1))]
+        return _SearchSpace(bounds, [], starts)
+
+    if region.rules is not None:
+        example = ", ".join(f"{name}={levels[0]!r}" for name, levels in region.rules.levels.items())
+        msg = (
+            f"The region's constraints on the categorical factors {region.rules.factors} give one region of "
+            f"settings per allowed combination of levels; search one of them, as region.given({example})."
+        )
+        raise ValueError(msg)
+    if set(region.names) != set(factor_names):
+        msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
+        raise ValueError(msg)
+    idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
+    components = [factor_names.index(n) for n in region.mixture_names]
+    for j in components:
+        bounds[j] = region.bounds[region.names.index(factor_names[j])]
+    constraints: list[dict[str, Any]] = [
+        {"type": "ineq", "fun": lambda x, g=g: -float(g(x[idx][None, :])[0])} for g in region.inequalities
+    ]
+    if components:
+        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
+    if region.kind != "box":
+        samples = region.sample(n_starts, rng)
+    else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
+        box = (lows[idx], highs[idx])
+        samples = UniformSampler(
+            region.inequalities,
+            box,
+            lambda m: rng.uniform(*box, size=(m, len(idx))),
+            seeds=region.seed_points,
+            tolerances=region._widen(),  # so a start passes region.feasible()
+        ).draw(n_starts, rng)
+    starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
+    for start, sample in zip(starts, samples, strict=True):
+        start[idx] = sample
+    return _SearchSpace(bounds, constraints, starts)
+
+
+def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
+    """Return ``region`` for the methods that search inside one, warning and dropping it otherwise."""
+    if region is not None and method not in {"desirability", "pareto_front"}:
+        warnings.warn(
+            f"region is honoured by 'desirability' and 'pareto_front' only; it is ignored by {method!r}, "
+            "which works over search_bounds instead.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return None
+    return region
+
+
+def _multistart_results(
+    objective: Callable[[np.ndarray], float],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+    options: dict[str, Any] | None = None,
+) -> list[optimize.OptimizeResult]:
+    """Run SLSQP from every start in ``space``; return the accepted results, best first (ties in start order)."""
+    results = []
+    for x0 in space.starts:
+        res = optimize.minimize(
+            objective, x0, method="SLSQP", bounds=space.bounds, constraints=space.constraints, options=options
+        )
+        if accept(res.x) and np.isfinite(res.fun):
+            results.append(res)
+    return sorted(results, key=lambda res: res.fun)
+
+
+def _multistart_slsqp(
+    objective: Callable[[np.ndarray], float],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+    options: dict[str, Any] | None = None,
+) -> optimize.OptimizeResult | None:
+    """Run SLSQP from every start in ``space``; return the best accepted result, or ``None``."""
+    results = _multistart_results(objective, space, accept, options)
+    return results[0] if results else None
+
+
+def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.ndarray) -> bool | None:
+    """Whether ``x`` (model column order) lies in ``region``; ``None`` without a region.
+
+    A box region's own ``[-1, 1]`` cube is not imposed: the search box
+    (``search_bounds``) bounds the search, and the region adds its constraints on top.
+    Nor is it for the process factors of a mixture-process region, whose components
+    must still sum to 1.
+    """
+    if region is None:
+        return None
+    point = x[[factor_names.index(n) for n in region.names]][None, :]
+    if region.kind == "mixture":
+        return bool(region.feasible(point, tol=1e-6)[0])
+    inside = all(float(g(point)[0]) <= 1e-6 for g in region.inequalities)
+    components = [region.names.index(n) for n in region.mixture_names]
+    return inside and abs(float(point[0, components].sum()) - 1.0) <= 1e-6 if components else inside
+
+
+def _ramp_values(y_values: Sequence[float], goals: list[dict[str, Any]]) -> np.ndarray:
+    """Return the unclipped linear desirability ramps, all positive exactly where every d is.
+
+    A maximise goal contributes ``(y - low) / (high - low)``, a minimise goal
+    ``(high - y) / (high - low)``, a target goal both of its sides, and an in-range
+    goal both of its margins, each over the width of the range. Unlike the
+    desirabilities themselves, these keep a slope outside the acceptable limits,
+    so they show which way to move from a setting where some response scores 0.
+    """
+    pieces: list[float] = []
+    for y, goal in zip(y_values, goals, strict=True):
+        low, high = float(goal["low"]), float(goal["high"])
+        if goal["goal"] == "maximize":
+            pieces.append((y - low) / (high - low))
+        elif goal["goal"] == "minimize":
+            pieces.append((high - y) / (high - low))
+        elif goal["goal"] == "in_range":
+            pieces.extend(((y - low) / (high - low), (high - y) / (high - low)))
+        else:
+            target = float(goal["target"])
+            pieces.extend(((y - low) / (target - low), (high - y) / (high - target)))
+    return np.array(pieces)
+
+
+def _closest_to_specification(
+    evaluators: list[Callable[[np.ndarray], float]],
+    goals: list[dict[str, Any]],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+) -> np.ndarray | None:
+    """Return the setting that maximises the smallest unclipped ramp, a start with every d > 0 if one exists.
+
+    A Derringer-Suich desirability is exactly 0, with zero gradient, wherever its
+    response lies outside the acceptable limits, so a gradient search started there
+    cannot leave. Tight limits can leave the region where the composite is positive
+    small enough for every random start to miss it. Maximising ``t`` subject to
+    every ramp being at least ``t`` (and ``t <= 1``, beyond which every
+    desirability is already 1) is smooth everywhere and reaches that region
+    whenever the search finds a setting with ``t > 0``; when none exists, the
+    result is the setting that comes closest to meeting every limit.
+    """
+    n = len(space.bounds)
+
+    def ramps(z: np.ndarray) -> np.ndarray:
+        return _ramp_values([f(z[:n]) for f in evaluators], goals)
+
+    constraints = [{"type": "ineq", "fun": lambda z: ramps(z) - z[n]}]
+    constraints += [{**c, "fun": lambda z, c=c: c["fun"](z[:n])} for c in space.constraints]
+    best: tuple[float, np.ndarray] | None = None
+    for x0 in space.starts:
+        z0 = np.append(x0, min(1.0, float(ramps(np.append(x0, 0.0)).min())))
+        res = optimize.minimize(
+            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds, (None, 1.0)], constraints=constraints
+        )
+        x = res.x[:n]
+        t = float(ramps(res.x).min())
+        if np.all(np.isfinite(res.x)) and accept(x) and (best is None or t > best[0]):
+            best = (t, x)
+    return None if best is None else best[1]
+
+
+#: How far, as a fraction of its range, an in-range response may sit outside its limits at an accepted point.
+_LIMIT_TOL = 1e-6
+
+
+def _response_limits(
+    evaluators: list[Callable[[np.ndarray], float]], goals: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Return SLSQP constraints that hold each ``"in_range"`` response within its limits.
+
+    Each margin is divided by the width of the range, so the constraints of responses in
+    different units are on one scale.
+    """
+    constraints: list[dict[str, Any]] = []
+    for f, goal in zip(evaluators, goals, strict=True):
+        if goal["goal"] != "in_range":
+            continue
+        low, high = float(goal["low"]), float(goal["high"])
+        width = high - low
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, low=low, width=width: (f(x) - low) / width})
+        constraints.append({"type": "ineq", "fun": lambda x, f=f, high=high, width=width: (high - f(x)) / width})
+    return constraints
+
+
+def _check_desirability_goals(goals: list[dict[str, Any]]) -> None:
+    """Check every goal, and that at least one scores a response rather than only limiting it."""
+    for goal in goals:
+        check_goal(goal)
+    if not any(goal["goal"] in SCORED_GOALS for goal in goals):
+        msg = (
+            "Every goal is 'in_range', which only limits a response: give at least one response a goal of "
+            "'maximize', 'minimize' or 'target' to optimise."
+        )
+        raise ValueError(msg)
+
+
+def _no_optimum(region: DesignRegion | None, limits: list[dict[str, Any]]) -> Exception:
+    """Return the error for a search in which no start ended at an accepted point."""
+    if limits:
+        return ValueError(
+            "No setting in the search region holds every 'in_range' response within its limits; widen "
+            "search_bounds or the limits."
+        )
+    return RuntimeError("optimization produced no result" if region is None else "no start converged inside the region")
+
+
+#: An alternative's composite desirability is at least this share of the best's.
+_ALTERNATIVE_SHARE = 0.95
+
+#: An alternative lies at least this far, in coded units, from the best and from every other alternative.
+_ALTERNATIVE_DISTANCE = 0.5
+
+
+@dataclass(frozen=True)
+class _Scored:
+    """What a desirability result reports at a setting: the models and their goals, and how settings are shown."""
+
+    factor_names: list[str]
+    names: list[str]
+    evaluators: list[Callable[[np.ndarray], float]]
+    goals: list[dict[str, Any]]
+    importances: list[float] | None
+    factor_ranges: dict[str, dict[str, float]] | None
+    region: DesignRegion | None
+
+    def at(self, x: np.ndarray) -> dict[str, Any]:
+        """Return the settings, the predicted responses and their desirabilities at coded settings ``x``."""
+        predictions = {name: float(f(x)) for name, f in zip(self.names, self.evaluators, strict=True)}
+        each = [individual_desirability(predictions[name], g) for name, g in zip(self.names, self.goals, strict=True)]
+        point: dict[str, Any] = {
+            "optimal_coded": {n: float(x[i]) for i, n in enumerate(self.factor_names)},
+            "predicted_responses": predictions,
+            "individual_desirability": {name: float(d) for name, d in zip(self.names, each, strict=True)},
+            "composite_desirability": float(overall_desirability(each, self.goals, self.importances)),
+        }
+        if self.region is not None:
+            point["within_region"] = _within_region(self.region, self.factor_names, x)
+        if self.factor_ranges:
+            point["optimal_actual"] = _coded_to_actual(point["optimal_coded"], self.factor_ranges)
+        return point
+
+
+def _alternatives(results: list[optimize.OptimizeResult], n_alternatives: int) -> list[np.ndarray]:
+    """Return up to ``n_alternatives`` other optima of a search: nearly as good as the best, and far from it.
+
+    The results are taken best first. One is kept when its composite desirability is at least
+    :data:`_ALTERNATIVE_SHARE` of the best's and it lies at least :data:`_ALTERNATIVE_DISTANCE`
+    from the best and from every alternative kept before it, so each is a different choice.
+    """
+    if n_alternatives == 0 or not results or -results[0].fun <= 0.0:
+        return []
+    kept = [results[0].x]
+    for res in results[1:]:
+        if -res.fun < _ALTERNATIVE_SHARE * -results[0].fun or len(kept) > n_alternatives:
+            break
+        if min(float(np.linalg.norm(res.x - x)) for x in kept) >= _ALTERNATIVE_DISTANCE:
+            kept.append(res.x)
+    return kept[1:]
 
 
 def _optimize_desirability(  # noqa: PLR0913
@@ -589,6 +1088,10 @@ def _optimize_desirability(  # noqa: PLR0913
     importances: list[float] | None = None,
     random_state: int | np.random.Generator | None = 42,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    region: DesignRegion | None = None,
+    *,
+    align_goals: bool = True,
+    n_alternatives: int = 0,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -608,85 +1111,73 @@ def _optimize_desirability(  # noqa: PLR0913
         same as a goal's ``weight``, which shapes that response's own ramp.
     search_bounds : tuple, dict, or None
         Coded region to search. Defaults to the factorial cube, (-1, 1).
+    region : DesignRegion or None
+        Constraints the optimum must satisfy; see :func:`_search_space`.
+    align_goals : bool
+        False when the caller has already aligned *goals* with
+        :func:`_align_goals_to_models`, so a positional pairing is not warned about twice.
+    n_alternatives : int
+        How many other optima to report (see :func:`_alternatives`). Asking for any searches
+        from ten more starts for each.
 
     Returns
     -------
     dict
         Optimal settings, predicted responses, individual and composite
-        desirability.
+        desirability, ``within_region`` when a region is given, and
+        ``alternatives`` when *n_alternatives* is above 0.
     """
-    goals = _align_goals_to_models(fitted_models, goals)
+    if align_goals:
+        goals = _align_goals_to_models(fitted_models, goals)
+    _check_desirability_goals(goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
         """Return the negated composite desirability at coded settings ``x``, for minimization."""
-        d_vals = []
-        for evaluator, goal in zip(evaluators, goals, strict=True):
-            y_pred = evaluator(x)
-            d = individual_desirability(y_pred, goal)
-            d_vals.append(d)
-        return -composite_desirability(d_vals, importances)
-
-    bounds = _resolve_search_bounds(search_bounds, factor_names)
-    lows = np.array([b[0] for b in bounds])
-    highs = np.array([b[1] for b in bounds])
+        d_vals = [individual_desirability(f(x), goal) for f, goal in zip(evaluators, goals, strict=True)]
+        return -overall_desirability(d_vals, goals, importances)
 
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
     # ``random_state=42`` (default preserves the previous deterministic
     # behaviour). Resolved via the ENG-08 helper.
     rng = check_random_state(random_state)
-    best_result = None
-    best_value = np.inf
 
     # Start from the centre of the searched region, then sample across it, so
     # that widening the bounds actually widens where the search looks.
-    centre = (lows + highs) / 2.0
-    starting_points = [centre, *[rng.uniform(lows, highs) for _ in range(9)]]
+    space = _search_space(factor_names, search_bounds, region, rng, n_starts=10 + 10 * n_alternatives)
+    limits = _response_limits(evaluators, goals)
+    space.constraints.extend(limits)
 
-    for x0 in starting_points:
-        res = optimize.minimize(neg_composite, x0, method="SLSQP", bounds=bounds)
-        if res.fun < best_value:
-            best_value = res.fun
-            best_result = res
+    def accept(x: np.ndarray) -> bool:
+        within = _within_region(region, factor_names, x) is not False
+        return within and all(c["fun"](x) >= -_LIMIT_TOL for c in limits)
 
-    if best_result is None:
-        msg = "optimization produced no result"
-        raise RuntimeError(msg)
+    # Start first from the setting closest to meeting every limit: from there the
+    # search can climb even when every other start sits where some d is 0, and on a
+    # tie at D = 0 it is the setting reported.
+    if (closest := _closest_to_specification(evaluators, goals, space, accept)) is not None:
+        space.starts.insert(0, closest)
+    results = _multistart_results(neg_composite, space, accept)
+    if not results:
+        raise _no_optimum(region, limits)
 
-    x_opt = best_result.x
-    composite_d = -best_value
+    best_result = results[0]
+    composite_d = float(-best_result.fun)
+    if composite_d <= 0.0:
+        warnings.warn(
+            "No setting in the search region was found where every response has a desirability above 0, so "
+            "the composite desirability is 0. The setting reported is the one that came closest to meeting every "
+            "goal's limits; widen search_bounds or relax the limits.",
+            UserWarning,
+            stacklevel=4,
+        )
 
-    # Evaluate individual responses and desirabilities at optimum
-    predictions = {}
-    individual_d = {}
-    for evaluator, model_dict, goal in zip(evaluators, fitted_models, goals, strict=True):
-        resp_name = model_dict.get("response_name", "response")
-        y_pred = float(evaluator(x_opt))
-        predictions[resp_name] = y_pred
-        individual_d[resp_name] = individual_desirability(y_pred, goal)
-
-    result: dict[str, Any] = {
-        "optimal_coded": {n: float(x_opt[i]) for i, n in enumerate(factor_names)},
-        "predicted_responses": predictions,
-        "individual_desirability": individual_d,
-        "composite_desirability": composite_d,
-        "optimizer_success": bool(best_result.success),
-    }
-
-    if factor_ranges:
-        actual = {}
-        for i, name in enumerate(factor_names):
-            if name in factor_ranges:
-                lo = factor_ranges[name]["low"]
-                hi = factor_ranges[name]["high"]
-                center = (lo + hi) / 2.0
-                half_range = (hi - lo) / 2.0
-                actual[name] = center + x_opt[i] * half_range
-            else:
-                actual[name] = float(x_opt[i])
-        result["optimal_actual"] = actual
-
+    names = [m.get("response_name", "response") for m in fitted_models]
+    scored = _Scored(factor_names, names, evaluators, goals, importances, factor_ranges, region)
+    result = scored.at(best_result.x) | {"optimizer_success": bool(best_result.success)}
+    if n_alternatives:
+        result["alternatives"] = [scored.at(x) for x in _alternatives(results, n_alternatives)]
     return result
 
 
@@ -900,6 +1391,39 @@ def _ridge_analysis(
     }
 
 
+def _ridge_within_bounds(
+    coefficients: list[dict[str, Any]],
+    factor_names: list[str],
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    direction: str,
+    n_radii: int,
+) -> dict[str, Any]:
+    """Trace the ridge out to the farthest bound, flagging the points that leave the search box.
+
+    The ridge lives on spheres around the design centre, so it can follow a box
+    only as far as its largest ``|bound|``. Bounds that differ between factors, or
+    that are not symmetric about 0, are therefore not followed: each path entry
+    carries ``inside_search_bounds`` instead, and a warning says so.
+    """
+    box = _resolve_search_bounds(search_bounds, factor_names)
+    max_radius = max(max(abs(low), abs(high)) for low, high in box)
+    ridge = _ridge_analysis(coefficients, factor_names, direction=direction, n_radii=n_radii, max_radius=max_radius)
+    for entry in ridge.get("path", []):
+        entry["inside_search_bounds"] = all(
+            low - 1e-9 <= entry["coded"][name] <= high + 1e-9
+            for name, (low, high) in zip(factor_names, box, strict=True)
+        )
+    if len(set(box)) > 1 or box[0][0] != -box[0][1]:
+        warnings.warn(
+            f"ridge_analysis traces spheres around the design centre out to radius {max_radius}, the "
+            "largest |bound|; it cannot follow search_bounds that differ between factors or are not symmetric "
+            "about 0. Path points outside the bounds have inside_search_bounds=False.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return ridge
+
+
 # ---------------------------------------------------------------------------
 # Pareto front
 # ---------------------------------------------------------------------------
@@ -929,6 +1453,8 @@ def _objective_senses(goals: list[dict[str, Any]]) -> list[tuple[str, float | No
             senses.append((kind, None))
         else:
             msg = f"Unknown goal {kind!r}; expected 'maximize', 'minimize' or 'target'."
+            if kind == "in_range":
+                msg += " To hold a response within limits, use method='desirability' with an 'in_range' goal."
             raise ValueError(msg)
     return senses
 
@@ -984,8 +1510,6 @@ def _non_dominated(utilities: np.ndarray) -> np.ndarray:
     """Return a boolean mask of the rows no other row dominates (more is better)."""
     keep = np.ones(len(utilities), dtype=bool)
     for i, row in enumerate(utilities):
-        if not keep[i]:
-            continue
         # Strictly better somewhere, and no worse anywhere: that dominates row i.
         scale = np.maximum(np.abs(row), 1.0)
         better_or_equal = (utilities >= row - _PARETO_TOL * scale).all(axis=1)
@@ -1060,6 +1584,7 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     n_points: int = 21,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     random_state: int | np.random.Generator | None = 42,
+    region: DesignRegion | None = None,
 ) -> dict[str, Any]:
     """Compute the Pareto front of several fitted response-surface models.
 
@@ -1105,6 +1630,8 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     random_state : int, Generator, or None
         Seed for the extra random starts. The default keeps the result
         reproducible.
+    region : DesignRegion or None
+        Constraints every front point must satisfy.
 
     Returns
     -------
@@ -1132,13 +1659,14 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
     names = [str(m.get("response_name", f"response_{i + 1}")) for i, m in enumerate(fitted_models)]
 
-    bounds = _resolve_search_bounds(search_bounds, factor_names)
-    lows = np.array([low for low, _ in bounds])
-    highs = np.array([high for _, high in bounds])
-    centre = (lows + highs) / 2.0
-
     rng = check_random_state(random_state)
-    starts = [centre, lows.copy(), highs.copy(), *(rng.uniform(lows, highs) for _ in range(5))]
+    if region is None:
+        bounds = _resolve_search_bounds(search_bounds, factor_names)
+        lows, highs = np.array(bounds).T
+        starts = [(lows + highs) / 2.0, lows.copy(), highs.copy(), *(rng.uniform(lows, highs) for _ in range(5))]
+        space = _SearchSpace(bounds, [], starts)
+    else:
+        space = _search_space(factor_names, search_bounds, region, rng, n_starts=8)
 
     def raw(x: np.ndarray) -> np.ndarray:
         return np.array([evaluator(x) for evaluator in evaluators])
@@ -1146,18 +1674,21 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
     def utility(x: np.ndarray) -> np.ndarray:
         return _as_utilities(raw(x), senses)
 
-    def best_of(objective: Callable[[np.ndarray], float]) -> np.ndarray:
+    def best_of(objective: Callable[[np.ndarray], float]) -> np.ndarray | None:
         # SLSQP's default ftol of 1e-6 leaves front points a visible distance
         # short of the true frontier. These objectives cost microseconds to
         # evaluate, so there is nothing to buy by stopping early.
-        winner, best = centre, np.inf
-        for x0 in starts:
-            res = optimize.minimize(objective, x0, method="SLSQP", bounds=bounds, options=_SLSQP_OPTIONS)
-            if res.fun < best:
-                winner, best = res.x, res.fun
-        return winner
+        res = _multistart_slsqp(
+            objective, space, lambda x: _within_region(region, factor_names, x) is not False, _SLSQP_OPTIONS
+        )
+        return None if res is None else res.x
 
-    payoff_raw, payoff_utility = _payoff_table(best_of, raw, utility, senses, len(names))
+    def anchor(objective: Callable[[np.ndarray], float]) -> np.ndarray:
+        if (x := best_of(objective)) is None:
+            raise RuntimeError("Pareto front: no start converged inside the region for a single objective.")
+        return x
+
+    payoff_raw, payoff_utility = _payoff_table(anchor, raw, utility, senses, len(names))
     ideal_utility = payoff_utility.diagonal().copy()
     nadir_utility = payoff_utility.min(axis=0)
     spread = np.where(np.abs(ideal_utility - nadir_utility) > _SPREAD_FLOOR, ideal_utility - nadir_utility, 1.0)
@@ -1167,7 +1698,8 @@ def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the 
         return float(gap.max() + _PARETO_AUGMENT * gap.sum())
 
     weights = _simplex_weights(len(names), n_points)
-    points = np.array([best_of(functools.partial(chebyshev, w=w)) for w in weights])
+    found = [best_of(functools.partial(chebyshev, w=w)) for w in weights]
+    points = np.array([x for x in found if x is not None])  # a weight with no feasible optimum adds no point
     keep = _non_dominated(np.array([utility(x) for x in points]))
     front = _front_entries(points[keep], raw, factor_names, names)
 
@@ -1203,17 +1735,15 @@ def _add_actual_units(
 
 
 def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str, float]]) -> dict[str, float]:
-    """Convert coded factor settings to actual units."""
+    """Convert coded factor settings to actual units, as plain Python floats."""
     actual = {}
     for name, coded_val in coded.items():
         if name in factor_ranges:
-            lo = factor_ranges[name]["low"]
-            hi = factor_ranges[name]["high"]
-            center = (lo + hi) / 2.0
-            half_range = (hi - lo) / 2.0
-            actual[name] = center + coded_val * half_range
+            lo = float(factor_ranges[name]["low"])
+            hi = float(factor_ranges[name]["high"])
+            actual[name] = (lo + hi) / 2.0 + float(coded_val) * (hi - lo) / 2.0
         else:
-            actual[name] = coded_val
+            actual[name] = float(coded_val)
     return actual
 
 
@@ -1289,6 +1819,122 @@ def _intervals_at_point(
     return intervals
 
 
+#: Methods that analyse the surface of one fitted model.
+_SINGLE_RESPONSE_METHODS = {
+    "stationary_point",
+    "canonical_analysis",
+    "steepest_ascent",
+    "steepest_descent",
+    "ridge_analysis",
+}
+
+
+def _span(coding: dict[str, Any]) -> tuple[float, float]:
+    return float(coding["low"]), float(coding["high"])
+
+
+def _ranges_from_coding(
+    fitted_models: list[dict[str, Any]],
+    factor_ranges: dict[str, dict[str, float]] | None,
+    components: Sequence[str] = (),
+) -> dict[str, dict[str, float]] | None:
+    """Check that each model is on the coded scale, and add the factor ranges its coding implies.
+
+    ``analyze_experiment`` reports the scale of its coefficients as ``coding``, and how
+    each factor maps to -1 and +1 as ``factor_coding``. The optimiser evaluates models at
+    coded settings, so a model whose coefficients are in actual units would be searched
+    over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
+    settings its coded optimum stands for. A model without these keys, such as one
+    written out by hand, is taken to be coded, as before. Mixture ``components`` (those
+    of the region searched) are proportions on either scale, so they are left out.
+
+    Raises
+    ------
+    ValueError
+        If a model's coefficients are in actual units, if two models code a factor from
+        different ranges, or if *factor_ranges* disagrees with a model's coding.
+    """
+    implied: dict[str, dict[str, float]] = {}
+    for i, model in enumerate(fitted_models):
+        coding = {f: how for f, how in (model.get("factor_coding") or {}).items() if f not in components}
+        name = model.get("response_name", f"fitted_models[{i}]")
+        if coding and model.get("coding") == "actual":
+            spans = ", ".join(f"{factor} from {how['low']} to {how['high']}" for factor, how in coding.items())
+            msg = (
+                f"The coefficients of {name!r} are in actual units ({spans}), but optimize_responses evaluates "
+                "models at coded settings, -1 to +1. Fit it with analyze_experiment(..., coding='coded'), or with "
+                "coding set to the factor ranges, and pass that result. A split-plot fit is made on the runs as "
+                "given: code its factors to -1 and +1 before fitting it."
+            )
+            raise ValueError(msg)
+        for factor, how in coding.items():
+            if not all(isinstance(how[end], numbers.Real) for end in ("low", "high")):
+                continue  # a categorical factor's two levels: its setting stays coded
+            known = implied.setdefault(factor, {"low": float(how["low"]), "high": float(how["high"])})
+            if not np.allclose(_span(known), _span(how)):
+                msg = (
+                    f"The models code {factor} from different ranges ({known['low']} to {known['high']}, and "
+                    f"{how['low']} to {how['high']} for {name!r}), so a coded setting does not mean the same in "
+                    "each. Fit them all with the same ranges: analyze_experiment(..., coding={...})."
+                )
+                raise ValueError(msg)
+    for factor, given in (factor_ranges or {}).items():
+        if factor in implied and not np.allclose(_span(given), _span(implied[factor])):
+            msg = (
+                f"factor_ranges gives {factor} from {given['low']} to {given['high']}, but the coefficients are coded "
+                f"with {factor} from {implied[factor]['low']} to {implied[factor]['high']}. Leave factor_ranges out, "
+                "or fit with analyze_experiment(..., coding=factor_ranges) so that the two agree."
+            )
+            raise ValueError(msg)
+    return {**implied, **(factor_ranges or {})} or factor_ranges
+
+
+def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> None:
+    """Check that *fitted_models* carries what *method* needs, naming what is missing.
+
+    Raises
+    ------
+    ValueError
+        If the list is empty, a model lacks ``"coefficients"`` or
+        ``"factor_names"``, or a single-response method gets more than one model
+        (it would otherwise analyse the first and ignore the rest).
+    """
+    if not fitted_models:
+        msg = "At least one fitted model is required."
+        raise ValueError(msg)
+    for i, model in enumerate(fitted_models):
+        if not isinstance(model, dict):
+            msg = f"fitted_models[{i}] must be a dict; got {type(model).__name__}."
+            raise TypeError(msg)
+        if "coefficients" not in model:
+            msg = (
+                f"fitted_models[{i}] has no 'coefficients'. Run analyze_experiment with 'coefficients' among its "
+                "analysis_type values, and pass its result."
+            )
+            raise ValueError(msg)
+        if "factor_names" not in model:
+            msg = (
+                f"fitted_models[{i}] has no 'factor_names', the ordered factors its coefficients refer to "
+                "(analyze_experiment returns them alongside 'coefficients'). Add e.g. 'factor_names': ['A', 'B']."
+            )
+            raise ValueError(msg)
+    if method in _SINGLE_RESPONSE_METHODS and len(fitted_models) > 1:
+        names = [m.get("response_name", f"model {i}") for i, m in enumerate(fitted_models)]
+        msg = (
+            f"method={method!r} analyses one response; got {len(fitted_models)} models ({names}). "
+            "Call it once per response, or use 'desirability' or 'pareto_front' to optimise them together."
+        )
+        raise ValueError(msg)
+
+
+def _check_alternatives(n_alternatives: int) -> int:
+    """Return ``n_alternatives``, refusing anything but a whole number of at least 0."""
+    if isinstance(n_alternatives, bool) or not isinstance(n_alternatives, int) or n_alternatives < 0:
+        msg = f"n_alternatives must be a whole number of at least 0; got {n_alternatives!r}."
+        raise ValueError(msg)
+    return n_alternatives
+
+
 def _desirability_result(  # noqa: PLR0913
     *,
     fitted_models: list[dict[str, Any]],
@@ -1299,6 +1945,9 @@ def _desirability_result(  # noqa: PLR0913
     fitted_results: list[Any] | None,
     significance_level: float,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+    region: DesignRegion | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    n_alternatives: int = 0,
 ) -> dict[str, Any]:
     """Assemble the full desirability result: optimum, intervals, and plot input.
 
@@ -1312,12 +1961,24 @@ def _desirability_result(  # noqa: PLR0913
         overlay plot.
     """
     aligned_goals = _align_goals_to_models(fitted_models, goals)
+    for goal in aligned_goals:
+        check_goal(goal)
     importances = response_importance
     if importances is None:
         importances = [g.get("importance", 1.0) for g in aligned_goals]
+    check_importances(importances, len(fitted_models))
 
     desirability = _optimize_desirability(
-        fitted_models, aligned_goals, factor_names, factor_ranges, importances, search_bounds=search_bounds
+        fitted_models,
+        aligned_goals,
+        factor_names,
+        factor_ranges,
+        importances,
+        random_state=random_state,
+        search_bounds=search_bounds,
+        region=region,
+        align_goals=False,
+        n_alternatives=n_alternatives,
     )
 
     if fitted_results is not None:
@@ -1337,7 +1998,7 @@ def _desirability_result(  # noqa: PLR0913
     return desirability
 
 
-def optimize_responses(  # noqa: PLR0913, C901
+def optimize_responses(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]] | None = None,
     method: str = "desirability",
@@ -1348,16 +2009,27 @@ def optimize_responses(  # noqa: PLR0913, C901
     fitted_results: list[Any] | None = None,
     significance_level: float = 0.05,
     search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
-    desirability_weights: list[float] | None = None,
     ridge_direction: str = "maximize",
     n_pareto_points: int = 21,
+    region: DesignRegion | None = None,
+    random_state: int | np.random.Generator | None = 42,
+    n_alternatives: int = 0,
+    flat_tolerance: float = _FLAT_EIGENVALUE_TOL,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
 
     Parameters
     ----------
     fitted_models : list[dict]
-        Each dict describes a fitted model with keys:
+        One model for the single-response methods (``"stationary_point"``,
+        ``"canonical_analysis"``, ``"steepest_ascent"``, ``"steepest_descent"``,
+        ``"ridge_analysis"``), one or more for ``"desirability"`` and two or more
+        for ``"pareto_front"``. The models are evaluated at coded settings, so
+        their coefficients must be on the coded scale: pass the result of
+        ``analyze_experiment(..., analysis_type="coefficients", coding="coded")``
+        as it is. One fitted with ``coding="actual"`` on factors that are not
+        already coded is refused, since its optimum would be searched for between
+        -1 and +1 in actual units. Each dict describes a fitted model with keys:
 
         - ``"response_name"`` (str) - name of the response.
         - ``"coefficients"`` (list[dict]) - coefficient list, each with
@@ -1366,6 +2038,9 @@ def optimize_responses(  # noqa: PLR0913, C901
         - ``"factor_names"`` (list[str]) - ordered factor names.
         - ``"mse_residual"`` (float, optional) - mean squared error.
         - ``"r_squared"`` (float, optional) - model R-squared.
+        - ``"coding"`` and ``"factor_coding"`` (optional) - the scale of the
+          coefficients and each factor's coded range, as ``analyze_experiment``
+          reports them. A model without them is taken to be coded.
 
     goals : list[dict] or None
         Per-response optimisation goals.  Each dict has keys:
@@ -1373,9 +2048,16 @@ def optimize_responses(  # noqa: PLR0913, C901
         - ``"response"`` (str) - response name. Matched against each model's
           ``"response_name"``; when both sides name their responses the goals
           are reordered to match, so the two lists need not be in the same
-          order. When either side omits a name, goals are taken in list order.
-        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
-          ``"target"``.
+          order, and names that do not pair up one to one raise a
+          ``ValueError``. When either side omits a name, goals are taken in
+          list order, with a warning.
+        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, ``"target"``
+          or ``"in_range"``. An ``"in_range"`` goal (Design-Expert's "is in
+          range") holds the predicted response between ``low`` and ``high``:
+          the search keeps to settings where it does, its individual
+          desirability is 1 there, and it is left out of the composite. At
+          least one goal must be of another kind. ``"pareto_front"`` takes
+          the other three only.
         - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
         - ``"low"`` (float) - lower acceptable bound.
@@ -1396,9 +2078,12 @@ def optimize_responses(  # noqa: PLR0913, C901
         ``"ridge_analysis"``, ``"pareto_front"``.
     factor_ranges : dict or None
         Maps factor name to ``{"low": float, "high": float}`` in actual
-        units.  Used for coded ↔ actual conversion.
+        units.  Used for coded ↔ actual conversion. A coded model from
+        ``analyze_experiment`` supplies the ranges of its own factors, and
+        a range given here for one of them must agree with it.
     step_size : float
-        Step magnitude for steepest ascent/descent (coded units).
+        Step length for steepest ascent/descent: the Euclidean distance, in
+        coded units, between successive points on the path. Must be positive.
     n_steps : int
         Number of steps along a path: the steepest ascent/descent steps, or the
         radii reported by ridge analysis over and above the centre.
@@ -1417,7 +2102,10 @@ def optimize_responses(  # noqa: PLR0913, C901
     search_bounds : tuple, dict, or None
         The coded region to search, and the region against which a stationary
         point is judged inside or outside. Defaults to the factorial cube,
-        ``(-1, 1)`` on every factor.
+        ``(-1, 1)`` on every factor. ``"ridge_analysis"`` traces spheres out to
+        the largest ``|bound|`` and flags each path point with
+        ``inside_search_bounds``, since a sphere cannot follow bounds that
+        differ between factors or are asymmetric.
 
         That default suits a two-level design but understates a central
         composite design, whose axial runs sit at plus or minus alpha: leaving
@@ -1426,16 +2114,46 @@ def optimize_responses(  # noqa: PLR0913, C901
         central composite design, or a mapping such as
         ``{"T": (-1.41, 1.41)}`` to widen one factor only. Factors left out of
         a mapping keep the (-1, 1) default.
-    desirability_weights : list[float] or None
-        Deprecated alias for *response_importance*. The name was misleading:
-        these values are importances, not the ``weight`` that shapes an
-        individual ramp.
     ridge_direction : {"maximize", "minimize"}
         Which ridge ``method="ridge_analysis"`` traces.
     n_pareto_points : int
         Target number of weight vectors for ``method="pareto_front"``. The front
         returned is usually smaller, since dominated and duplicate solutions are
         dropped.
+    region : DesignRegion or None
+        The region the optimum must lie in, for ``"desirability"`` and
+        ``"pareto_front"``: the same constraints the design was built under
+        (``DesignRegion.from_dict(result.metadata["region"])``), so the
+        recommended settings are ones the process can run. For a box region the
+        constraints apply on top of *search_bounds*. For a mixture region the
+        factors are the proportions the Scheffé model was fitted on, their bounds
+        replace *search_bounds*, and the optimum sums to 1. The desirability
+        result then carries ``within_region``. Other methods ignore it, with a
+        warning.
+    random_state : int, Generator, or None
+        Seed for the random starting points of the multistart search used by
+        ``"desirability"`` and ``"pareto_front"``; the other methods are
+        deterministic. The default of 42 keeps results reproducible; try another
+        seed to check that an optimum does not depend on where the search began.
+    n_alternatives : int
+        For ``"desirability"``: how many other settings that do almost as well to
+        report beside the best, under ``"alternatives"``. Each is a local optimum of
+        the multistart search whose composite desirability is at least 95% of the
+        best's, at least 0.5 apart in coded units from the best and from every other
+        alternative, best first. Asking for any searches from ten more starts for
+        each. The default of 0 reports none and leaves the search as it was.
+    flat_tolerance : float
+        For ``"stationary_point"`` and ``"canonical_analysis"``: an eigenvalue of
+        the pure-quadratic matrix ``B`` at most this share of the largest in size
+        is read as zero, so the surface is classified as a ridge along its
+        eigenvector, and so is the slope along that eigenvector: a ridge rises
+        only when its slope is above this share of the largest eigenvalue. The
+        default, 1e-8, reads only rounding as zero. An estimated eigenvalue is
+        rarely exactly zero, and the sources read a small one as flat: Box,
+        Hunter and Hunter's stationary ridge has eigenvalues -9.02 and 0.0017 and
+        a slope of 0.005 along it, which ``flat_tolerance=0.05`` reads as a
+        stationary ridge; their rising ridge, with a slope of 2.97, still rises.
+        Below 5% of the largest, the result's ``classification_note`` says so.
 
     Returns
     -------
@@ -1446,9 +2164,15 @@ def optimize_responses(  # noqa: PLR0913, C901
     Raises
     ------
     ValueError
-        If *method* is unknown, if *fitted_models* is empty, if a method that
-        needs goals is called without them, or if both *response_importance*
-        and *desirability_weights* are given.
+        If *method* is unknown, if *flat_tolerance* is not in [0, 1), if
+        *fitted_models* is empty or a model lacks ``"coefficients"`` or
+        ``"factor_names"``, if ``"stationary_point"`` or ``"canonical_analysis"``
+        gets a factor name that no model term uses, if a single-response method
+        (``"stationary_point"``, ``"canonical_analysis"``, ``"steepest_ascent"``,
+        ``"steepest_descent"``, ``"ridge_analysis"``) gets more than one model, if
+        a method that needs goals is called without them, or if a model's
+        coefficients are in actual units, two models code a factor from
+        different ranges, or *factor_ranges* disagrees with a model's coding.
 
     Examples
     --------
@@ -1477,40 +2201,31 @@ def optimize_responses(  # noqa: PLR0913, C901
         available = sorted(_METHODS)
         msg = f"Unknown method {method!r}. Available: {available}"
         raise ValueError(msg)
-
-    if not fitted_models:
-        msg = "At least one fitted model is required."
+    if not 0 <= flat_tolerance < 1:
+        msg = f"flat_tolerance must be at least 0 and below 1, a share of the largest eigenvalue; got {flat_tolerance}."
         raise ValueError(msg)
 
-    if desirability_weights is not None:
-        if response_importance is not None:
-            msg = (
-                "Pass either 'response_importance' or the deprecated 'desirability_weights', not both. "
-                "They set the same thing: how much each response counts in the composite."
-            )
-            raise ValueError(msg)
-        warnings.warn(
-            "'desirability_weights' is deprecated; use 'response_importance'. The values are importances, "
-            "which set how much each response counts in the composite, not the per-goal 'weight' that shapes "
-            "an individual desirability ramp.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        response_importance = desirability_weights
+    _check_fitted_models(fitted_models, method)
+    factor_ranges = _ranges_from_coding(fitted_models, factor_ranges, region.mixture_names if region else ())
 
     # Use factor_names from the first model as the canonical ordering
     factor_names = fitted_models[0]["factor_names"]
     coefficients = fitted_models[0]["coefficients"]
 
     result: dict[str, Any] = {"method": method, "factor_names": factor_names}
+    region = _region_for_method(region, method)
 
     if method == "stationary_point":
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds, flat_tolerance
+        )
 
     elif method == "canonical_analysis":
-        result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names)
+        result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names, flat_tolerance)
         # Also include the stationary point for context
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds, flat_tolerance
+        )
 
     elif method in ("steepest_ascent", "steepest_descent"):
         direction = "ascent" if method == "steepest_ascent" else "descent"
@@ -1531,23 +2246,19 @@ def optimize_responses(  # noqa: PLR0913, C901
             fitted_results=fitted_results,
             significance_level=significance_level,
             search_bounds=search_bounds,
+            region=region,
+            random_state=random_state,
+            n_alternatives=_check_alternatives(n_alternatives),
         )
 
     elif method == "ridge_analysis":
-        region = _resolve_search_bounds(search_bounds, factor_names)
         result["ridge_analysis"] = _add_actual_units(
-            _ridge_analysis(
-                coefficients,
-                factor_names,
-                direction=ridge_direction,
-                n_radii=n_steps,
-                max_radius=max(max(abs(low), abs(high)) for low, high in region),
-            ),
+            _ridge_within_bounds(coefficients, factor_names, search_bounds, ridge_direction, n_steps),
             factor_ranges,
             "path",
         )
 
-    elif method == "pareto_front":
+    else:  # "pareto_front", the last of _METHODS, which every call was checked against
         if goals is None:
             msg = "Goals are required for Pareto front optimization."
             raise ValueError(msg)
@@ -1558,6 +2269,8 @@ def optimize_responses(  # noqa: PLR0913, C901
                 factor_names,
                 n_points=n_pareto_points,
                 search_bounds=search_bounds,
+                random_state=random_state,
+                region=region,
             ),
             factor_ranges,
             "front",

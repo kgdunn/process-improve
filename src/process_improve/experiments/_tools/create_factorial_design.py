@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from process_improve.experiments._tools import _TOOL_EXPECTED_EXCEPTIONS, _register, logger
 from process_improve.tool_spec import clean, tool_spec
@@ -30,6 +30,18 @@ class CreateFactorialDesignInput(BaseModel):
             "If not provided, factors are named A, B, C, ..."
         ),
     )
+
+    @model_validator(mode="after")
+    def _names_match_the_count(self) -> CreateFactorialDesignInput:
+        """Refuse a name list that disagrees with n_factors, rather than silently following one of them."""
+        if self.factor_names is not None:
+            if len(self.factor_names) != self.n_factors:
+                msg = f"factor_names has {len(self.factor_names)} entries but n_factors is {self.n_factors}."
+                raise ValueError(msg)
+            if len(set(self.factor_names)) != len(self.factor_names):
+                msg = f"factor_names must be distinct; got {self.factor_names}."
+                raise ValueError(msg)
+        return self
 
 
 @tool_spec(
@@ -57,8 +69,10 @@ def create_factorial_design(spec: CreateFactorialDesignInput) -> dict[str, Any]:
         from process_improve.experiments.designs_factorial import full_factorial  # noqa: PLC0415
 
         columns = full_factorial(spec.n_factors, names=spec.factor_names)
-        design = pd.concat(columns, axis=1)
-        names = list(design.columns)
+        # The columns carry a " [coded]" suffix; report the factors under the names given, as generate_design
+        # does, so a formula such as "y ~ A*B" matches them.
+        names = [column.pi_name for column in columns]
+        design = pd.concat(columns, axis=1).set_axis(names, axis=1)
         return clean(
             {
                 "design": design.to_dict(orient="records"),

@@ -82,3 +82,4 @@ class DOEPlotType(str, Enum):
     # Design-quality plots
     fds_plot = "fds_plot"
     power_curve = "power_curve"
+    correlation_map = "correlation_map"

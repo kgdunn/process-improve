@@ -62,12 +62,12 @@ def t_value_cdf(z: float, v: float) -> float:
 
     Zero fractional area under the curve is at :math:`-\infty`:
 
-    >>> t_value_cdf(-np.inf, v=10)
+    >>> t_value_cdf(float("-inf"), v=10)
     0.0
 
     100% fractional area is at :math:`+\infty`:
 
-    >>> t_value_cdf(np.inf, v=10)
+    >>> t_value_cdf(float("inf"), v=10)
     1.0
 
     See also
@@ -244,14 +244,10 @@ def ttest_independent(
         ``"Equal variance assumed"`` records which test was run;
         ``"Pooled std dev"`` is ``NaN`` under Welch, where no pooled estimate exists.
 
-        .. deprecated:: 1.70.0
-            ``"z value"`` and ``"Pooled standard deviation"`` are misleading
-            names kept as aliases, and will be removed in 2.0. The statistic
-            is a t-statistic, not a z-statistic, and ``"Pooled standard
-            deviation"`` holds the standard *error* of the difference in
-            means, ``sqrt(svar * (1/nA + 1/nB))``, not the pooled standard
-            deviation ``sqrt(svar)``. Use ``"t value"`` and ``"Std error of
-            difference"`` instead.
+        .. versionchanged:: 2.0.0
+            The aliases ``"z value"`` and ``"Pooled standard deviation"``,
+            deprecated since 1.70.0, are removed. Use ``"t value"`` and
+            ``"Std error of difference"``.
 
     Notes
     -----
@@ -306,19 +302,12 @@ def ttest_independent(
         "Group B number": int(n_B),
         "Group A average": sample_A.mean(),
         "Group B average": sample_B.mean(),
-        "z value": z_variate,
+        "t value": z_variate,
         "ConfInt: Lo": confint_lo,
         "ConfInt: Hi": confint_hi,
         "p value": 2 * t_value_cdf(-np.abs(z_variate), df),
         "Degrees of freedom": df,
         "Equal variance assumed": bool(equal_var),
-        "Pooled standard deviation": sd_z_variate,
-        # Correctly named entries for the two mislabelled ones above, which are
-        # kept as deprecated aliases. "z value" is a t-statistic: its p value is
-        # computed from the t distribution on `df` degrees of freedom. "Pooled
-        # standard deviation" is the standard ERROR of the difference in means,
-        # sqrt(svar * (1/nA + 1/nB)); the pooled standard deviation is sqrt(svar).
-        "t value": z_variate,
         "Std error of difference": sd_z_variate,
         "Pooled std dev": pooled_std_dev,
     }
@@ -390,8 +379,8 @@ def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two c
         2. Group "B" name
         3. Group "A" mean
         4. Group "B" mean
-        5. z-value for the difference between group "B" minus group "A"
-        6. p-value for this z-value
+        5. t value for the difference between group "B" minus group "A"
+        6. p-value for this t value
         7. Confidence interval low value for difference between group "B" minus group "A"
         8. Confidence interval high value for difference between group "B" minus group "A"
 
@@ -432,6 +421,39 @@ def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two c
     return _apply_multiplicity_correction(output, correction)
 
 
+#: The keys :func:`ttest_paired` returned under names that say something else, with the keys that
+#: hold the same numbers under accurate names (#782). Deprecated since 2.1.0; removed in 3.0.
+_RENAMED_PAIRED_KEYS = {"z value": "t value", "Standard deviation": "Std error of mean difference"}
+
+
+def _warn_if_renamed(key: object) -> None:
+    """Warn that ``key`` is one of :data:`_RENAMED_PAIRED_KEYS`, read from a :func:`ttest_paired` result."""
+    if isinstance(key, str) and key in _RENAMED_PAIRED_KEYS:
+        warnings.warn(
+            f"process_improve.univariate.ttest_paired(...)[{key!r}] is deprecated since 2.1.0 and will be "
+            f"removed in 3.0; use [{_RENAMED_PAIRED_KEYS[key]!r}] instead, which holds the same number under a "
+            "name that says what it is.",
+            category=DeprecationWarning,
+            stacklevel=3,
+        )
+
+
+class _PairedTestResult(dict):
+    """The result of :func:`ttest_paired`: a ``dict`` that warns when a renamed key is read by name.
+
+    Reading the whole result, as ``dict(result)``, ``result.items()`` or ``json.dumps(result)`` do,
+    does not warn: only ``result[key]`` and ``result.get(key)`` with an old key.
+    """
+
+    def __getitem__(self, key: object) -> Any:  # noqa: ANN401 - a result value of any type
+        _warn_if_renamed(key)
+        return super().__getitem__(key)
+
+    def get(self, key: object, default: Any = None) -> Any:  # noqa: ANN401 - as dict.get
+        _warn_if_renamed(key)
+        return super().get(key, default)
+
+
 def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
     """Core calculation for a test of paired differences.
 
@@ -449,14 +471,18 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
         Outcomes from the statistical test, with keys:
 
         - ``"Differences mean"``: the mean of the input ``differences``.
-        - ``"z value"``: the test statistic (mean divided by its standard error).
+        - ``"t value"``: the t statistic, the mean divided by its standard error.
         - ``"ConfInt: Lo"``, ``"ConfInt: Hi"``: lower and upper bounds of the two-sided
           confidence interval around the mean difference at the requested ``conflevel``.
         - ``"p value"``: two-sided p-value from the t-distribution.
         - ``"Degrees of freedom"``: ``n - 1`` for ``n`` paired observations.
-        - ``"Standard deviation"``: the **standard error of the mean difference**,
-          i.e. ``sample_std / sqrt(n)`` (the scale used to build the confidence interval),
-          NOT the sample standard deviation of ``differences``.
+        - ``"Std error of mean difference"``: ``s / sqrt(n)``, the scale the confidence
+          interval is built on.
+        - ``"Std dev of differences"``: ``s``, the sample standard deviation of ``differences``.
+
+        Deprecated since 2.1.0, to be removed in 3.0: ``"z value"``, the t statistic, and
+        ``"Standard deviation"``, the standard error of the mean difference, under names that
+        say otherwise. Reading either by name gives a ``DeprecationWarning``.
     """
     # A paired t-test needs at least 2 differences (so dof >= 1 and the
     # 1/n term inside sqrt is finite). SEC-24 (#273).
@@ -472,21 +498,26 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
     ct = abs(t_value(p=(1 - conflevel) / 2.0, v=dof))
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        sd_z_variate = diff_svar * np.sqrt(np.divide(1.0, dof + 1))
-        z_variate = np.divide(diff_mean, sd_z_variate)
+        std_error = diff_svar * np.sqrt(np.divide(1.0, dof + 1))
+        t_statistic = np.divide(diff_mean, std_error)
 
-    confint_lo = diff_mean - ct * sd_z_variate
-    confint_hi = diff_mean + ct * sd_z_variate
+    confint_lo = diff_mean - ct * std_error
+    confint_hi = diff_mean + ct * std_error
 
-    return {
-        "Differences mean": diff_mean,
-        "z value": z_variate,
-        "ConfInt: Lo": confint_lo,
-        "ConfInt: Hi": confint_hi,
-        "p value": 2 * t_value_cdf(-np.abs(z_variate), dof),
-        "Degrees of freedom": dof,
-        "Standard deviation": sd_z_variate,
-    }
+    return _PairedTestResult(
+        {
+            "Differences mean": diff_mean,
+            "t value": t_statistic,
+            "z value": t_statistic,
+            "ConfInt: Lo": confint_lo,
+            "ConfInt: Hi": confint_hi,
+            "p value": 2 * t_value_cdf(-np.abs(t_statistic), dof),
+            "Degrees of freedom": dof,
+            "Std error of mean difference": std_error,
+            "Std dev of differences": diff_svar,
+            "Standard deviation": std_error,
+        }
+    )
 
 
 def ttest_paired_from_df(
@@ -529,11 +560,15 @@ def ttest_paired_from_df(
     4. Group B mean
     5. Differences mean: average difference between the groups (not the same as the difference
        of the averages from items 3 and 4 above)
-    6. z-value for the difference between group "A" minus group "B"
-    7. p-value for this z-value
+    6. t value for the difference between group "A" minus group "B"
+    7. p value for this t value
     8. Confidence interval low value for difference between group "A" minus group "B"
     9. Confidence interval high value for difference between group "A" minus group "B"
+    10. Std error of mean difference, and Std dev of differences
 
+    The columns ``z value`` and ``Standard deviation`` hold the t value and the standard error
+    of the mean difference. They are deprecated since 2.1.0 and will be removed in 3.0; a
+    column read cannot warn, so this note is the notice.
     """
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
@@ -556,7 +591,7 @@ def ttest_paired_from_df(
                     f"got {sample_A.shape[0]} and {sample_B.shape[0]}."
                 )
             differences = sample_A - sample_B.to_numpy()  # only the values of one vector are needed!
-            basic_stats = ttest_paired(differences, conflevel)
+            basic_stats = dict(ttest_paired(differences, conflevel))  # a plain dict: pandas reads every key
             basic_stats.update(
                 {
                     "Group A name": groupA_name,

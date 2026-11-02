@@ -15,7 +15,7 @@ Package layout
    process_improve/
        multivariate/    # PCA, PLS, TPLS, and multi-block (MBPCA / MBPLS)
        experiments/     # designed experiments: designs, analysis, optimisation
-       monitoring/      # control charts (Shewhart / CUSUM / EWMA-style)
+       monitoring/      # control charts (Shewhart, EWMA, CUSUM, Holt-Winters)
        batch/           # batch data alignment (DTW), features, preprocessing
        regression/      # robust regression (repeated median, Theil-Sen)
        bivariate/       # elbow / peak detection, area-under-curve
@@ -42,9 +42,11 @@ Conventions every subpackage follows
   attributes use the trailing-underscore convention (``scores_``, ``spe_``,
   ``hotellings_t2_``) and are set only in ``fit()``, never in ``__init__``.
 - **Optional dependencies live in extras.** Plotting (plotly / ridgeplot),
-  the experiments designed-experiment generators (pyDOE3 / pyoptex), the batch
-  and MCP layers are installed via ``[plotting]`` / ``[expt]`` / ``[batch]`` /
-  ``[mcp]`` extras (ENG-13). Modules import them through a ``_MissingExtra``
+  the batch and MCP layers are installed via ``[plotting]`` / ``[batch]`` /
+  ``[mcp]`` extras (ENG-13); every design array, Taguchi and split-plot
+  designs included, is in the core, and pyoptex, installed separately, is an
+  optional backend for the optimal designs. Modules
+  import optional dependencies through a ``_MissingExtra``
   stand-in so a missing optional dependency only fails when the feature is
   actually used, not at import time.
 - **Diagnostic logging.** Modules that do real work define
@@ -111,6 +113,17 @@ subpackage's ``tools`` module so the decorators run.
 In ``experiments/`` the tools and analyses are split one-per-module
 (``_tools/<tool>.py``, ``_analyses/<analysis>.py``) with ``tools.py`` acting as
 the ordered aggregator (ENG-02). To add a tool, see :doc:`development/tool_authoring`.
+
+The tools keep no state between calls: safe mode runs each call in its own process. An
+analysis that proceeds step by step therefore carries its state in the calls. The
+multivariate session tools (``workbench/tools.py``: ``mva_open``, ``mva_fit``,
+``mva_explain``, ``mva_predict``, ``mva_script``) take a *session*, a JSON document with the
+source, the recipe that reads it and every model so far, and return it with one step added.
+Each model names the model it grew from and why, and keeps all of its own recipe steps and
+its workbench ``Variant``. A model grown from another changes one thing at a time: rows left
+out of the fit (still projected), rows fitted again, a transform, the number of components.
+``mva_script`` writes the Python that rebuilds each model, the record of the analysis outside
+MCP.
 
 Where to make a change
 ----------------------

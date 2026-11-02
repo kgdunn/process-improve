@@ -1,6 +1,6 @@
 """Tests for the experiments dataset loaders.
 
-``boilingpot()``, ``golf()``, ``pollutant()`` and ``solar()`` load from
+``boilingpot()``, ``corrosion()``, ``golf()``, ``pollutant()`` and ``solar()`` load from
 CSVs bundled with the package; ``oildoe()`` and ``distillateflow()``
 fetch from openmv.net. The bundled data were extracted from the ``.rda``
 files in the companion R package, so the shapes and values below are the
@@ -81,6 +81,14 @@ def test_golf_loads() -> None:
     assert set(df["N"]) == {1, 9}
 
 
+def test_golf_docstring_does_not_claim_standard_order() -> None:
+    """The rows are not in standard (Yates) order, so coding them by position mislabels runs."""
+    df = datasets.golf()
+    assert df["H"].tolist()[:4] != [1, 3, 1, 3]  # H, the first factor, does not alternate
+    assert "are in standard order" not in (datasets.golf.__doc__ or "")
+    assert "not in standard order" in (datasets.golf.__doc__ or "")
+
+
 def test_solar_loads() -> None:
     """``solar()`` returns the 2^4 factorial with its two responses."""
     df = datasets.solar()
@@ -92,7 +100,33 @@ def test_solar_loads() -> None:
     assert df["y2"].iloc[-1] == pytest.approx(100.0)
 
 
-@pytest.mark.parametrize("name", ["boilingpot", "golf", "pollutant", "solar"])
+def test_corrosion_loads() -> None:
+    """``corrosion()`` is BHH's split-plot: six heats of four bars, each temperature in two heats."""
+    df = datasets.corrosion()
+    assert df.shape == (24, 5)
+    assert list(df.columns) == ["Heat", "Temperature", "Position", "Coating", "Resistance"]
+    assert (df.groupby("Heat")["Temperature"].agg(["min", "max"]).diff(axis=1)["max"] == 0).all()
+    assert df.groupby("Temperature")["Heat"].nunique().to_dict() == {360: 2, 370: 2, 380: 2}
+    assert (df.groupby("Heat")["Coating"].apply(set) == {"C1", "C2", "C3", "C4"}).all()
+    # BHH Table 9.1: the heat-3 bar with coating C4 resisted longest.
+    assert df["Resistance"].max() == 212
+    assert df.loc[df["Resistance"].idxmax(), ["Heat", "Coating"]].tolist() == [3, "C4"]
+
+
+def test_biscuit_loads_a_spectrum_per_dough_over_a_mixture_of_four_ingredients() -> None:
+    """``biscuit()`` is 72 doughs, each a 700-point spectrum, with ingredients that add to a constant."""
+    df = datasets.biscuit()
+    assert df.shape == (72, 706)
+    assert list(df.columns[:6]) == ["sample", "set", "fat", "sucrose", "dry_flour", "water"]
+    assert [int(c) for c in df.columns[6:]] == list(range(1100, 2500, 2))
+    assert df["set"].value_counts().to_dict() == {"calibration": 40, "validation": 32}
+    # The four ingredients are mixture components: 98.08% of every dough, to the printed rounding.
+    assert df[["fat", "sucrose", "dry_flour", "water"]].sum(axis=1).sub(98.08).abs().max() <= 0.02
+    assert df.iloc[0, 2:6].tolist() == [21.08, 13.32, 50.09, 13.58]
+    assert not df.isna().any().any()
+
+
+@pytest.mark.parametrize("name", ["biscuit", "boilingpot", "corrosion", "golf", "pollutant", "solar"])
 def test_data_dispatch_matches_direct_loader(name: str) -> None:
     """``data(name)`` returns exactly what the named loader returns."""
     pd.testing.assert_frame_equal(datasets.data(name), getattr(datasets, name)())

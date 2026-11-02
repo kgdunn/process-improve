@@ -1,3 +1,4 @@
+import itertools
 import pathlib
 
 import numpy as np
@@ -70,6 +71,13 @@ def test_full_factorial_rejects_non_positive_nfactors(bad: int) -> None:
         full_factorial(bad)
 
 
+@pytest.mark.parametrize(("nfactors", "names"), [(3, ["A", "B"]), (2, ["A", "B", "C"]), (2, ["A", "A"])])
+def test_full_factorial_rejects_names_that_do_not_match_nfactors(nfactors: int, names: list[str]) -> None:
+    """The names must be nfactors distinct names; a mismatch used to change the design size silently."""
+    with pytest.raises(ValueError, match="distinct names"):
+        full_factorial(nfactors, names=names)
+
+
 def test_full_factorial_one_factor_still_works() -> None:
     """``full_factorial(1)`` is the boundary case and must still produce a
     two-row, one-column design.
@@ -139,8 +147,10 @@ def test_create_factors(structure_data) -> None:
     assert C6.pi_lo == 5
     assert C6.pi_range == (5, 6)
 
+    # "green" is an entry too (#513: it used to be dropped silently), so D is categorical.
     D = c(*(structure_data["D"]))
-    assert D.pi_numeric is True
+    assert list(D.values) == [0, 1, "green"]
+    assert D.pi_numeric is False
 
     assert len(y) == 6
     assert y.name == "conversion [%]"
@@ -303,6 +313,17 @@ def test_model_summary_output() -> None:
     smry = model.summary(print_to_screen=False)
     assert smry is not None
     assert len(smry.tables) >= 2
+
+
+def test_model_summary_leaves_out_the_time_of_the_call() -> None:
+    """Two summaries of one fit are the same text: statsmodels' Date and Time cells are left out (#952)."""
+    expt = gather(A=c(-1, +1, -1, +1), B=c(-1, -1, +1, +1), y=c(52, 74, 62, 80, name="yield"))
+    text = str(lm("y ~ A + B", expt).summary())
+    assert "Date:" not in text
+    assert "Time:" not in text
+    # The cells beside and below them are kept.
+    for label in ("Prob (F-statistic):", "Log-Likelihood:", "No. Observations:", "Residual std error", "BIC:"):
+        assert label in text
 
 
 def test_model_summary_with_name() -> None:
@@ -598,9 +619,9 @@ def test_point_exchange_always_returns_requested_run_count() -> None:
     ended below number_points on roughly 1 to 2% of unseeded runs (the
     intermittent `assert 3 >= 4` in the D-optimal dispatch test).
     """
-    from pyDOE3 import fullfact
-
-    candidates = pd.DataFrame(fullfact([3, 3, 3]) - 1.0, columns=["A", "B", "C"])
+    # The 3^3 grid, first column changing fastest (the row order the seeds below were found with).
+    grid = np.array(list(itertools.product((-1.0, 0.0, 1.0), repeat=3)))[:, ::-1]
+    candidates = pd.DataFrame(grid, columns=["A", "B", "C"])
     # Seeds 122, 146, 199, 319, and 338 all ended with 3 rows before the greedy
     # completion step was added, so they exercise the completion path directly;
     # the leading range guards the ordinary no-shortfall path.

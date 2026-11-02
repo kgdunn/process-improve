@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
@@ -33,18 +34,26 @@ class Factor(BaseModel):
     type : FactorType
         One of "continuous", "categorical", or "mixture".
     low : float or None
-        Low level for continuous/mixture factors.
+        Low level for continuous/mixture factors: finite, and below *high*. A
+        mixture component's bounds are proportions, ``0 <= low < high <= 1``
+        (default 0 and 1).
     high : float or None
         High level for continuous/mixture factors.
     levels : list or None
-        Explicit levels for categorical factors, or for continuous factors
-        with more than 2 levels.
+        Explicit levels for categorical factors (distinct, none missing), or for
+        continuous factors with more than 2 levels.
     units : str
         Engineering units (e.g. "degC", "bar", "g/L").
+    hard_limits : bool
+        Whether ``low`` and ``high`` are limits of the process, not only the range studied: no run
+        may set the factor past them (a safety limit, an instrument's range, a rule of a lab).
+        Designs and augmentations then keep every run inside them, a strategy plans none that
+        steps outside, and the next round never moves or widens the range. Default False.
 
     Examples
     --------
     >>> Factor(name="Temperature", low=150, high=200, units="degC")
+    >>> Factor(name="Pressure", low=1, high=3, units="bar", hard_limits=True)
     >>> Factor(name="Catalyst", type="categorical", levels=["A", "B", "C"])
     >>> Factor(name="x1", type="mixture", low=0.0, high=1.0)
     """
@@ -55,23 +64,45 @@ class Factor(BaseModel):
     high: float | None = None
     levels: list[Any] | None = None
     units: str = ""
+    hard_limits: bool = False
 
     @model_validator(mode="after")
     def _validate_factor(self) -> Factor:
         if self.type == FactorType.continuous:
             if self.low is None or self.high is None:
                 raise ValueError(f"Factor '{self.name}': continuous factors require 'low' and 'high'.")
-            if self.low >= self.high:
-                raise ValueError(f"Factor '{self.name}': 'low' ({self.low}) must be less than 'high' ({self.high}).")
+            self._check_bounds()
         elif self.type == FactorType.categorical:
-            if not self.levels or len(self.levels) < 2:
-                raise ValueError(f"Factor '{self.name}': categorical factors require 'levels' with at least 2 entries.")
+            self._check_levels()
         elif self.type == FactorType.mixture:
             if self.low is None:
                 self.low = 0.0
             if self.high is None:
                 self.high = 1.0
+            self._check_bounds()
+            if self.low < 0 or self.high > 1:  # type: ignore[operator]
+                raise ValueError(
+                    f"Factor '{self.name}': a mixture component is a proportion, so its bounds must satisfy "
+                    f"0 <= low < high <= 1; got low={self.low}, high={self.high}."
+                )
         return self
+
+    def _check_bounds(self) -> None:
+        """Raise unless ``low`` and ``high`` are finite with ``low < high``."""
+        low, high = float(self.low), float(self.high)  # type: ignore[arg-type]
+        if not (math.isfinite(low) and math.isfinite(high)):
+            raise ValueError(f"Factor '{self.name}': 'low' ({low}) and 'high' ({high}) must be finite numbers.")
+        if low >= high:
+            raise ValueError(f"Factor '{self.name}': 'low' ({low}) must be less than 'high' ({high}).")
+
+    def _check_levels(self) -> None:
+        """Raise unless a categorical factor has at least two distinct, non-missing levels."""
+        if not self.levels or len(self.levels) < 2:
+            raise ValueError(f"Factor '{self.name}': categorical factors require 'levels' with at least 2 entries.")
+        if any(level is None or (isinstance(level, float) and math.isnan(level)) for level in self.levels):
+            raise ValueError(f"Factor '{self.name}': a categorical level cannot be missing (None or NaN).")
+        if len(pd.unique(pd.Series(self.levels, dtype=object))) != len(self.levels):
+            raise ValueError(f"Factor '{self.name}': categorical levels must be distinct; got {self.levels}.")
 
     @property
     def center(self) -> float | None:
@@ -162,7 +193,9 @@ class Constraint(BaseModel):
         Factor names in the expression must match the ``name`` fields of the
         corresponding ``Factor`` objects.
     type : str
-        Either ``"linear"`` or ``"nonlinear"``.
+        Either ``"linear"`` or ``"nonlinear"``. Informational only: the design
+        engines classify each expression themselves, so the label does not change
+        how the constraint is enforced.
 
     Examples
     --------
@@ -172,6 +205,48 @@ class Constraint(BaseModel):
 
     expression: str
     type: Literal["linear", "nonlinear"] = "linear"
+
+
+def as_constraints(constraints: Sequence[Constraint | dict | str] | None) -> list[Constraint] | None:
+    """Accept constraints as ``Constraint`` objects, their dict form or bare expressions.
+
+    The dict form is what a JSON round trip of a ``Constraint`` gives, for example the
+    ``design_params`` of a stage from ``recommend_strategy``.
+
+    Parameters
+    ----------
+    constraints : Sequence[Constraint | dict | str] or None
+        The constraints in any of the three forms, mixed freely.
+
+    Returns
+    -------
+    list[Constraint] or None
+        One ``Constraint`` per item, in order; ``None`` when ``constraints`` is ``None``.
+
+    Raises
+    ------
+    TypeError
+        For an item that is none of the three forms, or a single limit passed on its
+        own instead of in a list (a string is itself a sequence, of its characters).
+    """
+    if constraints is None:
+        return None
+    if isinstance(constraints, (str, dict, Constraint)):
+        raise TypeError(
+            "constraints must be a list of limits; wrap a single limit in a list: "
+            f"[{constraints!r}], not {constraints!r}."
+        )
+    out: list[Constraint] = []
+    for c in constraints:
+        if isinstance(c, Constraint):
+            out.append(c)
+        elif isinstance(c, dict):
+            out.append(Constraint(**c))
+        elif isinstance(c, str):
+            out.append(Constraint(expression=c))
+        else:
+            raise TypeError(f"A constraint must be a Constraint, a dict or an expression string; got {c!r}.")
+    return out
 
 
 class ResponseGoal(str, Enum):
@@ -235,7 +310,10 @@ class DesignResult:
     design_actual : Expt
         Design matrix in actual (real-world) units.
     run_order : list[int]
-        Randomized run order (1-based).
+        The standard-order position (1-based) of each run. ``design`` and
+        ``design_actual`` are already in randomised run order, so ``run_order[i]``
+        is where their i-th row sits in the unrandomised design; sorting the rows on
+        it recovers the standard order.
     design_type : str
         Name of the design that was generated.
     n_runs : int

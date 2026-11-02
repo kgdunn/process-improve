@@ -8,8 +8,18 @@ User Guide
    cross_validation
    showcase
    doe_strategy
+   next_step
+   run_sheets
+   doe_coverage
+   design_catalog
    design_evaluation
    omars_designs
+   constrained_designs
+   region_limits
+   screening_and_space_filling
+   split_plot_analysis
+   blocked_models
+   glm_analysis
    sensory_panel
    sensory_diagnostics
    chemistry

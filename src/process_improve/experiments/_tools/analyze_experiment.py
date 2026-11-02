@@ -22,7 +22,8 @@ class AnalyzeExperimentInput(BaseModel):
         min_length=2,
         description=(
             "List of dicts, one per run. Must contain factor columns and "
-            "optionally the response column. Example: "
+            "optionally the response column. A RunOrder column, the order the runs were made in, is not a factor; "
+            "residual_diagnostics checks the residuals for serial dependence in that order. Example: "
             "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
         ),
     )
@@ -45,16 +46,33 @@ class AnalyzeExperimentInput(BaseModel):
             "Options: anova, effects, coefficients, significance, "
             "residual_diagnostics, lack_of_fit, curvature_test, "
             "model_selection, box_cox, lenth_method, confidence_intervals, "
-            "prediction, confirmation_test."
+            "prediction, confirmation_test, split_plot, glm. Use split_plot for a design "
+            "with hard-to-change factors: the others treat every run as independent. Use glm, with a "
+            "family, for a response that is a count, a number of successes out of trials, or a positive "
+            "amount whose spread grows with its size."
         ),
     )
     significance_level: float = Field(
         0.05,
         description="Significance level (default 0.05).",
     )
-    transform: Literal["log", "sqrt", "inverse", "box_cox"] | None = Field(
+    transform: Literal["log", "log10", "sqrt", "inverse", "box_cox"] | None = Field(
         None,
         description="Optional response transform before fitting.",
+    )
+    coding: Literal["actual", "coded", "auto"] | dict[str, dict[str, float]] | None = Field(
+        "auto",
+        description=(
+            "Scale of the coefficients and confidence_intervals. 'auto' (default; null means the same): 'coded', "
+            "but 'actual' for a mixture model and for an I() term such as I(x ** 0.5) that has no coded scale. "
+            "'actual': the factors as given. 'coded': refitted with each factor "
+            "from -1 at its lowest value to +1 at its highest. Or ranges, e.g. {'T': {'low': 150, 'high': 200}}, "
+            "that map to -1 and +1, such as a central composite design's cube levels rather than its axial runs. "
+            "Coded coefficients are what optimize_responses needs, since it evaluates models at coded settings "
+            "and refuses actual-unit coefficients; coded results also carry coefficients_actual, the equation in "
+            "the factors' own units. With interactions, a coded main effect is tested at the centre of the "
+            "design, an actual one where the other factors are zero."
+        ),
     )
     new_points: list[dict[str, Any]] | None = Field(
         None,
@@ -64,6 +82,56 @@ class AnalyzeExperimentInput(BaseModel):
         None,
         description="Observed values at new_points (for confirmation testing).",
     )
+    whole_plot: str | list[str] | None = Field(
+        None,
+        description=(
+            "Column labelling each run's whole plot, for analysis_type='split_plot'. "
+            "Default: the 'WholePlot' column that generate_design adds to a split-plot design. "
+            "A list of columns gives crossed random effects, as the rows and the columns of a two-way "
+            "split-plot (strip-plot) design."
+        ),
+    )
+    family: Literal["binomial", "poisson", "gamma", "gaussian", "inverse_gaussian"] | None = Field(
+        None,
+        description=(
+            "For analysis_type='glm': the distribution of the response. 'poisson' for counts, 'binomial' "
+            "for successes out of trials (or 0/1), 'gamma' for a positive amount whose spread grows with its size."
+        ),
+    )
+    link: Literal["logit", "probit", "cloglog", "log", "identity", "inverse", "inverse_squared", "sqrt"] | None = Field(
+        None, description="For analysis_type='glm': the link function. Default: the family's canonical link."
+    )
+    trials: str | float | None = Field(
+        None,
+        description=(
+            "For a binomial glm: the column holding each run's number of trials, or one number for every run; "
+            "the response is then the number of successes. Omitted: the response is 0 or 1."
+        ),
+    )
+    dispersion: Literal["pearson", "deviance", "ml"] | float | None = Field(
+        None,
+        description=(
+            "For analysis_type='glm': how the dispersion is found. Omitted: 1 for binomial and Poisson, Pearson's "
+            "estimate otherwise (R's glm). 'ml' is the maximum-likelihood estimate (SAS GENMOD)."
+        ),
+    )
+    information: Literal["expected", "observed"] = Field(
+        "expected",
+        description=(
+            "For analysis_type='glm': invert the expected information (R's glm) or the observed information "
+            "(SAS GENMOD) for the covariance of the coefficients. They agree under the canonical link. For "
+            "analysis_type='split_plot': the REML information the degrees of freedom use, expected (SAS) or "
+            "observed (JMP)."
+        ),
+    )
+    df_method: Literal["satterthwaite", "kenward_roger"] = Field(
+        "satterthwaite",
+        description=(
+            "For analysis_type='split_plot' (or a design in random blocks, named as the whole plots): "
+            "'kenward_roger' adjusts the standard errors for the uncertainty in the variance components and "
+            "scales the F tests, as JMP and SAS do; with information='observed' it is JMP's analysis."
+        ),
+    )
 
 
 @tool_spec(
@@ -71,13 +139,20 @@ class AnalyzeExperimentInput(BaseModel):
     description=(
         "Fit a model to experimental data and run statistical analyses. "
         "Supports ANOVA, effects, coefficients with p-values, significance testing, "
-        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
+        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance, and, when design_matrix "
+        "has a RunOrder column, the residuals' lag-1 autocorrelation in run order with a note when successive runs "
+        "look serially dependent), "
         "lack-of-fit test, curvature test (center points vs factorial points), "
-        "stepwise model selection (AIC/BIC), Box-Cox transformation, "
+        "stepwise model selection with effect heredity (AICc by default, or AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
-        "prediction with prediction intervals, and confirmation run testing. "
+        "prediction with prediction intervals, confirmation run testing, and the REML analysis of "
+        "split-plot designs (hard-to-change factors) with Satterthwaite degrees of freedom, and "
+        "generalized linear models (logistic, Poisson, gamma) with Wald tests, odds ratios, goodness of fit "
+        "and intervals for the fitted means. "
         "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
-        "The design_matrix should contain factor columns with coded values (-1/+1). "
+        "Factor columns may be coded (-1/+1) or in actual units; either way the coefficients come back on the "
+        "-1/+1 scale by default (coding='auto'), as optimize_responses needs, and coding='actual' keeps the "
+        "factors' own scale. "
         "The response can be in a separate column or included in design_matrix."
     ),
     input_model=AnalyzeExperimentInput,
@@ -93,6 +168,19 @@ class AnalyzeExperimentInput(BaseModel):
     # "Use Lenth's method on my unreplicated factorial"
         -> ``analyze_experiment(design_matrix=[...], response_column="y",
                 analysis_type="lenth_method")``
+
+    # "Fit my experiment in actual units, then find the best settings"
+        -> ``analyze_experiment(design_matrix=[{"T":150,"P":1,"y":10}, ...],
+                response_column="y", analysis_type="coefficients")``,
+           then pass the result to ``optimize_responses``
+
+    # "Analyse my split-plot experiment; temperature was hard to change"
+        -> ``analyze_experiment(design_matrix=[...], response_column="y",
+                analysis_type="split_plot")``
+
+    # "Each run made 1000 coupons; model how many were redeemed"
+        -> ``analyze_experiment(design_matrix=[...], response_column="redeemed",
+                analysis_type="glm", family="binomial", trials=1000)``
     """,
     category="experiments",
 )
@@ -111,8 +199,16 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             analysis_type=spec.analysis_type,
             significance_level=spec.significance_level,
             transform=spec.transform,
+            coding=spec.coding,
             new_points=np_df,
             observed_at_new=spec.observed_at_new,
+            whole_plot=spec.whole_plot,
+            family=spec.family,
+            link=spec.link,
+            trials=spec.trials,
+            dispersion=spec.dispersion,
+            information=spec.information,
+            df_method=spec.df_method,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

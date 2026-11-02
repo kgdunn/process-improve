@@ -10,21 +10,23 @@ follow the [security policy](SECURITY.md) instead of opening a public issue.
 
 ## Development setup
 
-Clone the repository and install it in editable mode with the development
-extras:
+Clone the repository and install it in editable mode with
+[uv](https://docs.astral.sh/uv/), as CI does:
 
 ```bash
 git clone https://github.com/kgdunn/process-improve.git
 cd process-improve
-pip install -e ".[dev,all]"
+uv sync --dev --all-extras
 ```
 
-`dev` brings in the test runner, linter, formatter, type checker, and the
-documentation toolchain. `all` brings in the optional runtime dependencies
-(`pyDOE3`, `pulp`, `plotly`, `numba`, ...) that the gated public-API surfaces
-need. Install both: with `dev` alone a large part of the suite fails on
-`ImportError` rather than skipping, because those tests exercise the extras.
-CI installs the equivalent with `uv sync --dev --all-extras`.
+`--dev` installs the `dev` dependency group in `pyproject.toml`: the test
+runner, linter, formatter, type checker, and the documentation toolchain.
+`--all-extras` installs the optional runtime dependencies (`plotly`, `numba`,
+`ruptures`, ...) that the gated public-API surfaces need. Install both: without
+the extras a large part of the suite fails on `ImportError` rather than
+skipping, because those tests exercise the extras. Use uv rather than pip: the
+group holds `pyoptex`, which resolves beside the extras only through the
+`[tool.uv]` overrides, and pip does not apply them.
 
 ## Running tests
 
@@ -39,6 +41,38 @@ A focused subset, for example the multivariate tests:
 ```bash
 pytest tests/test_multivariate.py -v -o "addopts="
 ```
+
+Only the tests your branch can affect, judged from a static import graph of
+`src/`, `tests/`, `web/` and `scripts/` (see `tests/_selection.py`):
+
+```bash
+pytest --no-cov --affected-since=origin/main
+```
+
+It counts committed, staged, unstaged and untracked changes since the merge
+base. A test reaches a changed file through `import` statements, module names
+and Python file names in string literals, and Python snippets held in strings;
+a changed data file or document affects the code that names it. A change to
+`pyproject.toml`, `pytest.ini` or `.coveragerc`, or a deleted file, runs
+everything. The analysis is static and cannot see every import-time side
+effect, so CI uses it only where a full run backs it up: on a pull request, the
+`test` and `test-free-threaded` rows run the affected tests, and the `coverage`
+job runs the whole suite. A push to `main` and the nightly run test everything
+on every row. Each job is split into duration-balanced shards: two for each
+`test` and `test-free-threaded` row, four for the `coverage` job. The 3.12 `test` row
+runs under `python -O` (`PYTHONOPTIMIZE=1`), to catch validation that an
+`assert` would lose:
+
+```bash
+pytest --shard=2/4                     # the second of four shards
+pytest --no-cov --store-durations      # refresh tests/.test_durations.json
+```
+
+The shards of a job together are exactly the full suite. A stale durations file
+only unbalances them. The `coverage-report` job warns when it is stale, and
+uploads a fresh one, measured by the coverage shards, as the `test-durations`
+artifact: refreshing the file is a download of that artifact from a recent run
+on `main`.
 
 Tests use real datasets (LDPE, SIMCA) alongside synthetic data; please keep
 the real-dataset tests in place when adding new ones. New methods should have
@@ -86,6 +120,158 @@ import pytest
 def test_loads_real_data(): ...
 ```
 
+### Mutation testing
+
+Coverage says a line ran; mutation testing says a test would notice if that line were wrong.
+[mutmut](https://github.com/boxed/mutmut) changes one operator, constant or argument at a time in
+the modules listed under `[tool.mutmut]` in `pyproject.toml`, reruns the tests that reach the
+change, and reports each change no test fails as "survived". The nightly
+`.github/workflows/mutation.yml` fails on any survivor and shows its diff in the run summary.
+It runs the modules in parallel jobs, one per group of modules, each naming its mutants by
+pattern (a mutant is called `<module>.x_<function>__mutmut_<n>`, or
+`<module>.xǁ<class>ǁ<method>__mutmut_<n>` for a method). A module added to `[tool.mutmut]`
+needs every function matched by exactly one group, which `tests/test_tooling_versions.py`
+checks; a large module can be split between groups by function, as `_pls.py` is.
+
+```bash
+rm -rf mutants                                        # start fresh after editing the source
+uv run --with mutmut==3.8.1 mutmut run --max-children 4
+uv run --with mutmut==3.8.1 mutmut results            # the survivors
+uv run --with mutmut==3.8.1 mutmut show <mutant>      # one survivor's diff
+uv run --with mutmut==3.8.1 mutmut run --max-children 4 "process_improve.multivariate._pca.*"  # one module's mutants
+```
+
+A survivor is either an assertion to add, checked against a value derived independently of the
+code, or an equivalent change that no test can see (`float("INF")` for `float("inf")`). Mark an
+equivalent change on its line with `# pragma: no mutate - <why>`, so a reviewer can judge the
+reason. Start each new module from a fresh `mutants/` directory: a rerun after editing the source
+can report a mutant as killed when it was not.
+
+A mutant whose tests run past mutmut's time limit (about 30 times their usual CPU time) counts as
+caught, as in mutmut's own score: the change made the code loop or slow down, and the tests saw it.
+Whether a mutant times out depends on the machine, so one that timed out on CI may fail its tests
+locally instead; either way it is caught.
+
+### The README is tested
+
+The README is the first code a new user runs, so CI checks it like code:
+
+- `tests/test_readme.py` runs every Python block of `README.md` and
+  `SKLEARN_COMPATIBILITY.md` in order, and compares each `print(...)  # output`
+  comment with what the line prints. When a change moves a number, update the
+  comment in the same pull request.
+- `tests/test_readme_guards.py` checks the rest of the page, offline: every call
+  quoted in the text or a table names a real function, method and keyword; every
+  link into the repository or the documentation resolves; and the installation
+  lines match `pyproject.toml`, so a new extra has to be documented.
+- `tools/check_readme_links.py` requests every link to another site, and checks
+  that the openmv.net data files still match the bundled copies behind the
+  README's numbers. `.github/workflows/readme-links.yml` runs it weekly and on
+  pull requests that touch the README, and opens an issue when a weekly run fails.
+
+### The browser app is tested
+
+The no-install app in `web/` runs the package in the reader's browser, through
+`web/bootstrap.py`. Its tests are in `tests/web/` and run with the rest of the suite:
+
+- `tests/web/api/` drives `bootstrap.py` through its JSON entry points, as the page
+  does: a module per entry point, plus `test_errors.py` (every refusal the page can
+  show), `test_envelope.py` (the shape of every reply) and `test_contract.py` (every
+  key, and its type, that `app.js`, `charts.js` and `python.js` read from a reply).
+- `tests/web/page/` checks the page without a browser: each control and rule the HTML
+  and JavaScript repeat from `bootstrap.py`, the build in `scripts/build_web_app.py`,
+  and the code the "Show the Python" panels write. The tests that run the page's
+  JavaScript need Node.js, and skip without it.
+- `tests/web/js/` unit-tests the page's JavaScript with Node.js's own test runner
+  (`node --test`, Node.js 22.7 or later): `web/logic.js`, which holds what the page
+  counts, decides, formats and sorts apart from the document, and the figures
+  `web/charts.js` builds.
+
+`pytest tests/web --no-cov` runs them, and `--affected-since` selects all of them when any
+file of the app changes. `web/bootstrap.py` counts towards coverage, so the patch gate
+applies to it.
+
+Three slower tiers run only when asked for, since they need a browser, Pyodide, or both.
+CI's `web-app` job runs all three:
+
+- `tests/web/e2e` (`--e2e`): the page in Chromium, through Playwright, with its Python
+  answered natively by `bootstrap.py` in the test process. It needs neither Pyodide nor
+  the network, and each test gets a fresh page; a console error fails the test.
+- `tests/web/live` (`--live`): the built app in Chromium, with Pyodide in its worker. Its
+  `smoke` tests also run in `docs.yml` against the built `/app`, so an app that does not
+  work is not deployed; again once the deploy is served (`tools/wait_for_web_app.py` waits
+  for the published manifest to name the commit); and weekly against the published app, in
+  `web-app-live.yml`, which also reports a pin in `web/runtime.json` that is no longer the
+  latest release (`tools/check_web_runtime.py`). When npm has a newer Pyodide, that workflow
+  runs the wasm and live tiers on it and says in its summary whether moving the pin is safe.
+- `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
+  native Python is asked; the answers must agree.
+
+To run them locally:
+
+```bash
+uv run --with playwright==1.64.1 playwright install chromium     # once, for --e2e and --live
+npm install --prefix ~/.cache/process-improve/node --no-save \
+  pyodide@$(jq -r .pyodide web/runtime.json)                      # once, for --wasm
+uv run --with playwright==1.64.1 pytest tests/web --e2e --live --wasm --no-cov
+```
+
+`--live` and `--wasm` build the app into `~/.cache/process-improve/web-app`, unless
+`--web-app` names a build directory or a URL (the published app, for instance). Behind a
+proxy, set `HTTPS_PROXY`: Chromium is pointed at it. `--e2e-headed` shows the browser, and
+`--e2e-artifacts DIR` keeps a trace and screenshots of each failing browser test.
+
+When you change the app, the tests move with it:
+
+- A new entry point, or a new key the page reads from a reply: a test in
+  `tests/web/api/`, and the key in `READS` in `test_contract.py`.
+- A new refusal (a `raise ValueError(...)` in `bootstrap.py`): a case in `REFUSALS` in
+  `test_errors.py`. The suite fails, naming the message, until there is one.
+- A choice the page repeats from `bootstrap.py`, so the form is right before Python
+  loads: a test in `tests/web/page/test_parity.py`.
+- A helper that needs no document (a rule, a format, a sentence): in `web/logic.js`, with a
+  test in `tests/web/js/logic.test.mjs`.
+- A new control, step or message on the page: a test in `tests/web/e2e`, which drives the
+  page as a reader would. `window.__pi` (`tests/web/harness.js`) records each call to
+  Python, and can hold a reply back or give one, for races and error paths. The page shows
+  one phase at a time (Design, Run or Learn): a test shows the phase that holds what it types
+  into or clicks first, with `reveal` in `tests/web/e2e/_page.py`, as a reader presses its tab.
+- A new package the page loads into Pyodide: in `web/runtime.json` only, which
+  `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
+  to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
+- A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
+  it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
+- A new example the book links to (`https://factori.al/?book=<name>`): an entry in
+  `web/book-examples.json`, and a case in `tests/web/api/test_book_examples.py` holding
+  the numbers the book prints for it; the suite fails until there is one. Its name is
+  printed in the book, so keep it once published: the book checks every name it uses
+  against `book/index.json` on factori.al.
+
+One build is served in two places: https://factori.al/, the app's address, and GitHub
+Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests
+passed to both (`deploy-factorial` sends it to factori.al's server over SSH) and runs the
+smoke tests against each once it is served. [`deploy/factorial/README.md`](deploy/factorial/README.md)
+covers the server: its one-time setup, what it logs, and how to roll back.
+- A new design type or simulated process: in `ALL_DESIGNS` or `ALL_SCENARIOS` in
+  `tests/web/_support.py` (a mixture design in `ALL_MIXTURES`), so the tests that run over every one
+  include it.
+
+### Writing for the browser app
+
+The page is read on a phone first, so each screen carries one idea that a reader takes in at a glance.
+
+- **One or two numbers per screen,** and only those that answer the reader's question. "Experiments
+  here usually have about 3 factors and a dozen runs" is a whole screen's worth.
+- **Counts become words:** most, usually, a few, about a dozen. Write "Most are full factorials",
+  not "81 of 126 are full factorials".
+- **Spread and share become a picture:** a dot chart, a bar, a sketch of a design's runs, with a
+  legend in words.
+- **Exact numbers go behind a "Show the numbers" link,** and on the page a reader opens to check
+  them, such as a case's printed values next to Factorial's.
+- **Use the names the reader knows:** a book, a field, an example. Do not use the catalogue's own
+  terms (tier, cause, check).
+- **Claim no more than the data hold.** Where a difference has no known cause, say so.
+
 ## Linting and formatting
 
 ```bash
@@ -125,6 +311,12 @@ the pin in `pyproject.toml` too.
   data before fitting models.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
+- **Text encoding:** pass `encoding="utf-8"` to every `open`, `read_text`,
+  `write_text` and text-mode `subprocess.run`; for a Python child process, which
+  writes in the locale's encoding, pass `encoding="locale"`. Windows defaults to
+  cp1252 otherwise (#994). CI runs the tests with `PYTHONWARNDEFAULTENCODING=1`,
+  and `tests/conftest.py` fails the run on such a call in the repository's own
+  code; run `PYTHONWARNDEFAULTENCODING=1 pytest` to see them locally.
 
 ### Complexity budget
 
@@ -197,6 +389,14 @@ change; a divergence introduced quietly is expensive to find later.
   carrying the `pi_*` metadata above. The abbreviation predates the rest of
   the package's spell-out-everything convention; it is retained for backwards
   compatibility.
+- **Name arguments and result keys for what they are, not by a letter or a
+  source's label.** Sources label the same thing differently: Box and Draper's
+  "B canonical form" is the surface centred on the stationary point, while
+  earlier notes here used "B" for the ridge form, and the key `b_canonical`
+  held neither. So the forms are `canonical_axes` and `ridge_form`, and each
+  docstring gives the source's label with its citation. A retired name is not
+  reused for something else: a caller still reading it would get other
+  numbers with no error.
 
 ## Adding new methods to PCA / PLS
 
@@ -215,12 +415,76 @@ change; a divergence introduced quietly is expensive to find later.
    same API signature.
 5. Verify with `pytest tests/test_multivariate.py -v -o "addopts="`.
 
+## Adding a case to the reference catalogue
+
+A case is an experiment or a design in one of the source files of
+`src/process_improve/datasets/experiments/reference_catalogue/`. It holds the
+source's runs as printed and every number the source prints for them, each with
+where it is printed (a page and a short quotation) and a `check` that says how
+to recompute it.
+
+**Every number that is not recomputed, and every recomputed number that does not
+agree with its source, records its cause.** Put a `"cause"` key in the same
+check, right after the reason:
+
+- A check without a `kind` gives the reason in `manual` and a cause from
+  `reference_catalogue.UNCHECKED_CAUSES`:
+  - `library_gap`: the library has no function for it yet. The page
+    *Reproduced from the books* lists these as what the library lacks, so the
+    reason names the missing method in a clause that starts "the library has
+    no ...".
+  - `check_gap`: the library computes it, but no check kind reads it yet.
+  - `data_not_printed`: the source does not print the data it is worked from.
+  - `not_a_result`: there is nothing to recompute: a statement in words, an
+    input or a choice, a reading off a plot, a unit conversion, or arithmetic
+    on numbers that are checked.
+- A check whose number does not agree gives the reason in `disagreement` and a
+  cause from `reference_catalogue.DISAGREEMENT_CAUSES`:
+  - `source_error`: the source misprints the number or works it out wrongly,
+    and the library's value follows from the source's own data. The reason
+    shows how.
+  - `incorrect_option`: a quiz option that the answer key marks incorrect
+    (`where.answer_key` is `"incorrect"`). Use it then, and only then.
+  - `source_rounding`: the source works from values it has already rounded,
+    or it is one unit off in its last digit.
+  - `method`: the source uses another convention, definition, model or
+    software.
+  - `library`: a bug or a limitation of the library.
+  - `unexplained`: the cause is not known yet.
+
+`source_error` and `incorrect_option` do not count against the case on the
+page: the library's value is the right one. So when two causes fit, choose
+the one that does not clear the library (`unexplained` or `method` before
+`source_error`).
+
+A number that agrees has no `cause`. `tests/test_reference_catalogue.py` fails
+on a case that breaks these rules. Run it before you push:
+
+```bash
+uv run pytest tests/test_reference_catalogue.py --no-cov -k "cause or incorrect_option"
+```
+
+**A response measured as a curve** (a time course, a profile or a spectrum per run) is one
+response, named for the whole curve, with a `curve` key. Its points are columns of the run table,
+one row per run as for every other response. `curve.columns` lists them in order along the curve,
+and `curve.argument` says where each is read: its `name` and `units`, and either `values` (the
+points every run shares) or `columns` (the run table's columns that hold each run's own times, so
+runs may be sampled at different times or a different number of times, with `null` for a point a
+run lacks). A check that names no `response` is about the first response that is not a curve.
+For example, the colour-development case of the book:
+
+```json
+{"name": "colour", "units": "absorbance", "description": "...",
+ "curve": {"columns": ["t0", "t1", "t2"], "argument": {"name": "time point", "units": "", "values": [0, 1, 2]}}}
+```
+
 ## Submitting changes
 
 - Open a pull request against `main` with a clear description of the change
   and why it is needed.
-- Do not bump the version. Add your entry under `## [Unreleased]` in
-  `CHANGELOG.md` and leave `pyproject.toml` and `CITATION.cff` alone; the
+- Do not bump the version. Add your changelog entry as a fragment,
+  `changelog.d/<yyyy-mm-dd>-<slug>.<type>.md` (see [`changelog.d/README.md`](changelog.d/README.md)),
+  and leave `CHANGELOG.md`, `pyproject.toml` and `CITATION.cff` alone; the
   version is set at release time (see "Versioning policy" below).
 - Bugs and feature requests can also be filed on the
   [issue tracker](https://github.com/kgdunn/process-improve/issues).
@@ -247,22 +511,24 @@ Reset rules:
 
 ### When the version is bumped
 
-**Not in your pull request.** A pull request adds its entry under
-`## [Unreleased]` in `CHANGELOG.md` and leaves `pyproject.toml` and
+**Not in your pull request.** A pull request adds its entry as a fragment in
+`changelog.d/` and leaves `CHANGELOG.md`, `pyproject.toml` and
 `CITATION.cff` alone. The version is set once, at release time, from
-everything that accumulated under `[Unreleased]`.
+everything that accumulated in the fragments and under `[Unreleased]`.
 
 This is deliberate. Every pull request bumping the same line of
 `pyproject.toml`, the same line of `CITATION.cff`, and inserting at the
 same anchor in `CHANGELOG.md` makes every open pull request conflict with
 every other one, on three lines that have nothing to do with the work.
 The conflicts are not telling you anything, and resolving them costs a
-rebase per merge.
+rebase per merge. A fragment is a file of its own, so two pull requests'
+entries never meet until the release files them.
 
 ### Choosing the level at release
 
 The headings under `[Unreleased]` decide it, so the level is read off the
-changelog rather than argued about:
+changelog rather than argued about. A fragment's type is the heading it is
+filed under, so `changelog.d/2026-10-18-glm.added.md` counts as `### Added`:
 
 | Highest heading present under `[Unreleased]` | Level |
 |---|---|
@@ -286,13 +552,16 @@ number is.
 
 ### Cutting a release
 
-1. Read the headings under `[Unreleased]` and pick the level from the
+1. Run `python tools/changelog.py build`. It files every fragment in
+   `changelog.d/` under its heading in `## [Unreleased]` and deletes it.
+2. Read the headings under `[Unreleased]` and pick the level from the
    table above.
-2. In one commit: set `pyproject.toml` `version`, set `CITATION.cff`
-   `version` to the identical value and `date-released` to today, rename
-   `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a fresh empty
-   `## [Unreleased]` above it, and add the compare link to the footer.
-3. Tag `vX.Y.Z` and push the tag.
+3. In one commit, with the result of step 1: set `pyproject.toml` `version`,
+   set `CITATION.cff` `version` to the identical value and `date-released`
+   to today, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a
+   fresh empty `## [Unreleased]` above it, and add the compare link to the
+   footer.
+4. Tag `vX.Y.Z` and push the tag.
 
 `publish.yml` refuses to ship if the tag does not equal
 `v<pyproject version>`, or if `CHANGELOG.md` has no `## [X.Y.Z]` heading,

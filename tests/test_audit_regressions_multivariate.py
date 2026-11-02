@@ -140,7 +140,7 @@ class TestPlotLimits:
         return PCA(n_components=3).fit(frame)
 
     def test_t2_plot_limit_matches_sub_model(self, model: PCA) -> None:
-        fig = model.t2_plot(with_a=1)
+        fig = model.t2_plot(n_components=1)
         expected = hotellings_t2_limit(0.95, n_components=1, n_rows=model.n_samples_)
         limit_line = fig.layout.shapes[0]
         assert np.isclose(limit_line.y0, expected)
@@ -148,7 +148,7 @@ class TestPlotLimits:
         assert "T2 values" in fig.layout.yaxis.title.text
 
     def test_spe_plot_limit_matches_sub_model(self, model: PCA) -> None:
-        fig = model.spe_plot(with_a=1)
+        fig = model.spe_plot(n_components=1)
         expected = spe_calculation(model.spe_[1], conf_level=0.95)
         limit_line = fig.layout.shapes[0]
         assert np.isclose(limit_line.y0, expected)
@@ -189,7 +189,16 @@ class TestSelectNComponentsScales:
         # reference the folds measured rather than one recomputed out here.
         from process_improve.multivariate._pca import _pca_ekf_press
 
-        ekf = _pca_ekf_press(np.asarray(x, dtype=float), 3, n_folds=4, random_state=0)
+        ekf = _pca_ekf_press(
+            np.asarray(x, dtype=float),
+            3,
+            n_folds=4,
+            random_state=0,
+            n_repeats=1,
+            ekf_max_iter=50,
+            ekf_tol=1e-6,
+            scale_inside_folds=True,
+        )
         expected_q2 = 1.0 - result.press.to_numpy() / ekf.null_model_ss
         np.testing.assert_allclose(result.q2.to_numpy(), expected_q2)
 
@@ -222,7 +231,7 @@ class TestPLSInference:
     def test_pca_warns_when_nipals_hits_max_iter(self) -> None:
         x, _ = self._xy(seed=14)
         with pytest.warns(SpecificationWarning, match="maximum number of iterations"):
-            PCA(n_components=1, algorithm="nipals", missing_data_settings={"md_max_iter": 1}).fit(x)
+            PCA(n_components=1, algorithm="nipals", max_iter=1).fit(x)
 
 
 class TestRankDeficiencyGuards:
@@ -315,6 +324,54 @@ class TestPreprocessingGuards:
         # The NaN cells pass through; the finite column is untouched.
         assert out["empty"].isna().all()
         assert np.isfinite(out["good"]).all()
+
+    @pytest.mark.parametrize("order", ["C", "F"])
+    @pytest.mark.parametrize(("n_rows", "value"), [(53, 0.00871), (53, 0.1), (5, 63.696), (100, 3.7)])
+    def test_mcuv_constant_column_transforms_to_exactly_zero(self, order: str, n_rows: int, value: float) -> None:
+        """A constant column is left unscaled and centred on its value, in either memory layout.
+
+        Its nanstd is usually rounding noise (about 1e-17) rather than exactly 0, in either
+        memory layout; dividing by it made the column +-sqrt((n-1)/n) instead of 0.
+        """
+        rng = np.random.default_rng(3)
+        x = np.asarray(np.column_stack([np.full(n_rows, value), rng.standard_normal(n_rows)]), order=order)
+        scaler = MCUVScaler().fit(x)
+        assert scaler.scale_[0] == 1.0
+        assert scaler.center_[0] == value
+        np.testing.assert_array_equal(np.asarray(scaler.transform(x))[:, 0], 0.0)
+
+    @pytest.mark.parametrize("func", [np.std, np.nanstd])
+    @pytest.mark.parametrize(("n_rows", "value"), [(53, 0.00871), (53, 0.1), (5, 63.696), (100, 3.7)])
+    def test_scale_leaves_a_constant_column_unchanged(self, func: object, n_rows: int, value: float) -> None:
+        """scale() multiplies a constant column by 1, as its docstring says, not by 1 / rounding noise.
+
+        The standard deviation of equal values is usually about 1e-17 rather than exactly 0, so
+        the column used to come out multiplied by about 1e16.
+        """
+        rng = np.random.default_rng(3)
+        x = pd.DataFrame({"constant": np.full(n_rows, value), "signal": rng.standard_normal(n_rows)})
+        scaled, multiplier = scale(x, func=func, ddof=1, extra_output=True)
+        assert multiplier[0] == 1.0
+        np.testing.assert_array_equal(np.asarray(scaled)[:, 0], value)
+
+    def test_scale_leaves_a_constant_row_unchanged(self) -> None:
+        x = np.vstack([np.full(53, 0.1), np.random.default_rng(3).standard_normal(53)])
+        scaled, multiplier = scale(x, axis=1, extra_output=True)
+        assert multiplier[0, 0] == 1.0
+        np.testing.assert_array_equal(np.asarray(scaled)[0], 0.1)
+
+    @pytest.mark.parametrize("func", [np.std, np.nanstd])
+    def test_scale_leaves_a_constant_column_with_a_gap_unchanged(self, func: object) -> None:
+        """A constant column with a gap is constant as well; it was multiplied by 7.2e16.
+
+        Each column reaches ``func`` as a pandas Series, whose std skips a missing cell.
+        """
+        x = pd.DataFrame({"constant": [0.1, 0.1, np.nan, 0.1], "signal": [1.0, 2.0, 4.0, 8.0]})
+        assert scale(x, func=func, extra_output=True)[1][0] == 1.0
+
+    def test_scale_leaves_a_single_observation_column_unchanged_as_mcuv_does(self) -> None:
+        x = pd.DataFrame({"lonely": [5.0, np.nan, np.nan], "good": [1.0, 2.0, 3.0]})
+        assert scale(x, ddof=1, extra_output=True)[1][0] == 1.0 == MCUVScaler().fit(x).scale_["lonely"]
 
     def test_center_axis_1(self) -> None:
         x = np.arange(12, dtype=float).reshape(3, 4)
@@ -434,7 +491,16 @@ class TestStatisticalCorrectnessTriage:
         """
         from process_improve.multivariate._pca import _pca_ekf_press
 
-        result_ekf = _pca_ekf_press(np.array([[1.0, 2], [3, 4]]), 1, n_folds=5, random_state=0)
+        result_ekf = _pca_ekf_press(
+            np.array([[1.0, 2], [3, 4]]),
+            1,
+            n_folds=5,
+            random_state=0,
+            n_repeats=1,
+            ekf_max_iter=50,
+            ekf_tol=1e-6,
+            scale_inside_folds=True,
+        )
         press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert np.isnan(per_fold[0, :4]).all(), "empty folds must be NaN, not zero"
         assert np.isfinite(per_fold[0, 4])
@@ -450,7 +516,9 @@ class TestStatisticalCorrectnessTriage:
 
         rng = np.random.default_rng(0)
         X = rng.normal(size=(20, 4))
-        result_ekf = _pca_ekf_press(X, 3, n_folds=5, random_state=42)
+        result_ekf = _pca_ekf_press(
+            X, 3, n_folds=5, random_state=42, n_repeats=1, ekf_max_iter=50, ekf_tol=1e-6, scale_inside_folds=True
+        )
         press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert not np.isnan(per_fold).any()
         assert np.all(np.isfinite(press))

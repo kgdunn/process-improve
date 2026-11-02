@@ -191,7 +191,15 @@ def _coded_pm1(design: pd.DataFrame) -> np.ndarray:
     ------
     NotTwoLevelError
         If any column does not have exactly two distinct levels.
+    ValueError
+        If the design has a missing value, which no two-level coding can place.
     """
+    missing = [name for name in design.columns if design[name].isna().any()]
+    if missing:
+        raise ValueError(
+            f"Column(s) {missing} have missing values; moment aberration needs every run at one of "
+            "the two levels. Remove or fill the incomplete runs first."
+        )
     columns = []
     for name in design.columns:
         levels = pd.unique(design[name].dropna())
@@ -288,7 +296,7 @@ def moment_aberration(design: pd.DataFrame | np.ndarray) -> MomentAberrationResu
     NotTwoLevelError
         If a factor column does not have exactly two levels.
     ValueError
-        If the design has fewer than two runs or no factor columns.
+        If the design has fewer than two runs, no factor columns, or a missing value.
 
     Notes
     -----
@@ -317,7 +325,7 @@ def moment_aberration(design: pd.DataFrame | np.ndarray) -> MomentAberrationResu
     process_improve.experiments.evaluate_design : the ``moment_aberration`` metric.
     """
     frame = pd.DataFrame(design).copy()
-    for label in ("Run", "RunOrder", "Block", "run", "run_order", "block"):
+    for label in ("Run", "RunOrder", "Block", "WholePlot", "run", "run_order", "block"):
         if label in frame.columns:
             frame = frame.drop(columns=[label])
 

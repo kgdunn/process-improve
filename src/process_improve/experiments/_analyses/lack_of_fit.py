@@ -5,9 +5,38 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
+
+from ._shared import BLOCK_COL, WHOLE_PLOT_COL
+
+
+def pure_error(design_df: pd.DataFrame, response_col: str, group_cols: list[str]) -> tuple[float, int]:
+    """Pure-error sum of squares and degrees of freedom from runs replicated over ``group_cols``.
+
+    Replicates are found on ROUNDED factor values: a coded -> actual -> coded round
+    trip can perturb the last few bits, which would silently split replicates into
+    distinct groups under exact matching. Rows with a missing response do not count.
+    """
+    data = design_df[design_df[response_col].notna()]
+    y = data[response_col]
+    group_frame = data[group_cols].copy()
+    for col in group_cols:
+        if pd.api.types.is_numeric_dtype(group_frame[col]):
+            group_frame[col] = group_frame[col].astype(float).round(8)
+    groups = data.groupby([group_frame[c] for c in group_cols], sort=False)
+
+    ss_pure_error = 0.0
+    df_pure_error = 0
+    for _name, group in groups:
+        ni = len(group)
+        if ni > 1:
+            yi = y.loc[group.index]
+            ss_pure_error += float(((yi - yi.mean()) ** 2).sum())
+            df_pure_error += ni - 1
+    return ss_pure_error, df_pure_error
 
 
 def _run_lack_of_fit(
@@ -15,45 +44,33 @@ def _run_lack_of_fit(
     design_df: pd.DataFrame,
     response_col: str,
     factor_cols: list[str] | None = None,
+    alpha: float = 0.05,
 ) -> dict[str, Any]:
     """Lack-of-fit F-test using pure error from replicated points.
 
     Separates residual SS into pure-error SS (from n_replicates) and
     lack-of-fit SS.  Custom implementation (~40 lines).
 
-    ``factor_cols`` must be the MODEL's factor columns. When the caller
-    passes a full design frame, bookkeeping columns like ``RunOrder`` (unique
-    per row) or ``Block`` must be excluded: grouping on them previously made
-    every group a singleton, so no generated design ever had detectable
-    replicates and the test always reported "No replicated points".
+    ``factor_cols`` must be the MODEL's factor columns (plus the block column when
+    the model has a block term, so pure error is taken within blocks). When the
+    caller passes a full design frame, bookkeeping columns like ``RunOrder`` (unique
+    per row) must be excluded: grouping on them previously made every group a
+    singleton, so no generated design ever had detectable replicates and the test
+    always reported "No replicated points". ``alpha`` sets the ``significant`` flag.
+
+    When the model leaves no lack-of-fit degrees of freedom, or the repeats agree
+    exactly (zero pure error), the sums of squares are still reported, with
+    ``f_statistic``, ``p_value`` and ``significant`` set to ``None`` and a ``note``.
     """
     residuals = ols_result.resid
-    y = design_df[response_col]
 
     if factor_cols is None:
-        _non_factor = {response_col, "RunOrder", "Block"}
+        _non_factor = {response_col, "RunOrder", BLOCK_COL, WHOLE_PLOT_COL}
         factor_cols = [c for c in design_df.columns if c not in _non_factor]
     if not factor_cols:
         return {"lack_of_fit": {"error": "No factor columns found."}}
 
-    # Identify replicate groups by ROUNDED factor values: a coded -> actual ->
-    # coded round trip can perturb the last few bits, which would silently
-    # split replicates into distinct groups under exact groupby matching.
-    group_frame = design_df[factor_cols].copy()
-    for col in factor_cols:
-        if pd.api.types.is_numeric_dtype(group_frame[col]):
-            group_frame[col] = group_frame[col].astype(float).round(8)
-    groups = design_df.groupby([group_frame[c] for c in factor_cols], sort=False)
-
-    ss_pure_error = 0.0
-    df_pure_error = 0
-
-    for _name, group in groups:
-        ni = len(group)
-        if ni > 1:
-            yi = y.loc[group.index]
-            ss_pure_error += float(((yi - yi.mean()) ** 2).sum())
-            df_pure_error += ni - 1
+    ss_pure_error, df_pure_error = pure_error(design_df, response_col, factor_cols)
 
     if df_pure_error == 0:
         return {"lack_of_fit": {"error": "No replicated points - cannot test lack of fit."}}
@@ -64,24 +81,47 @@ def _run_lack_of_fit(
     ss_lof = ss_residual - ss_pure_error
     df_lof = df_residual - df_pure_error
 
-    if df_lof <= 0 or ss_pure_error <= 0:
+    # Pure error can exceed the residual only when the runs grouped as replicates differ in a
+    # column the model fits (#968); a lack of fit below zero would then be reported as a result.
+    if ss_lof < -1e-9 * max(ss_residual, 1.0):
+        return {
+            "lack_of_fit": {
+                "error": f"The pure-error sum of squares ({ss_pure_error:.6g}) exceeds the residual sum of squares "
+                f"({ss_residual:.6g}): the runs grouped as replicates on {factor_cols} differ in another column "
+                "the model uses, so lack of fit cannot be tested."
+            }
+        }
+    ss_lof = max(ss_lof, 0.0)  # rounding when the model fits the replicate means exactly
+
+    if df_lof < 0:
         return {"lack_of_fit": {"error": "Insufficient degrees of freedom for lack-of-fit test."}}
 
-    ms_lof = ss_lof / df_lof
     ms_pe = ss_pure_error / df_pure_error
-    f_stat = ms_lof / ms_pe
-    p_value = 1.0 - stats.f.cdf(f_stat, df_lof, df_pure_error)
-
-    return {
-        "lack_of_fit": {
-            "ss_lack_of_fit": ss_lof,
-            "df_lack_of_fit": df_lof,
-            "ms_lack_of_fit": ms_lof,
-            "ss_pure_error": ss_pure_error,
-            "df_pure_error": df_pure_error,
-            "ms_pure_error": ms_pe,
-            "f_statistic": float(f_stat),
-            "p_value": float(p_value),
-            "significant": p_value < 0.05,
-        }
+    result: dict[str, Any] = {
+        "ss_lack_of_fit": ss_lof,
+        "df_lack_of_fit": df_lof,
+        "ms_lack_of_fit": ss_lof / df_lof if df_lof else None,
+        "ss_pure_error": ss_pure_error,
+        "df_pure_error": df_pure_error,
+        "ms_pure_error": ms_pe,
+        "f_statistic": None,
+        "p_value": None,
+        "significant": None,
+        "significance_level": alpha,
     }
+    # Identical repeats are a result, not a failure: the rows are reported and only the F ratio is
+    # left out. Round-off in the group means can leave ~1e-30 where the repeats agree exactly, which
+    # would otherwise give an enormous F, so pure error that small against the response is zero.
+    if df_lof == 0:
+        result["ss_lack_of_fit"] = 0.0  # the residual is all pure error; the difference is round-off
+        result["note"] = "The model leaves no degrees of freedom for lack of fit, so no lack of fit can be tested."
+    elif ss_pure_error <= np.finfo(float).eps * float(ols_result.uncentered_tss):
+        result["note"] = (
+            "The pure error is zero: the repeated runs agree exactly, so the ratio of lack of fit to pure "
+            "error cannot be formed."
+        )
+    else:
+        f_stat = (ss_lof / df_lof) / ms_pe
+        p_value = float(stats.f.sf(f_stat, df_lof, df_pure_error))
+        result.update(f_statistic=float(f_stat), p_value=p_value, significant=p_value < alpha)
+    return {"lack_of_fit": result}

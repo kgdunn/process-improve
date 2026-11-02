@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import ClassVar
 
 import numpy as np
@@ -14,10 +15,12 @@ from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,
     _multiply_words,
     _parse_word,
+    _roman,
     _word_to_str,
     evaluate_design,
 )
-from process_improve.experiments.factor import Factor
+from process_improve.experiments.factor import DesignResult, Factor
+from process_improve.experiments.region import DesignRegion
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -163,25 +166,32 @@ class TestGEfficiency:
 
 
 # ---------------------------------------------------------------------------
-# I-efficiency
+# I-criterion
 # ---------------------------------------------------------------------------
 
 
-class TestIEfficiency:
-    """Test I-efficiency metric."""
+class TestAveragePredictionVariance:
+    """The I-criterion: the prediction variance averaged over the region."""
 
-    def test_orthogonal_design(self) -> None:
-        """Orthogonal design should have high I-efficiency."""
+    def test_two_by_two_factorial(self) -> None:
+        """For a 2^2 main-effects design, f(x)'(X'X)^-1 f(x) = (1 + x1^2 + x2^2) / 4; its cube mean is 5/12."""
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="main_effects", metric="i_efficiency")
-        assert result["i_efficiency"] is not None
-        assert result["i_efficiency"] > 80.0
+        result = evaluate_design(df, model="main_effects", metric="average_prediction_variance", n_samples=200_000)
+        assert result["average_prediction_variance"] == pytest.approx(5 / 12, abs=0.005)
 
-    def test_returns_average_prediction_variance(self) -> None:
-        """I-efficiency result should include average_prediction_variance."""
+    def test_i_optimality_alias(self) -> None:
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="main_effects", metric="i_efficiency")
-        assert "average_prediction_variance" in result
+        assert "average_prediction_variance" in evaluate_design(df, model="main_effects", metric="i_optimality")
+
+    def test_i_efficiency_is_an_unknown_metric(self) -> None:
+        """Removed in 2.0.0: the error names it and lists the metrics there are, the I-criterion among them."""
+        df = _full_factorial_df(2)
+        with pytest.raises(ValueError, match=r"Unknown metric\(s\): \['i_efficiency'\].*'average_prediction_variance'"):
+            evaluate_design(df, model="main_effects", metric="i_efficiency")
+
+    def test_all_metrics_include_the_i_criterion(self) -> None:
+        df = _full_factorial_df(3)
+        assert "average_prediction_variance" in evaluate_design(df, model="main_effects", metric="all", n_samples=1000)
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +324,30 @@ class TestPower:
         p2 = evaluate_design(double, model="main_effects", metric="power", effect_size=2.0, sigma=1.0)
         # Pick any factor - power should be higher with 2x runs
         assert p2["power"]["A"] >= p1["power"]["A"] - 0.01
+
+    def test_power_says_when_interactions_would_bias_the_tested_coefficients(self) -> None:
+        """A 12-run Plackett-Burman design reported 99% power for a factor it found 0.2% of the time.
+
+        Each main effect carries a third of every interaction among the other factors, so an
+        active interaction outside the main-effects model shrinks or inflates it.
+        """
+        design = generate_design(_continuous_factors(8), design_type="plackett_burman", n_center_points=0)
+        result = evaluate_design(design, model="main_effects", metric="power", effect_size=6.0, sigma=3.0)
+        assert result["power"]["X7"] > 0.95  # what the main-effects model alone promises
+        exposure = result["alias_exposure"]
+        assert set(exposure) == {f"X{i}" for i in range(1, 9)}
+        assert exposure["X7"] == {"aliased_interactions": 21, "max_abs_weight": pytest.approx(1 / 3)}
+        assert "real power can be much lower" in result["power_assumes"]
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"design_type": "dsd", "n_center_points": 3}, {"design_type": "fractional_factorial", "resolution": 4}],
+    )
+    def test_power_has_no_alias_caveat_when_main_effects_are_clear_of_interactions(self, kwargs: dict) -> None:
+        design = generate_design(_continuous_factors(8), **kwargs)
+        result = evaluate_design(design, model="main_effects", metric="power", effect_size=6.0, sigma=3.0)
+        assert "alias_exposure" not in result
+        assert "power_assumes" not in result
 
     def test_power_curve_when_no_effect_size(self) -> None:
         """When effect_size is None, return power curves."""
@@ -578,6 +612,15 @@ class TestWordArithmetic:
         """Parse 'I' returns empty set."""
         result = _parse_word("I", ["A", "B", "C"])
         assert result == frozenset()
+
+    def test_parse_multi_char_names_skips_unknown_characters(self) -> None:
+        """With multi-character names, a character that starts no name is skipped."""
+        assert _parse_word("AQBB", ["A", "BB"]) == frozenset({0, 1})
+
+    @pytest.mark.parametrize(("n", "numeral"), [(0, "0"), (2, "II"), (12, "XII")])
+    def test_resolution_as_a_roman_numeral(self, n: int, numeral: str) -> None:
+        """Resolutions are written in Roman numerals; zero (no numeral exists) is written as a number."""
+        assert _roman(n) == numeral
 
     def test_multiply_words(self) -> None:
         """Multiplying {0,1} and {1,2} gives {0,2} (symmetric difference)."""
@@ -926,13 +969,59 @@ class TestAliasMatrix:
         assert result["alias_matrix"]["max_abs_main_effect_rows"] == pytest.approx(0.0, abs=1e-9)
 
 
+#: Davies (1956), Table 11-21: a 2^(5-2) with x4 = x1x2x3 and x5 = -x2x3.
+_DAVIES = pd.DataFrame(
+    [(-1, -1, -1, -1, -1), (-1, -1, 1, 1, 1), (-1, 1, -1, 1, 1), (-1, 1, 1, -1, -1),
+     (1, -1, -1, 1, -1), (1, -1, 1, -1, 1), (1, 1, -1, -1, 1), (1, 1, 1, 1, -1)],
+    columns=["x1", "x2", "x3", "x4", "x5"],
+)  # fmt: skip
+#: A 2^2 with three centre runs (Box, Hunter and Hunter, Table 15.1).
+_FIRST_ORDER = pd.DataFrame(
+    [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, 0), (0, 0), (0, 0)], columns=["time", "temperature"]
+)
+
+
+def _alias(design: pd.DataFrame, model: str, alias_terms: str) -> pd.DataFrame:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # a saturated or small design warns about its residual degrees of freedom
+        out = evaluate_design(design, model=model, metric="alias_matrix", alias_terms=alias_terms)["alias_matrix"]
+    return pd.DataFrame(out["matrix"], index=out["model_terms"], columns=out["alias_terms"])
+
+
+class TestAliasMatrixWithTheSquares:
+    def test_davies_first_order_design_aliases_each_square_with_the_mean(self) -> None:
+        """Davies, 11.33 (p. 512): b0 -> b0 + b11 + b22 + b33 + b44 + b55, and b1 -> b1 - b45."""
+        alias = _alias(_DAVIES, "x1 + x2 + x3 + x4 + x5", "quadratic")
+        squares = [f"I(x{i} ** 2)" for i in range(1, 6)]
+        assert alias.loc["Intercept", squares].tolist() == pytest.approx([1.0] * 5)
+        assert alias.loc["x1", "x4:x5"] == pytest.approx(-1.0)
+        assert alias.loc[["x1", "x2", "x3", "x4", "x5"], squares].abs().max().max() == pytest.approx(0.0)
+
+    def test_centre_runs_dilute_the_squares_in_the_mean(self) -> None:
+        """A 2^2 with three centre runs: the mean carries 4/7 of each square."""
+        alias = _alias(_FIRST_ORDER, "time + temperature", "quadratic")
+        assert alias.loc["Intercept", ["I(time ** 2)", "I(temperature ** 2)"]].tolist() == pytest.approx([4 / 7] * 2)
+
+    def test_the_default_aliases_against_the_interactions_only(self) -> None:
+        assert not any(term.startswith("I(") for term in _alias(_DAVIES, "x1 + x2 + x3 + x4 + x5", "interactions"))
+
+    def test_a_square_in_the_model_and_a_categorical_factor_have_no_square_column(self) -> None:
+        design = _FIRST_ORDER.assign(catalyst=["A", "B", "A", "B", "A", "B", "A"])
+        alias = _alias(design, "time + temperature + catalyst + I(time ** 2)", "quadratic")
+        assert [term for term in alias.columns if term.startswith("I(")] == ["I(temperature ** 2)"]
+
+    def test_an_unknown_alias_set_is_refused(self) -> None:
+        with pytest.raises(ValueError, match=r"alias_terms must be one of \('interactions', 'quadratic'\)"):
+            evaluate_design(_DAVIES, model="x1 + x2", metric="alias_matrix", alias_terms="cubic")
+
+
 class TestFDS:
     """Test the fraction-of-design-space (FDS) curve."""
 
     def test_payload_and_scaling(self) -> None:
         """FDS reports region metadata, quantiles, I/G, and the xN SPV variants."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)
         fds = result["fds"]
         assert fds["region"] == "cuboidal"
         assert fds["include_vertices"] is True
@@ -946,7 +1035,7 @@ class TestFDS:
     def test_quantiles_monotone(self) -> None:
         """FDS quantiles are non-decreasing in the fraction of design space."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)["fds"]
         keys = sorted(fds["quantiles"], key=float)
         values = [fds["quantiles"][k] for k in keys]
         assert values == sorted(values)
@@ -958,8 +1047,10 @@ class TestReducedFormulaRegression:
     def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
         """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1)
-        assert result["i_efficiency"] is not None
+        result = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric=["average_prediction_variance", "g_efficiency"], random_state=1
+        )
+        assert result["average_prediction_variance"] is not None
         assert result["g_efficiency"] is not None
         assert result["average_prediction_variance"] > 0
         assert result["max_prediction_variance"] >= result["average_prediction_variance"]
@@ -971,7 +1062,7 @@ class TestAggregate:
     def test_metric_all_includes_every_metric(self) -> None:
         """metric='all' returns keys for every registered metric family."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_state=1)
         for key in ("d_efficiency", "a_optimality", "e_optimality", "correlation", "alias_matrix", "fds", "power"):
             assert key in result
 
@@ -980,8 +1071,8 @@ class TestAggregate:
         from process_improve.experiments.evaluate import evaluate_all
 
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_seed=1)
-        b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_state=1)
+        b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_state=1)
         assert set(a) == set(b)
         assert a["a_optimality"] == pytest.approx(b["a_optimality"])
 
@@ -991,7 +1082,7 @@ class TestGoldenMetrics:
 
     Five factors on the 11-term main-effects-plus-pure-quadratics model, all
     designs confined to [-1, 1]^5, region cuboidal with uniform sampling plus
-    the 2^5 vertices (random_seed=1).  Stable/deterministic metrics (A, E,
+    the 2^5 vertices (random_state=1).  Stable/deterministic metrics (A, E,
     max|r|, region-average I, VIF, alias, power) are asserted tightly; the
     Monte-Carlo region maximum (G) is asserted with a modest tolerance.
     """
@@ -1027,7 +1118,7 @@ class TestGoldenMetrics:
             model=_PURE_QUADRATIC_5,
             metric=["a_optimality", "e_optimality", "correlation", "fds", "vif", "alias_matrix", "power"],
             effect_size=1.0,
-            random_seed=1,
+            random_state=1,
             n_samples=100_000,
         )
         assert res["a_optimality"] == pytest.approx(gA, abs=0.01)
@@ -1063,7 +1154,7 @@ class TestRegionAndMetricEdgeCases:
         """region='spherical' samples the circumscribing ball and returns finite I/G."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_seed=1
+            df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_state=1
         )
         assert result["fds"]["region"] == "spherical"
         assert result["fds"]["max_prediction_variance"] >= result["fds"]["average_prediction_variance"] > 0
@@ -1078,16 +1169,16 @@ class TestRegionAndMetricEdgeCases:
         """include_vertices=False omits the cube corners from the region sample."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         fds = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_seed=1
+            df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_state=1
         )["fds"]
         assert fds["include_vertices"] is False
         assert fds["max_prediction_variance"] > 0
 
-    def test_i_efficiency_singular_returns_none(self) -> None:
-        """i_efficiency is None for a rank-deficient design."""
+    def test_average_prediction_variance_singular_returns_none(self) -> None:
+        """The average prediction variance is None for a rank-deficient design."""
         df = _full_factorial_df(2)
-        result = evaluate_design(df, model="quadratic", metric="i_efficiency")
-        assert result["i_efficiency"] is None
+        result = evaluate_design(df, model="quadratic", metric="average_prediction_variance")
+        assert result["average_prediction_variance"] is None
 
     def test_alias_and_fds_singular_return_none(self) -> None:
         """alias_matrix and fds are None for a rank-deficient design."""
@@ -1122,6 +1213,123 @@ class TestRegionAndMetricEdgeCases:
         result = evaluate_design(df, model="main_effects", metric="degrees_of_freedom")
         assert result["degrees_of_freedom"]["model"] == 2  # only A and B count as factors
 
+    def test_factors_outside_a_region_are_drawn_from_their_levels(self) -> None:
+        """A region over A and B leaves C at its observed levels, so C**2 is 1 in every sampled point.
+
+        For the main-effects model of a 2^3 that makes the average (1 + 1/3 + 1/3 + 1) / 8 = 1/3,
+        against 1/4 if C were sampled uniformly too.
+        """
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "AB"])
+        out = evaluate_design(
+            _full_factorial_df(3),
+            model="main_effects",
+            metric="average_prediction_variance",
+            region=region,
+            n_samples=4000,
+        )
+        assert out["average_prediction_variance"] == pytest.approx(1 / 3, abs=0.005)
+
+    def test_a_design_region_without_its_support_points_misses_the_corners(self) -> None:
+        """The region's support points carry the worst case; without them only the interior sample counts."""
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "ABC"])
+        design = _full_factorial_df(3)
+
+        def max_variance(*, include_vertices: bool) -> float:
+            return evaluate_design(
+                design,
+                model="main_effects",
+                metric="g_efficiency",
+                region=region,
+                n_samples=500,
+                include_vertices=include_vertices,
+            )["max_prediction_variance"]
+
+        assert max_variance(include_vertices=True) == pytest.approx(0.5)  # a corner: (1 + 3) / 8
+        assert max_variance(include_vertices=False) < 0.5
+
+    def test_a_recorded_unconstrained_region_means_the_cube(self) -> None:
+        """A box region recorded without constraints evaluates exactly as the default cuboidal region."""
+        design = _full_factorial_df(3)
+        region = DesignRegion([Factor(name=name, low=-1, high=1) for name in "ABC"])
+        recorded = DesignResult(
+            design=design,
+            design_actual=design,
+            run_order=list(range(1, 9)),
+            design_type="full_factorial",
+            n_runs=8,
+            n_factors=3,
+            factor_names=list("ABC"),
+            metadata={"region": region.to_dict()},
+        )
+        kwargs = {"model": "main_effects", "metric": "g_efficiency", "n_samples": 500}
+        assert evaluate_design(recorded, **kwargs) == evaluate_design(design, **kwargs)
+
+    def test_an_explicit_mixture_formula_is_kept(self) -> None:
+        """A formula is not a Scheffe model name, so it is used as written: here the linear blending model."""
+        mixture = generate_design([Factor(name=name, type="mixture") for name in "ABC"], design_type="mixture")
+        formula = evaluate_design(mixture, model="A + B + C - 1", metric="d_efficiency")
+        named = evaluate_design(mixture, model="scheffe_linear", metric="d_efficiency")
+        assert formula["d_efficiency"] == pytest.approx(named["d_efficiency"])
+
+    def test_an_all_categorical_design(self, recwarn: pytest.WarningsRecorder) -> None:
+        """Label columns are compared as-is for replicates and are never checked for coded units."""
+        design = pd.DataFrame({"M": list("xyxy"), "N": list("ppqq")})
+        out = evaluate_design(design, model="main_effects", metric="degrees_of_freedom")
+        assert out["degrees_of_freedom"] == {"model": 2, "residual": 1, "total": 3, "pure_error": 0, "lack_of_fit": 1}
+        assert not [w for w in recwarn if "coded units" in str(w.message)]
+
+    def test_the_intercept_alone_has_no_aliases(self) -> None:
+        assert evaluate_design(_full_factorial_df(3), model="1", metric="alias_structure") == {"alias_structure": []}
+
+    def test_an_interaction_that_is_constant_is_not_clear(self) -> None:
+        """With B equal to A, A:B is the constant column and A and B alias each other: only C is clear."""
+        design = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, 1, -1, 1], "C": [-1, -1, 1, 1]})
+        out = evaluate_design(design, model="main_effects", metric="clear_effects")
+        assert out["clear_effects"] == {"main_effects": ["C"], "two_factor_interactions": []}
+
+    def test_moment_aberration_needs_two_runs(self) -> None:
+        out = evaluate_design(pd.DataFrame({"A": [1], "B": [-1]}), model="1", metric="moment_aberration")
+        assert out["moment_aberration"] == {
+            "pattern": [],
+            "note": "Design has 1 run(s); at least 2 are needed to form a pair.",
+        }
+
+
+class TestRecordedGeneratorsAndRelations:
+    """Generator metadata that yields no defining word, and a relation recorded without generators."""
+
+    @staticmethod
+    def _result(**metadata: object) -> DesignResult:
+        design = _full_factorial_df(3)
+        return DesignResult(
+            design=design,
+            design_actual=design,
+            run_order=list(range(1, 9)),
+            design_type="fractional_factorial",
+            n_runs=8,
+            n_factors=3,
+            factor_names=list("ABC"),
+            **metadata,
+        )
+
+    def test_a_generator_that_cancels_gives_no_defining_word(self) -> None:
+        """A=A multiplies to the identity, so there is no word to read a resolution or pattern from."""
+        out = evaluate_design(
+            self._result(generators=["A=A"]),
+            model="main_effects",
+            metric=["resolution", "alias_structure", "minimum_aberration"],
+        )
+        assert (out["resolution"], out["roman"]) == (None, None)
+        assert out["notes"]["resolution"] == "No defining relation words found."
+        assert out["alias_structure"] == []
+        assert out["minimum_aberration"] == {"wordlength_pattern": [], "note": "No defining relation words found."}
+
+    def test_a_recorded_relation_is_returned_without_generators(self) -> None:
+        out = evaluate_design(
+            self._result(defining_relation=["I=ABC"]), model="main_effects", metric="defining_relation"
+        )
+        assert out == {"defining_relation": ["I=ABC"]}
+
 
 class TestFDSResolution:
     """Test the tunable-resolution FDS curve."""
@@ -1129,7 +1337,7 @@ class TestFDSResolution:
     def test_default_is_coarse_quantiles_only(self) -> None:
         """With fds_resolution=None the output is the backward-compatible summary."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_state=1)["fds"]
         assert "curve" not in fds
         assert len(fds["quantiles"]) == 11
         assert fds["fds_resolution"] is None
@@ -1138,7 +1346,7 @@ class TestFDSResolution:
         """fds_resolution=200 returns length-200 monotone arrays with min/max endpoints."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         n = df.shape[0]
-        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1)["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_state=1)["fds"]
         curve = fds["curve"]
         pv = np.asarray(curve["prediction_variance"])
         frac = np.asarray(curve["fraction"])
@@ -1162,8 +1370,8 @@ class TestFDSResolution:
     def test_max_reproducible_and_published_values(self) -> None:
         """A fixed (n_samples, seed) is reproducible; 120k/seed-1 hits the published maxima."""
         bbd = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
-        first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
-        second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
+        first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_state=1)
+        second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_state=1)
         assert first["fds"]["max_prediction_variance"] == second["fds"]["max_prediction_variance"]
         assert first["fds"]["max_prediction_variance"] == pytest.approx(0.84, abs=0.01)
 
@@ -1227,13 +1435,288 @@ def test_generate_and_evaluate_mixed_level_design() -> None:
     metrics = evaluate_design(
         design,
         model="quadratic",
-        metric=["d_efficiency", "i_efficiency", "g_efficiency", "condition_number", "degrees_of_freedom", "fds"],
+        metric=[
+            "d_efficiency",
+            "average_prediction_variance",
+            "g_efficiency",
+            "condition_number",
+            "degrees_of_freedom",
+            "fds",
+        ],
     )
     assert metrics["d_efficiency"] is not None
     assert metrics["d_efficiency"] > 0
-    assert metrics["i_efficiency"] is not None
+    assert metrics["average_prediction_variance"] is not None
     assert metrics["g_efficiency"] is not None
     assert np.isfinite(metrics["condition_number"])
     assert metrics["degrees_of_freedom"]["model"] > 0
     assert metrics["fds"] is not None
     assert metrics["fds"]["average_prediction_variance"] > 0
+
+
+# ---------------------------------------------------------------------------
+# The information matrix, the estimable interactions, and exact region values
+# ---------------------------------------------------------------------------
+
+THREE_RUNS = pd.DataFrame({"x": [-1.0, 0.0, 1.0]})
+ONE_FACTOR_QUADRATIC = "x + I(x ** 2)"
+
+
+class TestInformationMatrix:
+    def test_a_saturated_quadratic_in_one_factor(self) -> None:
+        """Three runs at -1, 0 and +1: |M| = 4, trace(M^-1) = 3 and the smallest eigenvalue 0.44."""
+        found = evaluate_design(THREE_RUNS, model=ONE_FACTOR_QUADRATIC, metric="information_matrix")[
+            "information_matrix"
+        ]
+        assert found["xtx"] == [[3.0, 0.0, 2.0], [0.0, 2.0, 0.0], [2.0, 0.0, 2.0]]
+        assert found["determinant"] == pytest.approx(4.0)
+        assert found["d_criterion"] == pytest.approx(4.0 ** (1 / 3))
+        assert found["a_criterion"] == pytest.approx(3.0)
+        assert found["e_criterion"] == pytest.approx(0.4384, abs=1e-4)
+        np.testing.assert_allclose(found["inverse"], [[1.0, 0.0, -1.0], [0.0, 0.5, 0.0], [-1.0, 0.0, 1.5]], atol=1e-12)
+        assert found["coefficient_variances"]["I(x ** 2)"] == pytest.approx(1.5)
+        assert (found["rank"], found["n_parameters"], found["residual_df"]) == (3, 3, 0)
+        assert not found["is_diagonal"]
+
+    def test_a_model_the_runs_cannot_estimate_has_no_inverse(self) -> None:
+        """The full 2^3 model on the half fraction's four runs: rank 4 of 8 columns, determinant 0."""
+        half = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]}, dtype=float)
+        found = evaluate_design(half, model="A * B * C", metric="information_matrix")["information_matrix"]
+        assert (found["rank"], found["n_parameters"], found["determinant"], found["d_criterion"]) == (4, 8, 0.0, 0.0)
+        assert "inverse" not in found
+        assert found["residual_df"] == 0
+
+    def test_an_orthogonal_design_has_a_diagonal_information_matrix(self) -> None:
+        found = evaluate_design(_full_factorial_df(3), model="interactions", metric="information_matrix")
+        assert found["information_matrix"]["is_diagonal"]
+        assert found["information_matrix"]["determinant"] == pytest.approx(8.0**7)
+
+
+class TestEstimableInteractions:
+    def test_a_full_factorial_estimates_every_interaction_beside_its_main_effects(self) -> None:
+        found = evaluate_design(_full_factorial_df(3), model="main_effects", metric="estimable_interactions")
+        assert found["estimable_interactions"]["n_estimable"] == 3
+        assert found["estimable_interactions"]["n_omitted"] == 3
+
+    def test_a_resolution_iii_fraction_estimates_none(self) -> None:
+        """In the 2^(3-1), AB is C: the interactions add nothing to the main effects' columns."""
+        half = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]}, dtype=float)
+        found = evaluate_design(half, model="main_effects", metric="estimable_interactions")
+        assert found["estimable_interactions"]["n_estimable"] == 0
+
+
+class TestExactRegionValues:
+    def test_the_exact_average_of_a_quadratic_in_one_factor(self) -> None:
+        """d(x) = 1 - 1.5x^2 + 1.5x^4 averages 1 - 0.5 + 0.3 = 0.8 over [-1, 1]."""
+        found = evaluate_design(
+            THREE_RUNS, model=ONE_FACTOR_QUADRATIC, metric="average_prediction_variance", integration="exact"
+        )
+        assert found["average_prediction_variance"] == pytest.approx(0.8, abs=1e-12)
+
+    def test_the_exact_average_of_a_square_with_a_categorical_factor(self) -> None:
+        """A 2^2 in x and a two-level label: d = (1 + x^2 + c^2... ) averaged exactly, the label's levels equally."""
+        square = _full_factorial_df(2)
+        found = evaluate_design(square, model="main_effects", metric="average_prediction_variance", integration="exact")
+        assert found["average_prediction_variance"] == pytest.approx(5 / 12, abs=1e-12)
+        labelled = square.assign(C=["lo", "hi", "hi", "lo"])
+        exact = evaluate_design(
+            labelled, model="main_effects", metric="average_prediction_variance", integration="exact"
+        )
+        sampled = evaluate_design(labelled, model="main_effects", metric="average_prediction_variance")
+        assert exact["average_prediction_variance"] == pytest.approx(sampled["average_prediction_variance"], rel=0.01)
+
+    def test_exact_integration_falls_back_to_the_sample_over_a_sphere(self) -> None:
+        found = evaluate_design(
+            _full_factorial_df(2),
+            model="main_effects",
+            metric="average_prediction_variance",
+            integration="exact",
+            region="spherical",
+        )
+        assert "sampled" in found["notes"]["average_prediction_variance"]
+
+    def test_the_searched_maximum_finds_a_peak_inside_the_region(self) -> None:
+        """Runs at the ends and near them, none in the middle: the variance peaks at x = 0, between samples."""
+        runs = pd.DataFrame({"x": [-1.0, -0.8, 0.8, 1.0]})
+        grid = np.linspace(-1, 1, 200_001)
+        model = np.column_stack([np.ones_like(grid), grid, grid**2])
+        design = np.column_stack([np.ones(4), runs["x"], runs["x"] ** 2])
+        largest = float(np.max(np.sum((model @ np.linalg.inv(design.T @ design)) * model, axis=1)))
+        searched = evaluate_design(runs, model=ONE_FACTOR_QUADRATIC, metric="g_efficiency", max_search="optimize")
+        sampled = evaluate_design(runs, model=ONE_FACTOR_QUADRATIC, metric="g_efficiency", n_samples=50)
+        assert searched["max_prediction_variance"] == pytest.approx(largest, rel=1e-9)
+        assert sampled["max_prediction_variance"] <= searched["max_prediction_variance"]
+
+    @pytest.mark.parametrize(("option", "value"), [("integration", "quadrature"), ("max_search", "grid")])
+    def test_an_unknown_option_is_refused(self, option: str, value: str) -> None:
+        with pytest.raises(ValueError, match=option):
+            evaluate_design(THREE_RUNS, model=ONE_FACTOR_QUADRATIC, **{option: value})
+
+
+def _wind_tunnel_design() -> pd.DataFrame:
+    """Dr. Cavendish's split-plot design in Goos and Jones (2011), Figure 10.2: 10 whole plots of 5 runs.
+
+    The ride heights (x1, x2) are the hard-to-change factors, set on a 3^2 factorial with its centre
+    twice. A corner whole plot runs the 2^2 in yaw and grille (x3, x4) plus its centre, an edge whole
+    plot the four axial points plus the centre, and the two centre whole plots run the centre five times.
+    """
+    runs = []
+    for a in (-1, 0, 1):
+        for b in (-1, 0, 1):
+            corner = a != 0 and b != 0
+            sub = [(-1, -1), (1, -1), (-1, 1), (1, 1)] if corner else [(-1, 0), (1, 0), (0, -1), (0, 1)]
+            for _ in range(2 if a == b == 0 else 1):
+                plot = len(runs) // 5 + 1
+                cells = [(0, 0)] * 5 if a == b == 0 else [*sub, (0, 0)]
+                runs += [(plot, a, b, c, d) for c, d in cells]
+    return pd.DataFrame(runs, columns=["WholePlot", "x1", "x2", "x3", "x4"]).astype(float)
+
+
+WIND_TUNNEL_QUADRATIC = (
+    "x1 + x2 + x3 + x4 + x1:x2 + x1:x3 + x1:x4 + x2:x3 + x2:x4 + x3:x4 "
+    "+ I(x1 ** 2) + I(x2 ** 2) + I(x3 ** 2) + I(x4 ** 2)"
+)
+
+
+def _battery_design() -> pd.DataFrame:
+    """Goos and Jones (2011), Table 11.2: a 48-run two-way split-plot design, 16 rows by 6 columns.
+
+    Each row (a lot from the assembly stage, x1 to x4) runs in three of the six columns (curing
+    cycles, x5 and x6): the odd rows in cycles 1 to 3, the even rows in cycles 4 to 6.
+    """
+    lots = [
+        "--++",
+        "+---",
+        "----",
+        "++-+",
+        "-+-+",
+        "+-++",
+        "+--+",
+        "+++-",
+        "++++",
+        "-+--",
+        "+-+-",
+        "-+++",
+        "-++-",
+        "--+-",
+        "++--",
+        "---+",
+    ]
+    cycles = {1: "--", 2: "++", 3: "-+", 4: "+-", 5: "++", 6: "-+"}
+    sign = {"-": -1.0, "+": 1.0}
+    runs = [
+        [str(row), str(column), *(sign[v] for v in lot + cycles[column])]
+        for row, lot in enumerate(lots, start=1)
+        for column in ((1, 2, 3) if row % 2 else (4, 5, 6))
+    ]
+    return pd.DataFrame(runs, columns=["Row", "Column", "x1", "x2", "x3", "x4", "x5", "x6"])
+
+
+class TestSplitPlotInformation:
+    def test_the_variances_of_a_published_split_plot_design(self) -> None:
+        """Goos and Jones (2011), Table 10.3, Marc's column: GLS variances with sigma_gamma^2 = sigma_eps^2 = 1."""
+        found = evaluate_design(
+            _wind_tunnel_design(),
+            model=WIND_TUNNEL_QUADRATIC,
+            metric=["information_matrix", "average_prediction_variance"],
+            random_effects={"WholePlot": 1.0},
+            integration="exact",
+        )
+        variances = found["information_matrix"]["coefficient_variances"]
+        expected = {"Intercept": 0.429, "x1": 0.200, "x3": 0.042, "x1:x2": 0.300, "x1:x3": 0.050}
+        expected |= {"x3:x4": 0.0625, "I(x1 ** 2)": 0.554, "I(x3 ** 2)": 0.125}
+        for term, value in expected.items():
+            assert variances[term] == pytest.approx(value, abs=5e-4), term
+        assert np.mean(list(variances.values())) == pytest.approx(0.189, abs=5e-4)
+        assert found["average_prediction_variance"] == pytest.approx(0.526, abs=5e-4)
+        assert "WholePlot (10 groups, ratio 1)" in found["notes"]["random_effects"]
+
+    def test_the_variances_of_a_two_way_split_plot_design(self) -> None:
+        """Goos and Jones (2011), Table 11.3: rows and columns as random effects, all three variances one."""
+        found = evaluate_design(
+            _battery_design(), model="interactions", metric="information_matrix", random_effects={"Row": 1, "Column": 1}
+        )
+        variances = found["information_matrix"]["coefficient_variances"]
+        expected = {"Intercept": 0.2734, "x1": 0.0859, "x5": 0.2237, "x6": 0.2109, "x1:x2": 0.0833}
+        expected |= {"x1:x5": 0.0227, "x1:x6": 0.0234, "x5:x6": 0.2237}
+        for term, value in expected.items():
+            assert variances[term] == pytest.approx(value, abs=5e-5), term
+
+    def test_it_equals_the_direct_inverse_of_the_runs_covariance(self) -> None:
+        rng = np.random.default_rng(3)
+        design = pd.DataFrame(rng.uniform(-1, 1, size=(12, 2)), columns=["A", "B"])
+        design["WholePlot"] = np.repeat([1, 2, 3, 4], [2, 3, 3, 4])
+        X = np.column_stack([np.ones(12), design["A"], design["B"], design["A"] * design["B"]])
+        Z = (design["WholePlot"].to_numpy()[:, None] == np.arange(1, 5)).astype(float)
+        direct = X.T @ np.linalg.solve(np.eye(12) + 2.5 * Z @ Z.T, X)
+        found = evaluate_design(design, model="A * B", metric="information_matrix", random_effects={"WholePlot": 2.5})
+        np.testing.assert_allclose(found["information_matrix"]["xtx"], direct, rtol=1e-12)
+        np.testing.assert_allclose(found["information_matrix"]["inverse"], np.linalg.inv(direct), rtol=1e-10)
+
+    def test_a_ratio_of_zero_gives_the_ordinary_least_squares_metrics(self) -> None:
+        design = _wind_tunnel_design()
+        gls = evaluate_design(design, model="quadratic", metric="all", random_effects={"WholePlot": 0.0})
+        ols = evaluate_design(design, model="quadratic", metric="all")
+        assert gls["d_efficiency"] == pytest.approx(ols["d_efficiency"])
+        assert gls["average_prediction_variance"] == pytest.approx(ols["average_prediction_variance"])
+        assert "random_effects" not in ols.get("notes", {})
+
+    def test_the_group_column_is_needed(self) -> None:
+        with pytest.raises(ValueError, match="'WholePlot', which is not a column"):
+            evaluate_design(_full_factorial_df(2), random_effects={"WholePlot": 1.0})
+
+    @pytest.mark.parametrize("ratio", [-0.5, float("nan")])
+    def test_a_negative_or_undefined_ratio_is_refused(self, ratio: float) -> None:
+        with pytest.raises(ValueError, match="variance ratio of random effect 'WholePlot'"):
+            evaluate_design(_wind_tunnel_design(), random_effects={"WholePlot": ratio})
+
+    def test_the_tool_passes_the_ratio_on(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        rows = _wind_tunnel_design().to_dict(orient="records")
+        result = execute_tool_call(
+            "evaluate_design",
+            {
+                "design_matrix": rows,
+                "model": "quadratic",
+                "metric": "a_optimality",
+                "random_effects": {"WholePlot": 1.0},
+            },
+        )
+        assert "error" not in result
+        assert "random_effects" in result["notes"]
+
+
+class TestAFactorNamedLikeAFunction:
+    """A factor named I hides patsy's I() in every square term; it is evaluated under a stand-in, named I (#986)."""
+
+    @staticmethod
+    def _evaluate(name: str, model: str, **options: object) -> dict:
+        factors = [Factor(name=n, low=-1, high=1) for n in ("A", "B", "C")]
+        runs = generate_design(factors, design_type="box_behnken", random_state=1).design[["A", "B", "C"]]
+        return evaluate_design(runs.set_axis([name, "B", "C"], axis=1), model=model.format(name), **options)
+
+    @pytest.mark.parametrize(
+        ("model", "options"),
+        [
+            pytest.param("quadratic", {"metric": ["vif", "power", "alias_matrix"], "effect_size": 2.0}, id="quadratic"),
+            pytest.param("interactions", {"metric": "alias_matrix", "alias_terms": "quadratic"}, id="alias-squares"),
+            pytest.param("{0} * B + C + I({0} ** 2)", {"metric": ["vif", "information_matrix"]}, id="formula"),
+        ],
+    )
+    def test_the_metrics_are_those_of_the_same_factor_named_otherwise(self, model: str, options: dict) -> None:
+        from process_improve.experiments._lm import real_names
+
+        named_i = self._evaluate("I", model, **options)
+        named_x = self._evaluate("X", model, **options)
+        assert named_i == real_names(named_x, {"I": "X"})  # X read as I wherever it stands as a name
+        assert "I(I ** 2)" in repr(named_i)
+
+    def test_a_region_that_names_the_factors_keeps_the_refusal(self) -> None:
+        """A region's limits name the factors too, so the stand-in is not used there; the error offers a rename."""
+        from process_improve.experiments.models import UnsafeFormulaError
+
+        region = DesignRegion([Factor(name=n, low=-1, high=1) for n in ("I", "B")], constraints=["I + B <= 1"])
+        runs = pd.DataFrame({"I": [-1.0, 1.0, -1.0, 0.0, 0.0, -1.0], "B": [-1.0, -1.0, 1.0, 0.0, 1.0, 0.0]})
+        with pytest.raises(UnsafeFormulaError, match=r"\.rename\(columns=\{'I': 'I_'\}\)"):
+            evaluate_design(runs, model="quadratic", metric="d_efficiency", region=region)

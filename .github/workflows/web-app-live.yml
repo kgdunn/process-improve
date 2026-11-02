@@ -1,0 +1,154 @@
+name: Browser app, published
+
+# The published app depends on what this repository does not control: Pyodide's CDN, PyPI for
+# the pinned packages, and Plotly's CDN. Every week this runs the smoke tests against the
+# published app, and reports a pin in web/runtime.json that is no longer the latest release,
+# which Dependabot cannot see. A failure of either opens an issue, one at a time.
+#
+# newest-pyodide is advisory, as in pid-book's run-in-browser.yml: when npm has a newer
+# Pyodide than web/runtime.json pins, it runs the wasm and live tiers on that release and ends
+# its summary by saying whether the bump is safe. The bump itself is a PR of its own.
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    env:
+      APP: https://kgdunn.github.io/process-improve/app/
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up the project environment
+        uses: ./.github/actions/setup-env
+        with:
+          python-version: "3.13"
+      - name: Install Chromium for Playwright
+        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+      # A CDN can fail for a moment, so the tests run a second time, a minute later, before the
+      # job fails. Nothing is cached, as on a reader's first visit.
+      - name: Run the smoke tests against the published app
+        run: |
+          smoke() {
+            uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live \
+              --web-app="$APP" --cdn-cache=off --no-cov
+          }
+          smoke || { echo "The smoke tests failed; running them again in a minute."; sleep 60; smoke; }
+      - name: Open an issue when the published app fails
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="The published browser app fails its smoke tests"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh issue create --title "$title" --body "The weekly check of $APP failed twice: $RUN_URL"
+          fi
+
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # Standard library only: no install step.
+      - name: Compare web/runtime.json with the latest releases
+        run: |
+          set +e
+          python tools/check_web_runtime.py > runtime-report.txt 2>&1
+          status=$?
+          cat runtime-report.txt
+          exit $status
+      - name: Open an issue when the runtime is behind
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="The browser app's pinned runtime is behind"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            {
+              cat runtime-report.txt
+              echo
+              echo "To move a pin, see tools/check_web_runtime.py. Found by $RUN_URL"
+            } > issue.md
+            gh issue create --title "$title" --body-file issue.md
+          fi
+
+  newest-pyodide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Choose the newest Pyodide release
+        id: pyodide
+        run: |
+          pinned=$(jq -r .pyodide web/runtime.json)
+          newest=$(curl -fsS https://registry.npmjs.org/pyodide/latest | jq -r .version)
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+          if [ "$newest" = "$pinned" ]; then
+            echo "### web/runtime.json already pins the newest Pyodide, $pinned" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # This checkout only: the worker, the wasm runner and the build all read the file.
+      - name: Point web/runtime.json at the newest release
+        if: steps.pyodide.outputs.skip != 'true'
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+        run: jq --arg v "$NEWEST" '.pyodide = $v' web/runtime.json > runtime.json && mv runtime.json web/runtime.json
+      - name: Set up the project environment
+        if: steps.pyodide.outputs.skip != 'true'
+        uses: ./.github/actions/setup-env
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v7
+        if: steps.pyodide.outputs.skip != 'true'
+        with:
+          node-version: "22"
+      - name: Install Pyodide for Node.js and Chromium for Playwright
+        if: steps.pyodide.outputs.skip != 'true'
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+        run: |
+          npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock "pyodide@$NEWEST"
+          uv run --with playwright==1.64.1 playwright install --with-deps chromium
+      - name: Build the app on the newest release
+        if: steps.pyodide.outputs.skip != 'true'
+        run: uv run python scripts/build_web_app.py -o dist/web-app
+      - name: The app's Python under Pyodide, and the built app in Chromium
+        id: tiers
+        if: steps.pyodide.outputs.skip != 'true'
+        run: >-
+          uv run --with playwright==1.64.1 pytest tests/web/wasm tests/web/live --wasm --live
+          --web-app=dist/web-app --cdn-cache=off --no-cov
+      - name: Say whether the newest Pyodide is safe to pin
+        if: steps.pyodide.outputs.skip != 'true' && !cancelled()
+        env:
+          NEWEST: ${{ steps.pyodide.outputs.newest }}
+          PINNED: ${{ steps.pyodide.outputs.pinned }}
+          OUTCOME: ${{ steps.tiers.outcome }}
+        run: |
+          if [ "$OUTCOME" = success ]; then
+            echo "Every wasm and live test passes on Pyodide $NEWEST: moving web/runtime.json from $PINNED is safe."
+          else
+            echo "Pyodide $NEWEST fails the tests above: keep web/runtime.json at $PINNED."
+          fi >> "$GITHUB_STEP_SUMMARY"

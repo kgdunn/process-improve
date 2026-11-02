@@ -55,7 +55,8 @@ def impute_low_rank(
     A row is estimated with ``min(n_components, n_observed)`` components, so a row
     that observes fewer columns than there are components still has a well-posed
     estimate rather than a singular one; a row that observes nothing is placed at
-    the mean.
+    the mean. A constant column, whose observed values are all equal, has its gaps
+    filled with that value and plays no part in the model.
 
     Parameters
     ----------
@@ -102,7 +103,13 @@ def impute_low_rank(
             "nothing to estimate them from. Drop them before fitting."
         )
 
-    completed = np.where(missing, np.nanmean(data, axis=0), data)
+    # A column whose observed values are all equal is constant: its gaps hold that value,
+    # and it is standardised to exactly 0. Its standard deviation is more often rounding
+    # noise (1e-17) than 0, and dividing by that made it a column of +-0.98, a direction
+    # the components then fitted at the expense of the real ones.
+    highest = np.nanmax(data, axis=0)
+    constant = highest == np.nanmin(data, axis=0)
+    completed = np.where(missing, np.where(constant, highest, np.nanmean(data, axis=0)), data)
     if not missing.any():
         return Bunch(completed=completed, rounds=0, converged=True, shift=0.0)
 
@@ -110,11 +117,13 @@ def impute_low_rank(
     rounds, shift, converged = 0, 0.0, False
     while rounds < max_iter:
         rounds += 1
-        centre, spread = completed.mean(axis=0), completed.std(axis=0, ddof=1)
-        spread = np.where(spread > 0, spread, 1.0)
-        standardised = (completed - centre) / spread
+        centre = np.where(constant, highest, completed.mean(axis=0))
+        spread = completed.std(axis=0, ddof=1)
+        # A column with no spread sits at its centre in every cell, so it standardises to 0, not 0 / 0.
+        standardised = np.divide(completed - centre, spread, out=np.zeros_like(completed), where=spread > 0)
         components = _leading_components(standardised, n_components)
-        covariance = standardised.T @ standardised / max(1, standardised.shape[0] - 1)
+        # TSR is unchanged by any multiple of this matrix, so it is not divided by n - 1.
+        covariance = standardised.T @ standardised
 
         updated = standardised.copy()
         for observed, rows in patterns:
@@ -129,6 +138,7 @@ def impute_low_rank(
         # drift by rounding a little every round, and a caller would get back data
         # that no longer matches what they passed in.
         completed = np.where(missing, updated * spread + centre, data)
+        completed[:, constant] = highest[constant]  # not its estimate, which can be an ulp away
         if shift <= tol:
             converged = True
             break
@@ -151,8 +161,11 @@ def _group_by_pattern(missing: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]
 
 def _leading_components(standardised: np.ndarray, n_components: int) -> np.ndarray:
     """Return the leading right singular vectors as columns, shape (n_columns, n_components)."""
-    _, _, vt = np.linalg.svd(standardised, full_matrices=False)
-    return vt.T[:, : min(n_components, vt.shape[0])]
+    _, _, vt = np.linalg.svd(  # pragma: no mutate - svd reads full_matrices=None as False
+        standardised,
+        full_matrices=False,
+    )
+    return vt.T[:, :n_components]
 
 
 def _estimate_missing(
@@ -173,7 +186,8 @@ def _estimate_missing(
     components : np.ndarray of shape (n_columns, n_components)
         The current principal components.
     covariance : np.ndarray of shape (n_columns, n_columns)
-        The current covariance of the standardised completed matrix.
+        The cross-product of the standardised completed matrix: its covariance up to the
+        factor ``n - 1``, which the estimates do not depend on.
     method : {"tsr", "pmp"}
 
     Returns

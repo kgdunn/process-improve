@@ -16,6 +16,18 @@ from pydantic import BaseModel, Field
 
 from process_improve.experiments.factor import Constraint, Factor, Response
 
+#: Ids a strategy can name that are not ``generate_design`` design types, and what each one means.
+NON_GENERATE_DESIGN_IDS: dict[str, str] = {
+    "replicates_at_optimum": (
+        "The confirmation stage: replicate runs at the optimum that optimize_responses finds, not a design "
+        "built from the factor ranges."
+    ),
+    "ccd_face_centered": (
+        "A domain template's RSM preference for design_type='ccd' with alpha='face_centered'; stages carry "
+        "the generate_design form."
+    ),
+}
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -96,9 +108,13 @@ class ExperimentalStage(BaseModel):
     stage_name : str
         Human-readable name, e.g. ``"Screening"``, ``"Optimization"``.
     design_type : str
-        Design type key, e.g. ``"plackett_burman"``, ``"ccd"``, ``"bbd"``.
+        A ``generate_design`` design type, e.g. ``"plackett_burman"``, ``"ccd"``,
+        ``"box_behnken"``, so ``generate_design(factors, design_type=stage.design_type,
+        **stage.design_params)`` builds the stage. The one exception is the
+        confirmation stage, ``"replicates_at_optimum"``: its runs are replicates at the
+        optimum that ``optimize_responses`` finds, not a design built from the ranges.
     design_params : dict
-        Design-specific parameters (resolution, n_center_points, alpha, etc.).
+        ``generate_design`` keyword arguments (resolution, n_center_points, alpha, etc.).
     factors : list[str]
         Factor names involved in this stage.
     estimated_runs : int
@@ -109,6 +125,14 @@ class ExperimentalStage(BaseModel):
         Criteria for deeming this stage successful.
     transition_rules : list[TransitionRule]
         Rules governing the transition to the next stage.
+    conditional : bool
+        Whether the stage is run only when the stage before shows it is needed. An
+        optimisation stage after a screening design that can test for curvature is
+        conditional: when the screening finds none, the study goes straight to
+        confirmation and these runs are never made.
+    run_if : str
+        For a conditional stage, the evidence that calls for it and the analysis that
+        gives that evidence; empty otherwise.
     """
 
     stage_number: int
@@ -120,6 +144,8 @@ class ExperimentalStage(BaseModel):
     purpose: str = ""
     success_criteria: dict[str, Any] = Field(default_factory=dict)
     transition_rules: list[TransitionRule] = Field(default_factory=list)
+    conditional: bool = False
+    run_if: str = ""
 
 
 class ExperimentalStrategy(BaseModel):
@@ -132,7 +158,11 @@ class ExperimentalStrategy(BaseModel):
     stages : list[ExperimentalStage]
         Ordered list of experimental stages.
     total_estimated_runs : int
-        Sum of estimated runs across all stages.
+        Sum of estimated runs across all stages, the conditional ones included: the
+        most the plan can need.
+    minimum_total_runs : int
+        Sum of estimated runs across the stages that are not conditional: what the
+        plan needs when the screening shows no conditional stage is called for.
     budget_allocation : dict[str, int]
         Stage name to allocated run count mapping.
     assumptions : list[str]
@@ -152,6 +182,7 @@ class ExperimentalStrategy(BaseModel):
     strategy_id: str = ""
     stages: list[ExperimentalStage] = Field(default_factory=list)
     total_estimated_runs: int = 0
+    minimum_total_runs: int = 0
     budget_allocation: dict[str, int] = Field(default_factory=dict)
     assumptions: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)

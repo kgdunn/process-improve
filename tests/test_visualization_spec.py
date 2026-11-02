@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+import numpy as np
 import pytest
 
 from process_improve.visualization.adapters import PlotlyAdapter
@@ -36,6 +39,18 @@ class TestChartSpecSerialisation:
         assert raw["plot_type"] == "scatter"
         # The MarkType enum should be serialised to its string value.
         assert raw["panels"][0]["layers"][0]["mark"] == "scatter"
+
+    def test_to_dict_is_json_safe_with_numpy_values_in_the_data(self) -> None:
+        """Data built from a DataFrame holds numpy scalars; ``to_dict`` turns them into JSON values (#513)."""
+        layer = LayerSpec(
+            mark=MarkType.scatter,
+            data=[{"x": np.int64(1), "y": np.float64(2.5), "ok": np.bool_(True)}, {"x": np.int64(2), "y": np.nan}],
+            x=Encoding(field="x", domain=(np.float64(0.0), np.float64(3.0))),
+        )
+        raw = ChartSpec(panels=[PanelSpec(layers=[layer])]).to_dict()
+        assert json.loads(json.dumps(raw, allow_nan=False)) == raw
+        assert raw["panels"][0]["layers"][0]["data"] == [{"x": 1, "y": 2.5, "ok": True}, {"x": 2, "y": None}]
+        assert raw["panels"][0]["layers"][0]["x"]["domain"] == [0.0, 3.0]
 
     def test_constraint_region_factory(self) -> None:
         ann = constraint_region(x_min=0.0, x_max=1.0, label="No-go")
@@ -194,6 +209,90 @@ class TestPlotlyContourStyling:
         assert _first_trace(_contour_panel({"ncontours": 8}))["ncontours"] == 8
         # Passing None would override plotly's own auto-ranging, so it is dropped.
         assert "ncontours" not in _first_trace(_contour_panel({}))
+
+
+def _layer(mark: MarkType, style: dict | None = None) -> LayerSpec:
+    """Return a two-point layer of the given mark, with optional style keys."""
+    return LayerSpec(
+        mark=mark,
+        data=[{"x": 0.0, "y": 1.0}, {"x": 1.0, "y": 3.0}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        style=style or {},
+    )
+
+
+class TestPlotlyLayersAndPanels:
+    """Traces and panel layouts that no other test renders."""
+
+    def test_render_panel_matches_a_one_panel_spec(self) -> None:
+        """Rendering a panel on its own gives the figure a one-panel chart would."""
+        panel = PanelSpec(layers=[_layer(MarkType.scatter)], title="Yield", x_title="Time")
+        adapter = PlotlyAdapter()
+        assert adapter.render_panel(panel) == adapter.render(ChartSpec(panels=[panel]))
+        assert adapter.render_panel(panel)["layout"]["title"]["text"] == "Yield"
+
+    def test_an_annotation_lands_on_its_own_subplot(self) -> None:
+        """In a two-panel chart, a threshold on the second panel references that panel's axes."""
+        plain = PanelSpec(layers=[_layer(MarkType.scatter)])
+        marked = PanelSpec(layers=[_layer(MarkType.line)], annotations=[significance_threshold(2.0, name="SME")])
+        result = PlotlyAdapter().render(ChartSpec(panels=[plain, marked]))
+        (shape,) = result["layout"]["shapes"]
+        assert shape["y0"] == shape["y1"] == 2.0
+        assert shape["yref"] == "y2"
+        assert "SME" in [ann["text"] for ann in result["layout"]["annotations"]][-1]
+
+    def test_a_heatmap_layer_takes_its_grid_from_the_style(self) -> None:
+        style = {"x_grid": [0.0, 1.0], "y_grid": [5.0, 6.0], "z_matrix": [[1.0, 2.0], [3.0, 4.0]]}
+        trace = _first_trace(PanelSpec(layers=[_layer(MarkType.heatmap, style)]))
+        assert trace["type"] == "heatmap"
+        assert list(trace["y"]) == [5.0, 6.0]
+        assert [list(row) for row in trace["z"]] == [[1.0, 2.0], [3.0, 4.0]]
+
+    @pytest.mark.parametrize(
+        ("error_y", "expected"),
+        [
+            pytest.param([0.0, None], None, id="all-zero-bars-draw-no-error-bars"),
+            pytest.param([-0.5, None], [0.5, 0.0], id="magnitudes-with-missing-as-zero"),
+        ],
+    )
+    def test_bar_error_bars_are_drawn_only_when_some_are_nonzero(self, error_y: list, expected: list | None) -> None:
+        trace = _first_trace(PanelSpec(layers=[_layer(MarkType.bar, {"error_y": error_y})]))
+        if expected is None:
+            assert "error_y" not in trace
+        else:
+            assert list(trace["error_y"]["array"]) == expected
+
+    def test_a_scatter_edge_colour_outlines_the_markers(self) -> None:
+        """Markers read on any background when they carry an edge: colour and width are forwarded."""
+        trace = _first_trace(PanelSpec(layers=[_layer(MarkType.scatter, {"edge_color": "#222222"})]))
+        assert trace["marker"]["line"] == {"color": "#222222", "width": 1}
+
+
+class TestPlotlyIncompleteAnnotations:
+    """An annotation without the values it needs draws only what it can."""
+
+    def test_a_reference_line_without_a_value_is_skipped(self) -> None:
+        line = Annotation(annotation_type=AnnotationType.reference_line, axis="y", value=None, label="target")
+        result = PlotlyAdapter().render(ChartSpec(panels=[_scatter_panel([line])]))
+        assert not result["layout"].get("shapes")
+
+    @pytest.mark.parametrize(
+        ("bounds", "data_ref", "domain_ref"),
+        [
+            pytest.param({"y_min": 0.0, "y_max": 0.5}, ("y0", "yref", "y"), ("xref", "x domain"), id="y-bounds-only"),
+            pytest.param({"x_min": 0.0, "x_max": 0.5}, ("x0", "xref", "x"), ("yref", "y domain"), id="x-bounds-only"),
+        ],
+    )
+    def test_a_constraint_region_with_one_pair_of_bounds_draws_one_rect(
+        self, bounds: dict, data_ref: tuple[str, str, str], domain_ref: tuple[str, str]
+    ) -> None:
+        result = PlotlyAdapter().render(ChartSpec(panels=[_scatter_panel([constraint_region(**bounds)])]))
+        (shape,) = result["layout"]["shapes"]
+        start_key, ref_key, ref = data_ref
+        assert shape[start_key] == 0.0
+        assert shape[ref_key] == ref
+        assert shape[domain_ref[0]] == domain_ref[1]
 
 
 class TestPlotlyUnimplementedMembers:
