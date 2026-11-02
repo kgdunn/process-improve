@@ -5,4 +5,4 @@
   `ssq_["C"]`. The numbers are those of the same factor under any other name. The same holds for `Q`, the contrast
   names (`Sum`, `Treatment`, ...) and `np`, wherever the formula calls them. `coding` ranges and `new_points`
   columns are given under the real names. `evaluate_design` keeps the refusal for a design whose generators or
-  region name the factors. factori.al still refuses a factor named `I` in a design with squares. (#986)
+  region name the factors. (#986)
