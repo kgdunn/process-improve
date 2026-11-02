@@ -1,9 +1,10 @@
 Functional responses in designed experiments (investigation)
 ============================================================
 
-Status: investigation. Nothing here is implemented yet. This note records how functional
-principal component analysis (FPCA) could be added to ``process_improve`` for designed
-experiments, and to the browser app, and what a prototype on the book's case study showed.
+Status: the ``FPCA`` estimator of the first bullet under "Proposed library surface" is
+implemented as :class:`process_improve.multivariate.FPCA`; the rest is proposed. This note records
+how functional principal component analysis (FPCA) could be added to ``process_improve`` for
+designed experiments, and to the browser app, and what a prototype on the book's case study showed.
 
 The idea
 --------
@@ -115,11 +116,12 @@ Smallest change that covers the case study, with no new runtime dependency (``sc
 
 * ``multivariate/_fpca.py``: an ``FPCA`` estimator on ``BaseEstimator`` and ``TransformerMixin``,
   like ``PCA``. ``fit(curves, grid=...)`` takes a wide frame (one row per run, one column per
-  time point) or a long frame (run, time, value) for irregular grids. Fitted attributes:
-  ``mean_function_``, ``eigenfunctions_``, ``scores_`` (a ``_LazyFrame`` descriptor, following the
-  pattern in ``multivariate/_base.py``), ``explained_variance_ratio_``. Methods ``transform``,
-  ``inverse_transform`` (scores to curves on any grid) and ``derivative`` (rates come from the basis
-  analytically, which gives an initial-rate response for free).
+  time point), with ``NaN`` where a run was not measured, so runs sampled at their own times share
+  the union of the times as their grid. Fitted attributes: ``mean_function_``,
+  ``eigenfunctions_``, ``scores_`` (a ``_LazyFrame`` descriptor, following the pattern in
+  ``multivariate/_base.py``), ``explained_variance_ratio_``. Methods ``transform`` and
+  ``inverse_transform`` (scores to curves on any grid, or to their derivatives: rates come from the
+  basis analytically, which gives an initial-rate response for free).
   Basis choice to start with: P-splines with lambda by GCV. Fourier and wavelets wait until a data
   set needs them.
 * ``experiments``: one function, ``analyze_functional_experiment(design, curves, model=...)``, that
