@@ -108,6 +108,20 @@ def test_bounds_and_rate_limits_respected(fitted: BatchPLS) -> None:
     assert len(result.active_constraints["bounds"]) + len(result.active_constraints["rate"]) > 0
 
 
+@pytest.mark.filterwarnings("error::DeprecationWarning", "error::PendingDeprecationWarning")
+def test_constrained_solve_emits_no_deprecation_warnings(fitted: BatchPLS) -> None:
+    """The osqp call uses the current setting names, so the tools report no osqp warnings."""
+    batches, _ = _synthetic_batches()
+    result = midcourse_correction(
+        fitted,
+        observed=_observed_series(fitted, batches["b7"], 4),
+        free_columns=_free_columns(fitted, 4),
+        y_target=2.0,
+        bounds={"u": (-0.15, 0.15)},
+    )
+    assert result.solver.status == "ok"
+
+
 def test_t2_cap_binds_and_is_reported(fitted: BatchPLS) -> None:
     """A tight T2 cap is enforced by the multiplier iteration and flagged active."""
     batches, _ = _synthetic_batches()
