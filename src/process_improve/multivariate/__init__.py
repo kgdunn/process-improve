@@ -2,6 +2,7 @@
 
 from process_improve.multivariate.methods import (
     ASCA,
+    FPCA,
     OPLS,
     PCA,
     PLS,
@@ -55,6 +56,7 @@ from process_improve.multivariate.plots import (
 
 __all__ = [
     "ASCA",
+    "FPCA",
     "OPLS",
     "PCA",
     "PLS",

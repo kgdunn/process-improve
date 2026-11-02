@@ -37,6 +37,7 @@ from ._diagnostics import (
     target_projection,
     vip,
 )
+from ._fpca import FPCA
 from ._limits import (
     ellipse_coordinates,
     hotellings_t2_limit,
@@ -97,6 +98,7 @@ __all__ = [
     "ASCA",
     "CA",
     "FAMD",
+    "FPCA",
     "GPA",
     "MBPCA",
     "MBPLS",
