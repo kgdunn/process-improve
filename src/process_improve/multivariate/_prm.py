@@ -8,13 +8,17 @@ where each row's weight falls off with how badly the current model misses it and
 with how far it sits from the middle of the score space.
 
 The loop is the paper's, step for step, as the R package chemometrics (by one of
-its authors) codes it, with one exception. chemometrics subtracts the scores' L1
+its authors) codes it, with two exceptions. chemometrics subtracts the scores' L1
 median as ``T - mt``, and R recycles that vector down the columns cell by cell, so
 with two or more components the median's entries land in the wrong cells; this
-module subtracts it from each row, as the paper does. Each iteration is an
-ordinary weighted fit: PRM is exactly PLS on ``sqrt(w)``-rescaled rows, which
-:meth:`PLS.fit <process_improve.multivariate.methods.PLS.fit>` does for its
-``sample_weight``.
+module subtracts it from each row, as the paper does. And chemometrics replaces a
+weight that underflows to 0 with 1e-6, because it recovers the scores by dividing
+by ``sqrt(w)``; this module scores the rows as given, so the weight stays 0 and the
+row leaves the fit. With the floor, a row 1e100 out in X and in y led it (#1087).
+
+Each iteration is an ordinary weighted fit: PRM is exactly PLS on ``sqrt(w)``-rescaled
+rows, which :meth:`PLS.fit <process_improve.multivariate.methods.PLS.fit>` does for
+its ``sample_weight``.
 """
 
 from __future__ import annotations
@@ -33,10 +37,6 @@ from ._robust import fair_weights, l1_median
 #: Scale factor making the median absolute deviation consistent for the
 #: standard deviation of a Gaussian, so a column's robust spread reads in its units.
 _MAD_TO_SIGMA = 1.4826
-
-#: The weight that stands in for an exact zero, as chemometrics does: a zero would
-#: drop the row from the weighted fit, where the method only ever downweights.
-_SMALLEST_WEIGHT = 1e-6
 
 
 def _as_frame(data: DataMatrix) -> pd.DataFrame:
@@ -91,7 +91,7 @@ def _robust_scaler(
     spread = np.ones(rows.shape[1])
     if scale:
         mad = np.median(np.abs(rows - np.median(rows, axis=0)), axis=0) * _MAD_TO_SIGMA
-        spread = np.where(mad > epsqrt, mad, 1.0)
+        spread = np.where(mad > 0, mad, 1.0)
     # Fitted for the sklearn metadata of the block (feature names, counts); centre and spread replaced.
     scaler = MCUVScaler().fit(block)
     scaler.center_[:] = centre(rows / spread) * spread
@@ -179,10 +179,13 @@ class PRM(PLS):
     Attributes
     ----------
     robust_weights_ : np.ndarray of shape (n_samples,)
-        The weight the returned model gives each row, in (0, 1]: its residual
+        The weight the returned model gives each row, in [0, 1]: its residual
         weight times its leverage weight, from the final fit, as the paper reports
         them. Small entries are this model's statement about which rows it
-        declined to be led by; see :meth:`outlier_summary`.
+        declined to be led by; see :meth:`outlier_summary`. A weight is 0 only
+        when the product underflows, for a row so far out in both its residual
+        and its leverage (1e100 standardised units, say) that it takes no part
+        in the fit.
     n_weight_iter_ : int
         Reweighting iterations actually run.
     weights_converged_ : bool
@@ -283,14 +286,19 @@ class PRM(PLS):
 
     def _reweighted(self, Y: pd.DataFrame, fit_weights: np.ndarray, active: np.ndarray) -> tuple[np.ndarray, float]:
         """Return the weights the current fit gives each row, and the norm of its regression on unit-length scores."""
-        residuals = Y.to_numpy() - self.predictions_.to_numpy()
+        # In the units the fit runs in, as for the starting weights. A constant per target leaves the weights
+        # as they are, except that the floor on the median residual is then relative to Y's robust spread,
+        # not to Y's units, in which a Y in small units held every residual weight near 1 (#1070).
+        residuals = (Y.to_numpy() - self.predictions_.to_numpy()) / self._robust_scalers[1].scale_.to_numpy()
         residual = _residual_weights(residuals, active, self.cutoff)
         # Each component scaled to unit length in the weighted fit, as SIMPLS's scores
         # are; NIPALS's first components are much the longest, and would decide alone.
         lengths = np.maximum(np.linalg.norm(np.sqrt(fit_weights)[:, None] * self._scores, axis=0), epsqrt)
         leverage = _leverage_weights(self._scores / lengths, active, self.cutoff)
+        # A product that underflows to 0 stays 0 and the row leaves the next fit (see the module notes). Rows
+        # left with a positive weight need no count here: should fewer be left than there are components, the
+        # weighted PLS fit stops with NotEnoughVarianceError.
         weights = residual * leverage
-        weights[weights == 0] = _SMALLEST_WEIGHT
         # The regression of y on the unit-length scores is each y-loading times its score's length.
         return weights, float(np.linalg.norm(np.asarray(self.y_loadings_) * lengths))
 
