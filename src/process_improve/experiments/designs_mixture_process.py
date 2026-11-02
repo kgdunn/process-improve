@@ -304,7 +304,7 @@ class MixtureProcessModel:
 
     @property
     def n_parameters(self) -> int:
-        """Number of coefficients: one per term, and ``L - 1`` per categorical factor in it."""
+        """The number of coefficients, one per term and ``L - 1`` per categorical factor in it."""
         return sum(int(np.prod([atom.width for atom in term])) for term in self.terms)
 
     @property
