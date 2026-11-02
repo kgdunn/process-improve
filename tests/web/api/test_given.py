@@ -145,8 +145,8 @@ def test_a_design_of_given_runs_is_renamed_as_any_other(api):
 
 
 def test_the_factor_count_is_the_page_s(api):
-    many = factors_named(*"ABCDEFGHJKLMN")
-    assert "1 to 12 factors" in api.error("api_make_design", given([[0] * 13], many))
+    many = factors_named(*(f"X{i}" for i in range(41)))
+    assert "1 to 40 factors" in api.error("api_make_design", given([[0] * 41], many))
     assert np.array(
         api.ok("api_make_design", given([[0, 1], [1, 0], [1, 1]], factors_named("A", "B")))["rows"]
     ).shape == (3, 5)

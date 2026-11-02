@@ -407,6 +407,10 @@ BLOCKED_DESIGN = "montgomery-filtration-blocks"
 #: a sole of each material. The tests of a blocked design build their catalog with it too.
 PAIRED_DESIGN = "bhh-boys-shoes-paired"
 
+#: Designs of more than 12 factors: NIST's 2^(31-26) fraction, which opens as its runs are given, and the library's
+#: L81(3^40), which the page makes. The tests of studies of many factors build a catalog of their own with them.
+MANY_FACTOR_DESIGNS = ("nist-5-3-3-4-7-2to31m26", "lib-taguchi-l81-3-40")
+
 
 def catalog_sample(names: tuple[str, ...] = CATALOG_SAMPLE) -> list[dict]:
     """Describe the designs named, those of :data:`CATALOG_SAMPLE` by default, as ``catalog_records`` does."""

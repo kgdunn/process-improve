@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { CAMPAIGN_VERSION, checkCampaign } from "../../../web/campaign.js";
+import { CAMPAIGN_VERSION, LEVELS_FORMAT, MANY_FACTORS_FORMAT, checkCampaign } from "../../../web/campaign.js";
 import { canonicalJson, sha256 } from "../../../web/report.js";
 import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, studyFile, studyOf } from "../../../web/study-file.js";
 
@@ -137,6 +137,25 @@ describe("the study file", () => {
     assert.equal(study.created, now);
     assert.equal(study.updated, now, "updated falls back to created");
   });
+
+  for (const k of [13, 24, 40]) {
+    test(`writes a screening study of ${k} factors and reads it back whole, in the format that holds it`, async () => {
+      const names = Array.from({ length: k }, (_, i) => `X${i + 1}`);
+      const study = record("many", `Plackett-Burman screening in ${k} factors`);
+      study.design.spec = { ...study.design.spec, design_type: "plackett_burman", model: "main_effects" };
+      study.design.spec.factors = names.map((name) => ({ name, low: 0, high: 10, units: "u" }));
+      study.design.columns = ["Std order", "Run order", ...names, "y"];
+      study.design.rows = [1, 2, 3, 4].map((run) => [run, run, ...names.map((_, j) => ((run + j) % 2 ? 10 : 0)), null]);
+      study.design.model = "main_effects";
+      study.v = MANY_FACTORS_FORMAT;
+      const { studies, refused } = await readStudyFile(await asText([study]));
+      assert.deepEqual(refused, []);
+      assert.equal(studies[0].study.v, MANY_FACTORS_FORMAT);
+      assert.deepEqual(studies[0].study.design.spec.factors.map((f) => f.name), names);
+      assert.equal(studies[0].changed, false);
+      assert.ok(MANY_FACTORS_FORMAT > LEVELS_FORMAT, "a page of format 3 refuses it as saved by a later Factorial");
+    });
+  }
 
   test("names its file from the study's title", () => {
     assert.equal(fileStem("Yield (%), maximise: CCD in T, P and F"), "yield-maximise-ccd-in-t-p-and-f");
