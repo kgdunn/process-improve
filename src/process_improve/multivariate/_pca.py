@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import numbers
 import time
 import typing
 import warnings
@@ -880,10 +881,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "svd", "nipals", "tsr"]
 
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int, None],
+        "n_components": [numbers.Integral, None],
         "algorithm": [str],
-        "tol": [float],
-        "max_iter": [int],
+        "tol": [numbers.Real],
+        "max_iter": [numbers.Integral],
         "missing_data_settings": [dict, None],
     }
 

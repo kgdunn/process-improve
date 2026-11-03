@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import numbers
 import time
 import typing
 import warnings
@@ -394,9 +395,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     # This is a dictionary allowing to define the type of parameters.
     # It used to validate parameter within the `_fit_context` decorator.
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int],
-        "max_iter": [int],
-        "tol": [float],
+        "n_components": [numbers.Integral],
+        "max_iter": [numbers.Integral],
+        "tol": [numbers.Real],
         "d_matrix": [dict, None],
     }
 

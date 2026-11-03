@@ -24,6 +24,7 @@ Engineering Chemistry Research, 43, 5929-5941, 2004.
 
 from __future__ import annotations
 
+import numbers
 import operator
 import typing
 
@@ -116,11 +117,11 @@ class BatchMonitor(BaseEstimator):
 
     _parameter_constraints: typing.ClassVar = {
         "model": [BaseEstimator],
-        "conf_level": [float],
+        "conf_level": [numbers.Real],
         "method": [str],
         "spe_statistic": [str],
-        "spe_window": [int],
-        "ridge": [float, int],
+        "spe_window": [numbers.Integral],
+        "ridge": [numbers.Real],
     }
 
     def __init__(
