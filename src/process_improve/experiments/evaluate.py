@@ -439,9 +439,12 @@ def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: Desi
 
     A combination of levels the rules do not allow is a missing cell, which costs an
     interaction of the factors it names some of its columns over the whole region, not
-    only in this design. The columns are judged on a sample of the region and kept in model
-    order while each adds rank, as :func:`generate_design` does; a design that cannot
-    estimate even those is still reported rank-deficient.
+    only in this design. The columns are judged on a sample of the region and on its
+    support points, and kept in model order while each adds rank, as
+    :func:`generate_design` does; a design that cannot estimate even those is still
+    reported rank-deficient. The support points hold every allowed combination of levels,
+    which the sample draws by volume, so a combination whose limits leave little or no
+    volume still counts, as it does among the engine's candidates.
     """
     from process_improve.experiments.designs_constrained import independent_columns  # noqa: PLC0415
 
@@ -451,9 +454,12 @@ def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: Desi
     if any(name not in req.design_df.columns for name in [f.name for f in region.factors]):
         return None
     rng = np.random.default_rng(0)
-    sample = region.sample_frame(_RULES_SAMPLE, rng)
+    frames = [region.sample_frame(_RULES_SAMPLE, rng)[region.names + region.rules.factors]]
+    with contextlib.suppress(ValueError):  # too many support points: the sample only
+        frames.append(region.support_frame())
+    sample = pd.concat(frames, ignore_index=True)
     for name in req.factor_names:
-        if name not in sample.columns:  # a factor the region does not name: at the design's own values
+        if name not in sample.columns:  # a factor the rules do not name: at the design's own values
             sample[name] = rng.choice(req.design_df[name].unique(), size=len(sample))
     seen = np.ones(len(sample), dtype=bool)
     for f in region.factors:
@@ -722,8 +728,8 @@ def _points_in_design_region(ctx: _EvalContext, region: DesignRegion) -> tuple[p
     constraint crossings and feasible grid corners for a box) stand in for the cube
     vertices, since that is where the worst-case variance of a constrained design sits.
     Categorical factors are sampled uniformly over their observed levels. With rules on
-    categorical factors, the factors they name take only allowed combinations, each
-    equally likely, with the settings each combination allows (see
+    categorical factors, the factors they name take only allowed combinations, each in
+    proportion to the volume of the settings it allows, and with those settings (see
     :meth:`DesignRegion.sample_frame`).
     """
     missing = [n for n in region.names if n not in ctx.factor_names]

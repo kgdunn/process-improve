@@ -249,14 +249,18 @@ def test_a_region_without_rules_draws_each_combination_of_levels_equally_often()
 
 
 def test_a_factor_the_rules_do_not_name_keeps_its_levels_equally_likely() -> None:
-    """A limit on catalyst C leaves the solvent free: each solvent is drawn half the time, whatever the catalyst."""
+    """A limit on catalyst C leaves the solvent free: each solvent is drawn half the time, whatever the catalyst.
+
+    The catalysts are drawn by the volume each keeps (#783): C keeps T up to 170 of 150 to 200, 40% of the box.
+    """
     region = region_with_rules(FACTORS, [Constraint(expression="catalyst != 'C' or T <= 170")])
     assert region.rules is not None
     assert region.rules.factors == ["catalyst"]
     cats = region.draw_levels(24_000, np.random.default_rng(1))
-    shares = pd.Series(list(map(tuple, cats))).value_counts(normalize=True)
-    assert len(shares) == 3 * 2
-    assert np.allclose(shares, 1 / 6, atol=0.01)
+    shares = pd.crosstab(cats[:, 0], cats[:, 1], normalize=True)
+    assert np.allclose(shares.sum(axis=1), np.array([1.0, 1.0, 0.4]) / 2.4, atol=0.01)
+    # About 4000 draws of C give each solvent a standard error of 0.008 there: 0.04 is five of them.
+    assert np.allclose(shares.div(shares.sum(axis=1), axis=0), 0.5, atol=0.04)
 
 
 def test_an_i_optimal_design_runs_both_levels_of_a_factor_the_rules_do_not_name() -> None:
