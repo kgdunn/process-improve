@@ -273,15 +273,15 @@ Workflows in `.github/workflows/`:
   independent gates), `typecheck` (blocking `mypy src/process_improve`), `web-app`
   (builds the browser app and runs its Chromium, Pyodide and Node.js tests), `test`
   (the full suite without coverage, over Python 3.11-3.13; the 3.11 rows install
-  the lowest release of each dependency that `pyproject.toml` allows; a pull request runs
+  the lowest release of each dependency that `pyproject.toml` allows, and the 3.12 rows run
+  with `PYTHONOPTIMIZE=1` to catch load-bearing asserts (plain `python -O` would not reach
+  the xdist workers); a pull request runs
   ubuntu at 3.11 and 3.12 and windows and macos at 3.13, and pushes to main, the nightly
   schedule and manual runs add windows and macos at 3.11; ubuntu/3.13 is the `coverage` job
   instead), `coverage`
   (the full suite on ubuntu/3.13 with coverage, in duration-balanced shards via
   `--shard`), `coverage-report` (combines the shards for the 96% gate and the
-  diff-cover patch gate), `test-under-dash-O` (the suite with
-  `PYTHONOPTIMIZE=1`, to catch load-bearing asserts; plain `python -O` would not
-  reach the xdist workers), and `test-free-threaded`. On a pull request the
+  diff-cover patch gate), and `test-free-threaded`. On a pull request the
   `test` and `test-free-threaded` rows run only the affected tests
   (`--affected-since`); every other run, and the `coverage` job always, runs the
   whole suite. `CI passed` is the one
