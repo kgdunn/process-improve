@@ -22,6 +22,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from ._common import DataMatrix, _align_to_fit_features, epsqrt
+from ._nipals import quick_regress, ssq
 from ._preprocessing import center
 from ._projection import operator_for_pattern
 
@@ -199,12 +200,15 @@ def _target_projection_arrays(
     if x_scaler is not None:
         x_frame = x_scaler.transform(x_frame)
     X_values = x_frame.to_numpy(dtype=float)
-    t_tp = X_values @ w_tp
+    # A missing cell made every score, loading and ratio NaN (#1114). It is skipped, as NIPALS
+    # skips it: a row's score is regressed on the observed part of w_tp (0 for a row with nothing
+    # observed), and a feature's loading on the scores of the rows where it is observed.
+    t_tp = quick_regress(X_values, w_tp[:, np.newaxis], per="row").ravel()
     ttt = float(t_tp @ t_tp)
     if ttt <= epsqrt:
         msg = "The target-projected scores have ~0 variance; cannot form the TP loading."
         raise ValueError(msg)
-    p_tp = (X_values.T @ t_tp) / ttt
+    p_tp = quick_regress(X_values, t_tp[:, np.newaxis], per="column").ravel()
     return x_frame, t_tp, p_tp, w_tp, label
 
 
@@ -224,6 +228,12 @@ def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int |
 
     The TP component is the basis for the selectivity ratio
     (:func:`selectivity_ratio`).
+
+    A missing cell (NaN) is skipped, as the NIPALS fit skips it: a row's score
+    is regressed on the observed part of :math:`w_{\text{TP}}`, and a
+    feature's loading on the scores of the rows where it is observed. A row
+    with nothing observed scores 0 and adds nothing, and a feature with
+    nothing observed has a loading of 0.
 
     Parameters
     ----------
@@ -282,10 +292,10 @@ def _selectivity_ratio_one(
     """Compute the selectivity ratio per feature for a single response (public-API helper)."""
     X_df, t_tp, p_tp, _w_tp, label = _target_projection_arrays(model, X, response)
     X_values = X_df.to_numpy(dtype=float)
-    ttt = float(t_tp @ t_tp)
-    ss_explained = (p_tp**2) * ttt  # per-feature explained sum of squares on the TP component
-    residuals = X_values - np.outer(t_tp, p_tp)
-    ss_residual = (residuals**2).sum(axis=0)
+    # Per-feature explained and residual sums of squares on the TP component, over the feature's
+    # observed cells: they add up to its observed sum of squares, as the loading is fitted there.
+    ss_explained = (p_tp**2) * ((t_tp**2) @ ~np.isnan(X_values))
+    ss_residual = ssq(X_values - np.outer(t_tp, p_tp), axis=0)
     with np.errstate(invalid="ignore", divide="ignore"):
         sr = ss_explained / ss_residual
     # Rounding leaves a feature the TP component reproduces exactly a residual of about 1e-32 of its
@@ -340,6 +350,11 @@ def selectivity_ratio(
     finite SR is therefore below ``1 / eps``, about 4.5e15. A feature with no
     sum of squares at all, such as a constant column after :class:`MCUVScaler`,
     has neither an explained nor a residual part (0 / 0), and its SR is 0.
+
+    A missing cell (NaN) is skipped, as in :func:`target_projection`, and both
+    sums of squares of a feature run over its observed cells, where they add
+    up to the feature's sum of squares. A feature with nothing observed has
+    none, and its SR is 0.
 
     Parameters
     ----------
