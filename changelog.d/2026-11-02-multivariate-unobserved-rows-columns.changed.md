@@ -3,8 +3,7 @@
   a row with nothing in only one block: that row now keeps a super score from the blocks it has, with NaN for
   its block score and block SPE in the empty block, as in `MBPLS`. `MBPLS` also fits a row with no observed
   response, which gets a Y-score of 0. Scored as a new row by `diagnose`, `transform` or `predict`, a row with
-  nothing observed has NaN scores, SPE, T² and predictions, as in `PCA` and `PLS`. `MBPCA.diagnose` now gives NaN
-  for the SPE of every new row with a missing cell, whose scores were NaN already; that SPE was 0. (#1098)
+  nothing observed has NaN scores, SPE, T² and predictions, as in `PCA` and `PLS`. (#1098)
 - **A column with every value missing is named in a `UserWarning` and left out of the model by `PCA`, `PLS`,
   `MBPCA` and `MBPLS`, as `TPLS` does since #982.** `MBPCA` and `MBPLS` refused the fit; `PCA` and `PLS` fitted it
   without a word, and a NaN that a new row had in the column made every score and prediction of that row NaN.

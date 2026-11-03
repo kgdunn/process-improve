@@ -200,6 +200,11 @@ Both models fit them, as ``PCA``, ``PLS`` and ``TPLS`` do:
   weights are 0, a value that a new row has in it changes nothing and
   contributes 0 to ``spe_contributions`` and ``score_contributions``,
   and a response with nothing observed has NaN predictions.
+- ``transform`` and ``diagnose`` score a new row as the fit scores its
+  own: over the cells the row has, so a missing cell does not make its
+  scores NaN. Its block SPE is over those cells, and NaN for a block
+  it has nothing observed in. A new row with nothing observed in any
+  X-block has NaN scores, SPE and T².
 
 When *not* to use the missing-data path
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
