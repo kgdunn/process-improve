@@ -975,6 +975,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Returns
         -------
         self : PCA
+
+        Warns
+        -----
+        UserWarning
+            If a column has no observed value. It is left out of the model, as
+            across the family (#1098): its loadings are 0, and a value a new row
+            has in it adds nothing to that row's scores or SPE.
         """
         # Capture the original DataFrame's index/columns before validate_data
         # converts X to an ndarray, then rebuild the DataFrame view downstream

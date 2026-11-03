@@ -183,21 +183,22 @@ Minimal example::
    # Per-component NIPALS iteration counts (one entry per component)
    model.fitting_info_["iterations"]
 
-Degeneracy guards
-~~~~~~~~~~~~~~~~~
+Rows and columns with nothing observed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two patterns can make a NIPALS deflation step ill-posed; the solver
-detects them and raises a clear error rather than returning silent
-garbage:
+Both models fit them, as ``PCA``, ``PLS`` and ``TPLS`` do:
 
-- A row in which every entry of an X-block is NaN ("row-all-NaN" in
-  that block) - the per-block score for that row is undefined.
-- A row in which every entry of Y is NaN (MBPLS only) - the
-  regression weight column for that row is undefined.
-
-The fix is one of: keep at least one observed value per row in every
-block, drop the offending rows, or impute the offending row to a
-domain-sensible value before fitting.
+- A row with nothing observed in one X-block has no score and no SPE
+  for that block (NaN). Its super score is estimated from the blocks
+  it does have.
+- A row with nothing observed in any X-block scores 0 and has no
+  weight in the fit. A row with nothing observed in Y (MBPLS only) has
+  a Y-score of 0, so it has no weight in the block weights; its
+  X-blocks are still scored.
+- A column with nothing observed, in an X-block or in Y, is left out
+  of the model with a ``UserWarning`` that names it. Its loadings and
+  weights are 0, a value that a new row has in it changes nothing, and
+  a response with nothing observed has NaN predictions.
 
 When *not* to use the missing-data path
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

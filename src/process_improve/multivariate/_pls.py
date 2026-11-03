@@ -918,6 +918,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         PLS
             Model object.
 
+        Warns
+        -----
+        UserWarning
+            If a column of X or Y has no observed value. It is left out of the
+            model, as across the family (#1098): its weights and loadings are 0,
+            a value a new row has in an X column of this kind adds nothing to that
+            row's scores or SPE, and a response of this kind has NaN predictions.
+
         References
         ----------
         Abdi, "Partial least squares regression and projection on latent structure
