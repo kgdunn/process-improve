@@ -31,6 +31,9 @@ changes.
 from __future__ import annotations
 
 import dataclasses
+import inspect
+import numbers
+import pathlib
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -379,8 +382,8 @@ def _is_bound_pair(pair: object) -> bool:
     if not (isinstance(pair, tuple | list) and len(pair) == 2):
         return False
     low, high = pair
-    numbers = all(b is None or (isinstance(b, int | float) and np.isfinite(b)) for b in pair)
-    return numbers and (low is None or high is None or low <= high)
+    finite = all(b is None or (isinstance(b, numbers.Real) and np.isfinite(float(b))) for b in pair)  # numpy's too
+    return finite and (low is None or high is None or low <= high)
 
 
 def _unknown_names(affine: AffineModel, rules: InversionRules) -> list[str]:
@@ -405,7 +408,7 @@ def _bad_values(rules: InversionRules) -> list[str]:
     problems += [f"{g}: allow at least one input, not {k!r}" for g, k in rules.max_count.items()
                  if not (isinstance(k, int) and k >= 1)]  # fmt: skip
     problems += [f"{g}: a minimum amount is above 0, not {m!r}" for g, m in rules.min_amount.items()
-                 if not (isinstance(m, int | float) and m > 0)]  # fmt: skip
+                 if not (isinstance(m, numbers.Real) and m > 0)]  # fmt: skip
     if bool(rules.costs) == bool(rules.targets):
         problems.append("give costs or targets (one of them) as the objective; to hold a quality near a target "
                         "while minimising cost, give it a window")  # fmt: skip
@@ -1248,6 +1251,15 @@ def _read(model: BaseEstimator | AffineModel, conf_level: float) -> AffineModel:
     return model
 
 
+def _outside_stacklevel() -> int:
+    """Count the frames up to the first one outside the package, so that a warning names the caller's own line."""
+    package = pathlib.Path(__file__).resolve().parents[1]
+    frame, level = inspect.currentframe(), 0
+    while frame is not None and pathlib.Path(frame.f_code.co_filename).resolve().is_relative_to(package):
+        frame, level = frame.f_back, level + 1
+    return level
+
+
 def _warn_unbounded(problem: _Problem) -> None:
     """Name, until 3.0, each input without a lower or an upper bound: only T² and SPE then hold it."""
     free = [
@@ -1262,7 +1274,7 @@ def _warn_unbounded(problem: _Problem) -> None:
         "take, such as a negative amount. Searching an input without both bounds is deprecated since 2.4.0 and an "
         "error from 3.0: give each one its extreme limits in InversionRules(bounds=...).",
         FutureWarning,
-        stacklevel=3,
+        stacklevel=_outside_stacklevel(),  # the model's method and inversion_sensitivity both call through here
     )
 
 
@@ -1313,8 +1325,9 @@ def optimal_inversion(
         ``kkt_residual`` : float
             How nearly the optimality conditions hold at the answer; near 0 at an optimum.
         ``proven_optimal`` : bool
-            The search proved no better answer exists, and the optimality conditions hold. With no answer: the
-            search proved none exists; False when it stopped before it could.
+            The search proved no better answer exists, and the answer is optimal for its inputs: the optimality
+            conditions hold, or a linear program over the limits' tangent planes at the answer does no better. With
+            no answer: the search proved none exists; False when it stopped before it could.
         ``n_cuts`` : int
             The tangent planes the counting rules needed.
         ``message`` : str
@@ -1331,6 +1344,12 @@ def optimal_inversion(
         The rules name what the model does not have, or cannot be read; the maps given were read at another
         confidence level; or alternatives are asked for without counted inputs, or with a count that is not a whole
         number.
+
+    Warns
+    -----
+    FutureWarning
+        An input that is searched has no lower or no upper bound in ``rules.bounds`` (a TPLS formula's fractions
+        have 0 and 1 unless given). Deprecated since 2.4.0, and an error from 3.0.
 
     See Also
     --------
