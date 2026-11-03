@@ -11,6 +11,615 @@ those changes.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-02
+
+### Added
+
+- **Factorial: studies of up to 40 factors (#906).** Runs as given, Plackett-Burman designs, Taguchi arrays and
+  definitive screening designs take up to 40 factors, and a fractional factorial up to 24. The 35 designs of 13 to
+  40 factors in the design catalog now open. Past 12 factors the page models no interactions: a study aims to
+  find which factors matter, a fraction is made at resolution III or IV, and Learn fits the main effects, or the
+  terms the reader chooses, with two boxes to name an interaction. The parts that grow fastest with the factors
+  keep lower caps of their own, and each says so in a sentence: the designs are compared on their runs, spare runs
+  and power alone past 12 factors, the next step is not worked out past 24, and the catalog draws a design's
+  correlation map, and compares designs, up to 12. A study of more than 12 factors is saved in study format 4, so
+  an earlier Factorial refuses it as saved by a later one; a study of 12 or fewer keeps the format it had.
+- **`analyze_experiment` checks the residuals for serial dependence in run order** (#802 G3). With a
+  `RunOrder` column, `residual_diagnostics["run_order"]` holds the residuals' lag-1 autocorrelation in run
+  order, its standard error 1/sqrt(N), and the Durbin-Watson statistic in run order, and a `note` says when
+  the autocorrelation is more than twice its standard error: successive runs then look serially dependent,
+  which is why Box, Hunter and Hunter randomize the run order. The existing `durbin_watson` keeps its
+  meaning, the rows' order. Without a `RunOrder` column `run_order["known"]` is `False` and there is no note; a
+  `RunOrder` column with missing or repeated values gets a note that it was not used.
+- **`analyze_experiment` notes a fitted surface too imprecise to read (#797 R1).** When
+  `model_summary["adequate_precision"]`, the range of the fitted values over their average standard
+  error, is below 4, `model_summary["model_note"]` says the surface is not estimated precisely enough
+  to read its contours or its optimum: Box and Wetz's check, at Design-Expert's threshold for the same
+  ratio. It is read against `sigma` when one is given; a fit with no residual and no `sigma` gets no
+  note. The reference catalogue now checks Box, Hunter and Hunter's average variance of the fitted
+  values against their prior sigma, which a catalogue check may now carry as `"sigma"`.
+- **`stationary_point_region`: the confidence region of a fitted surface's stationary point**
+  (`process_improve.experiments`, #797 R5). Box and Hunter's (1954) region is the set of settings at
+  which the gradient of the fitted second-order surface does not differ significantly from zero, an F
+  test on k and n - p degrees of freedom. It is returned as functions of settings (the F statistic, and
+  whether each setting is inside) that take a `numpy.meshgrid` as readily as one point, beside the
+  stationary point, its classification and the delta-method standard error of each coordinate. Along a
+  ridge the region runs out of the experiment, which the standard errors alone do not show.
+- **The reference catalogue checks Yates's working with `yates_table` and `reverse_yates` (#803).** A check of
+  kind `yates` reads a column of the algorithm, one of its entries, or one of the sums of squares that check the
+  columns. Box, Hunter and Hunter's pilot plant checks 17 numbers that were manual notes: columns (1) to (3) of
+  Table 10.5 and its contrast totals 514, 92 and 40, the estimates of Table 10A.1, the checks 34,342 to 274,736,
+  and, run in reverse on T, C and TK, the crude sum of squares of the fitted values, 34,332.5, and the checks
+  274,660 to 2,197,280. `component_ss` reads its sum of squares from `interaction_components`, and adds up
+  `parts`, each a component and its own runs: Davies's unconfounded three-factor interactions, X + Z + W + Y =
+  10,796 from the replicates in which each is not confounded, reproduce.
+- **`analyze_experiment` predicts a new point in the block it names (#800).** In a blocked model, a `Block`
+  column in `new_points` gives each point its block's contrasts, so a prediction in block j no longer needs a
+  refit with `C(Block, Sum)`. A point with no `Block`, or a missing one, is still predicted for the average block,
+  and a block the runs do not have is refused. Confirmation tests and the split-plot and GLM predictions take the
+  same points.
+- **`visualize_doe(plot_type="reference_distribution")` draws Box, Hunter and Hunter's reference distribution
+  (#800).** It takes the result of `least_squares_means`: a dot plot of the levels' averages under the t
+  distribution on the residual degrees of freedom, scaled by `reference_scale`, centred at the mean of the
+  averages.
+- **The reference catalogue checks the numbers of #800's new functions.** Box, Hunter and Hunter's reference
+  scales (0.97 for the blood-coagulation diets, 0.037 for the toxic agents, 20.50 and 17.06 for the wear Youden
+  square) are `least_squares_means` checks, and the toxic agents' tests for nonadditivity (SNA 0.1537, remainder
+  0.0964 and F 6.9; on the rates SNA 0.454 and the remainder's mean square 0.223) are `tukey_nonadditivity`
+  checks. Davies's approximate analysis of a table with five missing values (103.07 and 51.17) is an
+  `estimate_missing` check. The rates' reference scale (0.123, where the runs give 0.1225) and Davies's
+  organic-chemical blends (10.94 and 2.28, where the table completed with the two estimates gives 10.92 and 2.33)
+  are recorded disagreements.
+- **Factorial: a study of one factor at three levels or more checks what its analysis of variance assumes
+  (#905).** Beside each level's runs, Learn gives Bartlett's test of whether the runs at every level spread alike,
+  and the Kruskal-Wallis test of the results' ranks, which does not assume normal noise: each with its statistic,
+  degrees of freedom and p-value, and a sentence on what it means for the one-way analysis of variance and the
+  intervals. A level of one run, or of results all alike, leaves Bartlett's test out, and says so. The Python
+  panel gives the same numbers with the package's `bartlett_test` and `kruskal_wallis_test`, and the report holds
+  them. "How Factorial works" names the tests a study of one factor is compared with.
+- **Curve responses in the reference catalogue.** A response measured as a curve (a time course, a
+  profile or a spectrum per run) now carries a `curve` key: its columns in the run table, in order,
+  and where along the curve each is read, either points every run shares or each run's own times.
+  The colour-development case of the book uses it, and a check that names no response is about the
+  first response that is not a curve.
+- **`experiments.datasets.biscuit()`.** The NIR spectra of 72 biscuit doughs whose fat, sucrose,
+  dry flour and water were varied (Osborne et al., 1984): a mixture of four ingredients with a
+  700-point spectrum as each run's response, also reachable as `data("biscuit")`. The values are
+  the source's measurements, to be cited as such; the `NOTICE` beside the file states their terms.
+- **The reference catalogue holds McMullen and Jurica (2024), the first case whose response is a time course
+  sampled at different times in each run.** `mcmullen-jurica-2024` holds the methoxylation optimisation of the
+  article's supplementary information: 40 reactions with 9 to 12 samples each, and the 15 nearest the optimum
+  modelled by functional PCA and a quadratic model of their scores. The library reproduces 21 of the 22 numbers
+  of that model; one coefficient is 0.07% off for a reason not yet known, and the 16 FPCA numbers wait for a
+  functional PCA in the library. Table S10 reproduces only from Table S7's settings, which shows that Table S9
+  swaps the DMF values of experiments 12 and 25.
+- **`experiments.fit_across_blocks`: models fitted across blocks.** For experiments run in blocks
+  (days, batches, panel sessions), it fits each candidate model form to every response by least
+  squares with a block effect that sums to zero, chooses the form with the lowest leave-one-run-out
+  error (a run left out of every block it was tested in), and returns a `BlockedFit` with the
+  coefficients, each block's shift and `predict`: prediction intervals in a known block, the average
+  block, or a coming block whose shift is read from the runs tested again in it.
+- **Optimal inversion of PLS and TPLS models, with the shadow price of every rule.**
+  `PLS.optimal_inversion` and `TPLS.optimal_inversion` find the inputs the model vouches for at the
+  least cost, or closest to target qualities, under `InversionRules`: windows on the predicted
+  qualities, bounds and fixed inputs, linear rules (a mixture that sums to 1, a safety or legal limit
+  on a component), Hotelling's T² and every block's SPE within their limits, and at most `k` inputs
+  of a group, each used at a minimum amount or not at all. The model is read once as exact affine
+  maps checked against its own `diagnose` (`affine_model`); without counting rules the search is
+  convex, and with them outer approximation over HiGHS proves the answer optimal. The answer's
+  `constraints` table gives each rule's shadow price from the optimality conditions;
+  `inversion_sensitivity` checks those by solving again, traces the objective as one limit moves,
+  prices one input more or fewer per group, and finds how far each input's cost can move before the
+  answer changes shape. For a target, the answer is the most typical (least T²) of the equally
+  close points of the null space. Both functions take the fitted model or its maps, which
+  `AffineModel.to_dict` stores as plain JSON and `AffineModel.from_dict` reads back. When there is no
+  answer, `proven_optimal` says whether the search proved that none exists.
+- **`PLS.diagnose` and `TPLS.diagnose` return the residuals** whose lengths are their SPE: a PLS
+  model's in its scaled space, a TPLS model's per `"F"` and `"Z"` group, keyed like `spe`.
+- **Alternatives with other inputs from `optimal_inversion`.** With counting rules,
+  `optimal_inversion(..., alternatives=k, leave_out=l)` also returns the next `k` best answers, each
+  leaving out at least `l` of the counted inputs that every earlier answer uses (a no-good cut on the
+  outer-approximation master). Each is proven best among the input sets the earlier answers allow,
+  and the list ends with the reason when no further set meets the rules.
+- **Factorial: settings kept from the "What if" panel under a name (#899).** "Keep these settings" adds the panel's
+  settings to the study under the name typed, or "Settings 1" and on, and Learn lists them below the panel with each
+  response's prediction and intervals there. Only the settings are kept: the predictions are worked out again from
+  the models and the results each time, so they follow a result that changes. Kept settings that a study edited
+  since no longer allows (a factor they do not set, a setting outside its range, a level the factor lost, a limit
+  they break) say so instead of predicting. Each can become three confirmation runs at the end of the run sheet, or
+  be deleted. They go with the study through this browser, the study file, a link (with its results or without) and
+  the workbook, and into the report and the panel's Python code. A study with kept settings is saved in study
+  format 5, so an earlier Factorial refuses it as saved by a later one rather than dropping them on its next save; a
+  study without keeps the format it had.
+
+### Changed
+
+- **`robust_regression`'s intervals now resist outliers, as its slope does (#953).** `conf_intervals`,
+  `conf_interval_intercept` and `pi_range` keep their keys, shapes and meaning, but are now percentile-bootstrap
+  intervals over 999 resamples of the `(x, y)` pairs, each refitted with the repeated median. They used the
+  least-squares formulas on the residuals around the robust line, so one gross outlier widened every interval
+  even when it left the slope where it was. With 20% of 60 points moved far off a line, the bootstrap slope
+  interval covers the true slope in 97% of simulated data sets and is about ten times narrower than the
+  least-squares one; without outliers it is about a quarter wider, because the repeated-median slope varies more
+  than the least-squares slope. The prediction band adds to each resampled line a normal error scaled by 1.4826
+  times that resample's median absolute residual. New keyword arguments: `n_boot` (default 999), `random_state`
+  (default 0, so a repeated call returns the same numbers) and `intervals="least_squares"`, which returns the
+  numbers of earlier releases. `SE`, `standard_errors`, `t_value` and `R2` are unchanged. The bootstrap takes
+  about 0.1 s for 100 points and over 10 s for 1,000; lower `n_boot` for large data sets. The
+  `robust_regression` tool takes `n_boot` and `random_state` too, and says which intervals it returns.
+- **`repeated_median_slope` forms the pairwise slopes as one N x N matrix instead of a Python loop**, and returns
+  the same slope. It is several times faster; at the 5,000-point cap it needs about 425 MB of memory.
+- **A factor named `I` fits a model with squares, and a factor named `C` fits an ASCA.** Patsy finds a column
+  before its own function of the same name, so these were refused with a rename to paste. `analyze_experiment`,
+  `lm`, `evaluate_design`, `augment_design` and `ASCA` now fit such a factor under a name no column has (`I_`, or
+  `I_2` when a factor is already named `I_`), and report every result under the real name: `I(I ** 2)`, `I:P`,
+  `ssq_["C"]`. The numbers are those of the same factor under any other name. The same holds for `Q`, the contrast
+  names (`Sum`, `Treatment`, ...) and `np`, wherever the formula calls them. `coding` ranges and `new_points`
+  columns are given under the real names. `evaluate_design` keeps the refusal for a design whose generators or
+  region name the factors. (#986)
+- **factori.al makes, analyses and draws a design with squares and a factor named `I`.** A Box-Behnken, central
+  composite or other design whose model has squares refused such a factor when it was made, and offered `I_`,
+  because every square term calls `I()`. The library now fits the factor under a stand-in name, so the page makes
+  the design and shows the factor under its own name in every table and chart, its square as `I²`. (#986)
+- **`TPLS.required_inputs_` is removed.** It was the constant `{"F", "Y", "Z"}`, set in `__init__`,
+  which sklearn's estimator convention does not allow, and read by nothing. (#1028)
+
+### Fixed
+
+- **`compare_designs` says how to compare over a region whose limits name a categorical level (#783).** It
+  refused such a region by saying the designs lack the categorical factor, although designs with one are refused
+  too, since the comparison is over numeric factors. It now says the limits give one region per allowed
+  combination of levels, and to compare over each, such as `region.given(catalyst='A')`. `augment_design`'s
+  refusal of the same region points to `region.given(...)` as well, and `separating_constraint`'s docstring says
+  how to write a proposed limit with a level.
+- **A split-plot design no longer depends on the processor it is built on.** The coordinate exchange
+  behind `generate_design(..., hard_to_change=...)` (and `split_plot_design`, `strip_plot_design`)
+  climbed from random starts, and a start that could not estimate the model was scored on M plus a
+  small ridge, with a condition number of about 1e9. The criteria of its first exchanges then differed
+  in the eighth digit from one BLAS kernel to another, so the same `random_state` gave different
+  designs on AVX2 and AVX-512 processors: a 48-run I-optimal design with a six-level categorical
+  factor had an average prediction variance of 0.640 on one and 0.621 on the other. A start that
+  cannot estimate the model is now drawn again, up to 50 times. Designs whose starts all estimated the
+  model are unchanged; the others change once, and are then the same on every processor.
+- **`score_contributions(scaling="maximum")` and `scaling="within"` now scale data with missing
+  cells**, for PCA and PLS and for the multi-block MBPCA and MBPLS alike. A missing cell's
+  contribution is NaN, and both scalings took a maximum or a sum that the NaN turned into NaN:
+  with any cell missing, `"maximum"` returned every row unscaled, and `"within"` returned each row
+  that has a missing cell unscaled. Both now skip NaN, as the row sums do. Data with no missing
+  cells give the same numbers as before. (#1024)
+- **`t2_contributions` now counts the components that `hotellings_t2_` counts.** It treated a
+  component as degenerate when its score variance was at most 1.5e-8 (a standard deviation up to
+  1.2e-4), and divided its scores by 1. `fit` leaves a component out of T² only when its score
+  standard deviation is at most 1.5e-8 times the largest one. So a component with a small but real
+  spread (a standard deviation of 1e-6, say) was all but dropped, and the row sums missed the
+  stored T²; and a degenerate component still added its squared score for a row off the model
+  plane. It now uses the rule `fit` uses, and a component left out contributes 0. Models with no
+  such component give the same numbers as before. (#1024)
+- **The inner PLS loop of a `TPLS` fit stops at its cap of 500 iterations, not 502.** It counted from 0
+  and stopped once the count exceeded the cap, so a component that never converged ran two extra
+  iterations, and its debug log said it had converged. It now runs at most 500, and the log says how
+  many it ran ("stopped after"). Components that converge are unchanged. (#1023)
+- **`analyze_experiment` tests an `I()` term that is not a product of whole powers of the factors
+  as given.** The ANOVA and the significance were worked on a refit with every numeric factor
+  coded to -1/+1, also with `coding="actual"`. That re-expresses a polynomial model, but changes
+  what a term such as `I(z2 - 0.2 * z1)` means: in Box and Draper's Table 3.6 the sum of squares
+  of `z1` came out 14.97, not 12.0. Such a model is now tested on the factors as given.
+- **`analyze_experiment` fits `I(x ** 0.5)`, `I(1 / x)` and `I(x ** -1)`.** The design's rank was
+  worked on the coded factors, where these terms have no value, and the call failed with a
+  `ValueError` or a `LinAlgError`. The rank is now worked on the factors as given. Such a model
+  has no coded scale, so `coding="auto"` keeps its coefficients in actual units, and
+  `coding="coded"` or coding ranges raise a `ValueError` that says so. (#963)
+- **`ASCA` reads only the categories a categorical factor takes.** A category no row takes, as a
+  subset of a categorical frame keeps, was coded as a level of its own, so the factor's effect was
+  not centred and its sum of squares was wrong. (#1029)
+- **`ASCA` with fewer response columns than a term has degrees of freedom** asked that term's PCA
+  for more components than the effect has, and the PCA warned. Each term's PCA is now capped at the
+  columns of `X` too. (#1029)
+- **`ASCA` on an unbalanced design.** A design missing a whole combination of levels was called
+  balanced (`is_balanced_`), and its sums of squares, which do not partition the total, came without
+  the warning that says so. The warning now follows the sums of squares themselves, so a fraction
+  fitted for its main effects, whose parts do add to the total, still does not warn. And the
+  intercept of the sum-coded fit, which on an unbalanced design is not the column mean, was left in
+  `residuals_`, adding to the residual sum of squares and offsetting every term's PCA with
+  `add_residuals=True`. It is now part of `grand_mean_`, so `residuals_` is what no term explains;
+  on a balanced design both are as before. (#1029)
+- **`ASCA` gives the same answer in any units.** With `scale=True` a column whose standard deviation
+  was below 1.5e-8, in small units, was taken for a constant one and left unscaled, which moved
+  every term's share; columns are now scaled as `MCUVScaler` scales them, constant only when all
+  their values are equal. And `vasca` set every z-score to 0 where the null's spread was below
+  1.5e-8 in absolute terms, so in small units it selected the first subset to pass instead of the
+  one furthest above its null; the spread is now judged against the null's own size. (#1029)
+- **`CA.transform` and `CA.transform_columns` place a supplementary point with an empty cell.** The
+  check for a point with no profile summed along the wrong axis: one new row with a zero count in
+  any column was refused as "sums to zero", and so was every `MCA.transform` of observations that
+  leave a level out, while a row of zeros among other rows came back as NaN coordinates. Each row
+  (or column) is now checked on its own total. (#1029)
+- **A contrast that names a level its column does not have is refused with the levels there are.**
+  `C(Block, Treatment('1'))` on a `Block` column of integers names the level as a string, and patsy
+  failed with "specified level '1' not found". `analyze_experiment`, `lm`, `evaluate_design`,
+  `augment_design`, `tukey_nonadditivity`, `estimate_missing` and `ASCA` now raise a `ValueError`
+  that names the column, the level asked for and the column's levels, and shows a spelling that
+  works, `C(Block, Treatment(1))`. The reference level of `Treatment` and the omitted level of `Sum`
+  are checked. An integer that patsy reads as the position of a level still works. (#1043)
+- **`compare_cv_criteria` and `pseudo_validation_set` refuse every false `scale`, not only
+  `False`.** Each training fold is autoscaled, so the model fitted to all rows must be too, and
+  `scale=False` was refused for that reason. The check was `scale is False`, so `scale=0`,
+  `scale=None` and `scale=np.False_` passed it and fitted the full-data model unscaled, whose weight
+  angles, D ratios and alarm rates were then compared with fold models in another space. All four
+  are now refused, with the value named. (#1029)
+- **`compare_cv_criteria` and `pseudo_validation_set` read each held-out row in its fold model's
+  own space.** Both scored the held-out rows with the fold's autoscaling alone, but a fold model
+  may centre and scale its rows again: `PRM`, which inherits both class methods from `PLS`, always
+  centres at its robust centre and scales by its robust spread. `PRM.compare_cv_criteria` therefore
+  reported a PRESS of 72.67 where its fold models' own predictions give 73.11, and every criterion
+  built on the held-out scores moved with it. `PRM.pseudo_validation_set` also mapped `X_pv` back to
+  the data's units with an autoscaler fitted to X rather than the PRM's own scaler, and fitted its
+  fold models in that autoscaled space, so the full-data model gave `X_pv` scores off by up to 5.6
+  where they should equal the D-scaled fold scores. The rows now pass through both scalings, and
+  the covariance permutation test reads the blocks in the full-data model's space. `PLS` gives the
+  same numbers as before: its own scaling of rows already autoscaled is the identity, to rounding.
+  (#1029)
+- **The pseudo-validation T² of `compare_cv_criteria` leaves out the components `fit` leaves out.**
+  It divided each held-out score by any score standard deviation above 0, so a component with no
+  spread (an sd at most 1.5e-8 of the largest) added noise over noise, and a held-out row off the
+  model plane got a T² of 1057 where the two components with spread give it 0.6. It now follows the
+  rule every other T² follows. Such a component needs a full-data model whose units span some eight
+  orders of magnitude, as an unscaled one's can; `compare_cv_criteria` now refuses every unscaled
+  model (see the next entry). (#1029)
+- **`analyze_experiment` refuses effects for an `I()` term that has no coded scale.** The
+  `"effects"` and `"lenth_method"` analyses refit the model on the factors coded to -1/+1. A term
+  such as `I(x ** 0.5)` was NaN there, and the refit dropped those runs without a warning;
+  `I(1 / x)` failed with a `MissingDataError`; and `I(z2 - 0.2 * z1)` gave the effect of another
+  term. These analyses now raise a `ValueError` that says the model has no coded scale, as
+  `coding="coded"` does for it since #1040. A polynomial model keeps its effects, and so does any
+  model whose numeric factors are already coded.
+- **`augment_design(..., "foldover", generators=...)` and `"semifold"` keep the signs of the defining
+  words.** A design with a negated generator (`D=-AB`) has negative words in its defining relation,
+  but the fold reported every word that survived as positive: `I=ABCG` where every run of the
+  combined design has `ABCG = -1`. An alias chain read from it then had the wrong sign, so a
+  difference of effects was read as a sum. `defining_relation` and the explanation now write a
+  negative word as `I=-ABCG`, as `evaluate_design` already does. Designs built from positive
+  generators only are unchanged. (#966)
+- **`analyze_experiment` takes pure error within blocks when the formula writes the block as
+  `C(Block)`.** Only a bare `Block` term grouped the replicates within blocks; with `C(Block)`,
+  `C(Block, Sum)` or `C(Block, Treatment(1))` the model fitted the blocks but pure error pooled
+  the replicates across them, so their block difference counted twice and the lack-of-fit sum of
+  squares went negative. The lack of fit and the curvature test now group the replicates within
+  blocks whenever the formula refers to the block column. A pure error that still exceeds the
+  residual is reported as an error, not as a negative lack of fit. (#968)
+- **The lack-of-fit analysis now reports the pure-error and lack-of-fit rows when the repeated
+  runs agree exactly, or when the model leaves no degrees of freedom for lack of fit.** It returned
+  `{"error": "Insufficient degrees of freedom for lack-of-fit test."}` in both cases, though the
+  degrees of freedom are there. A pure error of 0 on its degrees of freedom (or a lack of fit of 0
+  on 0 degrees of freedom) is now reported with `f_statistic`, `p_value` and `significant` set to
+  `None` and a `note` that says why no F ratio is formed. Pure error at the level of round-off
+  counts as zero. "No replicated points" is unchanged. (#969)
+- **`MBPLS.select_n_components` takes rows by position, so rows may share a label.** A fold's Y
+  was taken by label, so a label two rows share brought both rows in for each, the fold's Y no
+  longer lined up with its blocks, and the call failed with a `ValueError`. Rows are now taken,
+  and their held-out predictions gathered, by position, as `PLS.select_n_components` does.
+  (#1028)
+- **`MBPLS` gives no SPE where a row has nothing observed in a block, and leaves that row out of
+  the block's SPE limit.** Such a row has NaN for its block score and for its `block_spe_` there.
+  `diagnose` gave it a block SPE of 0, the SPE of a row the model fits exactly, and
+  `block_spe_limit` and `super_spe_limit` were NaN for any model fitted with such a row.
+  `diagnose` now gives NaN, `block_spe_limit` is set on the rows that have an SPE in the block,
+  and `super_spe_limit` counts a block a row has nothing in as leaving no residual. (#1028)
+- **`MCA(correction="benzecri")` reports zero shares for variables with no association.** When the
+  variables are unassociated (every combination of levels equally often), every eigenvalue is 1/Q,
+  but rounding leaves some a few 1e-16 above it, and the corrected shares were that noise divided by
+  itself: 50% or 100% on the first axis instead of 0. A corrected total no larger than the 1e-12
+  below which `CA` calls an axis noise now gives zero shares, as `correction="greenacre"` also
+  does. (#1029)
+- **A model summary no longer prints the date and time of the call.** `Model.summary()` and
+  `summary()` kept statsmodels' `Date:` and `Time:` cells, so two summaries of one fit differed,
+  and so did the `summary_text` of two `fit_linear_model` calls a second apart. The cells are left
+  out, and the left-hand cells below them move up; every number in the summary is as before. (#952)
+- **A multiblock model's block T² leaves out a block component with no spread.** `MBPCA` and
+  `MBPLS` divided each block score by its second moment however small, so when a block had no
+  variation left for a later component (block scores with a second moment near 1e-32), that
+  component added noise over noise, of order 1, to every row of `block_hotellings_t2_`. A block
+  component is now left out by the rule every other T² follows: its score standard deviation is at
+  most 1.5e-8 times the largest of the block's. Models without such a component give the same
+  numbers as before. (#1028)
+- **`MBPCA.display_results` and `MBPLS.display_results` print the iteration counts as integers.**
+  Under numpy 2 the line read `Iterations per PC: [np.int64(10), np.int64(16)]`; it reads
+  `[10, 16]` again, as does the debug log line of each fit. (#1028)
+- **`MBPCA`, `MBPLS` and `TPLS` work from the components they fitted.** After
+  `set_params(n_components=k)` without a refit, `transform`, `diagnose`, `predict`, the score
+  contributions, the plots, `display_results` and `randomization_test_mbpls` read `k` instead of
+  the fitted count: a larger `k` raised `IndexError`, and a smaller one raised `ValueError` or, in
+  `MBPCA`, scored new rows on fewer components than the model has. `TPLS.hotellings_t2_limit` and
+  `TPLS.ellipse_coordinates` moved to a `k`-component model's without a word. Each now reads the
+  fitted `n_components_`, as `PCA` and `PLS` do; `TPLS` gains that attribute. (#1028)
+- **`MBPCA` and `MBPLS` run their first pass whatever the tolerance.** The loop tested the
+  tolerance before its first pass, and a centred seed changes by about its own size in that pass,
+  so a `tol` above about 1 ended the loop before it began, and `fit` raised `KeyError`. The first
+  pass now always runs. The dense path, which iterates as the masked path does, also checks `tol`
+  as that path does: a `tol` of 10 or more, or one at machine precision or below, is refused with a
+  `ValueError` for `algorithm="dense"` too. Such a small `tol` used to run to `max_iter` and warn.
+  (#1028)
+- **`mva_fit` returns the cross-validated Q² as lists.** `cross_validation.q2_cumulative` and
+  `q2_standard_error` were pandas Series, which are not JSON: `json.dumps` of the result raised
+  `TypeError`, and the MCP server sent each one as the Series' printed text. With
+  `cross_validate=True`, the default, or `n_components="auto"`, both are now lists of floats, one per
+  number of components from 1, as `r2x_per_component` is. (#952)
+- **`OPLS` no longer fits more components than the data can carry.** One predictive plus
+  `n_orthogonal_components` orthogonal components above the rank of the centred `X` took the last
+  of its variance from the predictive component, and the fit returned predictions off by whole
+  units (27 on the cheddar-cheese data with four components from three columns), with no warning.
+  As for `PCA` and `PLS`, the total is now capped at the number of rows or of columns, whichever
+  is smaller, with the same `SpecificationWarning`, and a component with no variance left to take
+  raises `NotEnoughVarianceError`, as a `PLS` component does. `n_components_` and the
+  `orthogonal_space_dimension` of `invert` report the components fitted. (#1025)
+- **The batch mid-course correction no longer triggers osqp's deprecation warnings.** Its QP solve
+  passed osqp's old `polish` setting name and left `raise_error` to its default, so every
+  constrained correction gave a `DeprecationWarning` and a `PendingDeprecationWarning`, and the
+  `evaluate_batch_control_policy` and `correct_batch_midcourse` tools reported both under
+  `library_warnings`. The solve now uses `polishing` and passes `raise_error=False`, which every
+  osqp release since 1.0 accepts; the results are unchanged.
+- **`PCA.select_n_components` standardises a column in any units.** In each fold of the
+  element-wise scheme, and once for the `ckf`, `ek`, `sacv` and `gcv` schemes, a column whose
+  standard deviation was below 1.5e-8, as in small units, was taken for a constant one and left
+  unscaled, so it dropped out of PRESS and Q2: a column 1e9 times smaller moved the element-wise
+  PRESS at one component from 93.6 to 87.9. A column is now constant only when its values are all
+  equal, as `MCUVScaler` decides, which `ASCA` now uses too. (#1029)
+- **`PCA.score` matches a DataFrame's columns by name, as `transform` does.** It took the scores
+  from `transform`, which puts a DataFrame's columns in the fitted order, but subtracted their
+  reconstruction from the DataFrame as given, so a block with its columns in another order was
+  scored against the wrong variables (-4.84 for a block whose score is -0.82). `PCA.diagnose` and
+  `PCA.score` also raised `TypeError` on a pandas nullable column holding `pd.NA`, which
+  `transform` and `project` read as a missing value; all four now read new rows the same way.
+  (#1026)
+- **Plackett-Burman designs now have 92, 116, 156, 172, 184 and 188 runs where those are the
+  smallest size.** No Hadamard matrix of these orders was built, so 88 to 91 factors gave a 96-run
+  design with no warning, and likewise at the other five sizes. The orders now come from the
+  Goethals-Seidel array of four circulant matrices (Williamson matrices for 92, 116, 156 and 172,
+  Djokovic's rows for 188, and 184 as 92 doubled), and every multiple of 4 up to 232 is built.
+  Supersaturated designs gain the same orders. Where a size is still missing (the first is 236), the
+  design now raises a `UserWarning` that names the smallest size and the size built. (#967)
+- **`PLS.fit` labels the rows of a 1-D response array by X's row labels, as it does a 2-D one.**
+  A 1-D NumPy `y`, the shape sklearn pipelines pass, gave `predictions_` and `y_scores_` rows
+  numbered 0 to N-1 even when X was a DataFrame with labelled rows, while `scores_` and
+  `hotellings_t2_` carried X's labels. A `pd.Series` response keeps its own labels, as before.
+  (#1027)
+- **`PLS` reads new columns that carry no string labels by position, whether or not it scales.**
+  sklearn records no feature names for integer (or other non-string) column labels, so
+  `validate_data`, the internal scaler and `PLS.project` read such columns by position. With
+  `scale=False`, `PLS.transform`, `PLS.diagnose` and `PLS.predict` multiplied them by the direct
+  weights by label instead: the same integer labels in another order gave the scores of the
+  columns by label but an SPE of them by position, which matched neither, and labels the fit had
+  not seen raised "matrices are not aligned". All four methods now read new rows the same way.
+  Columns with string labels are matched by name, as before. (#1027)
+- **`PLS.select_n_components` and `PLS.nested_cv` score each held-out row as its fold model
+  predicts it.** They scored the held-out rows with the fold's own autoscaling alone, but the
+  fold model may centre and scale again: the default `PLS(scale=True)` does, and so does `PRM`,
+  which always centres at its robust centre. With `scale_inside_folds=False` the fold models'
+  predictions were therefore read in the wrong units, so RMSECV, the validated R² and Q², the
+  out-of-fold predictions and the recommended number of components were not those of the models
+  fitted (a held-out prediction of 1.14 where its fold model predicts 1.49). With
+  `scale_inside_folds=True` a PLS fold model's own scaling is the identity to rounding, and the
+  numbers are unchanged; a `PRM` fold model's robust centre is now taken into account too. (#1027)
+- **`PLS.rmse_` counts the observed cells of each response, as the R² does.** It averaged the
+  squared residuals of every row, so one missing Y cell made that response's `rmse_` NaN at every
+  component, and `PLS.prediction_interval`, which takes its error from `rmse_`, gave NaN bounds
+  for that response. (#1027)
+- **`PLS.select_n_components(scale_inside_folds=False)` caps the components at one fewer than
+  the smallest training fold's rows when the fold model centres its rows itself.** Without in-fold
+  scaling the cap was the rows of the smallest fold, but the default `PLS(scale=True)`, and `PRM`,
+  centre each fold and so leave one component fewer: with as many columns as rows in a fold, the
+  default `max_components` raised `NotEnoughVarianceError` ("no variance left in the data array
+  for X") instead of selecting. A model built with `scale=False` keeps the cap of the fold's rows.
+  (#1027)
+- **`PLS(scale=False).fit` reads a pandas missing value (`pd.NA`) in the response as a missing
+  cell.** With `scale=True` the internal scaler converted the responses to floats; without it
+  nothing did, and a nullable `Float64` or `Int64` response column holding `pd.NA` raised
+  `TypeError` where NIPALS would have skipped the cell. The responses are now read as floats,
+  as X already was. (#1027)
+- **`PLSDA`'s cross-validation takes its class labels.** `select_n_components`,
+  `compare_cv_criteria`, `pseudo_validation_set`, `nested_cv` and `cross_validate`, inherited from
+  `PLS`, read the labels as a numeric response: text labels could not be read as floats, and labels
+  0 and 1 failed on the shape of the two indicator columns the model is fitted to. Each now runs
+  `PLS`'s method on that one-hot class-indicator matrix, and a splitter such as `StratifiedKFold` is
+  given the labels, so it keeps each class's share in every fold. (#1029)
+- **`PLSDA`'s `max_iter` defaults to 500**, as on `PLS` and every other iterative estimator since
+  #588, which left `PLSDA` at the 1000 that `PLS` had before. A fit that needs more than 500 NIPALS
+  iterations now warns, as the same fit by `PLS` does. (#1029)
+- **`PLSDA` refuses a row with no label**, as `None` or NaN, with a `ValueError` that says how
+  many rows have none. A NaN failed with a `KeyError` at the end of the fit, and `None` among text
+  labels with a `TypeError` from sorting them. (#1029)
+- **`check_predictive_signal` checks the shape of a `fit_predict` that returns a DataFrame.** Only
+  an array was checked: a DataFrame with too few columns failed with an `IndexError`, and one with
+  too many rows or columns with a broadcasting error, rather than the documented `ValueError` that
+  names both shapes. A DataFrame is now compared with the response row by row and column by column
+  as an array is, so its labels are not read. (#1025)
+- **`Resampler.plot_results` now draws every resampled value.** It estimated each density on a
+  fixed grid from 0 to 2, so a parameter below 0 or above 2 (a negative coefficient, a VIP of 2.5)
+  was left off the plot, in part or in full. The grid now runs from the smallest to the largest
+  resampled value. (#1025)
+- **`Resampler.plot_results` accepts an accessor that returns an array or a list.** Such
+  parameters have integer labels, which the ridgeline plot could not use, so the call failed with a
+  `TypeError`. They are now labelled `"0"`, `"1"` and so on. (#1025)
+- **`Resampler` states its error for three resampling settings as one sentence pair.** Setting
+  `use_jackknife`, `bootstrap_rounds` and `fraction_excluded` together raised a `ValueError` whose
+  message printed as a Python tuple of two strings. (#1025)
+- **`optimize_responses(method="canonical_analysis")` gives a finite `ridge_form` when two or more
+  eigenvalues are zero.** The origin divided the slope along every axis but the ridge's by that
+  axis's eigenvalue, so a surface with two flat axes, such as Box and Draper's Table 11.1 (F) and
+  (G), returned a `nan` origin, origin response and offsets, with a divide-by-zero
+  `RuntimeWarning`. The origin now leaves out every axis whose eigenvalue `flat_tolerance` reads as
+  zero, as the stationary point does, so the plane of centres of (F) gives the origin (0, 0, 0).
+  (#965)
+- **The `write_run_sheet` workbook no longer holds the time it was written.** With
+  `file_format="xlsx"`, openpyxl wrote the time of the call into the workbook's created and modified
+  dates and into the date of every member of its zip archive, so two calls a few seconds apart gave
+  different `xlsx_base64`. Each of those dates is now 1 January 1980, so the same runs give the same
+  bytes; the cells are as before.
+- **`analyze_experiment` fits a mixture model on blends rounded for printing as it does on exact
+  blends.** A Scheffé model has no intercept, and its components make up the constant, so R², the
+  model df and the overall F are about the mean. On blends that sum to 0.999 or 1.001 (1/3 printed
+  as 0.333) the fit lost that constant and reported R², df_model and F about zero: one more model
+  df, and an R² and F far larger than the exact blends give. Blends that sum to 1 to within 0.01
+  now hold the constant, with a warning that says so; they are also mixture data for the default
+  model. A Scheffé model of settings that do not sum to 1 warns that its summary is about zero.
+  An explicit formula with no intercept over blends alone, such as
+  `"y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 - 1"` or `"y ~ I(x1 + x2 + x3) + x4 - 1"`, whose terms
+  make up the constant, is now analysed as the Scheffé model: its ANOVA tests the linear blending
+  as one block on q - 1 df, as the `scheffe_*` models do, instead of each component against zero.
+  (#964)
+- **The Hotelling's T² of a new row leaves out the components `fit` leaves out.** `fit` drops a
+  component from `hotellings_t2_` when its score standard deviation is at most 1.5e-8 times the
+  largest, as the last component of a rank-deficient fit is (an sd near 1e-16). `PCA.diagnose`,
+  `PCA.project`, `PLS.diagnose`, `PLS.project` and `PLS.invert` divided by that sd all the same, so
+  a row off the model plane got a T² near 1e32, and a training row a T² other than its fitted one.
+  `PCA(n_components=None)` on fewer rows than columns fits such a component, so every new row of a
+  wide block was flagged. The same held for the `pca_predict` and `pls_predict` tools, which now
+  also refuse a NaN, negative or empty `scaling_factor_for_scores` in `model_params`. `MBPCA` and
+  `MBPLS` counted such a super score in `super_hotellings_t2_` and in `diagnose`, and now leave it
+  out by the same rule. Models without such a component give the same numbers as before. (#1026)
+- **`recommend_next_step`, `sensory_analyze_descriptive` and `create_simulator` declare their seed.**
+  Each draws random numbers, but its tool spec had no `rng` entry, so a host that reads `rng` to
+  reproduce a call took it for deterministic. `recommend_next_step` and `sensory_analyze_descriptive`
+  now declare `random_state`, with its defaults 42 and 0. `create_simulator` declares its
+  Python-only `seed` with no default seed: with no seed it draws a new one, so the hidden model
+  cannot be guessed. No output changes. (#1066)
+- **`TPLS` warns when it leaves out a column with no observed value.** A constant column in any
+  block (D, F, Z or Y) already gave a `UserWarning` naming the block and the column, but a column
+  with every value missing, or with a single observed value, was excluded from the fit without a
+  word. Both now give the same warning, worded for their own cause. (#982)
+- **`TPLS` fits a column far from zero.** After centring and scaling, `fit` checked that every
+  column had a mean within 1e-6 of 0 and an sd within 1e-6 of 1, and raised `RuntimeError` ("This
+  is a bug") otherwise. A column whose values sit far from zero compared with their spread, such as
+  1e11 plus noise of sd 1, has its mean known only to about 1e-5 of its sd, so the check refused
+  data that fits. The check is gone: the centring and scaling are tested against a calculation
+  written out by hand instead. (#1028)
+- **`TPLS.diagnose` reads new F columns by name when F is used as given.** With
+  `skip_f_matrix_preprocessing=True`, new F blocks whose columns came in another order than in
+  training were scored by position, against the wrong materials' weights, without a word. Every
+  block is now taken in the training order first, as centring and scaling already did. (#1028)
+- **`TPLS.spe["D"]` is labelled by material.** Each group's SPE was indexed 0, 1, 2, ... rather
+  than by the materials of `d_matrix`, because the first deflation turned the residual D block
+  into a DataFrame with a fresh index. `d_mats` holds arrays again, as documented. (#1028)
+- **`TPLS.diagnose` gives a new row the SPE the fit gives a training row.** It deflated every
+  cell of a new row, so a missing F or Z cell, which has no residual in the fit, added the
+  product of the row's score and the cell's loading to the row's SPE: the training rows with a
+  missing cell, diagnosed again, had a larger SPE than the fitted `spe`. A row with nothing
+  observed in F, whose scores are NaN, had an SPE of 0, the SPE of a row the model fits exactly;
+  it is NaN now. The SPE frames hold floats, not objects. (#1028)
+- **`TPLS` keeps the settings it was fitted with.** After `set_params` without a refit,
+  `display_results` read the new `max_iter`, so a component that had run out of iterations lost
+  its "max iter reached" flag (or one that had converged gained it) and the printed setting
+  changed, and `diagnose` read the new `skip_f_matrix_preprocessing`, so it stopped centring and
+  scaling new F blocks that the model was fitted on scaled, or started doing so. Both now read what
+  the fit used, stored in the new `max_iter_` and `skip_f_matrix_preprocessing_`. `MBPCA` and
+  `MBPLS` already decide convergence at fit time. (#1028)
+- **`TPLS.help` keeps its columns.** It dedented its text by removing every run of eight
+  spaces, which also removed the spaces that line the columns up and ran `.spe` into its
+  description (".speSquared prediction error ..."). It is the docstring dedented now. (#1028)
+- **`TPLS` fits with a loose `tol`.** The loop of each component tested its tolerance before its
+  first pass, against a previous score primed as the seed plus 1, whose relative change is about
+  0.7 for a centred and scaled Y column. With a `tol` above that the loop never began and `fit`
+  raised `UnboundLocalError`. The first pass now always runs, as in `PCA`, `PLS`, `MBPCA` and
+  `MBPLS`. (#1028)
+- **`TPLS` raises `NotFittedError` before a fit.** `__init__` sets attributes that end in an
+  underscore, so scikit-learn's `check_is_fitted` passed on a model never fitted, and
+  `diagnose`, `score` and a `make_tpls_scorer` scorer failed later with an `AttributeError`.
+  `TPLS` now tells `check_is_fitted` whether `fit` has completed. (#1028)
+- **`TPLS.fit` refuses a second Y block.** Its inner PLS model regresses the first Y block
+  alone on the super scores. A second Y block was deflated with the first one's loadings
+  without a word (or failed, when its width differed). It is refused now, with a message
+  naming the blocks given. (#1028)
+- **A `TPLS` fit with more than one Z group no longer fails with a shape error.** The fit gives each
+  Z group its own weights and its own block score, but labelled the super weights for one Z group
+  only, so a second group raised `ValueError: Shape of passed values is (3, 1), indices imply (2, 1)`.
+  `w_loadings_super` now has one row per Z group, labelled `Z["<group>"]`, before the `"F"` row,
+  and `diagnose` scores each Z group on its own, as the fit does, where it used to pool them into
+  one score. A model with one Z group is unchanged, and keeps its `"Z"` row label. (#981)
+- **`TPLS` fits when the first column of `Y` is constant.** Its iteration, and the one-component
+  PLS inside it, started from the first `Y` column. A constant column is all zero after
+  preprocessing, so the scores were not finite and the fit raised `ValueError`, although the other
+  `Y` columns varied. Both now start from the `Y` column with the largest sum of squares, as `PLS`
+  and `MBPLS` do, and the model no longer depends on where the constant column sits. Columns whose
+  sums of squares agree to round-off, as autoscaled columns do, count as a tie, and the first of
+  them is taken in `TPLS`, `PLS` and `MBPLS` alike, so the start no longer depends on the platform's
+  last bit of arithmetic. A fit with one `Y` column, or whose first `Y` column already had the
+  largest sum of squares, is unchanged; any other fit can differ from before only within the
+  convergence tolerance. (#954)
+- **On factori.al, renaming a factor while the what-if panel is being fitted no longer throws an error.** The
+  fits asked for under the old name could come back after the rename was taken. The panel then looked up the
+  renamed factor's setting, found none, and stopped half drawn with `Cannot read properties of undefined`. A
+  rename now takes the what-if panel away, with its old fits and any still on their way, until the analysis
+  under the new names fits it again. (#1069)
+- **`AdaptivePCA` and `AdaptivePLS` keep adapting a tag after a missing value.** An update with a
+  missing value made that tag's moving centre and scale NaN, for good: the tag was then treated
+  as missing in every later observation and dropped out of the model. A missing value now moves
+  neither its tag's centre nor its scale, and the other tags update as before. (#1029)
+- **`AdaptivePCA` and `AdaptivePLS` read a frame of mixed column types with a missing value.**
+  `partial_fit`, `transform`, `predict` and `decompose_prediction` read such a frame row by row,
+  and a row holding a nullable column's missing value (`pd.NA`) beside a flag of booleans raised a
+  `TypeError`. Each frame is now read whole as floats, a missing value as NaN. (#1029)
+- **`AdaptivePCA` and `AdaptivePLS` refuse a NaN EWMA factor.** `lambda_center`, `alpha_scale`,
+  `lambda_center_y` and `alpha_scale_y` were checked to lie in [0, 1] with two comparisons a NaN
+  passes, so a NaN factor was accepted and made every centre or scale it moved NaN. It is now
+  refused with the same `ValueError` as a factor outside [0, 1], as `forgetting_factor` and
+  `gamma` already were. (#1029)
+- **`AdaptivePCA` and `AdaptivePLS` keep a variable measured in small units.** Each update set a
+  moving scale below 1.5e-8 to 1, taking it for a scale that had collapsed to zero, so a tag (or,
+  for `AdaptivePLS`, a response) in units 1e9 times smaller dropped out of the model after the
+  first update: on a test stream its Hotelling's T2 moved by up to 4.3, and the predictions of a
+  response in such units were off by some 2e9 of its standard deviations. A scale is now set to 1
+  only when it is exactly 0, as `MCUVScaler` scales a column of equal values, in any units. (#1029)
+- **`AdaptivePCA` and `AdaptivePLS` leave a component with no spread out of Hotelling's T2,** as
+  `PCA`, `PLS`, `MBPCA` and `MBPLS` do. Its score variance used to be raised to 2.2e-16 instead, so
+  with a constant tag and as many components as tags, a row that moved the constant tag by 0.01
+  had a T2 of 4.5e11 and was out of control. `scaling_factor_for_scores_` is now the square root
+  of `explained_variance_`, as for the batch models. (#1029)
+- **factori.al renames a fraction's generated factor named `I` in its generator.** Renaming the factor, to `F`
+  say, left the generator reading `I = T·P`: the page took the `I` on its left for the identity that opens the
+  defining relation. It now reads `F = T·P`, as a design made under the new name does.
+- **`FAMD` refuses a constant numeric column whatever its standard deviation rounds to.** It
+  refused one only when its population standard deviation came out exactly 0, which depends on
+  the value and the number of rows: 0.1 in twelve rows gives 1.4e-17. Divided by that, the column
+  became one of -1s, uncentred, which added an inertia of 1 to the total and an axis of its own,
+  and cut every share. A column is now constant when all its values are equal, as `MCUVScaler`
+  reads one, in any units. (#1029)
+- **`MFA` judges a group's columns by their values, not by their size.** A group whose values sat
+  far from zero relative to their spread (lab results 1e7 above zero with an sd of 1, or times in
+  seconds since 1970 that vary by minutes) was refused for having "no variation", as its first
+  eigenvalue was compared with the mean square of the raw values; the offset is centred away
+  before the group is weighted, so it now fits as it does near zero. And with `scale=True` a
+  constant column was refused only when its standard deviation came out exactly 0; 0.1 in twelve
+  rows gives 1.4e-17, and the column joined its group as one of -1s, uncentred. A column is now
+  constant when all its values are equal, as `MCUVScaler` reads one, and a group has no variation
+  when every column in it is constant. (#1029)
+- **`TPLS` keeps a column measured in small units.** A column whose standard deviation was below
+  1.5e-8 was taken for one with no variance and left out of the fit with a warning, so a column in
+  units 1e9 times smaller moved every score; a column now has no variance when its observed values
+  are all equal (or there is only one of them), as `MCUVScaler` reads one, in any units. A column
+  with a single observed value is now named in the warning too, rather than left out without
+  one. (#1029)
+
+### Documentation
+
+- Clarified `loading_plot`'s `loadings_type` docstring: the function default is `'p'`
+  for every model (not only PCA), and passing anything other than `'p'` to a PCA
+  model raises `AttributeError` rather than being silently ignored. The list of
+  recognised values is unchanged.
+- **Mid-course correction: the literature attributions and the explanations are corrected against
+  the sources and re-measured.** The docstrings of `batch.control`, the simulator, the
+  `correct_batch_midcourse` and `evaluate_batch_control_policy` tools, the `midcourse_correction`
+  recipe and the batch-control user guide now say what Flores-Cerrillo and MacGregor (2004), Yabuki
+  and MacGregor (1997), Garcia-Munoz, Kourti and MacGregor (2004) and Golshan et al. (2010) did,
+  and no longer say that published mid-course gains are model predictions. The gap to the
+  oracle-from-k row is described as model error, foresight (the oracle runs with each batch's own
+  seed) and the corrector's own limits, not model error alone; `optimal_trajectory` is described
+  as a multi-start local search, a lower bound on the true optimum; and the hard-cap iteration is
+  no longer called exact, since with both caps binding it can leave a statistic well inside its
+  cap. Late decision points lose their gain because the model stops seeing the leverage, not
+  because the process loses it: the oracle still gains 1.6 g/L on the same batches from day 7,
+  and the user guide's sweep now shows the predicted, executed and oracle gains side by side. The
+  model's understated gains are no longer attributed to regression toward the mean.
+
 ## [2.2.2] - 2026-10-29
 
 ### Added
@@ -10744,7 +11353,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.2.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/kgdunn/process-improve/compare/v2.2.2...v2.3.0
 [2.2.2]: https://github.com/kgdunn/process-improve/compare/v2.2.0...v2.2.2
 [2.2.0]: https://github.com/kgdunn/process-improve/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/kgdunn/process-improve/compare/v2.0.0...v2.1.0
