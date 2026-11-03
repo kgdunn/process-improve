@@ -76,9 +76,10 @@ class FPCA(TransformerMixin, BaseEstimator):
 
     Each curve is smoothed by a cubic penalised B-spline (P-spline): ``n_basis`` B-splines on
     equally spaced knots that run past the ends of the grid, with a penalty on the
-    ``penalty_order``-th differences of their coefficients. One penalty is shared by every curve, so the smoother is one linear map and
-    cannot be mistaken for a difference between curves. The principal components of the smoothed
-    curves are then found in the L2 metric of the basis: the coefficients are weighted by the
+    ``penalty_order``-th differences of their coefficients. One penalty is shared by every curve, so
+    the smoother is one linear map and cannot be mistaken for a difference between curves. The
+    principal components of the smoothed curves are then found in the L2 metric of the basis: the
+    coefficients are weighted by the
     square root of the Gram matrix W (the integral of the products of the B-splines), so the
     eigenfunctions are orthonormal as functions and do not depend on where the knots are placed
     (Ramsay and Silverman, *Functional Data Analysis*, 2005, section 8.4).
