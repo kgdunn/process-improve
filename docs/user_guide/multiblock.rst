@@ -118,7 +118,7 @@ The natural multi-block split is:
    print(model.display_results())
 
    # How predictive is each component? Lower risk_pct = more significant.
-   sig = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=200, seed=0)
+   sig = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=200, random_state=0)
    print(sig)
 
    # Top 5 variables contributing to a high-SPE observation

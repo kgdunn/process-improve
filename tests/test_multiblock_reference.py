@@ -62,6 +62,7 @@ from process_improve.multivariate.methods import (
     MBPLS,
     PCA,
     MCUVScaler,
+    NotEnoughVarianceError,
     SpecificationWarning,
     randomization_test_mbpls,
 )
@@ -2057,7 +2058,7 @@ class TestMBPLSOnLDPE:
         """
         x_blocks, y_df = ldpe
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
-        result = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=20, seed=0)
+        result = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=20, random_state=0)
         assert list(result.columns) == ["observed", "risk_pct"]
         assert result.shape == (2, 2)
         assert (result["observed"] >= 0).all()
@@ -2619,7 +2620,8 @@ class TestMBPLSWrittenOut:
         One component explains both rows of every column that varies: R2 1. The constant column
         ``b1``, the block ``c`` of constants and the constant target ``y1`` have nothing to
         explain: their R2 is NaN, with no warning from a division by 0, ``c``'s VIP is 0, and
-        no constant column counts in its block's width. The variance divides by 1.
+        no constant column counts in its block's width. The variance divides by 1. The constant
+        target on its own leaves nothing to fit, and is refused (#1075).
         """
         index = ["first", "second"]
         blocks = {
@@ -2632,7 +2634,8 @@ class TestMBPLSWrittenOut:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             model = MBPLS(n_components=1).fit(blocks, y)
-            flat = MBPLS(n_components=1).fit(blocks, y[["y1"]])
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y"):
+            MBPLS(n_components=1).fit(blocks, y[["y1"]])
         assert model.block_informative_widths_ == {"a": 1, "b": 1, "c": 1}
         _frames_near(
             model.r2_x_per_block_cumulative_,
@@ -2647,8 +2650,6 @@ class TestMBPLSWrittenOut:
         np.testing.assert_allclose(model.explained_variance_, [np.sum(model.super_scores_.to_numpy() ** 2)], rtol=1e-15)
         np.testing.assert_allclose(model.block_vip_["b"], [1.0, 0.0], rtol=1e-12, atol=1e-15)
         np.testing.assert_array_equal(model.block_vip_["c"], [0.0])
-        assert flat.r2_y_cumulative_.isna().all()
-        assert flat.r2_y_per_variable_.isna().all().all()
 
     def test_a_block_or_a_y_the_component_leaves_untouched_has_no_r2_and_no_vip(self) -> None:
         """Columns with mean 0 and sd 1, exactly orthogonal: what the component does not reach has R2 and VIP 0.
@@ -3035,9 +3036,10 @@ class TestMBPLSPlotsAndSummary:
         assert figure.layout.yaxis.title.text == "Predicted: q"
         assert figure.layout.title.text == "Predicted vs observed for q"
 
-        # Every point at one value: the line is padded by 1 either side.
-        flat = MBPLS(n_components=1).fit(blocks, pd.DataFrame({"c": np.full(6, 3.0)}, index=y.index))
-        (_, line) = flat.predictions_vs_observed_plot(pd.DataFrame({"c": np.full(6, 3.0)})).data
+        # Every point at one value: the line is padded by 1 either side. A constant response is fitted
+        # beside one that varies, and predicted at its value; on its own it is refused (#1075).
+        flat = MBPLS(n_components=1).fit(blocks, y.assign(c=3.0))
+        (_, line) = flat.predictions_vs_observed_plot(pd.DataFrame({"c": np.full(6, 3.0)}), variable="c").data
         np.testing.assert_array_equal(line.x, [2.0, 4.0])
         np.testing.assert_array_equal(line.y, [2.0, 4.0])
 
@@ -3115,7 +3117,7 @@ def test_the_randomization_test_counts_the_permutations_that_reach_the_fit_by_ha
 
     The third component has no Y-score, so its association is 0 in the fit and in every
     permutation: a tie, which counts, so its risk is 100%. The permutations are drawn as
-    ``seed`` draws them, with the rows of Y taken by position.
+    ``random_state`` draws them, with the rows of Y taken by position.
     """
     blocks, y = _blocks_of_two_directions()
     y.index = [f"r{i}" for i in range(10)][::-1]  # labels that differ from the positions
@@ -3136,7 +3138,7 @@ def test_the_randomization_test_counts_the_permutations_that_reach_the_fit_by_ha
     )
     for _ in range(2):  # the same seed draws the same permutations
         with pytest.warns(SpecificationWarning, match="nothing left in Y"):
-            result = randomization_test_mbpls(model, blocks, y, n_permutations=20, seed=11)
+            result = randomization_test_mbpls(model, blocks, y, n_permutations=20, random_state=11)
         pd.testing.assert_frame_equal(result, expected, rtol=1e-12)
 
 
@@ -3144,9 +3146,86 @@ def test_the_randomization_test_draws_200_permutations_by_default() -> None:
     """The default is 200 permutations, so each risk is a whole number of 201sts of 100%."""
     blocks, y = _blocks_of_two_directions()
     model = MBPLS(n_components=1).fit(blocks, y)
-    risk = randomization_test_mbpls(model, blocks, y, seed=0)["risk_pct"].to_numpy()
+    risk = randomization_test_mbpls(model, blocks, y, random_state=0)["risk_pct"].to_numpy()
     assert 100.0 / 201 <= risk[0] < 100.0
     np.testing.assert_allclose(risk * 201 / 100, np.round(risk * 201 / 100), atol=1e-9)
+
+
+def _fits_recorded(monkeypatch: pytest.MonkeyPatch) -> list[tuple[dict, list]]:
+    """Record the settings of every MBPLS fitted from here on, and the row labels of the Y it is given."""
+    seen: list[tuple[dict, list]] = []
+    fit = MBPLS.fit
+
+    def recording_fit(self: MBPLS, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> MBPLS:
+        seen.append((self.get_params(), list(y.index)))
+        return fit(self, X, y)
+
+    monkeypatch.setattr(MBPLS, "fit", recording_fit)
+    return seen
+
+
+def test_the_randomization_test_refits_each_permutation_with_the_models_own_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each permutation is fitted with the fitted model's settings, only the rows of Y changed (#1072).
+
+    The model stops every component after two NIPALS passes, as ``tol=1e-2`` and ``max_iter=2``
+    say, on three responses, where two passes do not converge. The permuted fits used to take
+    the defaults and converge, so the model's statistic was set against the null of another
+    estimator: 17 and 5 of these 20 permutations reach it with its own settings, 19 and 3 with
+    the defaults.
+    """
+    rng = np.random.default_rng(1)
+    latent = rng.standard_normal((12, 2))
+    blocks = {
+        "a": pd.DataFrame(latent @ rng.standard_normal((2, 3)) + 0.5 * rng.standard_normal((12, 3))),
+        "b": pd.DataFrame(latent @ rng.standard_normal((2, 2)) + 0.5 * rng.standard_normal((12, 2))),
+    }
+    y = pd.DataFrame(0.3 * latent @ rng.standard_normal((2, 3)) + rng.standard_normal((12, 3)), columns=list("pqr"))
+    settings = {"tol": 1e-2, "max_iter": 2, "algorithm": "nipals", "missing_data_settings": {}}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SpecificationWarning)  # two passes do not converge
+        model = MBPLS(n_components=2, **settings).fit(blocks, y)
+        observed = _association(model)
+        draws = np.random.default_rng(5)
+        exceed = np.zeros(2)
+        for _ in range(20):
+            permuted = MBPLS(n_components=2, **settings).fit(blocks, y.iloc[draws.permutation(12)])
+            exceed += _association(permuted) >= observed
+        seen = _fits_recorded(monkeypatch)
+        result = randomization_test_mbpls(model, blocks, y, n_permutations=20, random_state=5)
+    expected = pd.DataFrame(
+        {"observed": observed, "risk_pct": 100.0 * (exceed + 1) / 21}, index=pd.Index([1, 2], name="component")
+    )
+    pd.testing.assert_frame_equal(result, expected, rtol=1e-12)
+    assert [params for params, _ in seen] == [model.get_params()] * 20
+
+
+def test_the_randomization_test_takes_a_random_state_and_seed_is_its_deprecated_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``random_state`` takes an int or a Generator, as across the package; ``seed`` still works, and warns."""
+    blocks, y = _blocks_of_two_directions()
+    model = MBPLS(n_components=1).fit(blocks, y)
+    draws = np.random.default_rng(4)
+    rows = [list(y.index[draws.permutation(10)]) for _ in range(3)]
+    seen = _fits_recorded(monkeypatch)
+    randomization_test_mbpls(model, blocks, y, n_permutations=3, random_state=4)
+    randomization_test_mbpls(model, blocks, y, n_permutations=3, random_state=np.random.default_rng(4))
+    message = (
+        r"^process_improve\.multivariate\.methods\.randomization_test_mbpls\(seed=\.\.\.\) is deprecated since "
+        r"2\.4\.0 and will be removed in 3\.0; use random_state instead\.$"
+    )
+    with pytest.warns(DeprecationWarning, match=message):
+        randomization_test_mbpls(model, blocks, y, n_permutations=3, seed=4)
+    assert [labels for _, labels in seen] == rows * 3
+    with (
+        pytest.warns(DeprecationWarning, match=message),
+        pytest.raises(TypeError, match=r"^Pass random_state only: seed is its deprecated name\.$"),
+    ):
+        randomization_test_mbpls(model, blocks, y, n_permutations=3, seed=4, random_state=4)
+    with pytest.raises(TypeError, match=r"^randomization_test_mbpls\(\) got an unexpected keyword argument 'sed'$"):
+        randomization_test_mbpls(model, blocks, y, n_permutations=3, sed=4)
 
 
 def test_an_association_over_a_size_of_at_most_epsqrt_is_zero() -> None:
