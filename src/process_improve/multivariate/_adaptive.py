@@ -416,14 +416,14 @@ class _AdaptiveModel(_LatentVariableModel):
         scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
         return pd.DataFrame(scores, index=labels, columns=self._component_names)
 
-    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+    def _scaled_rows(self, X: pd.DataFrame) -> pd.DataFrame:
         """Return ``X`` centred and scaled by the *current* centre and spread, as ``_project`` reads each row.
 
         The contribution functions read new rows through this, so they take the data :meth:`transform`
-        takes (#1125). A frame's columns are matched to the fit by name, as PCA and PLS match them.
+        takes (#1125). They pass a frame, whose columns are matched to the fit as PCA and PLS match them.
         """
         check_is_fitted(self, "mx_")
-        labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names) if isinstance(X, pd.DataFrame) else X)
+        labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names))
         return pd.DataFrame((rows - self.mx_) / self.sx_, index=labels, columns=self._feature_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
