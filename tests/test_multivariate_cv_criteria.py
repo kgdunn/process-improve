@@ -1846,3 +1846,23 @@ def test_the_one_se_rule_is_handed_rmsecv_and_its_standard_error(monkeypatch: py
     assert rule == "1se"
     _assert_near(kwargs["mean_error"], np.sqrt(held["press_y"].sum(axis=1) / Y.notna().to_numpy().sum()), rtol=1e-6)
     _assert_near(kwargs["se_error"], np.std(held["per_fold_rmse"], axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
+
+
+@pytest.mark.parametrize(("estimator", "default"), [(PLS, 199), (PRM, 49)])
+def test_the_default_number_of_cv_permutations_follows_the_estimator(
+    monkeypatch: pytest.MonkeyPatch, estimator: type[PLS], default: int
+) -> None:
+    """PRM refits every fold of every permutation (#1087), so its default count is 49, not 199.
+
+    The count the caller gives always wins.
+    """
+    seen: list[int] = []
+
+    def record(_estimator: object, _x: object, _y: object, settings: object, _kwargs: object) -> None:
+        seen.append(settings.n_cv_permutations)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("process_improve.multivariate._pls._compare_cv_criteria", record)
+    X, y = pd.DataFrame(np.eye(4)), pd.Series(range(4))
+    estimator.compare_cv_criteria(X, y)
+    estimator.compare_cv_criteria(X, y, n_cv_permutations=7)
+    assert seen == [default, 7]

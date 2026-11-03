@@ -554,6 +554,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     #: that way, with no call to ``fit``. It does not give PRM's reweighted fit, so PRM sets
     #: this False and its null refits every fold with PRM (#1087).
     _null_by_kernel_pls: typing.ClassVar[bool] = True
+    #: Permutations :meth:`compare_cv_criteria` draws for its score-correlation null when the caller
+    #: gives none. PRM refits every fold of every permutation, so it uses fewer.
+    _default_n_cv_permutations: typing.ClassVar[int] = 199
 
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
     # into the documented public DataFrames at the end of fit().
@@ -2131,7 +2134,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         cv: int | BaseCrossValidator = 7,
         random_state: int | np.random.Generator | None = None,
         n_permutations: int = 999,
-        n_cv_permutations: int = 199,
+        n_cv_permutations: int | None = None,
         alpha: float = 0.05,
         angle_threshold: float = 30.0,
         conf_level: float = 0.95,
@@ -2172,14 +2175,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Seed for the fold assignment and for the permutation tests.
         n_permutations : int, default=999
             Permutations for the van der Voet and the covariance tests (cheap: no refits).
-        n_cv_permutations : int, default=199
+        n_cv_permutations : int or None, default=None
             Permutations of the rows of Y used to calibrate the held-out score correlation
             of each component. Each one repeats the cross-validation with kernel PLS refits from the
             folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). For
             :class:`~process_improve.multivariate.methods.PRM`, each fold is refitted by PRM
             itself, so that the correlation and its null come from the same estimator. That is
-            one PRM fit per fold per permutation, about a hundred times slower: a minute or two
-            rather than a second for 40 rows, 7 folds and 3 components. With ``0``
+            one PRM fit per fold per permutation, about a hundred times slower per permutation.
+            ``None`` uses 199 permutations, or 49 for PRM: there the smallest attainable p-value is
+            0.02 rather than 0.005, still enough to decide at ``alpha=0.05``, and the test runs in
+            about a quarter of the time 199 would take. With ``0``
             the normal approximation
             :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
             because fold models share rows and a strong low-rank X widens the null
@@ -2288,6 +2293,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result.recommendations["n_components"]
         >>> result.table[["q2y", "r_cv", "slope_ratio", "angle_subspace_deg"]]
         """
+        if n_cv_permutations is None:
+            n_cv_permutations = cls._default_n_cv_permutations
         settings = _CompareSettings(
             max_components=max_components,
             cv=cv,

@@ -212,6 +212,8 @@ class PRM(PLS):
 
     #: Kernel PLS does not give the reweighted fit, so compare_cv_criteria refits its null with PRM.
     _null_by_kernel_pls: typing.ClassVar[bool] = False
+    #: Each permutation refits every fold with PRM, so the default count is lower than PLS's 199.
+    _default_n_cv_permutations: typing.ClassVar[int] = 49
 
     def __init__(  # noqa: PLR0913 - mirrors PLS's constructor plus four loop controls
         self,
