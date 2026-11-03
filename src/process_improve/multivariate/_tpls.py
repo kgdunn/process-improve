@@ -543,9 +543,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         check_at_least_one("n_components", self.n_components)
-        settings = resolve_loop_settings(
-            tol=self.tol, max_iter=self.max_iter, missing_data_settings=None, estimator_name="TPLS"
-        )
+        # No missing_data_settings, so the resolver's message naming the estimator is never reached.
+        settings = resolve_loop_settings(tol=self.tol, max_iter=self.max_iter, missing_data_settings=None)
         self._input_data_checks(X)
         # A fit that fails part way leaves the model unfitted, not the previous fit with some parts replaced.
         self.is_fitted_ = False
