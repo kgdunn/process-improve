@@ -48,6 +48,7 @@ from process_improve.experiments import (
     NotSeparableError,
     TrueProcess,
     analyze_experiment,
+    analyze_functional_experiment,
     augment_design,
     compare_designs,
     constraint_through_cuts,
@@ -498,6 +499,22 @@ TRANSFORMS: dict[str, dict[str, Any]] = {
 #: The most responses a study measures. Each has a column of its own on the run sheet, its own model and its own
 #: analysis; the first one sizes the design, as the brief's typical value, noise and smallest change are its own.
 MAX_RESPONSES = 5
+
+#: The most points along a curve a study measures each run's curve at, as many as a spectrum has.
+MAX_CURVE_POINTS = 1000
+#: The most points the page draws a predicted curve at: a curve measured at more is drawn at this many, evenly
+#: spaced, which keeps the bootstrap's maps the page predicts from small.
+CURVE_DRAWN = 61
+#: The bootstrap replicates a curve's bands are worked from: few enough for Pyodide to refit in a few seconds,
+#: enough for the 95% quantile of each replicate's largest departure, which the simultaneous band rests on.
+CURVE_REPLICATES = 200
+#: The significant figures the maps are sent with: the bands need no more, and the reply is a third the size.
+CURVE_FIGURES = 6
+#: The column that carries each run's place on the run sheet through to the runs fitted, so its curve follows it.
+CURVE_ROW = "_curve_row"
+#: The random starts of the search for the settings that reproduce a target curve: each start costs Pyodide a
+#: fraction of a second, and a model of a few factors has few local minima for more starts to find.
+CURVE_STARTS = 8
 
 #: How far apart the seeds of two responses' simulated noise are: the response in place j (0 for the first) draws
 #: its noise with the seed plus j times this, so each response has noise of its own and the first keeps the seed's.
@@ -3791,7 +3808,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         else:
             _checked_model(one, names, labelled)
     # read_workbook checks what_if itself.
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if")
+    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if", "curve")
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)
@@ -3805,7 +3822,34 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
         **({"analysis_transforms": transforms} if transforms else {}),
+        **({"curve": _checked_curve(spec["curve"])} if spec.get("curve") is not None else {}),
     }
+
+
+def _checked_curve(raw: object) -> dict[str, Any]:
+    """Check a study's curve response: the reader's words for it and its units, and where along it each run is read.
+
+    ``argument`` says what the points along the curve are (its ``label`` and ``units``, such as a time in
+    minutes) and their ``values``: 3 to :data:`MAX_CURVE_POINTS` numbers, each larger than the one before.
+    Every run is read at the same points; a point a run lacks is a blank in its curve.
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("argument"), dict):
+        raise ValueError("The page sent a curve this page did not write.")  # noqa: TRY004 - a refusal, like the rest
+    argument = raw["argument"]
+    values = argument.get("values")
+    if not isinstance(values, list) or any(isinstance(v, bool) or _number(v) is None for v in values):
+        raise ValueError("The page sent a curve this page did not write.")
+    points = [float(v) for v in values]
+    if not 3 <= len(points) <= MAX_CURVE_POINTS or any(b <= a for a, b in itertools.pairwise(points)):
+        raise ValueError(
+            f"A curve is read at 3 to {MAX_CURVE_POINTS} points along it, each one after the point before."
+        )
+
+    def words(of: dict) -> dict[str, str]:
+        fields = (("label", 64), ("units", 32))
+        return {key: text for key, most in fields if (text := _described_text(of.get(key), most))}
+
+    return {**words(raw), "argument": {**words(argument), "values": points}}
 
 
 def _checked_transforms(spec: dict, responses: list[dict[str, Any]]) -> dict[str, str]:
@@ -7506,6 +7550,139 @@ def _coding(factor: dict, spec: dict) -> dict[str, Any]:
     return {"name": factor["name"], "kind": "categorical", "levels": levels, "columns": columns}
 
 
+def functional(request: dict) -> dict:
+    """Fit a study's curves, and return the fit as numbers the page predicts whole curves from, with their bands.
+
+    Each run's curve (``curves``: a list per run of one value per point of the study's ``curve``, a blank
+    where it was not read, or null for a run not measured yet) is reduced by functional PCA, and each kept
+    score modelled against the factors with :func:`~process_improve.experiments.analyze_functional_experiment`.
+    The runs are coded and the model made estimable as Learn fits a response (:func:`_fit_estimable`), so a
+    curve is predicted from the same columns as the what-if panel predicts a response from (``factors``, as
+    :func:`predictors` sends them), and a curve is predicted for the average block.
+
+    The curve at settings whose model row is ``x`` is ``mean + x @ map``; ``replicates`` hold the same for
+    each of :data:`CURVE_REPLICATES` wild-bootstrap replicates (:meth:`~process_improve.experiments.
+    FunctionalFit.curve_maps`), which the page turns into bands (``curveAt`` in ``web/best.js``) as
+    :meth:`~process_improve.experiments.FunctionalFit.predict` does, with ``t`` and ``widening``. A curve read
+    at more than :data:`CURVE_DRAWN` points is drawn at that many, evenly spaced (``points``).
+
+    ``target``, one value per point or a blank, asks for the settings whose predicted curve comes closest
+    to it (:meth:`~process_improve.experiments.FunctionalFit.match_target`), a categorical factor held at
+    its level in ``held``. shortcut: the search ignores the limits on the settings; keep to them there
+    once a study with both limits and curves needs it.
+    """
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    spec = _checked_spec(request.get("spec") or {})
+    if spec.get("curve") is None:
+        raise ValueError("This study measures no curve: describe the curve each run gives, then paste the curves.")
+    if _mixture(spec):
+        raise ValueError("A mixture's curves are not analysed on this page yet.")
+    grid = np.asarray(spec["curve"]["argument"]["values"])
+    runs = _runs_frame(request, spec)
+    sent = _curves_sent(request.get("curves"), len(runs), grid.size)
+    design = _design_runs(runs.assign(**{CURVE_ROW: np.arange(len(runs))}))
+    values = sent[design[CURVE_ROW].to_numpy()]
+    done = np.isfinite(values).any(axis=1)  # a run with no point read has no curve yet
+    names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    model, columns = _fitted_model(_checked_model(request.get("model") or spec["model"], names, categorical), spec)
+    coded = _design_frame(design, spec, columns)[done].reset_index(drop=True)
+    curves = pd.DataFrame(values[done], columns=grid)
+    with _listening():
+        # which terms the runs can estimate depends on the runs alone, so any one number per run decides it
+        stand_in = pd.Series(np.nanmean(values[done], axis=1), name="curve")
+        fit = _fit_estimable(coded, stand_in, model, columns, categorical)
+        result = analyze_functional_experiment(coded, curves, model=fit["formula"])
+        drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
+        maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
+    kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
+    t = float(stats.t.ppf(0.5 + LEVEL / 2, max(maps["df_residual"], 1)))
+    reply = {
+        "points": drawn,
+        "runs": len(curves),
+        "factors": [_coding(f, spec) for f in spec["factors"]],
+        "formula": result.formula,
+        "terms": [list(_parts(maps["terms"][i])) for i in kept],
+        "mean": _figures(maps["mean"]),
+        "map": _figures(maps["map"][kept]),
+        "replicates": [
+            {"mean": _figures(mean), "map": _figures(linear[kept])}
+            for mean, linear in zip(maps["replicate_means"], maps["replicate_maps"], strict=True)
+        ],
+        "t": t,
+        "widening": t / float(stats.norm.ppf(0.5 + LEVEL / 2)),
+        "level": LEVEL,
+        "components": [
+            {"name": str(name), "variance": float(row["variance_ratio"]), "kept": bool(row["kept"])}
+            for name, row in result.components.iterrows()
+        ],
+        "notes": fit["notes"],
+    }
+    if request.get("target") is not None:
+        reply["match"] = _matched(result, request, spec, grid.size)
+    return reply
+
+
+def _curves_sent(raw: object, n_runs: int, n_points: int) -> np.ndarray:
+    """Return the runs' curves as an array, a row per run and a column per point; NaN where nothing was read."""
+    if not isinstance(raw, list) or len(raw) != n_runs:
+        raise ValueError(f"{len(raw) if isinstance(raw, list) else 0} curves were sent for {n_runs} runs.")
+    rows = np.full((n_runs, n_points), np.nan)
+    for i, curve in enumerate(raw):
+        if curve is None:
+            continue
+        if not isinstance(curve, list) or len(curve) != n_points or any(isinstance(v, bool) for v in curve):
+            raise ValueError(f"Each run's curve holds {n_points} values, one per point along it, or blanks.")
+        rows[i] = [np.nan if (number := _number(v)) is None else number for v in curve]
+    return rows
+
+
+def _figures(values: np.ndarray) -> list:
+    """Return an array as nested lists of numbers, each to :data:`CURVE_FIGURES` significant figures.
+
+    Each is an integer over a power of ten (or times one), so it is the double nearest that decimal, which
+    JSON then writes in its few digits.
+    """
+    array = np.asarray(values, dtype=float)
+    size = np.floor(np.log10(np.abs(array), out=np.zeros_like(array), where=array != 0))
+    places = CURVE_FIGURES - 1 - size
+    up = 10.0 ** np.maximum(places, 0)
+    down = 10.0 ** np.maximum(-places, 0)
+    return (np.round(array * up / down) * down / up).tolist()
+
+
+def _matched(result: Any, request: dict, spec: dict, n_points: int) -> dict[str, Any]:  # noqa: ANN401 - a FunctionalFit
+    """Return the settings, in the factors' own units or levels, whose predicted curve comes closest to the target.
+
+    The search runs over the coded columns the model names; a categorical factor is held at its level.
+    """
+    target = _curves_sent([request["target"]], 1, n_points)[0]
+    if not np.isfinite(target).any():
+        raise ValueError("Enter the target curve: at least one value along it.")
+    held_levels = request.get("held") or {}
+    if not isinstance(held_levels, dict):
+        raise ValueError("The page sent settings this page did not write.")  # noqa: TRY004 - a refusal, like the rest
+    bounds: dict[str, float] = {}
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            level = held_levels.get(f["name"], levels[0])
+            if level not in levels:
+                raise ValueError(f"{f['name']} at {level} is none of its levels, {_listed(levels)}.")
+            code = float(np.linspace(-1.0, 1.0, len(levels))[levels.index(level)])
+            named = _held_columns({f["name"]: code}, spec).items()
+            bounds |= {c: v for c, v in named if re.search(rf"\b{re.escape(c)}\b", result.formula)}
+    found = result.match_target(target, bounds=bounds or None, n_starts=CURVE_STARTS, random_state=0)
+    settings = {}
+    for f in spec["factors"]:
+        if _categorical(f):
+            settings[f["name"]] = held_levels.get(f["name"], _levels_of(f)[0])
+        elif f["name"] in found["settings"]:
+            settings[f["name"]] = f["low"] + (float(found["settings"][f["name"]]) + 1) / 2 * (f["high"] - f["low"])
+    return {"settings": settings, "distance": found["distance"]}
+
+
 def outside_limits(request: dict) -> dict:
     """Name the limits on the settings that some settings break, each by its place in the study's list.
 
@@ -8194,6 +8371,11 @@ def api_add_runs(payload: str) -> str:
 def api_predictors(payload: str) -> str:
     """JSON wrapper around :func:`predictors`."""
     return _reply(predictors, payload)
+
+
+def api_functional(payload: str) -> str:
+    """JSON wrapper around :func:`functional`."""
+    return _reply(functional, payload)
 
 
 def api_outside_limits(payload: str) -> str:
