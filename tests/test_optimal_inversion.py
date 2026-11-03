@@ -7,6 +7,7 @@ import itertools
 import json
 import pathlib
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,10 @@ from process_improve.multivariate import (
 )
 from process_improve.multivariate import _optimal_inversion as oi
 from process_improve.multivariate._tpls import DataFrameDict
+
+# The tests written before 2.4.0 search inputs without both bounds, which warns until 3.0 makes it an error. The tests
+# of that warning record it with pytest.warns, which this filter does not reach.
+pytestmark = pytest.mark.filterwarnings("ignore:.*no lower or no upper bound:FutureWarning")
 
 DATA = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
 GROUPS = [f"Group{g}" for g in range(1, 6)]
@@ -802,3 +807,109 @@ def test_tpls_groups_that_share_a_lot_name_are_refused() -> None:
 
     with pytest.raises(ValueError, match="share a lot or condition name"):
         affine_model(model)
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Each input's extreme limits, and the proof that an answer is optimal
+# ---------------------------------------------------------------------------------------------------------------------
+CHEESE_BOUNDS = {"Acetic": (4.0, 7.0), "H2S": (3.0, 10.0), "Lactic": (0.8, 2.1)}
+
+
+def test_an_input_without_both_bounds_is_named_at_the_callers_line(cheese: PLS) -> None:
+    """Only T² and SPE would hold it. The warning names it, at the caller's own line, through the method too."""
+    rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)})
+
+    with pytest.warns(FutureWarning, match="Acetic, H2S, Lactic have no lower or no upper bound") as record:
+        cheese.optimal_inversion(rules)
+    with pytest.warns(FutureWarning, match="error from 3.0") as sensitivity:
+        cheese.inversion_sensitivity(rules)
+
+    assert {w.filename for w in [*record, *sensitivity]} == {__file__}
+
+
+def test_a_fixed_input_needs_no_bounds_and_one_side_is_not_enough(cheese: PLS) -> None:
+    """A fixed input is held at its value; an input with a lower bound alone can still run off the other way."""
+    rules = InversionRules(
+        costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)},
+        bounds={"Acetic": (4.0, None), "H2S": (3.0, 10.0)}, fixed={"Lactic": 1.5},
+    )  # fmt: skip
+
+    with pytest.warns(FutureWarning, match=r"Acetic has no lower or no upper bound") as record:
+        optimal_inversion(cheese, rules)
+
+    assert "H2S" not in str(record[0].message)
+    assert "Lactic" not in str(record[0].message)
+
+
+def test_inputs_with_both_bounds_search_without_a_warning(cheese: PLS) -> None:
+    """Every input given its extreme limits: nothing to warn of, and the answer keeps inside them."""
+    rules = InversionRules(costs=CHEESE_COSTS, windows={"Taste": (20.0, 30.0)}, bounds=CHEESE_BOUNDS)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        result = optimal_inversion(cheese, rules)
+
+    assert result.feasible
+    assert all(low - 1e-9 <= result.x_new[n] <= high + 1e-9 for n, (low, high) in CHEESE_BOUNDS.items())
+
+
+@pytest.mark.dataset
+def test_tpls_lot_fractions_have_bounds_already_and_the_conditions_need_them(pyphi: tuple[TPLS, dict]) -> None:
+    """A lot's fraction is 0 to 1 unless given; a process condition has no natural range, so it is named."""
+    model, data = pyphi
+    rules = InversionRules(targets=data["Y"]["Quality"].loc["L050"].to_dict())
+    conditions = data["Z"]["Conditions"]
+    lots = [n for g in GROUPS for n in model.material_names[g]]
+
+    with pytest.warns(FutureWarning, match="var1, var2, var3, var4, var5 and 5 more have no lower") as record:
+        model.optimal_inversion(rules)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        bounded = model.optimal_inversion(
+            dataclasses.replace(rules, bounds={c: (conditions[c].min(), conditions[c].max()) for c in conditions})
+        )
+
+    assert not any(lot in str(record[0].message) for lot in lots)
+    assert bounded.feasible
+
+
+@pytest.mark.dataset
+def test_tangent_planes_prove_an_optimum_whose_multipliers_do_not_settle(pyphi: tuple[TPLS, dict]) -> None:
+    """
+    Bounded by its training range, the cheapest blend has many lots at a bound. The binding rows are dependent and
+    the least-squares multipliers miss, though the point is optimal: the linear program over the limits' tangent
+    planes does no better, and the answer is proven.
+    """
+    model, data = pyphi
+    training = pd.concat([*(data["F"][g] for g in GROUPS), data["Z"]["Conditions"]], axis=1)
+    lots = [n for g in GROUPS for n in model.material_names[g]]
+    quality = data["Y"]["Quality"]
+    rules = InversionRules(
+        costs=dict(zip(lots, np.random.default_rng(0).uniform(1, 5, len(lots)), strict=True)),
+        windows={"Y1": (float(quality["Y1"].median()), None), "Y3": (None, float(quality["Y3"].median()))},
+        bounds={n: (float(training[n].min()), float(training[n].max())) for n in training},
+    )  # fmt: skip
+
+    result = model.optimal_inversion(rules)
+
+    assert result.feasible
+    assert result.kkt_residual > 1e-3  # the multipliers alone could not prove it
+    assert result.proven_optimal
+    assert result.objective == pytest.approx(6.955066, rel=1e-5)
+
+
+def test_tangent_planes_refuse_a_blend_that_meets_the_rules_at_a_higher_cost(mixture: PLS) -> None:
+    """
+    The cheapest blend for a stricter window also meets this window, at a higher cost. The planes at the optimum
+    prove it; the planes at the costlier blend find a cheaper point, so prove nothing.
+    """
+    rules = _mixture_rules()
+    problem = oi._Problem(affine_model(mixture, rules.conf_level), rules)
+    bounds = problem.continuous_bounds(None)
+    best = optimal_inversion(mixture, rules)
+    stricter = optimal_inversion(mixture, _mixture_rules(windows={"q": (7.0, None)}))
+
+    assert stricter.objective > best.objective + 1e-3
+    assert stricter.y_hat["q"] >= 6.0
+    assert oi._proven_by_planes(problem, best.x_new.to_numpy(), bounds)
+    assert not oi._proven_by_planes(problem, stricter.x_new.to_numpy(), bounds)
