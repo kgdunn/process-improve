@@ -15,7 +15,7 @@ from process_improve.regression.tools import (
     _default_n_boot,
     get_regression_tool_specs,
 )
-from process_improve.tool_safety import ToolInputInvalidError, safe_execute_tool_call
+from process_improve.tool_safety import ToolInputInvalidError
 from process_improve.tool_spec import execute_tool_call
 
 
@@ -1404,24 +1404,25 @@ def test_robust_regression_tool_declares_and_honours_its_seed() -> None:
     assert first["n_boot"] == 99
 
 
-@pytest.mark.parametrize(("n_points", "n_boot"), [(3, 999), (500, 999), (501, 995), (1_000, 249), (5_000, 9)])
+@pytest.mark.parametrize(
+    ("n_points", "n_boot"), [(3, 999), (197, 999), (198, 994), (500, 156), (1_000, 39), (5_000, 39)]
+)
 def test_robust_regression_tool_draws_fewer_resamples_as_the_points_grow(n_points: int, n_boot: int) -> None:
-    """Above 500 points the default keeps the bootstrap's work to that of 999 resamples of 500 points (#1095).
+    """Up to 1,000 points the default bootstrap does at most the work of 39 resamples of 1,000 points (#1095).
 
     Each resample costs time in proportion to the square of the number of points, so a fixed 999 took
-    the tool past its 10 s timeout above about 800 points.
+    the tool past its 10 s timeout above about 800 points. Above 1,000 points the default stays at 39,
+    the fewest on which a 95% percentile interval rests.
     """
     assert _default_n_boot(n_points) == n_boot
-    assert n_boot * n_points**2 <= 999 * 500**2
+    assert n_boot * min(n_points, 1_000) ** 2 <= 39 * 1_000**2
 
 
-@pytest.mark.slow
-@pytest.mark.integration
-def test_robust_regression_tool_fits_a_thousand_points_inside_the_default_timeout() -> None:
-    """A hosted call with 1,000 points finishes under the default timeout, and says how many resamples it drew."""
+def test_robust_regression_tool_fits_a_thousand_points_with_its_default_resamples() -> None:
+    """A call with 1,000 points draws 39 resamples, says so, and its interval holds the slope."""
     x, y = _line_with_outliers(np.random.default_rng(10), n=1_000)
 
-    out = safe_execute_tool_call("robust_regression", {"x": list(x), "y": list(y)})
+    out = execute_tool_call("robust_regression", {"x": list(x), "y": list(y)})
 
-    assert out["n_boot"] == 249
+    assert out["n_boot"] == 39
     assert out["slope_confidence_interval"][0] < out["slope"] < out["slope_confidence_interval"][1]
