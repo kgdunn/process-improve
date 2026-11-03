@@ -246,7 +246,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     skip_f_matrix_preprocessing : bool, optional
         If True, the F (formula) matrices are used as-is, skipping the internal
-        centering and scaling of the F block. Default is False.
+        centering and scaling of the F block. Default is False. The caller then owns
+        F's preprocessing: a column with no variance, which scaling would leave out with
+        a warning, is used as given, without one. A missing cell is still left out, and
+        a column with no observed value is still named.
 
     tol : float, optional
         Relative convergence tolerance for the per-component super-score loop: the
@@ -295,7 +298,8 @@ class TPLS(RegressorMixin, BaseEstimator):
     preproc_ : dict
         Nested per-block per-group preprocessors, indexed as
         ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
-        ``"Y"`` or ``"Z"``.
+        ``"Y"`` or ``"Z"``. With ``skip_f_matrix_preprocessing`` the ``"F"``
+        entries are learned but not applied.
     sums_of_squares_ : list[dict]
         Per-component per-block sums of squares.
     r2_frac : list[dict]
@@ -599,10 +603,13 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_lots, n_properties = df_d.shape
             self.preproc_["D"][key]["block"] = float(np.sqrt(n_lots * n_properties))
             #
-            # Also do the same for the formula matrix
+            # Also do the same for the formula matrix. F used as given is not scaled, so its centre and
+            # scale are learned only for optimal inversion, which starts and steps from them.
             self.preproc_["F"][key] = {}
             self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["F"][key], f'F["{key}"]')
+                self._learn_center_and_scaling_parameters(
+                    X["F"][key], f'F["{key}"]', used_as_given=self.skip_f_matrix_preprocessing_
+                )
             )
 
         # Then implement the preprocessing on the raw data
@@ -1055,7 +1062,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(self.d_matrix[key])
             self._validate_df(X["F"][key])
 
-    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str) -> tuple[pd.Series, pd.Series]:
+    def _learn_center_and_scaling_parameters(
+        self, y: pd.DataFrame, label: str, *, used_as_given: bool = False
+    ) -> tuple[pd.Series, pd.Series]:
         """
         Learn the centering and scaling parameters for one block.
 
@@ -1066,6 +1075,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         label : str
             Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
             warnings for excluded columns.
+        used_as_given : bool, default=False
+            Whether the fit uses the block without this centring and scaling, as it uses F
+            with ``skip_f_matrix_preprocessing``. A column with no variance then stays in the
+            fit, so it is not named as excluded (#1084). Its scale is ``NaN`` all the same.
 
         Returns
         -------
@@ -1078,7 +1091,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         Warns
         -----
         UserWarning
-            If a column of a block of two or more rows has no variance: its observed
+            If a column of a block of two or more rows, not used as given, has no variance: its observed
             values are all equal, or there is only one. Its scale is set to ``NaN``,
             which makes the whole column ``NaN`` and then zero, so the column is
             silently excluded from the fit. That is the right thing to do with a constant column, but it used to
@@ -1098,7 +1111,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
         # a NaN maximum and minimum, which are not equal, so it is not counted here.
         degenerate = (y.max() == y.min()) & (y.shape[0] > 1)
-        if degenerate.any():
+        if degenerate.any() and not used_as_given:
             named = ", ".join(repr(col) for col in y.columns[degenerate])
             warnings.warn(  # a UserWarning, warn's default category
                 f"Block {label} has columns with no variance, which carry no information and are "
