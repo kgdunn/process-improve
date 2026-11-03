@@ -1795,7 +1795,7 @@ def test_pca_select_n_components_ckf_does_not_score_an_unevaluated_count_as_perf
     """
     rng = np.random.default_rng(0)
     noise = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 5))))
-    result = PCA.select_n_components(noise, cv_scheme="ckf")
+    result = PCA.select_n_components(noise, cv_scheme="ckf", random_state=0)
     assert np.isnan(result.press.iloc[-1])
     assert np.isnan(result.q2.iloc[-1])
     assert result.q2_per_variable.iloc[-1].isna().all(), "no column was predicted, so none has a Q2 of 1"
@@ -11104,7 +11104,7 @@ def test_pls_nested_cv_passes_its_settings_on_and_predicts_as_the_fold_models_do
         "n_permutations": 19,
         "alpha": 0.05,
     }
-    result = PLS.nested_cv(X, Y, outer_cv=2, **settings, max_iter=300)
+    result = PLS.nested_cv(X, Y, outer_cv=KFold(2), **settings, max_iter=300)
     for _, _, _, kwargs in calls:
         assert kwargs == {
             "max_components": 2,
@@ -11120,7 +11120,7 @@ def test_pls_nested_cv_passes_its_settings_on_and_predicts_as_the_fold_models_do
         }
     assert fitted == [(2, 300), (1, 300)]
     oof = np.full((12, 2), np.nan)
-    # The outer folds are shuffled without a seed: each one's training rows are those it handed the selection.
+    # Each outer fold's training rows are those it handed the selection.
     for (_, x_train, _, _), count in zip(calls, [2, 1], strict=True):
         rows = X.index.get_indexer(x_train.index)
         held = np.setdiff1d(np.arange(12), rows)
@@ -11159,7 +11159,7 @@ def test_pls_nested_cv_hands_both_blocks_to_its_splitter_and_needs_two_folds(mon
     with pytest.raises(ValueError, match=r"^outer_cv must be >= 2 when given as an int; got 1\.$"):
         PLS.nested_cv(X, Y, outer_cv=1, random_state=0)
     _stand_in_selection(monkeypatch, [1] * 5)
-    assert PLS.nested_cv(X, Y).selected_components_per_fold == [1] * 5  # five outer folds by default
+    assert PLS.nested_cv(X, Y, random_state=0).selected_components_per_fold == [1] * 5  # five outer folds by default
 
 
 @pytest.mark.parametrize(
