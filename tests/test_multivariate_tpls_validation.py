@@ -485,12 +485,13 @@ def test_the_defaults_are_those_of_the_other_iterative_estimators() -> None:
 def test_a_model_never_fitted_says_so() -> None:
     """Every method that needs a fit raises NotFittedError before one, as PCA's and PLS's do.
 
-    ``__init__`` sets attributes that end in an underscore, so scikit-learn's check_is_fitted
-    passed on a model never fitted, and diagnose failed later with an AttributeError.
+    ``__init__`` set attributes that end in an underscore, so scikit-learn's check_is_fitted
+    passed on a model never fitted, and diagnose failed later with an AttributeError. It now
+    sets none (#1127).
     """
     d_matrix, blocks = _synthetic()
     model = TPLS(n_components=2, d_matrix=d_matrix)
-    assert model.is_fitted_ is False
+    assert not hasattr(model, "is_fitted_")
     data = DataFrameDict(blocks)
     for call in (model.diagnose, model.score, lambda x: make_tpls_scorer()(model, x), lambda _: model.vip()):
         with pytest.raises(NotFittedError):

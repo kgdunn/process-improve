@@ -360,7 +360,7 @@ class TPLS(RegressorMixin, BaseEstimator):
        ``t_scores_super``, ``spe``, ``hotellings_t2``, and the
        ``*_loadings_*`` family are written without the trailing ``_``
        to keep the chemometrics symbol names readable. Attributes
-       that are set in ``__init__`` or ``fit`` for the class's own
+       that are set in ``fit`` for the class's own
        bookkeeping (``is_fitted_``, ``preproc_``, ``required_blocks_``)
        do carry the underscore.
 
@@ -418,18 +418,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.tol = tol
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
-        self.is_fitted_ = False
-        self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
-        self.plot = Plot(self)
-
     def __sklearn_is_fitted__(self) -> bool:
         """Whether ``fit`` has completed, for :func:`~sklearn.utils.validation.check_is_fitted`.
 
-        ``__init__`` sets attributes that end in an underscore (``is_fitted_``,
-        ``required_blocks_``), so the check scikit-learn makes by default, that one exists,
-        passed on a model never fitted.
+        A fit that fails part way has set some attributes that end in an underscore, so the
+        check scikit-learn makes by default, that one exists, would pass on that model.
         """
-        return self.is_fitted_
+        return getattr(self, "is_fitted_", False)
+
+    @property
+    def plot(self) -> Plot:
+        """Score and loading plots of the fitted model: ``model.plot.scores()`` and ``model.plot.loadings()``."""
+        return Plot(self)
 
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
@@ -548,6 +548,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self._input_data_checks(X)
         # A fit that fails part way leaves the model unfitted, not the previous fit with some parts replaced.
         self.is_fitted_ = False
+        self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         group_keys = list(self.d_matrix)
         # What the fit used, which everything after it reads, so that set_params without a refit changes nothing.
         self.max_iter_ = settings["md_max_iter"]
@@ -863,7 +864,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
-        if not self.is_fitted_:
+        if not self.__sklearn_is_fitted__():
             raise RuntimeError("The model is not fitted yet. Please call `fit` first.")
 
         output = f"Hotelling's T2 limit [95% limit]: {self.hotellings_t2_limit():.4g}\n"
