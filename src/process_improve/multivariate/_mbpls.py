@@ -31,12 +31,14 @@ from ._common import (
     SpecificationWarning,
     _equal_weight_r2_total,
     _nz,
+    _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
     epsqrt,
     informative_widths,
     largest_ssq_column,
     resolve_loop_settings,
+    unobserved_columns,
     y_is_exhausted,
     y_reach,
 )
@@ -102,11 +104,6 @@ def _pooled_super_score(
     return numerator / np.where(denominator > 0, denominator, np.nan) * float(stacked_weights @ stacked_weights)
 
 
-def _rows_with_data(values: np.ndarray) -> np.ndarray:
-    """Report, for each row, whether it has at least one observed cell."""
-    return np.any(~np.isnan(values), axis=1)
-
-
 def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.DataFrame:
     """Check the shapes and types ``fit`` was handed, and return ``y`` as a DataFrame."""
     if not isinstance(X, dict) or len(X) == 0:
@@ -127,44 +124,6 @@ def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.D
     if y.shape[0] != n_samples:
         raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
     return y
-
-
-def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], y: pd.DataFrame, block_names: Sequence[str]) -> None:
-    """Refuse the missing-data patterns the masked NIPALS path cannot estimate from.
-
-    A column with nothing in it leaves the masked NIPALS denominator at zero for that
-    variable's loading, so it is refused. A *row* with nothing in one block is allowed: the
-    super score is estimated from the cells that row has in the other blocks, which is the
-    multiblock case of an observation missing one whole analysis. Only a row with nothing
-    observed in any block carries no information at all, and that one is refused.
-    """
-    for name in block_names:
-        values = X[name].values
-        col_all_nan = np.all(np.isnan(values), axis=0)
-        if np.any(col_all_nan):
-            bad = X[name].columns[col_all_nan].tolist()
-            raise ValueError(
-                f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
-            )
-    observed_anywhere = np.any([_rows_with_data(X[name].values) for name in block_names], axis=0)
-    if not np.all(observed_anywhere):
-        bad_rows = np.where(~observed_anywhere)[0].tolist()
-        raise ValueError(
-            f"Rows at positions {bad_rows} have all values missing in every X-block. "
-            "Drop these observations or impute them before fitting."
-        )
-    y_values = y.values
-    y_col_all_nan = np.all(np.isnan(y_values), axis=0)
-    if np.any(y_col_all_nan):
-        bad = y.columns[y_col_all_nan].tolist()
-        raise ValueError(f"Y has columns with all values missing: {bad}. Drop these targets before fitting.")
-    y_row_all_nan = np.all(np.isnan(y_values), axis=1)
-    if np.any(y_row_all_nan):
-        bad_rows = np.where(y_row_all_nan)[0].tolist()
-        raise ValueError(
-            f"Y has rows with all values missing at positions {bad_rows}. "
-            "Drop these observations or impute them before fitting."
-        )
 
 
 class _MBPLSLoopContext(typing.NamedTuple):
@@ -311,9 +270,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
         t_super = _pooled_super_score(
             x_def, _stacked_super_weights(local_w, w_s, context.sqrt_kb, context.block_names), context.block_names
         )
-        # A row observed only where the weights are zero has no score for this component: place it
-        # at the centre so the iteration stays finite. The guard in ``_reject_degenerate_missingness``
-        # has already refused a row with nothing observed anywhere.
+        # A row observed nowhere, or only where the weights are zero, has no score for this component:
+        # place it at the centre, with no weight in the regressions on t, as PCA and PLS fit an
+        # all-missing row (#1098).
         t_super = np.nan_to_num(t_super)
         if context.algo == "nipals":
             c_a = quick_regress(y_def, t_super[:, np.newaxis], per="column").flatten()
@@ -518,7 +477,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         incomplete row the pooled form lets every observed cell carry its share, wherever in the
         blocks it sits, instead of letting a block seen in one variable speak as loudly as a block
         seen in twenty. A row with nothing observed in one block is therefore still scored, from
-        the blocks it does have; only a row observed in no block at all is refused.
+        the blocks it does have. A row observed in no block at all has a super score of 0 and no
+        weight, as PCA and PLS fit an all-missing row; so does a row with no observed response
+        in the regressions of the blocks on Y (#1098).
 
     missing_data_settings : dict or None, default=None
         MBPLS reads no keys from it. The keys ``md_tol`` and ``md_max_iter``
@@ -552,8 +513,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     y_preproc_ : MCUVScaler
         Preprocessor used on Y.
     super_scores_ : pd.DataFrame, shape (n_samples, n_components)
-        Super-block (consensus) X-scores ``T``. Finite for every row that has at least one
-        observed cell, in any block.
+        Super-block (consensus) X-scores ``T``. Finite for every row, and 0 for a row with
+        nothing observed in any block.
     super_y_scores_ : pd.DataFrame, shape (n_samples, n_components)
         Super-block Y-scores ``U``.
     super_weights_ : pd.DataFrame, shape (n_blocks, n_components)
@@ -637,12 +598,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     through subtraction. This is the standard skip-NaN NIPALS update;
     see Walczak & Massart (2001) and Arteaga & Ferrer (2002).
 
-    The fit refuses to run if any X-block or Y has a column with all
-    entries missing, or a row with all entries missing for that
-    block; either case leaves the masked denominator at zero. Drop or
-    impute such rows or columns before fitting. Predict-time score
-    estimation for new observations with NaN (Trimmed Score Regression
-    / Projection to the Model Plane) is a separate follow-up.
+    A column of an X-block or of Y with nothing observed is left out of
+    the model, with a ``UserWarning`` that names it, as across the
+    family (#1098): its weights and loadings are 0, a value a new row has
+    in it adds nothing to that row's scores or SPE, and a response with no
+    observed value has NaN predictions.
 
     References
     ----------
@@ -706,6 +666,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
+        # A column with nothing observed is left out, with a warning, as across the family (#1098)
+        self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
+        self._unobserved_targets = unobserved_columns(y, "Y")
         algo = self._resolve_algorithm(X, y)
         # The resolved settings reach the loop. They used to be computed here and dropped,
         # so the caller's loop settings were validated and then ignored (#588).
@@ -715,8 +678,6 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             missing_data_settings=self.missing_data_settings,
             estimator_name="MBPLS",
         )
-        if algo == "nipals":
-            _reject_degenerate_missingness(X, y, self.block_names_)
 
         x_blocks_pp, y_pp = self._preprocess(X, y)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
@@ -833,10 +794,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_
         }
 
-        # In-sample predictions on the original Y scale, labelled with Y's columns by the scaler
-        y_hat = self.y_preproc_.inverse_transform(work.super_scores @ work.super_y_loadings.T)
-        y_hat.index = self._sample_index
-        self.predictions_ = y_hat
+        # In-sample predictions on the original Y scale
+        self.predictions_ = self._in_y_units(work.super_scores @ work.super_y_loadings.T, self._sample_index)
 
         # fit() has at least two rows: each block's MCUVScaler refuses fewer
         self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / (self.n_samples_ - 1)
@@ -973,7 +932,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             block = X[name]
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
-            x_pp = self.preproc_[name].transform(block).to_numpy()
+            x_pp = self._scaled_block(name, block)
             x_hat = super_scores @ self.block_loadings_[name].values.T
             residuals_sq = (x_pp - x_hat) ** 2
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
@@ -1004,7 +963,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if sample_index is None:
                 sample_index = block.index
-            x_def[name] = self.preproc_[name].transform(block).to_numpy()
+            x_def[name] = self._scaled_block(name, block)
 
         sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
@@ -1489,6 +1448,26 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             n_splits=n_splits,
         )
 
+    def _scaled_block(self, name: str, block: pd.DataFrame) -> np.ndarray:
+        """Centre and scale one block of new rows as the fit did.
+
+        A column the fit left out, having no observed value (#1098), is read as missing, as every
+        cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
+        nothing observed in the block unless it has a value in one of the block's other columns.
+        """
+        values = self.preproc_[name].transform(block).to_numpy()
+        # A model pickled before #1098 left no column out
+        return np.where(getattr(self, "_unobserved_columns", {}).get(name, False), np.nan, values)
+
+    def _in_y_units(self, scaled: np.ndarray, index: pd.Index) -> pd.DataFrame:
+        """Return predictions in the scaled space on Y's original scale, labelled with its columns.
+
+        A response with no observed value was left out of the fit (#1098), and has no prediction: NaN.
+        """
+        predictions = self.y_preproc_.inverse_transform(scaled)
+        predictions.index = index
+        return predictions.mask(np.broadcast_to(getattr(self, "_unobserved_targets", False), predictions.shape))
+
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):
             raise TypeError("X must be a dict[str, pd.DataFrame].")
@@ -1505,7 +1484,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
                 raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
-            x_def[name] = self.preproc_[name].transform(block).to_numpy()
+            x_def[name] = self._scaled_block(name, block)
             if sample_index is None:
                 sample_index = block.index
 
@@ -1546,10 +1525,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             name: pd.DataFrame(block_scores[name], index=sample_index, columns=component_names)
             for name in self.block_names_
         }
-        # Labelled with Y's columns by the scaler
-        predictions = self.y_preproc_.inverse_transform(super_scores @ self.super_y_loadings_.values.T)
         assert sample_index is not None  # block_names_ is non-empty, so it was set in the loop
-        predictions.index = sample_index
+        predictions = self._in_y_units(super_scores @ self.super_y_loadings_.values.T, sample_index)
 
         # Per-block SPE for new observations (residual after final deflation)
         block_spe = {
