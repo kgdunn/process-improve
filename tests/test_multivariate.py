@@ -2271,12 +2271,20 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
 
 
 def _multiblock_on_a_plane(estimator: type, flat: pd.DataFrame) -> MBPCA | MBPLS:
-    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d."""
+    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d.
+
+    MBPLS's y has a part no column reaches, so two components leave Y with nothing X can explain,
+    and the third is fitted along X. A y on the plane would be fitted exactly, and a third
+    component refused, as PLS refuses it (#1128).
+    """
     blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
     model = estimator(n_components=3)
     if estimator is MBPLS:
-        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
-            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
+        reached = np.linalg.qr(np.column_stack([np.ones(len(flat)), flat.to_numpy()]))[0]
+        unreached = np.random.default_rng(1).standard_normal(len(flat))
+        unreached -= reached @ (reached.T @ unreached)
+        with pytest.warns(SpecificationWarning, match="from component 3 on there is nothing left in Y"):
+            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"] + unreached}))
     return model.fit(blocks)
 
 
