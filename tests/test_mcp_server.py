@@ -1,6 +1,6 @@
 """Tests for the MCP server (``process_improve.mcp_server``).
 
-Covers two areas:
+Covers three areas:
 
 - ENG-30 (#312): the MCP dispatch path offloads blocking tool execution to a
   worker thread, so a slow tool call does not block other calls on the same
@@ -8,6 +8,8 @@ Covers two areas:
 - #506: the server must publish, for every registered tool, exactly the
   ``input_schema`` that ``get_tool_specs()`` reports; signature introspection
   of the generic ``(**kwargs)`` handler used to discard it entirely.
+- #1095: over stdio, what a tool writes to stdout must not reach the protocol
+  stream.
 
 The MCP optional dependency is only present with the ``[mcp]`` extra
 (``uv sync --dev --all-extras`` installs it), so these tests skip when it is
@@ -18,7 +20,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import subprocess
+import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -208,3 +214,102 @@ def test_main_runs_created_server(monkeypatch: pytest.MonkeyPatch) -> None:
     mcp_server.main()
 
     assert ran == [True]
+
+
+# ---------------------------------------------------------------------------
+# The stdio protocol stream (#1095)
+# ---------------------------------------------------------------------------
+
+# A server with one extra tool that writes to stdout as osqp and HiGHS do, straight to file
+# descriptor 1, and as a Python print does. It is a file, not ``-c``, so a spawned safe-mode
+# worker re-imports it and finds the tool.
+_NOISY_SERVER = """
+import os
+
+from pydantic import BaseModel, ConfigDict
+
+from process_improve import mcp_server
+from process_improve.tool_spec import tool_spec
+
+
+class _NoInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+@tool_spec(name="write_to_stdout", description="Write to stdout from C and from Python.", input_model=_NoInput)
+def write_to_stdout(spec: _NoInput) -> dict:
+    os.write(1, b"Polishing not needed - no active set detected at optimal point\\n")
+    print("printed from Python")
+    return {"ok": True}
+
+
+if __name__ == "__main__":
+    mcp_server.main()
+"""
+
+_REQUESTS = [
+    {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}},
+    },
+    {"jsonrpc": "2.0", "method": "notifications/initialized"},
+    {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "write_to_stdout", "arguments": {}}},
+]
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "safe_mode",
+    [
+        "0",
+        pytest.param(
+            "1",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="not checked: a Windows worker's standard handles are its own"
+            ),
+        ),
+    ],
+)
+def test_a_tool_writing_to_stdout_leaves_the_stdio_protocol_stream_valid(tmp_path: Path, safe_mode: str) -> None:
+    """Over stdio, every line on stdout is a JSON-RPC message, whatever a tool writes to file descriptor 1.
+
+    The MCP SDK's ``stdio_server`` points fd 1 at stderr while it serves and writes the protocol to a
+    private duplicate, so a tool's output lands on stderr, in-process or in a safe-mode worker.
+    """
+    script = tmp_path / "noisy_server.py"
+    script.write_text(_NOISY_SERVER, encoding="utf-8")
+    env = {**os.environ, "PROCESS_IMPROVE_MCP_SAFE_MODE": safe_mode, "PROCESS_IMPROVE_TOOL_TIMEOUT": "60"}
+    pipe = subprocess.PIPE
+
+    lines: list[bytes] = []
+    with subprocess.Popen([sys.executable, str(script)], stdin=pipe, stdout=pipe, stderr=pipe, env=env) as server:  # noqa: S603
+        watchdog = threading.Timer(180, server.kill)  # a hung server is killed, which ends the read below
+        watchdog.start()
+        try:
+            server.stdin.write("".join(json.dumps(request) + "\n" for request in _REQUESTS).encode())
+            server.stdin.flush()
+            # Keep stdin open until the call is answered: at the end of its input the server answers a
+            # call still in flight with "Connection closed".
+            for line in server.stdout:
+                lines.append(line)
+                if b'"id":2' in line.replace(b" ", b""):
+                    break
+            rest, stderr = server.communicate(timeout=60)
+        finally:
+            watchdog.cancel()
+    lines += rest.splitlines()
+
+    messages = []
+    for line in filter(bytes.strip, lines):
+        try:
+            messages.append(json.loads(line))
+        except ValueError:
+            pytest.fail(f"a line on the protocol stream is not JSON: {line!r}")
+    assert all(isinstance(message, dict) and message.get("jsonrpc") == "2.0" for message in messages), lines
+    answer = next(message for message in messages if message.get("id") == 2)
+    assert json.loads(answer["result"]["content"][0]["text"]) == {"ok": True}
+    assert b"Polishing not needed" in stderr
+    assert b"printed from Python" in stderr

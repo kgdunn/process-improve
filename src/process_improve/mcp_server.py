@@ -184,7 +184,15 @@ def create_server() -> MCPServer:
 
 
 def main() -> None:
-    """Entry point for the MCP server."""
+    """Entry point for the MCP server.
+
+    Over stdio, file descriptor 1 carries the JSON-RPC stream, and a native library such as osqp or
+    HiGHS writes to it directly, past any Python-level redirect. No guard is needed here: while it
+    serves, the SDK's ``stdio_server`` points fd 1 at stderr and writes the stream to a private
+    duplicate, so a tool's output reaches stderr, in-process or in a safe-mode worker (which inherits
+    fd 1). Handing ``stdio_server`` explicit streams would skip that. ``tests/test_mcp_server.py``
+    checks the stream (#1095).
+    """
     create_server().run()
 
 
