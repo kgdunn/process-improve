@@ -1326,9 +1326,9 @@ def analyze_experiment(  # noqa: PLR0913
 
         - ``"auto"`` (default): ``"coded"``, except for a Scheffe mixture model (a keyword,
           or a formula analysed as one), whose components are proportions, and a model with
-          an ``I()`` term that is not a product
-          of whole powers of the factors, such as ``I(x ** 0.5)``; these keep ``"actual"``,
-          and asking for another scale raises ``ValueError``. ``None`` means the same.
+          an ``I()`` term that is not a product of whole powers of the factors, such as
+          ``I(x ** 0.5)``; these keep ``"actual"``, and asking for another scale raises
+          ``ValueError``. ``None`` means the same.
           Before 2.0.0 the default was ``"actual"``; pass it to keep the factors' own scale.
         - ``"actual"``: the factors as given.
         - ``"coded"``: the model refitted with each numeric factor mapped from its minimum
