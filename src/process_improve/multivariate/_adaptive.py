@@ -428,8 +428,7 @@ class _AdaptiveModel(_LatentVariableModel):
         labelled = isinstance(X, pd.DataFrame)
         y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
         for pos, label in enumerate(labels):
-            y_row = None if y_rows is None else y_rows[pos]
-            self.update(rows[pos], y_row=y_row, label=label if labelled else None)
+            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label if labelled else None)
         return self
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
