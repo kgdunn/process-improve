@@ -1149,9 +1149,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             variable = str(self.predictions_.columns[0])
         if variable not in self.predictions_.columns:
             raise ValueError(f"Unknown Y-variable '{variable}'. Known: {list(self.predictions_.columns)}.")
-        observed = pd.Series(y_observed[variable].to_numpy())
+        observed = pd.Series(y_observed[variable].to_numpy(dtype=float))  # pd.NA as NaN
         predicted = pd.Series(self.predictions_[variable].to_numpy())
-        rmsee = float(np.sqrt(np.mean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
+        # Over the observed cells, as the fit is: a missing Y cell made the RMSEE NaN.
+        rmsee = float(np.sqrt(np.nanmean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
         lo = float(min(observed.min(), predicted.min()))
         hi = float(max(observed.max(), predicted.max()))
         pad = 0.05 * (hi - lo) if hi > lo else 1.0

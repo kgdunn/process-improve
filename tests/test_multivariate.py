@@ -7506,6 +7506,27 @@ def test_predictions_vs_observed_plot() -> None:
     assert "quality" in fig_q.layout.title.text
 
 
+def test_predictions_vs_observed_plot_leaves_out_a_missing_y_cell() -> None:
+    """The RMSE and the y = x line are over the observed cells, as PLS.rmse_ is; with NaN they were NaN (#1081)."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"X{i}" for i in range(6)])
+    Y = pd.DataFrame(X.values @ rng.standard_normal(6) + 0.3 * rng.standard_normal(50), columns=["y"])
+    Y_s = MCUVScaler().fit_transform(Y)
+    Y_s.iloc[4, 0] = np.nan
+    model = PLS(n_components=3).fit(MCUVScaler().fit_transform(X), Y_s)
+
+    fig = model.predictions_vs_observed_plot(y_observed=Y_s)
+    observed = Y_s["y"].drop(index=4).to_numpy()
+    predicted = model.predictions_["y"].drop(index=4).to_numpy()
+    rmse = np.sqrt(np.mean((observed - predicted) ** 2))
+    assert rmse == pytest.approx(model.rmse_.loc["y", 3], rel=1e-12)
+    assert fig.layout.annotations[0].text == f"RMSE = {rmse:.4g}"
+    line = next(trace for trace in fig.data if trace.name == "y = x")
+    low = min(observed.min(), model.predictions_["y"].min())
+    high = max(observed.max(), model.predictions_["y"].max())
+    np.testing.assert_allclose(line.x, [low - 0.05 * (high - low), high + 0.05 * (high - low)], rtol=1e-14)
+
+
 def test_coefficient_plot() -> None:
     """The coefficient plot shows one bar per X-variable, matching beta_coefficients_."""
     rng = np.random.default_rng(1)
