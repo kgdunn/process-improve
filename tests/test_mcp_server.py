@@ -277,11 +277,14 @@ def test_a_tool_writing_to_stdout_leaves_the_stdio_protocol_stream_valid(tmp_pat
     """Over stdio, every line on stdout is a JSON-RPC message, whatever a tool writes to file descriptor 1.
 
     The MCP SDK's ``stdio_server`` points fd 1 at stderr while it serves and writes the protocol to a
-    private duplicate, so a tool's output lands on stderr, in-process or in a safe-mode worker.
+    private duplicate, so a tool's output lands on stderr, in-process or in a safe-mode worker. A print
+    sits in Python's stdout buffer until the call ends flushes it. Without that flush it was written
+    at exit, after the SDK had pointed fd 1 back at the protocol stream, or was lost with the worker.
     """
     script = tmp_path / "noisy_server.py"
     script.write_text(_NOISY_SERVER, encoding="utf-8")
     env = {**os.environ, "PROCESS_IMPROVE_MCP_SAFE_MODE": safe_mode, "PROCESS_IMPROVE_TOOL_TIMEOUT": "60"}
+    env.pop("PYTHONUNBUFFERED", None)  # buffer stdout, as Python does over a pipe unless told otherwise
     pipe = subprocess.PIPE
 
     lines: list[bytes] = []
