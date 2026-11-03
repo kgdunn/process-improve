@@ -89,7 +89,6 @@ from ._preprocessing import MCUVScaler, _back_to_units, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
-    from ._pls import PLS
 
 # The public entry points are ``PLS.compare_cv_criteria`` / ``PLS.pseudo_validation_set``
 # and the module-level functions of the same names in ``_pls``. This module takes the
@@ -877,7 +876,7 @@ def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareS
 
 
 def _compare_cv_criteria(
-    estimator: type[PLS],
+    estimator: Callable[..., Any],
     X: DataMatrix,
     Y: DataMatrix | pd.Series,
     settings: _CompareSettings,
@@ -902,7 +901,7 @@ def _compare_cv_criteria(
 
     if int(settings.n_cv_permutations) > 0:
         shape = (int(settings.n_cv_permutations), A)
-        if estimator._null_by_kernel_pls:
+        if getattr(estimator, "_null_by_kernel_pls", True):
             observed, null = _score_correlation_null(X_df.to_numpy(), y_values, splits, shape, rng_null)
         else:  # the permutations drawn as _score_correlation_null draws them
             orders = [rng_null.permutation(len(y_values)) for _ in range(shape[0])]
