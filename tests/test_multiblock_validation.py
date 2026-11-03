@@ -308,7 +308,7 @@ def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_s
     assert getattr(model, bar_plot)(2).layout.title.text.endswith("component 2")
     if cls is MBPLS:
         pd.testing.assert_frame_equal(model.predict(blocks), result.predictions)
-        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, seed=0)
+        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, random_state=0)
         assert list(risk.index) == [1, 2]
 
 

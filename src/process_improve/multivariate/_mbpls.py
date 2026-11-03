@@ -18,12 +18,13 @@ from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator, RegressorMixin, _fit_context
+from sklearn.base import BaseEstimator, RegressorMixin, _fit_context, clone
 from sklearn.metrics import r2_score
 from sklearn.model_selection import BaseCrossValidator, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from .._random import check_random_state
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
@@ -1571,15 +1572,17 @@ def randomization_test_mbpls(
     y: pd.DataFrame,
     n_permutations: int = 200,
     *,
-    seed: int | None = None,
+    random_state: int | np.random.Generator | None = None,
+    **deprecated: int | None,
 ) -> pd.DataFrame:
     r"""Randomization (permutation) test for component significance in MBPLS.
 
     For each component ``a``, the null hypothesis is "there is no real
     relationship between X and Y at this component"; the test permutes the
-    rows of ``y``, refits a fresh MBPLS with the same number of components,
-    and recomputes the test statistic. The risk is the fraction of
-    permutations whose statistic equals or exceeds the original model's.
+    rows of ``y``, refits the model to them with its own settings (a clone of
+    ``model``, with as many components as it was fitted with), and recomputes
+    the test statistic. The risk is the fraction of permutations whose
+    statistic equals or exceeds the original model's.
 
     Statistic: per-component absolute correlation between the super X-score
     and the super Y-score, ``|t_super(:,a)' u_super(:,a)| / (||t|| * ||u||)``.
@@ -1592,9 +1595,13 @@ def randomization_test_mbpls(
         The same training data used to fit ``model``.
     n_permutations : int, default=200
         Number of Y-row permutations to evaluate.
-    seed : int or None, default=None
-        Seed for the permutation RNG (``None`` uses non-reproducible
-        randomness).
+    random_state : int, numpy.random.Generator or None, default=None
+        Draws the permutations. An int draws the same ones on every call, a
+        Generator draws from its own state, and ``None`` draws fresh ones.
+    **deprecated
+        Takes ``seed``, the old name of ``random_state``, deprecated since 2.4.0
+        and removed in 3.0. Passing it warns; passing both raises a
+        ``TypeError``, as does any other name.
 
     Returns
     -------
@@ -1624,8 +1631,24 @@ def randomization_test_mbpls(
     Chemometrics, 21 (2007), 427-439.
     """
     check_is_fitted(model, "super_scores_")
-    rng = np.random.default_rng(seed)
+    # seed is taken from **deprecated, not named in the signature, so that it adds no sixth argument (#307)
+    if "seed" in deprecated:
+        warnings.warn(
+            "process_improve.multivariate.methods.randomization_test_mbpls(seed=...) is deprecated since 2.4.0 "
+            "and will be removed in 3.0; use random_state instead.",
+            DeprecationWarning,
+            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+        )
+        if random_state is not None:
+            raise TypeError("Pass random_state only: seed is its deprecated name.")
+        random_state = deprecated.pop("seed")
+    if deprecated:
+        raise TypeError(f"randomization_test_mbpls() got an unexpected keyword argument {next(iter(deprecated))!r}")
+    rng = check_random_state(random_state)
     a_components = model.n_components_
+    # Every setting of the model under test (#1072), and n_components_, not the parameter, which
+    # set_params can have changed since the fit.
+    permuted_model = clone(model).set_params(n_components=a_components)
 
     def _objective(mod: MBPLS) -> np.ndarray:
         t = mod.super_scores_.values
@@ -1645,7 +1668,7 @@ def randomization_test_mbpls(
     # fit reads the blocks and Y by position, never aligning their row labels, so the
     # permuted rows of Y meet the blocks' rows as they stand.
     for _ in range(int(n_permutations)):
-        permuted_model = MBPLS(n_components=a_components).fit(X, y.iloc[rng.permutation(len(y))])
+        permuted_model.fit(X, y.iloc[rng.permutation(len(y))])
         n_exceed += _objective(permuted_model) >= observed
 
     component_names = list(range(1, a_components + 1))
