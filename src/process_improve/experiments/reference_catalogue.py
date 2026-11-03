@@ -100,6 +100,7 @@ from process_improve.experiments.three_level_components import interaction_compo
 from process_improve.experiments.trade_off import minimum_aberration_generators
 from process_improve.experiments.yates import reverse_yates, yates_table
 from process_improve.monitoring.metrics import calculate_cpk
+from process_improve.multivariate._fpca import FPCA
 from process_improve.regression._variance_components import fit_variance_components
 from process_improve.sensory.designed import tukey_hsd
 from process_improve.univariate.classical import (
@@ -3036,6 +3037,59 @@ def _run_radius(experiment: dict, check: dict) -> float:
     return float(_REDUCE[check.get("key", "max")](radii.tolist()))
 
 
+def _curve_points(experiment: dict, check: dict) -> str:
+    """Return the readings of the curve response ``check["response"]`` as JSON: each run's position, argument and value.
+
+    ``check["runs"]`` keeps the runs at these 1-based positions, every run when absent; a run keeps its
+    position, so a score check names it the same way. A curve whose runs share their points
+    (``argument.values``) and one whose runs carry their own (``argument.columns``) are read alike, a
+    point a run lacks left out. ``check["argument_scale"]`` multiplies the argument: 24 reads a time
+    printed as hours / 24 in hours, which changes the scores, as they are integrals over it.
+    """
+    curve = next(r["curve"] for r in experiment["responses"] if r["name"] == check["response"])
+    table = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])
+    table.index = pd.RangeIndex(1, len(table) + 1)
+    table = table.loc[check["runs"]] if check.get("runs") else table
+    argument = curve["argument"]
+    shared = "values" in argument
+    at = np.tile(argument["values"], (len(table), 1)) if shared else table[argument["columns"]].to_numpy(dtype=float)
+    points = pd.DataFrame(
+        {
+            "run": np.repeat(table.index.to_numpy(), len(curve["columns"])),
+            "at": (at * check.get("argument_scale", 1)).ravel(),
+            "value": table[curve["columns"]].to_numpy(dtype=float).ravel(),
+        }
+    ).dropna()
+    return json.dumps(points.to_dict("list"))
+
+
+@functools.cache
+def _functional_pca(points: str) -> FPCA:
+    """Return the library's FPCA of a curve response's runs, fitted once however many of its numbers are read."""
+    readings = pd.DataFrame(json.loads(points))
+    # pivot refuses two readings of one run at one point, an error in the entry that pivot_table would average
+    return FPCA().fit(readings.pivot(index="run", columns="at", values="value"))  # noqa: PD010
+
+
+def _fpc_variance_explained(experiment: dict, check: dict) -> float:
+    """Return the percent of a curve response's variance its first ``check["components"]`` (1) components explain.
+
+    The curve is read by :func:`_curve_points` and fitted by :class:`~process_improve.multivariate.FPCA`;
+    the share is cumulative, as a source's "fraction of variance explained" by *k* components is.
+    """
+    model = _functional_pca(_curve_points(experiment, check))
+    return 100 * float(model.explained_variance_ratio_.iloc[: check.get("components", 1)].sum())
+
+
+def _fpc_score(experiment: dict, check: dict) -> float:
+    """Return run ``check["run"]``'s score on functional principal component ``check["component"]`` (1).
+
+    The run is its 1-based position in the run table, and the curve is read by :func:`_curve_points`.
+    """
+    model = _functional_pca(_curve_points(experiment, check))
+    return float(model.scores_.loc[check["run"]].iloc[check.get("component", 1) - 1])
+
+
 def _run_order_trends(experiment: dict, check: dict) -> float:
     """Return a number of the library's measure of how far a run order's terms follow the time trends.
 
@@ -3436,6 +3490,8 @@ _VALUE_KINDS: dict[str, Callable[[dict, dict], float]] = {
     "run_count": _run_count,
     "run_radius": _run_radius,
     "run_order_trends": _run_order_trends,
+    "fpc_variance_explained": _fpc_variance_explained,
+    "fpc_score": _fpc_score,
     "classical_test": _classical_test,
     "t_test": _t_test,
     "tukey": _tukey,
@@ -3670,8 +3726,10 @@ def reproduce_reference_catalogue(source: str | None = None) -> pd.DataFrame:
     the centre, whether its blocks are orthogonal and whether its runs are fold-over pairs; several
     fitted responses are scored at a point by the library's desirability functions, and a mixture is
     fitted in pseudocomponents. A printed alias chain can be held to every alias up to an order, and
-    the effects confounded with a fraction's blocks are read as alias chains. A number without a
-    check is reported with the reason it is not recomputed.
+    the effects confounded with a fraction's blocks are read as alias chains. A response measured as
+    a curve is analysed by :class:`~process_improve.multivariate.FPCA`, for the share of variance its
+    components explain and each run's scores. A number without a check is reported with the reason
+    it is not recomputed.
 
     Parameters
     ----------
