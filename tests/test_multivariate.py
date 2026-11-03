@@ -10353,13 +10353,40 @@ def test_pls_constructor_keeps_its_defaults_and_declares_nan_and_several_targets
         "scale": True,
         "max_iter": 500,
         "tol": epsqrt,
-        "copy": True,
+        "copy": None,
         "warn_on_uncentred": True,
         "missing_data_settings": None,
     }
     tags = PLS(n_components=2).__sklearn_tags__()
     assert tags.input_tags.allow_nan is True
     assert tags.target_tags.multi_output is True
+
+
+class TestPLSCopyIsDeprecated:
+    """``copy`` never did anything: PLS reads X and Y without changing them, whatever it is set to (#1114)."""
+
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_passing_copy_warns_once_and_changes_nothing(self, copy: bool) -> None:
+        X, Y = _pls_block()
+        X_before, Y_before = X.copy(), Y.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = PLS(n_components=2, copy=copy).fit(X, Y)
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PLS.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: PLS never modifies the X or Y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name != "_pls.py"
+        pd.testing.assert_frame_equal(X, X_before)
+        pd.testing.assert_frame_equal(Y, Y_before)
+        pd.testing.assert_frame_equal(old.predict(X), PLS(n_components=2).fit(X, Y).predict(X))
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self) -> None:
+        X, Y = _pls_block()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(PLS(n_components=2)).fit(X, Y)
+        assert clone(PLS(n_components=2, copy=False)).get_params()["copy"] is False
 
 
 _UNCENTRED_HEAD = "PLS(scale=False) fits no intercept and centres nothing, but column(s) "

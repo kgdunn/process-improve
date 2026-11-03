@@ -9,6 +9,7 @@ pass just as well against plain PLS, so each case here contrasts the two.
 from __future__ import annotations
 
 import pathlib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -408,6 +409,31 @@ class TestPRMConvergenceReporting:
             old = PRM(n_components=2, weight_tol=1e-4).fit(*data)
         np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(*data).robust_weights_)
 
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_copy_is_deprecated_warns_once_and_has_no_effect(self, copy: bool) -> None:
+        """PRM passes copy to PLS, which never used it: one warning, from the caller, however many fits run (#1114)."""
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        X_before, y_before = X.copy(), y.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = PRM(n_components=2, copy=copy).fit(X, y)
+        assert old.n_weight_iter_ > 1
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PRM.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: PRM never modifies the X or Y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name not in {"_pls.py", "_prm.py"}
+        pd.testing.assert_frame_equal(X, X_before)
+        pd.testing.assert_frame_equal(y, y_before)
+        np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(X, y).robust_weights_)
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self) -> None:
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(PRM(n_components=2)).fit(X, y)
+        assert clone(PRM(n_components=2, copy=False)).get_params()["copy"] is False
+
 
 class TestPRMApi:
     def test_is_an_sklearn_regressor(self) -> None:
@@ -628,7 +654,7 @@ class TestPRMSettingsInFull:
             "scale": True,
             "max_iter": 1000,
             "tol": epsqrt,
-            "copy": True,
+            "copy": None,
             "missing_data_settings": None,
             "warn_on_uncentred": True,
         }

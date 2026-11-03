@@ -171,8 +171,11 @@ class PRM(PLS):
         where that is 0), computed once: columns in different units then count
         equally, as PLS's ``scale`` makes them. False is the paper's algorithm,
         which centres only.
-    max_iter, tol, copy, missing_data_settings
+    max_iter, tol, missing_data_settings
         As for :class:`~process_improve.multivariate.methods.PLS`.
+    copy : None
+        Deprecated since 2.4.0 and removed in 3.0; it has no effect. PRM never
+        modifies the X or Y it is given, so there is nothing to copy.
     warn_on_uncentred : bool, optional
         Accepted for :class:`~process_improve.multivariate.methods.PLS`'s
         signature; it has no effect, since PRM always centres.
@@ -226,7 +229,7 @@ class PRM(PLS):
         scale: bool = True,
         max_iter: int = 1000,
         tol: float = epsqrt,
-        copy: bool = True,
+        copy: bool | None = None,
         missing_data_settings: dict | None = None,
         warn_on_uncentred: bool = True,
     ):
@@ -269,6 +272,13 @@ class PRM(PLS):
                 "removed in 3.0; use coefficient_tol instead. weight_tol has no effect: PRM stops, as Serneels "
                 "et al. (2005) do, when the norm of its regression on the unit-length scores changes by less "
                 "than coefficient_tol.",
+                DeprecationWarning,
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
+        if self.copy is not None:
+            warnings.warn(
+                "process_improve.multivariate.methods.PRM.copy is deprecated since 2.4.0 and will be removed in "
+                "3.0; no replacement. copy has no effect: PRM never modifies the X or Y it is given, so leave it out.",
                 DeprecationWarning,
                 stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
             )
