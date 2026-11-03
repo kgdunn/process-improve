@@ -30,6 +30,7 @@ from ._common import (
     informative_widths,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
@@ -90,6 +91,7 @@ class _MBPCAComponent(typing.NamedTuple):
     block_loadings: dict[str, np.ndarray]
     block_scores: dict[str, np.ndarray]
     iterations: int
+    converged: bool
 
 
 def _seed_super_score(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) -> np.ndarray:
@@ -161,7 +163,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
         # invariant to a global rescaling of the data. The denominator is floored via ``_nz``
         # so an all-zero super-score cannot divide by zero.
         change = np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super)))
-        if change <= context.tol or itern >= context.max_iter:
+        # Converged means the last pass met the tolerance, even when it was the last pass allowed (#1080).
+        converged = bool(change <= context.tol)
+        if converged or itern >= context.max_iter:
             break
 
     component = _MBPCAComponent(
@@ -170,6 +174,7 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
         block_loadings=local_loadings,
         block_scores=local_scores,
         iterations=itern,
+        converged=converged,
     )
     return _apply_sign_convention(component, context)
 
@@ -223,6 +228,7 @@ class _MBPCAArrays:
     r2_x_var_cum: dict[str, np.ndarray]
     timing: np.ndarray
     iterations: np.ndarray
+    converged: np.ndarray
 
     @classmethod
     def allocate(cls, block_widths: dict[str, int], n_samples: int, n_components: int) -> _MBPCAArrays:
@@ -240,6 +246,7 @@ class _MBPCAArrays:
             r2_x_var_cum={name: values.copy() for name, values in per_variable.items()},
             timing=np.zeros(n_components),
             iterations=np.zeros(n_components, dtype=int),
+            converged=np.zeros(n_components, dtype=bool),
         )
 
     def record_component(self, a: int, component: _MBPCAComponent, context: _MBPCALoopContext) -> None:
@@ -258,6 +265,7 @@ class _MBPCAArrays:
             self.super_loadings[b_idx, a] = component.super_loadings[b_idx]
         self.super_scores[:, a] = component.super_scores
         self.iterations[a] = component.iterations
+        self.converged[a] = component.converged
 
     def record_explained_variation(
         self,
@@ -621,7 +629,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     def _report_convergence(self, work: _MBPCAArrays) -> None:
         """Record the per-component timing and iteration counts, and warn about any that did not converge."""
-        converged = work.iterations < self.max_iter
+        converged = work.converged
         self.fitting_info_ = {"timing": work.timing, "iterations": work.iterations, "converged": converged}
         logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, work.iterations.tolist())
         if np.all(converged):
@@ -631,7 +639,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             f"MBPCA NIPALS did not converge within max_iter={self.max_iter} for "
             f"component(s) {failed}; results for those components may be unreliable.",
             SpecificationWarning,
-            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            stacklevel=user_stacklevel(),
         )
 
     def _store_explained_variation(self, work: _MBPCAArrays) -> None:
