@@ -256,3 +256,27 @@ def test_a_categorical_factor_is_held_at_the_level_given():
 def test_a_target_search_that_cannot_run_is_refused(fitted, options, message):
     with pytest.raises(ValueError, match=message):
         fitted.match_target(_truth(0.0, 0.0), **options)
+
+
+def test_a_mixture_is_analysed_and_its_target_search_stays_a_blend():
+    """Three components that sum to one: the Scheffe model by default, and a search over blends only."""
+    simplex = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)]
+    simplex += [(2 / 3, 1 / 6, 1 / 6), (1 / 6, 2 / 3, 1 / 6), (1 / 6, 1 / 6, 2 / 3)]
+    design = pd.DataFrame(simplex * 2, columns=["x1", "x2", "x3"])
+
+    def blend(x1: float, x2: float, x3: float) -> np.ndarray:
+        return (1 + x1 + 2 * x2 + 3 * x3 + 2 * x1 * x2) * PLATEAU + (x1 - x3) * SLOPE
+
+    rng = np.random.default_rng(10)
+    curves = pd.DataFrame([blend(*row) + rng.normal(0, 0.02, T.size) for row in design.to_numpy()], columns=T)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = analyze_functional_experiment(design, curves)
+    assert fit.formula == "-1 + (x1 + x2 + x3) ** 2"
+    found = fit.match_target(blend(0.2, 0.3, 0.5), random_state=0)
+    assert found["settings"].sum() == pytest.approx(1.0, abs=1e-6)
+    # Both shapes' sizes depend only on 2 x1 + x2 and on x1 x2, so (0.15, 0.4, 0.45) reproduces this target as
+    # well as (0.2, 0.3, 0.5) does: the search is held to the curve, not to one blend.
+    assert found["distance"] < 0.02
+    held = fit.match_target(blend(0.2, 0.3, 0.5), bounds={"x1": 0.5}, random_state=0)
+    assert held["settings"].sum() == pytest.approx(1.0, abs=1e-6)

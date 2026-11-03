@@ -21,7 +21,14 @@ from scipy import optimize, stats
 from sklearn.base import clone
 
 from process_improve._random import check_random_state
-from process_improve.experiments.analysis import BLOCK_COL, _add_block_term, _references, analyze_experiment
+from process_improve.experiments.analysis import (
+    BLOCK_COL,
+    _add_block_term,
+    _looks_like_mixture,
+    _mixture_components,
+    _references,
+    analyze_experiment,
+)
 from process_improve.multivariate._fpca import FPCA  # the module, not the package: multivariate imports experiments
 
 #: Components are kept up to this fraction of the curves' variance.
@@ -220,7 +227,9 @@ class FunctionalFit:
         distance between their scores: the target is scored by the FPCA, and the search moves the predicted
         scores of the kept components towards it. The part of the target outside the kept components is out
         of reach of any setting, and is the floor of the distance. The search is a bounded quasi-Newton
-        search from ``n_starts`` random starts, of which the best is kept.
+        search from ``n_starts`` random starts, of which the best is kept; for mixture components it is held
+        to blends whose proportions sum to one. Different settings can reproduce one target equally well,
+        and the search returns one of them.
 
         Parameters
         ----------
@@ -263,9 +272,22 @@ class FunctionalFit:
 
         box = list(searched.values())
         starts = rng.uniform([low for low, _ in box], [high for _, high in box], size=(int(n_starts), len(box)))
-        best = min(
-            (optimize.minimize(distance, x0, bounds=box, method="L-BFGS-B") for x0 in starts), key=lambda r: r.fun
-        )
+        blend = self._blend(searched, held)
+        if blend is None:
+            best = min(
+                (optimize.minimize(distance, x0, bounds=box, method="L-BFGS-B") for x0 in starts), key=lambda r: r.fun
+            )
+        else:  # mixture components stay a blend: their proportions, with any held, sum to one
+            share, total = blend
+            starts[:, share] = rng.dirichlet(np.ones(len(share)), size=int(n_starts)) * total
+            constraint = {"type": "eq", "fun": lambda x: x[share].sum() - total}
+            best = min(
+                (
+                    optimize.minimize(distance, x0, bounds=box, method="SLSQP", constraints=[constraint])
+                    for x0 in starts
+                ),
+                key=lambda r: r.fun,
+            )
         settings = pd.Series({**held, **dict(zip(searched, best.x, strict=True))}, name="settings")
         curve = self.fpca.inverse_transform(_full_scores(self.fpca, position, scores_at(best.x))).iloc[0]
         gap = (curve.to_numpy() - np.asarray(target, dtype=float)) ** 2
@@ -277,6 +299,17 @@ class FunctionalFit:
             "scores": pd.Series(scores_at(best.x), index=names, name="scores"),
             "target_scores": pd.Series(goal, index=names, name="target_scores"),
         }
+
+    def _blend(self, searched: dict[str, tuple[float, float]], held: dict[str, Any]) -> tuple[list[int], float] | None:
+        """Return the positions of the searched mixture components and the share left to them, or None."""
+        settings = self._settings if self._settings is not None else pd.DataFrame()
+        factors = [*searched, *held]
+        components = factors if _looks_like_mixture(settings, factors) else _mixture_components(settings, factors)
+        if not components:
+            return None
+        names = list(searched)
+        share = [names.index(c) for c in components if c in searched]
+        return share, 1.0 - sum(float(held[c]) for c in components if c in held)
 
     def _search_space(
         self, bounds: Mapping[str, tuple[float, float] | float | str] | None
