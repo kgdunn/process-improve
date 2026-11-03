@@ -549,6 +549,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     #: reverse import would close a cycle (#375).
     _variance_block: typing.ClassVar[str] = "Y"
 
+    #: Whether kernel PLS, from a fold's X'X and X'Y, gives the model this class fits to the
+    #: fold. :meth:`compare_cv_criteria` then refits the folds of its score-correlation null
+    #: that way, with no call to ``fit``. It does not give PRM's reweighted fit, so PRM sets
+    #: this False and its null refits every fold with PRM (#1087). Read with ``getattr`` by
+    #: ``_cv_criteria``, which takes the class and does not import ``PLS``.
+    _null_by_kernel_pls: typing.ClassVar[bool] = True
+
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
     # into the documented public DataFrames at the end of fit().
     y_scores_: np.ndarray | pd.DataFrame
@@ -2169,7 +2176,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_cv_permutations : int, default=199
             Permutations of the rows of Y used to calibrate the held-out score correlation
             of each component. Each one repeats the cross-validation with kernel PLS refits from the
-            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
+            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). For
+            :class:`~process_improve.multivariate.methods.PRM`, each fold is refitted by PRM
+            itself, so that the correlation and its null come from the same estimator. That is
+            one PRM fit per fold per permutation, about a hundred times slower: a minute or two
+            rather than a second for 40 rows, 7 folds and 3 components. With ``0``
             the normal approximation
             :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
             because fold models share rows and a strong low-rank X widens the null

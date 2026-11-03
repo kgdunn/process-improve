@@ -23,6 +23,7 @@ its ``sample_weight``.
 
 from __future__ import annotations
 
+import typing
 import warnings
 from collections.abc import Callable
 
@@ -208,6 +209,9 @@ class PRM(PLS):
     >>> model.outlier_summary(threshold=0.1)                   # doctest: +SKIP
     >>> model.predict(X_new)                                   # doctest: +SKIP
     """
+
+    #: Kernel PLS does not give the reweighted fit, so compare_cv_criteria refits its null with PRM.
+    _null_by_kernel_pls: typing.ClassVar[bool] = False
 
     def __init__(  # noqa: PLR0913 - mirrors PLS's constructor plus four loop controls
         self,

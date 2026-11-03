@@ -69,6 +69,7 @@ import typing
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Literal
 
 import numpy as np
@@ -407,7 +408,9 @@ def _score_correlation_null(
     ``X'X``, which a permutation of Y leaves unchanged, and the new ``X'Y``; for
     complete data the kernel algorithm gives the NIPALS model. The observed statistic
     is computed by the same pipeline on the unpermuted Y, so that the two are compared
-    like with like. For complete data it equals the NIPALS ``r_cv``.
+    like with like. For complete data it equals the NIPALS ``r_cv``. This is the null of
+    PLS; PRM's fit is not kernel PLS, and :func:`_refitted_score_correlation_null` refits
+    its folds with PRM instead.
 
     A missing training cell is set to zero after autoscaling (the fold mean), in X and in
     Y, so it adds nothing to a cross-product. Held-out rows are scored from their
@@ -467,6 +470,34 @@ def _score_correlation_null(
 
     null = np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
     return _heldout_correlations(y_values), null
+
+
+def _refitted_score_correlation_null(
+    make_model: ModelFactory,
+    X: pd.DataFrame,
+    Y: pd.DataFrame,
+    splits: list[tuple[np.ndarray, np.ndarray]],
+    orders: list[np.ndarray],
+) -> np.ndarray:
+    """Held-out t-u correlation of every component with the rows of Y permuted, each fold refitted by ``make_model``.
+
+    The null for an estimator whose fit kernel PLS does not give, such as PRM (#1087).
+    Each permutation repeats :func:`_fit_folds` and :func:`_heldout_pass`, which give
+    the observed ``r_cv``, so the statistic and its null come from the same estimator.
+    It costs one fit per fold per permutation, where :func:`_score_correlation_null`
+    costs none. ``orders`` holds the row order of Y for each permutation.
+
+    Returns
+    -------
+    null : np.ndarray of shape (n_permutations, n_components)
+        For each permutation, the held-out correlation of every component.
+    """
+    null = []
+    for order in orders:
+        permuted = Y.iloc[order].set_axis(Y.index)
+        folds = _fit_folds(make_model, X, permuted, splits)
+        null.append(_heldout_pass(folds, permuted.to_numpy(), folds[0].weights.shape[1]).r_cv)
+    return np.array(null)
 
 
 def _permutation_summary(null: np.ndarray, observed: np.ndarray, alpha: float) -> tuple[np.ndarray, np.ndarray]:
@@ -855,16 +886,20 @@ def _compare_cv_criteria(
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     rng_vdv, rng_perm, rng_null = rng.spawn(3)
     A = _component_cap(splits, X_df.shape[1], settings.max_components)
-    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits)
-    model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
+    make_model = partial(estimator, n_components=A, **pls_kwargs)
+    folds = _fit_folds(make_model, X_df, Y_df, splits)
+    model = make_model().fit(X_df, Y_df)
     y_values = Y_df.to_numpy()
     held = _heldout_pass(folds, y_values, A)
     predictive = _predictive_criteria(held, y_values, settings, rng_vdv)
 
     if int(settings.n_cv_permutations) > 0:
-        observed, null = _score_correlation_null(
-            X_df.to_numpy(), y_values, splits, (int(settings.n_cv_permutations), A), rng_null
-        )
+        shape = (int(settings.n_cv_permutations), A)
+        if getattr(estimator, "_null_by_kernel_pls", False):
+            observed, null = _score_correlation_null(X_df.to_numpy(), y_values, splits, shape, rng_null)
+        else:  # the permutations drawn as _score_correlation_null draws them
+            orders = [rng_null.permutation(len(y_values)) for _ in range(shape[0])]
+            observed, null = held.r_cv, _refitted_score_correlation_null(make_model, X_df, Y_df, splits, orders)
         r_cv_p, r_cv_threshold = _permutation_summary(null, observed, settings.alpha)
     else:
         n_with_y = int((~np.isnan(y_values).all(axis=1)).sum())

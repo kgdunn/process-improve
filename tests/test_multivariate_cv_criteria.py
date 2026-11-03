@@ -518,6 +518,29 @@ def test_prm_pseudo_validation_set_reproduces_scores_and_spe(scope: str) -> None
             np.testing.assert_allclose(pv.local_spe.iloc[test].to_numpy(), spe, atol=1e-10)
 
 
+@pytest.mark.slow
+def test_prm_score_correlation_null_refits_every_fold_with_prm() -> None:
+    """PRM's held-out t-u correlation is tested against a null of PRM's own (#1087).
+
+    Each permutation of Y's rows gives the ``r_cv`` that PRM's cross-validation reports for the
+    permuted Y. The null refitted the folds by kernel PLS, and took its observed correlation
+    from the same PLS pipeline, so the p-value and threshold were PLS's, not those of the
+    ``r_cv`` beside them.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(5, shuffle=True, random_state=0), "n_permutations": 9}
+    result = PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=4, **settings).table
+
+    def r_cv(y: pd.DataFrame) -> np.ndarray:
+        return PRM.compare_cv_criteria(X, y, n_cv_permutations=0, **settings).table["r_cv"].to_numpy()
+
+    rng_null = np.random.default_rng(0).spawn(3)[2]  # the stream the null is drawn from
+    null = np.array([r_cv(Y.iloc[rng_null.permutation(40)].set_axis(Y.index)) for _ in range(4)])
+    observed = result["r_cv"].to_numpy()
+    np.testing.assert_allclose(result["r_cv_threshold"], null.max(axis=0), rtol=1e-12)
+    np.testing.assert_allclose(result["r_cv_p"], (np.sum(null >= observed, axis=0) + 1) / 5, rtol=1e-12)
+
+
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
