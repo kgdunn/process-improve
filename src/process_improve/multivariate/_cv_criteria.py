@@ -81,7 +81,7 @@ from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
-from ._common import _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
+from ._common import SpecificationWarning, _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
 from ._nipals import _kernel_pls, _sign_align
@@ -487,16 +487,21 @@ def _refitted_score_correlation_null(
     It costs one fit per fold per permutation, where :func:`_score_correlation_null`
     costs none. ``orders`` holds the row order of Y for each permutation.
 
+    The fits' specification warnings are not passed on: they are about a permuted Y
+    (on LDPE, NIPALS components that reach ``max_iter``), not about the data.
+
     Returns
     -------
     null : np.ndarray of shape (n_permutations, n_components)
         For each permutation, the held-out correlation of every component.
     """
     null = []
-    for order in orders:
-        permuted = Y.iloc[order].set_axis(Y.index)
-        folds = _fit_folds(make_model, X, permuted, splits)
-        null.append(_heldout_pass(folds, permuted.to_numpy(), folds[0].weights.shape[1]).r_cv)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SpecificationWarning)
+        for order in orders:
+            permuted = Y.iloc[order].set_axis(Y.index)
+            folds = _fit_folds(make_model, X, permuted, splits)
+            null.append(_heldout_pass(folds, permuted.to_numpy(), folds[0].weights.shape[1]).r_cv)
     return np.array(null)
 
 

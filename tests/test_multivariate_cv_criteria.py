@@ -541,6 +541,26 @@ def test_prm_score_correlation_null_refits_every_fold_with_prm() -> None:
     np.testing.assert_allclose(result["r_cv_p"], (np.sum(null >= observed, axis=0) + 1) / 5, rtol=1e-12)
 
 
+def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
+    """A warning from a fit to a permuted Y says nothing about the data, so it is not passed on (#1087).
+
+    With ``max_iter=1`` every NIPALS component warns that it stopped at the limit. The fits to the
+    data still say so; the null's fits add nothing. On LDPE at the defaults they gave nine warnings.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(3, shuffle=True, random_state=0), "n_permutations": 9, "max_iter": 1}
+
+    def caught(n_cv_permutations: int) -> list[str]:
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=n_cv_permutations, **settings)
+        return [str(warning.message) for warning in record]
+
+    from_the_data = caught(0)
+    assert any("reached the maximum number of iterations" in message for message in from_the_data)
+    assert caught(2) == from_the_data
+
+
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
