@@ -421,6 +421,22 @@ class TestContrastLevels:
     def test_a_level_patsy_can_read_passes(self, formula: str) -> None:
         validate_contrast_levels(formula, _BLOCKED)
 
+    def test_an_integer_whose_position_is_the_label_spelled_the_same_passes(self) -> None:
+        labels = _BLOCKED.assign(Block=(_BLOCKED.Block - 1).astype(str))  # '0' and '1': position 1 is '1'
+        validate_contrast_levels("y ~ C(Block, Treatment(1))", labels)
+
+    def test_an_integer_patsy_would_read_as_another_labels_position_is_refused(self) -> None:
+        # #1094: of the labels '1' and '2', patsy reads Treatment(1) as the position of '2'.
+        message = (
+            "C(Block, Treatment(1)) asks for the level 1, which column 'Block' does not have: its levels are "
+            "['1', '2']; patsy would read 1 as a position, the level '2'. Write the level as the column holds it, "
+            "as in C(Block, Treatment('1'))."
+        )
+        with pytest.raises(ValueError, match=re.escape(message)):
+            validate_contrast_levels("y ~ C(Block, Treatment(1))", _BLOCKED.astype({"Block": str}))
+        with pytest.raises(ValueError, match=re.escape(message)):
+            evaluate_design(_BLOCKED[["A", "Block"]], "A + C(Block, Treatment(1))")
+
     @pytest.mark.parametrize(
         ("formula", "message"),
         [

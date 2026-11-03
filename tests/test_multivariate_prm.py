@@ -9,6 +9,7 @@ pass just as well against plain PLS, so each case here contrasts the two.
 from __future__ import annotations
 
 import pathlib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -408,6 +409,31 @@ class TestPRMConvergenceReporting:
             old = PRM(n_components=2, weight_tol=1e-4).fit(*data)
         np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(*data).robust_weights_)
 
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_copy_is_deprecated_warns_once_and_has_no_effect(self, copy: bool) -> None:
+        """PRM passes copy to PLS, which never used it: one warning, from the caller, however many fits run (#1114)."""
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        X_before, y_before = X.copy(), y.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = PRM(n_components=2, copy=copy).fit(X, y)
+        assert old.n_weight_iter_ > 1
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PRM.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: PRM never modifies the X or Y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name not in {"_pls.py", "_prm.py"}
+        pd.testing.assert_frame_equal(X, X_before)
+        pd.testing.assert_frame_equal(y, y_before)
+        np.testing.assert_array_equal(old.robust_weights_, PRM(n_components=2).fit(X, y).robust_weights_)
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self) -> None:
+        X, y = _dataset(seed=0, n_bad=N_BAD)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(PRM(n_components=2)).fit(X, y)
+        assert clone(PRM(n_components=2, copy=False)).get_params()["copy"] is False
+
 
 class TestPRMApi:
     def test_is_an_sklearn_regressor(self) -> None:
@@ -531,13 +557,15 @@ class TestRobustScalingByHand:
         np.testing.assert_allclose(scaler.center_, [3.0, 0.0], rtol=1e-15)
         np.testing.assert_allclose(scaler.scale_, [1.5 * 1.4826, 1.0], rtol=1e-15)
 
-    def test_a_spread_of_exactly_epsqrt_counts_as_none(self) -> None:
-        """Deviations of v = epsqrt / 1.4826 scale to exactly epsqrt, which is not above it, so the spread is 1."""
-        v = epsqrt / 1.4826
-        assert v * 1.4826 == epsqrt
-        block = pd.DataFrame({"tiny": [-v, -v, 0.0, v, v]})
+    def test_a_spread_in_small_units_is_still_a_spread(self) -> None:
+        """A median absolute deviation of 1e-12 is a column in small units, not a column without spread (#1070).
+
+        Only an exact 0 counts as none. A spread up to 1.5e-8 was read as none, so the column was
+        left in its own units beside autoscaled ones, and dropped out of the model.
+        """
+        block = pd.DataFrame({"small": [-1e-12, -1e-12, 0.0, 1e-12, 1e-12]})
         scaler = _robust_scaler(block, np.ones(5, dtype=bool), scale=True, centre=_column_medians)
-        np.testing.assert_array_equal(scaler.scale_, [1.0])
+        np.testing.assert_allclose(scaler.scale_, [1e-12 * 1.4826], rtol=1e-15)
 
     def test_x_is_centred_at_the_l1_median_in_scaled_units(self) -> None:
         rng = np.random.default_rng(3)
@@ -586,6 +614,26 @@ class TestPRMScaling:
         np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-9)
         np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-9)
 
+    def test_a_change_to_small_units_changes_nothing(self) -> None:
+        """An X column, and Y, in units 1e9 times smaller give the same predictions and weights (#1070).
+
+        The column of X counted as having no spread, and dropped out: the predictions moved by 2.4,
+        where y's standard deviation is 2.0. Y in small units counted as having no spread too, and the
+        fit stopped with no variance left in Y. Scaled, its residuals were still read in Y's units, where
+        the floor on their median held the three planted rows at weights of 0.6 to 0.8, not 0.002.
+        """
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
+        y = pd.DataFrame({"y": X.to_numpy() @ [1.0, -0.5, 0.3, 0.0] + rng.normal(0, 0.1, 30)})
+        y.iloc[:3] += 5.0
+        small = X.assign(a=X["a"] * 1e-9)
+        model = PRM(n_components=2).fit(X, y)
+        for X_in, y_in, factor in ((small, y, 1.0), (X, y * 1e-9, 1e-9)):
+            other = PRM(n_components=2).fit(X_in, y_in)
+            np.testing.assert_allclose(other.predict(X_in).to_numpy() / factor, model.predict(X).to_numpy(), atol=1e-12)
+            np.testing.assert_allclose(other.robust_weights_, model.robust_weights_, atol=1e-12)
+        assert model.robust_weights_[:3].max() < 0.1
+
     def test_the_intercept_of_each_target_is_its_median_residual(self) -> None:
         X, y = _dataset(seed=0, n_bad=N_BAD)
         Y = pd.DataFrame({"a": y["y"], "b": -2.0 * y["y"] + 7.0})
@@ -606,7 +654,7 @@ class TestPRMSettingsInFull:
             "scale": True,
             "max_iter": 1000,
             "tol": epsqrt,
-            "copy": True,
+            "copy": None,
             "missing_data_settings": None,
             "warn_on_uncentred": True,
         }
@@ -681,14 +729,33 @@ class TestPRMLoopInFull:
         model = PRM(n_components=2, max_weight_iter=1).fit(*_dataset(seed=0, n_bad=N_BAD))
         assert model.weights_converged_ is False
 
-    def test_a_weight_that_underflows_to_zero_is_floored(self) -> None:
-        """A row 1e100 out in X and in y: two Fair weights near (4 / 1e100)^2 multiply to 0, which becomes 1e-6."""
+    def test_a_weight_that_underflows_to_zero_stays_zero(self) -> None:
+        """A row 1e100 out in X and in y: two Fair weights near (4 / 1e100)^2 multiply to 0, which stays 0 (#1087)."""
         X, y = _dataset(seed=0)
         X.iloc[5] = 1e100 * np.sign(X.iloc[0].to_numpy())
         y.iloc[5, 0] = -1e100
         weights = PRM(n_components=2, max_weight_iter=1).fit(X, y).robust_weights_
-        assert weights[5] == 1e-6
+        assert weights[5] == 0.0
         assert (weights[np.arange(N_SAMPLES) != 5] > 0.01).all()
+
+    def test_a_far_outlier_does_not_lead_the_fit(self) -> None:
+        """The same row, through the whole loop: the fit is the one the other rows give (#1087).
+
+        Floored at 1e-6, as chemometrics floors it, the row entered the second fit at 1e97 times the
+        size of the others and led it: 100 iterations without converging, and predictions of the
+        other rows 6.4 away from the model fitted without it, where y's standard deviation is 2.0.
+        The robust centre and spreads still count the row, so the two fits differ by 0.04.
+        """
+        X, y = _dataset(seed=0)
+        X.iloc[5] = 1e100 * np.sign(X.iloc[0].to_numpy())
+        y.iloc[5, 0] = -1e100
+        model = PRM(n_components=2).fit(X, y)
+        others = np.arange(N_SAMPLES) != 5
+        without = PRM(n_components=2).fit(X[others], y[others])
+        assert model.weights_converged_
+        assert model.robust_weights_[5] == 0.0
+        shift = np.abs(model.predict(X[others]).to_numpy() - without.predict(X[others]).to_numpy())
+        assert shift.max() < 0.1
 
 
 class TestOutlierSummaryInFull:

@@ -37,6 +37,7 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import dmatrix
 
+from process_improve.experiments._analyses.mixture import spans_constant
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
     SCHEFFE_MODELS,
@@ -221,6 +222,9 @@ def _run_model_selection(
     else:
         formula = f"{response_col} ~ {' + '.join(names)}" if names else f"{response_col} ~ 1"
     fit = smf.ols(formula, data=data).fit()
+    if not fit.k_constant and spans_constant(fit):
+        # As analyze_experiment does: statsmodels misses the constant of blends rounded for printing.
+        fit = smf.ols(formula, data=data, hasconst=True).fit()
     result: dict[str, Any] = {
         "selected_formula": formula,
         "selected_terms": [*factor_cols, *names] if mixture else names,

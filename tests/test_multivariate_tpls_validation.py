@@ -60,19 +60,22 @@ def _score_given_y(model: TPLS, data: object, y: object) -> object:
 
 
 @pytest.mark.parametrize(
-    ("arguments", "error", "message"),
+    ("d_matrix", "message"),
     [
-        ({"n_components": 0}, ValueError, r"^n_components must be positive; got 0\.$"),
-        ({"d_matrix": [pd.DataFrame()]}, TypeError, r"^d_matrix must be a dict of DataFrames; got list\.$"),
-        ({"d_matrix": {"G": np.eye(2)}}, TypeError, r"^d_matrix must contain pandas DataFrames as values\.$"),
-        ({"max_iter": 0}, ValueError, r"^max_iter must be positive; got 0\.$"),
+        (None, r"^d_matrix must be a dict of DataFrames; got NoneType\.$"),
+        ({"G": np.eye(2)}, r"^d_matrix must contain pandas DataFrames as values\.$"),
     ],
-    ids=["no-components", "d-matrix-not-a-dict", "d-matrix-holds-an-array", "no-iterations"],
+    ids=["d-matrix-not-a-dict", "d-matrix-holds-an-array"],
 )
-def test_the_constructor_refuses_an_invalid_argument(arguments: dict, error: type[Exception], message: str) -> None:
-    """Each argument is checked when the model is built, before any data is seen."""
-    with pytest.raises(error, match=message):
-        TPLS(**{"n_components": 2, "d_matrix": _synthetic()[0], **arguments})
+def test_fit_refuses_an_invalid_d_matrix(d_matrix: object, message: str) -> None:
+    """``fit`` checks ``d_matrix``, which the constructor stores unchecked, as sklearn requires (#1071).
+
+    The range checks on ``n_components``, ``max_iter`` and ``tol`` are tested across the family in
+    ``test_sklearn_compat.py``.
+    """
+    model = TPLS(n_components=2, d_matrix=d_matrix)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match=message):
+        _fit(model, DataFrameDict(_synthetic()[1]))
 
 
 @pytest.mark.parametrize(

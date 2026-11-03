@@ -265,7 +265,7 @@ def _has_omars_structure(matrix: np.ndarray) -> bool:
     return all(_orthogonality(coded, _full_second_order(coded, _quadratic_columns(coded))).values())
 
 
-def _heredity_candidates(  # noqa: PLR0913
+def _heredity_candidates(
     coded: np.ndarray,
     names: list[str],
     quad_cols: list[int],
@@ -314,7 +314,7 @@ def _heredity_candidates(  # noqa: PLR0913
     return candidate, labels
 
 
-def _subset_limit(  # noqa: PLR0913
+def _subset_limit(
     n_runs: int,
     n_factors: int,
     full_so_rank: int,

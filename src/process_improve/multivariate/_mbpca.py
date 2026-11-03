@@ -26,6 +26,7 @@ from ._common import (
     _nz,
     _rows_with_data,
     _scale_block_contributions,
+    check_at_least_one,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
@@ -489,10 +490,6 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
-        if n_components <= 0:
-            raise ValueError(f"n_components must be positive; got {n_components}.")
-        if max_iter <= 0:
-            raise ValueError(f"max_iter must be positive; got {max_iter}.")
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
@@ -511,6 +508,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         y : None
             Ignored; accepted so the transformer plugs into a sklearn Pipeline.
         """
+        check_at_least_one("n_components", self.n_components)
         _validate_blocks(X)
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)

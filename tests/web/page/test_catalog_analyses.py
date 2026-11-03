@@ -53,7 +53,7 @@ def _campaign(build_script: Any, record: dict) -> dict | None:  # noqa: ANN401 -
         return campaign or build_script.given_campaign(record)[0]
 
 
-def _printed(api: Any, build_script: Any, node: str, entry: dict, record: dict, campaign: dict) -> list[str]:  # noqa: ANN401, PLR0913
+def _printed(api: Any, build_script: Any, node: str, entry: dict, record: dict, campaign: dict) -> list[str]:  # noqa: ANN401
     """Read each printed number the page shows for a study as Learn reads it, and hold it to the library's."""
     design = campaign["design"]
     held = {key: design[key] for key in ("spec", "columns", "rows")}

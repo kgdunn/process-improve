@@ -74,7 +74,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
-from ._common import DataMatrix, epsqrt
+from ._common import DataMatrix, check_at_least_one, epsqrt
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -695,6 +695,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         -------
         self : AdaptivePCA
         """
+        check_at_least_one("n_components", self.n_components)
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         self._feature_names = X_df.columns
         N, K = X_df.shape

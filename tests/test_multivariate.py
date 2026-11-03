@@ -2239,7 +2239,9 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     about 1e-10, is below epsqrt, which T² reads as no spread while every sd is below 1, so fit()
     leaves it out of T². A row off the plane scores on it all the same. Its T² is
     ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution from its
-    scores, which diagnose gives ``x_new`` too.
+    scores, which diagnose gives ``x_new`` too. The third component is fitted after Y is exhausted,
+    so it has no Y-loading (#1074) and lies in invert's null space: the solution is moved along it,
+    to give it a third score.
     """
     flat, new = _rows_on_a_plane(units=1e-3)
     noise = 1e-10 * np.random.default_rng(2).standard_normal((30, 4))
@@ -2261,7 +2263,8 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     np.testing.assert_allclose(pls.diagnose(flat).hotellings_t2, training, rtol=1e-8)
     np.testing.assert_allclose(pls.project(flat).hotellings_t2, training, rtol=1e-8)
 
-    inverted = pls.invert(y_desired=1.0)
+    along_third = 1e4 * pls.invert(y_desired=1.0).null_space_basis.to_numpy()[2]
+    inverted = pls.invert(y_desired=1.0, null_space_coordinates=along_third)
     tau = inverted.scores.to_numpy()
     assert (tau[2] / s[2]) ** 2 > 100.0  # what the third component added
     assert inverted.hotellings_t2 == pytest.approx(np.sum(tau[:2] ** 2 / s[:2] ** 2), rel=1e-12, abs=1e-30)
@@ -8026,6 +8029,57 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     assert ratio.attrs["response"] == "y"
 
 
+def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
+    """A missing cell is skipped, as NIPALS skips it, rather than making every ratio NaN and then 0 (#1114).
+
+    Row r4 of the by-hand case loses its b value. Its score is regressed on the observed part of
+    ``w = (0.6, 0.8)``: ``2 * 0.6 / 0.36 = 10/3``, so ``t't = 74/25 + 100/9 = 3166/225``. Column a,
+    observed throughout, has ``t'x_a = 26/3`` and the loading ``975/1583``; column b is regressed on
+    the scores of r1 to r3 alone, ``(11/5) / (74/25) = 55/74``. Each sum of squares runs over the
+    feature's observed cells: a's explained part is ``(26/3)^2 / (3166/225) = 8450/1583`` of 6 and b's
+    ``(11/5)^2 / (74/25) = 121/74`` of 2, so the ratios are 4225/524 and 121/27.
+    """
+    model = _two_feature_tp_model([3.0, 4.0])
+    gap = _TP_X.copy()
+    gap.loc["r4", "b"] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        tp = target_projection(model, gap)
+        ratio = selectivity_ratio(model, gap)
+    np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.8, -1.4, 10 / 3], rtol=1e-14)
+    np.testing.assert_allclose(tp.loadings.to_numpy(), [975 / 1583, 55 / 74], rtol=1e-14)
+    np.testing.assert_allclose(ratio.to_numpy(), [4225 / 524, 121 / 27], rtol=1e-13)
+
+
+def test_selectivity_ratio_of_a_pls_fitted_with_missing_values_is_not_0() -> None:
+    """A PLS fitted to X with gaps ranked every feature at 0, quietly; the driver now leads (#1114).
+
+    A row with nothing observed scores 0 and adds nothing, as in the fit, so the ratios are those of
+    X without it. A feature with nothing observed has no sum of squares: its ratio is 0, as for a
+    constant feature.
+    """
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((40, 4)), columns=["driver", "b", "c", "d"])
+    y = pd.DataFrame({"y": 2.0 * X["driver"] + 0.1 * rng.standard_normal(40)})
+    gaps = X.copy()
+    for row, column in [(2, "b"), (9, "c"), (17, "d"), (25, "b")]:
+        gaps.loc[row, column] = np.nan
+    model = PLS(n_components=2).fit(gaps, y)
+    blanked = gaps.assign(c=np.nan)
+    blanked.loc[5] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        ratio = model.selectivity_ratio(gaps)
+        blank = model.selectivity_ratio(blanked)
+    assert (ratio > 0).all()
+    assert ratio.idxmax() == "driver"
+    assert ratio.drop("driver").max() < 1.0
+
+    without = model.selectivity_ratio(blanked.drop(index=5))
+    assert blank["c"] == 0.0
+    np.testing.assert_allclose(blank.to_numpy(), without.to_numpy(), rtol=1e-12)
+
+
 def test_target_projection_reads_object_data_as_numbers() -> None:
     """X held as Python objects gives the float results, with no scaler to convert it first."""
     model = _two_feature_tp_model([3.0, 4.0])
@@ -8712,9 +8766,10 @@ class TestTplsToleranceParameter:
         The loop tested its tolerance before its first pass, against a previous u primed as
         u + 1, whose relative change is about 0.7 for a centred and scaled Y column. With a
         tol above that the loop never began, and the fit raised UnboundLocalError for want of
-        a score. A tol of 10 now stops after one pass, which is what max_iter=1 fits.
+        a score. A tol of 5 now stops after one pass, which is what max_iter=1 fits. (A tol
+        of 10 or more is refused, as on every iterative estimator: #1071.)
         """
-        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=10.0)
+        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=5.0)
         one_pass = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], max_iter=1)
         blocks = {key: value for key, value in fixture_tpls_example.items() if key != "D"}
         loose.fit(DataFrameDict(copy.deepcopy(blocks)))
@@ -8725,7 +8780,7 @@ class TestTplsToleranceParameter:
     @pytest.mark.parametrize("bad", [0.0, -1e-3])
     def test_a_non_positive_tolerance_is_refused(self, fixture_tpls_example: dict, bad: float) -> None:
         """A tolerance of zero or less can never be met, so the loop would always run to the cap."""
-        with pytest.raises(ValueError, match="tol must be positive"):
+        with pytest.raises(ValueError, match="Tolerance must exceed machine precision"):
             self._fit(copy.deepcopy(fixture_tpls_example), tol=bad)
 
     def test_the_old_attribute_is_gone(self) -> None:
@@ -10313,13 +10368,40 @@ def test_pls_constructor_keeps_its_defaults_and_declares_nan_and_several_targets
         "scale": True,
         "max_iter": 500,
         "tol": epsqrt,
-        "copy": True,
+        "copy": None,
         "warn_on_uncentred": True,
         "missing_data_settings": None,
     }
     tags = PLS(n_components=2).__sklearn_tags__()
     assert tags.input_tags.allow_nan is True
     assert tags.target_tags.multi_output is True
+
+
+class TestPLSCopyIsDeprecated:
+    """``copy`` never did anything: PLS reads X and Y without changing them, whatever it is set to (#1114)."""
+
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_passing_copy_warns_once_and_changes_nothing(self, copy: bool) -> None:
+        X, Y = _pls_block()
+        X_before, Y_before = X.copy(), Y.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = PLS(n_components=2, copy=copy).fit(X, Y)
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PLS.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: PLS never modifies the X or Y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name != "_pls.py"
+        pd.testing.assert_frame_equal(X, X_before)
+        pd.testing.assert_frame_equal(Y, Y_before)
+        pd.testing.assert_frame_equal(old.predict(X), PLS(n_components=2).fit(X, Y).predict(X))
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self) -> None:
+        X, Y = _pls_block()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(PLS(n_components=2)).fit(X, Y)
+        assert clone(PLS(n_components=2, copy=False)).get_params()["copy"] is False
 
 
 _UNCENTRED_HEAD = "PLS(scale=False) fits no intercept and centres nothing, but column(s) "
@@ -11810,7 +11892,7 @@ def _uncentred_fold_model(x: np.ndarray, y: np.ndarray, a: int) -> tuple[Callabl
     return (lambda rows: rows @ R @ fitted["C"].T), (lambda rows: rows @ R @ fitted["P"].T)
 
 
-def _select_by_hand(  # noqa: PLR0913 - the folds, their first pass and the kind of fold model
+def _select_by_hand(
     X: pd.DataFrame, Y: pd.DataFrame, splits: list, A: int, first_repeat: int, *, centred: bool = True
 ) -> dict:
     """Cross-validate PLS by hand: sklearn's PLSRegression at each count on each fold's training rows.

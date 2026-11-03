@@ -952,6 +952,33 @@ def test_plsda_sklearn_tags_and_defaults_are_a_classifiers_on_pls_settings() -> 
             assert params[name] == parameter.default, name
 
 
+class TestPLSDACopyIsDeprecated:
+    """PLSDA passes copy to PLS, which never used it: one warning, from the caller, only when passed (#1114)."""
+
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_passing_copy_warns_once_and_changes_nothing(self, copy: bool) -> None:
+        X, labels = _separable()
+        X_before, labels_before = X.copy(), labels.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = PLSDA(n_components=2, copy=copy).fit(X, labels)
+        assert len(record) == 1
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.PLSDA.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: PLSDA never modifies the X or y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name not in {"_pls.py", "_plsda.py"}
+        pd.testing.assert_frame_equal(X, X_before)
+        np.testing.assert_array_equal(labels, labels_before)
+        np.testing.assert_array_equal(old.predict(X), PLSDA(n_components=2).fit(X, labels).predict(X))
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self) -> None:
+        X, labels = _separable()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(PLSDA(n_components=2)).fit(X, labels)
+        assert clone(PLSDA(n_components=2, copy=False)).get_params()["copy"] is False
+
+
 def test_plsda_refuses_every_question_until_fitted() -> None:
     X, y = _separable(n_per_class=5)
     model = PLSDA(n_components=1)

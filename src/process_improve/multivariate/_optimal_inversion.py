@@ -31,6 +31,10 @@ changes.
 from __future__ import annotations
 
 import dataclasses
+import inspect
+import numbers
+import pathlib
+import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
@@ -47,6 +51,7 @@ _MAX_ROUNDS = 200  # outer-approximation rounds before the search reports it is 
 _FIRST_TRY_ITERATIONS = 100  # SLSQP from the model centre settles in tens of iterations when an answer exists
 _RESTARTS = 3  # SLSQP restarts from where it stopped, while the optimality conditions do not hold there
 _KKT_TOLERANCE = 1e-6  # the optimality conditions' relative residual below which a point is the optimum
+_PROOF_TOLERANCE = 1e-6  # a tangent-plane bound within this fraction of the answer's objective proves it
 
 _NO_LINEAR = "No inputs within their bounds meet the linear rules and the windows, whatever their T² and SPE."
 _NO_COUNT = "Without the counting rules inputs meet every rule, but none do with them."
@@ -330,7 +335,10 @@ class InversionRules:
     windows : dict of str to (float or None, float or None)
         Each quality's predicted value between a low and a high bound; None for no bound.
     bounds : dict of str to (float or None, float or None)
-        Each input's bounds. A TPLS formula's fractions default to 0 to 1; others are free.
+        Each input's lower and upper bound: its extreme limits, the values it can take. A TPLS formula's fractions
+        are 0 to 1 unless given. Give every other input both: the T² and SPE limits alone let an answer set an input
+        to a value it cannot take, such as a negative amount. An input without both is deprecated since 2.4.0 (a
+        ``FutureWarning`` names it) and an error from 3.0.
     fixed : dict of str to float
         Inputs held at a value.
     rules : tuple of LinearRule
@@ -374,8 +382,8 @@ def _is_bound_pair(pair: object) -> bool:
     if not (isinstance(pair, tuple | list) and len(pair) == 2):
         return False
     low, high = pair
-    numbers = all(b is None or (isinstance(b, int | float) and np.isfinite(b)) for b in pair)
-    return numbers and (low is None or high is None or low <= high)
+    finite = all(b is None or (isinstance(b, numbers.Real) and np.isfinite(float(b))) for b in pair)  # numpy's too
+    return finite and (low is None or high is None or low <= high)
 
 
 def _unknown_names(affine: AffineModel, rules: InversionRules) -> list[str]:
@@ -400,7 +408,7 @@ def _bad_values(rules: InversionRules) -> list[str]:
     problems += [f"{g}: allow at least one input, not {k!r}" for g, k in rules.max_count.items()
                  if not (isinstance(k, int) and k >= 1)]  # fmt: skip
     problems += [f"{g}: a minimum amount is above 0, not {m!r}" for g, m in rules.min_amount.items()
-                 if not (isinstance(m, int | float) and m > 0)]  # fmt: skip
+                 if not (isinstance(m, numbers.Real) and m > 0)]  # fmt: skip
     if bool(rules.costs) == bool(rules.targets):
         problems.append("give costs or targets (one of them) as the objective; to hold a quality near a target "
                         "while minimising cost, give it a window")  # fmt: skip
@@ -748,6 +756,37 @@ def _least_excess(problem: _Problem, rows: tuple, bounds: np.ndarray, start: np.
     return max(lim.value(point[:n]) / lim.limit for lim in problem.limits) - 1, point
 
 
+def _proven_by_planes(problem: _Problem, w: np.ndarray, bounds: np.ndarray) -> bool:
+    """
+    Prove ``w`` optimal, for its choice of inputs, by one linear program when the optimality conditions cannot.
+
+    With many inputs at a bound, the binding constraints are dependent, and the least-squares multipliers can miss
+    even at the optimum. A convex limit's tangent plane at ``w`` holds at every point the limit allows, so the linear
+    program over the rules, the bounds and the planes at ``w`` has an optimum no higher than the problem's. When that
+    optimum reaches ``w``'s objective, no point that meets the rules does better.
+    """
+    n, objective = problem.n, problem.objective[problem.keep()]
+    a, low, high = problem.core_rows()
+    tail = np.zeros(len(w) - n)
+    planes, tops = [], []
+    for lim in problem.limits:  # value(w) + gradient (x - w) <= limit
+        gradient = lim.gradient(w[:n])
+        planes.append(np.concatenate([gradient, tail]))
+        tops.append(lim.limit - lim.value(w[:n]) + gradient @ w[:n])
+    scale = problem.scale(bounds)  # each input in its natural size, as the searches take it
+    rows = optimize.LinearConstraint(
+        np.vstack([a, *planes]) * scale,
+        np.concatenate([low, np.full(len(tops), -np.inf)]),
+        np.concatenate([high, tops]),
+    )
+    found = optimize.milp(objective * scale, bounds=optimize.Bounds(bounds[:, 0] / scale, bounds[:, 1] / scale),
+                          constraints=rows)  # fmt: skip
+    if found.x is None:  # not solved: no proof
+        return False
+    best = float(objective @ w)
+    return bool(found.fun >= best - _PROOF_TOLERANCE * (1 + abs(best)))
+
+
 def _settled(problem: _Problem, search: _Search, w: np.ndarray, rows: tuple) -> np.ndarray:
     """
     Return a point where the optimality conditions hold, starting again from ``w`` while they do not.
@@ -757,7 +796,7 @@ def _settled(problem: _Problem, search: _Search, w: np.ndarray, rows: tuple) -> 
     conditions can. A restart resets SLSQP's estimate of the curvature, which is what usually stalled it.
     """
     for _ in range(_RESTARTS):
-        if _kkt_residual(problem, w, search.bounds) < _KKT_TOLERANCE:
+        if _kkt_residual(problem, w, search.bounds) < _KKT_TOLERANCE or _proven_by_planes(problem, w, search.bounds):
             break
         again = _slsqp(dataclasses.replace(search, start=w), 1000)
         if not _meets(problem, again, rows) or search.fun(again) > search.fun(w):
@@ -1184,6 +1223,7 @@ def _result(problem: _Problem, solution: _Solution) -> Bunch:
     x = solution.z[: problem.n]
     bounds = problem.continuous_bounds(solution.on)
     table, residual = _constraint_table(problem, solution.z[problem.keep()], bounds)
+    settled = residual < 1e-3 or _proven_by_planes(problem, solution.z[problem.keep()], bounds)
     used = {
         g: [n for n in names if abs(x[problem.names.index(n)]) > 1e-9]
         for g, names in _all_groups(affine, problem.rules).items()
@@ -1197,7 +1237,7 @@ def _result(problem: _Problem, solution: _Solution) -> Bunch:
         spe=pd.Series(affine.spe(x), index=[b.name for b in affine.blocks], name="SPE"),
         spe_limit=pd.Series([limits[f"SPE {b.name}"] for b in affine.blocks], index=[b.name for b in affine.blocks]),
         objective=solution.objective, used=used, constraints=table, kkt_residual=residual,
-        proven_optimal=solution.proven and residual < 1e-3, n_cuts=solution.cuts,
+        proven_optimal=solution.proven and settled, n_cuts=solution.cuts,
     )  # fmt: skip
 
 
@@ -1209,6 +1249,33 @@ def _read(model: BaseEstimator | AffineModel, conf_level: float) -> AffineModel:
         msg = f"The model was read at conf_level {model.conf_level}, the rules ask for {conf_level}."
         raise ValueError(msg)
     return model
+
+
+def _outside_stacklevel() -> int:
+    """Count the frames up to the first one outside the package, so that a warning names the caller's own line."""
+    package = pathlib.Path(__file__).resolve().parents[1]
+    frame, level = inspect.currentframe(), 0
+    while frame is not None and pathlib.Path(frame.f_code.co_filename).resolve().is_relative_to(package):
+        frame, level = frame.f_back, level + 1
+    return level
+
+
+def _warn_unbounded(problem: _Problem) -> None:
+    """Name, until 3.0, each input without a lower or an upper bound: only T² and SPE then hold it."""
+    free = [
+        n for n, (low, high) in zip(problem.names, problem.bounds, strict=True) if not np.isfinite([low, high]).all()
+    ]
+    if not free:
+        return
+    named = ", ".join(free[:5]) + (f" and {len(free) - 5} more" if len(free) > 5 else "")
+    warnings.warn(
+        f"process_improve.multivariate.optimal_inversion: {named} {'has' if len(free) == 1 else 'have'} no lower or "
+        "no upper bound. Only the T² and SPE limits then hold an input, and an answer can set it to a value it cannot "
+        "take, such as a negative amount. Searching an input without both bounds is deprecated since 2.4.0 and an "
+        "error from 3.0: give each one its extreme limits in InversionRules(bounds=...).",
+        FutureWarning,
+        stacklevel=_outside_stacklevel(),  # the model's method and inversion_sensitivity both call through here
+    )
 
 
 def optimal_inversion(
@@ -1258,8 +1325,9 @@ def optimal_inversion(
         ``kkt_residual`` : float
             How nearly the optimality conditions hold at the answer; near 0 at an optimum.
         ``proven_optimal`` : bool
-            The search proved no better answer exists, and the optimality conditions hold. With no answer: the
-            search proved none exists; False when it stopped before it could.
+            The search proved no better answer exists, and the answer is optimal for its inputs: the optimality
+            conditions hold, or a linear program over the limits' tangent planes at the answer does no better. With
+            no answer: the search proved none exists; False when it stopped before it could.
         ``n_cuts`` : int
             The tangent planes the counting rules needed.
         ``message`` : str
@@ -1277,6 +1345,12 @@ def optimal_inversion(
         confidence level; or alternatives are asked for without counted inputs, or with a count that is not a whole
         number.
 
+    Warns
+    -----
+    FutureWarning
+        An input that is searched has no lower or no upper bound in ``rules.bounds`` (a TPLS formula's fractions
+        have 0 and 1 unless given). Deprecated since 2.4.0, and an error from 3.0.
+
     See Also
     --------
     inversion_sensitivity : check the shadow prices by solving again, and trace a limit, counts and prices.
@@ -1291,11 +1365,15 @@ def optimal_inversion(
 
     Examples
     --------
-    >>> rules = InversionRules(costs={"Acetic": 1.0, "H2S": 3.0, "Lactic": 8.0}, windows={"Taste": (20.0, 30.0)})
+    >>> rules = InversionRules(
+    ...     costs={"Acetic": 1.0, "H2S": 3.0, "Lactic": 8.0}, windows={"Taste": (20.0, 30.0)},
+    ...     bounds={"Acetic": (4.0, 7.0), "H2S": (3.0, 10.0), "Lactic": (0.8, 2.1)},
+    ... )
     >>> result = optimal_inversion(pls, rules)
     >>> result.x_new, result.objective, result.constraints
     """
     problem = _Problem(_read(model, rules.conf_level), rules)
+    _warn_unbounded(problem)
     _check_alternatives(problem, alternatives, leave_out)
     solution = _most_typical(problem, _solve(problem))
     result = _result(problem, solution)

@@ -118,7 +118,7 @@ The natural multi-block split is:
    print(model.display_results())
 
    # How predictive is each component? Lower risk_pct = more significant.
-   sig = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=200, seed=0)
+   sig = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=200, random_state=0)
    print(sig)
 
    # Top 5 variables contributing to a high-SPE observation
@@ -197,8 +197,9 @@ Both models fit them, as ``PCA``, ``PLS`` and ``TPLS`` do:
   X-blocks are still scored.
 - A column with nothing observed, in an X-block or in Y, is left out
   of the model with a ``UserWarning`` that names it. Its loadings and
-  weights are 0, a value that a new row has in it changes nothing, and
-  a response with nothing observed has NaN predictions.
+  weights are 0, a value that a new row has in it changes nothing and
+  contributes 0 to ``spe_contributions`` and ``score_contributions``,
+  and a response with nothing observed has NaN predictions.
 
 When *not* to use the missing-data path
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

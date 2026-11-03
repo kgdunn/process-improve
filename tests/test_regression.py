@@ -1,3 +1,5 @@
+import inspect
+import re
 import warnings
 from collections.abc import Callable
 
@@ -12,6 +14,7 @@ from process_improve.regression.methods import (
     robust_regression,
 )
 from process_improve.regression.tools import (
+    _default_n_boot,
     get_regression_tool_specs,
 )
 from process_improve.tool_safety import ToolInputInvalidError
@@ -690,7 +693,8 @@ def test_robust_regression_intervals_widen_with_an_outlier_the_slope_resists() -
     def width(out: dict) -> float:
         return float(np.diff(out["conf_intervals"][0])[0])
 
-    clean, dirty = robust_regression(x, y), robust_regression(x, with_outlier)
+    clean = robust_regression(x, y, intervals="bootstrap")
+    dirty = robust_regression(x, with_outlier, intervals="bootstrap")
     assert dirty["coefficients"][0] == pytest.approx(clean["coefficients"][0], abs=0.02)
     # Resamples that draw the outlier twice or more out of ten points move the slope a little.
     assert width(dirty) < 3 * width(clean)
@@ -1284,20 +1288,23 @@ def _line_with_outliers(rng: np.random.Generator, n: int = 30, fraction: float =
 def test_robust_regression_bootstrap_interval_is_reproducible_from_its_seed() -> None:
     """The intervals come from resamples seeded by random_state: the same seed gives the same numbers."""
     x, y = _line_with_outliers(np.random.default_rng(5))
-    first, again = robust_regression(x, y, random_state=7), robust_regression(x, y, random_state=7)
-    other = robust_regression(x, y, random_state=8)
+    boot = {"intervals": "bootstrap"}
+    first, again = robust_regression(x, y, random_state=7, **boot), robust_regression(x, y, random_state=7, **boot)
+    other = robust_regression(x, y, random_state=8, **boot)
 
     for key in ("conf_intervals", "conf_interval_intercept", "pi_range"):
         np.testing.assert_array_equal(first[key], again[key])
     assert not np.array_equal(first["conf_intervals"], other["conf_intervals"])
     # The default seed is fixed, so a call without one is reproducible too.
-    np.testing.assert_array_equal(robust_regression(x, y)["pi_range"], robust_regression(x, y)["pi_range"])
+    np.testing.assert_array_equal(
+        robust_regression(x, y, **boot)["pi_range"], robust_regression(x, y, **boot)["pi_range"]
+    )
 
 
 def test_robust_regression_bootstrap_intervals_have_the_documented_shapes() -> None:
     """The bootstrap fills the same keys, in the same shapes, as the least-squares intervals."""
     x, y = _line_with_outliers(np.random.default_rng(6))
-    boot = robust_regression(x, y, pi_resolution=17)
+    boot = robust_regression(x, y, pi_resolution=17, intervals="bootstrap")
     ls = robust_regression(x, y, pi_resolution=17, intervals="least_squares")
 
     for key in ("conf_intervals", "conf_interval_intercept", "pi_range"):
@@ -1313,7 +1320,7 @@ def test_robust_regression_bootstrap_intervals_have_the_documented_shapes() -> N
 def test_robust_regression_bootstrap_without_intercept_leaves_its_interval_undefined() -> None:
     """A line forced through the origin has no intercept to bound, whichever intervals are asked for."""
     x, y = _line_with_outliers(np.random.default_rng(7))
-    out = robust_regression(x, y - 1.0, fit_intercept=False)
+    out = robust_regression(x, y - 1.0, fit_intercept=False, intervals="bootstrap")
     assert np.isnan(out["conf_interval_intercept"]).all()
     assert out["conf_intervals"][0][0] < 2.0 < out["conf_intervals"][0][1]
 
@@ -1324,7 +1331,7 @@ def test_robust_regression_bootstrap_without_a_resampled_slope_gives_nan_interva
     # Seed 4's one resample draws the third point three times.
     assert np.random.default_rng(4).integers(0, 3, size=(1, 3)).tolist() == [[2, 2, 2]]
 
-    out = robust_regression(x, y, n_boot=1, random_state=4)
+    out = robust_regression(x, y, intervals="bootstrap", n_boot=1, random_state=4)
     assert np.isnan(out["conf_intervals"]).all()
     assert np.isnan(out["conf_interval_intercept"]).all()
     assert np.isnan(out["pi_range"][:, 1:]).all()
@@ -1342,7 +1349,7 @@ def test_robust_regression_bootstrap_interval_covers_the_slope_with_outliers() -
     covered, ratio = [], []
     for _ in range(200):
         x, y = _line_with_outliers(rng, n=60)
-        boot = robust_regression(x, y, n_boot=199, random_state=rng)
+        boot = robust_regression(x, y, intervals="bootstrap", n_boot=199, random_state=rng)
         ls = robust_regression(x, y, intervals="least_squares")
         lower, upper = boot["conf_intervals"][0]
         covered.append(lower <= 2.0 <= upper)
@@ -1364,7 +1371,7 @@ def test_robust_regression_bootstrap_and_least_squares_agree_without_outliers() 
     slope_ratio, band_ratio = [], []
     for _ in range(50):
         x, y = _line_with_outliers(rng, fraction=0.0)
-        boot = robust_regression(x, y, n_boot=199, random_state=rng)
+        boot = robust_regression(x, y, intervals="bootstrap", n_boot=199, random_state=rng)
         ls = robust_regression(x, y, intervals="least_squares")
         slope_ratio.append(np.diff(boot["conf_intervals"][0])[0] / np.diff(ls["conf_intervals"][0])[0])
         band_ratio.append(np.mean(np.diff(boot["pi_range"][:, 1:]) / np.diff(ls["pi_range"][:, 1:])))
@@ -1377,7 +1384,7 @@ def test_robust_regression_bootstrap_and_least_squares_agree_without_outliers() 
     ("kwargs", "message"),
     [
         ({"intervals": "percentile"}, r"intervals must be 'bootstrap' or 'least_squares'; got 'percentile'"),
-        ({"n_boot": 0}, r"n_boot must be a positive integer; got 0"),
+        ({"intervals": "bootstrap", "n_boot": 0}, r"n_boot must be a positive integer; got 0"),
     ],
 )
 def test_robust_regression_rejects_unknown_interval_options(kwargs: dict, message: str) -> None:
@@ -1385,6 +1392,107 @@ def test_robust_regression_rejects_unknown_interval_options(kwargs: dict, messag
     x, y = _line_with_outliers(np.random.default_rng(8))
     with pytest.raises(ValueError, match=message):
         robust_regression(x, y, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# 2.3.1: least-squares intervals by default again, with the bootstrap announced for 3.0
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("conflevel", [np.nan, np.inf, 1.5])
+@pytest.mark.parametrize(
+    "chosen",
+    [{}, {"intervals": "least_squares"}, {"intervals": "bootstrap"}],
+    ids=["default", "least_squares", "bootstrap"],
+)
+def test_robust_regression_conflevel_without_an_interval_gives_nan_intervals(
+    monkeypatch: pytest.MonkeyPatch, conflevel: float, chosen: dict
+) -> None:
+    """A conflevel with no t value returns the fit with NaN intervals, as 2.2.2 did, and draws no resample.
+
+    2.3.0's bootstrap asked for percentiles outside 0 to 100 and raised, after all its resamples.
+    """
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the bootstrap ran")
+
+    monkeypatch.setattr("process_improve.regression._robust_regression._bootstrap_lines", refuse)
+    x, y = _line_with_outliers(np.random.default_rng(10))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = robust_regression(x, y, conflevel=conflevel, pi_resolution=7, **chosen)
+
+    assert out["coefficients"][0] == pytest.approx(repeated_median_slope(x, y))
+    assert out["conf_intervals"].shape == (1, 2)
+    assert np.isnan(out["conf_intervals"]).all()
+    assert np.isnan(out["conf_interval_intercept"]).all()
+    assert out["pi_range"].shape == (7, 3)
+    np.testing.assert_array_equal(out["pi_range"][:, 0], np.linspace(x.min(), x.max(), 7))
+    assert np.isnan(out["pi_range"][:, 1:]).all()
+    assert "intervals_note" not in out
+
+
+def test_robust_regression_default_gives_least_squares_intervals_and_announces_the_bootstrap(
+    simple_robust_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """Without ``intervals``, a call gets 2.2.2's least-squares numbers and one FutureWarning about 3.0.
+
+    The numbers are those checked by hand in ``test_regression_simple_robust``. The warning points at
+    the caller's line, and the result carries its text, for a tool or an agent that sees no warning.
+    """
+    X, y = simple_robust_regression_data
+    frame = inspect.currentframe()
+    assert frame is not None
+    with pytest.warns(FutureWarning) as record:
+        out, line = robust_regression(X, y), frame.f_lineno
+
+    assert len(record) == 1
+    assert (record[0].filename, record[0].lineno) == (__file__, line)
+    assert str(record[0].message) == out["intervals_note"]
+    assert re.match(
+        r"process_improve\.regression\.robust_regression's default intervals='least_squares' is deprecated "
+        r"since 2\.3\.1 and will change to intervals='bootstrap' in 3\.0",
+        out["intervals_note"],
+    )
+    assert "Pass intervals='least_squares' to keep these numbers, or intervals='bootstrap'" in out["intervals_note"]
+
+    assert out["conf_intervals"][0] == pytest.approx([4.61316875, 4.76759488], rel=1e-8)
+    assert out["conf_interval_intercept"] == pytest.approx([-0.0145235437, 0.0101581595], rel=1e-8)
+    np.testing.assert_array_equal(out["pi_range"], robust_regression(X, y, intervals="least_squares")["pi_range"])
+
+
+@pytest.mark.parametrize(
+    ("x", "y", "kwargs"),
+    [
+        pytest.param(*_line_with_outliers(np.random.default_rng(11)), {"intervals": "least_squares"}, id="least-sq"),
+        pytest.param(
+            *_line_with_outliers(np.random.default_rng(11)), {"intervals": "bootstrap", "n_boot": 9}, id="boot"
+        ),
+        pytest.param(np.array([1.0, 2.0]), np.array([1.0, 3.0]), {}, id="two-points"),
+        pytest.param(np.array([2.0, 2, 2, 2, 2]), np.array([1.0, 2, 3, 2.5, 1.5]), {}, id="no-spread-in-x"),
+        pytest.param(np.array([1.0, 2, np.nan, 4, 5]), np.array([3.0, 5, 7, 9, 12]), {"na_rm": False}, id="nan-kept"),
+    ],
+)
+def test_robust_regression_is_quiet_when_intervals_is_chosen_or_the_change_leaves_them(
+    x: np.ndarray, y: np.ndarray, kwargs: dict
+) -> None:
+    """Passing ``intervals``, to either value, is silent, and so is a fit whose intervals are NaN either way."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        out = robust_regression(x, y, **kwargs)
+    assert "intervals_note" not in out
+
+
+def test_robust_regression_tool_keeps_the_bootstrap_intervals_without_a_warning() -> None:
+    """The tool chooses ``intervals="bootstrap"``, so it returns 2.3.0's intervals and no FutureWarning."""
+    x, y = _line_with_outliers(np.random.default_rng(12))
+    result = execute_tool_call("robust_regression", {"x": list(x), "y": list(y), "n_boot": 99})
+    boot = robust_regression(x, y, intervals="bootstrap", n_boot=99)
+
+    assert "library_warnings" not in result
+    assert result["slope_confidence_interval"] == pytest.approx(boot["conf_intervals"][0].tolist())
+    assert result["prediction_interval_lower"] == pytest.approx(boot["pi_range"][:, 1].tolist())
+    assert result["prediction_interval_upper"] == pytest.approx(boot["pi_range"][:, 2].tolist())
 
 
 def test_robust_regression_tool_declares_and_honours_its_seed() -> None:
@@ -1400,3 +1508,28 @@ def test_robust_regression_tool_declares_and_honours_its_seed() -> None:
     assert first["slope_confidence_interval"][0] < 2.0 < first["slope_confidence_interval"][1]
     reseeded = execute_tool_call("robust_regression", {**payload, "random_state": 1})
     assert reseeded["slope_confidence_interval"] != first["slope_confidence_interval"]
+    assert first["n_boot"] == 99
+
+
+@pytest.mark.parametrize(
+    ("n_points", "n_boot"), [(3, 999), (197, 999), (198, 994), (500, 156), (1_000, 39), (5_000, 39)]
+)
+def test_robust_regression_tool_draws_fewer_resamples_as_the_points_grow(n_points: int, n_boot: int) -> None:
+    """Up to 1,000 points the default bootstrap does at most the work of 39 resamples of 1,000 points (#1095).
+
+    Each resample costs time in proportion to the square of the number of points, so a fixed 999 took
+    the tool past its 10 s timeout above about 800 points. Above 1,000 points the default stays at 39,
+    the fewest on which a 95% percentile interval rests.
+    """
+    assert _default_n_boot(n_points) == n_boot
+    assert n_boot * min(n_points, 1_000) ** 2 <= 39 * 1_000**2
+
+
+def test_robust_regression_tool_fits_a_thousand_points_with_its_default_resamples() -> None:
+    """A call with 1,000 points draws 39 resamples, says so, and its interval holds the slope."""
+    x, y = _line_with_outliers(np.random.default_rng(10), n=1_000)
+
+    out = execute_tool_call("robust_regression", {"x": list(x), "y": list(y)})
+
+    assert out["n_boot"] == 39
+    assert out["slope_confidence_interval"][0] < out["slope"] < out["slope_confidence_interval"][1]

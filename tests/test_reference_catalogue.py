@@ -1514,6 +1514,16 @@ def test_generators_are_compared_by_word_lengths_with_the_fraction_the_library_c
     assert not _design_check({**table, "generators": ["F=ABC", "G=ABD", "H=ACD", "J=BCD"]}, "", 9)[1]
 
 
+def test_a_negative_generator_of_a_fraction_by_run_count_keeps_its_sign(monkeypatch):
+    """#1094: a generator such as D = -ABC was read letter by letter, and its sign was no factor."""
+    from process_improve.experiments.reference_catalogue import _fraction
+
+    monkeypatch.setattr(reference_catalogue, "minimum_aberration_generators", lambda *_: ("D=-ABC",))
+    made = _fraction({"n_runs": 8, "factors": ["w", "x", "y", "z"]}, 4)
+    settings = made.design[["w", "x", "y", "z"]].to_numpy(dtype=float)
+    np.testing.assert_array_equal(settings[:, 3], -settings[:, :3].prod(axis=1))
+
+
 def test_an_alias_chain_up_to_an_order_must_list_every_alias_that_short():
     """Montgomery's Table X, design (j): in I = ABCDF = ABDEG = CEFG, C = EFG, and A has no alias of three factors."""
     from process_improve.experiments.reference_catalogue import _design_check

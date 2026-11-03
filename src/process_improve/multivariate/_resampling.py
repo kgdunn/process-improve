@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 class Resampler:
     """Base class for resampling methods."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         estimator: BaseEstimator,
         x: DataFrameDict,

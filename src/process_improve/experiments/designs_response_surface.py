@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -760,7 +761,9 @@ def dispatch_dsd(
     tuple[np.ndarray, dict]
         Coded design matrix (categorical factors at -1 / +1) and metadata:
         ``construction``, ``conference_order``, ``fake_factors`` and, with categorical
-        factors, ``n_categorical`` and ``categorical_method``.
+        factors, ``n_categorical`` and ``categorical_method``. Without a ``budget``, when
+        the order steps up (21, 22, 33 or 34 factors), a ``note`` says so and a
+        ``UserWarning`` gives the same text.
 
     References
     ----------
@@ -792,6 +795,15 @@ def dispatch_dsd(
     conference, construction = conference_matrix(m)
     folded = np.vstack([conference, -conference]).astype(float)[:, :k]
     meta: dict = {"construction": construction, "conference_order": m, "fake_factors": m - k}
+    usual = k + k % 2
+    if budget is None and m > usual:
+        meta["note"] = (
+            f"No conference matrix of order {usual} can be built here, so the definitive screening design for {k} "
+            f"factors uses the next order that can, {m}: {2 * m + extra} runs rather than {2 * usual + extra}, with "
+            f"{m - k} fake factors (columns left out of the design)."
+        )
+        # stacklevel 4: past _dispatch_dsd and generate_design, to the line that asked for the design.
+        warnings.warn(meta["note"], category=UserWarning, stacklevel=4)
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta
     meta["n_categorical"], meta["categorical_method"] = len(categorical), categorical_method

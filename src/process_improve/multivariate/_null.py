@@ -126,7 +126,7 @@ def _loo_fit_predict(n_components: int) -> Callable:
     return fit_predict
 
 
-def check_predictive_signal(  # noqa: PLR0913
+def check_predictive_signal(
     x: pd.DataFrame,
     y: pd.DataFrame,
     fit_predict: Callable | None = None,

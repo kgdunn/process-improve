@@ -21,7 +21,7 @@ from statsmodels.stats.multitest import multipletests
 from process_improve.multivariate.methods import ASCA, PCA, effect_summary_plot
 
 
-def _two_factor_design(  # noqa: PLR0913 - one knob per injected effect, all keyword-only
+def _two_factor_design(
     *,
     a_size: float = 3.0,
     b_size: float = 2.0,

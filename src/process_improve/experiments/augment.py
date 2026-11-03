@@ -177,7 +177,7 @@ def _resolution_lines(resolution_before: int | None, resolution_after: int | str
     return [f"Resolution changed from {before} to {_roman(resolution_after)}."]
 
 
-def _explain_changes(  # noqa: PLR0913
+def _explain_changes(
     before: pd.DataFrame,
     after: pd.DataFrame,
     factor_names: list[str],

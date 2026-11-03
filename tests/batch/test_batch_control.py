@@ -9,6 +9,7 @@ from sklearn.utils import Bunch
 
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
+from process_improve.multivariate._common import SpecificationWarning
 
 pytest.importorskip("osqp")
 
@@ -438,7 +439,7 @@ def test_unreachable_spe_cap_reports_cap_not_met(fitted: BatchPLS) -> None:
     [("b3", 3, 2.0, 0.05, "spe", "t2"), ("b0", 6, 0.2, 0.9, "t2", "spe")],
     ids=["spe-cap-ends-slack", "t2-cap-ends-slack"],
 )
-def test_multiplier_of_a_slack_cap_is_bisected_away(  # noqa: PLR0913
+def test_multiplier_of_a_slack_cap_is_bisected_away(
     fitted: BatchPLS, batch_id: str, k: int, spe_factor: float, t2_factor: float, slack: str, binding: str
 ) -> None:
     """A multiplier escalated alongside the other is halved towards zero once its own cap is slack.
@@ -512,6 +513,43 @@ def test_ok_status_means_both_caps_hold_across_settings(fitted: BatchPLS, batch_
         if capped.solver.status == "ok":
             assert capped.spe <= caps["spe_cap"] * 1.01, (k, spe_factor, t2_factor)
             assert capped.t2 <= caps["t2_cap"] * 1.01, (k, spe_factor, t2_factor)
+
+
+def test_component_with_no_spread_adds_nothing_to_t2() -> None:
+    """#1086: the T2 weight leaves out a component with no spread, as the PLS model's own T2 does.
+
+    Unscaled tags that vary by 1e5, with a third pattern at 1e-4, make a training set of rank two
+    to working precision: the third score's sd is about 1e-9 of the first. Its weight of
+    ``1 / explained_variance_`` was about 1e19 times the first one's, so it ruled the T2.
+    """
+    rng = np.random.default_rng(0)
+    time = np.arange(10)
+    batches, quality = {}, []
+    for i in range(40):
+        a, b, c = rng.standard_normal(3)
+        u = 1e5 * a * np.sin(time / 3.0) + 1e-4 * c * np.cos(time / 2.0)
+        r = 1e5 * (b * np.cos(time / 4.0) + 0.5 * a * np.sin(time / 3.0))
+        batches[f"b{i}"] = pd.DataFrame({"u": u, "r": r})
+        quality.append(2.0 * a + b + 0.3 * rng.standard_normal())
+    y = pd.DataFrame({"q": quality}, index=list(batches))
+    with pytest.warns(SpecificationWarning, match="nothing left in Y"):
+        model = BatchPLS(n_components=3, scale=False).fit(batches, y)
+    variance = np.asarray(model.explained_variance_, dtype=float)
+    assert np.sqrt(variance[2] / variance[0]) < 1e-8
+
+    k = 5
+    # "pmp": the default "tsr" estimator cannot invert its operator for a model like this one.
+    result = midcourse_correction(
+        model,
+        observed=_observed_series(model, batches["b3"], k),
+        free_columns=_free_columns(model, k),
+        y_target=0.5,
+        weights={"target": 1.0, "movement": 0.1, "t2": 1.0},
+        method="pmp",
+    )
+    scores = result.scores.to_numpy()
+    assert np.isfinite(result.t2)
+    assert result.t2 == pytest.approx(np.sum(scores[:2] ** 2 / variance[:2]))
 
 
 # --------------------------------------------------------------------------- #

@@ -1,8 +1,9 @@
 Functional responses in designed experiments (investigation)
 ============================================================
 
-Status: the ``FPCA`` estimator of the first bullet under "Proposed library surface" is
-implemented as :class:`process_improve.multivariate.FPCA`; the rest is proposed. This note records
+Status: the first two bullets under "Proposed library surface" are implemented, as
+:class:`process_improve.multivariate.FPCA` and
+:func:`process_improve.experiments.analyze_functional_experiment`; the rest is proposed. This note records
 how functional principal component analysis (FPCA) could be added to ``process_improve`` for
 designed experiments, and to the browser app, and what a prototype on the book's case study showed.
 
@@ -126,8 +127,9 @@ Smallest change that covers the case study, with no new runtime dependency (``sc
   set needs them.
 * ``experiments``: one function, ``analyze_functional_experiment(design, curves, model=...)``, that
   fits ``FPCA``, calls ``analyze_experiment`` once per score (so blocking, split-plot whole plots
-  and coding behave as they do today), and returns the per-score ANOVA tables plus a
-  ``predict_curve(new_points)`` that returns the curve and its pointwise band.
+  and coding behave as they do today), and returns the per-score analyses in a ``FunctionalFit``,
+  whose ``predict(new_points)`` returns the curve with pointwise and simultaneous bands from a wild
+  bootstrap.
 * Registration (alignment of curves that shift in time) reuses the DTW code in ``batch/``. It is
   out of scope for the first version; the case study's curves need none.
 

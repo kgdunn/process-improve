@@ -74,7 +74,7 @@ def _validate_rng_metadata(name: str, rng: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def tool_spec(  # noqa: PLR0913
+def tool_spec(
     name: str,
     description: str,
     *,

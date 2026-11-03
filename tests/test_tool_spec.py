@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import sys
 import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -218,6 +220,17 @@ def _warns_numpy(spec: _EmptyInput) -> dict:
     warnings.warn_explicit("'encoding' argument not specified", EncodingWarning, "/site-packages/joblib/x.py", 1)
     warnings.warn("the library's own advice", UserWarning, stacklevel=2)
     return {"ok": True}
+
+
+def test_a_tool_call_flushes_stdout_and_runs_without_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A print reaches fd 1 while the stdio MCP server still points it at stderr (#1095)."""
+    flushed: list[bool] = []
+    monkeypatch.setattr(sys, "stdout", SimpleNamespace(flush=lambda: flushed.append(True)))
+    execute_tool_call("robust_summary_stats", {"values": [1, 2, 3]})
+    assert flushed == [True]
+
+    monkeypatch.setattr(sys, "stdout", None)  # as under pythonw
+    assert "error" not in execute_tool_call("robust_summary_stats", {"values": [1, 2, 3]})
 
 
 class TestToolWarningsReachTheCaller:

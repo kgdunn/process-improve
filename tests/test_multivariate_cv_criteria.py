@@ -528,16 +528,64 @@ def test_prm_pseudo_validation_set_reproduces_scores_and_spe(scope: str) -> None
             np.testing.assert_allclose(pv.local_spe.iloc[test].to_numpy(), spe, atol=1e-10)
 
 
+@pytest.mark.slow
+def test_prm_score_correlation_null_refits_every_fold_with_prm() -> None:
+    """PRM's held-out t-u correlation is tested against a null of PRM's own (#1087).
+
+    Each permutation of Y's rows gives the ``r_cv`` that PRM's cross-validation reports for the
+    permuted Y. The null refitted the folds by kernel PLS, and took its observed correlation
+    from the same PLS pipeline, so the p-value and threshold were PLS's, not those of the
+    ``r_cv`` beside them.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(5, shuffle=True, random_state=0), "n_permutations": 9}
+    result = PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=4, **settings).table
+
+    def r_cv(y: pd.DataFrame) -> np.ndarray:
+        return PRM.compare_cv_criteria(X, y, n_cv_permutations=0, **settings).table["r_cv"].to_numpy()
+
+    rng_null = np.random.default_rng(0).spawn(3)[2]  # the stream the null is drawn from
+    null = np.array([r_cv(Y.iloc[rng_null.permutation(40)].set_axis(Y.index)) for _ in range(4)])
+    observed = result["r_cv"].to_numpy()
+    np.testing.assert_allclose(result["r_cv_threshold"], null.max(axis=0), rtol=1e-12)
+    np.testing.assert_allclose(result["r_cv_p"], (np.sum(null >= observed, axis=0) + 1) / 5, rtol=1e-12)
+
+
+def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
+    """A warning from a fit to a permuted Y says nothing about the data, so it is not passed on (#1087).
+
+    With ``max_iter=1`` every NIPALS component warns that it stopped at the limit. The fits to the
+    data still say so; the null's fits add nothing. On LDPE at the defaults they gave nine warnings.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(3, shuffle=True, random_state=0), "n_permutations": 9, "max_iter": 1}
+
+    def caught(n_cv_permutations: int) -> list[str]:
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=n_cv_permutations, **settings)
+        return [str(warning.message) for warning in record]
+
+    from_the_data = caught(0)
+    assert any("reached the maximum number of iterations" in message for message in from_the_data)
+    assert caught(2) == from_the_data
+
+
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
     Thirty rows on a plane in units of 1e-3, with noise of sd 1e-10 and one row nudged 1e-8 off
     it, fitted unscaled: the noise is above PLS's floor, which is relative to the size of X
-    (#1070), so every fit has a third component. Its score sd, 1.8e-9, is below epsqrt, which T2
-    reads as no spread while every sd is below 1, so the model's own T2 leaves it out. The
-    held-out T2 divided by it all the same, and the nudged row, which its fold model never saw,
-    got a T2 of 2264 at three components, an alarm. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``
-    of the pseudo-validation scores, by hand.
+    (#1070), so every fit has a third component. Its score sd is below epsqrt, which T2 reads as
+    no spread while every sd is below 1, so the model's own T2 leaves it out. The held-out T2
+    divided by it all the same, and the nudged row, which its fold model never saw, got an alarm
+    at three components. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation
+    scores, by hand.
+
+    The third component is fitted after Y is exhausted, so it has no Y-loading (#1074), and
+    so no D ratio. Its Y-loading is set to 1 in the model and in every fold, which leaves
+    its held-out scores unscaled, so that the T2 rule still has a third score to leave out,
+    one that alone would raise an alarm.
     """
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
@@ -554,6 +602,7 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
             return PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(X.iloc[rows], y.iloc[rows])
 
     model = fit(np.arange(30))
+    model.y_loadings_.iloc[:, 2] = 1.0
     sd = model.scaling_factor_for_scores_.to_numpy()
     assert sd[2] < 1.5e-8 * max(1.0, sd[0])  # the rule by which T2 leaves a component out
     folds = []
@@ -572,14 +621,14 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
                 weights=weights,
                 direct_weights=fold.direct_weights_.to_numpy(),
                 x_loadings=x_loadings,
-                y_loadings=fold.y_loadings_.to_numpy(),
+                y_loadings=np.c_[fold.y_loadings_.to_numpy()[:, :2], [[1.0]]],
             )
         )
     pv_scores = _procrustes_scores(model, folds)[0]
-    assert (pv_scores[0, 2] / sd[2]) ** 2 > 1000.0  # what the third component added
+    limits = [hotellings_t2_limit(conf_level=0.95, n_components=a, n_rows=30) for a in (1, 2, 3)]
+    assert (pv_scores[0, 2] / sd[2]) ** 2 > limits[2]  # what the third component would add: an alarm alone
     t2 = np.cumsum((pv_scores[:, :2] / sd[:2]) ** 2, axis=1)
     t2 = np.c_[t2, t2[:, 1]]
-    limits = [hotellings_t2_limit(conf_level=0.95, n_components=a, n_rows=30) for a in (1, 2, 3)]
     alarms = _monitoring_criteria(model, folds, conf_level=0.95, alpha=0.05).t2_alarm
     np.testing.assert_allclose(alarms, [np.mean(t2[:, a] > limits[a]) for a in range(3)])
     assert alarms[2] == 0.0
@@ -1822,3 +1871,23 @@ def test_the_one_se_rule_is_handed_rmsecv_and_its_standard_error(monkeypatch: py
     assert rule == "1se"
     _assert_near(kwargs["mean_error"], np.sqrt(held["press_y"].sum(axis=1) / Y.notna().to_numpy().sum()), rtol=1e-6)
     _assert_near(kwargs["se_error"], np.std(held["per_fold_rmse"], axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
+
+
+@pytest.mark.parametrize(("estimator", "default"), [(PLS, 199), (PRM, 49)])
+def test_the_default_number_of_cv_permutations_follows_the_estimator(
+    monkeypatch: pytest.MonkeyPatch, estimator: type[PLS], default: int
+) -> None:
+    """PRM refits every fold of every permutation (#1087), so its default count is 49, not 199.
+
+    The count the caller gives always wins.
+    """
+    seen: list[int] = []
+
+    def record(_estimator: object, _x: object, _y: object, settings: object, _kwargs: object) -> None:
+        seen.append(settings.n_cv_permutations)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("process_improve.multivariate._pls._compare_cv_criteria", record)
+    X, y = pd.DataFrame(np.eye(4)), pd.Series(range(4))
+    estimator.compare_cv_criteria(X, y)
+    estimator.compare_cv_criteria(X, y, n_cv_permutations=7)
+    assert seen == [default, 7]

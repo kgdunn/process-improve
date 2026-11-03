@@ -76,8 +76,8 @@ def test_fit_refuses_malformed_blocks(
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        ({"n_components": 0}, r"^n_components must be positive; got 0\.$"),
-        ({"max_iter": 0}, r"^max_iter must be positive; got 0\.$"),
+        ({"n_components": 0}, r"^n_components must be >= 1; got 0\.$"),
+        ({"max_iter": 0}, r"^max_iter must be >= 1; got 0\.$"),
         ({"algorithm": "nipals", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
         ({"algorithm": "nipals", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
         ({"algorithm": "dense", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
@@ -308,7 +308,7 @@ def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_s
     assert getattr(model, bar_plot)(2).layout.title.text.endswith("component 2")
     if cls is MBPLS:
         pd.testing.assert_frame_equal(model.predict(blocks), result.predictions)
-        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, seed=0)
+        risk = randomization_test_mbpls(model, blocks, y, n_permutations=2, random_state=0)
         assert list(risk.index) == [1, 2]
 
 
@@ -344,11 +344,15 @@ def test_mbpls_refuses_a_y_of_another_height() -> None:
         MBPLS(n_components=2).fit(blocks, y.iloc[:9])
 
 
-def test_mbpls_super_vip_is_zero_when_y_has_no_variance() -> None:
-    """With nothing in Y to explain, R2Y is undefined and the super VIP is zero rather than NaN."""
-    blocks, _ = _blocks()
-    model = MBPLS(n_components=2).fit(blocks, pd.DataFrame({"constant": np.ones(10)}))
-    assert model.r2_y_cumulative_.isna().all()
+def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
+    """With nothing in X to explain Y by, R2Y is 0 and the super VIP is zero rather than NaN.
+
+    A Y with nothing to explain is refused (#1075); blocks of constants leave every weight 0 instead.
+    """
+    blocks, y = _blocks()
+    with pytest.warns(SpecificationWarning, match="from component 2 on there is nothing left in Y"):
+        model = MBPLS(n_components=2).fit({name: block * 0.0 + 1.0 for name, block in blocks.items()}, y)
+    np.testing.assert_array_equal(model.r2_y_cumulative_.to_numpy(), [0.0, 0.0])
     np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
 
 

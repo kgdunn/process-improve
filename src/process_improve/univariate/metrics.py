@@ -338,7 +338,7 @@ def _apply_multiplicity_correction(output: pd.DataFrame, correction: str | None)
     return output
 
 
-def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two columns, a frame, and three switches
+def ttest_independent_from_df(
     df: pd.DataFrame,
     grouper_column: str,
     values_column: str,
@@ -1218,7 +1218,7 @@ def detect_outliers_esd(
         return [], defaultdict(dict)
 
 
-def tietjen_moore_test(  # noqa: PLR0913
+def tietjen_moore_test(
     x: np.ndarray | pd.Series,
     n_outliers: int,
     *,

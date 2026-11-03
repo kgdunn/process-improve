@@ -132,7 +132,7 @@ def _normalise_covariates(covariates: pd.DataFrame) -> tuple[pd.DataFrame, list[
     return cov, warnings
 
 
-def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
+def validate_descriptive(  # noqa: PLR0912, PLR0915, C901
     panel: pd.DataFrame,
     covariates: pd.DataFrame,
     mode: Mode,

@@ -41,6 +41,7 @@ from ._common import (
     _reject_sparse,
     _select_n_components,
     _vandervoet_randomization,
+    check_at_least_one,
     epsqrt,
     largest_ssq_column,
     resolve_loop_settings,
@@ -278,8 +279,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Relative convergence tolerance for the NIPALS algorithm: the change
         between two successive score-vector iterations, relative to the norm
         of the current score vector (see :func:`terminate_check`).
-    copy : bool, default=True
-        Whether to copy X and Y before fitting.
+    copy : None
+        Deprecated since 2.4.0 and removed in 3.0; it has no effect. PLS never
+        modifies the X or Y it is given, so there is nothing to copy.
     warn_on_uncentred : bool, default=True
         Emit the :class:`UncentredDataWarning` described under ``scale`` when
         ``scale=False`` and a block arrives un-centred. Set it to ``False`` for
@@ -419,14 +421,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     (4, 1)
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         n_components: int,
         *,
         scale: bool = True,
         max_iter: int = 500,
         tol: float = epsqrt,
-        copy: bool = True,
+        copy: bool | None = None,
         warn_on_uncentred: bool = True,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
@@ -550,6 +552,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     #: rather than an ``isinstance`` check because ``_pls`` imports ``plots``, so the
     #: reverse import would close a cycle (#375).
     _variance_block: typing.ClassVar[str] = "Y"
+
+    #: Whether kernel PLS, from a fold's X'X and X'Y, gives the model this class fits to the
+    #: fold. :meth:`compare_cv_criteria` then refits the folds of its score-correlation null
+    #: that way, with no call to ``fit``. It does not give PRM's reweighted fit, so PRM sets
+    #: this False and its null refits every fold with PRM (#1087).
+    _null_by_kernel_pls: typing.ClassVar[bool] = True
+    #: Permutations :meth:`compare_cv_criteria` draws for its score-correlation null when the caller
+    #: gives none. PRM refits every fold of every permutation, so it uses fewer.
+    _default_n_cv_permutations: typing.ClassVar[int] = 199
 
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
     # into the documented public DataFrames at the end of fit().
@@ -692,8 +703,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # component can converge on that pass (#1080).
             converged = scores_converged(u_a_guess, u_a, settings["md_tol"])
 
-            if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
-                c_a = quick_regress(Yd, t_a, per="column")
+            if exhausted:  # the Y side of a component along X: no Y-loading, so the predictions stay (#1074)
+                c_a = np.zeros((M, 1))
                 u_a = np.zeros_like(t_a)
 
             timing[a] = time.time() - start_time
@@ -934,6 +945,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
+        # PLSDA and PRM fit through this method, and warn from their own fit instead: once, at their caller.
+        if self.copy is not None and type(self).fit is PLS.fit:
+            warnings.warn(
+                "process_improve.multivariate.methods.PLS.copy is deprecated since 2.4.0 and will be removed in "
+                "3.0; no replacement. copy has no effect: PLS never modifies the X or Y it is given, so leave it out.",
+                DeprecationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
         # Accept a Series for Y by promoting it to one column with its own labels; a 1-D array
         # becomes one column below, labelled like X's rows as a 2-D array is (#1027).
         if isinstance(Y, pd.Series):
@@ -1019,8 +1038,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
-        if self.n_components is not None and int(self.n_components) < 1:
-            raise ValueError(f"n_components must be >= 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warn = (
@@ -1540,6 +1558,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             is accepted for a single-target model; otherwise supply one value per
             target. A Series/DataFrame/dict is aligned to the fitted target
             names; a plain array must follow the fitted target order.
+            A response the fit left out, having no observed value, cannot be
+            targeted: its value is not used, and may be missing.
         null_space_coordinates : np.ndarray, optional
             Coordinates along the null-space basis, of length ``A - r`` (the
             null-space dimension). When given, the returned solution is
@@ -1554,12 +1574,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             With keys:
 
             ``x_new`` : pd.Series of shape (n_features,)
-                The estimated input vector, on the original (un-scaled) X scale.
+                The estimated input vector, on the original (un-scaled) X scale;
+                NaN for a column the fit left out, having no observed value.
             ``scores`` : pd.Series of length A
                 The score vector (tau) of the solution.
             ``y_hat`` : pd.Series of length n_targets
                 The model's prediction at ``x_new``; equals ``y_desired`` up to
-                numerical error, a check that the inversion is consistent.
+                numerical error, a check that the inversion is consistent. NaN
+                for a response the fit left out, as :meth:`predict` gives it.
             ``null_space_basis`` : pd.DataFrame of shape (A, A - r)
                 Orthonormal basis of the null space, in score coordinates. Empty
                 (zero columns) when ``A == r`` and the solution is unique.
@@ -1615,7 +1637,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"target(s): {list(target_names)}."
                 )
             y_des_df = pd.DataFrame(y_arr, columns=target_names)
-        if y_des_df.isna().any(axis=None):
+        # A response the fit left out (#1098) has zero loadings, so no score can move it: its target is not
+        # used, and may be missing (#1114). A model pickled before then left none out.
+        targeted = ~np.broadcast_to(getattr(self, "_unobserved_targets", False), (n_targets,))
+        if y_des_df.loc[:, targeted].isna().any(axis=None):
             raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names)}.")
 
         # Move the target into the scaled Y space the model was fit in.
@@ -1626,7 +1651,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Score -> scaled-Y map: y_scaled = tau @ q_map, with q_map [A x M].
         q_map = np.asarray(self.y_loadings_).T
         # Minimum-norm (direct-inversion) score, tau_DI [1 x A] (paper Eq. 9).
-        tau = y_des_scaled @ np.linalg.pinv(q_map)
+        tau = y_des_scaled[:, targeted] @ np.linalg.pinv(q_map[:, targeted])
 
         # Null-space basis: score directions g with g @ q_map = 0 (paper Eq. 14).
         # The left singular vectors of q_map for its zero singular values span it.
@@ -1651,11 +1676,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         x_new = tau @ self._x_loadings.T  # [1 x K]
         if self._x_scaler is not None:
             x_new = self._x_scaler.inverse_transform(x_new).to_numpy()
+        # The model says nothing about a column the fit left out (#1098): no value for it, as predict gives
+        # none for a response left out, rather than 0 on X's scale (#1114). A model pickled before then left none out.
+        x_new = np.where(getattr(self, "_unobserved_columns", False), np.nan, x_new)
 
         # Prediction at the solution (should equal y_desired up to rounding).
-        y_hat = tau @ q_map  # [1 x M]
-        if self._y_scaler is not None:
-            y_hat = self._y_scaler.inverse_transform(y_hat).to_numpy()
+        y_hat = self._in_y_units(pd.DataFrame(tau @ q_map, columns=target_names)).to_numpy()  # [1 x M]
 
         # The T² diagnose would give x_new, by fit's rule for a component with no spread (#1026).
         t2 = float(np.sum((tau.ravel() / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))
@@ -2153,7 +2179,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         cv: int | BaseCrossValidator = 7,
         random_state: int | np.random.Generator | None = None,
         n_permutations: int = 999,
-        n_cv_permutations: int = 199,
+        n_cv_permutations: int | None = None,
         alpha: float = 0.05,
         angle_threshold: float = 30.0,
         conf_level: float = 0.95,
@@ -2194,10 +2220,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Seed for the fold assignment and for the permutation tests.
         n_permutations : int, default=999
             Permutations for the van der Voet and the covariance tests (cheap: no refits).
-        n_cv_permutations : int, default=199
+        n_cv_permutations : int or None, default=None
             Permutations of the rows of Y used to calibrate the held-out score correlation
             of each component. Each one repeats the cross-validation with kernel PLS refits from the
-            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
+            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). For
+            :class:`~process_improve.multivariate.methods.PRM`, each fold is refitted by PRM
+            itself, so that the correlation and its null come from the same estimator. That is
+            one PRM fit per fold per permutation, about a hundred times slower per permutation.
+            ``None`` uses 199 permutations, or 49 for PRM: there the smallest attainable p-value is
+            0.02 rather than 0.005, still enough to decide at ``alpha=0.05``, and the test runs in
+            about a quarter of the time 199 would take. With ``0``
             the normal approximation
             :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
             because fold models share rows and a strong low-rank X widens the null
@@ -2306,6 +2338,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result.recommendations["n_components"]
         >>> result.table[["q2y", "r_cv", "slope_ratio", "angle_subspace_deg"]]
         """
+        if n_cv_permutations is None:
+            n_cv_permutations = cls._default_n_cv_permutations
         settings = _CompareSettings(
             max_components=max_components,
             cv=cv,
@@ -2319,7 +2353,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         return _compare_cv_criteria(cls, X, Y, settings, pls_kwargs)
 
     @classmethod
-    def pseudo_validation_set(  # noqa: PLR0913 - mirrors the published pcvpls settings (#605)
+    def pseudo_validation_set(
         cls,
         X: DataMatrix,
         Y: DataMatrix | pd.Series,
