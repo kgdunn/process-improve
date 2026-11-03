@@ -277,8 +277,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Relative convergence tolerance for the NIPALS algorithm: the change
         between two successive score-vector iterations, relative to the norm
         of the current score vector (see :func:`terminate_check`).
-    copy : bool, default=True
-        Whether to copy X and Y before fitting.
+    copy : None
+        Deprecated since 2.4.0 and removed in 3.0; it has no effect. PLS never
+        modifies the X or Y it is given, so there is nothing to copy.
     warn_on_uncentred : bool, default=True
         Emit the :class:`UncentredDataWarning` described under ``scale`` when
         ``scale=False`` and a block arrives un-centred. Set it to ``False`` for
@@ -425,7 +426,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         scale: bool = True,
         max_iter: int = 500,
         tol: float = epsqrt,
-        copy: bool = True,
+        copy: bool | None = None,
         warn_on_uncentred: bool = True,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
@@ -931,6 +932,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
+        # PLSDA and PRM fit through this method, and warn from their own fit instead: once, at their caller.
+        if self.copy is not None and type(self).fit is PLS.fit:
+            warnings.warn(
+                "process_improve.multivariate.methods.PLS.copy is deprecated since 2.4.0 and will be removed in "
+                "3.0; no replacement. copy has no effect: PLS never modifies the X or Y it is given, so leave it out.",
+                DeprecationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
         # Accept a Series for Y by promoting it to one column with its own labels; a 1-D array
         # becomes one column below, labelled like X's rows as a 2-D array is (#1027).
         if isinstance(Y, pd.Series):

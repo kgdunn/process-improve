@@ -151,8 +151,11 @@ class PLSDA(ClassifierMixin, PLS):
         Passed to :class:`PLS`. Default True, which mean-centres and unit-variance-scales
         both blocks. Scaling the indicator block is standard for PLS-DA: without it a
         rare class contributes less variance and is fitted less well.
-    max_iter, tol, copy, missing_data_settings, warn_on_uncentred
+    max_iter, tol, missing_data_settings, warn_on_uncentred
         Passed through to :class:`PLS` unchanged.
+    copy : None
+        Deprecated since 2.4.0 and removed in 3.0; it has no effect. PLSDA never
+        modifies the X or y it is given, so there is nothing to copy.
 
     Attributes
     ----------
@@ -219,7 +222,7 @@ class PLSDA(ClassifierMixin, PLS):
         scale: bool = True,
         max_iter: int = 500,
         tol: float = epsqrt,
-        copy: bool = True,
+        copy: bool | None = None,
         missing_data_settings: dict | None = None,
         warn_on_uncentred: bool = True,
     ):
@@ -283,6 +286,14 @@ class PLSDA(ClassifierMixin, PLS):
             discriminate), if its length does not match ``X``, if a row has no label, or
             if ``decision_rule`` / ``priors`` is not a recognised value.
         """
+        if self.copy is not None:
+            warnings.warn(
+                "process_improve.multivariate.methods.PLSDA.copy is deprecated since 2.4.0 and will be removed in "
+                "3.0; no replacement. copy has no effect: PLSDA never modifies the X or y it is given, so leave it "
+                "out.",
+                DeprecationWarning,
+                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            )
         if self.decision_rule not in self._DECISION_RULES:
             msg = f"decision_rule must be one of {self._DECISION_RULES}; got {self.decision_rule!r}."
             raise ValueError(msg)
