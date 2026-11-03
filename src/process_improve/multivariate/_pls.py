@@ -418,7 +418,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     (4, 1)
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         n_components: int,
         *,
@@ -2316,7 +2316,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         return _compare_cv_criteria(cls, X, Y, settings, pls_kwargs)
 
     @classmethod
-    def pseudo_validation_set(  # noqa: PLR0913 - mirrors the published pcvpls settings (#605)
+    def pseudo_validation_set(
         cls,
         X: DataMatrix,
         Y: DataMatrix | pd.Series,

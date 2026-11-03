@@ -503,7 +503,7 @@ def __getattr__(name: str) -> None:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def multiple_linear_regression(  # noqa: PLR0913
+def multiple_linear_regression(
     X: np.ndarray | pd.DataFrame,
     y: np.ndarray | pd.DataFrame | pd.Series,
     fit_intercept: bool = True,

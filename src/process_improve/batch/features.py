@@ -646,7 +646,7 @@ def f_count(
 
 # Shape-based features
 # ------------------------------------------
-def f_slope(  # noqa: PLR0913
+def f_slope(
     data: pd.DataFrame,
     x_axis_tag: str,
     tags: list[str] | None = None,
@@ -806,7 +806,7 @@ def f_crossing(  # noqa: PLR0913
     return pd.DataFrame(data={f_name: output})
 
 
-def f_elbow(  # noqa: PLR0913
+def f_elbow(
     data: pd.DataFrame,
     x_axis_tag: str,
     tags: list[str] | None = None,

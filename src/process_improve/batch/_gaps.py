@@ -309,8 +309,7 @@ def _warn_about_smoothing(shortened: list[str], collapsed: list[str], window: in
         )
 
 
-def smooth_trajectories(  # noqa: PLR0913 - the two smoothers' settings are not interchangeable, and
-    # naming them beats a settings dict whose valid keys depend on `method`
+def smooth_trajectories(
     batches: dict[str, pd.DataFrame],
     *,
     method: SmoothMethod = "savgol",

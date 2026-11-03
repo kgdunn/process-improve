@@ -106,7 +106,7 @@ def desirability_minimize(y: float, low: float, high: float, weight: float = 1.0
     return ((high - y) / (high - low)) ** weight
 
 
-def desirability_target(  # noqa: PLR0913
+def desirability_target(
     y: float,
     low: float,
     target: float,

@@ -603,7 +603,7 @@ def _ridge_form(
 # ---------------------------------------------------------------------------
 
 
-def _steepest_path(  # noqa: PLR0913
+def _steepest_path(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     step_size: float = 0.5,
@@ -1575,8 +1575,7 @@ def _payoff_table(
     return payoff_raw, np.array([_as_utilities(row, senses) for row in payoff_raw])
 
 
-def _pareto_front(  # noqa: PLR0913 - the models, the goals, the naming and the search region are four
-    # separate inputs; bundling them into a config object would only move the width, as for _optimize_desirability
+def _pareto_front(
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
     factor_names: list[str],

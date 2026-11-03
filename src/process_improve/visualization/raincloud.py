@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 
-def raincloud(  # noqa: PLR0913
+def raincloud(
     data: pd.DataFrame | pd.Series,
     value: str | None = None,
     group: str | None = None,

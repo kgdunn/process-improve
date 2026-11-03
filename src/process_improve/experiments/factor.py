@@ -119,7 +119,7 @@ class Factor(BaseModel):
         return None
 
     @classmethod
-    def from_data(  # noqa: PLR0913
+    def from_data(
         cls,
         data: pd.Series | Sequence[Any],
         *,
