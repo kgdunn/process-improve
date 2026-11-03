@@ -358,6 +358,20 @@ def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
     np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
 
 
+def test_mbpls_select_n_components_takes_a_generator_as_random_state() -> None:
+    """A Generator gives the folds its next draw of an int, as PLS.select_n_components takes it (#1128).
+
+    ``RepeatedKFold`` refuses a Generator, and so did this, with a ValueError.
+    """
+    blocks, y = _blocks(n=20)
+    settings = {"max_components": 2, "cv": 4, "n_repeats": 2}
+    drawn = int(np.random.default_rng(5).integers(2**31))
+    expected = MBPLS.select_n_components(blocks, y, random_state=drawn, **settings).per_fold_rmsecv
+    assert not expected.equals(MBPLS.select_n_components(blocks, y, random_state=drawn + 1, **settings).per_fold_rmsecv)
+    result = MBPLS.select_n_components(blocks, y, random_state=np.random.default_rng(5), **settings)
+    pd.testing.assert_frame_equal(result.per_fold_rmsecv, expected)
+
+
 def test_mbpls_predictions_plot_defaults_to_the_first_y_and_refuses_an_unknown_one() -> None:
     """Without `variable` the first Y column is drawn; an unknown name lists the known ones."""
     blocks, y = _blocks()

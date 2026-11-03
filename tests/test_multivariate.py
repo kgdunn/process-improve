@@ -2708,7 +2708,33 @@ def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_fo
     np.testing.assert_allclose(calls[entry_point](X.to_numpy(), other_y), calls[entry_point](X, y))
 
 
-def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
+@pytest.mark.parametrize(
+    "run",
+    [
+        lambda X, y, seed: PLS.select_n_components(X, y, **{**_PLS_QUICK_SELECT, "random_state": seed}).rmsecv,
+        lambda X, y, seed: (
+            PLS.select_n_components(X, y, **{**_PLS_QUICK_SELECT, "n_repeats": 2, "random_state": seed}).rmsecv
+        ),
+        lambda X, y, seed: PLS.nested_cv(X, y, **{**_PLS_QUICK_NESTED, "random_state": seed}).cv_predictions,
+        lambda X, y, seed: (
+            PLS(n_components=2).fit(X, y).cross_validate(X, y, cv=5, random_state=seed, show_progress=False).rmse_cv
+        ),
+    ],
+    ids=["select-n-components", "select-n-components-repeated", "nested-cv", "cross-validate-k-fold"],
+)
+def test_pls_cross_validation_takes_a_generator_as_random_state(
+    run: Callable[[pd.DataFrame, pd.DataFrame, int | np.random.Generator], pd.Series | pd.DataFrame],
+) -> None:
+    """A Generator gives the folds its next draw of an int, as across the package (#1128).
+
+    scikit-learn's splitters refuse a Generator, and so did these, with a ValueError.
+    """
+    X, y = _pls_ten_rows()
+    drawn = int(np.random.default_rng(5).integers(2**31))
+    expected = run(X, y, drawn)
+    assert not expected.equals(run(X, y, drawn + 1))  # the folds move these numbers
+    pd.testing.assert_frame_equal(pd.DataFrame(run(X, y, np.random.default_rng(5))), pd.DataFrame(expected))
+
     """When no held-out row gets a prediction, nested CV says so.
 
     One outer fold holds out the two rows with no observed X, which no projection can score,

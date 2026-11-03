@@ -24,7 +24,7 @@ from sklearn.model_selection import BaseCrossValidator, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
-from .._random import check_random_state
+from .._random import check_random_state, sklearn_random_state
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
@@ -1287,7 +1287,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
         n_repeats: int | None = None,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         selection_rule: SelectionRule = "1se",
         **mbpls_kwargs,
     ) -> Bunch:
@@ -1327,8 +1327,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         n_repeats : int, optional
             How many times to repeat the split with a fresh shuffle. Resolved
             to 10 when ``cv`` is an integer; pass 1 to disable repeats.
-        random_state : int, optional
-            Seed for the shuffling. Ignored when ``cv`` is a splitter.
+        random_state : int, numpy.random.Generator or None, optional
+            Seed for the shuffling; a Generator gives its next draw of an int,
+            as :meth:`PLS.select_n_components` takes it. Ignored when ``cv`` is
+            a splitter.
         selection_rule : {"1se", "min", "q2_increment"}, default "1se"
             How ``n_components`` is chosen from the curve. See
             :data:`~process_improve.multivariate._common.SelectionRule`.
@@ -1389,7 +1391,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             # One repeat of a RepeatedKFold is the shuffled KFold the docstring names: the same
             # random_state draws the same folds.
             repeats = 10 if n_repeats is None else int(n_repeats)
-            splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
+            seed = sklearn_random_state(random_state)  # RepeatedKFold refuses a Generator (#1128)
+            splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
             n_splits = cv
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)
