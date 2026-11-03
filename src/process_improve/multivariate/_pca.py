@@ -38,6 +38,7 @@ from ._common import (
     _select_n_components,
     epsqrt,
     resolve_loop_settings,
+    unobserved_columns,
 )
 from ._diagnostics import _t2_score_sd
 from ._nipals import quick_regress, ssq, terminate_check
@@ -974,6 +975,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Returns
         -------
         self : PCA
+
+        Warns
+        -----
+        UserWarning
+            If a column has no observed value. It is left out of the model, as
+            across the family (#1098): its loadings are 0, and a value a new row
+            has in it adds nothing to that row's scores or SPE.
         """
         # Capture the original DataFrame's index/columns before validate_data
         # converts X to an ndarray, then rebuild the DataFrame view downstream
@@ -1007,6 +1015,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self.n_features_in_ = K
         self._feature_names = X.columns
         self._sample_index = X.index
+        # A column with nothing observed gets a zero loading from NIPALS and TSR; it is named, as
+        # across the family, and a value a new row has in it is ignored (#1098).
+        self._unobserved_columns = unobserved_columns(X, "X")
 
         # Clamp n_components
         min_dim = int(min(N, K))
@@ -1375,6 +1386,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             reset=False,  # pragma: no mutate - validate_data reads reset=None as False
             ensure_all_finite="allow-nan",
         )
+        # A column the fit left out (#1098) is read at 0, so it adds nothing to a score or an SPE, and
+        # a NaN there does not make every score NaN. A model pickled before then left none out.
+        X_arr = np.where(getattr(self, "_unobserved_columns", False), 0.0, X_arr)
         # pandas numbers the rows of an array from 0 when given no index.
         return X_arr, X.index if isinstance(X, pd.DataFrame) else None
 

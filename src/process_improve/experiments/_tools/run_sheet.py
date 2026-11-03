@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import base64
-import datetime
+import datetime as dt
 import io
 import zipfile
 from typing import Any, Literal
@@ -24,7 +24,7 @@ _LABELS = (
     "of factors, or a mapping from a factor's name to its column, e.g. {'Temperature': 'X01'}."
 )
 #: The one date a written workbook holds, in place of the time it was written: the earliest a zip archive can hold.
-_WORKBOOK_DATE = datetime.datetime(1980, 1, 1, tzinfo=datetime.UTC)
+_WORKBOOK_DATE = dt.datetime(1980, 1, 1, tzinfo=dt.UTC)
 
 
 class WriteRunSheetInput(BaseModel):

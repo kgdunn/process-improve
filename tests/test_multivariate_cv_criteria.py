@@ -365,7 +365,9 @@ def test_angles_do_not_depend_on_the_number_of_folds() -> None:
     seven = compare_cv_criteria(
         X, Y, max_components=3, cv=7, random_state=0, n_permutations=9, n_cv_permutations=0
     ).table
-    loo = compare_cv_criteria(X, Y, max_components=3, cv=LeaveOneOut(), n_permutations=9, n_cv_permutations=0).table
+    loo = compare_cv_criteria(
+        X, Y, max_components=3, cv=LeaveOneOut(), n_permutations=9, n_cv_permutations=0, random_state=0
+    ).table
     np.testing.assert_allclose(seven["angle_subspace_deg"], loo["angle_subspace_deg"], rtol=0.5)
 
 
@@ -404,7 +406,13 @@ def test_accepts_arrays_series_and_group_splitter() -> None:
     groups = np.repeat(np.arange(6), 7)
     splits = list(GroupKFold(n_splits=6).split(X, Y, groups))
     result = compare_cv_criteria(
-        X.to_numpy(), Y.to_numpy().ravel(), max_components=3, cv=splits, n_permutations=9, n_cv_permutations=19
+        X.to_numpy(),
+        Y.to_numpy().ravel(),
+        max_components=3,
+        cv=splits,
+        n_permutations=9,
+        n_cv_permutations=19,
+        random_state=0,
     )
     assert result.table.shape[0] == 3
     series_result = compare_cv_criteria(
@@ -443,7 +451,7 @@ def test_max_components_is_capped() -> None:
 def test_invalid_settings_raise(kwargs: dict, message: str) -> None:
     X, Y = _two_component_data(n=30)
     with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X, Y, **kwargs)
+        compare_cv_criteria(X, Y, random_state=0, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -458,7 +466,7 @@ def test_data_that_cannot_be_cross_validated_is_refused(rows_x: int, rows_y: int
     """X and Y must pair up row for row, and each fold must keep enough rows to fit a component."""
     X, Y = _two_component_data(n=30)
     with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2)
+        compare_cv_criteria(X.iloc[:rows_x], Y.iloc[:rows_y], cv=2, random_state=0)
 
 
 # --- The fold models' own space, and the T2 rule (#1029) -----------------------------------
@@ -487,7 +495,9 @@ def test_prm_held_out_rows_are_predicted_as_each_fold_model_predicts_them() -> N
     """
     X, Y = _robust_data()
     cv = KFold(5, shuffle=True, random_state=0)
-    result = PRM.compare_cv_criteria(X, Y, max_components=2, cv=cv, n_permutations=9, n_cv_permutations=0)
+    result = PRM.compare_cv_criteria(
+        X, Y, max_components=2, cv=cv, n_permutations=9, n_cv_permutations=0, random_state=0
+    )
     press = 0.0
     for train, test in cv.split(X):
         sx, sy = MCUVScaler().fit(X.iloc[train]), MCUVScaler().fit(Y.iloc[train])
@@ -731,9 +741,9 @@ def test_unusable_gaps_raise(where: str, message: str) -> None:
     else:
         X.iloc[2:, 0] = np.nan  # two observed values: some training fold keeps fewer than two
     with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X, Y)
+        compare_cv_criteria(X, Y, random_state=0)
     with pytest.raises(ValueError, match=message):
-        pseudo_validation_set(X, Y, n_components=2)
+        pseudo_validation_set(X, Y, n_components=2, random_state=0)
 
 
 def test_pseudo_validation_set_rejects_bad_arguments() -> None:
@@ -741,7 +751,7 @@ def test_pseudo_validation_set_rejects_bad_arguments() -> None:
     with pytest.raises(ValueError, match="scope"):
         pseudo_validation_set(X, Y, n_components=2, scope="elsewhere")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="n_components"):
-        pseudo_validation_set(X, Y, n_components=50)
+        pseudo_validation_set(X, Y, n_components=50, random_state=0)
     with pytest.raises(ValueError, match="scale=False"):
         pseudo_validation_set(X, Y, n_components=2, scale=False)
 
@@ -1638,7 +1648,9 @@ def test_in_sample_criteria_from_a_single_fold_of_every_row() -> None:
     every_row = [(np.arange(30), np.arange(30))]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = compare_cv_criteria(X, Y, max_components=2, cv=every_row, n_permutations=9, n_cv_permutations=0)
+        result = compare_cv_criteria(
+            X, Y, max_components=2, cv=every_row, n_permutations=9, n_cv_permutations=0, random_state=0
+        )
     np.testing.assert_allclose(result.table["slope_ratio"], 1.0, rtol=1e-8)
     assert result.table["q2y_se"].isna().all()
     np.testing.assert_allclose(result.table["q2y"], result.table["r2y"], rtol=1e-8)
@@ -1648,7 +1660,9 @@ def test_an_autoscaled_x_is_warned_about_in_the_words_of_this_function() -> None
     """Each fold re-standardises X, so an X that arrives autoscaled loses the scaling it came in."""
     X, Y = _two_component_data(n=30)
     with pytest.warns(SpecificationWarning, match=r"re-standardises inside every CV fold.* comparison of their Q2 "):
-        compare_cv_criteria(MCUVScaler().fit_transform(X), Y, max_components=1, n_permutations=9, n_cv_permutations=0)
+        compare_cv_criteria(
+            MCUVScaler().fit_transform(X), Y, max_components=1, n_permutations=9, n_cv_permutations=0, random_state=0
+        )
 
 
 def test_recommendations_by_rule_in_full() -> None:
@@ -1724,11 +1738,13 @@ def test_every_fit_gets_the_settings_and_the_component_count() -> None:
 
     X, Y = _two_component_data(n=30)
     settings = {"max_iter": 7, "tol": 1e-5}
-    Recorded.compare_cv_criteria(X, Y, max_components=2, cv=KFold(3), n_permutations=9, n_cv_permutations=0, **settings)
+    Recorded.compare_cv_criteria(
+        X, Y, max_components=2, cv=KFold(3), n_permutations=9, n_cv_permutations=0, random_state=0, **settings
+    )
     assert [(p["n_components"], p["max_iter"], p["tol"], p["scale"]) for p in fits] == [(2, 7, 1e-5, True)] * 4
     for scope, fold_scale in (("global", False), ("local", True)):
         fits.clear()
-        Recorded.pseudo_validation_set(X, Y, n_components=2, cv=KFold(3), scope=scope, **settings)
+        Recorded.pseudo_validation_set(X, Y, n_components=2, cv=KFold(3), scope=scope, random_state=0, **settings)
         assert [(p["n_components"], p["max_iter"], p["tol"]) for p in fits] == [(2, 7, 1e-5)] * 4
         assert [(p["scale"], p["warn_on_uncentred"]) for p in fits] == [(True, True)] + [(fold_scale, fold_scale)] * 3
 
@@ -1771,7 +1787,7 @@ def test_a_splitter_that_reads_y_is_given_y() -> None:
     Y = pd.DataFrame({"y": np.tile([0.0, 1.0, 1.0], 10)})
     cv = StratifiedKFold(3)
     expected = list(cv.split(X, Y))
-    result = compare_cv_criteria(X, Y, max_components=1, cv=cv, n_permutations=9, n_cv_permutations=0)
+    result = compare_cv_criteria(X, Y, max_components=1, cv=cv, n_permutations=9, n_cv_permutations=0, random_state=0)
     pv = pseudo_validation_set(X, Y, n_components=1, cv=cv, random_state=0)
     for splits in (result.cv_splits, pv.cv_splits):
         for (train, test), (train_by_hand, test_by_hand) in zip(splits, expected, strict=True):
@@ -1840,7 +1856,7 @@ def test_the_one_se_rule_is_handed_rmsecv_and_its_standard_error(monkeypatch: py
     monkeypatch.setattr("process_improve.multivariate._cv_criteria._select_n_components", stand_in)
     X, Y = _with_gaps(*_two_component_data(n=40, k=6), fraction=0.1)
     cv = KFold(5, shuffle=True, random_state=0)
-    compare_cv_criteria(X, Y, max_components=3, cv=cv, n_permutations=9, n_cv_permutations=0)
+    compare_cv_criteria(X, Y, max_components=3, cv=cv, n_permutations=9, n_cv_permutations=0, random_state=0)
     held = _held_out_by_hand(_folds_by_hand(X, Y, list(cv.split(X)), 3), Y.to_numpy(), 3)
     [(rule, kwargs)] = calls
     assert rule == "1se"

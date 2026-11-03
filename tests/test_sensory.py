@@ -6,6 +6,7 @@ mode is a stub and is covered by the not-implemented tests below.
 
 from __future__ import annotations
 
+import json
 import re
 
 import numpy as np
@@ -947,6 +948,19 @@ def test_find_predictive_with_no_fittable_model_flags_nothing(monkeypatch):
     assert not desc["is_predictive"].any()
 
 
+def test_find_predictive_gives_a_lone_descriptor_an_infinite_ratio_that_no_permutation_beats():
+    """A lone descriptor is its own TP score, so it has no residual: its ratio is inf, in every permutation too.
+
+    Every permuted ratio ties the observed one, so both p-values are one, as they were when the ratio was 0.
+    """
+    agg, cov = _predictive_case()
+    disc = find_predictive_descriptors(agg, cov[["d1"]], n_components=1, n_permutations=9)
+    assert disc["per_attribute"][0]["predictable"]
+    (record,) = disc["descriptors"]
+    assert record["selectivity_ratio"] == np.inf
+    assert record["p_value"] == record["p_value_fwer"] == 1.0
+
+
 def test_find_predictive_ignores_permutations_it_cannot_fit(monkeypatch):
     """A permuted response whose fit fails adds nothing to the null; with none left, every p-value is one."""
     real_fit = sensory_analysis._fit_pls_safe
@@ -1186,6 +1200,23 @@ def test_tool_analyze_stops_at_validation_errors():
     assert out["ok"] is False
     assert any("missing required columns" in e for e in out["errors"])
     assert set(out) == {"ok", "errors", "warnings"}
+
+
+def test_tool_analyze_reports_an_infinite_selectivity_ratio_as_null():
+    """JSON has no infinity, so the tool layer reports a descriptor with no residual as null, as it does NaN."""
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {
+        "panel": _panel().to_dict(orient="records"),
+        "covariates": _obs()[["product", "sodium"]].to_dict(orient="records"),
+        "mode": "observational",
+        "n_permutations": 9,
+    }
+    out = execute_tool_call("sensory_analyze_descriptive", payload)
+    records = out["relate"]["predictive_descriptors"]["descriptors"]
+    assert records
+    assert all(record["selectivity_ratio"] is None for record in records)
+    json.dumps(out, allow_nan=False)
 
 
 def test_get_sensory_tool_specs_lists_every_sensory_tool():

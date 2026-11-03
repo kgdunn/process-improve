@@ -44,6 +44,7 @@ from ._common import (
     epsqrt,
     largest_ssq_column,
     resolve_loop_settings,
+    unobserved_columns,
     y_is_exhausted,
     y_reach,
 )
@@ -926,6 +927,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         PLS
             Model object.
 
+        Warns
+        -----
+        UserWarning
+            If a column of X or Y has no observed value. It is left out of the
+            model, as across the family (#1098): its weights and loadings are 0,
+            a value a new row has in an X column of this kind adds nothing to that
+            row's scores or SPE, and a response of this kind has NaN predictions.
+
         References
         ----------
         Abdi, "Partial least squares regression and projection on latent structure
@@ -978,6 +987,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             raise ValueError(
                 f"sample_weight has {sample_weight.shape[0]} entries; expected {self.n_samples_} to match X / Y."
             )
+        # A column of X or Y with nothing observed gets a zero weight and loading, on every md_method.
+        # It is named, as across the family; a value a new row has in it adds nothing, and a response
+        # with nothing observed has no prediction (#1098). PLS.fit has no _fit_context wrapper: 3 levels.
+        self._unobserved_columns = unobserved_columns(X, "X", stacklevel=3)  # pragma: no mutate - see above
+        self._unobserved_targets = unobserved_columns(Y, "Y", stacklevel=3)  # pragma: no mutate - see above
 
         N = self.n_samples_
         K = self.n_features_in_
@@ -1071,7 +1085,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # documented raw-X -> raw-Y relationship (and matches sklearn's coef_):
         # beta_orig[k, m] = beta_scaled[k, m] * y_scale[m] / x_scale[k].
         _, x_scale = _back_to_units(self._x_scaler)
-        y_centre, y_scale = _back_to_units(self._y_scaler)
+        _, y_scale = _back_to_units(self._y_scaler)
         T, P, C = self._scores, self._x_loadings, self.y_loadings_
         beta_coefficients = direct_weights / np.atleast_1d(x_scale)[:, np.newaxis] @ C.T * y_scale
 
@@ -1086,7 +1100,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.y_weights_ = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
         self.y_loadings_ = pd.DataFrame(C, index=Y.columns, columns=component_names)
         # NIPALS predictions are in scaled-Y space; report on the original scale.
-        self.predictions_ = pd.DataFrame(T @ C.T * y_scale + y_centre, index=Y.index, columns=Y.columns)
+        self.predictions_ = self._in_y_units(pd.DataFrame(T @ C.T, index=Y.index, columns=Y.columns))
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
         # fit refuses fewer than two rows (ensure_min_samples=2), so N - 1 is at least 1.
@@ -1129,7 +1143,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             r2y.append(1 - ssq(y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
             r2_cumulative.append(1 - ssq(y_left) / np.sum(y_total))
             # Over the observed cells, as the R2 is: one missing Y cell made its column NaN (#1027).
-            rmse.append(np.sqrt(np.nanmean(y_left**2, axis=0)))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)  # a response with no observed value has no RMSE
+                rmse.append(np.sqrt(np.nanmean(y_left**2, axis=0)))
         self._spe = np.column_stack(spe)
         self.r2_cumulative_ = pd.Series(r2_cumulative, index=component_names, name="Output cumulative R²")
         self.r2_per_component_ = pd.Series(
@@ -1193,7 +1209,20 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             ensure_all_finite="allow-nan",
         )
         rows = pd.DataFrame(X_arr, index=X.index if isinstance(X, pd.DataFrame) else None, columns=self._feature_names)
-        return rows if self._x_scaler is None else self._x_scaler.transform(rows)
+        rows = rows if self._x_scaler is None else self._x_scaler.transform(rows)
+        # A column the fit left out (#1098) is read at 0, so it adds nothing to a score or an SPE, and
+        # a NaN there does not make every score NaN. A model pickled before then left none out.
+        return rows.mask(np.broadcast_to(getattr(self, "_unobserved_columns", False), rows.shape), 0.0)
+
+    def _in_y_units(self, y_hat: pd.DataFrame) -> pd.DataFrame:
+        """Return predictions made in the space the model was fitted in, on Y's original scale.
+
+        A response with no observed value was left out of the fit (#1098), and has no prediction: NaN.
+        A model pickled before then left none out.
+        """
+        if self._y_scaler is not None:
+            y_hat = self._y_scaler.inverse_transform(y_hat)
+        return y_hat.mask(np.broadcast_to(getattr(self, "_unobserved_targets", False), y_hat.shape))
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
         """Fit the model and return X scores.
@@ -1334,9 +1363,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
         # Y predictions (computed in scaled-Y space; mapped back to original units)
-        y_hat = scores @ self.y_loadings_.T
-        if self._y_scaler is not None:
-            y_hat = self._y_scaler.inverse_transform(y_hat)
+        y_hat = self._in_y_units(scores @ self.y_loadings_.T)
 
         return Bunch(
             scores=scores,
@@ -1421,9 +1448,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # A component fit leaves out of T² is left out here too (#1026).
         s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
         t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
-        y_hat = scores @ self.y_loadings_.T
-        if self._y_scaler is not None:
-            y_hat = self._y_scaler.inverse_transform(y_hat)
+        y_hat = self._in_y_units(scores @ self.y_loadings_.T)
         return Bunch(
             scores=scores,
             y_hat=y_hat,

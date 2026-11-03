@@ -29,7 +29,7 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _model_method, _nz, epsqrt, largest_ssq_column
+from ._common import _model_method, _nz, epsqrt, largest_ssq_column, unobserved_columns
 from ._diagnostics import _t2_score_sd
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
@@ -1085,24 +1085,21 @@ class TPLS(RegressorMixin, BaseEstimator):
         centering = y.mean()
         scaling = y.std() if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)  # pandas' default ddof is 1
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
-        # it is named separately because "no variance" would send the caller to the wrong cause.
-        unobserved = y.isna().all()
+        # it is named separately, in the warning the whole family gives (#1098), because "no
+        # variance" would send the caller to the wrong cause.
+        unobserved = unobserved_columns(y, label)
         # No variance: its observed values are all equal, in any units, as MCUVScaler reads a
         # column. An sd below a floor (it was sqrt(eps)) also took a column in small units for a
         # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
         # a NaN maximum and minimum, which are not equal, so it is not counted here.
         degenerate = (y.max() == y.min()) & (y.shape[0] > 1)
-        for excluded, reason, advice in (
-            (unobserved, "no observed values", "check the data for a sensor that was never logged"),
-            (degenerate, "no variance", "check the data for a stuck sensor"),
-        ):
-            if excluded.any():
-                named = ", ".join(repr(col) for col in y.columns[excluded])
-                warnings.warn(  # a UserWarning, warn's default category
-                    f"Block {label} has columns with {reason}, which carry no information and are "
-                    f"excluded from the model: {named}. Drop them, or {advice}.",
-                    stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
-                )
+        if degenerate.any():
+            named = ", ".join(repr(col) for col in y.columns[degenerate])
+            warnings.warn(  # a UserWarning, warn's default category
+                f"Block {label} has columns with no variance, which carry no information and are "
+                f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
+                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            )
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 
     def _validate_df(self, df: pd.DataFrame) -> None:

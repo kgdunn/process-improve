@@ -154,6 +154,19 @@ chance, and which variables carry it.
    :members:
    :show-inheritance:
 
+FPCA
+~~~~
+
+Functional PCA of curves: a time course, a profile or a spectrum per sample. Each curve is
+smoothed by one penalised B-spline smoother, and the components are found in the L2 metric of the
+basis, so they are orthonormal functions of the curve's argument. Curves sampled at their own
+points share the union of the points as their grid, with ``NaN`` where a curve was not measured.
+The scores are ordinary numbers, ready to model against the factors of a designed experiment.
+
+.. autoclass:: FPCA
+   :members: fit, transform, inverse_transform
+   :show-inheritance:
+
 MBPLS
 ~~~~~
 

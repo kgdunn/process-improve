@@ -73,7 +73,8 @@ _PANEL = [
     for q in range(5)
     for r in (1, 2)
 ]
-# Two descriptors: one alone has a selectivity ratio of 0 in every permutation, so its p-value would not use the seed.
+# Two descriptors: one alone has no residual, an infinite selectivity ratio, in every permutation, so its p-value
+# would not use the seed.
 _PRODUCT_COVARIATES = [{"product": f"prod{q}", "d": float(q), "e": float(3 * q % 5)} for q in range(5)]
 # One factor at a time leaves A:B unestimable, so recommend_next_step chooses the next runs by exchange, from its seed.
 _ONE_AT_A_TIME = [

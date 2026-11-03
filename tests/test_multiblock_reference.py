@@ -586,21 +586,30 @@ class TestMBPCAMissingData:
         with pytest.raises(ValueError, match="not recognised"):
             MBPCA(n_components=2, algorithm="bogus").fit(two_block)
 
-    def test_column_all_nan_raises(self, two_block) -> None:
+    def test_column_all_nan_is_named_and_left_out(self, two_block) -> None:
+        """It was refused; it gets a zero loading now, and a warning that names it, as across the family (#1098)."""
         from process_improve.multivariate.methods import MBPCA
 
         x = {name: df.copy() for name, df in two_block.items()}
         x["A"].iloc[:, 2] = np.nan
-        with pytest.raises(ValueError, match="columns with all values missing"):
-            MBPCA(n_components=2).fit(x)
+        with pytest.warns(UserWarning, match=r"^Block X\[.A.\] has columns with no observed values, .*: 'a2'\."):
+            model = MBPCA(n_components=2).fit(x)
+        np.testing.assert_array_equal(model.block_loadings_["A"].loc["a2"], [0.0, 0.0])
 
-    def test_row_all_nan_raises(self, two_block) -> None:
+    def test_row_all_nan_in_one_block_is_still_scored(self, two_block) -> None:
+        """It was refused; it keeps a super score now, from the blocks it has, as in MBPLS (#1098).
+
+        The block that was not observed has no score or SPE of its own, and says so with NaN.
+        """
         from process_improve.multivariate.methods import MBPCA
 
         x = {name: df.copy() for name, df in two_block.items()}
         x["A"].iloc[7, :] = np.nan
-        with pytest.raises(ValueError, match="rows with all values missing"):
-            MBPCA(n_components=2).fit(x)
+        model = MBPCA(n_components=2).fit(x)
+        assert np.all(np.isfinite(model.super_scores_.iloc[7].to_numpy()))
+        assert np.all(np.isnan(model.block_scores_["A"].iloc[7].to_numpy()))
+        assert np.all(np.isnan(model.block_spe_["A"].iloc[7].to_numpy()))
+        assert np.all(np.isfinite(model.block_scores_["B"].iloc[7].to_numpy()))
 
     def test_nipals_recovers_scores_with_sparse_nan(self, two_block) -> None:
         from process_improve.multivariate.methods import MBPCA
@@ -698,15 +707,19 @@ def _mbpca_written_out(blocks: dict[str, pd.DataFrame], n_components: int, max_i
     that vary. A component starts from the column, over all blocks, with the largest sum of
     squares (a missing cell read as 0) and repeats: ``p_b = X_b't / t't``, column by column over
     the observed cells, scaled to length 1; ``t_b = X_b p_b / p_b'p_b``, row by row over the
-    observed cells, over ``sqrt(K_b)``; ``p = T't`` scaled to length 1, ``T`` the block scores
-    side by side; ``t = T p``. It stops once ``t`` moves by at most ``epsqrt`` of its length, or
-    after ``max_iter`` passes. The component is flipped so the largest deflating loading
-    ``p_b p[b] sqrt(K_b)`` is positive, and ``t`` times that loading is taken from every block.
+    observed cells, over ``sqrt(K_b)``, and none for a row with nothing in the block;
+    ``p = T't / t't``, ``T`` the block scores side by side, column by column over the rows with a
+    block score, scaled to length 1; ``t = T p / p'p``, row by row over the blocks the row has a
+    score in, and 0 for a row with none (#1098). It stops once ``t`` moves by at most ``epsqrt``
+    of its length, or after ``max_iter`` passes. The component is flipped so the largest
+    deflating loading ``p_b p[b] sqrt(K_b)`` is positive, and ``t`` times that loading is taken
+    from every block. A row with nothing in a block has no SPE there.
     """
     names = list(blocks)
     scaling = {name: _autoscaling(frame) for name, frame in blocks.items()}
     x = {name: (frame.to_numpy(dtype=float) - scaling[name][0]) / scaling[name][1] for name, frame in blocks.items()}
     widths = {name: max(1, int(np.sum(np.nanstd(values, axis=0) > EPSQRT))) for name, values in x.items()}
+    has_data = {name: ~np.all(np.isnan(values), axis=1) for name, values in x.items()}
     total = {name: np.nansum(values**2, axis=0) for name, values in x.items()}
     found: dict = {"t": [], "p": [], "iterations": []}
     for key in ("t_b", "p_b", "spe", "r2_columns", "r2_block"):
@@ -724,10 +737,11 @@ def _mbpca_written_out(blocks: dict[str, pd.DataFrame], n_components: int, max_i
             for name in names:
                 loading = filled[name].T @ t / (observed[name].T @ t**2)
                 p_b[name] = loading / np.linalg.norm(loading)
-                t_b[name] = filled[name] @ p_b[name] / (observed[name] @ p_b[name] ** 2) / np.sqrt(widths[name])
+                t_b[name] = _masked_regression(x[name], p_b[name], "row") / np.sqrt(widths[name])
             scores = np.column_stack([t_b[name] for name in names])
-            p = scores.T @ t / np.linalg.norm(scores.T @ t)
-            t = scores @ p
+            p = _masked_regression(scores, t, "column")
+            p = p / np.linalg.norm(p)
+            t = np.nan_to_num(_masked_regression(scores, p, "row"))
             if np.linalg.norm(t - previous) <= EPSQRT * np.linalg.norm(t):
                 break
         deflating = {name: p_b[name] * p[b] * np.sqrt(widths[name]) for b, name in enumerate(names)}
@@ -738,7 +752,7 @@ def _mbpca_written_out(blocks: dict[str, pd.DataFrame], n_components: int, max_i
             remaining = np.nansum(x[name] ** 2, axis=0)
             found["t_b"][name].append(sign * t_b[name])
             found["p_b"][name].append(sign * p_b[name])
-            found["spe"][name].append(np.sqrt(np.nansum(x[name] ** 2, axis=1)))
+            found["spe"][name].append(np.where(has_data[name], np.sqrt(np.nansum(x[name] ** 2, axis=1)), np.nan))
             found["r2_columns"][name].append(1 - remaining / np.where(total[name] > 0, total[name], np.nan))
             found["r2_block"][name].append(1 - remaining.sum() / total[name].sum())
         found["t"].append(sign * t)
@@ -747,7 +761,7 @@ def _mbpca_written_out(blocks: dict[str, pd.DataFrame], n_components: int, max_i
     out = {"t": np.column_stack(found["t"]), "p": np.column_stack(found["p"]), "iterations": found["iterations"]}
     for key in ("t_b", "p_b", "spe", "r2_columns", "r2_block"):
         out[key] = {name: np.column_stack(found[key][name]) for name in names}
-    return out | {"scaling": scaling, "widths": widths}
+    return out | {"scaling": scaling, "widths": widths, "has_data": has_data}
 
 
 def _project_by_hand(fitted: dict, blocks: dict[str, pd.DataFrame]) -> dict:
@@ -859,7 +873,7 @@ def _check_fitted(model: MBPCA, blocks: dict[str, pd.DataFrame], expected: dict,
         _frames_near(model.block_spe_[name], pd.DataFrame(expected["spe"][name], index=index, columns=components), rtol)
         r2_columns = pd.DataFrame(expected["r2_columns"][name], index=columns, columns=components)
         _frames_near(model.r2_x_per_variable_[name], r2_columns, rtol)
-        second_moment = np.sum(t_b**2, axis=0) / (n_rows - 1)
+        second_moment = np.nansum(t_b**2, axis=0) / (expected["has_data"][name].sum() - 1)
         block_t2 = pd.DataFrame(np.cumsum(t_b**2 / second_moment, axis=1), index=index, columns=components)
         _frames_near(model.block_hotellings_t2_[name], block_t2, rtol)
         vip = np.sqrt(expected["widths"][name] * (p_b**2 @ increments[b]) / increments[b].sum())
@@ -1211,29 +1225,57 @@ def test_a_model_whose_fit_failed_is_not_fitted(use: Callable[[MBPCA, dict], obj
         use(model, blocks)
 
 
-def test_a_block_with_a_column_or_a_row_of_missing_cells_is_refused_in_full() -> None:
-    """The masked NIPALS cannot regress on nothing: the message names the block and what to drop."""
+def _gappy_blocks_with_empty_rows() -> dict[str, pd.DataFrame]:
+    """Return the gappy three blocks, row r3 with nothing in block ``x`` and row r5 with nothing in any block."""
     blocks = _gappy_three_blocks()
-    blocks["x"]["x1"] = np.nan
-    message = r"^Block 'x' has columns with all values missing: \['x1'\]\. Drop these columns before fitting\.$"
-    with pytest.raises(ValueError, match=message):
-        MBPCA(n_components=1).fit(blocks)
+    blocks["x"].iloc[3] = np.nan
+    for frame in blocks.values():
+        frame.iloc[5] = np.nan
+    return blocks
 
-    blocks = _gappy_three_blocks()
-    blocks["z"].iloc[4] = np.nan
-    message = (
-        r"^Block 'z' has rows with all values missing at positions \[4\]\. "
-        r"Drop these observations or impute them before fitting\.$"
-    )
-    with pytest.raises(ValueError, match=message):
-        MBPCA(n_components=1).fit(blocks)
+
+def test_rows_with_nothing_in_a_block_or_anywhere_follow_the_algorithm_written_out() -> None:
+    """Both used to be refused (#1098). They are fitted as MBPLS and PCA fit them.
+
+    r3 has no score or SPE in block ``x``, and a super score from ``y`` and ``z``; r5 has none
+    in any block, and a super score of 0. Neither has a part in a block's SPE limit, and r5
+    adds 0 to the merged one.
+    """
+    blocks = _gappy_blocks_with_empty_rows()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = MBPCA(n_components=2).fit(blocks)
+    expected = _mbpca_written_out(blocks, 2)
+    np.testing.assert_array_equal(model.fitting_info_["iterations"], expected["iterations"])
+    _check_fitted(model, blocks, expected, rtol=1e-10)
+    np.testing.assert_array_equal(model.super_scores_.loc["r5"], [0.0, 0.0])
+    assert np.isfinite(model.super_scores_.loc["r3"]).all()
+    assert model.block_spe_["x"].loc[["r3", "r5"]].isna().all(axis=None)
+
+    spe = {name: values[:, 1] for name, values in expected["spe"].items()}
+    merged = np.sqrt(sum(np.nan_to_num(values) ** 2 for values in spe.values()))
+    for conf_level in (0.95, 0.99):
+        for name in blocks:
+            limit = spe_calculation(spe[name][np.isfinite(spe[name])], conf_level=conf_level)
+            assert model.block_spe_limit(name, conf_level=conf_level) == pytest.approx(limit, rel=1e-9)
+        assert model.super_spe_limit(conf_level=conf_level) == pytest.approx(
+            spe_calculation(merged, conf_level=conf_level), rel=1e-9
+        )
 
 
 def test_a_component_whose_deflating_loadings_are_all_zero_keeps_its_signs() -> None:
     """Only a negative largest deflating loading flips a component; a largest of zero (here -0.0) is not negative."""
     from process_improve.multivariate._mbpca import _apply_sign_convention, _MBPCAComponent, _MBPCALoopContext
 
-    context = _MBPCALoopContext(algo="dense", block_names=["a"], sqrt_kb={"a": 1.0}, tol=1e-8, max_iter=10, n_samples=2)
+    context = _MBPCALoopContext(
+        algo="dense",
+        block_names=["a"],
+        sqrt_kb={"a": 1.0},
+        block_has_data={"a": np.ones(2, dtype=bool)},
+        tol=1e-8,
+        max_iter=10,
+        n_samples=2,
+    )
     component = _MBPCAComponent(
         super_scores=np.zeros(2),
         super_loadings=np.zeros(1),
@@ -1503,14 +1545,16 @@ class TestMBPLSMissingData:
         with pytest.raises(ValueError, match="not recognised"):
             MBPLS(n_components=2, algorithm="bogus").fit(x, y)
 
-    def test_x_column_all_nan_raises(self, two_block) -> None:
+    def test_x_column_all_nan_is_named_and_left_out(self, two_block) -> None:
+        """It was refused; it gets a zero weight now, and a warning that names it, as across the family (#1098)."""
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
         x_n = {name: df.copy() for name, df in x.items()}
         x_n["A"].iloc[:, 2] = np.nan
-        with pytest.raises(ValueError, match="columns with all values missing"):
-            MBPLS(n_components=2).fit(x_n, y)
+        with pytest.warns(UserWarning, match=r"^Block X\[.A.\] has columns with no observed values, .*: 'a2'\."):
+            model = MBPLS(n_components=2).fit(x_n, y)
+        np.testing.assert_array_equal(model.block_weights_["A"].loc["a2"], [0.0, 0.0])
 
     def test_x_row_all_nan_in_one_block_is_still_scored(self, two_block) -> None:
         """An observation missing one whole block keeps a super score, from the blocks it has.
@@ -1530,16 +1574,17 @@ class TestMBPLSMissingData:
         assert np.all(np.isnan(model.block_spe_["A"].iloc[7].to_numpy()))
         assert np.all(np.isfinite(model.block_scores_["B"].iloc[7].to_numpy()))
 
-    def test_x_row_all_nan_in_every_block_raises(self, two_block) -> None:
-        """A row observed nowhere carries no information, and is refused."""
+    def test_x_row_all_nan_in_every_block_scores_zero(self, two_block) -> None:
+        """A row observed nowhere was refused; it scores 0 now, with no weight, as PLS fits it (#1098)."""
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
         x_n = {name: df.copy() for name, df in x.items()}
         for df in x_n.values():
             df.iloc[7, :] = np.nan
-        with pytest.raises(ValueError, match=r"all values missing in every X-block"):
-            MBPLS(n_components=2).fit(x_n, y)
+        model = MBPLS(n_components=2).fit(x_n, y)
+        np.testing.assert_array_equal(model.super_scores_.iloc[7].to_numpy(), [0.0, 0.0])
+        assert np.all(np.isnan(model.block_scores_["A"].iloc[7].to_numpy()))
 
     def test_pooled_super_score_leaves_complete_data_untouched(self, two_block) -> None:
         """On a complete row the pooled regression is algebraically the weighted sum of block scores.
@@ -1627,23 +1672,28 @@ class TestMBPLSMissingData:
         agreement = np.mean([abs(np.corrcoef(reference[:, a], scores[:, a])[0, 1]) for a in range(2)])
         assert agreement > 0.85
 
-    def test_y_column_all_nan_raises(self, two_block) -> None:
+    def test_y_column_all_nan_is_named_and_not_predicted(self, two_block) -> None:
+        """It was refused; it gets a zero loading now, no predictions, and a warning that names it (#1098)."""
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
         y_n = y.copy()
         y_n.iloc[:, 0] = np.nan
-        with pytest.raises(ValueError, match=r"Y has columns with all values missing"):
-            MBPLS(n_components=2).fit(x, y_n)
+        with pytest.warns(UserWarning, match=r"^Block Y has columns with no observed values, .*: 'y0'\."):
+            model = MBPLS(n_components=2).fit(x, y_n)
+        np.testing.assert_array_equal(model.super_y_loadings_.loc["y0"], [0.0, 0.0])
+        assert model.predictions_["y0"].isna().all()
 
-    def test_y_row_all_nan_raises(self, two_block) -> None:
+    def test_y_row_all_nan_has_a_zero_y_score(self, two_block) -> None:
+        """A row with no response was refused; it has a Y-score of 0 now, and its X is scored, as in PLS (#1098)."""
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
         y_n = y.copy()
         y_n.iloc[4, :] = np.nan
-        with pytest.raises(ValueError, match=r"Y has rows with all values missing"):
-            MBPLS(n_components=2).fit(x, y_n)
+        model = MBPLS(n_components=2).fit(x, y_n)
+        np.testing.assert_array_equal(model.super_y_scores_.iloc[4].to_numpy(), [0.0, 0.0])
+        assert np.all(np.isfinite(model.super_scores_.iloc[4].to_numpy()))
 
     @pytest.mark.slow
     def test_nipals_recovers_with_sparse_nan(self, two_block) -> None:
@@ -2273,9 +2323,9 @@ def _mbpls_component_by_hand(x: dict, follow: np.ndarray, widths: dict, has_data
         w = _masked_regression(scores, u, "column")
         w = w / np.linalg.norm(w)
         g = np.concatenate([w[b] * w_b[name] / np.sqrt(widths[name]) for b, name in enumerate(names)])
-        t = _masked_regression(np.hstack([x[name] for name in names]), g, "row") * (g @ g)
+        t = np.nan_to_num(_masked_regression(np.hstack([x[name] for name in names]), g, "row") * (g @ g))
         c = _masked_regression(follow, t, "column")
-        u = _masked_regression(follow, c, "row")
+        u = np.nan_to_num(_masked_regression(follow, c, "row"))
         if np.linalg.norm(u - previous) <= EPSQRT * np.linalg.norm(u):
             break
     return t, u, w, c, w_b, t_b, passes
@@ -2293,8 +2343,11 @@ def _mbpls_written_out(
     1; ``t_b = X_b w_b / w_b'w_b`` row by row over the observed cells, over ``sqrt(K_b)``;
     ``w = T'u / u'u`` over the rows that have a block score, scaled to length 1; the super
     score ``t`` as one regression of the whole row on ``g = [w[b] w_b / sqrt(K_b)]``, scaled
-    by ``g'g``; ``c = Y't / t't`` and ``u = Y c / c'c``, each over the observed cells. It
-    stops once ``u`` moves by at most ``epsqrt`` of its length, or after ``max_iter`` passes.
+    by ``g'g``; ``c = Y't / t't`` and ``u = Y c / c'c``, each over the observed cells. A row
+    with nothing observed in the blocks has a ``t`` of 0, and one with nothing observed in Y a
+    ``u`` of 0, so neither has a weight in the regressions on that score, as PLS fits them
+    (#1098). It stops once ``u`` moves by at most ``epsqrt`` of its length, or after ``max_iter``
+    passes.
     The component is flipped so its largest block loading ``p_b = X_b't / t't`` is positive,
     and ``t p_b'`` is taken from each block and ``t c'`` from Y. Once ``X'Y`` has fallen to
     ``epsqrt`` of its first size, every later component takes the blocks over ``sqrt(K_b)``
@@ -2621,39 +2674,30 @@ class TestMBPLSWrittenOut:
         np.testing.assert_array_equal(nothing.block_vip_["a"], [0.0])
 
 
-def test_mbpls_refuses_what_its_masked_path_cannot_fit_in_full() -> None:
-    """Each refusal names what is missing where; a row with nothing in one block, even the last, is fitted."""
-    for block, column in (("x", "x1"), ("z", "z5")):
-        blocks, y = _gappy_mbpls_data()
-        blocks[block][column] = np.nan
-        message = rf"^Block '{block}' has columns with all values missing: \['{column}'\]\. Drop these columns before"
-        with pytest.raises(ValueError, match=message):
-            MBPLS(n_components=1).fit(blocks, y)
+def test_rows_with_nothing_observed_in_x_or_in_y_follow_the_algorithm_written_out() -> None:
+    """Both used to be refused (#1098); each is fitted as PLS fits it.
 
+    Row r2 has nothing in any block: a super score of 0, and no block score or SPE. Row r5 has
+    no response: a Y-score of 0, and so no weight in the block weights. Neither warns.
+    """
     blocks, y = _gappy_mbpls_data()
     for frame in blocks.values():
-        frame.iloc[[2, 4]] = np.nan
-    message = (
-        r"^Rows at positions \[2, 4\] have all values missing in every X-block\. "
-        r"Drop these observations or impute them before fitting\.$"
-    )
-    with pytest.raises(ValueError, match=message):
-        MBPLS(n_components=1).fit(blocks, y)
+        frame.iloc[2] = np.nan
+    y.iloc[5] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = MBPLS(n_components=2).fit(blocks, y)
+    expected = _mbpls_written_out(blocks, y, 2)
+    np.testing.assert_array_equal(model.fitting_info_["iterations"], expected["iterations"])
+    _check_mbpls_fitted(model, blocks, y, expected, rtol=1e-10)
+    np.testing.assert_array_equal(model.super_scores_.loc["r2"], [0.0, 0.0])
+    np.testing.assert_array_equal(model.super_y_scores_.loc["r5"], [0.0, 0.0])
+    assert all(model.block_spe_[name].loc["r2"].isna().all() for name in blocks)
 
+
+def test_mbpls_refuses_what_its_masked_path_cannot_fit_in_full() -> None:
+    """Each refusal names the setting at fault; a row with nothing in one block, even the last, is fitted."""
     blocks, y = _gappy_mbpls_data()
-    with pytest.raises(
-        ValueError, match=r"^Y has columns with all values missing: \['r'\]\. Drop these targets before fitting\.$"
-    ):
-        MBPLS(n_components=1).fit(blocks, y.assign(r=np.nan))
-    gappy_y = y.copy()
-    gappy_y.iloc[[0, 5]] = np.nan
-    message = (
-        r"^Y has rows with all values missing at positions \[0, 5\]\. "
-        r"Drop these observations or impute them before fitting\.$"
-    )
-    with pytest.raises(ValueError, match=message):
-        MBPLS(n_components=1).fit(blocks, gappy_y)
-
     with pytest.raises(
         ValueError, match=r"^Algorithm 'dense' cannot handle missing data\. Use 'nipals' or 'auto' instead\.$"
     ):

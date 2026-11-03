@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 from scipy.optimize import minimize
 from sklearn.base import clone, is_regressor
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.pipeline import Pipeline
 
 from process_improve.multivariate._common import epsqrt
@@ -429,7 +429,7 @@ class TestPRMApi:
         X, y = _dataset(seed=0)
         pipeline = Pipeline([("scale", MCUVScaler()), ("model", PRM(n_components=2))])
         assert np.asarray(pipeline.fit(X, y).predict(X)).shape == (N_SAMPLES, 1)
-        assert np.all(cross_val_score(PRM(n_components=2), X, y, cv=3) > 0.9)
+        assert np.all(cross_val_score(PRM(n_components=2), X, y, cv=KFold(3)) > 0.9)
 
     @pytest.mark.parametrize("as_type", ["frame", "series", "ndarray"])
     def test_accepts_the_usual_target_shapes(self, as_type: str) -> None:

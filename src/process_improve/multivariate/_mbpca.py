@@ -24,10 +24,12 @@ from ._base import _HotellingsT2LimitMixin
 from ._common import (
     SpecificationWarning,
     _nz,
+    _rows_with_data,
     _scale_block_contributions,
     epsqrt,
     informative_widths,
     resolve_loop_settings,
+    unobserved_columns,
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
@@ -62,30 +64,6 @@ def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
             )
 
 
-def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], block_names: Sequence[str]) -> None:
-    """Refuse a block with an all-missing column or row.
-
-    Either one leaves the masked NIPALS denominator at zero, which would silently produce
-    a spurious score or loading. Refusing is better than coercing the caller into a
-    misleading result.
-    """
-    for name in block_names:
-        values = X[name].values
-        col_all_nan = np.all(np.isnan(values), axis=0)
-        if np.any(col_all_nan):
-            bad = X[name].columns[col_all_nan].tolist()
-            raise ValueError(
-                f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
-            )
-        row_all_nan = np.all(np.isnan(values), axis=1)
-        if np.any(row_all_nan):
-            bad_rows = np.where(row_all_nan)[0].tolist()
-            raise ValueError(
-                f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
-                "Drop these observations or impute them before fitting."
-            )
-
-
 class _MBPCALoopContext(typing.NamedTuple):
     """Everything the component loop needs that does not change between components."""
 
@@ -93,6 +71,7 @@ class _MBPCALoopContext(typing.NamedTuple):
     block_names: list[str]
     #: Algorithmic block weighting: X_b / sqrt(K_b), so blocks of unequal width contribute fairly.
     sqrt_kb: dict[str, float]
+    block_has_data: dict[str, np.ndarray]
     tol: float
     max_iter: int
     n_samples: int
@@ -155,7 +134,17 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
                 t_b = quick_regress(x_def[name], p_b[:, np.newaxis], per="row").flatten() / context.sqrt_kb[name]
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
-                t_b_summary[:, b_idx] = t_b
+                t_b_summary[:, b_idx] = np.where(
+                    context.block_has_data[name],
+                    t_b,
+                    np.nan,  # pragma: no mutate - None reads as NaN in a float array
+                )
+            # Masked, as MBPLS's super weight is: a block a row has nothing in has no say in the
+            # super loading, nor in that row's super score, which comes from the blocks it has.
+            # A row with nothing observed anywhere scores 0 and has no weight, as in PCA (#1098).
+            p_s = quick_regress(t_b_summary, t_super_col, per="column").flatten()
+            p_s = p_s / _nz(float(np.linalg.norm(p_s)))
+            t_super = quick_regress(t_b_summary, p_s[:, np.newaxis], per="row").flatten()
         else:
             for b_idx, name in enumerate(context.block_names):
                 p_b = x_def[name].T @ t_super
@@ -164,9 +153,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext)
                 local_loadings[name] = p_b
                 local_scores[name] = t_b
                 t_b_summary[:, b_idx] = t_b
-        p_s = t_b_summary.T @ t_super
-        p_s = p_s / _nz(float(np.linalg.norm(p_s)))
-        t_super = t_b_summary @ p_s
+            p_s = t_b_summary.T @ t_super
+            p_s = p_s / _nz(float(np.linalg.norm(p_s)))
+            t_super = t_b_summary @ p_s
         # Relative convergence criterion (#504): the change between two successive super-score
         # iterations is judged against the size of the current super-score, so the decision is
         # invariant to a global rescaling of the data. The denominator is floored via ``_nz``
@@ -254,10 +243,18 @@ class _MBPCAArrays:
         )
 
     def record_component(self, a: int, component: _MBPCAComponent, context: _MBPCALoopContext) -> None:
-        """Store one converged component's scores and loadings."""
+        """Store one converged component's scores and loadings.
+
+        A block a row has nothing observed in gets NaN for its block score, not a zero, which
+        would place the row at that block's average: MBPLS's rule (#1098).
+        """
         for b_idx, name in enumerate(context.block_names):
             self.block_loadings[name][:, a] = component.block_loadings[name]
-            self.block_scores[name][:, a] = component.block_scores[name]
+            self.block_scores[name][:, a] = np.where(
+                context.block_has_data[name],
+                component.block_scores[name],
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
+            )
             self.super_loadings[b_idx, a] = component.super_loadings[b_idx]
         self.super_scores[:, a] = component.super_scores
         self.iterations[a] = component.iterations
@@ -274,7 +271,12 @@ class _MBPCAArrays:
             ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
             self.r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / initial.per_block[name]
             self.r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / initial.per_variable[name]
-            self.block_spe[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
+            # A row with nothing observed in the block has no SPE there, as in MBPLS (#1028, #1098)
+            self.block_spe[name][:, a] = np.where(
+                context.block_has_data[name],
+                np.sqrt(np.nansum(x_def[name] ** 2, axis=1)),
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
+            )
 
 
 class _InitialSumsOfSquares(typing.NamedTuple):
@@ -378,11 +380,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     super_hotellings_t2_ : pd.DataFrame, shape (n_samples, n_components)
         Cumulative Hotelling's T^2 on the super-scores per component.
     block_scores_ : dict[str, pd.DataFrame]
-        Per-block scores ``t_b``, each shape ``(n_samples, n_components)``.
+        Per-block scores ``t_b``, each shape ``(n_samples, n_components)``. NaN for a row with
+        nothing observed in that block, as in :class:`MBPLS`.
     block_loadings_ : dict[str, pd.DataFrame]
         Per-block loadings ``p_b``, each shape ``(K_b, n_components)``.
     block_spe_ : dict[str, pd.DataFrame]
-        Per-block squared prediction error per sample and component.
+        Per-block squared prediction error per sample and component. NaN for a row with
+        nothing observed in that block.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
         Per-block cumulative Hotelling's T^2 per sample and component. Each component is
         scaled by its block scores' second moment about zero, as ``super_hotellings_t2_`` is
@@ -432,12 +436,16 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     subtraction. This is the standard skip-NaN NIPALS update; see
     Walczak & Massart (2001) and Arteaga & Ferrer (2002).
 
-    The fit refuses to run if any block has a column with all entries
-    missing, or any block has a row with all entries missing for that
-    block; either case leaves the masked denominator at zero. Drop or
-    impute such rows or columns before fitting. Predict-time score
-    estimation for new observations with NaN (Trimmed Score Regression
-    / Projection to the Model Plane) is a separate follow-up.
+    A row with nothing observed in a block has no score for that block, and
+    no say in the super loading; its super score comes from the blocks it
+    does have. A row with nothing observed in any block is fitted with a
+    super score of 0 and no weight, as :class:`PCA`, :class:`PLS` and
+    :class:`TPLS` fit an all-missing row. A column with nothing observed
+    is left out of the model, with a ``UserWarning`` that names it: its
+    loadings are 0, and a value a new row has in it adds nothing to that
+    row's scores or SPE (#1098). Predict-time score estimation for new
+    observations with NaN (Trimmed Score Regression / Projection to the
+    Model Plane) is a separate follow-up: such a row has NaN scores and SPE.
 
     References
     ----------
@@ -497,6 +505,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """
         _validate_blocks(X)
         self._record_data_shape(X)
+        # A column with nothing observed is left out, with a warning, as across the family (#1098)
+        self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
         algo = self._resolve_algorithm(X)
         # The resolved settings reach the loop. They used to be computed here and dropped,
         # so the caller's loop settings were validated and then ignored (#588).
@@ -506,8 +516,6 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             missing_data_settings=self.missing_data_settings,
             estimator_name="MBPCA",
         )
-        if algo == "nipals":
-            _reject_degenerate_missingness(X, self.block_names_)
 
         x_blocks_pp = self._preprocess(X)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
@@ -516,6 +524,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             block_names=self.block_names_,
             # Block weighting: X_b / sqrt(K_b), K_b counting the columns that vary (#913)
             sqrt_kb=self._block_scale(),
+            # A row with nothing observed in a block has no score for that block (#1098), as in MBPLS
+            block_has_data={name: _rows_with_data(values) for name, values in x_blocks_pp.items()},
             tol=float(settings["md_tol"]),
             max_iter=int(settings["md_max_iter"]),
             n_samples=self.n_samples_,
@@ -686,6 +696,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self, "super_loadings_")
         return self._project(X)
 
+    def _scaled_block(self, name: str, block: pd.DataFrame) -> np.ndarray:
+        """Centre and scale one block of new rows as the fit did.
+
+        A column the fit left out, having no observed value (#1098), is read at its centre, 0: its
+        loading is 0, so a value there adds nothing to a score or an SPE. The projection does not
+        skip a missing cell, so a NaN left there would make every score of the row NaN.
+        """
+        values = self.preproc_[name].transform(block).to_numpy()
+        # A model pickled before #1098 left no column out
+        return np.where(getattr(self, "_unobserved_columns", {}).get(name, False), 0.0, values)
+
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):
             raise TypeError("X must be a dict[str, pd.DataFrame].")
@@ -701,7 +722,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
                 raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
-            x_def[name] = self.preproc_[name].transform(block).to_numpy()
+            x_def[name] = self._scaled_block(name, block)
             if sample_index is None:
                 sample_index = block.index
 
@@ -734,8 +755,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.DataFrame(block_scores[name], index=sample_index, columns=component_names)
             for name in self.block_names_
         }
+        # A row with a missing cell has no scores here, and so no residual: its SPE is NaN, as in
+        # PCA.diagnose. A sum that skipped the NaN gave such a row, an empty one included, an SPE of 0.
         block_spe = {
-            name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
+            name: pd.Series(np.sqrt(np.sum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
             for name in self.block_names_
         }
         # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
@@ -755,15 +778,18 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self, "block_spe_")
         if block not in self.block_spe_:
             raise KeyError(f"Unknown block '{block}'. Known blocks: {list(self.block_spe_)}.")
-        return spe_calculation(self.block_spe_[block].iloc[:, -1].to_numpy(), conf_level=conf_level)
+        # A row with nothing observed in the block has no SPE there (NaN), and no part in its limit.
+        return spe_calculation(self.block_spe_[block].iloc[:, -1].dropna().to_numpy(), conf_level=conf_level)
 
     def super_spe_limit(self, conf_level: float = 0.95) -> float:
-        """SPE limit for the merged super-block."""
+        """SPE limit for the merged super-block.
+
+        A block a row has nothing observed in leaves no residual in that row: its NaN SPE
+        counts as 0 in the sum, as in :meth:`MBPLS.super_spe_limit`.
+        """
         check_is_fitted(self, "block_spe_")
-        merged_spe_squared = np.zeros(self.n_samples_)
-        for name in self.block_names_:
-            merged_spe_squared += self.block_spe_[name].iloc[:, -1].to_numpy() ** 2
-        return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
+        spe = np.column_stack([self.block_spe_[name].iloc[:, -1].to_numpy() for name in self.block_names_])
+        return spe_calculation(np.sqrt(np.nansum(spe**2, axis=1)), conf_level=conf_level)
 
     def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
         """Per-variable squared residuals for each X-block (SPE contributions).
@@ -790,7 +816,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             block = X[name]
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
-            x_pp = self.preproc_[name].transform(block).to_numpy()
+            x_pp = self._scaled_block(name, block)
             # X_b reconstruction summed over components
             p_b = self.block_loadings_[name].values  # (K_b, A)
             p_s = self.super_loadings_.values[b_idx, :]  # (A,)
@@ -825,7 +851,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if sample_index is None:
                 sample_index = block.index
-            x_def[name] = self.preproc_[name].transform(block).to_numpy()
+            x_def[name] = self._scaled_block(name, block)
 
         # The block and super loadings have unit length, so each score is a plain product.
         sqrt_kb = self._block_scale()
