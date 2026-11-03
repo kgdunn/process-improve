@@ -27,6 +27,7 @@ from sklearn.utils.validation import check_is_fitted
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
+    NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
     _equal_weight_r2_total,
@@ -318,9 +319,9 @@ def _deflate(
 class _InitialSumsOfSquares(typing.NamedTuple):
     """The sums of squares of the preprocessed data, the denominators of every R² below.
 
-    R² is undefined for a block, a column or a Y with nothing to explain, so its sum of
-    squares is held as NaN: every R² divided by it is NaN, without the warning a division by
-    0 gives, and not a misleading 1.0.
+    R² is undefined for a block or a column with nothing to explain, so its sum of squares
+    is held as NaN: every R² divided by it is NaN, without the warning a division by 0
+    gives, and not a misleading 1.0. ``fit`` refuses a Y with nothing to explain (#1075).
     """
 
     x_block: dict[str, float]
@@ -338,7 +339,7 @@ class _InitialSumsOfSquares(typing.NamedTuple):
         return cls(
             x_block={name: total if total > 0 else np.nan for name, total in x_block.items()},
             x_variable={name: np.where(values > 0, values, np.nan) for name, values in x_variable.items()},
-            y_total=y_total if y_total > 0 else np.nan,
+            y_total=y_total,
             y_variable=np.where(y_variable > 0, y_variable, np.nan),
         )
 
@@ -664,6 +665,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             independently.
         y : pd.DataFrame
             Y-block. Same row index / row count as the X-blocks.
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of Y is constant or has no observed value, as :meth:`PLS.fit` raises.
         """
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
@@ -681,6 +687,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         )
 
         x_blocks_pp, y_pp = self._preprocess(X, y)
+        # Nothing to explain leaves every weight 0, so a new row would have no score: refused, as PLS does (#1075)
+        if ssq(y_pp) < epsqrt:  # pragma: no mutate - <= differs only at a sum of squares of exactly epsqrt
+            raise NotEnoughVarianceError(
+                "There is no variance in Y: every response is constant or has no observed value, "
+                "so there is nothing for X to explain."
+            )
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,

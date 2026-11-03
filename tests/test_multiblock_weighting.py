@@ -11,7 +11,7 @@ import pytest
 from sklearn.model_selection import PredefinedSplit
 
 from process_improve.multivariate._common import informative_widths
-from process_improve.multivariate.methods import MBPCA, MBPLS, PLS, SpecificationWarning
+from process_improve.multivariate.methods import MBPCA, MBPLS, PLS, NotEnoughVarianceError, SpecificationWarning
 
 N = 40
 #: Padded and plain fits are compared to near machine precision, beyond the default tolerance's ~1e-8 steps,
@@ -179,6 +179,34 @@ class TestNothingLeftInY:
         np.testing.assert_array_equal(three.y_loadings_.iloc[:, 1:].to_numpy(), np.zeros((1, 2)))
         np.testing.assert_allclose(three.predictions_, one.predictions_, rtol=0, atol=1e-14)
         np.testing.assert_allclose(three.predict(x), one.predict(x), rtol=0, atol=1e-14)
+
+    @pytest.mark.parametrize("algorithm", ["dense", "nipals"])
+    def test_mbpls_refuses_a_constant_response_as_pls_does(self, blocks: tuple, algorithm: str) -> None:
+        """A response with no variation leaves every weight 0, and a new row with no score (#1075).
+
+        MBPLS fitted it, and predicted NaN for every new row while its own predictions were Y's
+        mean. PLS refuses the same response, and so does MBPLS now.
+        """
+        plain, _padded, _y = blocks
+        constant = pd.DataFrame({"y": np.full(N, 3.0)})
+        message = (
+            "^There is no variance in Y: every response is constant or has no observed value, "
+            "so there is nothing for X to explain.$"
+        )
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            MBPLS(n_components=1, algorithm=algorithm).fit(plain, constant)
+        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for Y"):
+            PLS(n_components=1).fit(pd.concat(plain.values(), axis=1), constant)
+
+    def test_mbpls_refuses_a_response_with_no_observed_value_as_pls_does(self, blocks: tuple) -> None:
+        """Every response unobserved leaves nothing to explain either: named in a warning, then refused (#1075)."""
+        plain, _padded, _y = blocks
+        unobserved = pd.DataFrame({"y": np.full(N, np.nan)})
+        with (
+            pytest.warns(UserWarning, match="Block Y has columns with no observed values"),
+            pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y"),
+        ):
+            MBPLS(n_components=1).fit(plain, unobserved)
 
     def test_data_with_more_to_explain_are_not_flagged(self, blocks: tuple) -> None:
         plain, _padded, y = blocks

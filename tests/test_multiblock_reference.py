@@ -62,6 +62,7 @@ from process_improve.multivariate.methods import (
     MBPLS,
     PCA,
     MCUVScaler,
+    NotEnoughVarianceError,
     SpecificationWarning,
     randomization_test_mbpls,
 )
@@ -2619,7 +2620,8 @@ class TestMBPLSWrittenOut:
         One component explains both rows of every column that varies: R2 1. The constant column
         ``b1``, the block ``c`` of constants and the constant target ``y1`` have nothing to
         explain: their R2 is NaN, with no warning from a division by 0, ``c``'s VIP is 0, and
-        no constant column counts in its block's width. The variance divides by 1.
+        no constant column counts in its block's width. The variance divides by 1. The constant
+        target on its own leaves nothing to fit, and is refused (#1075).
         """
         index = ["first", "second"]
         blocks = {
@@ -2632,7 +2634,8 @@ class TestMBPLSWrittenOut:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             model = MBPLS(n_components=1).fit(blocks, y)
-            flat = MBPLS(n_components=1).fit(blocks, y[["y1"]])
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y"):
+            MBPLS(n_components=1).fit(blocks, y[["y1"]])
         assert model.block_informative_widths_ == {"a": 1, "b": 1, "c": 1}
         _frames_near(
             model.r2_x_per_block_cumulative_,
@@ -2647,8 +2650,6 @@ class TestMBPLSWrittenOut:
         np.testing.assert_allclose(model.explained_variance_, [np.sum(model.super_scores_.to_numpy() ** 2)], rtol=1e-15)
         np.testing.assert_allclose(model.block_vip_["b"], [1.0, 0.0], rtol=1e-12, atol=1e-15)
         np.testing.assert_array_equal(model.block_vip_["c"], [0.0])
-        assert flat.r2_y_cumulative_.isna().all()
-        assert flat.r2_y_per_variable_.isna().all().all()
 
     def test_a_block_or_a_y_the_component_leaves_untouched_has_no_r2_and_no_vip(self) -> None:
         """Columns with mean 0 and sd 1, exactly orthogonal: what the component does not reach has R2 and VIP 0.
@@ -3035,9 +3036,10 @@ class TestMBPLSPlotsAndSummary:
         assert figure.layout.yaxis.title.text == "Predicted: q"
         assert figure.layout.title.text == "Predicted vs observed for q"
 
-        # Every point at one value: the line is padded by 1 either side.
-        flat = MBPLS(n_components=1).fit(blocks, pd.DataFrame({"c": np.full(6, 3.0)}, index=y.index))
-        (_, line) = flat.predictions_vs_observed_plot(pd.DataFrame({"c": np.full(6, 3.0)})).data
+        # Every point at one value: the line is padded by 1 either side. A constant response is fitted
+        # beside one that varies, and predicted at its value; on its own it is refused (#1075).
+        flat = MBPLS(n_components=1).fit(blocks, y.assign(c=3.0))
+        (_, line) = flat.predictions_vs_observed_plot(pd.DataFrame({"c": np.full(6, 3.0)}), variable="c").data
         np.testing.assert_array_equal(line.x, [2.0, 4.0])
         np.testing.assert_array_equal(line.y, [2.0, 4.0])
 
