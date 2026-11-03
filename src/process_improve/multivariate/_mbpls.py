@@ -229,16 +229,17 @@ def _component_along_x(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
     """Fit a component along the largest direction left in the blocks, for when Y has nothing left (#913).
 
     The weighted blocks stand in for Y, so the hierarchical NIPALS converges to the leading
-    principal component of the deflated, block-weighted X. The component's Y-loading is
-    Y's regression on its super score, about zero, and it has no Y-score. The regression
-    masks Y's missing cells, and on complete data is the dense ``Y't / t't``: it runs once
-    per component, outside the loop, so it needs no dense path of its own.
+    principal component of the deflated, block-weighted X. The component has a Y-loading of
+    0 and no Y-score, so the predictions stay as they were, as in PLS (#1074). Y's regression
+    on the super score, its Y-loading until then, still moved them: once every column of X
+    is spent, the super score is round-off, and the regression the ratio of two round-off
+    errors.
     """
     target = np.column_stack([x_def[name] / context.sqrt_kb[name] for name in context.block_names])
     component = _fit_one_component(x_def, target, context)
-    t_super = component.super_score
-    c_a = quick_regress(y_def, t_super[:, np.newaxis], per="column").flatten()
-    return component._replace(super_y_loading=c_a, super_y_score=np.zeros(t_super.shape))
+    return component._replace(
+        super_y_loading=np.zeros(y_def.shape[1]), super_y_score=np.zeros(component.super_score.shape)
+    )
 
 
 def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context: _MBPLSLoopContext) -> _MBPLSComponent:

@@ -685,8 +685,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 if terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
                     break
 
-            if exhausted:  # the Y side of a component along X: a Y-loading of about zero, and no Y-score
-                c_a = quick_regress(Yd, t_a, per="column")
+            if exhausted:  # the Y side of a component along X: no Y-loading, so the predictions stay (#1074)
+                c_a = np.zeros((M, 1))
                 u_a = np.zeros_like(t_a)
 
             timing[a] = time.time() - start_time

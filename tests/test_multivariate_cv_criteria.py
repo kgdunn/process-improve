@@ -534,8 +534,13 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     Thirty rows on a plane in units of 1e12, one of them nudged 1e3 off it, fitted unscaled:
     the third component's score sd, 181, is below 1.5e-8 of the first's, 2.8e12, so the
     model's own T2 leaves it out. The held-out T2 divided by it all the same, and the nudged
-    row, which its fold model never saw, got a T2 of 1057 at three components, an alarm.
-    Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation scores, by hand.
+    row, which its fold model never saw, got a T2 at three components above the limit, an
+    alarm. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation scores, by hand.
+
+    The third component is fitted after Y is exhausted, so it has no Y-loading (#1074), and
+    so no D ratio. Its Y-loading is set to 1 in the model and in every fold, which leaves
+    its held-out scores unscaled, so that the T2 rule still has a third score to leave out:
+    alone it adds 28 to the nudged row's T2, against a limit of 9.9.
     """
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
@@ -551,6 +556,7 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
             return PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(X.iloc[rows], y.iloc[rows])
 
     model = fit(np.arange(30))
+    model.y_loadings_.iloc[:, 2] = 1.0
     sd = model.scaling_factor_for_scores_.to_numpy()
     assert sd[2] < 1.5e-8 * sd[0]
     folds = []
@@ -569,14 +575,14 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
                 weights=weights,
                 direct_weights=fold.direct_weights_.to_numpy(),
                 x_loadings=x_loadings,
-                y_loadings=fold.y_loadings_.to_numpy(),
+                y_loadings=np.c_[fold.y_loadings_.to_numpy()[:, :2], [[1.0]]],
             )
         )
     pv_scores = _procrustes_scores(model, folds)[0]
-    assert (pv_scores[0, 2] / sd[2]) ** 2 > 1000.0  # what the third component added
+    limits = [hotellings_t2_limit(conf_level=0.95, n_components=a, n_rows=30) for a in (1, 2, 3)]
+    assert (pv_scores[0, 2] / sd[2]) ** 2 > limits[2]  # what the third component would add: an alarm alone
     t2 = np.cumsum((pv_scores[:, :2] / sd[:2]) ** 2, axis=1)
     t2 = np.c_[t2, t2[:, 1]]
-    limits = [hotellings_t2_limit(conf_level=0.95, n_components=a, n_rows=30) for a in (1, 2, 3)]
     alarms = _monitoring_criteria(model, folds, conf_level=0.95, alpha=0.05).t2_alarm
     np.testing.assert_allclose(alarms, [np.mean(t2[:, a] > limits[a]) for a in range(3)])
     assert alarms[2] == 0.0

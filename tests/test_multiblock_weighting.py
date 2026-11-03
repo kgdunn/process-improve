@@ -11,7 +11,7 @@ import pytest
 from sklearn.model_selection import PredefinedSplit
 
 from process_improve.multivariate._common import informative_widths
-from process_improve.multivariate.methods import MBPCA, MBPLS, PLS
+from process_improve.multivariate.methods import MBPCA, MBPLS, PLS, SpecificationWarning
 
 N = 40
 #: Padded and plain fits are compared to near machine precision, beyond the default tolerance's ~1e-8 steps,
@@ -140,6 +140,45 @@ class TestNothingLeftInY:
         rmsecv = result["rmsecv"]["total"].to_numpy()
         assert rmsecv[1:] == pytest.approx([rmsecv[0], rmsecv[0]], rel=1e-9)
         assert not any("maximum number of iterations" in str(w.message) for w in caught)
+
+    def test_mbpls_components_past_the_rank_of_x_leave_the_predictions_as_they_were(self) -> None:
+        """Their Y-loadings are 0, so six components predict as four do on four columns of X (#1074).
+
+        Once the four columns are spent, what is left of X is round-off, and so is the super score
+        of each later component. Y's regression on that score, its Y-loading until then, was the
+        ratio of two round-off errors (about 1e13 here), and it moved the predictions by 0.016.
+        """
+        rng = np.random.default_rng(0)
+        x = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
+        y = pd.DataFrame({"y": x.to_numpy() @ [1.0, -0.5, 0.3, 0.0] + rng.normal(0, 0.1, 30)})
+        blocks = {"b1": x[["a", "b"]], "b2": x[["c", "d"]]}
+        four = MBPLS(n_components=4).fit(blocks, y)
+        with pytest.warns(SpecificationWarning, match="from component 5 on there is nothing left in Y"):
+            six = MBPLS(n_components=6).fit(blocks, y)
+        np.testing.assert_array_equal(six.super_y_loadings_.iloc[:, 4:].to_numpy(), np.zeros((1, 2)))
+        np.testing.assert_allclose(six.predictions_, four.predictions_, rtol=0, atol=1e-12)
+        np.testing.assert_allclose(six.predict(blocks), four.predict(blocks), rtol=0, atol=1e-12)
+        np.testing.assert_array_equal(six.r2_y_per_component_.iloc[4:].to_numpy(), [0.0, 0.0])
+
+    def test_pls_components_along_x_leave_the_predictions_as_they_were(self) -> None:
+        """PLS's components along X have Y-loadings of 0 too, so three components predict as one does (#1074).
+
+        A 2x2x2 design with columns scaled 1, 3 and 2, the third nudged by 1e-9 times the x1 x2
+        interaction, and ``y = x1 + x1 x2 / 2``: after one component what is left of y is the
+        interaction, which X reaches only through the nudge. Y's regression on the third score,
+        its Y-loading until then, was -3.75e-10, and it moved the predictions by 7.5e-10.
+        """
+        levels = np.array(list(itertools.product([-1.0, 1.0], repeat=3)))
+        x = levels * [1.0, 3.0, 2.0]
+        x[:, 2] += 1e-9 * levels[:, 0] * levels[:, 1]
+        x = pd.DataFrame(x, columns=["x1", "x2", "x3"])
+        y = pd.DataFrame({"y": levels[:, 0] + 0.5 * levels[:, 0] * levels[:, 1]})
+        one = PLS(n_components=1, scale=False).fit(x, y)
+        with pytest.warns(SpecificationWarning, match="from component 2 on there is nothing left in Y"):
+            three = PLS(n_components=3, scale=False).fit(x, y)
+        np.testing.assert_array_equal(three.y_loadings_.iloc[:, 1:].to_numpy(), np.zeros((1, 2)))
+        np.testing.assert_allclose(three.predictions_, one.predictions_, rtol=0, atol=1e-14)
+        np.testing.assert_allclose(three.predict(x), one.predict(x), rtol=0, atol=1e-14)
 
     def test_data_with_more_to_explain_are_not_flagged(self, blocks: tuple) -> None:
         plain, _padded, y = blocks

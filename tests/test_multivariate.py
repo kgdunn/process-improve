@@ -2238,7 +2238,9 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     above PLS's absolute floor, so a third component is fitted to it, with a score sd below 1e-3
     against about 3e12: fit() leaves it out of T². A row off the plane scores on it all the same.
     Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution
-    from its scores, which diagnose gives ``x_new`` too.
+    from its scores, which diagnose gives ``x_new`` too. The third component is fitted after Y
+    is exhausted, so it has no Y-loading (#1074) and lies in invert's null space: the solution
+    is moved along it, to give it a third score.
     """
     flat, new = _rows_on_a_plane(units=1e12)
     y = pd.DataFrame({"y": flat.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0]})
@@ -2258,7 +2260,8 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     np.testing.assert_allclose(pls.diagnose(flat).hotellings_t2, training, rtol=1e-8)
     np.testing.assert_allclose(pls.project(flat).hotellings_t2, training, rtol=1e-8)
 
-    inverted = pls.invert(y_desired=1.0)
+    along_third = 1e4 * pls.invert(y_desired=1.0).null_space_basis.to_numpy()[2]
+    inverted = pls.invert(y_desired=1.0, null_space_coordinates=along_third)
     tau = inverted.scores.to_numpy()
     assert (tau[2] / s[2]) ** 2 > 100.0  # what the third component added
     assert inverted.hotellings_t2 == pytest.approx(np.sum(tau[:2] ** 2 / s[:2] ** 2), rel=1e-12, abs=1e-30)

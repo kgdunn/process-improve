@@ -676,7 +676,7 @@ def y_is_exhausted(
 
     The caller then fits that component, and every later one, along the largest
     direction left in X (NIPALS with X as its own target, which converges to the leading
-    principal component of the deflated X). Its Y-loading is about zero, so the
+    principal component of the deflated X). Its Y-loading is 0 (#1074), so the
     predictions, R²Y and a cross-validated PRESS stay as they were at ``a`` components,
     every fitted frame keeps the number of components asked for, and ``P'W`` stays
     invertible. The caller asks once: deflating X along a direction of X keeps ``X'Y``
