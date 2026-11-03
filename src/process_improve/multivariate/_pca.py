@@ -39,9 +39,10 @@ from ._common import (
     epsqrt,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
 )
 from ._diagnostics import _t2_score_sd
-from ._nipals import quick_regress, ssq, terminate_check
+from ._nipals import quick_regress, scores_converged, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 
@@ -1189,7 +1190,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             start_time = time.time()
             start_ss_col = ssq(Xd, axis=0)
 
-            if np.sum(start_ss_col) < epsqrt:
+            # Judged against the block's size before the first component, as OPLS judges it, so data in
+            # small units are not taken for none (#1070). A block of zeros has no first component.
+            if np.sqrt(np.sum(start_ss_col)) <= epsqrt * np.sqrt(base_variance):
                 emsg = (
                     "There is no variance left in the data array: cannot "
                     f"compute any more components beyond component {a}."
@@ -1228,14 +1231,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             timing[a] = time.time() - start_time
             iterations[a] = itern
-            # terminate_check stops the loop at ``iterations >= md_max_iter``;
-            # warn on non-convergence (previously the PCA path was silent).
-            if itern >= settings["md_max_iter"]:
+            # Whether the last pass met the tolerance, not whether it was the last one allowed: a
+            # component can converge on that pass (#1080).
+            if not scores_converged(t_a_guess, t_a, settings["md_tol"]):
                 warnings.warn(
                     f"PCA NIPALS: component {a + 1} reached the maximum number of "
                     f"iterations ({settings['md_max_iter']}) without converging.",
                     SpecificationWarning,
-                    stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                    stacklevel=user_stacklevel(),
                 )
             logger.debug(
                 "PCA NIPALS: component %d converged in %d iterations (tol=%g)",
@@ -1252,7 +1255,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             # Per-variable R^2 is undefined for a column with no variance to
             # explain: dividing by NaN gives NaN there. SEC-21 (#270) sub-item 4.
             self._r2_per_var_np[:, a] = 1 - ssq(Xd, axis=0) / np.where(base_ss_col > 0, base_ss_col, np.nan)
-            # base_variance is at least epsqrt: the first pass raised otherwise.
+            # base_variance is above 0: the first pass raised otherwise.
             self._r2cum_np[a] = 1 - np.sum(row_ssx) / base_variance
 
             flip = _opposes_convention(p_a)
