@@ -185,7 +185,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             or holds a missing or infinite value.
         NotEnoughVarianceError
             If X has no variance left for a component, as when there are more
-            components than the rank of the centred X.
+            components than the rank of the centred X; or if Y is constant (with
+            ``scale=False``, if Y is 0 throughout).
         """
         if self.copy is not None:
             warnings.warn(
@@ -241,6 +242,11 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         Xmat = X.to_numpy()
         y = Y.to_numpy()  # (N, 1)
         target_name = Y.columns
+        # A constant response, all 0 once centred, gives no predictive direction: refused, as PLS refuses it (#1128)
+        if not np.any(y):
+            raise NotEnoughVarianceError(
+                "There is no variance in Y: the response is constant, so there is nothing for X to explain."
+            )
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
