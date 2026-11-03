@@ -1005,7 +1005,7 @@ def _pseudo_validation_set(
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
     # A component fitted after Y is exhausted has a Y-loading of 0, so no D ratio, and its NaN
     # scores would make every cell of X_pv NaN: refused, naming the count the data support (#1128).
-    no_ratio = np.flatnonzero(np.sum(model.y_loadings_.to_numpy() ** 2, axis=0) == 0)
+    no_ratio = np.flatnonzero(~np.any(model.y_loadings_.to_numpy(), axis=0))
     if no_ratio.size:
         supported = int(no_ratio[0])
         raise NotEnoughVarianceError(
