@@ -173,3 +173,29 @@ def test_adaptive_models_take_the_rows_transform_takes(kind: str, raw: tuple[pd.
     np.testing.assert_allclose(score_contributions(model, new, component=2).sum(axis=1), scores.iloc[:, 1], rtol=1e-9)
     t2 = ((scores / model.scaling_factor_for_scores_.to_numpy()) ** 2).sum(axis=1)
     np.testing.assert_allclose(t2_contributions(model, new).sum(axis=1), t2, rtol=1e-9)
+
+
+def test_a_training_row_with_nothing_observed_is_decomposed_as_fit_scored_it(
+    raw: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """``fit`` places a row with no observed value at the centre; so do the contributions and ``project``.
+
+    Its scores, T2 and SPE are 0, and so are the sums of its contributions, which are NaN at
+    every cell, as at any missing cell. Before #1125 the contributions and ``project`` refused it.
+    """
+    X, y = raw
+    gappy = X.copy()
+    gappy.loc["r4"] = np.nan
+    model = PLS(n_components=N_COMPONENTS).fit(gappy, y)
+    assert (model.scores_.loc["r4"] == 0.0).all()
+    assert model.hotellings_t2_.loc["r4"].iloc[-1] == model.spe_.loc["r4"].iloc[-1] == 0.0
+    for frame in (
+        t2_contributions(model, gappy),
+        spe_contributions(model, gappy),
+        score_contributions(model, gappy, component=1),
+    ):
+        assert frame.loc["r4"].isna().all()
+        assert frame.loc["r4"].sum() == 0.0
+    projected = model.project(gappy)
+    assert (projected.scores.loc["r4"] == 0.0).all()
+    np.testing.assert_allclose(projected.y_hat.loc["r4"], model.predictions_.loc["r4"], rtol=1e-12)

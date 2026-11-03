@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,6 +9,7 @@ import pytest
 from process_improve.multivariate import PCA, PLS, MCUVScaler
 from process_improve.multivariate._diagnostics import (
     _complete_rows_apart,
+    group_contributions,
     score_contributions,
     spe_contributions,
     t2_contributions,
@@ -117,12 +116,43 @@ class TestPCAWithMissingCells:
             unridged = pca.project(X, method=method).scores.iloc[:, 0]
             assert np.abs(first - unridged).loc[INCOMPLETE_ROWS].min() > 1e-6
 
-    def test_an_all_nan_row_is_rejected(self, pca: PCA, data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    def test_a_row_with_nothing_observed_sits_at_the_centre(
+        self, pca: PCA, data: tuple[pd.DataFrame, pd.DataFrame]
+    ) -> None:
+        """Every contribution of a row with nothing observed is NaN, and its sums are 0, as fit() scores it (#1125).
+
+        The other rows' contributions do not change, and the group form leaves the empty row out.
+        """
         X = data[0].copy()
         X.loc["r0"] = np.nan
-        message = "Row 0 has no observed features (all-NaN); its contributions cannot be computed."
-        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
-            spe_contributions(pca, X)
+        for frame, before in (
+            (t2_contributions(pca, X), t2_contributions(pca, data[0])),
+            (spe_contributions(pca, X), spe_contributions(pca, data[0])),
+            (score_contributions(pca, X, component=2), score_contributions(pca, data[0], component=2)),
+        ):
+            assert frame.loc["r0"].isna().all()
+            assert frame.loc["r0"].sum() == 0.0
+            pd.testing.assert_frame_equal(frame.drop(index="r0"), before.drop(index="r0"))
+        with_empty_row = group_contributions(pca, X, group=["r0", "r1", "r2"], component=2)
+        expected = score_contributions(pca, X.loc[["r1", "r2"]], component=2).sum() / 3
+        np.testing.assert_allclose(with_empty_row, expected, rtol=1e-12)
+
+
+class TestGroupContributionsWithMissingCells:
+    """A missing cell adds nothing to the group, as it adds nothing to its row's score (#1125)."""
+
+    def test_a_missing_cell_leaves_its_column_defined(self, pca: PCA, data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+        X, _ = data
+        group, reference = ["r3", "r4", "r10"], ["r5", "r25", "r30"]
+        for component in (1, 2):
+            shift = group_contributions(pca, X, group=group, reference=reference, component=component)
+            assert shift.notna().all()
+            rows = score_contributions(pca, X, component=component).fillna(0.0)
+            np.testing.assert_allclose(shift, rows.loc[group].mean() - rows.loc[reference].mean(), rtol=1e-12)
+            scores = pca.project(X, method="scp").scores.iloc[:, component - 1]
+            np.testing.assert_allclose(
+                shift.sum(), scores.loc[group].mean() - scores.loc[reference].mean(), rtol=1e-9, atol=1e-12
+            )
 
 
 def test_a_model_without_training_residuals_still_gets_contributions_for_missing_cells(

@@ -200,7 +200,8 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         ``pmp`` the 2-norm condition number of the inverted matrix, for
         ``scp`` the largest per-component weight-norm inflation
         ``||w_a||^2 / ||w_a_observed||^2``; 1.0 means no loss), and
-        ``method``.
+        ``method``. With nothing observed the matrix has no column, so every
+        row scores 0, the model centre, and the condition number is inf.
     """
     method = _validate_method(method)
     if ridge < 0:
@@ -211,8 +212,12 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
             f"observed must be a boolean mask over the {x_loadings.shape[0]} features; got shape {observed.shape}."
         )
     n_observed = int(observed.sum())
+    A = x_loadings.shape[1]
     if n_observed == 0:
-        raise ValueError("At least one feature must be observed to estimate scores; the observed mask is all-False.")
+        # Nothing observed says nothing about the scores: every estimator's answer is the model
+        # centre, 0, where fit() places a row with no observed value, and none of the information
+        # is left, so the condition number is inf, as SCP gives a component with nothing observed.
+        return Bunch(matrix=np.zeros((A, 0)), condition_number=np.inf, method=method)
 
     p_obs = x_loadings[observed, :]
     g_obs = guide[observed, :]
@@ -220,7 +225,6 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     if weights.shape != x_loadings.shape:
         raise ValueError(f"x_weights must have the shape of x_loadings {x_loadings.shape}; got {weights.shape}.")
     w_obs = weights[observed, :]
-    A = x_loadings.shape[1]
 
     if method == "pmp":
         gram = p_obs.T @ p_obs + ridge * np.eye(A)
@@ -301,7 +305,8 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
         With keys ``scores`` (n_rows x n_components), ``spe`` (n_rows; the
         square root of the residual sum of squares over the *observed*
         columns only), ``condition_number`` (n_rows; 1.0-adjacent for
-        complete rows), and ``n_observed`` (n_rows, int).
+        complete rows), and ``n_observed`` (n_rows, int). A row with nothing
+        observed scores 0, has an SPE of 0 and a condition number of inf.
     """
     method = _validate_method(method)
     n_rows, n_features = x_scaled.shape
@@ -328,9 +333,6 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
             patterns.setdefault(observed_mask[i].tobytes(), []).append(int(i))
         for key, row_ids in patterns.items():
             mask = np.frombuffer(key, dtype=bool)
-            if not mask.any():
-                bad = row_ids[0]
-                raise ValueError(f"Row {bad} has no observed features (all-NaN); scores cannot be estimated for it.")
             op = operator_for_pattern(
                 x_loadings,
                 guide,

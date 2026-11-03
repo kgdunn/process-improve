@@ -1482,7 +1482,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ----------
         X : array-like of shape (n_samples, n_features)
             New data in the model's (centred and scaled) space; NaN marks a
-            missing entry. Rows that are entirely NaN are rejected.
+            missing entry. A row with nothing observed sits at the model
+            centre, as :meth:`fit` places one: scores, T2 and SPE of 0, no
+            observed feature, and a ``condition_number`` of inf.
         method : {"tsr", "scp", "pmp"}, default="tsr"
             The score estimator; see
             :mod:`process_improve.multivariate._projection`.

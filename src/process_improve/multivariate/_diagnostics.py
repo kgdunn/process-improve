@@ -623,9 +623,6 @@ def _scores_and_guides(
         patterns.setdefault(observed[i].tobytes(), []).append(int(i))
     for key, rows in patterns.items():
         mask = np.frombuffer(key, dtype=bool)
-        if not mask.any():
-            msg = f"Row {rows[0]} has no observed features (all-NaN); its contributions cannot be computed."
-            raise ValueError(msg)
         operator = operator_for_pattern(
             P,
             R,
@@ -1090,6 +1087,12 @@ def group_contributions(
     directly for anything else: the paper suggests the first-order orthogonal
     polynomial when a run of batches is drifting rather than stepping.
 
+    A row with missing cells takes part with the contributions
+    :func:`score_contributions` gives it, from its observed cells alone. A
+    missing cell has no part in its row's score, so it adds nothing here,
+    and the contributions still sum to the weighted combination of the
+    scores, now the estimated ones for such a row.
+
     Parameters
     ----------
     model : PCA or PLS
@@ -1136,26 +1139,29 @@ def group_contributions(
     --------
     score_contributions : The single-observation form.
     """
-    X_df, r_a = _score_contribution_terms(model, X, component)
+    # Each row's contributions, from its observed cells alone when it has a missing one, as
+    # score_contributions gives them; a missing cell is NaN there and adds nothing to its row's
+    # score, so it adds nothing to the combination either, rather than making its column NaN.
+    per_row = score_contributions(model, X, component=component)
 
     if weights is not None:
         if group is not None or reference is not None:
             msg = "Pass either weights, or group/reference, not both."
             raise ValueError(msg)
         w = np.asarray(weights, dtype=float)
-        if w.ndim != 1 or w.size != len(X_df):
-            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {w.shape}."
+        if w.ndim != 1 or w.size != len(per_row):
+            msg = f"weights must have one entry per row of X ({len(per_row)}), got shape {w.shape}."
             raise ValueError(msg)
     else:
         if group is None:
             msg = "Pass group (optionally with reference), or weights."
             raise ValueError(msg)
-        w = _mean_weights(X_df, group, "group")
+        w = _mean_weights(per_row, group, "group")
         if reference is not None:
-            w -= _mean_weights(X_df, reference, "reference")
+            w -= _mean_weights(per_row, reference, "reference")
 
-    deviation = w @ X_df.to_numpy(dtype=float)
-    return pd.Series(deviation * r_a, index=X_df.columns, name="group_contributions")
+    values = per_row.to_numpy()
+    return pd.Series(w @ np.where(np.isnan(values), 0.0, values), index=per_row.columns, name="group_contributions")
 
 
 def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarray:
