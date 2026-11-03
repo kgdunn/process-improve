@@ -60,11 +60,11 @@ def _rows(estimator: _RowsEstimator) -> list[int]:
     return estimator.rows_
 
 
-def _noisy_accessor(estimator: _StubEstimator) -> dict[str, float]:
-    """Variant of _accessor that always returns positive-variance noise -
+def _noisy_accessor(estimator: _RowsEstimator) -> dict[str, float]:
+    """Variant of _accessor whose noise is seeded by the rows each fit drew, so it varies from fit to fit -
     needed for ridgeplot's KDE which fails when any column is constant.
     """
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(estimator.rows_)
     return {
         "noise_a": float(rng.normal()),
         "noise_b": float(rng.normal()),
@@ -161,6 +161,7 @@ class TestResamplerDispatch:
             accessor=_accessor,
             use_jackknife=False,
             bootstrap_rounds=4,
+            random_state=0,
         )
         r.resample(show_progress=False)
         assert r.n_resamples == 4
@@ -172,6 +173,7 @@ class TestResamplerDispatch:
             accessor=_accessor,
             use_jackknife=False,
             fraction_excluded=0.5,
+            random_state=0,
         )
         r.resample(show_progress=False)
         # fractional runs len(x) iterations.
@@ -189,7 +191,12 @@ class TestResamplerDispatch:
 
     def test_one_bootstrap_round_is_a_bootstrap(self, tiny_dfd: DataFrameDict) -> None:
         r = Resampler(
-            estimator=_StubEstimator(), x=tiny_dfd, accessor=_accessor, use_jackknife=False, bootstrap_rounds=1
+            estimator=_StubEstimator(),
+            x=tiny_dfd,
+            accessor=_accessor,
+            use_jackknife=False,
+            bootstrap_rounds=1,
+            random_state=0,
         )
         r.resample(show_progress=False)
         assert r.n_resamples == 1
@@ -231,6 +238,7 @@ class TestResamplerMethods:
             accessor=_accessor,
             use_jackknife=False,
             bootstrap_rounds=3,
+            random_state=0,
         )
         r.bootstrap(show_progress=False)
         # Each bootstrap fit sees a sample of size n (with replacement).
@@ -244,6 +252,7 @@ class TestResamplerMethods:
             accessor=_accessor,
             use_jackknife=False,
             fraction_excluded=0.5,
+            random_state=0,
         )
         r.fractional(show_progress=False)
         # n_groups = int(1 / 0.5) = 2 -> drop ~half of the rows each iter.
@@ -258,7 +267,12 @@ class TestResamplerMethods:
         left out, so every fit sees 10 - 4 = 6 rows, each once.
         """
         r = Resampler(
-            estimator=_RowsEstimator(), x=tiny_dfd, accessor=_rows, use_jackknife=False, fraction_excluded=0.3
+            estimator=_RowsEstimator(),
+            x=tiny_dfd,
+            accessor=_rows,
+            use_jackknife=False,
+            fraction_excluded=0.3,
+            random_state=0,
         )
         r.fractional(show_progress=False)
         assert r.n_resamples == 10
@@ -304,7 +318,7 @@ class TestProgress:
         label: str,
         count: str,
     ) -> None:
-        r = Resampler(estimator=_StubEstimator(), x=tiny_dfd, accessor=_accessor, **settings)
+        r = Resampler(estimator=_StubEstimator(), x=tiny_dfd, accessor=_accessor, random_state=0, **settings)
         r.resample()
         err = capsys.readouterr().err
         assert f"{label}: 100%" in err
@@ -379,11 +393,11 @@ class TestResamplerReproducibility:
         assert r_a.parameters == r_b.parameters
 
     def test_different_seeds_give_different_sequences(self, tiny_dfd: DataFrameDict) -> None:
-        # We use the same accessor and 30 bootstrap rounds so the chance
+        # We use the same accessor and 10 bootstrap rounds so the chance
         # of two different seeds coincidentally producing the same
         # noise_a / noise_b sequence is negligible.
         r_a = Resampler(
-            estimator=_StubEstimator(),
+            estimator=_RowsEstimator(),
             x=tiny_dfd,
             accessor=_noisy_accessor,
             use_jackknife=False,
@@ -391,22 +405,19 @@ class TestResamplerReproducibility:
             random_state=0,
         )
         r_b = Resampler(
-            estimator=_StubEstimator(),
+            estimator=_RowsEstimator(),
             x=tiny_dfd,
             accessor=_noisy_accessor,
             use_jackknife=False,
             bootstrap_rounds=10,
             random_state=1,
         )
-        # We can't strictly assert that the noisy_accessor's two
-        # sequences differ (it uses an internal unseeded RNG by
-        # design), but the *count* of rounds and the absence of any
-        # error is the public contract: random_state is accepted and
-        # threaded through. The hard equality check above plus this
-        # smoke run prove the surface.
+        # The noisy accessor is seeded by the rows each fit drew, so
+        # another seed, which draws other rows, gives other values.
         r_a.bootstrap(show_progress=False)
         r_b.bootstrap(show_progress=False)
         assert r_a.n_resamples == r_b.n_resamples == 10
+        assert r_a.parameters != r_b.parameters
 
     def test_generator_passthrough_advances_caller_state(self, tiny_dfd: DataFrameDict) -> None:
         # When the caller passes a Generator, the Resampler uses *that*
@@ -485,11 +496,12 @@ class TestPlotResults:
         import plotly.graph_objects as go
 
         r = Resampler(
-            estimator=_StubEstimator(),
+            estimator=_RowsEstimator(),
             x=tiny_dfd,
             accessor=_noisy_accessor,
             use_jackknife=False,
             bootstrap_rounds=8,
+            random_state=0,
         )
         r.bootstrap(show_progress=False)
         fig = r.plot_results()
@@ -497,11 +509,12 @@ class TestPlotResults:
 
     def test_plot_results_with_cutoff_adds_vline(self, tiny_dfd: DataFrameDict) -> None:
         r = Resampler(
-            estimator=_StubEstimator(),
+            estimator=_RowsEstimator(),
             x=tiny_dfd,
             accessor=_noisy_accessor,
             use_jackknife=False,
             bootstrap_rounds=8,
+            random_state=0,
         )
         r.bootstrap(show_progress=False)
         fig = r.plot_results(cutoff=0.5)

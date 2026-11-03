@@ -507,7 +507,7 @@ class TestStatisticalCorrectnessTriage:
         # PRESS itself is unchanged: an empty fold contributes nothing to a sum.
         assert press[0] == pytest.approx(float(per_fold[0, 4]), rel=1e-12)
 
-        result = PCA.select_n_components(pd.DataFrame([[1.0, 2], [3, 4]]), max_components=1)
+        result = PCA.select_n_components(pd.DataFrame([[1.0, 2], [3, 4]]), max_components=1, random_state=0)
         assert np.isnan(np.asarray(result.se_press)).all(), "a single real fold cannot have an SE"
 
     def test_pca_ekf_press_unchanged_for_normal_matrices(self) -> None:
@@ -601,7 +601,9 @@ class TestStatisticalCorrectnessTriage:
         X = pd.DataFrame(rng.normal(size=(40, 5)))
         Y = pd.DataFrame(X.values @ rng.normal(size=(5, 2)) + rng.normal(scale=0.3, size=(40, 2)))
         Y.iloc[3, 1] = np.nan
-        result = PLS.nested_cv(X, Y, max_components=3, outer_cv=KFold(n_splits=4, shuffle=True, random_state=0))
+        result = PLS.nested_cv(
+            X, Y, max_components=3, outer_cv=KFold(n_splits=4, shuffle=True, random_state=0), random_state=0
+        )
         assert np.all(np.isfinite(np.asarray(result.q2y))), "no entry, including the total, may be NaN"
 
     @pytest.mark.slow
@@ -616,7 +618,7 @@ class TestStatisticalCorrectnessTriage:
         X = pd.DataFrame(rng.normal(size=(60, 5)))
         Y = pd.DataFrame(rng.normal(size=(60, 1)))
         result = PLS.nested_cv(
-            X, Y, max_components=2, outer_cv=ShuffleSplit(n_splits=3, test_size=0.15, random_state=0)
+            X, Y, max_components=2, outer_cv=ShuffleSplit(n_splits=3, test_size=0.15, random_state=0), random_state=0
         )
         q2_total = float(np.asarray(result.q2y)[-1])
         assert q2_total < 0.35, f"pure-noise Q2 should be near zero, got {q2_total:.3f}"

@@ -155,7 +155,7 @@ def test_rejects_malformed_blocks(blocks: object, error: type[Exception], messag
     """A wrong type raises TypeError and a wrong value ValueError, each naming what arrived."""
     _, y = _two_block_data(n=10)
     with pytest.raises(error, match=message):
-        MBPLS.select_n_components(blocks, y, max_components=1, cv=2)
+        MBPLS.select_n_components(blocks, y, max_components=1, cv=2, random_state=0)
 
 
 def test_rejects_a_component_count_below_one() -> None:
@@ -166,7 +166,7 @@ def test_rejects_a_component_count_below_one() -> None:
     """
     blocks, y = _two_block_data(n=20)
     with pytest.raises(ValueError, match=r"max_components must be at least 1; got 0"):
-        MBPLS.select_n_components(blocks, y, max_components=0, cv=2)
+        MBPLS.select_n_components(blocks, y, max_components=0, cv=2, random_state=0)
 
 
 def test_rejects_a_block_of_the_wrong_length() -> None:
@@ -174,7 +174,7 @@ def test_rejects_a_block_of_the_wrong_length() -> None:
     blocks, y = _two_block_data(n=20)
     blocks["narrow"] = blocks["narrow"].iloc[:15]
     with pytest.raises(ValueError, match=r"'narrow' has 15 rows; y has 20"):
-        MBPLS.select_n_components(blocks, y, max_components=1, cv=2)
+        MBPLS.select_n_components(blocks, y, max_components=1, cv=2, random_state=0)
 
 
 class _Folds:
@@ -319,7 +319,7 @@ def test_an_integer_cv_is_a_shuffled_repeated_k_fold_and_any_splitter_is_used_as
     np.testing.assert_array_equal(
         default.per_fold_rmsecv.to_numpy(), curve(cv=RepeatedKFold(n_splits=5, n_repeats=10, random_state=1))[:1]
     )
-    assert MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1).n_splits == 3
+    assert MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1, random_state=0).n_splits == 3
     leave_one_out = MBPLS.select_n_components(blocks, y, max_components=1, cv=LeaveOneOut())
     assert leave_one_out.n_splits == 12
     assert leave_one_out.per_fold_rmsecv.shape == (1, 12)
@@ -338,10 +338,10 @@ def test_one_held_out_cell_gives_its_own_error_and_no_spread() -> None:
 def test_the_component_count_is_capped_by_the_smallest_fold_and_the_width() -> None:
     """Six rows in three folds train on four, which support three components; a block one wide supports one."""
     blocks, y = _small_two_blocks(n=6)
-    assert len(MBPLS.select_n_components(blocks, y, cv=3, n_repeats=1).rmsecv) == 3
-    assert len(MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1).rmsecv) == 1
+    assert len(MBPLS.select_n_components(blocks, y, cv=3, n_repeats=1, random_state=0).rmsecv) == 3
+    assert len(MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1, random_state=0).rmsecv) == 1
     narrow = {"narrow": blocks["narrow"][[0]]}
-    assert len(MBPLS.select_n_components(narrow, y, cv=3, n_repeats=1).rmsecv) == 1
+    assert len(MBPLS.select_n_components(narrow, y, cv=3, n_repeats=1, random_state=0).rmsecv) == 1
 
 
 def test_targets_without_spread_about_the_held_out_rows_have_no_r2_and_no_warning() -> None:
@@ -382,7 +382,7 @@ def test_only_the_fits_specification_warnings_are_silenced() -> None:
     blocks, y = _small_two_blocks()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        MBPLS.select_n_components(blocks, y, max_components=2, cv=3, n_repeats=1, max_iter=1)
+        MBPLS.select_n_components(blocks, y, max_components=2, cv=3, n_repeats=1, max_iter=1, random_state=0)
     blocks["wide"].iloc[4, 0] = 1e155  # its square overflows
     with pytest.warns(RuntimeWarning, match="overflow"):
-        MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1)
+        MBPLS.select_n_components(blocks, y, max_components=1, cv=3, n_repeats=1, random_state=0)
