@@ -8760,9 +8760,10 @@ class TestTplsToleranceParameter:
         The loop tested its tolerance before its first pass, against a previous u primed as
         u + 1, whose relative change is about 0.7 for a centred and scaled Y column. With a
         tol above that the loop never began, and the fit raised UnboundLocalError for want of
-        a score. A tol of 10 now stops after one pass, which is what max_iter=1 fits.
+        a score. A tol of 5 now stops after one pass, which is what max_iter=1 fits. (A tol
+        of 10 or more is refused, as on every iterative estimator: #1071.)
         """
-        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=10.0)
+        loose = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], tol=5.0)
         one_pass = TPLS(n_components=1, d_matrix=fixture_tpls_example["D"], max_iter=1)
         blocks = {key: value for key, value in fixture_tpls_example.items() if key != "D"}
         loose.fit(DataFrameDict(copy.deepcopy(blocks)))
@@ -8773,7 +8774,7 @@ class TestTplsToleranceParameter:
     @pytest.mark.parametrize("bad", [0.0, -1e-3])
     def test_a_non_positive_tolerance_is_refused(self, fixture_tpls_example: dict, bad: float) -> None:
         """A tolerance of zero or less can never be met, so the loop would always run to the cap."""
-        with pytest.raises(ValueError, match="tol must be positive"):
+        with pytest.raises(ValueError, match="Tolerance must exceed machine precision"):
             self._fit(copy.deepcopy(fixture_tpls_example), tol=bad)
 
     def test_the_old_attribute_is_gone(self) -> None:

@@ -103,12 +103,35 @@ _REMOVED_MD_KEYS: dict[str, str] = {"md_tol": "tol", "md_max_iter": "max_iter"}
 _TOL_CEILING = 10.0
 
 
+def check_at_least_one(name: str, value: float | None) -> None:
+    """Refuse a count below 1, from ``fit`` (#1071).
+
+    ``__init__`` stores its arguments unchanged, as sklearn requires, and ``set_params`` and
+    ``clone`` do not pass through any check there, so ``fit`` is the one place every route to
+    a setting reaches. ``None`` passes: an estimator that accepts it reads it as "as many as
+    the data allow".
+
+    Parameters
+    ----------
+    name : str
+        The parameter's name, used in the error message.
+    value : float or None
+        The value to check.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is below 1, or NaN.
+    """
+    if value is not None and not value >= 1:
+        raise ValueError(f"{name} must be >= 1; got {value}.")
+
+
 def resolve_loop_settings(
     *,
     tol: float,
     max_iter: int,
     missing_data_settings: dict | None,
-    validate: bool = True,
     estimator_name: str = "",
 ) -> dict:
     """Resolve one estimator's ``tol`` and ``max_iter`` into the mapping its NIPALS loop reads.
@@ -116,7 +139,8 @@ def resolve_loop_settings(
     Every latent-variable estimator that iterates resolves its loop settings here, so the
     rule is defined once instead of five times (#588). The constructor's ``tol`` and
     ``max_iter`` supply the values, and any other keys of a caller's
-    ``missing_data_settings`` are added alongside them.
+    ``missing_data_settings`` are added alongside them. Both are checked here, at fit
+    time, so a value set through ``set_params`` or ``clone`` is refused too (#1071).
 
     The keys ``md_tol`` and ``md_max_iter``, which used to override ``tol`` and
     ``max_iter``, were removed in 2.0 and are refused. They described a convergence
@@ -135,10 +159,6 @@ def resolve_loop_settings(
         The caller's dict, or None. Keys other than the removed two are passed through
         untouched, so an estimator with its own keys (``md_method`` on ``PLS``) still sees
         them.
-    validate : bool, default=True
-        Whether to check the resolved tolerance against its historical bounds. Passed as
-        False by the paths that do not iterate (a direct SVD fit), where the tolerance
-        governs nothing and an out-of-range value is harmless.
     estimator_name : str
         Used in the error message, so the reader knows which class to change.
 
@@ -151,8 +171,8 @@ def resolve_loop_settings(
     Raises
     ------
     ValueError
-        If ``missing_data_settings`` holds ``md_tol`` or ``md_max_iter``, or if the
-        resolved tolerance is out of bounds.
+        If ``missing_data_settings`` holds ``md_tol`` or ``md_max_iter``, if ``max_iter``
+        is below 1, or if the tolerance is out of bounds.
     """
     settings: dict = {"md_tol": tol, "md_max_iter": max_iter}
     if isinstance(missing_data_settings, dict):
@@ -166,12 +186,12 @@ def resolve_loop_settings(
             )
         settings.update(missing_data_settings)
 
+    check_at_least_one("max_iter", max_iter)
     settings["md_max_iter"] = int(settings["md_max_iter"])
-    if validate:
-        if not settings["md_tol"] < _TOL_CEILING:
-            raise ValueError(f"Tolerance should not be too large; got {settings['md_tol']}.")
-        if not settings["md_tol"] > epsqrt**1.95:
-            raise ValueError(f"Tolerance must exceed machine precision; got {settings['md_tol']}.")
+    if not settings["md_tol"] < _TOL_CEILING:
+        raise ValueError(f"Tolerance should not be too large; got {settings['md_tol']}.")
+    if not settings["md_tol"] > epsqrt**1.95:
+        raise ValueError(f"Tolerance must exceed machine precision; got {settings['md_tol']}.")
     return settings
 
 

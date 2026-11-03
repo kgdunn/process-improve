@@ -29,7 +29,15 @@ from sklearn.metrics import (
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._common import _model_method, _nz, epsqrt, largest_ssq_column, unobserved_columns
+from ._common import (
+    _model_method,
+    _nz,
+    check_at_least_one,
+    epsqrt,
+    largest_ssq_column,
+    resolve_loop_settings,
+    unobserved_columns,
+)
 from ._diagnostics import _t2_score_sd
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
@@ -246,6 +254,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         super-score vectors, relative to the norm of the previous one, falls below
         this. Default is ``epsqrt`` (about 1.5e-8), which is the value that was
         hard-coded before this became a parameter, so the default fit is unchanged.
+        It must lie between machine precision and 10, as on every iterative estimator.
         It is listed last so that no existing positional argument changed position.
 
     Notes
@@ -402,24 +411,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         tol: float = epsqrt,
     ):
         super().__init__()
-        if n_components <= 0:
-            raise ValueError(f"n_components must be positive; got {n_components}.")
+        # Stored unchecked, as sklearn requires: fit checks them, however they were set (#1071).
         self.n_components = n_components
-
         self.d_matrix = d_matrix  # This is required input dict containing the properties for each group.
-        if not isinstance(self.d_matrix, dict):
-            raise TypeError(f"d_matrix must be a dict of DataFrames; got {type(self.d_matrix).__name__}.")
-        if not all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()):
-            raise TypeError("d_matrix must contain pandas DataFrames as values.")
-
         self.max_iter = max_iter
-        if self.max_iter <= 0:
-            raise ValueError(f"max_iter must be positive; got {self.max_iter}.")
-
         self.tol = tol
-        if self.tol <= 0:
-            raise ValueError(f"tol must be positive; got {self.tol}.")
-
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
         self.is_fitted_ = False
@@ -539,19 +535,22 @@ class TPLS(RegressorMixin, BaseEstimator):
         Raises
         ------
         ValueError
-            If ``y`` is not ``None``.
+            If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range.
         TypeError
-            If ``X`` is not a :class:`DataFrameDict`.
+            If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
         """
         _reject_separate_y(y, "TPLS.fit")
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
+        check_at_least_one("n_components", self.n_components)
+        # No missing_data_settings, so the resolver's message naming the estimator is never reached.
+        settings = resolve_loop_settings(tol=self.tol, max_iter=self.max_iter, missing_data_settings=None)
         self._input_data_checks(X)
         # A fit that fails part way leaves the model unfitted, not the previous fit with some parts replaced.
         self.is_fitted_ = False
         group_keys = list(self.d_matrix)
         # What the fit used, which everything after it reads, so that set_params without a refit changes nothing.
-        self.max_iter_ = self.max_iter
+        self.max_iter_ = settings["md_max_iter"]
         self.skip_f_matrix_preprocessing_ = self.skip_f_matrix_preprocessing
 
         # Storage for pre-processing and the raw matrices
@@ -1027,11 +1026,17 @@ class TPLS(RegressorMixin, BaseEstimator):
         return inspect.cleandoc(self.help.__doc__ or "")
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
-        """Check the incoming data.
+        """Check the incoming data, and the ``d_matrix`` it is fitted with.
 
         ``fit``, the only caller, has already checked that ``X`` is a DataFrameDict, and a
         DataFrameDict always holds exactly the Z, F and Y blocks, so neither is checked here.
+        ``d_matrix`` is checked here rather than in ``__init__``, so that a value set through
+        ``set_params`` is checked too (#1071).
         """
+        if not isinstance(self.d_matrix, dict):
+            raise TypeError(f"d_matrix must be a dict of DataFrames; got {type(self.d_matrix).__name__}.")
+        if not all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()):
+            raise TypeError("d_matrix must contain pandas DataFrames as values.")
         # Group names are labels, used exactly as given. Passing them through ``str()`` in some
         # places and not in others meant a non-string group name could never be fitted.
         if set(X["F"]) != set(self.d_matrix):

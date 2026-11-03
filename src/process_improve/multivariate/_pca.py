@@ -36,6 +36,7 @@ from ._common import (
     _nz,
     _reject_sparse,
     _select_n_components,
+    check_at_least_one,
     epsqrt,
     resolve_loop_settings,
     unobserved_columns,
@@ -820,13 +821,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         stops once the norm of the difference between two successive score
         vectors, relative to the norm of the score vector, falls below this.
         See :func:`terminate_check`. Ignored by ``algorithm="svd"``, which is
-        direct rather than iterative.
+        direct rather than iterative, but checked by every ``fit``: it must lie
+        between machine precision and 10.
 
     max_iter : int, default=500
         Maximum number of iterations per component for the iterative
         algorithms. A component that reaches the cap without converging emits
-        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``. The
-        same default as every other iterative estimator in the package (#588).
+        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``, but
+        checked by every ``fit``: it must be at least 1. The same default as
+        every other iterative estimator in the package (#588).
 
     missing_data_settings : dict or None, default=None
         PCA reads no keys from it; it is kept for the same signature as the
@@ -1021,8 +1024,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Clamp n_components
         min_dim = int(min(N, K))
-        if self.n_components is not None and int(self.n_components) < 1:
-            raise ValueError(f"n_components must be >= 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warnings.warn(
@@ -1055,14 +1057,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # One resolver for every iterative estimator, so the loop settings and the
         # refusal of the removed ``md_*`` keys are defined in a single place (#588). The
-        # bounds are checked only for the iterative algorithms: under ``"svd"`` the
-        # tolerance governs nothing, and rejecting a value that cannot matter would
-        # refuse a fit that is perfectly well posed.
+        # bounds are checked under ``"svd"`` too, where the loop settings govern nothing:
+        # a value out of range is refused whichever algorithm would read it, as across
+        # the family (#1071).
         settings = resolve_loop_settings(
             tol=self.tol,
             max_iter=self.max_iter,
             missing_data_settings=self.missing_data_settings,
-            validate=algo in ("nipals", "tsr"),
             estimator_name="PCA",
         )
 

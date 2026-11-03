@@ -76,8 +76,8 @@ def test_fit_refuses_malformed_blocks(
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        ({"n_components": 0}, r"^n_components must be positive; got 0\.$"),
-        ({"max_iter": 0}, r"^max_iter must be positive; got 0\.$"),
+        ({"n_components": 0}, r"^n_components must be >= 1; got 0\.$"),
+        ({"max_iter": 0}, r"^max_iter must be >= 1; got 0\.$"),
         ({"algorithm": "nipals", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
         ({"algorithm": "nipals", "tol": 1e-30}, r"^Tolerance must exceed machine precision; got 1e-30\.$"),
         ({"algorithm": "dense", "tol": 10.0}, r"^Tolerance should not be too large; got 10\.0\.$"),
