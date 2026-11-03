@@ -30,6 +30,8 @@ from __future__ import annotations
 import numpy as np
 from sklearn.utils import Bunch
 
+from ._common import check_at_least_one
+
 #: The estimators this module offers, by their ``md_method`` names.
 IMPUTATION_METHODS = ("tsr", "pmp")
 
@@ -92,8 +94,7 @@ def impute_low_rank(
     """
     if method not in IMPUTATION_METHODS:
         raise ValueError(f"method must be one of {IMPUTATION_METHODS}; got {method!r}.")
-    if n_components < 1:
-        raise ValueError(f"n_components must be at least 1; got {n_components}.")
+    check_at_least_one("n_components", n_components)
     data = np.asarray(data, dtype=float)
     missing = np.isnan(data)
     empty = np.all(missing, axis=0)

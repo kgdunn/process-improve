@@ -21,7 +21,7 @@ from scipy.interpolate import BSpline
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from ._base import _LazyFrame
-from ._common import SpecificationWarning
+from ._common import SpecificationWarning, check_at_least_one
 from ._impute import _group_by_pattern
 from ._pca import PCA
 
@@ -342,9 +342,8 @@ class FPCA(TransformerMixin, BaseEstimator):
         most = min(n_curves - 1, self.n_basis_)
         if self.n_components is None:
             return most
+        check_at_least_one("n_components", self.n_components)
         wanted = int(self.n_components)
-        if wanted < 1:
-            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
         if wanted > most:
             warnings.warn(
                 f"{wanted} components were asked for, but {n_curves} curves on {self.n_basis_} B-splines support "

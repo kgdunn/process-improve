@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ._common import DataMatrix, SpecificationWarning
+from ._common import DataMatrix, SpecificationWarning, check_at_least_one
 from ._pca import _opposes_convention
 
 try:
@@ -189,8 +189,7 @@ class CA(TransformerMixin, BaseEstimator):
             If ``n_components`` is not positive, or the table is not a valid
             contingency table (see :func:`_as_table`).
         """
-        if int(self.n_components) < 1:
-            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         table = _as_table(X, "X")
         proportions = table.to_numpy() / table.to_numpy().sum()
         row_mass = proportions.sum(axis=1)
@@ -740,8 +739,7 @@ class FAMD(TransformerMixin, BaseEstimator):
             If ``n_components`` is not positive, a cell is missing, a numeric column
             is constant, or ``categorical`` names a column that is not there.
         """
-        if int(self.n_components) < 1:
-            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
         if frame.isna().any().any():
@@ -1053,8 +1051,7 @@ class MFA(TransformerMixin, BaseEstimator):
         TypeError
             If ``groups`` is given but is not a dict.
         """
-        if int(self.n_components) < 1:
-            raise ValueError(f"n_components must be at least 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         self.groups_ = self._resolve_groups(X)
         frame = _as_frame(X)
         self._check_groups(frame)
