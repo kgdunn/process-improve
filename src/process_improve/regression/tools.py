@@ -54,13 +54,40 @@ class RobustRegressionInput(BaseModel):
         True,
         description="If true (default), fit an intercept term. If false, force through origin.",
     )
-    n_boot: int = Field(
-        999,
+    n_boot: int | None = Field(
+        None,
         ge=1,
         le=1_000,
-        description="Bootstrap resamples behind the intervals (default 999). Lower it for over a few hundred points.",
+        description=(
+            "Bootstrap resamples behind the intervals. By default 999 up to 197 points, then fewer as the "
+            "points grow (156 at 500 points), down to 39 from 1,000 points up; fewer resamples give rougher "
+            "intervals. Above 1,000 points each resample still costs time in proportion to the square of the "
+            "number of points. The output reports the number drawn."
+        ),
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
+
+
+#: The fewest resamples the tool draws by default: 0.025 * (39 + 1) = 1, so each limit of a 95%
+#: percentile interval rests on the most extreme of 39 resampled slopes. Fewer would make the
+#: interval the range of a handful of slopes, or a single slope.
+_MIN_DEFAULT_N_BOOT = 39
+
+
+def _default_n_boot(n_points: int) -> int:
+    """Return the resamples the tool draws by default for ``n_points`` points.
+
+    Each resample costs time in proportion to ``n_points ** 2``, so a fixed 999 took the tool past its
+    10 s timeout above about 800 points (#1095). Up to 1,000 points the default keeps the work to that
+    of 39 resamples of 1,000 points; above, it draws 39 and the time grows as ``n_points ** 2``.
+    The count depends only on ``n_points``, so a seed still reproduces the intervals.
+    """
+    # shortcut: sized for a machine 3 times slower than one measured at 12.9 ms per fit of 1,000 points
+    # and 467 ms per fit of 5,000 (13 to 19 ns per pairwise slope). There, 39 resamples of 1,000 points
+    # take about 1.5 s of the 10 s timeout, but 39 of 5,000 take about a minute, so a hosted call above
+    # about 1,500 points can still time out. Upgrade to an O(N log N) repeated median, or to
+    # least-squares intervals for large N, if hosted callers need more points.
+    return min(999, max(_MIN_DEFAULT_N_BOOT, _MIN_DEFAULT_N_BOOT * 1_000**2 // n_points**2))
 
 
 @tool_spec(
@@ -97,13 +124,14 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
     try:
         x_arr = np.asarray(spec.x, dtype=float)
         y_arr = np.asarray(spec.y, dtype=float)
+        n_boot = _default_n_boot(len(spec.x)) if spec.n_boot is None else spec.n_boot
 
         result = _robust_regression(
             x_arr,
             y_arr,
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
-            n_boot=spec.n_boot,
+            n_boot=n_boot,
             random_state=spec.random_state,
             intervals="bootstrap",
         )
@@ -121,6 +149,7 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             "fitted_values": list(result["fitted_values"]),
             "residuals": list(result["residuals"]),
             "confidence_level": spec.confidence_level,
+            "n_boot": n_boot,
         }
 
         # A fit with three or more complete pairs always returns both as arrays.

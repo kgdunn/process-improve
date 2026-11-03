@@ -200,6 +200,9 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     warnings are recorded under a lock, so tool calls on different threads run one at
     a time, except on a build with context-aware warnings.
 
+    The call ends by flushing ``sys.stdout``, so what the tool printed is written while
+    the stdio MCP server still points file descriptor 1 at stderr.
+
     Parameters
     ----------
     tool_name:
@@ -234,7 +237,14 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
             f"Input to tool {tool_name!r} failed validation: {exc}",
             details={"tool_name": tool_name, "errors": exc.errors()},
         ) from exc
-    result, raised = _call_recording_warnings(func, parsed)
+    try:
+        result, raised = _call_recording_warnings(func, parsed)
+    finally:
+        # Python buffers stdout when it is a pipe. The stdio MCP server points fd 1 at stderr only
+        # while it serves, so a print still buffered at exit landed on the protocol stream, and one
+        # in a safe-mode worker was lost when the worker was stopped (#1095). sys.stdout may be None.
+        with contextlib.suppress(AttributeError, OSError, ValueError):
+            sys.stdout.flush()
     if raised and isinstance(result, dict):
         records = [{"category": w.category.__name__, "message": str(w.message)} for w in raised]
         return {**result, "library_warnings": records}
