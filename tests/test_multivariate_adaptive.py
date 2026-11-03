@@ -532,6 +532,33 @@ def test_decompose_prediction_matches_predict(synthetic_pls_data: tuple[pd.DataF
     np.testing.assert_allclose(decomposed["adaptive"].to_numpy(), model.predict(probe).to_numpy().ravel(), atol=1e-9)
 
 
+def test_every_channel_projects_a_row_with_missing_values(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """A row with missing values is scored by single-component projection in every channel, as predict scores it.
+
+    So the adaptive channel is the prediction, streamed and as a snapshot (#1081). The static channel is what
+    the training model predicts; with the kernels held, only the centre moves, so the kernel channel is 0.
+    """
+    X, Y = synthetic_pls_data
+    gappy = X.iloc[90:].copy()
+    gappy.iloc[::3, 1] = np.nan
+    gappy.iloc[1::5, [0, 4]] = np.nan
+    rates = {"lambda_center": 0.05, "alpha_scale": 0.02, "update_when_out_of_control": True}
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, **rates).fit(X.iloc[:90], Y.iloc[:90])
+    model.partial_fit(gappy, Y.iloc[90:])
+    np.testing.assert_allclose(model.prediction_channels_["adaptive"], model.predictions_["y"], rtol=1e-12)
+    channels = model.decompose_prediction(gappy)
+    np.testing.assert_allclose(channels["adaptive"], model.predict(gappy)["y"], rtol=1e-12)
+    training = AdaptivePLS(n_components=3).fit(X.iloc[:90], Y.iloc[:90])
+    np.testing.assert_allclose(channels["static"], training.predict(gappy)["y"], rtol=1e-12)
+
+    held = AdaptivePLS(n_components=3, forgetting_factor=0.0, gamma=0.0, **rates).fit(X.iloc[:90], Y.iloc[:90])
+    held.partial_fit(gappy, Y.iloc[90:])
+    assert float(held.center_shift_.iloc[-1]) > 0.1
+    np.testing.assert_allclose(held.decompose_prediction(gappy)["kernel"], 0.0, atol=1e-12)
+
+
 def test_frozen_model_has_zero_drift_and_channels(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """With all forgetting factors and gamma at zero, nothing drifts and both channels are zero."""
     X, Y = synthetic_pls_data
@@ -1561,17 +1588,9 @@ def test_adaptive_pls_reads_rows_of_any_kind(synthetic_pls_data: tuple[pd.DataFr
         assert list(by_array.index) == [0, 1, 2]
         np.testing.assert_array_equal(by_array.to_numpy(), by_frame.to_numpy())
         assert getattr(model, method)(rows.iloc[:0]).shape == (0, by_frame.shape[1])
-    complete = floats.loc[["p", "r"]]  # a missing value is at the centre in the channels, but projected in predict
-    np.testing.assert_allclose(
-        model.decompose_prediction(complete)["adaptive"], model.predict(complete)["y"], rtol=1e-12
-    )
+    np.testing.assert_allclose(model.decompose_prediction(floats)["adaptive"], model.predict(floats)["y"], rtol=1e-12)
     assert list(model.transform(floats).columns) == [1, 2]
     assert list(model.predict(floats).columns) == ["y"]
-    xs = np.nan_to_num((floats.to_numpy() - model.mx_) / model.sx_)  # a missing value at the centre
-    static = model._my0 + model._sy0 * (np.nan_to_num((floats.to_numpy() - model._mx0) / model._sx0) @ model._beta0)
-    np.testing.assert_allclose(model.decompose_prediction(floats)["static"], static[:, 0], rtol=1e-12)
-    adaptive = model.my_ + model.sy_ * (xs @ model._beta_scaled)
-    np.testing.assert_allclose(model.decompose_prediction(floats)["adaptive"], adaptive[:, 0], rtol=1e-12)
 
 
 def test_the_channels_of_no_rows_and_of_several_responses_keep_their_labels(
