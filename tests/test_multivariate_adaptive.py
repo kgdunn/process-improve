@@ -991,6 +991,27 @@ def test_partial_fit_is_update_row_by_row(synthetic_pls_data: tuple[pd.DataFrame
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_unlabelled_rows_are_numbered_on_from_the_last_label(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """Each array given to partial_fit, and each update without a label, continues the count (#1082).
+
+    The count goes on from the last label when it is an integer, and from the number of rows
+    recorded so far when it is not, so the history frames keep one label per row.
+    """
+    X, Y = synthetic_pls_data
+    model = _fit_either(cls, X.iloc[:90], Y.iloc[:90])
+    rows = X.iloc[90:].to_numpy()
+    model.partial_fit(rows[:3])
+    model.partial_fit(rows[3:5])
+    model.partial_fit(X.iloc[95:97].set_axis([20, 21]))
+    model.update(rows[7])
+    model.partial_fit(X.iloc[98:99].set_axis(["late"]))
+    model.partial_fit(rows[9:11])
+    assert list(model.spe_.index) == [0, 1, 2, 3, 4, 20, 21, 22, "late", 9, 10]
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
 @pytest.mark.parametrize("window", [10, 19])
 def test_a_window_too_short_for_the_rolling_spe_limit_is_refused(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type, window: int

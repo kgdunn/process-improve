@@ -370,8 +370,13 @@ class _AdaptiveModel(_LatentVariableModel):
         training data, in training standard-deviation units; ``scale_shift`` is the
         mean fractional change of the scaling vector. ``injection`` is the gamma
         term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
-        change to ``X'X``; both are zero on observations that did not update.
+        change to ``X'X``; both are zero on observations that did not update. A row with no
+        ``label`` is numbered one past the last label when that is an integer, and by the
+        number of rows recorded so far when it is not, so the count goes on across calls (#1082).
         """
+        if label is None:
+            last = self._hist_index[-1] if self._hist_index else -1
+            label = last + 1 if pd.api.types.is_integer(last) else len(self._hist_index)
         distance = self._distance()
         self._hist_scores.append(scores)
         self._hist_t2.append(t2)
@@ -381,7 +386,7 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_scale_shift.append(float(np.mean(np.abs(self.sx_ / self._sx0 - 1.0))))
         self._hist_injection.append(self._last_injection if updated else 0.0)
         self._hist_kernel_norm.append(self._last_kernel_norm if updated else 0.0)
-        self._hist_index.append(label if label is not None else len(self._hist_index))
+        self._hist_index.append(label)
         return distance
 
     def _update_scaling_factor(self) -> None:
@@ -406,7 +411,9 @@ class _AdaptiveModel(_LatentVariableModel):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            New observations, processed one row at a time.
+            New observations, processed one row at a time. A DataFrame's row labels
+            are recorded in the history frames; the rows of an array are numbered on
+            from the last label, as :meth:`update` numbers a row given no label.
         Y : array-like of shape (n_samples, n_targets), optional
             Matching responses (PLS only). A row whose response has a missing
             value updates the X-space model but not the regression part, which
@@ -418,9 +425,11 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         check_is_fitted(self, "mx_")
         labels, rows = _as_rows(X)
+        labelled = isinstance(X, pd.DataFrame)
         y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
         for pos, label in enumerate(labels):
-            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label)
+            y_row = None if y_rows is None else y_rows[pos]
+            self.update(rows[pos], y_row=y_row, label=label if labelled else None)
         return self
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
@@ -811,7 +820,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         y_row : ignored
             Present for a uniform signature with :class:`AdaptivePLS`.
         label : hashable, optional
-            Index label recorded in the history frames for this observation.
+            Index label recorded in the history frames for this observation. If
+            omitted, one past the last label when that is an integer, otherwise
+            the number of observations recorded so far.
 
         Returns
         -------
@@ -1134,7 +1145,8 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             The matching response, if available. When omitted, the X-space model
             still adapts but the regression part is held.
         label : hashable, optional
-            Index label recorded in the history frames.
+            Index label recorded in the history frames, numbered as in
+            :meth:`AdaptivePCA.update` if omitted.
 
         Returns
         -------
