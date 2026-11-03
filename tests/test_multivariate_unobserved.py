@@ -164,6 +164,15 @@ def test_mbpca_names_a_column_with_nothing_observed_and_leaves_it_out(value: flo
         _close(result.block_spe[name], expected.block_spe[name])
     _close(model.transform(new), expected.super_scores)
 
+    # A row with nothing in the block but the left-out column has nothing observed in the block,
+    # so no block score or SPE there, not a score and an SPE of 0 (#1076). It is scored from p.
+    only_c = {"p": new["p"], "q": new["q"].assign(d=np.nan, e=np.nan, c=1.0)}
+    result = model.diagnose(only_c)
+    assert result.block_spe["q"].isna().all()
+    assert result.block_scores["q"].isna().all(axis=None)
+    assert result.super_scores.notna().all(axis=None)
+    _close(result.super_scores, without.transform({"p": new["p"], "q": only_c["q"].drop(columns="c")}))
+
     del model._unobserved_columns  # a model pickled before #1098 left no column out
     complete = {"p": new["p"], "q": new["q"].assign(c=model.preproc_["q"].center_["c"])}
     _close(model.transform(complete), expected.super_scores)
