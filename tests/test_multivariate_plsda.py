@@ -432,7 +432,7 @@ def test_plsda_satisfies_the_sklearn_classifier_contract() -> None:
 
     X, y = _separable(n_per_class=20, seed=10)
     pipe = Pipeline([("scale", MCUVScaler()), ("da", PLSDA(n_components=2))])
-    scores = cross_val_score(pipe, X, y, cv=4)
+    scores = cross_val_score(pipe, X, y, cv=StratifiedKFold(4))
     assert scores.shape == (4,)
     assert scores.min() > 0.5  # separable data; anything at chance means the wiring broke
     # cross_val_score with no `scoring=` goes through `score`, which must be accuracy and
