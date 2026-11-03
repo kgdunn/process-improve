@@ -10,17 +10,18 @@ scores is a prediction of the whole curve. See ``docs/development/functional_doe
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from patsy import DesignInfo, PatsyError, build_design_matrices, dmatrix
-from scipy import stats
+from scipy import optimize, stats
 from sklearn.base import clone
 
 from process_improve._random import check_random_state
-from process_improve.experiments.analysis import BLOCK_COL, _add_block_term, analyze_experiment
+from process_improve.experiments.analysis import BLOCK_COL, _add_block_term, _references, analyze_experiment
 from process_improve.multivariate._fpca import FPCA  # the module, not the package: multivariate imports experiments
 
 #: Components are kept up to this fraction of the curves' variance.
@@ -80,6 +81,13 @@ def _component_table(model: FPCA, projection: _Projection, significance_level: f
     )
 
 
+def _full_scores(model: FPCA, position: list[int], values: np.ndarray) -> np.ndarray:
+    """Return one row of scores on every component, holding ``values`` at the kept ``position`` and zero elsewhere."""
+    full = np.zeros((1, model.n_components_))
+    full[0, position] = values
+    return full
+
+
 def _kept_scores(model: FPCA, kept: np.ndarray) -> np.ndarray:
     """Return the scores with the components not kept set to zero, so the curves they rebuild leave those out."""
     scores = model.scores_.to_numpy().copy()
@@ -124,6 +132,7 @@ class FunctionalFit:
     _groups: np.ndarray = field(repr=False)
     _significance_level: float = field(repr=False)
     _blocks: tuple[str, ...] = field(default=(), repr=False)
+    _settings: pd.DataFrame | None = field(default=None, repr=False)
 
     def predict(
         self,
@@ -196,6 +205,103 @@ class FunctionalFit:
             [self._replicate(fitted, residuals, projection, to_new, rng) for _ in range(int(n_bootstrap))]
         )
         return _bands(estimate, replicates, projection.df_residual, level, (new_points.index, self.fpca.grid_))
+
+    def match_target(
+        self,
+        target: pd.Series | np.ndarray,
+        *,
+        bounds: Mapping[str, tuple[float, float] | float | str] | None = None,
+        n_starts: int = 20,
+        random_state: int | np.random.Generator | None = None,
+    ) -> dict[str, Any]:
+        """Return the factor settings whose predicted curve comes closest to a target curve.
+
+        The eigenfunctions are orthonormal, so the L2 distance between two curves in their span is the
+        distance between their scores: the target is scored by the FPCA, and the search moves the predicted
+        scores of the kept components towards it. The part of the target outside the kept components is out
+        of reach of any setting, and is the floor of the distance. The search is a bounded quasi-Newton
+        search from ``n_starts`` random starts, of which the best is kept.
+
+        Parameters
+        ----------
+        target : pandas.Series or numpy.ndarray
+            The target curve on the grid the curves were measured on; ``NaN`` where it has no value.
+        bounds : mapping, optional
+            For each factor, a ``(low, high)`` range to search, or one value to hold it at. A numeric
+            factor not named is searched over the range the design covers; a categorical factor must be
+            given its level.
+        n_starts : int, default=20
+            Number of random starting settings.
+        random_state : int, numpy.random.Generator, or None, default=None
+            Seeds the starting settings, per the reproducibility contract.
+
+        Returns
+        -------
+        dict
+            ``settings`` (a Series of the factors' values), ``curve`` (the predicted curve there),
+            ``distance`` (the L2 distance from the target over the grid), ``scores`` and ``target_scores``
+            (the kept components' scores, predicted and of the target).
+        """
+        if int(n_starts) < 1:
+            raise ValueError(f"n_starts must be at least 1; got {n_starts}.")
+        rng = check_random_state(random_state)
+        kept = self.components["kept"].to_numpy()
+        names = self.components.index[kept]
+        goal = self.fpca.transform(np.asarray(target, dtype=float).reshape(1, -1)).iloc[0][names].to_numpy()
+        coefficients = np.linalg.pinv(self._model_matrix) @ _kept_scores(self.fpca, kept)
+        searched, held = self._search_space(bounds)
+        position = np.flatnonzero(kept).tolist()
+
+        def scores_at(x: np.ndarray) -> np.ndarray:
+            point = pd.DataFrame([{**held, **dict(zip(searched, x, strict=True))}])
+            point = point.assign(**dict.fromkeys(self._blocks, 0.0))
+            (row,) = build_design_matrices([self._design], point, return_type="matrix")
+            return (np.asarray(row) @ coefficients)[0, position]
+
+        def distance(x: np.ndarray) -> float:
+            return float(np.sum((scores_at(x) - goal) ** 2))
+
+        box = list(searched.values())
+        starts = rng.uniform([low for low, _ in box], [high for _, high in box], size=(int(n_starts), len(box)))
+        best = min(
+            (optimize.minimize(distance, x0, bounds=box, method="L-BFGS-B") for x0 in starts), key=lambda r: r.fun
+        )
+        settings = pd.Series({**held, **dict(zip(searched, best.x, strict=True))}, name="settings")
+        curve = self.fpca.inverse_transform(_full_scores(self.fpca, position, scores_at(best.x))).iloc[0]
+        gap = (curve.to_numpy() - np.asarray(target, dtype=float)) ** 2
+        measured = np.isfinite(gap)
+        return {
+            "settings": settings,
+            "curve": curve.rename("curve"),
+            "distance": float(np.sqrt(np.trapezoid(gap[measured], self.fpca.grid_[measured]))),
+            "scores": pd.Series(scores_at(best.x), index=names, name="scores"),
+            "target_scores": pd.Series(goal, index=names, name="target_scores"),
+        }
+
+    def _search_space(
+        self, bounds: Mapping[str, tuple[float, float] | float | str] | None
+    ) -> tuple[dict[str, tuple[float, float]], dict[str, Any]]:
+        """Split the model's factors into those searched, each with its range, and those held at one value."""
+        settings = self._settings if self._settings is not None else pd.DataFrame()
+        given = dict(bounds or {})
+        factors = [c for c in settings.columns if _references(self.formula, c) and c not in self._blocks]
+        unknown = sorted(set(given) - set(factors))
+        if unknown:
+            raise ValueError(f"bounds names {unknown}, which the model {self.formula!r} does not use.")
+        searched, held = {}, {}
+        for name in factors:
+            value = given.get(name)
+            if isinstance(value, tuple):
+                searched[name] = (float(value[0]), float(value[1]))
+            elif value is not None:
+                held[name] = value
+            elif pd.api.types.is_numeric_dtype(settings[name]):
+                searched[name] = (float(settings[name].min()), float(settings[name].max()))
+            else:
+                raise ValueError(f"The categorical factor {name!r} needs a level in bounds, such as {{{name!r}: ...}}.")
+        if not searched:
+            raise ValueError("Every factor is held at one value, so there is nothing to search.")
+        return searched, held
 
     def _curves_at(self, model: FPCA, kept: np.ndarray, to_points: np.ndarray) -> np.ndarray:
         """Return the curves the fitted scores predict, through a linear map from the runs to the points."""
@@ -323,6 +429,7 @@ def analyze_functional_experiment(
         _groups=_bootstrap_groups(design_matrix),
         _significance_level=significance_level,
         _blocks=blocks if any(name in formula for name in blocks) else (),
+        _settings=design_matrix,
     )
 
 

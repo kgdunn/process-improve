@@ -214,3 +214,45 @@ def test_the_methoxylation_scores_follow_the_sources_quadratic_model():
     assert fit.components["variance_ratio"].iloc[0] > 0.9
     assert fit.components["kept"].iloc[0]
     assert fit.scores["FPC 1"]["model_summary"]["r_squared"] > 0.99
+
+
+def test_the_settings_that_reproduce_a_reachable_target_are_found(fitted):
+    found = fitted.match_target(_truth(0.4, -0.6), random_state=0)
+    assert found["settings"].to_dict() == pytest.approx({"A": 0.4, "B": -0.6}, abs=0.05)
+    assert found["distance"] < 0.02
+    assert found["scores"].to_numpy() == pytest.approx(found["target_scores"].to_numpy(), abs=1e-3)
+    assert found["curve"].shape == (T.size,)
+
+
+def test_a_factor_can_be_held_or_kept_within_a_range(fitted):
+    held = fitted.match_target(_truth(0.4, -0.6), bounds={"B": 0.5}, random_state=0)
+    assert held["settings"]["B"] == 0.5
+    assert held["distance"] > fitted.match_target(_truth(0.4, -0.6), random_state=0)["distance"]
+    ranged = fitted.match_target(_truth(0.9, 0.9), bounds={"A": (-0.5, 0.2)}, random_state=0)
+    assert -0.5 <= ranged["settings"]["A"] <= 0.2
+
+
+def test_a_categorical_factor_is_held_at_the_level_given():
+    design = _design().assign(Line=np.tile(["north", "south"], 9))
+    curves = _curves(design, seed=9) + np.where(design["Line"].to_numpy() == "south", 0.2, 0.0)[:, None]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = analyze_functional_experiment(design, curves, model="A + B + A:B + Line")
+    found = fit.match_target(_truth(0.4, -0.6) + 0.2, bounds={"Line": "south"}, random_state=0)
+    assert found["settings"]["Line"] == "south"
+    assert found["settings"][["A", "B"]].astype(float).to_dict() == pytest.approx({"A": 0.4, "B": -0.6}, abs=0.1)
+    with pytest.raises(ValueError, match="needs a level"):
+        fit.match_target(_truth(0.0, 0.0))
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"bounds": {"Z": (0.0, 1.0)}}, "does not use"),
+        ({"bounds": {"A": 0.0, "B": 0.0}}, "nothing to search"),
+        ({"n_starts": 0}, "at least 1"),
+    ],
+)
+def test_a_target_search_that_cannot_run_is_refused(fitted, options, message):
+    with pytest.raises(ValueError, match=message):
+        fitted.match_target(_truth(0.0, 0.0), **options)

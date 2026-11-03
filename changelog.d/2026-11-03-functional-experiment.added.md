@@ -9,3 +9,7 @@
   FPCA and the choice of components in each replicate, and draws one sign per whole plot. In a
   simulation of an 18-run design, 95% bands covered the true curve 87% of the time pointwise and
   88% over the whole curve.
+  `FunctionalFit.match_target` finds the factor settings whose predicted curve comes closest to a
+  target curve, by a bounded multistart search in the space of the kept scores, where the L2 distance
+  between curves is the distance between their scores; a factor can be searched within a range or
+  held at a value.
