@@ -1446,7 +1446,8 @@ def _fraction(check: dict, k: int) -> Any:  # noqa: ANN401 - the library's Desig
     if generators is None and check.get("n_runs"):
         named = dict(zip(_LETTERS, names, strict=False))
         chosen = minimum_aberration_generators(int(check["n_runs"]), len(names))
-        generators = [named[g[0]] + "=" + "".join(named[c] for c in g[2:]) for g in chosen]
+        # A sign, as in D=-ABC, is kept as it is: only the letters are renamed.
+        generators = [named[g[0]] + "=" + "".join(named.get(c, c) for c in g[2:]) for g in chosen]
     return generate_design(
         factors,
         design_type="fractional_factorial",

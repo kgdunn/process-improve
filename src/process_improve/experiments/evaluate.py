@@ -2266,7 +2266,8 @@ def evaluate_design(  # noqa: PLR0913
         else ``"interactions"``. Otherwise ``None`` means
         ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
         Block"``) to include the blocks as a categorical factor; otherwise the
-        blocks are left out and a note says so.
+        blocks are left out and a note says so. The blocks are then labels, so a
+        contrast names one as text: ``C(Block, Treatment('1'))`` for block 1.
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,

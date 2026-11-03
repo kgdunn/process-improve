@@ -410,6 +410,29 @@ def test_a_dsd_budget_reaching_an_unbuildable_conference_order_steps_down() -> N
     np.testing.assert_array_equal(x.T @ x, 38 * np.eye(20))
 
 
+@pytest.mark.parametrize(("k", "usual", "order"), [(21, 22, 24), (22, 22, 24), (33, 34, 38), (34, 34, 38)])
+def test_a_dsd_stepped_up_to_a_larger_conference_order_says_so(k: int, usual: int, order: int) -> None:
+    """No conference matrix of order 22 or 34 is built (#1094): the larger design is warned of and noted."""
+    factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(k)]
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "This 'dsd' design leaves no degrees of freedom")  # not the point here
+        with pytest.warns(UserWarning, match=rf"{2 * order + 1} runs rather than {2 * usual + 1}"):
+            result = generate_design(factors, "dsd", n_center_points=0)
+    assert result.n_runs == 2 * order + 1
+    assert f"conference matrix of order {usual}" in result.metadata["note"]
+    assert result.metadata["fake_factors"] == order - k
+
+
+def test_a_dsd_at_its_usual_conference_order_has_no_note() -> None:
+    factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(20)]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = generate_design(factors, "dsd", n_center_points=0)
+    assert result.n_runs == 41
+    assert "note" not in result.metadata
+    assert not [w for w in caught if "conference matrix" in str(w.message)]
+
+
 def test_dispatch_dsd_refuses_a_three_level_categorical_factor() -> None:
     """Called directly, the DSD generator refuses a categorical factor that is not two-level."""
     factors = [*_coded("ABCD"), Factor(name="S", type="categorical", levels=["a", "b", "c"])]

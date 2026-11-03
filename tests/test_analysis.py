@@ -20,6 +20,7 @@ from process_improve.experiments import Factor, TrueProcess, generate_design
 from process_improve.experiments._analyses.box_cox import _recommendation, box_cox_transform
 from process_improve.experiments._analyses.diagnostics import _in_run_order
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
+from process_improve.experiments._analyses.mixture import spans_constant
 from process_improve.experiments._analyses.ols_extractors import _type_ii_by_rank
 from process_improve.experiments._analyses.prediction import _in_response_units
 from process_improve.experiments._analyses.transforms import to_model_scale, to_original_scale
@@ -2080,6 +2081,34 @@ class TestMixtureConstant:
         df.loc[7, "x1"] = 0.75  # this blend sums to 1.083
         with pytest.warns(UserWarning, match="holds no constant"):
             analyze_experiment(df, response_column="y", model="scheffe_linear")
+
+    @pytest.mark.parametrize("analysis", ["coefficients", "split_plot"])
+    def test_an_explicit_scheffe_formula_keeps_its_coefficients_in_proportions(self, analysis: str) -> None:
+        # #1094: coding="auto" coded each component from -1 to +1, as for a process factor.
+        df = self._lattice().assign(WholePlot=[1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
+        keyword = self._fit(df, "scheffe_quadratic", analysis_type=analysis)
+        formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis)
+        shown, expected = (r["split_plot"] if analysis == "split_plot" else r for r in (formula, keyword))
+        assert shown["coding"] == expected["coding"]
+        assert "factor_coding" not in shown  # proportions are not to be recoded by optimize_responses
+        if analysis == "coefficients":
+            coefficients = {row["term"]: row["coefficient"] for row in formula["coefficients"]}
+            assert coefficients == pytest.approx({row["term"]: row["coefficient"] for row in keyword["coefficients"]})
+            with pytest.raises(ValueError, match="mixture model has no coded scale"):
+                self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis, coding="coded")
+
+    def test_only_a_fit_without_an_intercept_is_tested_for_the_constant_its_terms_make_up(self) -> None:
+        df = self._lattice(3)
+        assert spans_constant(smf.ols(self.SCHEFFE_QUADRATIC, df).fit())
+        assert not spans_constant(smf.ols("y ~ x1 + x2", df).fit())  # its constant is the intercept
+
+    def test_model_selection_reports_the_fit_of_rounded_blends_about_the_mean(self) -> None:
+        # #1094: the selected model was refitted without the constant, so R² was about zero.
+        df = self._lattice(3)
+        chosen = self._fit(df, "scheffe_quadratic", analysis_type="model_selection")["model_selection"]
+        selected = self._fit(df, chosen["selected_formula"])["model_summary"]
+        assert chosen["r_squared"] == pytest.approx(selected["r_squared"])
+        assert chosen["r_squared_adj"] == pytest.approx(selected["r_squared_adj"])
 
 
 class TestAliasChainsInTests:

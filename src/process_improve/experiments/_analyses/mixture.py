@@ -31,6 +31,26 @@ import numpy as np
 import pandas as pd
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+#: How far from 1 a run's proportions may sum and still be read as a blend: proportions printed
+#: to three decimals (1/3 as 0.333) sum to 0.999 or 1.001.
+BLEND_SUM_TOLERANCE = 1e-2
+
+
+def spans_constant(ols_result: RegressionResultsWrapper) -> bool:
+    """Whether a fit with no intercept has terms that make up the constant to within ``BLEND_SUM_TOLERANCE``.
+
+    A mixture model's terms do, since the components sum to 1. statsmodels finds that constant by
+    an exact rank test, which blends printed to three decimals (sums of 0.999 or 1.001) fail, so a
+    fit that passes this test is refitted with ``hasconst=True``: R², the model df and the overall
+    F are then about the mean.
+    """
+    if "Intercept" in ols_result.model.exog_names:
+        return False
+    exog = np.asarray(ols_result.model.exog, dtype=float)
+    ones = np.ones(len(exog))
+    gap = ones - exog @ np.linalg.lstsq(exog, ones, rcond=None)[0]
+    return float(np.abs(gap).max()) <= BLEND_SUM_TOLERANCE
+
 
 def _linear_names(ols_result: RegressionResultsWrapper, components: list[str]) -> list[str]:
     """Return the linear blending terms: the components, or else the terms that add up to the constant.

@@ -27,6 +27,18 @@ _NOT_IN_RUN_ORDER: dict[str, Any] = {
 }
 
 
+def run_order_positions(run_order: pd.Series | Sequence[object], n_runs: int) -> np.ndarray | None:
+    """Return each run's position in run order, or None unless ``run_order`` gives ``n_runs`` distinct numbers.
+
+    Missing, non-numeric or repeated values, or a different number of them, do not give the
+    order the runs were made in.
+    """
+    order = pd.to_numeric(pd.Series(run_order), errors="coerce").to_numpy(float)
+    if len(order) != n_runs or np.isnan(order).any() or len(np.unique(order)) < len(order):
+        return None
+    return order
+
+
 def _in_run_order(
     residuals: np.ndarray, run_order: pd.Series | Sequence[float] | None
 ) -> tuple[dict[str, Any], str | None]:
@@ -50,10 +62,10 @@ def _in_run_order(
     tuple[dict[str, Any], str or None]
         The ``run_order`` entry of the diagnostics, and the note to report, if any.
     """
-    order = None if run_order is None else pd.to_numeric(pd.Series(run_order), errors="coerce").to_numpy(float)
-    if order is None:
+    if run_order is None:
         return dict(_NOT_IN_RUN_ORDER), None
-    if len(order) != len(residuals) or np.isnan(order).any() or len(np.unique(order)) < len(order):
+    order = run_order_positions(run_order, len(residuals))
+    if order is None:
         return dict(_NOT_IN_RUN_ORDER), (
             "The RunOrder column has missing, non-numeric or repeated values, so it does not give the order the "
             "runs were made in: durbin_watson is worked in the rows' order, and the residuals are not checked for "

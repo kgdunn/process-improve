@@ -571,7 +571,9 @@ def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
     has the level ``1``: patsy fails with "specified level '1' not found". This raises the same failure
     for the reference level of ``Treatment`` and the omitted level of ``Sum``, with the column's levels and
     a spelling that works. Patsy reads an integer that is not a level as the position of one
-    (``Treatment(0)`` is the first level), so an integer is refused only past the last position.
+    (``Treatment(0)`` is the first level), so an integer is refused only past the last position, and
+    where a level is spelled as the integer but the position picks another: of the labels ``'1'``,
+    ``'2'`` and ``'3'``, as ``evaluate_design`` reads a ``Block`` column, ``Treatment(1)`` is ``'2'``.
 
     Parameters
     ----------
@@ -595,13 +597,15 @@ def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
             sniffer = CategoricalSniffer(NAAction())  # the levels as patsy finds them
             sniffer.sniff(data[column])
             levels = list(sniffer.levels_contrast()[0])
-            if not levels or level in levels or (isinstance(level, int) and -len(levels) <= level < len(levels)):
+            spelling = next((value for value in levels if str(value) == str(level)), None)
+            at = levels[level] if isinstance(level, int) and -len(levels) <= level < len(levels) else None
+            if not levels or level in levels or (at is not None and spelling in (None, at)):
                 continue
-            spelling = next((value for value in levels if str(value) == str(level)), levels[0])
+            reading = "" if at is None else f"; patsy would read {level!r} as a position, the level {at!r}"
             raise ValueError(
                 f"{ast.unparse(node)} asks for the level {level!r}, which column {column!r} does not have: its "
-                f"levels are {levels!r}. Write the level as the column holds it, as in "
-                f"C({column}, {contrast}({spelling!r}))."
+                f"levels are {levels!r}{reading}. Write the level as the column holds it, as in "
+                f"C({column}, {contrast}({levels[0] if spelling is None else spelling!r}))."
             )
 
 
