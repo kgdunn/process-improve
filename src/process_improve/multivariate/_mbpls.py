@@ -42,6 +42,7 @@ from ._common import (
     largest_ssq_column,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
     y_is_exhausted,
     y_reach,
 )
@@ -150,6 +151,7 @@ class _MBPLSComponent(typing.NamedTuple):
     super_y_score: np.ndarray
     super_y_loading: np.ndarray
     iterations: int
+    converged: bool
 
 
 def _block_projections(
@@ -288,7 +290,9 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
         # judged against the size of the current ``u`` vector, so the decision is invariant to a global
         # rescaling of the data. The denominator is floored via ``_nz`` so an all-zero ``u`` vector
         # cannot divide by zero.
-        if np.linalg.norm(prev - u_a) / _nz(float(np.linalg.norm(u_a))) <= context.tol or itern >= context.max_iter:
+        # Converged means the last pass met the tolerance, even when it was the last pass allowed (#1080).
+        converged = bool(np.linalg.norm(prev - u_a) / _nz(float(np.linalg.norm(u_a))) <= context.tol)
+        if converged or itern >= context.max_iter:
             break
 
     component = _MBPLSComponent(
@@ -299,6 +303,7 @@ def _fit_one_component(x_def: dict[str, np.ndarray], y_def: np.ndarray, context:
         super_y_score=u_a,
         super_y_loading=c_a,
         iterations=itern,
+        converged=converged,
     )
     return _apply_sign_convention(component, x_def, context)
 
@@ -364,6 +369,7 @@ class _MBPLSArrays:
     r2_y_var_cum: np.ndarray
     timing: np.ndarray
     iterations: np.ndarray
+    converged: np.ndarray
 
     @classmethod
     def allocate(cls, block_widths: dict[str, int], n_samples: int, n_targets: int, n_components: int) -> _MBPLSArrays:
@@ -386,6 +392,7 @@ class _MBPLSArrays:
             r2_y_var_cum=np.zeros((n_targets, n_components)),
             timing=np.zeros(n_components),
             iterations=np.zeros(n_components, dtype=int),
+            converged=np.zeros(n_components, dtype=bool),
         )
 
     def record_component(
@@ -409,6 +416,7 @@ class _MBPLSArrays:
         self.super_weights[:, a] = component.super_weight
         self.super_y_loadings[:, a] = component.super_y_loading
         self.iterations[a] = component.iterations
+        self.converged[a] = component.converged
 
     def record_explained_variation(
         self,
@@ -817,7 +825,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
     def _report_convergence(self, work: _MBPLSArrays) -> None:
         """Record how each component's iteration went, and warn about any that ran out of steps."""
-        converged = work.iterations < self.max_iter
+        converged = work.converged
         self.fitting_info_ = {"timing": work.timing, "iterations": work.iterations, "converged": converged}
         logger.debug("MBPLS (%s): iterations per component = %s", self.algorithm_, work.iterations.tolist())
         if not np.all(converged):
@@ -826,8 +834,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 f"MBPLS NIPALS did not converge within max_iter={self.max_iter} for "
                 f"component(s) {failed}; results for those components may be unreliable.",
                 SpecificationWarning,
-                # Three frames up: this helper, ``fit``, and the sklearn ``_fit_context`` wrapper.
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
 
     def _store_explained_variation(self, work: _MBPLSArrays) -> None:

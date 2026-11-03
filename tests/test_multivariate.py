@@ -2234,16 +2234,19 @@ def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None
 def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leaves_out() -> None:
     """PLS's T² of a new row, and of an inverted target, counts only the components with spread (#1026).
 
-    In units of 1e12, unscaled, the noise left after two components still has a sum of squares
-    above PLS's absolute floor, so a third component is fitted to it, with a score sd below 1e-3
-    against about 3e12: fit() leaves it out of T². A row off the plane scores on it all the same.
-    Its T² is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution
-    from its scores, which diagnose gives ``x_new`` too. The third component is fitted after Y
-    is exhausted, so it has no Y-loading (#1074) and lies in invert's null space: the solution
-    is moved along it, to give it a third score.
+    In units of 1e-3, unscaled, with noise of sd 1e-10 off the plane: the noise is above PLS's floor,
+    which is relative to the size of X (#1070), so a third component is fitted to it. Its score sd,
+    about 1e-10, is below epsqrt, which T² reads as no spread while every sd is below 1, so fit()
+    leaves it out of T². A row off the plane scores on it all the same. Its T² is
+    ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution from its
+    scores, which diagnose gives ``x_new`` too. The third component is fitted after Y is exhausted,
+    so it has no Y-loading (#1074) and lies in invert's null space: the solution is moved along it,
+    to give it a third score.
     """
-    flat, new = _rows_on_a_plane(units=1e12)
-    y = pd.DataFrame({"y": flat.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0]})
+    flat, new = _rows_on_a_plane(units=1e-3)
+    noise = 1e-10 * np.random.default_rng(2).standard_normal((30, 4))
+    flat += noise - noise.mean(axis=0)
+    y = pd.DataFrame({"y": flat.to_numpy() @ [1e3, 2e3, 0.0, 0.0]})
     y += 0.1 * np.random.default_rng(1).standard_normal((30, 1))
     with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
         pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
@@ -8864,11 +8867,15 @@ class TestIterationSettingsAreConsistentAcrossEstimators:
 
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
     def test_max_iter_caps_the_loop_on_every_estimator(self, name: str) -> None:
-        """A cap low enough to bite stops the loop there, and says so."""
+        """A cap low enough to bite stops the loop there, and says so.
+
+        One pass is that cap for all four: with one y, PLS and MBPLS converge on their second
+        pass, which repeats the first, so a cap of two does not bite there (#1080).
+        """
         with pytest.warns(SpecificationWarning):
-            model = self._fitters()[name](max_iter=2)
+            model = self._fitters()[name](max_iter=1)
         iterations = np.asarray(model.fitting_info_["iterations"], dtype=float)
-        assert np.all(iterations <= 2), f"{name} ran past max_iter: {iterations}"
+        assert np.all(iterations <= 1), f"{name} ran past max_iter: {iterations}"
 
     @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
     def test_tol_reaches_the_loop_on_every_estimator(self, name: str) -> None:
@@ -9334,22 +9341,27 @@ def test_pca_nipals_logs_each_component(caplog: pytest.LogCaptureFixture) -> Non
     ]
 
 
-def test_pca_nipals_needs_a_sum_of_squares_of_at_least_epsqrt() -> None:
-    """A block whose sum of squares is exactly epsqrt (``2**-26``) still fits; one below it is refused.
+def test_pca_nipals_judges_the_variance_left_against_the_block() -> None:
+    """What is left is measured against the block before the first component, so small units fit (#1070).
 
-    The single non-zero cell ``2**-13`` gives the loading (1, 0) and the scores (2**-13, 0).
-    A second component finds nothing left, and the refusal says after which component.
+    The single non-zero cell ``2**-13`` gives the loading (1, 0) and the scores (2**-13, 0), and half
+    of it gives half the scores. A second component finds nothing left, and a block of zeros has no
+    first one; each refusal says after which component. On ``diag(1000, 1000 s)`` the second
+    component is fitted when ``s`` is twice epsqrt and refused when it is half of it.
     """
     X = np.array([[2.0**-13, 0.0], [0.0, 0.0]])
-    assert np.sum(X**2) == epsqrt
-    pca = PCA(n_components=1, algorithm="nipals").fit(X)
-    np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
-    np.testing.assert_allclose(pca.scores_.to_numpy(), [[2.0**-13], [0.0]], atol=1e-20)
+    for units in (1.0, 0.5):
+        pca = PCA(n_components=1, algorithm="nipals").fit(X * units)
+        np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
+        np.testing.assert_allclose(pca.scores_.to_numpy(), [[units * 2.0**-13], [0.0]], atol=1e-20)
     message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
     with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
-        PCA(n_components=1, algorithm="nipals").fit(X * 0.5)
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)
     with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
         PCA(n_components=2, algorithm="nipals").fit(X)
+    PCA(n_components=2, algorithm="nipals").fit(np.diag([1e3, 2e3 * epsqrt]))
+    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
+        PCA(n_components=2, algorithm="nipals").fit(np.diag([1e3, 0.5e3 * epsqrt]))
 
 
 def _tsr_by_hand(X: np.ndarray, A: int, max_iter: int, tol: float) -> tuple[np.ndarray, np.ndarray, int]:
@@ -11769,14 +11781,14 @@ def test_pls_weighted_fit_by_hand() -> None:
 
 
 @pytest.mark.parametrize("block", ["X", "Y"])
-def test_pls_fit_needs_a_sum_of_squares_of_at_least_epsqrt_in_each_block(block: str) -> None:
-    """A block whose sum of squares is exactly epsqrt (2**-26) is fitted; one smaller is refused in full."""
+def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None:
+    """A block is fitted however small its units (#1070); a block of zeros is refused in full."""
     big = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0]})
-    for size, fits in ((2.0**-13, True), (2.0**-14, False)):
+    for size in (2.0**-13, 2.0**-40, 0.0):
         tiny = pd.DataFrame({"b": [size, 0.0, 0.0, 0.0]})
         X, Y = (tiny, big) if block == "X" else (big, tiny)
         model = PLS(n_components=1, scale=False, warn_on_uncentred=False)
-        if fits:
+        if size:
             model.fit(X, Y)
             continue
         message = (
