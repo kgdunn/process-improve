@@ -2081,6 +2081,29 @@ class TestMixtureConstant:
         with pytest.warns(UserWarning, match="holds no constant"):
             analyze_experiment(df, response_column="y", model="scheffe_linear")
 
+    @pytest.mark.parametrize("analysis", ["coefficients", "split_plot"])
+    def test_an_explicit_scheffe_formula_keeps_its_coefficients_in_proportions(self, analysis: str) -> None:
+        # #1094: coding="auto" coded each component from -1 to +1, as for a process factor.
+        df = self._lattice().assign(WholePlot=[1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
+        keyword = self._fit(df, "scheffe_quadratic", analysis_type=analysis)
+        formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis)
+        shown, expected = (r["split_plot"] if analysis == "split_plot" else r for r in (formula, keyword))
+        assert shown["coding"] == expected["coding"]
+        assert "factor_coding" not in shown  # proportions are not to be recoded by optimize_responses
+        if analysis == "coefficients":
+            coefficients = {row["term"]: row["coefficient"] for row in formula["coefficients"]}
+            assert coefficients == pytest.approx({row["term"]: row["coefficient"] for row in keyword["coefficients"]})
+            with pytest.raises(ValueError, match="mixture model has no coded scale"):
+                self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis, coding="coded")
+
+    def test_model_selection_reports_the_fit_of_rounded_blends_about_the_mean(self) -> None:
+        # #1094: the selected model was refitted without the constant, so R² was about zero.
+        df = self._lattice(3)
+        chosen = self._fit(df, "scheffe_quadratic", analysis_type="model_selection")["model_selection"]
+        selected = self._fit(df, chosen["selected_formula"])["model_summary"]
+        assert chosen["r_squared"] == pytest.approx(selected["r_squared"])
+        assert chosen["r_squared_adj"] == pytest.approx(selected["r_squared_adj"])
+
 
 class TestAliasChainsInTests:
     """Exactly aliased terms are tested once, so the ANOVA degrees of freedom add up to N - 1."""

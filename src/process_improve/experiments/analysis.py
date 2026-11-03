@@ -52,10 +52,12 @@ from process_improve.experiments._analyses.glm import INFORMATIONS, GlmSpec, che
 from process_improve.experiments._analyses.lack_of_fit import _run_lack_of_fit
 from process_improve.experiments._analyses.lenth import _run_lenth_method
 from process_improve.experiments._analyses.mixture import (
+    BLEND_SUM_TOLERANCE,
     run_mixture_anova,
     run_mixture_effects,
     run_mixture_lenth,
     run_mixture_significance,
+    spans_constant,
 )
 from process_improve.experiments._analyses.model_selection import _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
@@ -96,10 +98,6 @@ logger = logging.getLogger(__name__)
 
 #: Model names :func:`build_formula` expands; anything else is a formula or a raw RHS.
 _NAMED_MODELS = ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS)
-
-#: How far from 1 a run's proportions may sum and still be read as a blend: proportions printed
-#: to three decimals (1/3 as 0.333) sum to 0.999 or 1.001.
-_BLEND_SUM_TOLERANCE = 1e-2
 
 
 def build_formula(
@@ -238,7 +236,7 @@ def _is_numeric(column: pd.Series) -> bool:
 
 
 def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
-    """Whether every run's factor settings are proportions that sum to 1, to within ``_BLEND_SUM_TOLERANCE``."""
+    """Whether every run's factor settings are proportions that sum to 1, to within ``BLEND_SUM_TOLERANCE``."""
     if len(factor_cols) < 2 or not all(_is_numeric(df[c]) for c in factor_cols):
         return False
     values = df[factor_cols].to_numpy(dtype=float)
@@ -246,7 +244,7 @@ def _looks_like_mixture(df: pd.DataFrame, factor_cols: list[str]) -> bool:
     if finite.size == 0:
         return False
     in_unit_interval = bool(np.all((finite >= -1e-9) & (finite <= 1 + 1e-9)))
-    return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_SUM_TOLERANCE))
+    return in_unit_interval and bool(np.allclose(finite.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE))
 
 
 def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
@@ -271,7 +269,7 @@ def _mixture_components(df: pd.DataFrame, factor_cols: list[str]) -> list[str]:
     settings = finite[:, [numeric.index(c) for c in shares]]
     if np.isin(settings, (0.0, 1.0)).all():
         return []
-    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=_BLEND_SUM_TOLERANCE) else []
+    return shares if np.allclose(settings.sum(axis=1), 1.0, rtol=0.0, atol=BLEND_SUM_TOLERANCE) else []
 
 
 def _as_mixture(
@@ -283,18 +281,13 @@ def _as_mixture(
     constant, and R², the model df and the overall F are taken about the mean. statsmodels finds
     that constant by an exact rank test, which blends printed to three decimals (sums of 0.999 or
     1.001) fail. So it is decided here: a fit with no intercept, on blends that sum to 1 to within
-    ``_BLEND_SUM_TOLERANCE``, holds the constant when its terms span the constant as closely. The fit
+    ``BLEND_SUM_TOLERANCE``, holds the constant when its terms span the constant as closely. The fit
     is analysed as a mixture model (its linear blending tested as one block) for a Scheffe model,
     and for a formula that holds the constant over components alone.
     """
     pure = _looks_like_mixture(df, factor_cols)
     components = factor_cols if pure else _mixture_components(df, factor_cols)
-    holds = False
-    if components and "Intercept" not in ols_result.model.exog_names:
-        exog = np.asarray(ols_result.model.exog, dtype=float)
-        ones = np.ones(len(exog))
-        gap = ones - exog @ np.linalg.lstsq(exog, ones, rcond=None)[0]
-        holds = float(np.abs(gap).max()) <= _BLEND_SUM_TOLERANCE
+    holds = bool(components) and spans_constant(ols_result)
     if holds and not ols_result.k_constant:
         sums = df[components].to_numpy(dtype=float).sum(axis=1)
         # statsmodels' rank test can miss the constant on blends that sum to 1 in floating point too.
@@ -310,7 +303,7 @@ def _as_mixture(
         ols_result = smf.ols(ols_result.model.formula, data=df, hasconst=True).fit()
     elif model in SCHEFFE_MODELS and not ols_result.k_constant:
         warnings.warn(
-            f"The components do not sum to 1 to within {_BLEND_SUM_TOLERANCE:g} in every run, so the Scheffe model "
+            f"The components do not sum to 1 to within {BLEND_SUM_TOLERANCE:g} in every run, so the Scheffe model "
             "holds no constant: r_squared, df_model and the overall F are about zero, not about the mean.",
             category=UserWarning,
             stacklevel=3,
@@ -752,20 +745,21 @@ def _coding_range(name: str, bounds: object) -> tuple[float, float]:
 
 
 def _resolve_coding(
-    coding: object, df: pd.DataFrame, factor_cols: list[str], model: str, rhs: str
+    coding: object, df: pd.DataFrame, factor_cols: list[str], mixture: bool, rhs: str
 ) -> str | Mapping[str, Mapping[str, float]]:
     """Check ``coding`` and return the scale it means: ``"actual"``, ``"coded"``, or ranges per numeric factor.
 
-    ``"auto"``, the default, is ``"coded"`` except for a mixture model, for data with
-    mixture components beside process factors, and for a model ``rhs`` that is not a
-    polynomial in the factors (see :func:`_polynomial_in`): components have no coded
-    scale, and ``I(x ** 0.5)`` none where the coded ``x`` is negative, so these keep
-    ``"actual"``. ``None`` means ``"auto"``.
+    ``"auto"``, the default, is ``"coded"`` except for a fit analysed as a mixture model
+    (``mixture``, from :func:`_as_mixture`: a Scheffe model, or a formula over blends alone
+    that holds the constant), for data with mixture components beside process factors, and
+    for a model ``rhs`` that is not a polynomial in the factors (see :func:`_polynomial_in`):
+    components have no coded scale, and ``I(x ** 0.5)`` none where the coded ``x`` is
+    negative, so these keep ``"actual"``. ``None`` means ``"auto"``.
     """
     components = _mixture_components(df, factor_cols)
     polynomial = _polynomial_in(rhs, [c for c in factor_cols if _is_numeric(df[c])])
     if coding is None or coding == "auto":
-        return "actual" if model in SCHEFFE_MODELS or components or not polynomial else "coded"
+        return "actual" if mixture or components or not polynomial else "coded"
     resolved: str | Mapping[str, Mapping[str, float]]
     if isinstance(coding, Mapping):
         for name, bounds in coding.items():
@@ -783,7 +777,7 @@ def _resolve_coding(
         resolved = str(coding)
     else:
         raise ValueError(f"coding must be 'actual', 'coded', 'auto', or a dict of factor ranges; got {coding!r}.")
-    if resolved != "actual" and model in SCHEFFE_MODELS:
+    if resolved != "actual" and mixture:
         raise ValueError(
             "A Scheffe mixture model has no coded scale: its components are proportions that sum to 1, and "
             "coding each one from -1 to +1 would break that. Use coding='actual', or 'auto'."
@@ -1004,7 +998,7 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
     for row in result[analysis]:
         row["term"] = _readable(row["term"])
     result["coding"] = "actual" if fit.coding == "actual" else "coded"
-    if fit.model not in SCHEFFE_MODELS and (coding := fit.factor_coding()[1]):
+    if not fit.mixture and (coding := fit.factor_coding()[1]):
         result["factor_coding"] = coding
     if analysis == "coefficients":
         result |= _joint_inference(shown, fit.alpha, _readable)
@@ -1033,7 +1027,7 @@ def _split_plot(fit: _Fit, points: pd.DataFrame | None) -> dict[str, Any]:
         information=fit.glm["information"],
     )
     result = run_split_plot(fit.df, formula, spec, new_points=points)
-    coding = fit.factor_coding()[1] if fit.model not in SCHEFFE_MODELS else {}
+    coding = fit.factor_coding()[1] if not fit.mixture else {}
     result["split_plot"] = {
         "response_name": fit.response_name or fit.response_col,
         "factor_names": list(fit.factor_cols),
@@ -1330,8 +1324,9 @@ def analyze_experiment(  # noqa: PLR0913
         The scale of the ``"coefficients"`` and the ``"confidence_intervals"``; the other
         analyses do not use it.
 
-        - ``"auto"`` (default): ``"coded"``, except for a Scheffe mixture model, whose
-          components are proportions, and a model with an ``I()`` term that is not a product
+        - ``"auto"`` (default): ``"coded"``, except for a Scheffe mixture model (a keyword,
+          or a formula analysed as one), whose components are proportions, and a model with
+          an ``I()`` term that is not a product
           of whole powers of the factors, such as ``I(x ** 0.5)``; these keep ``"actual"``,
           and asking for another scale raises ``ValueError``. ``None`` means the same.
           Before 2.0.0 the default was ``"actual"``; pass it to keep the factors' own scale.
@@ -1574,7 +1569,6 @@ def analyze_experiment(  # noqa: PLR0913
 
     raw_response = df[response_col].astype(float)
     rhs = formula.split("~", 1)[1]
-    coding = _resolve_coding(coding, df, factor_cols, model, rhs)
     transformed, transform_info = transform_response(
         raw_response.to_numpy(),
         transform,
@@ -1584,6 +1578,7 @@ def analyze_experiment(  # noqa: PLR0913
     ols_result, mixture = _as_mixture(
         smf.ols(_coded_formula(formula, df, factor_cols), data=df).fit(), df, factor_cols, model
     )
+    coding = _resolve_coding(coding, df, factor_cols, mixture, rhs)
     logger.debug("analyze_experiment: fitted %r on %d observations; analyses=%s", formula, len(df), types)
 
     results: dict[str, Any] = {
