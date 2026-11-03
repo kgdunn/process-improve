@@ -318,6 +318,10 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
     Notes
     -----
+    A ``conflevel`` that has no t value (NaN, infinite, or larger than 1 in absolute value)
+    gives NaN intervals, with the x column of ``pi_range`` kept, whichever ``intervals`` is,
+    and no resample is drawn.
+
     With ``intervals="bootstrap"`` (the default) the three interval keys are percentile
     intervals over the resamples, each refitted as above. A resample whose x values are all
     equal has no slope and is left out. The prediction limits add to each resampled line a
@@ -470,8 +474,11 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         ]
     )
 
-    # With no spread in x, or a non-finite value kept in (SE is then not finite), the NaN intervals above stand.
-    if intervals == "bootstrap" and out["x_ssq"] >= __eps and np.isfinite(out["SE"]):
+    # With no spread in x, a non-finite value kept in (SE is then not finite), or a conflevel with no t value
+    # (NaN, infinite, or outside -1 to 1, exactly where the bootstrap's percentiles would fall outside 0 to 100),
+    # the NaN intervals above stand whichever intervals is.
+    has_intervals = out["x_ssq"] >= __eps and np.isfinite(out["SE"]) and not np.isnan(c_t)
+    if intervals == "bootstrap" and has_intervals:
         slopes, intercepts, errors = _bootstrap_lines(x, y, fit_intercept, n_boot, check_random_state(random_state))
         tails = [50 * (1 - conflevel), 50 * (1 + conflevel)]
         out["conf_intervals"] = np.percentile(slopes, tails)[None, :]
