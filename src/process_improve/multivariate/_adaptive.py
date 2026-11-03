@@ -255,7 +255,7 @@ class _AdaptiveModel(_LatentVariableModel):
         sx_: np.ndarray
         lambda_center_: np.ndarray
         alpha_scale_: np.ndarray
-        n_components: int
+        n_components_: int
         n_samples_: int
         adaptive_spe_limit: bool
         conf_level: float
@@ -413,7 +413,7 @@ class _AdaptiveModel(_LatentVariableModel):
         """Project data onto the *current* model, returning the X scores (no update)."""
         check_is_fitted(self, "mx_")
         labels, rows = _as_rows(X)
-        scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
+        scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components_))
         return pd.DataFrame(scores, index=labels, columns=self._component_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
@@ -427,12 +427,12 @@ class _AdaptiveModel(_LatentVariableModel):
     @property
     def spe_(self) -> pd.DataFrame:
         """Per-observation SPE history (single column, keyed by the component count)."""
-        return pd.DataFrame({self.n_components: self._hist_spe}, index=self._hist_index)
+        return pd.DataFrame({self.n_components_: self._hist_spe}, index=self._hist_index)
 
     @property
     def hotellings_t2_(self) -> pd.DataFrame:
         """Per-observation Hotelling's T2 history (single column, keyed by the component count)."""
-        return pd.DataFrame({self.n_components: self._hist_t2}, index=self._hist_index)
+        return pd.DataFrame({self.n_components_: self._hist_t2}, index=self._hist_index)
 
     @property
     def distance_(self) -> pd.Series:
@@ -507,7 +507,7 @@ class _AdaptiveModel(_LatentVariableModel):
         from plotly.subplots import make_subplots  # noqa: PLC0415
 
         x = list(self._hist_index)
-        rot = self.n_components - np.asarray(self._hist_distance)
+        rot = self.n_components_ - np.asarray(self._hist_distance)
         channels = self._channels_to_plot()
 
         if channels is not None:
@@ -700,7 +700,6 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._feature_names = X_df.columns
         N, K = X_df.shape
         A = int(self.n_components)
-        self.n_components = A
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_samples_ = N
@@ -771,7 +770,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     def _recompute(self, x_scaled: np.ndarray) -> None:
         """Update the kernel with one scaled observation and recompute the loadings."""
         self._update_kernel_xx(x_scaled)
-        loadings, eigenvalues = _kernel_pca(self.XtX_, self.n_components)
+        loadings, eigenvalues = _kernel_pca(self.XtX_, self.n_components_)
         signs = _sign_align(loadings, self._loadings)
         loadings *= signs  # pragma: no mutate - the signs are +1 and -1, which / reads the same
         self._loadings = loadings
@@ -951,7 +950,6 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         N, K = X_df.shape
         M = Y_df.shape[1]
         A = int(self.n_components)
-        self.n_components = A
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_targets_ = M
@@ -1043,7 +1041,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:
         """Recompute W, P, R, C and beta from the current kernels; sign-align if asked."""
-        W, P, R, C, score_ssq = _kernel_pls(self.XtX_, self.XtY_, self.n_components)
+        W, P, R, C, score_ssq = _kernel_pls(self.XtX_, self.XtY_, self.n_components_)
         if align_to is not None:
             signs = _sign_align(P, align_to)
             W, P, R, C = (part * signs for part in (W, P, R, C))  # pragma: no mutate - signs are +1, -1: / is *
