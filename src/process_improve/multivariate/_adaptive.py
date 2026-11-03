@@ -296,12 +296,26 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_injection: list[float] = []
         self._hist_kernel_norm: list[float] = []
 
+    def _check_spe_limit_window(self, n_components: int) -> None:
+        """Refuse a rolling SPE window that cannot hold the values its limit is fitted to (#1082).
+
+        The rolling limit is refitted only from ``max(20, A + 2)`` squared SPEs, as fewer give an
+        unreliable fit. A shorter window never holds that many, so the limit would stay at its
+        training value with no sign of it. Checked whether or not ``adaptive_spe_limit`` is set,
+        since that flag is read at every update and can be turned on after ``fit``.
+        """
+        self._min_spe_window = max(20, n_components + 2)
+        if not self.spe_limit_window >= self._min_spe_window:
+            raise ValueError(
+                f"spe_limit_window must be >= {self._min_spe_window} (the larger of 20 and n_components + 2, "
+                f"the fewest SPE values the rolling SPE limit is fitted to); got {self.spe_limit_window}."
+            )
+
     def _start_limits(self, training_spe: np.ndarray) -> None:
         """Set the T2 limit, the training SPE limit, and the rolling window of squared SPEs it starts from."""
         A, N = self.n_components_, self.n_samples_
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
         self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
-        self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque((training_spe**2).tolist(), maxlen=int(self.spe_limit_window))
 
     def _monitor(self, x0: np.ndarray, t2: float, spe: float) -> tuple[float, bool, bool]:
@@ -635,7 +649,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Recompute the SPE limit from a rolling window of recent in-control SPE
         values; otherwise keep the fixed limit from the training model.
     spe_limit_window : int, default=200
-        Length of the rolling SPE window when ``adaptive_spe_limit`` is True.
+        Length of the rolling SPE window when ``adaptive_spe_limit`` is True. At least
+        ``max(20, n_components + 2)``, the fewest SPE values the rolling limit is fitted to;
+        :meth:`fit` refuses a shorter window.
     conf_level : float, default=0.95
         Confidence level for the T2 and SPE limits.
 
@@ -710,6 +726,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
             raise ValueError(f"forgetting_factor must lie in [0, 1]; got {self.forgetting_factor}.")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError(f"gamma must lie in [0, 1]; got {self.gamma}.")
+        self._check_spe_limit_window(A)
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
 
@@ -964,6 +981,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             raise ValueError(f"forgetting_factor must lie in [0, 1]; got {self.forgetting_factor}.")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError(f"gamma must lie in [0, 1]; got {self.gamma}.")
+        self._check_spe_limit_window(A)
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
         self.lambda_center_y_ = self._as_vector(self.lambda_center_y, M, "lambda_center_y")
