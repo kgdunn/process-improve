@@ -552,8 +552,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     #: Whether kernel PLS, from a fold's X'X and X'Y, gives the model this class fits to the
     #: fold. :meth:`compare_cv_criteria` then refits the folds of its score-correlation null
     #: that way, with no call to ``fit``. It does not give PRM's reweighted fit, so PRM sets
-    #: this False and its null refits every fold with PRM (#1087). Read with ``getattr`` by
-    #: ``_cv_criteria``, which takes the class and does not import ``PLS``.
+    #: this False and its null refits every fold with PRM (#1087).
     _null_by_kernel_pls: typing.ClassVar[bool] = True
 
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped

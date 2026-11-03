@@ -89,6 +89,7 @@ from ._preprocessing import MCUVScaler, _back_to_units, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
+    from ._pls import PLS
 
 # The public entry points are ``PLS.compare_cv_criteria`` / ``PLS.pseudo_validation_set``
 # and the module-level functions of the same names in ``_pls``. This module takes the
@@ -496,12 +497,13 @@ def _refitted_score_correlation_null(
         For each permutation, the held-out correlation of every component.
     """
     null = []
+    n_components = make_model().n_components
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SpecificationWarning)
         for order in orders:
             permuted = Y.iloc[order].set_axis(Y.index)
             folds = _fit_folds(make_model, X, permuted, splits)
-            null.append(_heldout_pass(folds, permuted.to_numpy(), folds[0].weights.shape[1]).r_cv)
+            null.append(_heldout_pass(folds, permuted.to_numpy(), n_components).r_cv)
     return np.array(null)
 
 
@@ -875,7 +877,7 @@ def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareS
 
 
 def _compare_cv_criteria(
-    estimator: Callable[..., Any],
+    estimator: type[PLS],
     X: DataMatrix,
     Y: DataMatrix | pd.Series,
     settings: _CompareSettings,
@@ -900,7 +902,7 @@ def _compare_cv_criteria(
 
     if int(settings.n_cv_permutations) > 0:
         shape = (int(settings.n_cv_permutations), A)
-        if getattr(estimator, "_null_by_kernel_pls", False):
+        if estimator._null_by_kernel_pls:
             observed, null = _score_correlation_null(X_df.to_numpy(), y_values, splits, shape, rng_null)
         else:  # the permutations drawn as _score_correlation_null draws them
             orders = [rng_null.permutation(len(y_values)) for _ in range(shape[0])]
