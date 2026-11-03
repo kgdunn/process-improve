@@ -1251,7 +1251,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915
+    def select_n_components(  # noqa: PLR0915
         cls,
         X: dict[str, pd.DataFrame],
         y: pd.DataFrame,

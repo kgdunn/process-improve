@@ -402,7 +402,7 @@ def score_plot(  # noqa: C901, PLR0913
     return fig
 
 
-def loading_plot(  # noqa: PLR0913
+def loading_plot(
     model: BaseEstimator,
     loadings_type: str = "p",
     pc_horiz: int = 1,
@@ -981,7 +981,7 @@ def _correlation_loadings(cumulative_r2: pd.DataFrame, loadings: pd.DataFrame, c
     return signs * np.sqrt(explained)
 
 
-def correlation_loadings_plot(  # noqa: C901, PLR0913
+def correlation_loadings_plot(  # noqa: C901
     model: BaseEstimator,
     pc_horiz: int = 1,
     pc_vert: int = 2,

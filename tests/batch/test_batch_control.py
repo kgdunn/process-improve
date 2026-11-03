@@ -438,7 +438,7 @@ def test_unreachable_spe_cap_reports_cap_not_met(fitted: BatchPLS) -> None:
     [("b3", 3, 2.0, 0.05, "spe", "t2"), ("b0", 6, 0.2, 0.9, "t2", "spe")],
     ids=["spe-cap-ends-slack", "t2-cap-ends-slack"],
 )
-def test_multiplier_of_a_slack_cap_is_bisected_away(  # noqa: PLR0913
+def test_multiplier_of_a_slack_cap_is_bisected_away(
     fitted: BatchPLS, batch_id: str, k: int, spe_factor: float, t2_factor: float, slack: str, binding: str
 ) -> None:
     """A multiplier escalated alongside the other is halved towards zero once its own cap is slack.

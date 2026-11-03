@@ -927,7 +927,7 @@ class BioreactorSimulator:
     # ------------------------------------------------------------------
     # Core integration
     # ------------------------------------------------------------------
-    def _integrate(  # noqa: PLR0913, PLR0915
+    def _integrate(  # noqa: PLR0915
         self,
         ph_hourly: np.ndarray,
         temp_hourly: np.ndarray,
@@ -976,7 +976,7 @@ class BioreactorSimulator:
         feed = cfg.feed_rate * feed_scale
         s_feed = cfg.feed_substrate
 
-        def rhs(x: float, s: float, p: float, v: float, temp: float, ph: float, phi: float) -> tuple:  # noqa: PLR0913
+        def rhs(x: float, s: float, p: float, v: float, temp: float, ph: float, phi: float) -> tuple:
             gamma_ph = _cardinal_ph_f(ph, p_min, p_opt, p_max)
             mu_pot = mu_opt * _cardinal_temperature_f(temp, t_min, t_opt, t_max) * gamma_ph
             # The impurity-driven inhibition factor acts on growth only; the

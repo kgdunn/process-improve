@@ -327,7 +327,7 @@ def colours_per_batch_id(
 
 
 # flake8: noqa: C901
-def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
+def plot_multitags(  # noqa: PLR0912, PLR0915
     df_dict: dict,
     batch_list: list | None = None,
     tag_list: list | None = None,

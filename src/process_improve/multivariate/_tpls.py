@@ -1161,7 +1161,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # A single Z group keeps the plain "Z" label it always had.
         return ["Z", "F"] if len(self.z_mats) == 1 else [*(f'Z["{key}"]' for key in self.z_mats), "F"]
 
-    def _store_model_coefficients(  # noqa: PLR0913
+    def _store_model_coefficients(
         self,
         pc_a_column: int,  # one-based index for the component
         t_super_i: np.ndarray,

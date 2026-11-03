@@ -253,7 +253,7 @@ def test_wrong_columns_raise(pls_model: BatchPLS, small_dryer: dict) -> None:
         "z-missing-a-fitted-name",
     ],
 )
-def test_initial_conditions_must_match_the_fit(  # noqa: PLR0913
+def test_initial_conditions_must_match_the_fit(
     pls_model: BatchPLS,
     pls_with_z: BatchPLS,
     charge: pd.DataFrame,
@@ -337,7 +337,7 @@ def test_online_rmse_validates_the_quality_block(
     ],
     ids=["no-batches", "duplicate-quality-rows", "missing-quality-value"],
 )
-def test_online_rmse_needs_one_complete_quality_row_per_batch(  # noqa: PLR0913
+def test_online_rmse_needs_one_complete_quality_row_per_batch(
     pls_model: BatchPLS, small_dryer: dict, dryer_quality: pd.DataFrame, batches: object, quality: object, match: str
 ) -> None:
     """The error curve needs at least one batch and exactly one finite quality row for each."""

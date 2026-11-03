@@ -1196,7 +1196,7 @@ class MidCourseCorrector:
         )
 
 
-def _oracle_remaining(  # noqa: PLR0913 - explicit oracle inputs
+def _oracle_remaining(
     simulator: object,
     z_row: pd.Series,
     seed: int,

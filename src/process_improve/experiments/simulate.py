@@ -55,7 +55,7 @@ _GRID_LEVELS = 5
 _LARGEST_GRID = 200_000
 
 
-def simulate_design_performance(  # noqa: PLR0913 - each setting is a separate input to the simulation
+def simulate_design_performance(
     designs: Mapping[str, DesignResult | pd.DataFrame | np.ndarray]
     | Sequence[DesignResult]
     | DesignResult

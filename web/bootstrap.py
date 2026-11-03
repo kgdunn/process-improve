@@ -2804,7 +2804,7 @@ CONFIDENCE = 0.95
 ARRANGEMENTS = 200_000
 
 
-def _comparison(  # noqa: PLR0913 - the runs, their results and blocks, the study, its run order, and the control
+def _comparison(
     coded: pd.DataFrame,
     y: np.ndarray,
     spec: dict,
@@ -3501,7 +3501,7 @@ def _first_formula(
     return (model if whole else _formula(terms, names, blocked=blocked)), early
 
 
-def _saturated(  # noqa: PLR0913 - the fit, and how the page names its terms
+def _saturated(
     coded: pd.DataFrame, y: pd.Series, formula: str, terms: list[str], labels: dict[str, str], names: list[str]
 ) -> tuple[dict | None, list[str]]:
     """Judge the effects of a fit with no runs to spare: by Lenth's method if the design allows, else say why not."""
@@ -3976,7 +3976,7 @@ def _random_terms(k: int, rng: np.random.Generator) -> dict[tuple[int, ...], flo
     return terms
 
 
-def _scenario_process(  # noqa: PLR0913 - the scenario, the factors, the request, the reader's scale and the place
+def _scenario_process(
     key: str,
     names: list[str],
     request: dict,
@@ -4030,7 +4030,7 @@ def _noise(request: dict, default: float) -> float:
     return sigma
 
 
-def _mixture_process(  # noqa: PLR0913 - as _scenario_process
+def _mixture_process(
     key: str,
     names: list[str],
     request: dict,
@@ -6453,7 +6453,7 @@ def _value_and_normal(
     return value, np.asarray(normal, dtype=float)
 
 
-def _stationary(  # noqa: PLR0913 - the model, the factors, the point, the way to move, the region and the terms
+def _stationary(
     model: list[dict],
     numeric: list[dict],
     x: np.ndarray,

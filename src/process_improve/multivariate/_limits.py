@@ -228,7 +228,7 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     return critical_value * std_per_component
 
 
-def ellipse_coordinates(  # noqa: PLR0913
+def ellipse_coordinates(
     score_horiz: int,
     score_vert: int,
     conf_level: float = 0.95,

@@ -66,7 +66,7 @@ class BoxPlot:
         gains a ``brush`` component and ``__link_group`` field.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         boxes: list[BoxStats],

@@ -328,6 +328,10 @@ ignore = [
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 
+[tool.ruff.lint.pylint]
+# Seven arguments before PLR0913 (too-many-arguments) fires: ruff's default is five.
+max-args = 7
+
 [tool.ruff.lint.pydocstyle]
 # Docstrings follow the NumPy style; see CONTRIBUTING.md.
 convention = "numpy"

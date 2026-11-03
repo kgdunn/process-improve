@@ -577,7 +577,7 @@ def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarra
     return out
 
 
-def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data and the estimator choice
+def _scores_and_guides(
     model: BaseEstimator, X_values: np.ndarray, R: np.ndarray, P: np.ndarray, method: str, ridge: float
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Return the scores of every row and, when rows have missing cells, the per-row score-generating matrices.
@@ -905,7 +905,7 @@ def _reject_score_vector_call(X: object, keywords: dict) -> None:
         raise TypeError(msg)
 
 
-def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cells adds two keywords
+def score_contributions(
     model: BaseEstimator,
     X: DataMatrix,
     component: int = 1,
@@ -1035,7 +1035,7 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
 
 
-def group_contributions(  # noqa: PLR0913 - group/reference are sugar for weights
+def group_contributions(
     model: BaseEstimator,
     X: DataMatrix,
     group: Sequence | None = None,

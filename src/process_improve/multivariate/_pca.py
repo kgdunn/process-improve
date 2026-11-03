@@ -1649,7 +1649,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return int(sk.n_components_)
 
     @classmethod
-    def parallel_analysis(  # noqa: PLR0913 - one argument per knob the method has
+    def parallel_analysis(
         cls,
         X: DataMatrix,
         *,

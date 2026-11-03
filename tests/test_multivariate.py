@@ -11798,7 +11798,7 @@ def _uncentred_fold_model(x: np.ndarray, y: np.ndarray, a: int) -> tuple[Callabl
     return (lambda rows: rows @ R @ fitted["C"].T), (lambda rows: rows @ R @ fitted["P"].T)
 
 
-def _select_by_hand(  # noqa: PLR0913 - the folds, their first pass and the kind of fold model
+def _select_by_hand(
     X: pd.DataFrame, Y: pd.DataFrame, splits: list, A: int, first_repeat: int, *, centred: bool = True
 ) -> dict:
     """Cross-validate PLS by hand: sklearn's PLSRegression at each count on each fold's training rows.

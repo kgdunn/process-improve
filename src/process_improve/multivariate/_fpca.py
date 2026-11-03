@@ -31,9 +31,15 @@ _GCV_GRID = 10.0 ** np.linspace(-8, 4, 49)
 
 
 def _knots(low: float, high: float, n_basis: int, degree: int) -> np.ndarray:
-    """Return clamped knots placing ``n_basis`` B-splines of this degree at equal spacing over [low, high]."""
-    inner = np.linspace(low, high, n_basis - degree + 1)
-    return np.r_[[low] * degree, inner, [high] * degree]
+    """Return equally spaced knots for ``n_basis`` B-splines of this degree on [low, high], extended past both ends.
+
+    Knots repeated at the ends (clamped) make the edge B-splines narrower than the others, so a penalty on the
+    differences of their coefficients pulls the fit at the ends more than in the middle: a bias in each end
+    larger than the standard error of a predicted curve. Equal spacing that runs past the ends treats every
+    B-spline alike (Eilers and Marx, Statistical Science, 1996).
+    """
+    step = (high - low) / (n_basis - degree)
+    return low + step * np.arange(-degree, n_basis + 1)
 
 
 def _gram(knots: np.ndarray, degree: int) -> np.ndarray:
@@ -43,7 +49,7 @@ def _gram(knots: np.ndarray, degree: int) -> np.ndarray:
     B-splines, a polynomial of degree 2 * degree on each interval, exactly.
     """
     nodes, weights = leggauss(degree + 1)
-    edges = np.unique(knots)
+    edges = np.unique(knots[degree:-degree])  # the curves' domain only, not the knots beyond its ends
     mid, half = (edges[1:] + edges[:-1]) / 2, (edges[1:] - edges[:-1]) / 2
     points = (mid[:, None] + half[:, None] * nodes).ravel()
     weight = (half[:, None] * weights).ravel()
@@ -69,10 +75,11 @@ class FPCA(TransformerMixin, BaseEstimator):
     """Functional principal component analysis of curves measured on a grid.
 
     Each curve is smoothed by a cubic penalised B-spline (P-spline): ``n_basis`` B-splines on
-    equally spaced knots, with a penalty on the ``penalty_order``-th differences of their
-    coefficients. One penalty is shared by every curve, so the smoother is one linear map and
-    cannot be mistaken for a difference between curves. The principal components of the smoothed
-    curves are then found in the L2 metric of the basis: the coefficients are weighted by the
+    equally spaced knots that run past the ends of the grid, with a penalty on the
+    ``penalty_order``-th differences of their coefficients. One penalty is shared by every curve, so
+    the smoother is one linear map and cannot be mistaken for a difference between curves. The
+    principal components of the smoothed curves are then found in the L2 metric of the basis: the
+    coefficients are weighted by the
     square root of the Gram matrix W (the integral of the products of the B-splines), so the
     eigenfunctions are orthonormal as functions and do not depend on where the knots are placed
     (Ramsay and Silverman, *Functional Data Analysis*, 2005, section 8.4).

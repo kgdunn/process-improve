@@ -365,7 +365,7 @@ def reverse_scaling(
 class DTWresult:
     """Result class."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         synced: np.ndarray | pd.DataFrame,
         penalty_matrix: np.ndarray,
