@@ -8045,8 +8045,8 @@ def test_target_projection_counts_a_norm_of_exactly_epsqrt_as_0() -> None:
         target_projection(_two_feature_tp_model([1.0, 0.0]), flat)
 
 
-def test_selectivity_ratio_is_0_without_a_warning_where_it_cannot_be_formed() -> None:
-    """A feature the TP component reproduces exactly (x / 0) and an all-zero one (0 / 0) both get 0, quietly.
+def test_selectivity_ratio_is_inf_with_no_residual_and_0_with_no_signal() -> None:
+    """A feature the TP component reproduces exactly (x / 0) gets inf, an all-zero one (0 / 0) gets 0, quietly.
 
     With ``w = (1, 0)`` the scores are column a itself, so its loading is 1 and its residual 0.
     Three rows leave the F distribution 0 denominator degrees of freedom: its critical value is NaN.
@@ -8055,8 +8055,40 @@ def test_selectivity_ratio_is_0_without_a_warning_where_it_cannot_be_formed() ->
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
-    np.testing.assert_array_equal(ratio.to_numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(ratio.to_numpy(), [np.inf, 0.0])
     assert np.isnan(ratio.attrs["f_critical"])
+
+
+@pytest.mark.parametrize(("half_width", "expected_b"), [(2.0**-26, np.inf), (2.0**-25, 2.0**50)])
+def test_selectivity_ratio_counts_a_residual_of_eps_times_the_explained_part_as_none(
+    half_width: float, expected_b: float
+) -> None:
+    """A residual sum of squares of at most eps times the explained one counts as none: the ratio is inf.
+
+    With ``w = (1, 0)`` the scores are column a, all ones, so ``t't = 4`` and b's loading is 1. Column
+    b is ``1 + h`` and ``1 - h`` in turn, so its explained sum of squares is 4 and its residual
+    ``(h, -h, h, -h)``, of sum of squares ``4 h^2``. ``h = 2**-26`` (epsqrt) gives a ratio of exactly
+    ``2**52``, ``1 / eps``, the first that reads as inf; ``h = 2**-25`` gives ``2**50``, which stays.
+    """
+    column_b = [1.0 + half_width, 1.0 - half_width, 1.0 + half_width, 1.0 - half_width]
+    X = pd.DataFrame({"a": [1.0, 1.0, 1.0, 1.0], "b": column_b})
+    ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
+    np.testing.assert_array_equal(ratio.to_numpy(), [np.inf, expected_b])
+
+
+def test_selectivity_ratio_ranks_a_feature_the_model_reproduces_first() -> None:
+    """A response that is one feature exactly leaves that feature only a rounding residual: its ratio is inf.
+
+    With as many components as features the TP direction is the least-squares one, (1, 0, 0) up to
+    rounding, so feature a keeps a residual of about 1e-32 of its sum of squares rather than exactly 0.
+    """
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((20, 3)) * [1.0, 3.0, 0.2] + [5.0, -2.0, 1.0], columns=["a", "b", "c"])
+    model = PLS(n_components=3).fit(X, pd.DataFrame({"y": 2.0 * X["a"] - 1.0}))
+    ratio = model.selectivity_ratio(X)
+    assert ratio["a"] == np.inf
+    assert np.isfinite(ratio[["b", "c"]]).all()
+    assert ratio.sort_values(ascending=False).index[0] == "a"
 
 
 def test_squared_cosine_and_observation_contributions_by_hand() -> None:

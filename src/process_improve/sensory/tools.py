@@ -265,7 +265,9 @@ class _AnalyzeInput(BaseModel):
         "significant. 'predictive_descriptors' (present unless disabled) holds {per_attribute, descriptors, "
         "clusters, alpha, n_permutations, cluster_threshold}: 'per_attribute' is rows of attribute, "
         "n_components_cv, q2_cv, rmsep_cv, predictable; 'descriptors' is rows of attribute, descriptor, "
-        "selectivity_ratio, p_value, p_value_fwer, is_predictive, cluster_id; 'clusters' maps "
+        "selectivity_ratio, p_value, p_value_fwer, is_predictive, cluster_id, where a null "
+        "selectivity_ratio is an infinite one (the predictive direction reproduces the descriptor "
+        "exactly, so it has no residual); 'clusters' maps "
         "each descriptor to an integer collinear-cluster id (descriptors sharing an id cannot be told "
         "apart, so a significant one may be a proxy for another in the same cluster)."
     ),

@@ -358,7 +358,8 @@ def find_predictive_descriptors(  # noqa: PLR0913, PLR0915
     -------
     dict
         ``per_attribute`` (the Q-squared gate per attribute), ``descriptors``
-        (the per attribute-descriptor selectivity ratio, raw permutation
+        (the per attribute-descriptor selectivity ratio, ``inf`` for a
+        descriptor the predictive direction reproduces exactly, raw permutation
         ``p_value``, family-wise-error-adjusted ``p_value_fwer``,
         ``jackknife_significant`` flag from the leave-one-out beta confidence
         interval, ``is_predictive`` flag and ``cluster_id``), ``clusters`` (the
