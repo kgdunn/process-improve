@@ -31,6 +31,7 @@ __all__ = [
     "UncentredDataWarning",
     "epsqrt",
     "informative_widths",
+    "unobserved_columns",
     "y_is_exhausted",
     "y_reach",
 ]
@@ -740,6 +741,45 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
             spread = np.nanstd(values, axis=0)
         out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
     return out
+
+
+def _rows_with_data(values: np.ndarray) -> np.ndarray:
+    """Report, for each row, whether it has at least one observed cell."""
+    return np.any(~np.isnan(values), axis=1)
+
+
+def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> np.ndarray:
+    """Return which columns of a training block have no observed value, and warn, naming them, if any do.
+
+    Such a column carries no information, so every estimator of the family leaves it out of
+    the model: it gets a zero loading or weight, and a value a new row has in it adds nothing
+    to that row's scores or SPE. PCA, PLS, MBPCA and MBPLS used to differ here, from a silent
+    fit to a refusal (#1098); TPLS's wording (#982) is now the family's.
+
+    Parameters
+    ----------
+    block : pd.DataFrame
+        The training block, NaN where missing.
+    label : str
+        Where the block sits, as ``'X'``, ``'Y'``, ``'X["name"]'`` or ``'F["group"]'``.
+    stacklevel : int, default=4
+        Passed to :func:`warnings.warn`: 4 reaches the caller of a ``fit`` wrapped in sklearn's
+        ``_fit_context``, which calls this directly.
+
+    Returns
+    -------
+    np.ndarray of bool, shape (n_features,)
+        True for a column with no observed value.
+    """
+    unobserved = block.isna().to_numpy().all(axis=0)
+    if unobserved.any():
+        named = ", ".join(repr(col) for col in block.columns[unobserved])
+        warnings.warn(  # a UserWarning, warn's default category
+            f"Block {label} has columns with no observed values, which carry no information and are "
+            f"excluded from the model: {named}. Drop them, or check the data for a sensor that was never logged.",
+            stacklevel=stacklevel,
+        )
+    return unobserved
 
 
 class BlockSet(dict):
