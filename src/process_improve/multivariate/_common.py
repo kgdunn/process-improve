@@ -278,6 +278,24 @@ class NotEnoughVarianceError(RuntimeError):
     """
 
 
+def check_variance_left(block: str, values: np.ndarray, extracted: int) -> None:
+    """Refuse component ``extracted + 1`` when ``block`` has a sum of squares below ``epsqrt`` left.
+
+    PLS judges X and Y this way before every component, and MBPLS judges Y (#1128), so a Y that
+    is fitted exactly is refused by both, in the same words. Missing cells are left out of the sum.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If ``block`` has no variance left.
+    """
+    if np.nansum(values**2) < epsqrt:
+        raise NotEnoughVarianceError(
+            f"There is no variance left in the data array for {block}: cannot compute any more components "
+            f"beyond component {extracted}."
+        )
+
+
 def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.DataFrame:
     """Validate and align new-data columns against the features seen during ``fit``.
 

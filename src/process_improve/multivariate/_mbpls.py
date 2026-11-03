@@ -37,6 +37,7 @@ from ._common import (
     _scale_block_contributions,
     _select_n_components,
     check_at_least_one,
+    check_variance_left,
     epsqrt,
     informative_widths,
     largest_ssq_column,
@@ -667,7 +668,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Raises
         ------
         NotEnoughVarianceError
-            If every column of Y is constant or has no observed value, as :meth:`PLS.fit` raises.
+            If every column of Y, or every column of every X-block, is constant or has no observed
+            value, or if Y has no variance left for a component, as when it is fitted exactly: as
+            :meth:`PLS.fit` raises.
         """
         check_at_least_one("n_components", self.n_components)
         y = _validate_fit_arguments(X, y)
@@ -692,6 +695,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 "There is no variance in Y: every response is constant or has no observed value, "
                 "so there is nothing for X to explain."
             )
+        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128)
+        if sum(ssq(values) for values in x_blocks_pp.values()) < epsqrt:  # pragma: no mutate - <= as for Y above
+            raise NotEnoughVarianceError(
+                "There is no variance in X: every column of every block is constant or has no observed value, "
+                "so there is nothing to explain Y by."
+            )
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,
@@ -714,6 +723,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         exhausted = False
         for a in range(self.n_components_):
             start = time.time()
+            check_variance_left("Y", y_def, a)  # a Y fitted exactly is refused, as PLS refuses it (#1128)
             exhausted = exhausted or y_is_exhausted("MBPLS", a, list(x_def.values()), y_def, reach)
             if exhausted:
                 component = _component_along_x(x_def, y_def, context)

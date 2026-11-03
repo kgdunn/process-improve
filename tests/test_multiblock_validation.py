@@ -7,6 +7,7 @@ run once per class. Everything fits a 10-row, two-block set in milliseconds.
 
 from __future__ import annotations
 
+import itertools
 import re
 from collections.abc import Callable
 
@@ -347,11 +348,12 @@ def test_mbpls_refuses_a_y_of_another_height() -> None:
 def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
     """With nothing in X to explain Y by, R2Y is 0 and the super VIP is zero rather than NaN.
 
-    A Y with nothing to explain is refused (#1075); blocks of constants leave every weight 0 instead.
+    The columns of a 2^4 design are exactly orthogonal, so blocks of three of them have nothing to
+    explain the fourth by, and every weight is 0. A Y with nothing to explain is refused (#1075), and
+    so are blocks of constants (#1128).
     """
-    blocks, y = _blocks()
-    with pytest.warns(SpecificationWarning, match="from component 2 on there is nothing left in Y"):
-        model = MBPLS(n_components=2).fit({name: block * 0.0 + 1.0 for name, block in blocks.items()}, y)
+    design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("abcy"))
+    model = MBPLS(n_components=2).fit({"ab": design[["a", "b"]], "c": design[["c"]]}, design[["y"]])
     np.testing.assert_array_equal(model.r2_y_cumulative_.to_numpy(), [0.0, 0.0])
     np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
 

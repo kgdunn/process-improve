@@ -30,7 +30,6 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
-    NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
     UncentredDataWarning,
@@ -42,6 +41,7 @@ from ._common import (
     _select_n_components,
     _vandervoet_randomization,
     check_at_least_one,
+    check_variance_left,
     epsqrt,
     largest_ssq_column,
     resolve_loop_settings,
@@ -580,7 +580,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     x_loadings_ = _LazyFrame("_x_loadings", index="_feature_names", columns="_component_names")
     x_weights_ = _LazyFrame("_x_weights", index="_feature_names", columns="_component_names")
 
-    def _fit_nipals(  # noqa: PLR0915, C901
+    def _fit_nipals(  # noqa: PLR0915
         self,
         X: DataMatrix,
         Y: DataMatrix,
@@ -646,18 +646,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         for a in range(A):
             start_time = time.time()
 
-            if ssq(Xd) < epsqrt:
-                emsg = (
-                    "There is no variance left in the data array for X: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise NotEnoughVarianceError(emsg)
-            if ssq(Yd) < epsqrt:
-                emsg = (
-                    "There is no variance left in the data array for Y: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise NotEnoughVarianceError(emsg)
+            check_variance_left("X", Xd, a)
+            check_variance_left("Y", Yd, a)
             # Y has variance left, but none that X can still reach (#913): this component, and every later one,
             # takes the largest direction left in X (X as its own target) rather than iterating to max_iter.
             exhausted = exhausted or y_is_exhausted("PLS", a, [Xd], Yd, reach)
