@@ -135,6 +135,9 @@ Designed Experiments
 .. automodule:: process_improve.experiments.across_blocks
    :members: fit_across_blocks, BlockedFit
 
+.. automodule:: process_improve.experiments.functional
+   :members: analyze_functional_experiment, FunctionalFit
+
 .. automodule:: process_improve.experiments.augment
    :members:
    :undoc-members:
