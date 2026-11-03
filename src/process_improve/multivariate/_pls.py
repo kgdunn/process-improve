@@ -1546,6 +1546,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             is accepted for a single-target model; otherwise supply one value per
             target. A Series/DataFrame/dict is aligned to the fitted target
             names; a plain array must follow the fitted target order.
+            A response the fit left out, having no observed value, cannot be
+            targeted: its value is not used, and may be missing.
         null_space_coordinates : np.ndarray, optional
             Coordinates along the null-space basis, of length ``A - r`` (the
             null-space dimension). When given, the returned solution is
@@ -1560,12 +1562,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             With keys:
 
             ``x_new`` : pd.Series of shape (n_features,)
-                The estimated input vector, on the original (un-scaled) X scale.
+                The estimated input vector, on the original (un-scaled) X scale;
+                NaN for a column the fit left out, having no observed value.
             ``scores`` : pd.Series of length A
                 The score vector (tau) of the solution.
             ``y_hat`` : pd.Series of length n_targets
                 The model's prediction at ``x_new``; equals ``y_desired`` up to
-                numerical error, a check that the inversion is consistent.
+                numerical error, a check that the inversion is consistent. NaN
+                for a response the fit left out, as :meth:`predict` gives it.
             ``null_space_basis`` : pd.DataFrame of shape (A, A - r)
                 Orthonormal basis of the null space, in score coordinates. Empty
                 (zero columns) when ``A == r`` and the solution is unique.
@@ -1621,7 +1625,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"target(s): {list(target_names)}."
                 )
             y_des_df = pd.DataFrame(y_arr, columns=target_names)
-        if y_des_df.isna().any(axis=None):
+        # A response the fit left out (#1098) has zero loadings, so no score can move it: its target is not
+        # used, and may be missing (#1114). A model pickled before then left none out.
+        targeted = ~np.broadcast_to(getattr(self, "_unobserved_targets", False), (n_targets,))
+        if y_des_df.loc[:, targeted].isna().any(axis=None):
             raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names)}.")
 
         # Move the target into the scaled Y space the model was fit in.
@@ -1632,7 +1639,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Score -> scaled-Y map: y_scaled = tau @ q_map, with q_map [A x M].
         q_map = np.asarray(self.y_loadings_).T
         # Minimum-norm (direct-inversion) score, tau_DI [1 x A] (paper Eq. 9).
-        tau = y_des_scaled @ np.linalg.pinv(q_map)
+        tau = y_des_scaled[:, targeted] @ np.linalg.pinv(q_map[:, targeted])
 
         # Null-space basis: score directions g with g @ q_map = 0 (paper Eq. 14).
         # The left singular vectors of q_map for its zero singular values span it.
@@ -1657,11 +1664,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         x_new = tau @ self._x_loadings.T  # [1 x K]
         if self._x_scaler is not None:
             x_new = self._x_scaler.inverse_transform(x_new).to_numpy()
+        # The model says nothing about a column the fit left out (#1098): no value for it, as predict gives
+        # none for a response left out, rather than 0 on X's scale (#1114). A model pickled before then left none out.
+        x_new = np.where(getattr(self, "_unobserved_columns", False), np.nan, x_new)
 
         # Prediction at the solution (should equal y_desired up to rounding).
-        y_hat = tau @ q_map  # [1 x M]
-        if self._y_scaler is not None:
-            y_hat = self._y_scaler.inverse_transform(y_hat).to_numpy()
+        y_hat = self._in_y_units(pd.DataFrame(tau @ q_map, columns=target_names)).to_numpy()  # [1 x M]
 
         # The T² diagnose would give x_new, by fit's rule for a component with no spread (#1026).
         t2 = float(np.sum((tau.ravel() / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2))

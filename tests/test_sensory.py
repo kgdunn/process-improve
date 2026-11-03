@@ -961,6 +961,15 @@ def test_find_predictive_gives_a_lone_descriptor_an_infinite_ratio_that_no_permu
     assert record["p_value"] == record["p_value_fwer"] == 1.0
 
 
+def test_find_predictive_ranks_descriptors_with_a_missing_value():
+    """One missing descriptor value made every selectivity ratio 0, with no warning (#1114); the driver now leads."""
+    agg, cov = _predictive_case()
+    cov.iloc[4, 1] = np.nan
+    disc = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=9)
+    driver, noise = pd.DataFrame(disc["descriptors"])["selectivity_ratio"]
+    assert driver > 1.0 > noise > 0.0
+
+
 def test_find_predictive_ignores_permutations_it_cannot_fit(monkeypatch):
     """A permuted response whose fit fails adds nothing to the null; with none left, every p-value is one."""
     real_fit = sensory_analysis._fit_pls_safe

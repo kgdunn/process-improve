@@ -8023,6 +8023,57 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     assert ratio.attrs["response"] == "y"
 
 
+def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
+    """A missing cell is skipped, as NIPALS skips it, rather than making every ratio NaN and then 0 (#1114).
+
+    Row r4 of the by-hand case loses its b value. Its score is regressed on the observed part of
+    ``w = (0.6, 0.8)``: ``2 * 0.6 / 0.36 = 10/3``, so ``t't = 74/25 + 100/9 = 3166/225``. Column a,
+    observed throughout, has ``t'x_a = 26/3`` and the loading ``975/1583``; column b is regressed on
+    the scores of r1 to r3 alone, ``(11/5) / (74/25) = 55/74``. Each sum of squares runs over the
+    feature's observed cells: a's explained part is ``(26/3)^2 / (3166/225) = 8450/1583`` of 6 and b's
+    ``(11/5)^2 / (74/25) = 121/74`` of 2, so the ratios are 4225/524 and 121/27.
+    """
+    model = _two_feature_tp_model([3.0, 4.0])
+    gap = _TP_X.copy()
+    gap.loc["r4", "b"] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        tp = target_projection(model, gap)
+        ratio = selectivity_ratio(model, gap)
+    np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.8, -1.4, 10 / 3], rtol=1e-14)
+    np.testing.assert_allclose(tp.loadings.to_numpy(), [975 / 1583, 55 / 74], rtol=1e-14)
+    np.testing.assert_allclose(ratio.to_numpy(), [4225 / 524, 121 / 27], rtol=1e-13)
+
+
+def test_selectivity_ratio_of_a_pls_fitted_with_missing_values_is_not_0() -> None:
+    """A PLS fitted to X with gaps ranked every feature at 0, quietly; the driver now leads (#1114).
+
+    A row with nothing observed scores 0 and adds nothing, as in the fit, so the ratios are those of
+    X without it. A feature with nothing observed has no sum of squares: its ratio is 0, as for a
+    constant feature.
+    """
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((40, 4)), columns=["driver", "b", "c", "d"])
+    y = pd.DataFrame({"y": 2.0 * X["driver"] + 0.1 * rng.standard_normal(40)})
+    gaps = X.copy()
+    for row, column in [(2, "b"), (9, "c"), (17, "d"), (25, "b")]:
+        gaps.loc[row, column] = np.nan
+    model = PLS(n_components=2).fit(gaps, y)
+    blanked = gaps.assign(c=np.nan)
+    blanked.loc[5] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        ratio = model.selectivity_ratio(gaps)
+        blank = model.selectivity_ratio(blanked)
+    assert (ratio > 0).all()
+    assert ratio.idxmax() == "driver"
+    assert ratio.drop("driver").max() < 1.0
+
+    without = model.selectivity_ratio(blanked.drop(index=5))
+    assert blank["c"] == 0.0
+    np.testing.assert_allclose(blank.to_numpy(), without.to_numpy(), rtol=1e-12)
+
+
 def test_target_projection_reads_object_data_as_numbers() -> None:
     """X held as Python objects gives the float results, with no scaler to convert it first."""
     model = _two_feature_tp_model([3.0, 4.0])

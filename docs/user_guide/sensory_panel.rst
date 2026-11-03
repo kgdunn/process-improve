@@ -244,6 +244,8 @@ along the regression vector :math:`b` for the chosen attribute: the weight is
 single component,
 :math:`\text{SR}_j = \text{SS}_{\text{explained},j} / \text{SS}_{\text{residual},j}`,
 so it is large only for descriptors aligned with the predictive direction. A
+missing descriptor value is skipped, as the PLS fit skips it, and each sum of
+squares runs over the descriptor's observed values. A
 descriptor that the single component reproduces exactly has no residual, and its
 ratio is infinite (``inf``; the JSON tool output, which cannot carry infinity,
 reports it as ``null``). Two

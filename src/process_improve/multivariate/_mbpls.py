@@ -934,7 +934,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             x_pp = self._scaled_block(name, block)
             x_hat = super_scores @ self.block_loadings_[name].values.T
-            residuals_sq = (x_pp - x_hat) ** 2
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114).
+            # A model pickled before #1098 left none out.
+            left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
+            residuals_sq = np.where(left_out, 0.0, (x_pp - x_hat) ** 2)
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
@@ -1041,7 +1044,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             sqrt_kb = self._block_scale()[name]
             w_b = self.block_weights_[name].values[:, a]
             w_s = float(self.super_weights_.values[b_idx, a])
-            raw[name] = deflated[name] * (w_b * w_s / sqrt_kb)
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114).
+            # A model pickled before #1098 left none out.
+            left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
+            raw[name] = np.where(left_out, 0.0, deflated[name] * (w_b * w_s / sqrt_kb))
 
         raw = _scale_block_contributions(raw, scaling)
         return {
