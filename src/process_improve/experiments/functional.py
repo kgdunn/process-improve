@@ -20,7 +20,7 @@ from scipy import stats
 from sklearn.base import clone
 
 from process_improve._random import check_random_state
-from process_improve.experiments.analysis import analyze_experiment
+from process_improve.experiments.analysis import BLOCK_COL, _add_block_term, analyze_experiment
 from process_improve.multivariate._fpca import FPCA  # the module, not the package: multivariate imports experiments
 
 #: Components are kept up to this fraction of the curves' variance.
@@ -123,6 +123,7 @@ class FunctionalFit:
     _curves: pd.DataFrame = field(repr=False)
     _groups: np.ndarray = field(repr=False)
     _significance_level: float = field(repr=False)
+    _blocks: tuple[str, ...] = field(default=(), repr=False)
 
     def predict(
         self,
@@ -149,7 +150,8 @@ class FunctionalFit:
         Parameters
         ----------
         new_points : pandas.DataFrame
-            Factor settings, one row per curve to predict, with the factors the model uses.
+            Factor settings, one row per curve to predict, with the factors the model uses. When the model has
+            blocks, each curve is predicted for the average over the blocks.
         n_bootstrap : int, default=400
             Number of bootstrap replicates. The simultaneous band rests on a high quantile of a maximum,
             which a few hundred replicates are needed to estimate.
@@ -171,8 +173,14 @@ class FunctionalFit:
         if not 0 < level < 1:
             raise ValueError(f"level must lie between 0 and 1; got {level}.")
         rng = check_random_state(random_state)
+        if self._blocks and BLOCK_COL in new_points:
+            raise ValueError(
+                f"new_points has a {BLOCK_COL!r} column, but a curve is predicted for the average over the blocks; "
+                "drop the column."
+            )
+        points = new_points.assign(**{name: 0.0 for name in self._blocks if name not in new_points})
         try:
-            (new_matrix,) = build_design_matrices([self._design], new_points, return_type="matrix")
+            (new_matrix,) = build_design_matrices([self._design], points, return_type="matrix")
         except PatsyError as error:
             raise ValueError(f"new_points cannot be read by the model {self.formula!r}: {error}") from None
         projection = _projection(self._model_matrix)
@@ -290,8 +298,10 @@ def analyze_functional_experiment(
     first = fitted.scores_.iloc[:, 0].rename("fpc_1")
     probe = analyze_experiment(design_matrix, first, model=model, analysis_type="coefficients")
     formula = probe["model_summary"]["formula"].split("~", 1)[1].strip()
+    # The blocks enter the model as the sum-coded contrast columns analyze_experiment adds; build them the same way.
+    working, _, blocks = _add_block_term(design_matrix, "score ~ 1", "main_effects")
     try:
-        matrix = dmatrix(formula, design_matrix, return_type="matrix")
+        matrix = dmatrix(formula, working, return_type="matrix")
     except PatsyError as error:
         raise ValueError(f"The model {formula!r} cannot be built from the design's columns: {error}") from None
     projection = _projection(np.asarray(matrix))
@@ -312,6 +322,7 @@ def analyze_functional_experiment(
         _curves=curves,
         _groups=_bootstrap_groups(design_matrix),
         _significance_level=significance_level,
+        _blocks=blocks if any(name in formula for name in blocks) else (),
     )
 
 
