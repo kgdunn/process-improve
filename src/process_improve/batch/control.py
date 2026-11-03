@@ -104,6 +104,7 @@ from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
 from sklearn.utils import Bunch
 
+from ..multivariate._diagnostics import _t2_score_sd
 from ..multivariate._limits import spe_calculation
 from ..multivariate._projection import project_rows
 from ._online import observed_series, scaled_row, unfolded_layout
@@ -273,7 +274,8 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
         Hard cap on the candidate row's Hotelling's T2.
     score_covariance : array-like of shape (A, A), optional
         Covariance used in the T2 quadratic. Default: the diagonal of the
-        training score variances. Pass the per-decision-point covariance of
+        training score variances, leaving out a component with no spread as
+        the model's own T2 does. Pass the per-decision-point covariance of
         the score *estimates* (Garcia-Munoz et al., 2004) for a reference
         that matches the pattern; :meth:`MidCourseCorrector.limits_at` builds
         it.
@@ -363,9 +365,11 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     D_free = np.eye(n_free) - P_free @ A_F
     c_free = -P_free @ b
 
-    # T2 quadratic: t' S^{-1} t with t = b + A_F u.
+    # T2 quadratic: t' S^{-1} t with t = b + A_F u. A component with no spread
+    # gets weight 0, not about 1/0, by the rule every multivariate T2 uses (#1086).
     if score_covariance is None:
-        s_inv = np.diag(1.0 / np.asarray(model.explained_variance_, dtype=float))
+        score_sd = _t2_score_sd(np.sqrt(np.asarray(model.explained_variance_, dtype=float)))
+        s_inv = np.diag(1.0 / score_sd**2)
     else:
         s_arr = np.asarray(score_covariance, dtype=float)
         if s_arr.shape != (A, A):
