@@ -506,12 +506,71 @@ class TestInputsAndMessages:
         with pytest.raises(ValueError, match="X has 2 features, but OPLS is expecting 3 features"):
             opls.predict(X.to_numpy()[:, :2])
 
+    def test_a_response_of_another_length_is_refused_as_plss_is(
+        self, cheese: tuple[pd.DataFrame, pd.DataFrame]
+    ) -> None:
+        """Both lengths named, before the algebra: a short Y used to fail in a matrix product (#1078)."""
+        X, y = cheese
+        message = r"^The X and Y arrays must have the same number of rows: X has 30 and Y has 20\.$"
+        with pytest.raises(ValueError, match=message):
+            PLS(n_components=2).fit(X, y.iloc[:20])
+        with pytest.raises(ValueError, match=message):
+            OPLS(n_orthogonal_components=1).fit(X, y.iloc[:20])
+
+    @pytest.mark.parametrize(
+        ("cell", "message"),
+        [
+            (np.nan, r"^Input Y contains NaN\.$"),
+            (None, r"^Input Y contains NaN\.$"),
+            (np.inf, r"^Input Y contains infinity or a value too large for dtype\('float64'\)\.$"),
+        ],
+    )
+    def test_a_missing_or_infinite_response_is_refused_as_such_an_x_is(
+        self, cheese: tuple[pd.DataFrame, pd.DataFrame], cell: float | None, message: str
+    ) -> None:
+        """Such a cell used to end in a singular-matrix error, or in one that blamed X (#1078)."""
+        X, y = cheese
+        y = y.astype(object)
+        y.iloc[3, 0] = cell
+        with pytest.raises(ValueError, match=message):
+            OPLS(n_orthogonal_components=1).fit(X, y)
+
     def test_the_settings_and_tags(self) -> None:
         assert OPLS(n_orthogonal_components=2).get_params() == {
             "n_orthogonal_components": 2,
             "scale": True,
-            "copy": True,
+            "copy": None,
         }
         assert OPLS(n_orthogonal_components=2, copy=False).get_params()["copy"] is False
         tags = OPLS(n_orthogonal_components=2).__sklearn_tags__()
         assert (tags.target_tags.required, tags.target_tags.single_output) == (True, True)
+
+
+class TestCopyIsDeprecated:
+    """``copy`` never did anything: OPLS reads X and Y without changing them, whatever it is set to (#1078)."""
+
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_passing_copy_warns_and_changes_nothing(
+        self, cheese: tuple[pd.DataFrame, pd.DataFrame], copy: bool
+    ) -> None:
+        X, y = cheese
+        X_before, y_before = X.copy(), y.copy()
+        with pytest.warns(DeprecationWarning, match="^process_improve") as record:
+            old = OPLS(n_orthogonal_components=1, copy=copy).fit(X, y)
+        assert str(record[0].message) == (
+            "process_improve.multivariate.methods.OPLS.copy is deprecated since 2.4.0 and will be removed in 3.0; "
+            "no replacement. copy has no effect: OPLS never modifies the X or Y it is given, so leave it out."
+        )
+        assert pathlib.Path(record[0].filename).name != "_opls.py"
+        pd.testing.assert_frame_equal(X, X_before)
+        pd.testing.assert_frame_equal(y, y_before)
+        pd.testing.assert_frame_equal(old.predict(X), OPLS(n_orthogonal_components=1).fit(X, y).predict(X))
+
+    def test_leaving_copy_out_warns_nothing_and_clone_keeps_it(self, cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+        from sklearn.base import clone
+
+        X, y = cheese
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(OPLS(n_orthogonal_components=1)).fit(X, y)
+        assert clone(OPLS(n_orthogonal_components=1, copy=False)).get_params()["copy"] is False
