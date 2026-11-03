@@ -34,6 +34,7 @@ from ._common import (
     _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
+    check_at_least_one,
     epsqrt,
     informative_widths,
     largest_ssq_column,
@@ -641,10 +642,6 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
-        if n_components <= 0:
-            raise ValueError(f"n_components must be positive; got {n_components}.")
-        if max_iter <= 0:
-            raise ValueError(f"max_iter must be positive; got {max_iter}.")
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
@@ -664,6 +661,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         y : pd.DataFrame
             Y-block. Same row index / row count as the X-blocks.
         """
+        check_at_least_one("n_components", self.n_components)
         y = _validate_fit_arguments(X, y)
         self._record_data_shape(X, y)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)

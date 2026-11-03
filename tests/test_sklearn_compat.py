@@ -15,6 +15,9 @@ These tests:
 
 from __future__ import annotations
 
+import typing
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -24,7 +27,20 @@ from sklearn.cross_decomposition import PLSSVD, PLSCanonical, PLSRegression
 from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to avoid collision with our PCA
 from sklearn.preprocessing import StandardScaler
 
-from process_improve.multivariate.methods import MBPCA, MBPLS, OPLS, PCA, PLS, TPLS, MCUVScaler
+from process_improve.multivariate.methods import (
+    MBPCA,
+    MBPLS,
+    OPLS,
+    PCA,
+    PLS,
+    PLSDA,
+    PRM,
+    TPLS,
+    AdaptivePCA,
+    AdaptivePLS,
+    DataFrameDict,
+    MCUVScaler,
+)
 
 # Concrete sklearn estimators we explicitly refuse to inherit from (their private,
 # version-specific attribute layout is exactly what ENG-07 decouples us from).
@@ -494,3 +510,94 @@ def test_cross_validate_submodels_use_requested_n_components() -> None:
         PLS.fit = original_fit  # type: ignore[method-assign]
     assert seen, "cross_validate() fitted no sub-models"
     assert all(value == 2 for value in seen)
+
+
+# ---------------------------------------------------------------------------
+# #1071: fit checks the ranges, so set_params and clone cannot skip the checks
+# ---------------------------------------------------------------------------
+
+
+def _range_check_data() -> dict[str, typing.Any]:
+    """Small data sets for every estimator of the family: X and y, two X-blocks, and TPLS's blocks."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
+    y = pd.DataFrame({"y": X.to_numpy() @ [1.0, -0.5, 0.3, 0.0] + rng.normal(0, 0.1, 30)})
+    blends = [f"blend{i}" for i in range(20)]
+    materials = [f"mat{j}" for j in range(4)]
+    return {
+        "X": X,
+        "y": y,
+        "labels": np.where(y["y"] > 0, "high", "low"),
+        "blocks": {"b1": X[["a", "b"]], "b2": X[["c", "d"]]},
+        "d_matrix": {"G": pd.DataFrame(rng.normal(size=(4, 3)), index=materials, columns=list("pqr"))},
+        "tpls_blocks": {
+            "F": {"G": pd.DataFrame(rng.random((20, 4)), index=blends, columns=materials)},
+            "Z": {"Z1": pd.DataFrame(rng.normal(size=(20, 2)), index=blends, columns=["z1", "z2"])},
+            "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=20)}, index=blends)},
+        },
+    }
+
+
+# Every estimator that takes ``n_components``, ``max_iter`` or ``tol``: how to build a valid one, and how to fit it.
+_FAMILY: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[BaseEstimator, dict], object]]] = {
+    "PCA": (lambda _: PCA(n_components=2), lambda model, data: model.fit(data["X"])),
+    "PLS": (lambda _: PLS(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
+    "PLSDA": (lambda _: PLSDA(n_components=2), lambda model, data: model.fit(data["X"], data["labels"])),
+    "PRM": (lambda _: PRM(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
+    "MBPCA": (lambda _: MBPCA(n_components=2), lambda model, data: model.fit(data["blocks"])),
+    "MBPLS": (lambda _: MBPLS(n_components=2), lambda model, data: model.fit(data["blocks"], data["y"])),
+    "TPLS": (
+        lambda data: TPLS(n_components=2, d_matrix=data["d_matrix"]),
+        lambda model, data: model.fit(DataFrameDict(data["tpls_blocks"])),
+    ),
+    "AdaptivePCA": (lambda _: AdaptivePCA(n_components=2), lambda model, data: model.fit(data["X"])),
+    "AdaptivePLS": (lambda _: AdaptivePLS(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
+}
+
+_OUT_OF_RANGE = [
+    ("n_components", 0, r"^n_components must be >= 1; got 0\.$"),
+    ("n_components", -1, r"^n_components must be >= 1; got -1\.$"),
+    ("max_iter", 0, r"^max_iter must be >= 1; got 0\.$"),
+    ("tol", 0.0, r"^Tolerance must exceed machine precision; got 0\.0\.$"),
+    ("tol", 10.0, r"^Tolerance should not be too large; got 10\.0\.$"),
+]
+
+
+@pytest.mark.parametrize("route", ["set_params", "clone"])
+@pytest.mark.parametrize(
+    ("name", "param", "value", "message"),
+    [
+        pytest.param(name, param, value, message, id=f"{name}-{param}={value}")
+        for name, (make, _) in _FAMILY.items()
+        for param, value, message in _OUT_OF_RANGE
+        if param in make(_range_check_data()).get_params()
+    ],
+)
+def test_fit_refuses_an_out_of_range_setting_however_it_was_set(
+    route: str, name: str, param: str, value: float, message: str
+) -> None:
+    """``set_params`` and ``clone`` do not pass through ``__init__``'s checks, so ``fit`` makes them (#1071).
+
+    Every estimator gives the same message. PCA checks ``tol`` and ``max_iter`` on the SVD path too,
+    which these data take: an out-of-range value is refused whichever algorithm would read it.
+    """
+    data = _range_check_data()
+    make, fit = _FAMILY[name]
+    model = make(data).set_params(**{param: value})
+    if route == "clone":
+        model = clone(model)
+    with pytest.raises(ValueError, match=message):
+        fit(model, data)
+
+
+@pytest.mark.parametrize("name", list(_FAMILY))
+def test_the_constructor_stores_an_out_of_range_setting_unchanged(name: str) -> None:
+    """``__init__`` stores its arguments without checking them, as sklearn requires (#1071)."""
+    valid = _FAMILY[name][0](_range_check_data())
+    requested = {
+        param: value
+        for param, value in {"n_components": 0, "max_iter": 0, "tol": 0.0}.items()
+        if param in valid.get_params()
+    }
+    model = type(valid)(**{**valid.get_params(), **requested})
+    assert {param: model.get_params()[param] for param in requested} == requested

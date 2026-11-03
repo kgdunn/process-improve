@@ -41,6 +41,7 @@ from ._common import (
     _reject_sparse,
     _select_n_components,
     _vandervoet_randomization,
+    check_at_least_one,
     epsqrt,
     largest_ssq_column,
     resolve_loop_settings,
@@ -1016,8 +1017,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
-        if self.n_components is not None and int(self.n_components) < 1:
-            raise ValueError(f"n_components must be >= 1; got {self.n_components}.")
+        check_at_least_one("n_components", self.n_components)
         A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warn = (
