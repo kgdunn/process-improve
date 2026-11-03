@@ -1,11 +1,11 @@
 - **The contribution functions take the same `X` as `transform`, `predict` and `diagnose`, and apply the model's
   own centring and scaling to it.** `t2_contributions`, `spe_contributions`, `score_contributions`,
-  `group_contributions`, `meda` and `omeda`, as functions and as methods, used `X` as given. A `PLS(scale=True)`
-  model, the default, and `PLSDA` and `PRM`, which inherit it, centre and scale `X` inside `fit`, so its own
+  `group_contributions`, `meda` and `omeda`, as functions and as methods, used `X` as given. `PLS(scale=True)`,
+  the default, and `PLSDA` and `PRM`, which inherit it, centre and scale `X` inside `fit`, so such a model's own
   training data gave contributions that bore no relation to the stored values, with no warning: 12,528,124 for a
   row whose stored T² is 0.0528. The docstrings said that passing the training data reproduces the stored
-  `hotellings_t2_`, and now it does for these models too. **Code that scaled `X` by hand for a
-  `scale=True` model now scales it twice, and gets different numbers: pass the unscaled data instead.** `PCA` and
+  `hotellings_t2_`, and now it does for these models too. **Code that scaled `X` by hand for a `scale=True`
+  model now scales it twice, and gets different numbers: pass the unscaled data instead.** `PCA` and
   `PLS(scale=False)` do no scaling of their own, so nothing changes for them; `MBPLS` and `MBPCA` already applied
   theirs. `AdaptivePCA` and `AdaptivePLS` now centre and scale with their current centre and spread, as their
   `transform` does. `target_projection` and `selectivity_ratio` already applied the model's scaling; their
