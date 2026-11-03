@@ -574,7 +574,10 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X)
     X = _align_to_fit_features(X, reconstruction.index)
-    return X, R, P
+    # A column the fit left out (#1098) is read at 0, as transform reads it, so it contributes 0 (#1114),
+    # and a NaN there does not send every row down the missing-data path. A model pickled before then left
+    # none out.
+    return X.mask(np.broadcast_to(getattr(model, "_unobserved_columns", False), X.shape), 0.0), R, P
 
 
 def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
@@ -734,7 +737,9 @@ def t2_contributions(
     ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
     PCA model fitted with missing data the training rows reproduce the stored
     ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
-    convergence tolerance, as the complete rows do.
+    convergence tolerance, as the complete rows do. A column the fit left out,
+    having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
+    so it contributes 0 whatever ``X`` holds there.
 
     Parameters
     ----------
@@ -836,7 +841,9 @@ def spe_contributions(
     ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
     PCA model fitted with missing data the training rows reproduce the stored
     ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
-    convergence tolerance, as the complete rows do.
+    convergence tolerance, as the complete rows do. A column the fit left out,
+    having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
+    so it contributes 0 whatever ``X`` holds there.
 
     Parameters
     ----------
@@ -963,7 +970,9 @@ def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cel
     ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
     PCA model fitted with missing data the training rows reproduce the stored
     ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
-    convergence tolerance, as the complete rows do.
+    convergence tolerance, as the complete rows do. A column the fit left out,
+    having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
+    so it contributes 0 whatever ``X`` holds there.
 
     Parameters
     ----------

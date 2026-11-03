@@ -319,3 +319,111 @@ def test_mbpls_fits_a_row_with_no_observed_response_as_pls_does() -> None:
     np.testing.assert_allclose(model.super_scores_ * np.sqrt(5), pls.scores_, rtol=1e-7, atol=1e-8)
     np.testing.assert_allclose(model.predictions_, pls.predictions_, rtol=1e-7, atol=1e-8)
     assert model.predictions_.loc["r4"].notna().all()
+
+
+@pytest.mark.parametrize("method", ["scp", "tsr"])
+@pytest.mark.parametrize("value", [np.nan, 5.0])
+@pytest.mark.parametrize("estimator", [PCA, PLS])
+def test_contributions_give_a_column_left_out_nothing(estimator: type, value: float, method: str) -> None:
+    """A column the fit left out contributes 0, and the rest are those of the model without it (#1114).
+
+    The contribution functions read the column as it was given, not at 0 as ``transform`` reads it:
+    a value there was a whole SPE contribution, and a NaN sent every row down the missing-data path
+    and gave the column NaN. Row r1 has a missing cell in column a, which stays NaN.
+    """
+    x, y = _data()
+    scaled = MCUVScaler().fit_transform(x.assign(c=np.nan))
+    target = () if estimator is PCA else (y,)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the column with nothing observed, named in the fit
+        model = estimator(n_components=2).fit(scaled, *target)
+    without = estimator(n_components=2).fit(scaled.drop(columns="c"), *target)
+
+    new = scaled.assign(c=value)
+    for name in ("t2_contributions", "spe_contributions", "score_contributions"):
+        result = getattr(model, name)(new, method=method)
+        expected = getattr(without, name)(new.drop(columns="c"), method=method)
+        assert (result["c"] == 0.0).all()
+        _close(result.drop(columns="c"), expected)
+    group = model.group_contributions(new.drop(index="r1"), group=["r2", "r3"], reference=["r4"])
+    assert group["c"] == 0.0
+    _close(group.drop("c"), without.group_contributions(new.drop(index="r1", columns="c"), ["r2", "r3"], ["r4"]))
+
+    del model._unobserved_columns  # a model pickled before #1098 left no column out: it reads the column as given
+    assert (model.spe_contributions(new.assign(c=1.0), method=method)["c"] == 1.0).all()
+
+
+@pytest.mark.parametrize("value", [np.nan, 5.0])
+@pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
+def test_multiblock_contributions_give_a_column_left_out_nothing(estimator: type, value: float) -> None:
+    """As for PCA and PLS: the column contributes 0, the rest as without it; MBPLS gave it NaN (#1114)."""
+    x, y = _data()
+    blocks = _blocks(x.assign(c=np.nan))
+    target = () if estimator is MBPCA else (y,)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the column with nothing observed, named in the fit
+        model = estimator(n_components=2).fit(blocks, *target)
+    without = estimator(n_components=2).fit({"p": blocks["p"], "q": blocks["q"].drop(columns="c")}, *target)
+
+    new = {name: frame.iloc[2:6] for name, frame in _blocks(x.assign(c=value)).items()}
+    new_without = {"p": new["p"], "q": new["q"].drop(columns="c")}
+    for name in ("spe_contributions", "score_contributions"):
+        result, expected = getattr(model, name)(new), getattr(without, name)(new_without)
+        assert (result["q"]["c"] == 0.0).all()
+        _close(result["q"].drop(columns="c"), expected["q"])
+        _close(result["p"], expected["p"])
+    group = model.group_contributions(new, group=["r2", "r3"])
+    assert group["q"]["c"] == 0.0
+    _close(group["q"].drop("c"), without.group_contributions(new_without, group=["r2", "r3"])["q"])
+
+    del model._unobserved_columns  # a model pickled before #1098 left no column out: it reads the column as given
+    given = {"p": new["p"], "q": new["q"].assign(c=5.0)}
+    assert (model.spe_contributions(given)["q"]["c"] > 0.0).all()
+    _close(model.score_contributions(given)["q"].drop(columns="c"), without.score_contributions(new_without)["q"])
+
+
+def test_pls_invert_sets_no_value_for_a_column_left_out() -> None:
+    """The model says nothing about the column, so x_new has NaN there, as predict has for a response left out.
+
+    ``invert`` gave it 0 on X's original scale, a value no row ever had (#1114).
+    """
+    x, y = _data()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the column with nothing observed, named in the fit
+        model = PLS(n_components=2).fit(x.assign(c=np.nan), y)
+    without = PLS(n_components=2).fit(x.drop(columns="c"), y)
+
+    result, expected = model.invert([1.0, -0.5]), without.invert([1.0, -0.5])
+    assert np.isnan(result.x_new["c"])
+    _close(result.x_new.drop("c"), expected.x_new)
+    _close(result.scores, expected.scores)
+    _close(result.y_hat, expected.y_hat)
+    _close(model.predict(result.x_new.to_frame().T), expected.y_hat.to_frame().T)
+
+    del model._unobserved_columns  # a model pickled before #1098 left no column out
+    assert model.invert([1.0, -0.5]).x_new.notna().all()
+
+
+@pytest.mark.parametrize("desired", [{"y1": 1.0}, {"y1": 1.0, "y2": 3.0}])
+def test_pls_invert_does_not_target_a_response_left_out(desired: dict) -> None:
+    """A response left out needs no target, and is not predicted at x_new: NaN, as predict gives it.
+
+    ``invert`` refused a target without a value for it, and predicted it at 0 whatever was asked (#1114).
+    """
+    x, y = _data()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # the response with nothing observed, named in the fit
+        model = PLS(n_components=2).fit(x, y.assign(y2=np.nan))
+    without = PLS(n_components=2).fit(x, y[["y1"]])
+
+    result, expected = model.invert(desired), without.invert(1.0)
+    assert np.isnan(result.y_hat["y2"])
+    _close(result.y_hat[["y1"]], expected.y_hat)
+    _close(result.x_new, expected.x_new)
+    _close(result.scores, expected.scores)
+    assert result.null_space_dimension == expected.null_space_dimension == 1
+    with pytest.raises(ValueError, match="y_desired is missing value"):
+        model.invert({"y2": 3.0})
+
+    del model._unobserved_targets  # a model pickled before #1098 left no response out
+    assert model.invert({"y1": 1.0, "y2": 3.0}).y_hat.notna().all()
