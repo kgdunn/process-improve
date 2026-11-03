@@ -99,6 +99,25 @@ def test_the_same_seed_gives_the_same_bands(fitted):
     assert not first["standard_error"].equals(other["standard_error"])
 
 
+def test_the_curve_maps_rebuild_the_prediction_and_each_replicate_from_a_model_row(fitted):
+    """A model row times the maps gives what predict gives: the curve, and the replicates its bands come from."""
+    maps = fitted.curve_maps(n_bootstrap=20, random_state=3)
+    assert maps["terms"] == ["Intercept", "A", "B", "A:B"]
+    assert maps["map"].shape == (4, T.size)
+    assert maps["replicate_maps"].shape == (20, 4, T.size)
+    assert maps["df_residual"] == 14
+    row = np.array([1.0, 0.5, -1.0, -0.5])  # A = 0.5, B = -1
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        bands = fitted.predict(pd.DataFrame({"A": [0.5], "B": [-1.0]}), n_bootstrap=20, random_state=3)
+    assert maps["mean"] + row @ maps["map"] == pytest.approx(bands["curve"].iloc[0].to_numpy())
+    replicates = maps["replicate_means"] + row @ maps["replicate_maps"]
+    assert replicates.std(axis=0, ddof=1) == pytest.approx(bands["standard_error"].iloc[0].to_numpy())
+    coarse = fitted.curve_maps(grid=T[::3], n_bootstrap=20, random_state=3)
+    assert coarse["map"] == pytest.approx(maps["map"][:, ::3])
+    assert coarse["replicate_means"] == pytest.approx(maps["replicate_means"][:, ::3])
+
+
 def test_runs_of_one_whole_plot_share_one_bootstrap_sign():
     design = _design().assign(WholePlot=np.repeat(np.arange(6), 3))
     with warnings.catch_warnings():
