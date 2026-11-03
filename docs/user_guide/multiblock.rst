@@ -197,8 +197,9 @@ Both models fit them, as ``PCA``, ``PLS`` and ``TPLS`` do:
   X-blocks are still scored.
 - A column with nothing observed, in an X-block or in Y, is left out
   of the model with a ``UserWarning`` that names it. Its loadings and
-  weights are 0, a value that a new row has in it changes nothing, and
-  a response with nothing observed has NaN predictions.
+  weights are 0, a value that a new row has in it changes nothing and
+  contributes 0 to ``spe_contributions`` and ``score_contributions``,
+  and a response with nothing observed has NaN predictions.
 
 When *not* to use the missing-data path
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
