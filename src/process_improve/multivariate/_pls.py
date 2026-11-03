@@ -2416,6 +2416,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               with ``diagnose``.
             - ``scope`` (str): the scope used.
 
+        Raises
+        ------
+        NotEnoughVarianceError
+            If ``n_components`` is more than the data support: a component fitted after there is
+            nothing left in Y that X can explain has a Y-loading of 0, and so no D ratio.
+
         See Also
         --------
         compare_cv_criteria : Uses the same construction to report alarm rates per component.
