@@ -528,6 +528,49 @@ def test_prm_pseudo_validation_set_reproduces_scores_and_spe(scope: str) -> None
             np.testing.assert_allclose(pv.local_spe.iloc[test].to_numpy(), spe, atol=1e-10)
 
 
+@pytest.mark.slow
+def test_prm_score_correlation_null_refits_every_fold_with_prm() -> None:
+    """PRM's held-out t-u correlation is tested against a null of PRM's own (#1087).
+
+    Each permutation of Y's rows gives the ``r_cv`` that PRM's cross-validation reports for the
+    permuted Y. The null refitted the folds by kernel PLS, and took its observed correlation
+    from the same PLS pipeline, so the p-value and threshold were PLS's, not those of the
+    ``r_cv`` beside them.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(5, shuffle=True, random_state=0), "n_permutations": 9}
+    result = PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=4, **settings).table
+
+    def r_cv(y: pd.DataFrame) -> np.ndarray:
+        return PRM.compare_cv_criteria(X, y, n_cv_permutations=0, **settings).table["r_cv"].to_numpy()
+
+    rng_null = np.random.default_rng(0).spawn(3)[2]  # the stream the null is drawn from
+    null = np.array([r_cv(Y.iloc[rng_null.permutation(40)].set_axis(Y.index)) for _ in range(4)])
+    observed = result["r_cv"].to_numpy()
+    np.testing.assert_allclose(result["r_cv_threshold"], null.max(axis=0), rtol=1e-12)
+    np.testing.assert_allclose(result["r_cv_p"], (np.sum(null >= observed, axis=0) + 1) / 5, rtol=1e-12)
+
+
+def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
+    """A warning from a fit to a permuted Y says nothing about the data, so it is not passed on (#1087).
+
+    With ``max_iter=1`` every NIPALS component warns that it stopped at the limit. The fits to the
+    data still say so; the null's fits add nothing. On LDPE at the defaults they gave nine warnings.
+    """
+    X, Y = _robust_data()
+    settings = {"max_components": 2, "cv": KFold(3, shuffle=True, random_state=0), "n_permutations": 9, "max_iter": 1}
+
+    def caught(n_cv_permutations: int) -> list[str]:
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            PRM.compare_cv_criteria(X, Y, random_state=0, n_cv_permutations=n_cv_permutations, **settings)
+        return [str(warning.message) for warning in record]
+
+    from_the_data = caught(0)
+    assert any("reached the maximum number of iterations" in message for message in from_the_data)
+    assert caught(2) == from_the_data
+
+
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
@@ -1819,3 +1862,23 @@ def test_the_one_se_rule_is_handed_rmsecv_and_its_standard_error(monkeypatch: py
     assert rule == "1se"
     _assert_near(kwargs["mean_error"], np.sqrt(held["press_y"].sum(axis=1) / Y.notna().to_numpy().sum()), rtol=1e-6)
     _assert_near(kwargs["se_error"], np.std(held["per_fold_rmse"], axis=1, ddof=1) / np.sqrt(5), rtol=1e-6)
+
+
+@pytest.mark.parametrize(("estimator", "default"), [(PLS, 199), (PRM, 49)])
+def test_the_default_number_of_cv_permutations_follows_the_estimator(
+    monkeypatch: pytest.MonkeyPatch, estimator: type[PLS], default: int
+) -> None:
+    """PRM refits every fold of every permutation (#1087), so its default count is 49, not 199.
+
+    The count the caller gives always wins.
+    """
+    seen: list[int] = []
+
+    def record(_estimator: object, _x: object, _y: object, settings: object, _kwargs: object) -> None:
+        seen.append(settings.n_cv_permutations)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("process_improve.multivariate._pls._compare_cv_criteria", record)
+    X, y = pd.DataFrame(np.eye(4)), pd.Series(range(4))
+    estimator.compare_cv_criteria(X, y)
+    estimator.compare_cv_criteria(X, y, n_cv_permutations=7)
+    assert seen == [default, 7]
