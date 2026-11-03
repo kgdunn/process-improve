@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any, Literal
 
 import numpy as np
@@ -234,7 +235,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     nowarn: bool = False,
     pi_resolution: int = 50,
     *,
-    intervals: Literal["bootstrap", "least_squares"] = "bootstrap",
+    intervals: Literal["bootstrap", "least_squares"] | None = None,
     n_boot: int = 999,
     random_state: int | np.random.Generator | None = 0,
 ) -> dict:
@@ -261,19 +262,22 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     pi_resolution : int, default 50
         The number of x values, evenly spaced over the range of the data, at which
         ``pi_range`` gives the prediction interval.
-    intervals : {"bootstrap", "least_squares"}, default "bootstrap"
+    intervals : {"bootstrap", "least_squares"} or None, default None
         How ``conf_intervals``, ``conf_interval_intercept`` and ``pi_range`` are found.
         ``"bootstrap"`` takes percentiles over ``n_boot`` resamples of the ``(x, y)`` pairs,
         each refitted with the repeated median, so the intervals resist outliers as the
         slope does. ``"least_squares"`` applies the least-squares formulas to the residuals
-        around the robust line, as releases up to 2.2.2 did for every call: one gross outlier
-        widens those intervals even when it leaves the slope where it was.
+        around the robust line: one gross outlier widens those intervals even when it leaves
+        the slope where it was. ``None`` means ``"least_squares"`` until 3.0 and
+        ``"bootstrap"`` from 3.0. Until then, a call whose intervals the change would move
+        issues a ``FutureWarning`` and returns its text as ``intervals_note`` (see Notes).
+        Passing either value silences it.
     n_boot : int, default 999
-        The number of bootstrap resamples. Ignored when ``intervals="least_squares"``.
+        The number of bootstrap resamples. Used only with ``intervals="bootstrap"``.
     random_state : int, np.random.Generator or None, default 0
         Seeds the bootstrap resamples; see
         :func:`process_improve._random.check_random_state`. The default seed makes a
-        repeated call return the same intervals. Ignored when ``intervals="least_squares"``.
+        repeated call return the same intervals. Used only with ``intervals="bootstrap"``.
 
     Returns
     -------
@@ -309,6 +313,9 @@ def robust_regression(  # noqa: PLR0913, PLR0915
                                       as ``intervals`` says
             leverage:                 the hat-matrix diagonal (leverage) for each observation
             influence:                Cook-style influence values for each observation
+            intervals_note:           only when ``intervals`` is not given and the default's change
+                                      in 3.0 would change the intervals: the text of the
+                                      ``FutureWarning`` that says so
 
         On the degenerate early-return path (fewer than three usable observations
         in ``x`` or ``y``), the returned dictionary is the initialization stub:
@@ -318,7 +325,19 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
     Notes
     -----
-    With ``intervals="bootstrap"`` (the default) the three interval keys are percentile
+    By default the three interval keys are least-squares intervals, as they were up to 2.2.2.
+    2.3.0 made the bootstrap the default without the announcement that the deprecation policy
+    requires for a changed default, so code that kept running got other numbers; 2.3.1
+    restored least squares. The default becomes ``"bootstrap"`` in 3.0, because its intervals
+    resist outliers as the slope does. Until then a call that the change would affect (one
+    with spread in x, a finite ``SE`` and a ``conflevel`` that has an interval) warns and
+    carries ``intervals_note``.
+
+    A ``conflevel`` that has no t value (NaN, infinite, or larger than 1 in absolute value)
+    gives NaN intervals, with the x column of ``pi_range`` kept, whichever ``intervals`` is,
+    and no resample is drawn.
+
+    With ``intervals="bootstrap"`` the three interval keys are percentile
     intervals over the resamples, each refitted as above. A resample whose x values are all
     equal has no slope and is left out. The prediction limits add to each resampled line a
     normal error scaled by 1.4826 times that resample's median absolute residual, so an
@@ -336,7 +355,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     points, 3 s for 500 and over 10 s for 1,000; for more points, lower ``n_boot`` or use
     ``intervals="least_squares"``.
     """
-    if intervals not in ("bootstrap", "least_squares"):
+    if intervals not in (None, "bootstrap", "least_squares"):
         raise ValueError(f"intervals must be 'bootstrap' or 'least_squares'; got {intervals!r}.")
 
     out: dict[str, Any] = {
@@ -470,8 +489,19 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         ]
     )
 
-    # With no spread in x, or a non-finite value kept in (SE is then not finite), the NaN intervals above stand.
-    if intervals == "bootstrap" and out["x_ssq"] >= __eps and np.isfinite(out["SE"]):
+    # With no spread in x, a non-finite value kept in (SE is then not finite), or a conflevel with no t value
+    # (NaN, infinite, or outside -1 to 1, exactly where the bootstrap's percentiles would fall outside 0 to 100),
+    # the NaN intervals above stand whichever intervals is, so the default's change in 3.0 changes nothing.
+    has_intervals = out["x_ssq"] >= __eps and np.isfinite(out["SE"]) and not np.isnan(c_t)
+    if intervals is None and has_intervals:
+        out["intervals_note"] = (
+            "process_improve.regression.robust_regression's default intervals='least_squares' is deprecated since "
+            "2.3.1 and will change to intervals='bootstrap' in 3.0, whose percentile-bootstrap intervals resist "
+            "outliers as the slope does. Pass intervals='least_squares' to keep these numbers, or "
+            "intervals='bootstrap' for the new ones; either silences this warning."
+        )
+        warnings.warn(out["intervals_note"], FutureWarning, stacklevel=2)
+    if intervals == "bootstrap" and has_intervals:
         slopes, intercepts, errors = _bootstrap_lines(x, y, fit_intercept, n_boot, check_random_state(random_state))
         tails = [50 * (1 - conflevel), 50 * (1 + conflevel)]
         out["conf_intervals"] = np.percentile(slopes, tails)[None, :]
