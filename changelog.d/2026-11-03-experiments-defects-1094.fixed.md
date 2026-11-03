@@ -16,3 +16,11 @@
   over time the plot exists to show. When `design_data` has a `RunOrder` column that gives each
   residual a distinct number, the residuals are now drawn against it, as `residual_diagnostics`
   already orders them for its `run_order` check. (#1094)
+- **A contrast that patsy would read as another level's position is refused.** `evaluate_design`
+  takes a `Block` column named in the formula as labels, `'1'`, `'2'` and so on, so
+  `C(Block, Treatment(1))` asked for block 1 but patsy read the integer as a position and used
+  block 2, with no word of it. Wherever a level is spelled as the integer but the position picks
+  another, the formula now raises a `ValueError` that names the levels and the spelling that works,
+  `C(Block, Treatment('1'))`, as it does since #1064 for a level the column does not have. An
+  integer whose position is the level spelled the same, or that spells no level, is read as before.
+  (#1094)
