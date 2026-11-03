@@ -19,6 +19,7 @@ from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.designs_screening import defining_relation
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.functional import FunctionalFit, analyze_functional_experiment
 from process_improve.experiments.gaussian_process import GaussianProcessFit, fit_gaussian_process
 from process_improve.experiments.incomplete_blocks import bibd_analysis
 from process_improve.experiments.knowledge import doe_knowledge
@@ -90,6 +91,7 @@ __all__ = [
     "DesignResult",
     "Expt",
     "Factor",
+    "FunctionalFit",
     "GaussianProcessFit",
     "Model",
     "MomentAberrationResult",
@@ -104,6 +106,7 @@ __all__ = [
     "TrueProcess",
     "allocate_runs",
     "analyze_experiment",
+    "analyze_functional_experiment",
     "analyze_omars",
     "augment_design",
     "bibd_analysis",
