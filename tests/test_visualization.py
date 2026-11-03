@@ -565,6 +565,36 @@ class TestResidualsVsOrderPlot:
         spec = plot.to_spec()
         assert spec.plot_type == "residuals_vs_order"
 
+    def test_residuals_are_drawn_in_the_designs_run_order(
+        self, residual_diagnostics: dict, design_data_2f: list
+    ) -> None:
+        # #1094: rows in standard order were drawn in that order, which hides a drift over time.
+        run_order = [3, 8, 1, 6, 2, 7, 4, 5]
+        design = [{**row, "RunOrder": at} for row, at in zip(design_data_2f, run_order, strict=True)]
+        plot = create_plot(
+            "residuals_vs_order",
+            analysis_results={"residual_diagnostics": residual_diagnostics},
+            design_data=design,
+        )
+        points = plot.to_spec().panels[0].layers[1].data
+        residuals = residual_diagnostics["residuals"]
+        assert [p["run_order"] for p in points] == list(range(1, 9))
+        assert [p["residual"] for p in points] == [residuals[run_order.index(at)] for at in range(1, 9)]
+
+    @pytest.mark.parametrize("run_order", [None, [1, 2, 3, 3, 5, 6, 7, 8], [1, 2, 3]])
+    def test_without_a_usable_run_order_the_rows_order_is_drawn(
+        self, residual_diagnostics: dict, design_data_2f: list, run_order: list | None
+    ) -> None:
+        design = design_data_2f if run_order is None else [{"RunOrder": at} for at in run_order]
+        plot = create_plot(
+            "residuals_vs_order",
+            analysis_results={"residual_diagnostics": residual_diagnostics},
+            design_data=design,
+        )
+        points = plot.to_spec().panels[0].layers[1].data
+        assert [p["run_order"] for p in points] == list(range(1, 9))
+        assert [p["residual"] for p in points] == residual_diagnostics["residuals"]
+
 
 class TestBoxCoxPlot:
     def test_spec_with_positive_response(self, design_data_2f: list) -> None:

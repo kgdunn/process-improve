@@ -16,6 +16,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
+from process_improve.experiments._analyses.diagnostics import run_order_positions
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.visualization.colors import DIAGNOSTIC_COLORS, DOE_PALETTE
 from process_improve.visualization.spec import (
@@ -194,7 +195,10 @@ class ResidualsVsOrderPlot(BasePlot):
     Data sources
     ------------
     Requires ``analysis_results`` with ``"residual_diagnostics"`` key
-    containing ``residuals``.
+    containing ``residuals``. The residuals are drawn in the order of the
+    design's ``RunOrder`` column, from ``design_data`` in the residuals'
+    order, when it gives each residual a distinct number; otherwise in the
+    rows' order, which hides a drift when the rows are in standard order.
     """
 
     def to_spec(self) -> ChartSpec:
@@ -210,7 +214,12 @@ class ResidualsVsOrderPlot(BasePlot):
         if not residuals:
             return ChartSpec(title="Residuals vs Order - no data")
 
-        scatter_data = [{"run_order": i + 1, "residual": float(r)} for i, r in enumerate(residuals)]
+        order = run_order_positions([row.get("RunOrder") for row in self.design_data], len(residuals))
+        positions = range(1, len(residuals) + 1) if order is None else order.tolist()
+        scatter_data = sorted(
+            ({"run_order": p, "residual": float(r)} for p, r in zip(positions, residuals, strict=True)),
+            key=lambda point: point["run_order"],
+        )
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
             data=scatter_data,
