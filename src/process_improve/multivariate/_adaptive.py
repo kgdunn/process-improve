@@ -74,7 +74,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
-from ._common import DataMatrix, check_at_least_one, epsqrt
+from ._common import DataMatrix, _align_to_fit_features, check_at_least_one, epsqrt
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -415,6 +415,16 @@ class _AdaptiveModel(_LatentVariableModel):
         labels, rows = _as_rows(X)
         scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
         return pd.DataFrame(scores, index=labels, columns=self._component_names)
+
+    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+        """Return ``X`` centred and scaled by the *current* centre and spread, as ``_project`` reads each row.
+
+        The contribution functions read new rows through this, so they take the data :meth:`transform`
+        takes (#1125). A frame's columns are matched to the fit by name, as PCA and PLS match them.
+        """
+        check_is_fitted(self, "mx_")
+        labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names) if isinstance(X, pd.DataFrame) else X)
+        return pd.DataFrame((rows - self.mx_) / self.sx_, index=labels, columns=self._feature_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
 

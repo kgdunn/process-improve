@@ -1393,6 +1393,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # pandas numbers the rows of an array from 0 when given no index.
         return X_arr, X.index if isinstance(X, pd.DataFrame) else None
 
+    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+        """Return :meth:`_validated_rows` as a frame labelled as fitted, the name :meth:`PLS._scaled_rows` has.
+
+        PCA neither centres nor scales, so the rows are in the space it was fitted in as they come.
+        The contribution functions read every model's new rows through this one name.
+        """
+        X_arr, sample_index = self._validated_rows(X)
+        return pd.DataFrame(X_arr, index=sample_index, columns=self._feature_names)
+
     def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> pd.DataFrame:  # noqa: ARG002
         """Fit the model and return the training scores."""
         self.fit(X)

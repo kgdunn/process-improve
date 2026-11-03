@@ -554,7 +554,13 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
 
 def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Align ``X`` to the fitted features and return ``(X_aligned, R, P)``.
+    """Return ``(X_rows, R, P)``: ``X`` in the space the model was fitted in, and the model's matrices.
+
+    ``X`` is the data ``transform`` and ``diagnose`` take, and is read through the
+    model's own ``_scaled_rows``, as they read it (#1125): checked against the fit,
+    its columns in the fitted order, centred and scaled when the model does that
+    itself (``PLS(scale=True)``), and 0 in a column the fit left out (#1098), so
+    that column contributes 0 (#1114).
 
     ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
     (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
@@ -566,18 +572,11 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
         raise ValueError(msg)
 
     is_pls = hasattr(model, "direct_weights_")
-    reconstruction = model.x_loadings_ if is_pls else model.loadings_
-    directions = model.direct_weights_ if is_pls else model.loadings_
-    P = np.asarray(reconstruction)
-    R = np.asarray(directions)
-
-    if not isinstance(X, pd.DataFrame):
-        X = pd.DataFrame(X)
-    X = _align_to_fit_features(X, reconstruction.index)
-    # A column the fit left out (#1098) is read at 0, as transform reads it, so it contributes 0 (#1114),
-    # and a NaN there does not send every row down the missing-data path. A model pickled before then left
-    # none out.
-    return X.mask(np.broadcast_to(getattr(model, "_unobserved_columns", False), X.shape), 0.0), R, P
+    P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
+    R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
+    # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
+    # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names.
+    return model._scaled_rows(X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)), R, P
 
 
 def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:

@@ -130,15 +130,16 @@ def test_a_model_without_training_residuals_still_gets_contributions_for_missing
 ) -> None:
     """An adaptive PCA keeps no residual block, which only the "tsr" estimator needs; "scp" goes ahead.
 
-    The complete rows' residuals are ``x - x P P'`` (the loadings are orthonormal); the
-    incomplete rows' are NaN exactly at their missing cells.
+    The complete rows' residuals are ``z - z P P'`` (the loadings are orthonormal), with ``z``
+    each row centred and scaled by the model, as ``transform`` reads it (#1125); the incomplete
+    rows' are NaN exactly at their missing cells.
     """
     X, _ = data
     model = AdaptivePCA(n_components=2).fit(X.dropna())
     assert not hasattr(model, "_x_residuals")
     residuals = spe_contributions(model, X)
     assert residuals.isna().equals(X.isna())
-    complete = X.dropna().to_numpy()
+    complete = (X.dropna().to_numpy() - model.mx_) / model.sx_
     loadings = model.loadings_.to_numpy()
     expected = complete - complete @ loadings @ loadings.T
     np.testing.assert_allclose(residuals.dropna().to_numpy(), expected, rtol=1e-9, atol=1e-12)
