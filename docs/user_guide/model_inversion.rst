@@ -228,6 +228,7 @@ master's bound meets the best answer: the answer is *proven* optimal.
     rules = InversionRules(
         costs={"Acetic": 1.0, "H2S": 3.0, "Lactic": 8.0},  # per unit of each input
         windows={"Taste": (20.0, 30.0)},  # an acceptable taste
+        bounds={"Acetic": (4.0, 7.0), "H2S": (3.0, 10.0), "Lactic": (0.8, 2.1)},  # the values each can take
         rules=(LinearRule("sulfide limit", {"H2S": 1.0}, upper=8.0),),
     )
     result = pls.optimal_inversion(rules)
@@ -235,6 +236,20 @@ master's bound meets the best answer: the answer is *proven* optimal.
     result.x_new  # the cheapest inputs the model vouches for
     result.objective  # their cost
     result.constraints  # every rule, with its shadow price
+
+Give every input its extreme limits in ``bounds``: the lowest and the highest
+value it can take. The :math:`T^2` and SPE limits alone hold an input only
+loosely, and the answer can then set it to a value it cannot take, such as a
+negative amount. A TPLS formula's lot fractions are 0 to 1 unless given, and a
+fixed input needs none. An input searched without both bounds warns
+(``FutureWarning``) from 2.4.0 and is an error from 3.0.
+
+``result.proven_optimal`` also needs the answer to be optimal for the inputs it
+uses. Either the optimality conditions hold (``result.kkt_residual`` near 0),
+or, when many inputs sit at a bound and the multipliers cannot be read from the
+dependent binding rows, one linear program does no better than the answer: it
+keeps the rules and the bounds, and replaces each limit with its tangent plane
+at the answer, which every point inside the limit satisfies.
 
 For a mixture, give the total as a rule (``LinearRule("mixture", {...: 1.0},
 lower=1.0, upper=1.0)``) and each ingredient bounds of 0 to 1. The number of
