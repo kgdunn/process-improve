@@ -105,6 +105,7 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             conflevel=spec.confidence_level,
             n_boot=spec.n_boot,
             random_state=spec.random_state,
+            intervals="bootstrap",
         )
         if result["N"] is None:
             # The fit hands back its empty result when two or fewer complete pairs remain.
