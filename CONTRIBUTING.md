@@ -152,6 +152,11 @@ caught, as in mutmut's own score: the change made the code loop or slow down, an
 Whether a mutant times out depends on the machine, so one that timed out on CI may fail its tests
 locally instead; either way it is caught.
 
+A test that draws random numbers or folds passes a seed or a `random_state` to each draw, so a
+mutant is killed on every run or on none. `tests/test_seeded_randomness.py` fails on a generator, a
+shuffling splitter or an integer `cv` written in a test without one. It cannot see a package function
+that shuffles folds by default, such as `PLS.select_n_components(X, Y)`: pass its `random_state` too.
+
 ### The README is tested
 
 The README is the first code a new user runs, so CI checks it like code:

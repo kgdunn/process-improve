@@ -1701,7 +1701,7 @@ def test_every_fit_gets_the_settings_and_the_component_count() -> None:
     assert [(p["n_components"], p["max_iter"], p["tol"], p["scale"]) for p in fits] == [(2, 7, 1e-5, True)] * 4
     for scope, fold_scale in (("global", False), ("local", True)):
         fits.clear()
-        Recorded.pseudo_validation_set(X, Y, n_components=2, cv=KFold(3), scope=scope, **settings)
+        Recorded.pseudo_validation_set(X, Y, n_components=2, cv=KFold(3), scope=scope, random_state=0, **settings)
         assert [(p["n_components"], p["max_iter"], p["tol"]) for p in fits] == [(2, 7, 1e-5)] * 4
         assert [(p["scale"], p["warn_on_uncentred"]) for p in fits] == [(True, True)] + [(fold_scale, fold_scale)] * 3
 
