@@ -54,13 +54,27 @@ class RobustRegressionInput(BaseModel):
         True,
         description="If true (default), fit an intercept term. If false, force through origin.",
     )
-    n_boot: int = Field(
-        999,
+    n_boot: int | None = Field(
+        None,
         ge=1,
         le=1_000,
-        description="Bootstrap resamples behind the intervals (default 999). Lower it for over a few hundred points.",
+        description=(
+            "Bootstrap resamples behind the intervals. By default 999 up to 500 points, then fewer as the "
+            "points grow (249 at 1,000 points, 9 at 5,000), so the call takes about as long as 999 resamples "
+            "of 500 points; fewer resamples give rougher intervals. The output reports the number drawn."
+        ),
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
+
+
+def _default_n_boot(n_points: int) -> int:
+    """Return the resamples the tool draws by default for ``n_points`` points.
+
+    Each resample costs time in proportion to ``n_points ** 2``, so a fixed 999 took the tool past its
+    10 s timeout above about 800 points (#1095). This keeps the work to that of 999 resamples of
+    500 points, about 3 s, whatever the number of points.
+    """
+    return max(1, min(999, 999 * 500**2 // n_points**2))
 
 
 @tool_spec(
@@ -97,13 +111,14 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
     try:
         x_arr = np.asarray(spec.x, dtype=float)
         y_arr = np.asarray(spec.y, dtype=float)
+        n_boot = _default_n_boot(len(spec.x)) if spec.n_boot is None else spec.n_boot
 
         result = _robust_regression(
             x_arr,
             y_arr,
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
-            n_boot=spec.n_boot,
+            n_boot=n_boot,
             random_state=spec.random_state,
         )
         if result["N"] is None:
@@ -120,6 +135,7 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
             "fitted_values": list(result["fitted_values"]),
             "residuals": list(result["residuals"]),
             "confidence_level": spec.confidence_level,
+            "n_boot": n_boot,
         }
 
         # A fit with three or more complete pairs always returns both as arrays.
