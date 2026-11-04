@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import typing
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -553,6 +553,20 @@ def loading_plot(
     return fig
 
 
+def _draw_limit(fig: go.Figure, setdict: dict[str, typing.Any], limit: Callable[[], float]) -> None:
+    """Draw the confidence-limit line of an SPE or T2 plot, if ``setdict["show_limit"]`` asks for it.
+
+    The limit is computed only when the line is drawn, so a plot without it neither pays for the
+    limit nor warns about it (#1150).
+    """
+    if not setdict["show_limit"]:
+        return
+    name = f"{setdict['conf_level'] * 100:.3g}% limit"
+    fig.add_hline(
+        y=limit(), line_color=LIMIT_LINE_COLOR, annotation_text=name, annotation_position="bottom right", name=name
+    )
+
+
 def spe_plot(  # noqa: C901
     model: BaseEstimator,
     n_components: int = -1,
@@ -684,15 +698,7 @@ def spe_plot(  # noqa: C901
     # count as is being plotted. model.spe_limit() is hard-wired to the last
     # component, so for n_components < fitted it previously drew a limit that
     # is far too low and flagged nearly everything as an outlier.
-    limit_SPE_conf_level = spe_calculation(model.spe_[n_components], conf_level=setdict["conf_level"])
-    limit_name = f"{setdict['conf_level'] * 100:.3g}% limit"
-    fig.add_hline(
-        y=limit_SPE_conf_level,
-        line_color=LIMIT_LINE_COLOR,
-        annotation_text=limit_name,
-        annotation_position="bottom right",
-        name=limit_name,
-    )
+    _draw_limit(fig, setdict, lambda: spe_calculation(model.spe_[n_components], conf_level=setdict["conf_level"]))
     fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
     fig.update_layout(
         template=setdict["template"],
@@ -849,19 +855,15 @@ def t2_plot(  # noqa: C901
     # n_components < fitted it previously drew a limit that is too high,
     # hiding genuine outliers. (Component names are 1-based integers, so the
     # resolved ``n_components`` column label equals the component count.)
-    limit_HT2_conf_level = hotellings_t2_limit(
-        conf_level=setdict["conf_level"],
-        n_components=int(n_components),
-        n_rows=model.hotellings_t2_.shape[0],
-        judged_rows=judged_rows,
-    )
-    limit_name = f"{setdict['conf_level'] * 100:.3g}% limit"
-    fig.add_hline(
-        y=limit_HT2_conf_level,
-        line_color=LIMIT_LINE_COLOR,
-        annotation_text=limit_name,
-        annotation_position="bottom right",
-        name=limit_name,
+    _draw_limit(
+        fig,
+        setdict,
+        lambda: hotellings_t2_limit(
+            conf_level=setdict["conf_level"],
+            n_components=int(n_components),
+            n_rows=model.hotellings_t2_.shape[0],
+            judged_rows=judged_rows,
+        ),
     )
     fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
     fig.update_layout(
