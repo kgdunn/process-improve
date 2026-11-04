@@ -116,9 +116,12 @@ def test_the_curves_go_out_in_a_workbook_and_come_back_to_their_runs_however_its
 
     back = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(xlsx, reverse)})
     assert back["curves"] == request["curves"]
-    assert api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(xlsx, lambda s: s.pop("Curves"))})["curves"] == [
-        None
-    ] * len(request["curves"])
+
+    def drop(sheets: dict) -> None:
+        del sheets["Curves"]  # a workbook from before the study read curves
+
+    without = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(xlsx, drop)})
+    assert without["curves"] == [None] * len(request["curves"])
 
 
 def test_the_page_draws_the_curve_and_both_its_bands_as_the_library_predicts_them(api, held, node):
