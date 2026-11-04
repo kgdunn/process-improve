@@ -538,14 +538,13 @@ def test_component_with_no_spread_adds_nothing_to_t2() -> None:
     assert sd[2] < 1.5e-8 * max(1.0, sd[0])  # the rule by which T2 leaves a component out
 
     k = 5
-    # "pmp": the default "tsr" estimator cannot invert its operator for a model like this one.
+    # The default "tsr" estimator runs over the components with spread (#1124).
     result = midcourse_correction(
         model,
         observed=_observed_series(model, batches["b3"], k),
         free_columns=_free_columns(model, k),
         y_target=0.5,
         weights={"target": 1.0, "movement": 0.1, "t2": 1.0},
-        method="pmp",
     )
     scores = result.scores.to_numpy()
     assert np.isfinite(result.t2)

@@ -104,7 +104,7 @@ from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
 from sklearn.utils import Bunch
 
-from ..multivariate._diagnostics import _t2_score_sd
+from ..multivariate._diagnostics import _t2_score_sd, t2_precision
 from ..multivariate._limits import spe_calculation
 from ..multivariate._projection import project_rows
 from ._online import observed_series, scaled_row, unfolded_layout
@@ -278,7 +278,9 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
         the model's own T2 does. Pass the per-decision-point covariance of
         the score *estimates* (Garcia-Munoz et al., 2004) for a reference
         that matches the pattern; :meth:`MidCourseCorrector.limits_at` builds
-        it.
+        it. A component with no spread is left out of a covariance passed
+        here too: it adds 0 to the T2, and the inverse is taken over the
+        other components.
     method : {"tsr", "scp", "pmp"}, default="tsr"
         Score-estimation method for the projection operator.
     ridge : float, default=0.0
@@ -366,17 +368,15 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
     c_free = -P_free @ b
 
     # T2 quadratic: t' S^{-1} t with t = b + A_F u. A component with no spread
-    # gets weight 0, not about 1/0, by the rule every multivariate T2 uses (#1086).
+    # gets weight 0, not about 1/0, by the rule every multivariate T2 uses (#1086, #1124).
+    score_sd = np.sqrt(np.asarray(model.explained_variance_, dtype=float))
     if score_covariance is None:
-        score_sd = _t2_score_sd(np.sqrt(np.asarray(model.explained_variance_, dtype=float)))
-        s_inv = np.diag(1.0 / score_sd**2)
+        s_inv = np.diag(1.0 / _t2_score_sd(score_sd) ** 2)
     else:
         s_arr = np.asarray(score_covariance, dtype=float)
         if s_arr.shape != (A, A):
             raise ValueError(f"score_covariance must have shape ({A}, {A}); got {s_arr.shape}.")
-        from .._linalg import safe_inverse  # noqa: PLC0415
-
-        s_inv = safe_inverse(s_arr, what="score_covariance")
+        s_inv = t2_precision(s_arr, score_sd, what="score_covariance")
 
     # Nominal remaining schedule, scaled.
     if nominal_remaining is None:
@@ -959,8 +959,6 @@ class MidCourseCorrector:
             point is not trustworthy, whatever the batch looks like), and
             ``k``.
         """
-        from .._linalg import safe_inverse  # noqa: PLC0415
-
         model = self.model
         if k is None:
             k = len(batch_so_far)
@@ -1014,7 +1012,7 @@ class MidCourseCorrector:
             x_residuals=residuals,
         )
         scores = projected.scores[0]
-        s_inv = safe_inverse(limits.score_covariance, what="score_covariance")
+        s_inv = t2_precision(limits.score_covariance, np.sqrt(variances), what="score_covariance")
         t2 = float(scores @ s_inv @ scores)
 
         y_loadings = np.asarray(model.y_loadings_, dtype=float)
