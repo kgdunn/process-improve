@@ -116,6 +116,8 @@ def test_the_curve_maps_rebuild_the_prediction_and_each_replicate_from_a_model_r
     coarse = fitted.curve_maps(grid=T[::3], n_bootstrap=20, random_state=3)
     assert coarse["map"] == pytest.approx(maps["map"][:, ::3])
     assert coarse["replicate_means"] == pytest.approx(maps["replicate_means"][:, ::3])
+    with pytest.raises(ValueError, match="within the fitted range"):
+        fitted.curve_maps(grid=[-0.5, 0.5], n_bootstrap=2)
 
 
 def test_runs_of_one_whole_plot_share_one_bootstrap_sign():

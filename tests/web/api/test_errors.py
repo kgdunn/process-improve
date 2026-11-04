@@ -1217,6 +1217,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _curved(curve={"label": "Colour"}),
         "The page sent a curve this page did not write.",
     ),
+    "curves: a point along the curve that is no number": (
+        "api_functional",
+        _curved(curve={"argument": {"values": [0, "soon", 2]}}),
+        "The page sent a curve this page did not write.",
+    ),
+    "curves: target settings that are not settings": (
+        "api_functional",
+        lambda ex: {**_curved()(ex), "target": [0, 1, 2], "held": "B"},
+        "The page sent settings this page did not write.",
+    ),
     "curves: points along the curve that do not rise": (
         "api_functional",
         _curved(curve={"argument": {"values": [0, 2, 1]}}),
