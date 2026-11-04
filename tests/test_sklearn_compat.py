@@ -15,6 +15,7 @@ These tests:
 
 from __future__ import annotations
 
+import importlib
 import typing
 from collections.abc import Callable
 
@@ -28,7 +29,6 @@ from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to a
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils._param_validation import InvalidParameterError, validate_parameter_constraints
 
-import process_improve.batch  # noqa: F401 - imported so that the walk over BaseEstimator's subclasses finds them
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -637,7 +637,9 @@ def _all_subclasses(cls: type) -> set[type]:
     return {grandchild for child in cls.__subclasses__() for grandchild in (child, *_all_subclasses(child))}
 
 
-# Every estimator of the package that declares the constraints sklearn checks its settings against.
+# Every estimator of the package that declares the constraints sklearn checks its settings against. The walk
+# over BaseEstimator's subclasses finds a class only once its module is imported, so load the batch module.
+importlib.import_module("process_improve.batch")
 _CONSTRAINED = sorted(
     (
         cls
