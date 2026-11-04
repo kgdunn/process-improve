@@ -13,8 +13,9 @@
  * factor that lists its levels: three or more, or two that read as numbers, which an earlier page would misread.
  * Format 4 holds a study of more than FEW_FACTORS factors, whose factor list an earlier page refuses as too long.
  * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
+ * Format 6 holds a curve each run gives (``spec.curve`` and ``curves``), which an earlier page would drop too.
  */
-export const CAMPAIGN_VERSION = 5;
+export const CAMPAIGN_VERSION = 6;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -28,11 +29,18 @@ export const MANY_FACTORS_FORMAT = 4;
 /** The format of a study with settings kept from the what-if panel (``what_if``); a study without keeps an earlier format. */
 export const WHAT_IF_FORMAT = 5;
 
+/** The format of a study that measures a curve on each run; a study without one keeps an earlier format. */
+export const CURVE_FORMAT = 6;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
+/** The most points along a curve a study reads each run's curve at; mirrors bootstrap.MAX_CURVE_POINTS. */
+export const CURVE_POINTS_HELD = 1000;
+
 /** The lowest format that holds a study of this specification and these kept settings, which the study is saved in. */
 export function studyFormat(spec, kept = []) {
+  if (spec.curve) return CURVE_FORMAT;
   if (kept.length) return WHAT_IF_FORMAT;
   if (spec.factors.length > FEW_FACTORS) return MANY_FACTORS_FORMAT;
   if (spec.factors.some((f) => Array.isArray(f.levels))) return LEVELS_FORMAT;
@@ -250,7 +258,40 @@ function spec(value) {
     const kept = transforms(value.analysis_transforms, responseNames(out));
     if (Object.keys(kept).length) out.analysis_transforms = kept;
   }
+  if (value.curve !== undefined && value.curve !== null) out.curve = curveOf(value.curve);
   return out;
+}
+
+/**
+ * The curve each run gives, as bootstrap._checked_curve takes it: the reader's words for it and its units, and its
+ * ``argument``, what the points along it are, with their ``values``: 3 to CURVE_POINTS_HELD numbers, each above the
+ * one before. Every run is read at the same points.
+ */
+function curveOf(value) {
+  if (!isObject(value) || !isObject(value.argument)) refuse("its curve is not one");
+  const words = (of, what) => ({
+    ...(of.label === undefined ? {} : { label: text(of.label, `${what}'s name`, 64) }),
+    ...(of.units === undefined ? {} : { units: text(of.units, `${what}'s units`, 32) }),
+  });
+  const values = list(value.argument.values, "the points along its curve", CURVE_POINTS_HELD);
+  if (values.length < 3 || !values.every((v, i) => isFiniteNumber(v) && (i === 0 || v > values[i - 1]))) {
+    refuse("the points along its curve are not 3 or more numbers, each above the one before");
+  }
+  return { ...words(value, "the curve"), argument: { ...words(value.argument, "the points along the curve"), values: [...values] } };
+}
+
+/** Each run's curve: null until it is read, else one number, or a blank, per point along the curve. */
+function curvesOf(value, n, points) {
+  if (value === undefined || value === null) return Array(n).fill(null);
+  if (list(value, "its curves", n).length !== n) refuse("its curves are not one per run");
+  return value.map((curve) => {
+    if (curve === null) return null;
+    const read = list(curve, "a run's curve", points);
+    if (read.length !== points || !read.every((v) => v === null || isFiniteNumber(v))) {
+      refuse("a run's curve is not one number, or a blank, per point along it");
+    }
+    return [...read];
+  });
 }
 
 /** The transforms a study's responses are analysed with, by their columns (keys of bootstrap.TRANSFORMS). */
@@ -385,6 +426,7 @@ export function checkCampaign(data) {
   if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames, names[0]));
   if (data.source !== undefined && data.source !== null) out.source = studySource(data.source);
   if (kept.length) out.what_if = kept;
+  if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
 
@@ -553,6 +595,7 @@ export function shareable(campaign, withResults) {
   if (withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });
+    if (campaign.curves) out.curves = campaign.curves;
     out.simulate = campaign.simulate;
   }
   return out;
@@ -627,7 +670,7 @@ export function checkBookExample(data, name) {
 
 /** Whether two campaigns are the same design with the same title, results and model: a book's example as it was left. */
 export function sameCampaign(a, b) {
-  const held = (c) => JSON.stringify([c.title, c.responses, c.model, c.more_responses ?? null, c.more_models ?? null]);
+  const held = (c) => JSON.stringify([c.title, c.responses, c.model, c.more_responses ?? null, c.more_models ?? null, c.curves ?? null]);
   return designKey(a.design) === designKey(b.design) && held(a) === held(b);
 }
 
@@ -725,6 +768,13 @@ export function mergeResults(here, incoming) {
       out.added += one.added;
       out.kept += one.kept;
     }
+  }
+  if (here.curves) {
+    // a curve is one result: a run without one here takes the link's, and one here is kept
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    out.curves = here.curves.map((curve, i) => curve ?? incoming.curves?.[i] ?? null);
+    out.added += here.curves.filter((curve, i) => curve === null && incoming.curves?.[i]).length;
+    out.kept += here.curves.filter((curve, i) => curve !== null && incoming.curves?.[i] && !same(curve, incoming.curves[i])).length;
   }
   return out;
 }

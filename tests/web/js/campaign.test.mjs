@@ -8,6 +8,8 @@ import {
   GOAL_SHAPES,
   BOOK_PARAM,
   CAMPAIGN_VERSION,
+  CURVE_FORMAT,
+  CURVE_POINTS_HELD,
   FACTORS_HELD,
   FEW_FACTORS,
   LEVELS_FORMAT,
@@ -786,7 +788,6 @@ describe("settings kept from the what-if panel", () => {
     assert.deepEqual(checked.what_if, withKept().what_if);
     assert.equal(checked.v, WHAT_IF_FORMAT);
     assert.equal(WHAT_IF_FORMAT, MANY_FACTORS_FORMAT + 1, "later than any an earlier page reads");
-    assert.equal(CAMPAIGN_VERSION, WHAT_IF_FORMAT);
     assert.equal(studyFormat(campaign().design.spec, withKept().what_if), WHAT_IF_FORMAT);
     assert.equal(checkCampaign({ ...campaign(), what_if: [] }).v, 1, "none kept: the format the study had");
     assert.equal(checkCampaign({ ...campaign(), what_if: [] }).what_if, undefined);
@@ -830,5 +831,56 @@ describe("settings kept from the what-if panel", () => {
     const many = Array.from({ length: SCENARIOS_HELD.count + 1 }, (_, i) => ({ name: `Settings ${i + 1}`, settings: { T: 175 } }));
     refused(many, /the kept settings is too long/);
     assert.equal(checkCampaign({ ...campaign(), what_if: many.slice(1) }).what_if.length, SCENARIOS_HELD.count);
+  });
+});
+
+describe("a curve each run gives", () => {
+  const curve = { label: "Colour", units: "AU", argument: { label: "Time", units: "min", values: [0, 5, 10] } };
+  /** The study, measuring a curve on each run: two runs read, one with a point missed, two still to do. */
+  const withCurves = () => {
+    const data = campaign();
+    data.design.spec.curve = structuredClone(curve);
+    return { ...data, curves: [[0, 1.2, 1.5], [0, null, 1.1], null, null] };
+  };
+
+  test("is kept with the study, in the latest format, and only a study that measures one has it", () => {
+    const checked = checkCampaign(withCurves());
+    assert.deepEqual(checked.design.spec.curve, curve);
+    assert.deepEqual(checked.curves, withCurves().curves);
+    assert.equal(checked.v, CURVE_FORMAT);
+    assert.equal(CURVE_FORMAT, WHAT_IF_FORMAT + 1, "later than any an earlier page reads");
+    assert.equal(CAMPAIGN_VERSION, CURVE_FORMAT);
+    assert.equal(checkCampaign(campaign()).curves, undefined);
+    const unread = withCurves();
+    delete unread.curves;
+    assert.deepEqual(checkCampaign(unread).curves, [null, null, null, null], "described, but no run read yet");
+  });
+
+  test("goes out through a link with the results, and comes back into the same study", () => {
+    const checked = checkCampaign(withCurves());
+    assert.deepEqual(shareable(checked, true).curves, checked.curves);
+    assert.equal(shareable(checked, false).curves, undefined, "a curve is a result");
+    assert.ok(!sameCampaign(checked, { ...checked, curves: [null, null, null, null] }));
+    const here = { ...checked, curves: [[0, 1, 1.4], null, null, null] };
+    const merged = mergeResults(here, checked);
+    assert.deepEqual(merged.curves, [[0, 1, 1.4], [0, null, 1.1], null, null], "a run read here keeps its curve");
+    assert.equal(merged.added, 1);
+    assert.equal(merged.kept, 1);
+  });
+
+  test("that is not a curve is refused, saying why", () => {
+    const refused = (change, why) => {
+      const data = withCurves();
+      change(data);
+      assert.throws(() => checkCampaign(data), why);
+    };
+    refused((d) => (d.design.spec.curve = { label: "Colour" }), /its curve is not one/);
+    refused((d) => (d.design.spec.curve.argument.values = [0, 10, 5]), /each above the one before/);
+    refused((d) => (d.design.spec.curve.argument.values = [0, 1]), /3 or more numbers/);
+    const many = Array.from({ length: CURVE_POINTS_HELD + 1 }, (_, i) => i);
+    refused((d) => (d.design.spec.curve.argument.values = many), /the points along its curve is too long/);
+    refused((d) => (d.curves = [[0, 1, 2]]), /its curves are not one per run/);
+    refused((d) => (d.curves[0] = [0, "high", 2]), /not one number, or a blank, per point/);
+    refused((d) => (d.curves[0] = [0, 1]), /not one number, or a blank, per point/);
   });
 });
