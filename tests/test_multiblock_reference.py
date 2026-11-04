@@ -679,11 +679,12 @@ class TestMBPCAMissingData:
         x_train["A"].iloc[0, 0] = np.nan
 
         m = MBPCA(n_components=2).fit(x_train)
-        # Predict-time NaN scoring (TSR / PMP) is a follow-up; verify that a
-        # model fitted on NaN data can still score complete held-out rows.
-        x_new = {name: df.iloc[:5, :] for name, df in two_block.items()}
+        # Held-out rows, one with a missing cell, are scored over the cells they have (#1076)
+        x_new = {name: df.iloc[:5, :].copy() for name, df in two_block.items()}
+        x_new["B"].iloc[2, 1] = np.nan
         result = m.diagnose(x_new)
         assert not result.super_scores.isna().any().any()
+        assert not result.hotellings_t2.isna().any()
 
 
 # ---------------------------------------------------------------------------
@@ -768,9 +769,11 @@ def _mbpca_written_out(blocks: dict[str, pd.DataFrame], n_components: int, max_i
 def _project_by_hand(fitted: dict, blocks: dict[str, pd.DataFrame]) -> dict:
     """Score new rows on a model written out by ``_mbpca_written_out``, deflating as the fit did.
 
-    The loadings have unit length, so each score is a plain product: ``t_b = x_b p_b / sqrt(K_b)``
-    and ``t = [t_b] p``. Returns the scores, the data each component starts from and the data
-    left after the last, and the T² over the training super-score variances.
+    Each score is the fit's regression over the cells a row has: ``t_b = x_b p_b / p_b'p_b / sqrt(K_b)``,
+    none for a row with nothing in the block, and ``t = T p / p'p`` over the blocks the row has a
+    score in, none for a row with no block score. The loadings have unit length, so on a complete
+    row each score is a plain product. Returns the scores, the data each component starts from and
+    the data left after the last, and the T² over the training super-score variances.
     """
     names = list(blocks)
     x = {
@@ -781,8 +784,11 @@ def _project_by_hand(fitted: dict, blocks: dict[str, pd.DataFrame]) -> dict:
     t_all, t_b_all, before = [], {name: [] for name in names}, []
     for a in range(n_components):
         before.append(dict(x))
-        t_b = {name: x[name] @ fitted["p_b"][name][:, a] / np.sqrt(fitted["widths"][name]) for name in names}
-        t = np.column_stack([t_b[name] for name in names]) @ fitted["p"][:, a]
+        t_b = {
+            name: _masked_regression(x[name], fitted["p_b"][name][:, a], "row") / np.sqrt(fitted["widths"][name])
+            for name in names
+        }
+        t = _masked_regression(np.column_stack([t_b[name] for name in names]), fitted["p"][:, a], "row")
         for b, name in enumerate(names):
             deflating = fitted["p_b"][name][:, a] * fitted["p"][b, a] * np.sqrt(fitted["widths"][name])
             x[name] = x[name] - np.outer(t, deflating)
@@ -934,6 +940,62 @@ class TestMBPCAWrittenOut:
             from_arrays = model.diagnose({name: frame.to_numpy() for name, frame in new.items()})
         positions = pd.RangeIndex(3)
         _frames_near(from_arrays.super_scores, pd.DataFrame(by_hand["t"], index=positions, columns=components), 1e-10)
+
+    def test_new_rows_with_missing_cells_are_scored_over_the_cells_they_have(self) -> None:
+        """One missing cell used to give the row NaN scores and T² (#1076); it is scored as the fit scores a row.
+
+        n0 misses a cell of ``x`` and one of ``z``, n1 has nothing in ``x``, and n2 has nothing at
+        all. n0 has scores, T² and an SPE in every block, over its observed cells; n1 has no block
+        score or SPE in ``x``, and a super score from ``y`` and ``z``; n2 has none of them.
+        """
+        blocks = _gappy_three_blocks()
+        model = MBPCA(n_components=2).fit(blocks)
+        new = _new_rows(blocks)
+        new["x"].iloc[0, 1] = new["z"].iloc[0, 4] = np.nan
+        new["x"].iloc[1] = np.nan
+        for frame in new.values():
+            frame.iloc[2] = np.nan
+        by_hand = _project_by_hand(_mbpca_written_out(blocks, 2), new)
+        index, components = new["x"].index, [1, 2]
+        result = model.diagnose(new)
+        _frames_near(result.super_scores, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+        _frames_near(model.transform(new), pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
+        _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
+        for name in blocks:
+            t_b = pd.DataFrame(by_hand["t_b"][name], index=index, columns=components)
+            _frames_near(result.block_scores[name], t_b, 1e-10)
+            residuals = by_hand["residuals"][name]
+            spe = np.where(np.isnan(residuals).all(axis=1), np.nan, np.sqrt(np.nansum(residuals**2, axis=1)))
+            _frames_near(result.block_spe[name], pd.Series(spe, index=index, name=f"SPE[{name}]"), 1e-10)
+        assert np.isfinite(result.super_scores.loc[["n0", "n1"]]).all(axis=None)
+        assert np.isfinite(result.hotellings_t2.loc[["n0", "n1"]]).all()
+        assert all(result.block_spe[name].loc["n0"] > 0 for name in blocks)
+        assert np.isnan(result.block_spe["x"].loc["n1"])
+        assert np.isnan(result.block_scores["x"].loc["n1"]).all()
+        assert result.super_scores.loc["n2"].isna().all()
+        assert np.isnan(result.hotellings_t2.loc["n2"])
+        assert all(np.isnan(result.block_spe[name].loc["n2"]) for name in blocks)
+
+    @pytest.mark.parametrize("empty_rows", [False, True])
+    def test_the_training_rows_are_given_their_fitted_scores_and_spe_again(self, empty_rows: bool) -> None:
+        """Each row the fit scored over its observed cells is scored over them again, to the same numbers.
+
+        The one exception is r5 of the blocks with empty rows, with nothing observed in any block:
+        the fit places it at 0 with no weight, but scored as a new row it has no score, T² or SPE.
+        """
+        blocks = _gappy_blocks_with_empty_rows() if empty_rows else _gappy_three_blocks()
+        model = MBPCA(n_components=2).fit(blocks)
+        result = model.diagnose(blocks)
+        empty = ["r5"] if empty_rows else []
+        fitted_scores = model.super_scores_.copy()
+        fitted_scores.loc[empty] = np.nan
+        _frames_near(result.super_scores, fitted_scores, 1e-10)
+        t2 = model.super_hotellings_t2_.iloc[:, -1].rename("Hotelling's T²")
+        t2.loc[empty] = np.nan
+        _frames_near(result.hotellings_t2, t2, 1e-10)
+        for name in blocks:
+            _frames_near(result.block_scores[name], model.block_scores_[name], 1e-10)
+            _frames_near(result.block_spe[name], model.block_spe_[name].iloc[:, -1].rename(f"SPE[{name}]"), 1e-10)
 
     def test_contributions_split_the_new_rows_scores_and_residuals_by_hand(self) -> None:
         """SPE contributions are the squared residuals; score contributions split each super score by variable."""
