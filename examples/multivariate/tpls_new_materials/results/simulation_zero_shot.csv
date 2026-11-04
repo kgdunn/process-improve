@@ -1,14 +1,14 @@
 method,ideal mixing,uneven usage,hidden trait,non-ideal mixing
-ignore the material,6.204,7.156,6.306,7.335
-nearest known material,5.78,7.061,5.872,6.832
-zero-padded refit,5.818,6.701,5.895,6.867
-"1. projection, autoscaled F",5.581,6.787,5.77,6.818
-"1. projection, centred F",6.598,6.109,6.237,7.211
-"1. projection, autoscaled F, no D deflation",1.92,2.475,2.543,3.997
-"1. projection, centred F, no D deflation",2.166,2.139,2.633,4.026
-2. pseudo-recipe,5.627,6.668,5.699,6.668
-"2. pseudo-recipe, no D deflation",2.425,2.861,2.903,4.206
+ignore the material,6.262,7.065,6.302,7.328
+nearest known material,5.798,6.958,5.913,6.906
+zero-padded refit,5.814,6.598,5.858,6.846
+"1. projection, autoscaled F",5.573,6.57,5.755,6.81
+"1. projection, centred F",6.196,6.176,6.333,7.194
+"1. projection, autoscaled F, no D deflation",1.911,2.469,2.541,3.989
+"1. projection, centred F, no D deflation",2.162,2.121,2.637,4.027
+2. pseudo-recipe,5.651,6.609,5.711,6.705
+"2. pseudo-recipe, no D deflation",2.42,2.854,2.903,4.199
 3a. mixing-rule PLS,1.759,1.735,2.352,3.788
-3b. mixing-rule PLS + moments,3.082,3.335,3.484,3.513
-4. hierarchical offsets,1.83,1.987,2.145,3.765
-reference: material seen in training,1.86,1.603,2.28,3.585
+3b. mixing-rule PLS + moments,3.082,2.922,3.484,3.513
+4. hierarchical offsets,1.828,1.964,2.148,3.771
+reference: material seen in training,1.853,1.61,2.282,3.597
