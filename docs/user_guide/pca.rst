@@ -73,7 +73,8 @@ latent variable space. They reveal the dominant patterns in the data:
 - **Groups** - coloring scores by a categorical variable (grade, shift,
   equipment ID) can reveal systematic differences.
 
-Use ``model.score_plot()`` for quick visualization.
+Use ``model.score_plot(judged_rows="fitted")`` for quick visualization: the
+ellipse it draws is the T² limit for the rows the model was fitted to.
 
 Interpreting Loadings
 ---------------------
@@ -124,8 +125,16 @@ observation's projection is from the center of the model plane:
 
 where :math:`s_a^2` is the variance of the *a*-th score column.
 
-- T² is always non-negative and follows an F-distribution, so confidence
-  limits (e.g., 95 %) can be computed analytically.
+- T² is always non-negative, and its law is known, so confidence limits
+  (e.g., 95 %) can be computed analytically. The law depends on the row.
+  A row the model was fitted to helped estimate the centre and the spread
+  of the scores, so its T² never exceeds :math:`(N - 1)^2 / N` and follows
+  :math:`\frac{(N - 1)^2}{N} \mathrm{Beta}\left(\frac{A}{2}, \frac{N - A - 1}{2}\right)`.
+  A new row follows
+  :math:`\frac{A (N^2 - 1)}{N (N - A)} F(A, N - A)`, which is wider.
+  ``judged_rows="fitted"`` or ``"new"`` picks the limit; left out, it gives the
+  new-row limit until 3.0 and the fitted-row limit from 3.0, with a
+  ``FutureWarning`` until then.
 - **High T²** means the observation follows the correlation structure but
   with **unusual magnitude** - it is extreme *within* the model, not outside
   it.
@@ -133,7 +142,8 @@ where :math:`s_a^2` is the variance of the *a*-th score column.
   **elliptical boundary**. This single ellipse replaces examining
   A(A−1)/2 pairwise scatterplots.
 
-Use ``model.t2_plot()`` and ``model.hotellings_t2_limit()`` for monitoring.
+Use ``model.t2_plot(judged_rows="fitted")`` to judge the rows the model was
+fitted to, and ``model.hotellings_t2_limit(judged_rows="new")`` to judge new rows.
 
 Quality of Representation (cos²)
 --------------------------------
@@ -264,7 +274,7 @@ first):
 
 .. code-block:: python
 
-   outliers = model.detect_outliers(conf_level=0.95)
+   outliers = model.detect_outliers(conf_level=0.95, judged_rows="fitted")
    for o in outliers:
        print(f"{o['observation']}: {o['outlier_types']} (severity={o['severity']})")
 
@@ -361,7 +371,7 @@ applications. The workflow:
 2. **Preprocess new observations** using the *same* centering and scaling
    learned from the training data (e.g., the same ``MCUVScaler`` instance).
 3. **Project new observations** into the model with ``model.diagnose(X_new)``.
-   It returns a ``Bunch`` with the ``scores``, the cumulative ``hotellings_t2``
+   It returns a ``Bunch`` with the ``scores``, the ``cumulative_hotellings_t2``
    (one column per component) and the ``spe`` of each new observation.
 4. **Monitor SPE and T²** - compare each new observation's SPE and T² against
    the control limits:
@@ -371,10 +381,10 @@ applications. The workflow:
       result = model.diagnose(X_new)
 
       spe_lim = model.spe_limit(conf_level=0.95)
-      t2_lim = model.hotellings_t2_limit(conf_level=0.95)
+      t2_lim = model.hotellings_t2_limit(conf_level=0.95, judged_rows="new")
 
       spe_violations = result.spe > spe_lim
-      t2_violations = result.hotellings_t2.iloc[:, -1] > t2_lim
+      t2_violations = result.cumulative_hotellings_t2.iloc[:, -1] > t2_lim
 
 5. **Investigate violations** using score contributions to identify which
    original variables are responsible.
