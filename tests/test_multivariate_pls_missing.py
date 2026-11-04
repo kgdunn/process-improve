@@ -397,7 +397,8 @@ class TestImputeLowRank:
             impute_low_rank(data, 2)
 
     @pytest.mark.parametrize(
-        ("kwargs", "message"), [({"method": "scp"}, "method must be one of"), ({"n_components": 0}, "at least 1")]
+        ("kwargs", "message"),
+        [({"method": "scp"}, "method must be one of"), ({"n_components": 0}, "n_components must be >= 1; got 0")],
     )
     def test_bad_arguments_are_refused(self, kwargs: dict, message: str) -> None:
         data = np.random.default_rng(0).normal(size=(10, 4))

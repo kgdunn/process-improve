@@ -139,7 +139,7 @@ def test_a_request_for_more_components_than_the_curves_hold_is_clamped():
         ({"blank_row": True}, "fewer than 2 measured points"),
         ({"model": {"n_basis": 3}}, "n_basis must be at least 4"),
         ({"model": {"smoothing": 0.0}}, "smoothing must be positive"),
-        ({"model": {"n_components": 0}}, "n_components must be at least 1"),
+        ({"model": {"n_components": 0}}, "n_components must be >= 1; got 0"),
     ],
 )
 def test_bad_input_is_refused_with_a_reason(change, message):

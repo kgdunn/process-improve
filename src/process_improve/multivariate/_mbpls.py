@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import logging
+import numbers
 import time
 import typing
 import warnings
@@ -644,9 +645,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
 
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int],
-        "max_iter": [int],
-        "tol": [float],
+        "n_components": [numbers.Integral],
+        "max_iter": [numbers.Integral],
+        "tol": [numbers.Real],
         "algorithm": [str],
         "missing_data_settings": [dict, None],
     }
