@@ -209,7 +209,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
     if typing.TYPE_CHECKING:  # fitted attribute provided by concrete subclasses
         scaling_factor_for_scores_: pd.Series
 
-        def _projection_inputs(self) -> dict[str, typing.Any]: ...
+        def _projection_inputs(self) -> dict[str, typing.Any]:
+            """Return the fitted matrices the missing-data estimators read (each concrete model's own)."""
 
     # The estimator transform and diagnose score a row with a missing cell by, and the contribution
     # functions split its scores by: project()'s default, trimmed score regression (#1144).
