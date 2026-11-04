@@ -29,6 +29,7 @@ from process_improve.experiments.reference_catalogue import (
     reference_topics,
     reproduce_reference_catalogue,
 )
+from process_improve.multivariate import FPCA
 
 CHECKS = list(reference_catalogue._each_check())
 FITS = reference_catalogue._Fits()
@@ -130,6 +131,26 @@ def test_a_curve_response_names_its_columns_and_where_along_the_curve_each_is_re
         else:
             assert len(argument["columns"]) == len(columns), f"{name}: one argument column per value column"
             assert set(argument["columns"]) <= set(table), f"{name}: every argument column is in the run table"
+
+
+def test_a_curve_response_is_analysed_by_functional_pca_and_its_scores_scale_with_the_argument():
+    """A run keeps its position when some runs are picked, and an argument four times as long doubles each score."""
+    rng = np.random.default_rng(5)
+    t = np.linspace(0, 1, 8)
+    curves = np.outer(rng.uniform(1, 3, 6), np.sin(np.pi * t)) + rng.normal(0, 0.01, (6, 8))
+    columns = [f"y{i}" for i in range(8)]
+    argument = {"name": "t", "units": "", "values": t.tolist()}
+    entry = {
+        "responses": [{"name": "y", "curve": {"columns": columns, "argument": argument}}],
+        "runs": {"columns": columns, "rows": curves.tolist()},
+    }
+    check = {"response": "y", "runs": [2, 3, 4, 5, 6]}
+    model = FPCA().fit(pd.DataFrame(curves[1:], index=range(2, 7), columns=t))
+    share = reference_catalogue._VALUE_KINDS["fpc_variance_explained"](entry, {**check, "components": 2})
+    assert share == pytest.approx(100 * model.explained_variance_ratio_.iloc[:2].sum())
+    score = reference_catalogue._VALUE_KINDS["fpc_score"]
+    assert score(entry, {**check, "run": 4}) == pytest.approx(model.scores_.loc[4].iloc[0])
+    assert score(entry, {**check, "run": 4, "argument_scale": 4}) == pytest.approx(2 * model.scores_.loc[4].iloc[0])
 
 
 def test_a_check_that_names_no_response_is_about_the_first_one_measured_as_a_number():

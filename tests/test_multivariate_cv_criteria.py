@@ -575,24 +575,27 @@ def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
-    Thirty rows on a plane in units of 1e12, one of them nudged 1e3 off it, fitted unscaled:
-    the third component's score sd, 181, is below 1.5e-8 of the first's, 2.8e12, so the
-    model's own T2 leaves it out. The held-out T2 divided by it all the same, and the nudged
-    row, which its fold model never saw, got a T2 at three components above the limit, an
-    alarm. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation scores, by hand.
+    Thirty rows on a plane in units of 1e-3, with noise of sd 1e-10 and one row nudged 1e-8 off
+    it, fitted unscaled: the noise is above PLS's floor, which is relative to the size of X
+    (#1070), so every fit has a third component. Its score sd is below epsqrt, which T2 reads as
+    no spread while every sd is below 1, so the model's own T2 leaves it out. The held-out T2
+    divided by it all the same, and the nudged row, which its fold model never saw, got an alarm
+    at three components. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation
+    scores, by hand.
 
     The third component is fitted after Y is exhausted, so it has no Y-loading (#1074), and
     so no D ratio. Its Y-loading is set to 1 in the model and in every fold, which leaves
-    its held-out scores unscaled, so that the T2 rule still has a third score to leave out:
-    alone it adds 28 to the nudged row's T2, against a limit of 9.9.
+    its held-out scores unscaled, so that the T2 rule still has a third score to leave out,
+    one that alone would raise an alarm.
     """
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
-    plane = (plane - plane.mean(axis=0)) * 1e12
-    plane[0] += 1e3 * np.linalg.svd(plane)[2][2]  # a direction off the plane
+    plane = (plane - plane.mean(axis=0)) * 1e-3
+    plane[0] += 1e-8 * np.linalg.svd(plane)[2][2]  # a direction off the plane
+    plane += 1e-10 * np.random.default_rng(3).standard_normal((30, 4))
     X = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
     noise = 0.1 * np.random.default_rng(1).standard_normal(30)
-    y = pd.DataFrame({"y": X.to_numpy() @ [1e-12, 2e-12, 0.0, 0.0] + noise})
+    y = pd.DataFrame({"y": X.to_numpy() @ [1e3, 2e3, 0.0, 0.0] + noise})
     y -= y.mean()
 
     def fit(rows: np.ndarray) -> PLS:
@@ -602,7 +605,7 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     model = fit(np.arange(30))
     model.y_loadings_.iloc[:, 2] = 1.0
     sd = model.scaling_factor_for_scores_.to_numpy()
-    assert sd[2] < 1.5e-8 * sd[0]
+    assert sd[2] < 1.5e-8 * max(1.0, sd[0])  # the rule by which T2 leaves a component out
     folds = []
     for train, test in KFold(5).split(X):
         fold = fit(train)

@@ -47,6 +47,7 @@ from ._common import (
     largest_ssq_column,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
     y_is_exhausted,
     y_reach,
 )
@@ -64,7 +65,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._impute import impute_low_rank
-from ._nipals import quick_regress, ssq, terminate_check
+from ._nipals import quick_regress, scores_converged, ssq, terminate_check
 from ._optimal_inversion import Probe, finite_or
 from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
 from ._optimal_inversion import optimal_inversion as _optimal_inversion
@@ -643,12 +644,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.fitting_info_ = {"timing": timing, "iterations": iterations}
 
         reach = y_reach([Xd], Yd)
+        # No variance left is judged against each block's size before the first component, as OPLS
+        # judges it, so the same data in smaller units are not taken for none (#1070).
+        x_size, y_size = float(np.sqrt(ssq(Xd))), float(np.sqrt(ssq(Yd)))
         exhausted = False  # pragma: no mutate - None reads as False in the or below
         for a in range(A):
             start_time = time.time()
 
-            check_variance_left("X", Xd, a)
-            check_variance_left("Y", Yd, a)
+            check_variance_left("X", Xd, a, x_size)
+            check_variance_left("Y", Yd, a, y_size)
             # Y has variance left, but none that X can still reach (#913): this component, and every later one,
             # takes the largest direction left in X (X as its own target) rather than iterating to max_iter.
             exhausted = exhausted or y_is_exhausted("PLS", a, [Xd], Yd, reach)
@@ -686,6 +690,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
                 if terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
                     break
+            # Whether the last pass met the tolerance, not whether it was the last one allowed: a
+            # component can converge on that pass (#1080).
+            converged = scores_converged(u_a_guess, u_a, settings["md_tol"])
 
             if exhausted:  # the Y side of a component along X: no Y-loading, so the predictions stay (#1074)
                 c_a = np.zeros((M, 1))
@@ -700,16 +707,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 settings["md_tol"],
             )
 
-            # ``terminate_check`` stops the loop when ``iterations >=
-            # md_max_iter``, so ``itern`` is capped AT the maximum and the
-            # previous strict ``>`` comparison could never fire: non-convergent
-            # fits returned silently.
-            if itern >= settings["md_max_iter"]:
+            if not converged:
                 warnings.warn(
                     f"PLS NIPALS: component {a + 1} reached the maximum number of "
                     f"iterations ({settings['md_max_iter']}) without converging.",
                     SpecificationWarning,
-                    stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                    stacklevel=user_stacklevel(),
                 )
 
             # 6: Compute loadings and deflate
@@ -812,7 +815,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"standard deviations after {imputation.rounds} rounds (tol={settings['md_tol']:g}). "
                 "Raise max_iter, or loosen tol if that change is already negligible for your data.",
                 SpecificationWarning,
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
 
         # The scalers read only the values, and the rows of a weight above 0, so the completed

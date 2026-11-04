@@ -110,12 +110,20 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     all-zero score vector cannot divide by zero (that case reports convergence, matching
     ``_tpls._has_converged``).
     """
-    score_tol = float(np.linalg.norm(t_a_guess - t_a) / _nz(float(np.linalg.norm(t_a))))
-    converged = score_tol < settings["md_tol"]
+    converged = scores_converged(t_a_guess, t_a, settings["md_tol"])
     # SEC-33 (#282): use ``>=`` so the loop runs exactly ``md_max_iter``
     # iterations rather than ``md_max_iter + 1``.
     max_iter = iterations >= settings["md_max_iter"]
     return bool(np.any([max_iter, converged]))
+
+
+def scores_converged(t_a_guess: np.ndarray, t_a: np.ndarray, tol: float) -> bool:
+    """Return whether the scores moved by less than ``tol`` times their size: :func:`terminate_check`'s first test.
+
+    A loop that :func:`terminate_check` stopped reads this to tell convergence from running out of
+    passes, which can happen together on the last pass allowed (#1080).
+    """
+    return float(np.linalg.norm(t_a_guess - t_a) / _nz(float(np.linalg.norm(t_a)))) < tol
 
 
 Per = typing.Literal["column", "row"]
