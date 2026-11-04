@@ -42,7 +42,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
-from process_improve.multivariate._common import _nz
+from process_improve.multivariate._common import _align_to_fit_features, _nz
 from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
 from process_improve.multivariate._diagnostics import cumulative_block_t2
 from process_improve.multivariate._impute import impute_low_rank
@@ -2170,9 +2170,7 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
     """
     assert epsqrt == 2.0**-26
     s = np.array([1.5, 1.5 * 2.0**-26, 1.75 * 2.0**-26, 2.0**-26])
-    model = SimpleNamespace(
-        scores_=None, loadings_=pd.DataFrame(np.eye(4), index=list("abcd")), scaling_factor_for_scores_=pd.Series(s)
-    )
+    model = _identity_model(4, scaling_factor_for_scores_=pd.Series(s))
     contributions = t2_contributions(model, pd.DataFrame([[3.0, 1.0, 1.0, 1.0]], columns=list("abcd")))
     np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
@@ -8247,9 +8245,18 @@ def test_rv_refuses_its_inputs_in_full() -> None:
 
 
 def _identity_model(n_features: int, **attributes: object) -> SimpleNamespace:
-    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable."""
-    names = list("abcdefgh"[:n_features])
-    return SimpleNamespace(scores_=None, loadings_=pd.DataFrame(np.eye(n_features), index=names), **attributes)
+    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable.
+
+    Like PCA it scales nothing: its ``_scaled_rows``, which the contribution functions read new
+    rows through (#1125), only matches the columns to the fit, by name or by position.
+    """
+    names = pd.Index(list("abcdefgh"[:n_features]))
+    return SimpleNamespace(
+        scores_=None,
+        loadings_=pd.DataFrame(np.eye(n_features), index=names),
+        _scaled_rows=lambda X: _align_to_fit_features(X, names),
+        **attributes,
+    )
 
 
 def test_score_and_group_contributions_by_hand() -> None:

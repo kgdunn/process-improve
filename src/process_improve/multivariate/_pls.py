@@ -1421,7 +1421,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             New observations on the original (unscaled) X units when the
             model was fitted with ``scale=True``, or in the model's scaled
             space otherwise, exactly as :meth:`transform` expects. NaN marks
-            a missing entry; rows that are entirely NaN are rejected.
+            a missing entry. A row with nothing observed sits at the model
+            centre, as :meth:`fit` places one: scores, T2 and SPE of 0, the
+            training mean of Y as its prediction, no observed feature, and a
+            ``condition_number`` of inf.
         method : {"tsr", "scp", "pmp"}, default="tsr"
             The score estimator; see
             :mod:`process_improve.multivariate._projection`.
