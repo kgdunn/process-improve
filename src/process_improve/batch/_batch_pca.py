@@ -18,6 +18,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009, for the methodology.
 
 from __future__ import annotations
 
+import numbers
 import operator
 import typing
 
@@ -156,7 +157,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     """
 
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int, None],
+        "n_components": [numbers.Integral, None],
         "scale": [bool],
         "group_by_batch": [bool],
         "algorithm": [str],

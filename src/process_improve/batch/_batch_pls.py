@@ -22,6 +22,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009.
 
 from __future__ import annotations
 
+import numbers
 import operator
 import typing
 
@@ -162,7 +163,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
     """
 
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int, None],
+        "n_components": [numbers.Integral, None],
         "scale": [bool],
         "group_by_batch": [bool],
     }

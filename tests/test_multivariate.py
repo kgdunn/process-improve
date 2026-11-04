@@ -6579,6 +6579,26 @@ class TestTPLSWrittenOut:
             1e-10,
         )
 
+    def test_a_constant_f_column_used_as_given_is_fitted_without_a_warning(self) -> None:
+        """#1084: F used as given keeps a constant column in the fit, so no warning may say it is excluded.
+
+        Only scaling turns a constant column into NaN and leaves it out. With F as given, a lot no
+        blend uses is a column of zeros that counts in every F score, as written out, and the fit
+        warned all the same that it "is excluded". A column with no observed value is still left
+        out, as a missing cell is, and still named.
+        """
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["A"]["a4"] = 0.0
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        _check_tpls_fitted(model, d_matrix, blocks, _tpls_written_out(d_matrix, blocks, 2, skip_f=True), rtol=1e-10)
+
+        blocks["F"]["A"]["a4"] = np.nan
+        with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
+            model.fit(DataFrameDict(blocks))
+
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:

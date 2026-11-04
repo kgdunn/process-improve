@@ -15,6 +15,7 @@ These tests:
 
 from __future__ import annotations
 
+import importlib
 import typing
 from collections.abc import Callable
 
@@ -26,6 +27,7 @@ from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.cross_decomposition import PLSSVD, PLSCanonical, PLSRegression
 from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to avoid collision with our PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils._param_validation import InvalidParameterError, validate_parameter_constraints
 
 from process_improve.multivariate.methods import (
     MBPCA,
@@ -601,3 +603,75 @@ def test_the_constructor_stores_an_out_of_range_setting_unchanged(name: str) -> 
     }
     model = type(valid)(**{**valid.get_params(), **requested})
     assert {param: model.get_params()[param] for param in requested} == requested
+
+
+# ---------------------------------------------------------------------------
+# #1127: a numpy scalar is a number, and only fit sets state
+# ---------------------------------------------------------------------------
+
+# A count from ``np.argmax``, or one of a grid of ``np.arange`` values, is a numpy scalar, not a Python one.
+_NUMPY_SCALARS = [("n_components", np.int64(2)), ("max_iter", np.int32(500)), ("tol", np.float32(1e-6))]
+
+
+@pytest.mark.parametrize(
+    ("name", "param", "value"),
+    [
+        pytest.param(name, param, value, id=f"{name}-{param}={type(value).__name__}")
+        for name, (make, _) in _FAMILY.items()
+        for param, value in _NUMPY_SCALARS
+        if param in make(_range_check_data()).get_params()
+    ],
+)
+def test_fit_takes_a_numpy_scalar_and_leaves_every_setting_as_given(name: str, param: str, value: object) -> None:
+    """A numpy scalar fits as its Python value does, and ``fit`` changes no setting, as ``clone`` needs (#1127)."""
+    data = _range_check_data()
+    make, fit = _FAMILY[name]
+    model = make(data).set_params(**{param: value})
+    requested = model.get_params(deep=False)
+    fit(model, data)
+    assert model.n_components_ == 2
+    assert all(model.get_params(deep=False)[key] is setting for key, setting in requested.items())
+
+
+def _all_subclasses(cls: type) -> set[type]:
+    return {grandchild for child in cls.__subclasses__() for grandchild in (child, *_all_subclasses(child))}
+
+
+# Every estimator of the package that declares the constraints sklearn checks its settings against. The walk
+# over BaseEstimator's subclasses finds a class only once its module is imported, so load the batch module.
+importlib.import_module("process_improve.batch")
+_CONSTRAINED = sorted(
+    (
+        cls
+        for cls in _all_subclasses(BaseEstimator)
+        if cls.__module__.startswith("process_improve.") and "_parameter_constraints" in vars(cls)
+    ),
+    key=lambda cls: cls.__name__,
+)
+
+
+@pytest.mark.parametrize("estimator_cls", _CONSTRAINED, ids=lambda cls: cls.__name__)
+def test_every_declared_constraint_takes_the_numpy_scalar_of_a_python_number_it_takes(estimator_cls: type) -> None:
+    """A bare ``int`` or ``float`` in the constraints refused ``np.int64(2)`` and ``np.float32(0.5)`` (#1127)."""
+    for param, constraint in estimator_cls._parameter_constraints.items():
+        for python_value, numpy_values in [(2, [np.int32(2), np.int64(2)]), (0.5, [np.float32(0.5)])]:
+            try:
+                validate_parameter_constraints({param: constraint}, {param: python_value}, estimator_cls.__name__)
+            except InvalidParameterError:
+                continue
+            for numpy_value in numpy_values:
+                validate_parameter_constraints({param: constraint}, {param: numpy_value}, estimator_cls.__name__)
+
+
+def test_the_walk_finds_the_constrained_estimators() -> None:
+    """The test above is not vacuous: it reaches the multivariate and the batch estimators."""
+    assert {"PCA", "MBPCA", "MBPLS", "TPLS", "BatchPCA", "BatchPLS", "BatchMonitor"} <= {
+        c.__name__ for c in _CONSTRAINED
+    }
+
+
+@pytest.mark.parametrize("name", list(_FAMILY))
+def test_the_constructor_stores_its_arguments_and_nothing_else(name: str) -> None:
+    """``__init__`` sets no public attribute but its arguments, as sklearn requires: no fitted state (#1127)."""
+    model = _FAMILY[name][0](_range_check_data())
+    assert {attr for attr in vars(model) if not attr.startswith("_")} == set(model.get_params(deep=False))

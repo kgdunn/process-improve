@@ -177,7 +177,7 @@ class TestDegenerateTables:
             CA().fit(pd.DataFrame(table))
 
     def test_n_components_must_be_positive(self, smoke: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match="at least 1"):
+        with pytest.raises(ValueError, match=">= 1"):
             CA(n_components=0).fit(smoke)
 
 
@@ -368,7 +368,7 @@ class TestCARefusals:
             CA().fit(table)
 
     def test_n_components_below_one_is_refused_and_one_is_kept(self, smoke: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match=r"^n_components must be at least 1; got 0\.$"):
+        with pytest.raises(ValueError, match=r"^n_components must be >= 1; got 0\.$"):
             CA(n_components=0).fit(smoke)
         assert CA(n_components=1).fit(smoke).row_coordinates_.shape == (5, 1)
 
@@ -917,7 +917,7 @@ class TestFAMDInputs:
             FAMD().fit(batch_record.assign(setpoint=5.0))
 
     def test_n_components_must_be_positive(self, batch_record: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match="at least 1"):
+        with pytest.raises(ValueError, match=">= 1"):
             FAMD(n_components=0).fit(batch_record)
 
     def test_a_table_with_no_variation_is_refused(self) -> None:
@@ -1076,7 +1076,7 @@ class TestFAMDByHand:
             FAMD(n_components=50).fit(batch_record)
 
     def test_the_refusals_in_full(self, batch_record: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match=r"^n_components must be at least 1; got 0\.$"):
+        with pytest.raises(ValueError, match=r"^n_components must be >= 1; got 0\.$"):
             FAMD(n_components=0).fit(batch_record)
         gapped = batch_record.copy()
         gapped.iloc[3, 0] = np.nan
@@ -1357,7 +1357,7 @@ class TestMFAInputs:
             MFA({**GROUPS, "fixed": ["setpoint", "target"]}, scale=False).fit(constant)
 
     def test_n_components_must_be_positive(self, blocks: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match="at least 1"):
+        with pytest.raises(ValueError, match=">= 1"):
             MFA(GROUPS, n_components=0).fit(blocks)
 
     def test_asking_for_more_axes_than_exist_warns_and_keeps_the_rest(self, blocks: pd.DataFrame) -> None:
@@ -1554,7 +1554,7 @@ class TestMFAByHand:
                 {"a": blocks[["spec1", "spec2"]], "b": blocks[["spec2", "lab1"]]},
                 "Column names must be unique across blocks; ['spec2'] repeat.",
             ),
-            (MFA(GROUPS, n_components=0), blocks, "n_components must be at least 1; got 0."),
+            (MFA(GROUPS, n_components=0), blocks, "n_components must be >= 1; got 0."),
         ]
         gapped = blocks.copy()
         gapped.iloc[2, 4] = np.nan

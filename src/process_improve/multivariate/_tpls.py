@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import numbers
 import time
 import typing
 import warnings
@@ -247,7 +248,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     skip_f_matrix_preprocessing : bool, optional
         If True, the F (formula) matrices are used as-is, skipping the internal
-        centering and scaling of the F block. Default is False.
+        centering and scaling of the F block. Default is False. The caller then owns
+        F's preprocessing: a column with no variance, which scaling would leave out with
+        a warning, is used as given, without one. A missing cell is still left out, and
+        a column with no observed value is still named.
 
     tol : float, optional
         Relative convergence tolerance for the per-component super-score loop: the
@@ -296,7 +300,8 @@ class TPLS(RegressorMixin, BaseEstimator):
     preproc_ : dict
         Nested per-block per-group preprocessors, indexed as
         ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
-        ``"Y"`` or ``"Z"``.
+        ``"Y"`` or ``"Z"``. With ``skip_f_matrix_preprocessing`` the ``"F"``
+        entries are learned but not applied.
     sums_of_squares_ : list[dict]
         Per-component per-block sums of squares.
     r2_frac : list[dict]
@@ -361,7 +366,7 @@ class TPLS(RegressorMixin, BaseEstimator):
        ``t_scores_super``, ``spe``, ``hotellings_t2``, and the
        ``*_loadings_*`` family are written without the trailing ``_``
        to keep the chemometrics symbol names readable. Attributes
-       that are set in ``__init__`` or ``fit`` for the class's own
+       that are set in ``fit`` for the class's own
        bookkeeping (``is_fitted_``, ``preproc_``, ``required_blocks_``)
        do carry the underscore.
 
@@ -395,9 +400,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     # This is a dictionary allowing to define the type of parameters.
     # It used to validate parameter within the `_fit_context` decorator.
     _parameter_constraints: typing.ClassVar = {
-        "n_components": [int],
-        "max_iter": [int],
-        "tol": [float],
+        "n_components": [numbers.Integral],
+        "max_iter": [numbers.Integral],
+        "tol": [numbers.Real],
         "d_matrix": [dict, None],
     }
 
@@ -419,18 +424,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.tol = tol
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
-        self.is_fitted_ = False
-        self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
-        self.plot = Plot(self)
-
     def __sklearn_is_fitted__(self) -> bool:
         """Whether ``fit`` has completed, for :func:`~sklearn.utils.validation.check_is_fitted`.
 
-        ``__init__`` sets attributes that end in an underscore (``is_fitted_``,
-        ``required_blocks_``), so the check scikit-learn makes by default, that one exists,
-        passed on a model never fitted.
+        A fit that fails part way has set some attributes that end in an underscore, so the
+        check scikit-learn makes by default, that one exists, would pass on that model.
         """
-        return self.is_fitted_
+        return getattr(self, "is_fitted_", False)
+
+    @property
+    def plot(self) -> Plot:
+        """Score and loading plots of the fitted model: ``model.plot.scores()`` and ``model.plot.loadings()``."""
+        return Plot(self)
 
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
@@ -558,6 +563,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self._input_data_checks(X)
         # A fit that fails part way leaves the model unfitted, not the previous fit with some parts replaced.
         self.is_fitted_ = False
+        self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         group_keys = list(self.d_matrix)
         # What the fit used, which everything after it reads, so that set_params without a refit changes nothing.
         self.max_iter_ = settings["md_max_iter"]
@@ -609,10 +615,13 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_lots, n_properties = df_d.shape
             self.preproc_["D"][key]["block"] = float(np.sqrt(n_lots * n_properties))
             #
-            # Also do the same for the formula matrix
+            # Also do the same for the formula matrix. F used as given is not scaled, so its centre and
+            # scale are learned only for optimal inversion, which starts and steps from them.
             self.preproc_["F"][key] = {}
             self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["F"][key], f'F["{key}"]')
+                self._learn_center_and_scaling_parameters(
+                    X["F"][key], f'F["{key}"]', used_as_given=self.skip_f_matrix_preprocessing_
+                )
             )
 
         # Then implement the preprocessing on the raw data
@@ -878,7 +887,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
-        if not self.is_fitted_:
+        if not self.__sklearn_is_fitted__():
             raise RuntimeError("The model is not fitted yet. Please call `fit` first.")
 
         t2_limits = [self.hotellings_t2_limit(level, judged_rows="new") for level in (0.95, 0.99)]
@@ -1071,7 +1080,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(self.d_matrix[key])
             self._validate_df(X["F"][key])
 
-    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str) -> tuple[pd.Series, pd.Series]:
+    def _learn_center_and_scaling_parameters(
+        self, y: pd.DataFrame, label: str, *, used_as_given: bool = False
+    ) -> tuple[pd.Series, pd.Series]:
         """
         Learn the centering and scaling parameters for one block.
 
@@ -1082,6 +1093,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         label : str
             Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
             warnings for excluded columns.
+        used_as_given : bool, default=False
+            Whether the fit uses the block without this centring and scaling, as it uses F
+            with ``skip_f_matrix_preprocessing``. A column with no variance then stays in the
+            fit, so it is not named as excluded (#1084). Its scale is ``NaN`` all the same.
 
         Returns
         -------
@@ -1094,7 +1109,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         Warns
         -----
         UserWarning
-            If a column of a block of two or more rows has no variance: its observed
+            If a column of a block of two or more rows, not used as given, has no variance: its observed
             values are all equal, or there is only one. Its scale is set to ``NaN``,
             which makes the whole column ``NaN`` and then zero, so the column is
             silently excluded from the fit. That is the right thing to do with a constant column, but it used to
@@ -1114,7 +1129,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
         # a NaN maximum and minimum, which are not equal, so it is not counted here.
         degenerate = (y.max() == y.min()) & (y.shape[0] > 1)
-        if degenerate.any():
+        if degenerate.any() and not used_as_given:
             named = ", ".join(repr(col) for col in y.columns[degenerate])
             warnings.warn(  # a UserWarning, warn's default category
                 f"Block {label} has columns with no variance, which carry no information and are "

@@ -15,7 +15,7 @@ how TPLS is used:
 2. Centre F instead of autoscaling it, so that a material's effect depends on its properties
    and not on how its usage happened to vary in training.
 3. Do not deflate the D block. This deflation, more than the new material, is what defeats
-   every workaround: it caps the TPLS fit at R2 0.60 to 0.78 in simulations where the truth
+   every workaround: it caps the TPLS fit at R2 0.59 to 0.77 in simulations where the truth
    is at 0.97 to 0.99.
 
 With these, leave-one-material-out error falls from 5.6 to 7.3 times the noise (every workaround
@@ -33,7 +33,7 @@ two blends by 29%.
    excludes it: at prediction the new material's fraction is multiplied by zero, as if it were
    not in the blend. The refit also changes the model, because the new row changes the centring
    and scaling of D and enters the D-block deflation: in the simulation, adding one material
-   that no blend uses moved the predictions of the blends that do not use it by up to 0.78 Y
+   that no blend uses moved the predictions of the blends that do not use it by up to 0.50 Y
    standard deviations.
 3. **Autoscaled F ties a material's effect to how it was used, not to what it is.** With F
    divided by the standard deviation `sigma_j` of each material's fraction, the effect of
@@ -45,7 +45,7 @@ two blends by 29%.
    Group 2 lots spans a factor of 20, so in the autoscaled model two lots with identical
    properties would get effects 20 times apart. The lot effects in that data set are small, so
    the change is small (0.002 Y standard deviations); in the simulation with uneven usage the
-   autoscaled model's error on new materials is 15% higher than the centred model's.
+   autoscaled model's error on new materials is 16% higher than the centred model's.
 4. **The D-block deflation caps the fit.** After each component TPLS deflates D by `r v'`,
    which removes that material direction from D for good. When the super score also carries Z,
    or a second group of materials, Y needs that direction again in a later component, with a
@@ -58,17 +58,17 @@ In-sample R2 with 8 components, mean of 6 simulated data sets of 80 blends (`fit
 | Data | TPLS (default) | TPLS, centred F | TPLS, centred F, no D deflation | PLS on [Z, F D] | Truth |
 |---|---:|---:|---:|---:|---:|
 | Group A only | 0.943 | 0.948 | 0.948 | 0.948 | 0.949 |
-| Group A + Z | 0.702 | 0.759 | 0.984 | 0.984 | 0.985 |
-| Groups A + B | 0.782 | 0.599 | 0.966 | 0.963 | 0.969 |
-| Groups A + B + Z | 0.771 | 0.722 | 0.968 | 0.977 | 0.988 |
+| Group A + Z | 0.704 | 0.759 | 0.984 | 0.984 | 0.985 |
+| Groups A + B | 0.750 | 0.593 | 0.966 | 0.963 | 0.969 |
+| Groups A + B + Z | 0.770 | 0.728 | 0.969 | 0.977 | 0.988 |
 
 With one group and no Z every variant reaches the truth. Add Z or a second group and the
-D-deflated models stop between 0.60 and 0.78, while the same model without the deflation keeps
+D-deflated models stop between 0.59 and 0.77, while the same model without the deflation keeps
 up with PLS on the mixture properties.
 
 The deflation also makes TPLS fragile. Adding to D one material that no blend uses, and
-refitting, moved the predictions of the blends by up to 0.78 Y standard deviations (autoscaled
-F) and 0.65 (centred F); without the deflation, by 0.04.
+refitting, moved the predictions of the blends by up to 0.50 Y standard deviations (autoscaled
+F) and 0.56 (centred F); without the deflation, by 0.04.
 
 ## Why a new material can be predicted at all
 
@@ -158,20 +158,20 @@ data sets of 80 blends, at the best number of components in {4, 6, 8} for that m
 | Method | Ideal mixing | Uneven usage | Hidden trait | Non-ideal mixing |
 |---|---:|---:|---:|---:|
 | *Standard TPLS (D deflated)* | | | | |
-| Ignore the material | 6.20 | 7.16 | 6.31 | 7.33 |
-| Nearest known material | 5.78 | 7.06 | 5.87 | 6.83 |
-| Zero-padded refit | 5.82 | 6.70 | 5.89 | 6.87 |
-| 1. Projection, autoscaled F | 5.58 | 6.79 | 5.77 | 6.82 |
-| 1. Projection, centred F | 6.60 | 6.11 | 6.24 | 7.21 |
-| 2. Pseudo-recipe | 5.63 | 6.67 | 5.70 | 6.67 |
+| Ignore the material | 6.26 | 7.07 | 6.30 | 7.33 |
+| Nearest known material | 5.80 | 6.96 | 5.91 | 6.91 |
+| Zero-padded refit | 5.81 | 6.60 | 5.86 | 6.85 |
+| 1. Projection, autoscaled F | 5.57 | 6.57 | 5.75 | 6.81 |
+| 1. Projection, centred F | 6.20 | 6.18 | 6.33 | 7.19 |
+| 2. Pseudo-recipe | 5.65 | 6.61 | 5.71 | 6.71 |
 | *Without the D deflation* | | | | |
-| 1. Projection, autoscaled F | 1.92 | 2.47 | 2.54 | 4.00 |
-| 1. Projection, centred F | 2.17 | 2.14 | 2.63 | 4.03 |
-| 2. Pseudo-recipe | 2.43 | 2.86 | 2.90 | 4.21 |
+| 1. Projection, autoscaled F | 1.91 | 2.47 | 2.54 | 3.99 |
+| 1. Projection, centred F | 2.16 | 2.12 | 2.64 | 4.03 |
+| 2. Pseudo-recipe | 2.42 | 2.85 | 2.90 | 4.20 |
 | 3a. Mixing-rule PLS | **1.76** | **1.73** | 2.35 | 3.79 |
-| 3b. Mixing-rule PLS + moments | 3.08 | 3.33 | 3.48 | **3.51** |
-| 4. Hierarchical offsets | 1.83 | 1.99 | **2.14** | 3.76 |
-| *Reference: the material seen in training* | 1.86 | 1.60 | 2.28 | 3.58 |
+| 3b. Mixing-rule PLS + moments | 3.08 | 2.92 | 3.48 | **3.51** |
+| 4. Hierarchical offsets | 1.83 | 1.96 | **2.15** | 3.77 |
+| *Reference: the material seen in training* | 1.85 | 1.61 | 2.28 | 3.60 |
 
 The reference is approach 1 (centred F, no D deflation) predicting each blend from all the other
 blends, so the material has been used in training. Scenarios: *ideal mixing*, properties explain
@@ -184,10 +184,10 @@ dissimilar materials depart from the fraction-weighted average.
 * **Approach 3a loses almost nothing to novelty.** It is within 8% of the reference in every
   scenario, and below it with ideal mixing: 3a is more accurate than approach 1 in every
   column, enough to beat approach 1 even when approach 1 has seen the material.
-* **Centred F matters when usage is uneven** (2.14 against 2.47 for autoscaled F). With even
+* **Centred F matters when usage is uneven** (2.12 against 2.47 for autoscaled F). With even
   usage the median-scale guess of approach 1 is harmless.
-* **Offsets help when D misses something.** With a hidden trait, approach 4 (2.14) beats
-  approach 1 (2.63): the hidden effects of the known materials in each blend are learned. The
+* **Offsets help when D misses something.** With a hidden trait, approach 4 (2.15) beats
+  approach 1 (2.64): the hidden effects of the known materials in each blend are learned. The
   new material's own hidden effect stays unknown until it is measured (approach 5).
 * **Non-ideal mixing costs every model.** The moments (3b) help there and cost the most when
   mixing is ideal (3.08 against 1.76): add them only when blends of dissimilar materials are
@@ -202,8 +202,8 @@ per material. The error is on the new material's other blends.
 |---|---:|---:|---:|
 | 4. Zero-shot, nothing measured | 2.15 | 2.15 | 2.15 |
 | 5. Update the new material's offset | **1.77** | **1.53** | **1.47** |
-| Refit approach 4 with the measured blends | 2.85 | 2.00 | 1.83 |
-| Refit the default TPLS with the measured blends | 10.85 | 7.22 | 6.93 |
+| Refit approach 4 with the measured blends | 2.86 | 2.00 | 1.83 |
+| Refit the default TPLS with the measured blends | 10.51 | 7.18 | 6.97 |
 
 One measured blend cuts the error by 18%, two by 29%. Refitting is worse than updating, and
 with one blend worse than not measuring at all: a refit re-estimates every parameter from data
@@ -240,9 +240,9 @@ all lots.
 
 | Method | Group 1 (162 lots) | Group 2 (9) | Group 3 (22) | Group 4 (19) | Group 5 (18) | All lots |
 |---|---:|---:|---:|---:|---:|---:|
-| Ignore the material | 0.205 | -0.030 | 0.144 | 0.028 | 0.041 | 0.103 |
+| Ignore the material | 0.205 | -0.029 | 0.144 | 0.028 | 0.041 | 0.103 |
 | 1. Projection, centred F, no D deflation | 0.207 | -0.029 | 0.142 | 0.026 | 0.039 | 0.102 |
-| 2. Pseudo-recipe | 0.196 | -0.029 | 0.144 | 0.028 | 0.041 | 0.100 |
+| 2. Pseudo-recipe | 0.196 | -0.029 | 0.145 | 0.028 | 0.041 | 0.100 |
 | 3a. Mixing-rule PLS | 0.207 | -0.043 | 0.158 | 0.076 | 0.098 | **0.121** |
 | 3b. Mixing-rule PLS + moments | -0.032 | -0.215 | -0.776 | -0.049 | -0.059 | -0.185 |
 | 4. Hierarchical offsets | 0.243 | -0.051 | 0.168 | 0.028 | 0.062 | 0.120 |
