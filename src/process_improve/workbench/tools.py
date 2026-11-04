@@ -327,14 +327,18 @@ def _outside(fit: Fit, conf_level: float) -> dict[str, Any]:
     """Return the limits and the rows beyond either, the farthest first, each with the variables that set it apart."""
     limits = fit.limits(conf_level)
     rows = fit.rows()
-    ratio = pd.concat([rows["T2"] / limits["T2"], rows["SPE"] / limits["SPE"]], axis=1).max(axis=1)
+    # A row the model left out is a new row to it, with a limit of its own (#978).
+    t2_limit = rows["excluded"].map({False: limits["T2"], True: limits["T2 new rows"]}).astype(float)
+    ratio = pd.concat([rows["T2"] / t2_limit, rows["SPE"] / limits["SPE"]], axis=1).max(axis=1)
     beyond = ratio[ratio > 1].sort_values(ascending=False)
     reported = [
         {
             "row": row,
             "T2": rows.loc[row, "T2"],
             "SPE": rows.loc[row, "SPE"],
-            "beyond": [name for name in ("T2", "SPE") if rows.loc[row, name] > limits[name]],
+            "beyond": [
+                name for name, limit in (("T2", t2_limit.loc[row]), ("SPE", limits["SPE"])) if rows.loc[row, name] > limit
+            ],
             "excluded": bool(rows.loc[row, "excluded"]),
             "top_variables": fit.explain_group([row], top=3).top,
         }
@@ -505,7 +509,8 @@ def _new_table(loaded: _Loaded, model: Model, text: str) -> pd.DataFrame:
     description=(
         "Project rows through a model of a multivariate session: rows of its table (the ones it left out, say) "
         "or new rows as CSV text in the source's layout. Returns each row's scores, T², SPE and, for PLS, "
-        "predicted Y in its own units, with the model's limits."
+        "predicted Y in its own units, with the model's limits: T² for the rows it was fitted to, T² new rows "
+        "for the rows it left out and new rows, and SPE."
     ),
     input_model=MvaPredictInput,
     examples="""

@@ -208,7 +208,9 @@ def verify_left_out(model: BatchPCA, batches: dict) -> pd.DataFrame:
     table = pd.DataFrame(
         {b: (float(r.hotellings_t2), float(r.spe)) for b, r in projected.items()}, index=["T2", "SPE"]
     ).T
-    t2_limit, spe_limit = model.hotellings_t2_limit(conf_level=CONF_LEVEL), model.spe_limit(conf_level=CONF_LEVEL)
+    # The left-out batches are new rows to model C (#978).
+    t2_limit = model.hotellings_t2_limit(conf_level=CONF_LEVEL, judged_rows="new")
+    spe_limit = model.spe_limit(conf_level=CONF_LEVEL)
     print(
         f"Model C: left-out batches above the SPE limit ({spe_limit:.1f}): {sorted(table.index[table['SPE'] > spe_limit])}"
     )
@@ -223,7 +225,7 @@ def observability_table(model: BatchPCA) -> pd.DataFrame:
     table = pd.DataFrame(
         {
             "T2": model.hotellings_t2_.loc[POOR_QUALITY_NOT_VISIBLE].iloc[:, -1],
-            "T2 limit": model.hotellings_t2_limit(conf_level=CONF_LEVEL),
+            "T2 limit": model.hotellings_t2_limit(conf_level=CONF_LEVEL, judged_rows="fitted"),
             "SPE": model.spe_.loc[POOR_QUALITY_NOT_VISIBLE].iloc[:, -1],
             "SPE limit": model.spe_limit(conf_level=CONF_LEVEL),
         }
@@ -252,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     save(plot_raw(batches, "Press-1", SCORE_OUTLIERS), "raw-Press-1-score-outliers")
 
     model_a = fit_model_a(batches)
-    save(model_a.score_plot(settings=LABELS), "model-a-scores")
+    save(model_a.score_plot(settings=LABELS, judged_rows="fitted"), "model-a-scores")
     save(model_a.spe_plot(settings=LABELS), "model-a-spe")
 
     save(plot_raw(batches, "Flow-1", [SPE_OUTLIER]), "raw-Flow-1-batch-49")
@@ -269,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     save(unfolded_contribution_plot(contributions["t2"], 55), "score-contributions-55-t2")
 
     model_b = fit_model_b(batches)
-    save(model_b.score_plot(pc_horiz=2, pc_vert=3, settings=LABELS), "model-b-scores-t2-t3")
+    save(model_b.score_plot(pc_horiz=2, pc_vert=3, settings=LABELS, judged_rows="fitted"), "model-b-scores-t2-t3")
     save(
         unfolded_contribution_plot(diagnose_different_batch(model_b, batches), 39, by_tag=True),
         "score-contributions-39-t3",
@@ -277,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     save(plot_raw(batches, "Press-3", [39]), "raw-Press-3-batch-39")
 
     model_c = fit_model_c(batches)
-    save(model_c.score_plot(settings=LABELS), "model-c-scores")
+    save(model_c.score_plot(settings=LABELS, judged_rows="fitted"), "model-c-scores")
     verify_left_out(model_c, batches)
     observability_table(model_c)
     print(f"figures written to {args.output_dir}")

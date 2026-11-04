@@ -110,7 +110,7 @@ def fit_model(trajectories: dict, quality: pd.DataFrame) -> BatchPLS:
     print(f"R2X per component = {r2x[0]:.3f}, {r2x[1]:.3f}; R2Y per component = {r2y[0]:.3f}, {r2y[1]:.3f}")
     t1, t2 = model.scores_.iloc[:, 0], model.scores_.iloc[:, 1]
     print(f"lowest t1 = {t1.nsmallest(3).index.tolist()}; highest t2 = {t2.nlargest(2).index.tolist()}")
-    t2_limit = model.hotellings_t2_limit(conf_level=CONF_LEVEL)
+    t2_limit = model.hotellings_t2_limit(conf_level=CONF_LEVEL, judged_rows="fitted")  # the fitted batches (#978)
     spe_limit = model.spe_limit(conf_level=CONF_LEVEL)
     for batch_id in FAULT_BATCHES:
         hotelling = model.hotellings_t2_.loc[batch_id].iloc[-1]
@@ -447,7 +447,7 @@ def main(argv: list[str] | None = None) -> int:
         save(plot_raw(trajectories, tag, FAULT_BATCHES), f"raw-{tag}")
 
     model = fit_model(trajectories, quality)
-    save(model.score_plot(settings=LABELS), "scores")
+    save(model.score_plot(settings=LABELS, judged_rows="fitted"), "scores")
     save(model.spe_plot(settings=LABELS), "spe")
     save(plot_r2_over_time(r2_breakdown(model)), "r2-over-time")
     save(time_varying_loading_plot(model, component=1), "weights-w1")

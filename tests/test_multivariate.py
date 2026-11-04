@@ -2366,7 +2366,7 @@ def test_pca_detect_outliers() -> None:
     pca = PCA(n_components=2).fit(X)
 
     # --- Basic contract ---
-    outliers = pca.detect_outliers(conf_level=0.95)
+    outliers = pca.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
     assert all(isinstance(o, dict) for o in outliers)
 
@@ -4171,7 +4171,7 @@ def test_pls_detect_outliers() -> None:
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    outliers = plsmodel.detect_outliers(conf_level=0.95)
+    outliers = plsmodel.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
 
     # Each outlier should be a dict with expected keys
@@ -4224,7 +4224,7 @@ def test_pls_detect_outliers_ldpe(
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    outliers = plsmodel.detect_outliers(conf_level=0.95)
+    outliers = plsmodel.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
 
     if len(outliers) > 0:
@@ -6416,8 +6416,8 @@ def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative
         header = "LV #        R2: D      R2: Z      R2: F      R2: Y|    ms [iter]"
     rule = "------ ---------- ---------- ---------- ---------- -------------"
     lines = [
-        f"Hotelling's T2 limit [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
-        f"                     [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
+        f"Hotelling's T2 limit for new rows [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
+        f"                                [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
         rule,
         header,
         rule,

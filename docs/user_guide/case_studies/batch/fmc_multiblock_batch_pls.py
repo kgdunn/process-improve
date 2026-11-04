@@ -375,7 +375,7 @@ def main(argv: list[str] | None = None) -> int:
         save(plot_raw(data.X, tag, [OPERATING_OUTLIER]), f"raw-{tag}")
 
     pca_y, y_scaled = pca_on_quality(data.Y)
-    save(pca_y.score_plot(settings=LABELS), "quality-pca-scores")
+    save(pca_y.score_plot(settings=LABELS, judged_rows="fitted"), "quality-pca-scores")
     y_contributions = pca_y.score_contributions(y_scaled, component=1)
     for batch_id in QUALITY_GROUP:
         save(
@@ -384,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     _pls_chem, pls_op, zop_scaled = pls_from_initial_conditions(data, y_scaled)
-    save(pls_op.score_plot(settings=LABELS), "pls-zop-scores")
+    save(pls_op.score_plot(settings=LABELS, judged_rows="fitted"), "pls-zop-scores")
     save(
         plot_bars(
             pls_op.score_contributions(zop_scaled, component=1).loc[OPERATING_OUTLIER],
@@ -399,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
 
     wide, x_scaled = unfold_trajectories(data.X)
     pca_x, spe_share = batch_pca_on_trajectories(x_scaled)
-    save(pca_x.score_plot(settings=LABELS), "batch-pca-scores")
+    save(pca_x.score_plot(settings=LABELS, judged_rows="fitted"), "batch-pca-scores")
     save(pca_x.spe_plot(settings=LABELS), "batch-pca-spe")
     save(time_varying_loading_plot(pca_x, component=1), "batch-pca-loadings-p1")
     save(
@@ -410,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         save(plot_raw(data.X, tag, [OPERATING_OUTLIER]), f"raw-{tag}-batch-20")
 
     pls_x, x_contributions = batch_pls_to_quality(x_scaled, y_scaled)
-    save(pls_x.score_plot(settings=LABELS), "batch-pls-scores")
+    save(pls_x.score_plot(settings=LABELS, judged_rows="fitted"), "batch-pls-scores")
     save(unfolded_contribution_plot(x_contributions, TRAJECTORY_BATCHES[0]), "batch-pls-contributions-13")
     for batch_id in TRAJECTORY_BATCHES:
         save(plot_raw(data.X, "D-Temp", [batch_id]), f"raw-D-Temp-batch-{batch_id}")

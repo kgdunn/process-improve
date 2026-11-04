@@ -430,7 +430,8 @@ class DetectMultivariateOutliersInput(BaseModel):
     description=(
         "Detect multivariate outliers by fitting a PCA model and using both SPE (Squared "
         "Prediction Error) and Hotelling's T-squared diagnostics. "
-        "Combines statistical limits with the robust generalised ESD test. "
+        "Combines statistical limits with the robust generalised ESD test. The T-squared limit is the "
+        "one for the rows the model was fitted to, from the beta distribution. "
         "The data is automatically mean-centred and scaled before fitting. "
         "Use this when you suspect some observations are unusual in a multivariate sense "
         "even if they appear normal in individual variables."
@@ -456,9 +457,10 @@ def detect_multivariate_outliers(spec: DetectMultivariateOutliersInput) -> dict[
         X_scaled = scaler.transform(df)
 
         model = PCA(n_components=spec.n_components).fit(X_scaled)
-        outliers = model.detect_outliers(conf_level=spec.conf_level)
+        # The rows judged are the rows the model was fitted to, so their limit is the beta one (#978).
+        outliers = model.detect_outliers(conf_level=spec.conf_level, judged_rows="fitted")
 
-        t2_lim = float(model.hotellings_t2_limit(conf_level=spec.conf_level))
+        t2_lim = float(model.hotellings_t2_limit(conf_level=spec.conf_level, judged_rows="fitted"))
         spe_lim = float(model.spe_limit(conf_level=spec.conf_level))
 
         result: dict[str, Any] = {
@@ -548,6 +550,7 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
             conf_level=0.95,
             n_components=n_components,
             n_rows=n_samples,
+            judged_rows="new",  # the rows the model was not fitted to (#978)
         )
         spe_lim = spe_calculation(spe_values=train_spe_values, conf_level=0.95)
 
@@ -659,6 +662,7 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
             conf_level=0.95,
             n_components=n_components,
             n_rows=n_samples,
+            judged_rows="new",  # the rows the model was not fitted to (#978)
         )
         spe_lim = spe_calculation(spe_values=train_spe_values, conf_level=0.95)
 

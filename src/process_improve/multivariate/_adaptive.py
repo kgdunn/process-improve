@@ -299,7 +299,8 @@ class _AdaptiveModel(_LatentVariableModel):
     def _start_limits(self, training_spe: np.ndarray) -> None:
         """Set the T2 limit, the training SPE limit, and the rolling window of squared SPEs it starts from."""
         A, N = self.n_components_, self.n_samples_
-        self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
+        # Every monitored row is new to the model the limit comes from (#978).
+        self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N, judged_rows="new")
         self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
         self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque((training_spe**2).tolist(), maxlen=int(self.spe_limit_window))

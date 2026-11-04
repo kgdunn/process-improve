@@ -64,6 +64,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._impute import impute_low_rank
+from ._limits import JudgedRows, judged_rows_note
 from ._nipals import quick_regress, scores_converged, ssq, terminate_check
 from ._optimal_inversion import Probe, finite_or
 from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
@@ -509,7 +510,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
             block_names=("X",), block_limits=(float(self.spe_limit(conf_level=conf_level)),),
             score_sd=_t2_score_sd(self.scaling_factor_for_scores_.to_numpy()),
-            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=finite_or(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_y),
             centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n_x),
             spread=finite_or(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n_x),
@@ -2636,7 +2637,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             selected_components_distribution=distribution,
         )
 
-    def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
+    def detect_outliers(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> list[dict]:
         """Detect outlier observations using SPE and Hotelling's T² diagnostics.
 
         Same approach as ``PCA.detect_outliers``: combines statistical limits
@@ -2646,18 +2647,25 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ----------
         conf_level : float, default 0.95
             Confidence level in [0.8, 0.999].
+        judged_rows : {"fitted", "new"} or None, optional
+            Which rows the T² limit judges, as in :meth:`PCA.detect_outliers`:
+            ``"fitted"`` for the rows the model was fitted to, which this method
+            judges. ``None`` gives the ``"new"`` limit until 3.0 and the
+            ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
 
         Returns
         -------
         outliers : list of dict
             Sorted from most severe to least. Each dict contains
             ``observation``, ``outlier_types``, ``spe``, ``hotellings_t2``,
-            ``spe_limit``, ``hotellings_t2_limit``, ``severity``.
+            ``spe_limit``, ``hotellings_t2_limit``, ``severity``, and, only when
+            ``judged_rows`` is ``None`` and the limit changes in 3.0,
+            ``hotellings_t2_limit_note``, the text of the warning.
 
         Examples
         --------
         >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
-        >>> outliers = pls.detect_outliers(conf_level=0.95)
+        >>> outliers = pls.detect_outliers(conf_level=0.95, judged_rows="fitted")
         >>> for o in outliers:
         ...     print(f"{o['observation']}: {o['outlier_types']}")
         """
@@ -2671,7 +2679,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_values = self.hotellings_t2_.iloc[:, -1]
 
         spe_lim = self.spe_limit(conf_level=conf_level)
-        t2_lim = self.hotellings_t2_limit(conf_level=conf_level)
+        t2_lim = self.hotellings_t2_limit(conf_level=conf_level, judged_rows=judged_rows)
+        # What the warning said, for a caller that reads the records rather than the warnings.
+        note = judged_rows_note(conf_level, self.n_components_, N, judged_rows)
 
         max_outliers = max(1, N // 5)
         alpha = 1 - conf_level
@@ -2716,6 +2726,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     "hotellings_t2_limit": t2_lim,
                     "severity": round(severity, 4),
                 }
+                | ({} if note is None else {"hotellings_t2_limit_note": note})
             )
 
         results.sort(key=lambda d: d["severity"], reverse=True)

@@ -100,12 +100,11 @@ import typing
 
 import numpy as np
 import pandas as pd
-from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
 from sklearn.utils import Bunch
 
 from ..multivariate._diagnostics import _t2_score_sd, t2_precision
-from ..multivariate._limits import spe_calculation
+from ..multivariate._limits import hotellings_t2_limit, spe_calculation
 from ..multivariate._projection import project_rows
 from ._online import observed_series, scaled_row, unfolded_layout
 
@@ -869,7 +868,8 @@ class MidCourseCorrector:
         A = int(self.model.n_components)
         score_cov = np.cov(candidate.scores, rowvar=False, ddof=1)
         score_cov = np.atleast_2d(score_cov)
-        t2_limit = float((A * (n**2 - 1)) / (n * (n - A)) * f_dist.ppf(self.conf_level, A, n - A))
+        # The candidate row is new to the batches the model was fitted to (#978).
+        t2_limit = hotellings_t2_limit(self.conf_level, n_components=A, n_rows=n, judged_rows="new")
 
         # The prediction error of the model *at this decision point*: the
         # quality predicted from the candidate-pattern score estimates of the

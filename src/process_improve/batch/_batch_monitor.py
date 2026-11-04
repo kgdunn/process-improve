@@ -234,7 +234,10 @@ class BatchMonitor(BaseEstimator):
                 for k in range(n_timesteps)
             ]
         )
-        t2_limit = hotellings_t2_limit(conf_level=self.conf_level, n_components=n_components, n_rows=n_reference)
+        # A monitored batch is a new row to the reference batches the limits come from (#978).
+        t2_limit = hotellings_t2_limit(
+            conf_level=self.conf_level, n_components=n_components, n_rows=n_reference, judged_rows="new"
+        )
 
         self.spe_limit_over_time_ = spe_limits
         self.t2_limit_over_time_ = np.full(n_timesteps, t2_limit)

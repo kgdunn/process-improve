@@ -14,7 +14,7 @@ from sklearn.base import BaseEstimator
 
 from ._diagnostics import meda as _meda
 from ._diagnostics import omeda as _omeda
-from ._limits import hotellings_t2_limit, spe_calculation
+from ._limits import JudgedRows, hotellings_t2_limit, spe_calculation
 
 try:
     import plotly.graph_objects as go
@@ -180,6 +180,7 @@ def score_plot(  # noqa: C901, PLR0913
     *,
     sizes: pd.Series | None = None,
     size_name: str = "",
+    judged_rows: JudgedRows | None = None,
 ) -> go.Figure:
     """Generate a 2D or 3D score plot for the given latent variable model.
 
@@ -215,6 +216,13 @@ def score_plot(  # noqa: C901, PLR0913
         read off a plot on its own.
     size_name : str, optional
         What ``sizes`` measures, for example ``"SPE"``; it names the value in the hover text.
+    judged_rows : {"fitted", "new"} or None, optional
+        Which rows the T² ellipse judges (see :func:`hotellings_t2_limit`). The points of a
+        score plot are the rows the model was fitted to, so ``"fitted"`` draws the ellipse they
+        are judged by. ``"new"`` draws the larger ellipse for rows the model was not fitted to.
+        ``None``, the default, draws the ``"new"`` ellipse until 3.0 and the ``"fitted"`` one
+        from 3.0, with a :class:`FutureWarning` until then. Only a 2D plot with its ellipse
+        reads it.
 
     settings : dict
         Default settings::
@@ -360,6 +368,7 @@ def score_plot(  # noqa: C901, PLR0913
                 score_horiz=pc_horiz,
                 score_vert=pc_vert,
                 conf_level=setdict["ellipse_conf_level"],
+                judged_rows=judged_rows,
             )
             fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
             fig.add_vline(x=0, line_color=REFERENCE_LINE_COLOR)
@@ -704,6 +713,8 @@ def t2_plot(  # noqa: C901
     items_to_highlight: dict[str, list] | None = None,
     settings: dict | None = None,
     fig: go.Figure | None = None,
+    *,
+    judged_rows: JudgedRows | None = None,
 ) -> go.Figure:
     """Generate a Hotelling's T2 (T^2) plot for the given latent variable model using
     `n_components` latent variables. The default will use the total number of latent variables
@@ -724,6 +735,12 @@ def t2_plot(  # noqa: C901
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
         will highlight the items in ``items_in_red`` with the given colour and shape.
+
+    judged_rows : {"fitted", "new"} or None, optional
+        Which rows the limit line judges (see :func:`hotellings_t2_limit`). The plot shows the
+        rows the model was fitted to, so ``"fitted"`` draws the limit they are judged by.
+        ``None``, the default, draws the ``"new"`` limit until 3.0 and the ``"fitted"`` one
+        from 3.0, with a :class:`FutureWarning` until then.
 
     settings : dict
         Default settings. The default ``title`` interpolates the *class-level* ``conf_level``
@@ -836,6 +853,7 @@ def t2_plot(  # noqa: C901
         conf_level=setdict["conf_level"],
         n_components=int(n_components),
         n_rows=model.hotellings_t2_.shape[0],
+        judged_rows=judged_rows,
     )
     limit_name = f"{setdict['conf_level'] * 100:.3g}% limit"
     fig.add_hline(

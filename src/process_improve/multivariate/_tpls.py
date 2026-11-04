@@ -39,9 +39,9 @@ from ._common import (
     unobserved_columns,
 )
 from ._diagnostics import _t2_score_sd
+from ._limits import JudgedRows, spe_calculation
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
-from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
 from ._optimal_inversion import Probe, finite_or
 from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
@@ -478,19 +478,25 @@ class TPLS(RegressorMixin, BaseEstimator):
             block_names=tuple(f"{b}/{g}" for b, g, _ in columns),
             block_limits=tuple(float(self.spe_limit[b][g](conf_level)) for b, g, _ in columns),
             score_sd=_t2_score_sd(self.scaling_factor_for_scores.to_numpy()),
-            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=np.concatenate([finite_or(self.preproc_["Y"][g]["scale"], 1.0) for g in self.quality_names]),
             centre=np.concatenate([np.nan_to_num(preproc("center", b, g, c)) for b, g, c in columns]),
             spread=np.concatenate([finite_or(preproc("scale", b, g, c), 1.0) for b, g, c in columns]),
             diagnose=diagnose,
         )  # fmt: skip
 
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
+    def hotellings_t2_limit(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> float:
+        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`).
+
+        ``judged_rows`` is ``"fitted"`` to judge the rows the model was fitted to (its
+        ``hotellings_t2``), or ``"new"`` to judge rows it was not fitted to. ``None`` gives the
+        ``"new"`` limit until 3.0 and the ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
+        """
         return _hotellings_t2_limit(
             conf_level=conf_level,
             n_components=self.n_components_,
             n_rows=self.hotellings_t2.shape[0],
+            judged_rows=judged_rows,
         )
 
     def ellipse_coordinates(
@@ -499,6 +505,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         score_vert: int,
         conf_level: float = 0.95,
         n_points: int = 100,
+        *,
+        judged_rows: JudgedRows | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
         return _ellipse_coordinates(
@@ -509,6 +517,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             n_components=self.n_components_,
             scaling_factor_for_scores=self.scaling_factor_for_scores,
             n_rows=self.t_scores_super.shape[0],
+            judged_rows=judged_rows,
         )
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -866,8 +875,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         if not self.is_fitted_:
             raise RuntimeError("The model is not fitted yet. Please call `fit` first.")
 
-        output = f"Hotelling's T2 limit [95% limit]: {self.hotellings_t2_limit():.4g}\n"
-        output += f"                     [99% limit]: {self.hotellings_t2_limit(0.99):.4g}\n"
+        t2_limits = [self.hotellings_t2_limit(level, judged_rows="new") for level in (0.95, 0.99)]
+        output = f"Hotelling's T2 limit for new rows [95% limit]: {t2_limits[0]:.4g}\n"
+        output += f"                                [99% limit]: {t2_limits[1]:.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
         sep = "------ ---------- ---------- ---------- ---------- -------------\n"
         output += sep

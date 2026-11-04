@@ -216,7 +216,8 @@ def fit(request: dict) -> dict:
     limits = {str(level): result.limits(level) for level in (0.95, 0.99)}
     ellipse = {}
     if a >= 2:
-        x, y = result.model.ellipse_coordinates(score_horiz=1, score_vert=2, conf_level=0.95)
+        # The score plot shows the rows the model was fitted to, so the ellipse is theirs (#978).
+        x, y = result.model.ellipse_coordinates(score_horiz=1, score_vert=2, conf_level=0.95, judged_rows="fitted")
         ellipse = {"x": np.asarray(x).tolist(), "y": np.asarray(y).tolist()}
     return {
         "rowIds": [str(label) for label in rows.index],
