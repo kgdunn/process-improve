@@ -9078,7 +9078,8 @@ def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
     """A nullable ``Float64`` column's ``pd.NA`` is a missing cell, as ``transform`` and ``project`` read it (#1026).
 
     ``diagnose`` and ``score`` converted the DataFrame as given with ``float()``, which
-    raises TypeError on ``pd.NA``. The rows without one get the values worked by hand.
+    raises TypeError on ``pd.NA``. The rows without one get the values worked by hand, and the
+    row with one is scored over its other cells, as ``project`` scores it (#1144).
     """
     X = _named_block()
     pca = PCA(n_components=2).fit(X)
@@ -9087,8 +9088,9 @@ def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
     nullable.iloc[1, 0] = pd.NA
     diagnosed = pca.diagnose(nullable)
     spe = np.linalg.norm(X.to_numpy() - X.to_numpy() @ P @ P.T, axis=1)
-    assert np.isnan(diagnosed.spe.iloc[1])
-    assert np.isnan(diagnosed.hotellings_t2.iloc[1]).all()
+    projected = pca.project(nullable.iloc[[1]])
+    assert diagnosed.spe.iloc[1] == pytest.approx(projected.spe.iloc[0], rel=1e-12)
+    assert diagnosed.hotellings_t2.iloc[1, -1] == pytest.approx(projected.hotellings_t2.iloc[0], rel=1e-12)
     spe_complete = np.delete(spe, 1)
     np.testing.assert_allclose(diagnosed.spe.drop("r1"), spe_complete, rtol=1e-12)
     assert np.isnan(pca.score(nullable))
@@ -9099,8 +9101,8 @@ def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
 def test_pca_refuses_new_rows_that_do_not_fit_the_model() -> None:
     """New rows are checked against the fit, never fitted to: the width, sparse input and infinities.
 
-    A missing cell is allowed through ``transform`` (its score is NaN), but an infinite one
-    is not. The expected width stays the fitted one after a refusal.
+    A missing cell is allowed through ``transform`` (the row is scored over its other cells,
+    #1144), but an infinite one is not. The expected width stays the fitted one after a refusal.
     """
     X = _named_block()
     pca = PCA(n_components=2).fit(X.to_numpy())
@@ -9117,9 +9119,10 @@ def test_pca_refuses_new_rows_that_do_not_fit_the_model() -> None:
         with pytest.raises(ValueError, match=r"^Input X contains infinity"):
             call(np.array([[1.0, np.inf, 0.0]]))
     assert pca.n_features_in_ == 3
-    scores = pca.transform(np.array([[1.0, np.nan, 0.0], [1.0, 2.0, 0.0]]))
-    assert np.isnan(scores.iloc[0]).all()
-    assert np.isfinite(scores.iloc[1]).all()
+    rows = np.array([[1.0, np.nan, 0.0], [1.0, 2.0, 0.0]])
+    scores = pca.transform(rows)
+    assert np.isfinite(scores.to_numpy()).all()
+    pd.testing.assert_frame_equal(scores, pca.project(rows).scores)
 
 
 def test_pca_project_and_projection_matrix_work_without_training_residuals() -> None:
@@ -10808,7 +10811,7 @@ def test_pls_whose_fit_failed_is_not_fitted() -> None:
 
 
 def test_pls_new_rows_are_refused_as_validate_data_refuses_them() -> None:
-    """New rows must have the fitted number of columns and no infinity; a missing cell is allowed."""
+    """New rows must have the fitted number of columns and no infinity; a missing cell is allowed (#1144)."""
     X, Y = _pls_block()
     pls = PLS(n_components=2).fit(X.to_numpy(), Y.to_numpy())
     for call in (pls.transform, pls.diagnose, pls.project):
@@ -10817,9 +10820,10 @@ def test_pls_new_rows_are_refused_as_validate_data_refuses_them() -> None:
         with pytest.raises(ValueError, match=r"^Input X contains infinity"):
             call(np.array([[1.0, np.inf, 0.0, 1.0]]))
     assert pls.n_features_in_ == 4
-    scores = pls.transform(np.array([[1.0, np.nan, 0.0, 1.0], [1.0, 2.0, 0.0, 1.0]]))
-    assert np.isnan(scores.iloc[0]).all()
-    assert np.isfinite(scores.iloc[1]).all()
+    rows = np.array([[1.0, np.nan, 0.0, 1.0], [1.0, 2.0, 0.0, 1.0]])
+    scores = pls.transform(rows)
+    assert np.isfinite(scores.to_numpy()).all()
+    pd.testing.assert_frame_equal(scores, pls.project(rows).scores)
 
 
 def _gapped_pls_block() -> tuple[pd.DataFrame, pd.DataFrame]:
