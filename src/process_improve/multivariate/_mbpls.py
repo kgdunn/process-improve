@@ -1517,7 +1517,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """
         values = self.preproc_[name].transform(block).to_numpy()
         # A model pickled before #1098 left no column out
-        return np.where(getattr(self, "_unobserved_columns", {}).get(name, False), np.nan, values)
+        left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
+        # One memory layout, whatever pandas hands over. A row-major and a column-major block take
+        # different BLAS kernels, which round differently, so a row's scores would depend on how
+        # its DataFrame was built (pandas 2.3 with numpy 2.2, #1148).
+        return np.ascontiguousarray(np.where(left_out, np.nan, values))
 
     def _in_y_units(self, scaled: np.ndarray, index: pd.Index) -> pd.DataFrame:
         """Return predictions in the scaled space on Y's original scale, labelled with its columns.

@@ -720,7 +720,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
         nothing observed in the block unless it has a value in one of the block's other columns.
         """
-        return np.where(self._left_out(name), np.nan, self.preproc_[name].transform(block).to_numpy())
+        # One memory layout whatever pandas hands over, as in MBPLS._scaled_block (#1148)
+        values = self.preproc_[name].transform(block).to_numpy()
+        return np.ascontiguousarray(np.where(self._left_out(name), np.nan, values))
 
     def _left_out(self, name: str) -> np.ndarray | bool:
         """Which columns of a block the fit left out (#1098); a model pickled before then left none out."""
