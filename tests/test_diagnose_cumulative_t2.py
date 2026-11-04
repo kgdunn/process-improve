@@ -17,8 +17,8 @@ import pandas as pd
 import pytest
 
 import process_improve.batch as batch_package
-import process_improve.multivariate.methods as multivariate_package
 from process_improve.batch._batch_pca import BatchPCA
+from process_improve.multivariate import methods as multivariate_package
 from process_improve.multivariate.methods import MBPCA, MBPLS, PCA, PLS, PLSDA, PRM, TPLS, DataFrameDict, MCUVScaler
 
 RNG = np.random.default_rng(983)
@@ -141,6 +141,8 @@ def test_the_old_field_warns_once_on_read_and_returns_what_it_did(case: tuple) -
         np.testing.assert_allclose(old.to_numpy(), cumulative.iloc[:, -1].to_numpy(), rtol=1e-12)
         assert list(old.index) == list(cumulative.index)
     with pytest.warns(DeprecationWarning, match="cumulative_hotellings_t2"):
-        result["hotellings_t2"]
+        by_key = result["hotellings_t2"]
     with pytest.warns(DeprecationWarning, match="cumulative_hotellings_t2"):
-        result.get("hotellings_t2")
+        by_get = result.get("hotellings_t2")
+    assert by_key is old
+    assert by_get is old
