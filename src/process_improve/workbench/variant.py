@@ -279,9 +279,14 @@ class Fit:
         return [cumulative[0], *np.diff(cumulative).tolist()]
 
     def limits(self, conf_level: float = 0.95) -> dict[str, float]:
-        """Return the T² and SPE limits at ``conf_level``."""
+        """Return the T² and SPE limits at ``conf_level``.
+
+        ``"T2"`` judges the rows the model was fitted to, by the beta law, and ``"T2 new rows"``
+        the rows it left out or never saw, by the F law (#978).
+        """
         return {
-            "T2": float(self.model.hotellings_t2_limit(conf_level)),
+            "T2": float(self.model.hotellings_t2_limit(conf_level, judged_rows="fitted")),
+            "T2 new rows": float(self.model.hotellings_t2_limit(conf_level, judged_rows="new")),
             "SPE": float(self.model.spe_limit(conf_level=conf_level)),
         }
 

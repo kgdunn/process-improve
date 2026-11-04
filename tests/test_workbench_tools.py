@@ -99,6 +99,21 @@ def test_the_fit_reports_what_the_workbench_computes(table: pd.DataFrame) -> Non
     assert all(len(r["top_variables"]) == 3 for r in result["model"]["rows_outside"])
 
 
+def test_a_row_left_out_is_judged_by_the_t2_limit_for_new_rows(table: pd.DataFrame) -> None:
+    """#978: the fitted rows by the beta limit, a row the model left out by the wider F limit."""
+    session = opened(table)["session"]
+    result = call(
+        "mva_fit", session=session, name="M1", kind="PCA", n_components=2, exclude=["r0"], cross_validate=False
+    )
+    fit = Variant(kind="PCA", n_components=2, excluded=("r0",)).fit(table)
+    limits, rows = fit.limits(0.95), fit.rows()
+    assert result["model"]["limits"] == pytest.approx(limits)
+    assert limits["T2"] < limits["T2 new rows"]
+    t2_limit = np.where(rows["excluded"].to_numpy(dtype=bool), limits["T2 new rows"], limits["T2"])
+    outside = rows[(rows["T2"] > t2_limit) | (rows["SPE"] > limits["SPE"])]
+    assert {r["row"] for r in result["model"]["rows_outside"]} == set(outside.index)
+
+
 def test_a_row_left_out_is_projected_and_a_pls_predicts_new_rows(table: pd.DataFrame) -> None:
     session = opened(table)["session"]
     result = call(

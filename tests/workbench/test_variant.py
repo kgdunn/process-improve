@@ -72,7 +72,7 @@ def test_the_upset_batches_fall_outside_the_limits_of_a_model_that_never_saw_the
     """The reason to project rather than drop: the excluded batches can still be judged against the model."""
     fit = Variant("PCA", 3, x_columns=X_COLUMNS, excluded=UPSET).fit(ldpe)
     limits, last = fit.limits(0.95), fit.rows().loc[54]
-    assert last["T2"] > limits["T2"]
+    assert last["T2"] > limits["T2 new rows"] > limits["T2"]  # a row left out is a new row (#978)
     assert last["SPE"] > limits["SPE"]
 
 

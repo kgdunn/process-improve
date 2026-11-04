@@ -31,6 +31,7 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
+    DiagnoseResult,
     SelectionRule,
     SpecificationWarning,
     UncentredDataWarning,
@@ -65,6 +66,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._impute import impute_low_rank
+from ._limits import JudgedRows, judged_rows_note
 from ._nipals import quick_regress, scores_converged, ssq, terminate_check
 from ._optimal_inversion import Probe, finite_or
 from ._optimal_inversion import inversion_sensitivity as _inversion_sensitivity
@@ -504,13 +506,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             out = self.diagnose(pd.DataFrame(rows, columns=list(self._feature_names)))
             scores, y_hat = out.scores.to_numpy(dtype=float), out.y_hat.to_numpy(dtype=float)
             spe = out.spe.to_numpy(dtype=float)[:, None]
-            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], out.hotellings_t2.to_numpy(dtype=float), spe
+            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
+            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], t2, spe
 
         return Probe(
             names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
             block_names=("X",), block_limits=(float(self.spe_limit(conf_level=conf_level)),),
             score_sd=_t2_score_sd(self.scaling_factor_for_scores_.to_numpy()),
-            t2_limit=float(self.hotellings_t2_limit(conf_level)),
+            t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=finite_or(y_scaler.scale_, 1.0) if y_scaler is not None else np.ones(n_y),
             centre=np.nan_to_num(np.asarray(x_scaler.center_, dtype=float)) if x_scaler is not None else np.zeros(n_x),
             spread=finite_or(x_scaler.scale_, 1.0) if x_scaler is not None else np.ones(n_x),
@@ -1331,8 +1334,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             With keys:
 
             - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
-            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): T² of the full
-              model, the last column of the fitted ``hotellings_t2_``.
+            - ``cumulative_hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
+              Hotelling's T², cumulative, so column ``a`` holds the T² over the first ``a``
+              components and the last column is the full model's, as in ``hotellings_t2_``.
+              Every ``diagnose`` of the family returns it in this shape (#983).
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
             - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
               predictions, on the original Y scale.
@@ -1340,13 +1345,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               is left of each row after the components, in the scaled space
               the model was fitted in, NaN at a missing cell; ``spe`` is the
               length of each row over its other cells.
-
-        Notes
-        -----
-        :meth:`PCA.diagnose` returns ``hotellings_t2`` as a cumulative
-        ``pd.DataFrame`` with one column per component, of which the last is
-        this Series. The two shapes are kept as they are because each is public
-        API; compare them through that last column.
+            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): deprecated since
+              2.4.0, to be removed in 3.0; the T² of the full model, which is
+              ``cumulative_hotellings_t2.iloc[:, -1]``. Reading it warns.
 
         See Also
         --------
@@ -1357,7 +1358,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result = pls.diagnose(scaler_x.transform(X_new))
         >>> result.y_hat           # Predicted Y values
         >>> result.spe             # SPE for each new observation
-        >>> result.hotellings_t2   # T² for each new observation
+        >>> result.cumulative_hotellings_t2.iloc[:, -1]   # T² for each new observation
         """
         # Scores, T², SPE and y_hat are all computed in the space the model was fitted in.
         X = self._scaled_rows(X)
@@ -1366,12 +1367,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         rows, estimates = self._estimate_rows_with_gaps(X.to_numpy())
         scores.iloc[rows] = estimates.scores
 
-        # Hotelling's T² (cumulative over all components), leaving out a component fit leaves out (#1026)
-        # A Series of the scores' row labels: the DataFrame's row sums carry them. A row with no
-        # scores has no T², where skipping its NaN made it 0.
+        # Hotelling's T², leaving out a component fit leaves out (#1026): cumulative over the
+        # components, as in hotellings_t2_, and the full model's, the deprecated Series (#983).
+        # A row with no scores has no T², where skipping its NaN made it 0 (#1144).
         score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
-        t2 = pd.Series((scores.div(score_sd, axis="columns") ** 2).sum(axis=1, skipna=False))
-        t2.name = "Hotelling's T²"
+        standardised = scores.div(score_sd, axis="columns") ** 2
+        cumulative = standardised.cumsum(axis=1, skipna=False)
+        # A Series of the scores' row labels: the DataFrame's row sums carry them.
+        t2 = standardised.sum(axis=1, skipna=False).rename("Hotelling's T²")
 
         # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
         # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
@@ -1386,8 +1389,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Y predictions (computed in scaled-Y space; mapped back to original units)
         y_hat = self._in_y_units(scores @ self.y_loadings_.T)
 
-        return Bunch(
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             scores=scores,
+            cumulative_hotellings_t2=cumulative,
             hotellings_t2=t2,
             spe=spe_values,
             y_hat=y_hat,
@@ -2656,7 +2661,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             selected_components_distribution=distribution,
         )
 
-    def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
+    def detect_outliers(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> list[dict]:
         """Detect outlier observations using SPE and Hotelling's T² diagnostics.
 
         Same approach as ``PCA.detect_outliers``: combines statistical limits
@@ -2666,18 +2671,25 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ----------
         conf_level : float, default 0.95
             Confidence level in [0.8, 0.999].
+        judged_rows : {"fitted", "new"} or None, optional
+            Which rows the T² limit judges, as in :meth:`PCA.detect_outliers`:
+            ``"fitted"`` for the rows the model was fitted to, which this method
+            judges. ``None`` gives the ``"new"`` limit until 3.0 and the
+            ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
 
         Returns
         -------
         outliers : list of dict
             Sorted from most severe to least. Each dict contains
             ``observation``, ``outlier_types``, ``spe``, ``hotellings_t2``,
-            ``spe_limit``, ``hotellings_t2_limit``, ``severity``.
+            ``spe_limit``, ``hotellings_t2_limit``, ``severity``, and, only when
+            ``judged_rows`` is ``None`` and the limit changes in 3.0,
+            ``hotellings_t2_limit_note``, the text of the warning.
 
         Examples
         --------
         >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
-        >>> outliers = pls.detect_outliers(conf_level=0.95)
+        >>> outliers = pls.detect_outliers(conf_level=0.95, judged_rows="fitted")
         >>> for o in outliers:
         ...     print(f"{o['observation']}: {o['outlier_types']}")
         """
@@ -2691,7 +2703,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_values = self.hotellings_t2_.iloc[:, -1]
 
         spe_lim = self.spe_limit(conf_level=conf_level)
-        t2_lim = self.hotellings_t2_limit(conf_level=conf_level)
+        t2_lim = self.hotellings_t2_limit(conf_level=conf_level, judged_rows=judged_rows)
+        # What the warning said, for a caller that reads the records rather than the warnings.
+        note = judged_rows_note(conf_level, self.n_components_, N, judged_rows)
 
         max_outliers = max(1, N // 5)
         alpha = 1 - conf_level
@@ -2736,6 +2750,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     "hotellings_t2_limit": t2_lim,
                     "severity": round(severity, 4),
                 }
+                | ({} if note is None else {"hotellings_t2_limit_note": note})
             )
 
         results.sort(key=lambda d: d["severity"], reverse=True)
@@ -3007,7 +3022,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         diagnostics = self.diagnose(X)
         y_hat = diagnostics.y_hat
-        t2_new = diagnostics.hotellings_t2.to_numpy()
+        t2_new = diagnostics.cumulative_hotellings_t2.iloc[:, -1].to_numpy()
 
         n_samples = self.n_samples_
         n_components = int(self.n_components_)

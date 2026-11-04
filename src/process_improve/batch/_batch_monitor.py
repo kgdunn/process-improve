@@ -32,7 +32,8 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
-from .._linalg import safe_inverse
+from ..multivariate._common import components_with_spread
+from ..multivariate._diagnostics import t2_precision
 from ..multivariate._limits import hotellings_t2_limit, spe_calculation
 
 if typing.TYPE_CHECKING:
@@ -206,18 +207,22 @@ class BatchMonitor(BaseEstimator):
         # with those near its end, so T2 is standardised sample by sample. The
         # scatter is taken about zero, the centre of the training scores, so
         # the quadratic form and its normalisation agree.
+        # A component with no spread in the fit adds 0 to T2, as in every other T2 (#1124), so only
+        # the components with spread must span their dimensions at each sample.
+        score_sd = np.sqrt(np.asarray(self.model.explained_variance_, dtype=float))
+        spread = components_with_spread(score_sd)
         covariance = np.empty((n_timesteps, n_components, n_components))
         precision = np.empty_like(covariance)
         for k in range(n_timesteps):
             at_k = scores[:, k, :]
             covariance[k] = at_k.T @ at_k / (n_reference - 1)
-            if np.linalg.matrix_rank(covariance[k]) < n_components:
+            if np.linalg.matrix_rank(covariance[k][np.ix_(spread, spread)]) < spread.sum():
                 raise ValueError(
                     f"The reference batches' score estimates after {k + 1} sample(s) span fewer than "
-                    f"{n_components} dimensions, so no T2 limit can be formed there: fewer cells than components "
+                    f"{spread.sum()} dimensions, so no T2 limit can be formed there: fewer cells than components "
                     "are observed. Use fewer components, add initial conditions, or pass a ridge."
                 )
-            precision[k] = safe_inverse(covariance[k], what=f"reference score scatter at sample {k + 1}")
+            precision[k] = t2_precision(covariance[k], score_sd, what=f"reference score scatter at sample {k + 1}")
         self._score_precision_over_time = precision
         t2_matrix = np.stack([self._t2_from_scores(scores[row]) for row in range(n_reference)])
 
@@ -229,7 +234,10 @@ class BatchMonitor(BaseEstimator):
                 for k in range(n_timesteps)
             ]
         )
-        t2_limit = hotellings_t2_limit(conf_level=self.conf_level, n_components=n_components, n_rows=n_reference)
+        # A monitored batch is a new row to the reference batches the limits come from (#978).
+        t2_limit = hotellings_t2_limit(
+            conf_level=self.conf_level, n_components=n_components, n_rows=n_reference, judged_rows="new"
+        )
 
         self.spe_limit_over_time_ = spe_limits
         self.t2_limit_over_time_ = np.full(n_timesteps, t2_limit)

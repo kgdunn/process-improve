@@ -27,9 +27,11 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._common import DiagnoseResult
 from ..multivariate._diagnostics import score_contributions as _score_contributions
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
 from ..multivariate._diagnostics import t2_contributions as _t2_contributions
+from ..multivariate._limits import JudgedRows
 from ..multivariate._limits import score_limit as _score_limit
 from ..multivariate._limits import spe_limit as _spe_limit
 from ..multivariate._pca import PCA
@@ -362,11 +364,14 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         -------
         result : sklearn.utils.Bunch
             With keys ``scores`` (DataFrame, one row per batch),
-            ``hotellings_t2`` (DataFrame, cumulative per component), and
-            ``spe`` (Series). Compare against :meth:`hotellings_t2_limit`
-            and :meth:`spe_limit` to flag abnormal batches.
+            ``cumulative_hotellings_t2`` (DataFrame, cumulative per component,
+            as in ``hotellings_t2_``), and ``spe`` (Series). Compare against
+            :meth:`hotellings_t2_limit` with ``judged_rows="new"`` and
+            :meth:`spe_limit` to flag abnormal batches. ``hotellings_t2``, the
+            same DataFrame, is deprecated since 2.4.0 and is removed in 3.0.
         """
-        return self._pca.diagnose(self._scaled_wide(X, initial_conditions))
+        result = self._pca.diagnose(self._scaled_wide(X, initial_conditions))
+        return DiagnoseResult("batch.BatchPCA", **dict(result))
 
     def predict_online(
         self,
@@ -567,10 +572,16 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         """
         return self._scaled_wide(X, initial_conditions)
 
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level."""
+    def hotellings_t2_limit(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> float:
+        """Hotelling's T2 limit at the given confidence level.
+
+        ``judged_rows`` is ``"fitted"`` to judge the batches the model was fitted to, or ``"new"``
+        to judge other batches (see :func:`process_improve.multivariate.hotellings_t2_limit`).
+        ``None`` gives the ``"new"`` limit until 3.0 and the ``"fitted"`` one from 3.0, with a
+        :class:`FutureWarning`.
+        """
         check_is_fitted(self, "loadings_")
-        return self._pca.hotellings_t2_limit(conf_level=conf_level)
+        return self._pca.hotellings_t2_limit(conf_level=conf_level, judged_rows=judged_rows)
 
     def ellipse_coordinates(
         self,
@@ -578,6 +589,8 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         score_vert: int,
         conf_level: float = 0.95,
         n_points: int = 100,
+        *,
+        judged_rows: JudgedRows | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Coordinates of the T2 confidence ellipse for a score plot."""
         check_is_fitted(self, "loadings_")
@@ -586,6 +599,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
             score_vert=score_vert,
             conf_level=conf_level,
             n_points=n_points,
+            judged_rows=judged_rows,
         )
 
     # Convenience methods forwarding to the standalone multivariate functions

@@ -29,6 +29,7 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
+    DiagnoseResult,
     NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
@@ -43,6 +44,7 @@ from ._common import (
     user_stacklevel,
 )
 from ._diagnostics import _t2_score_sd
+from ._limits import JudgedRows, judged_rows_note
 from ._nipals import quick_regress, scores_converged, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
@@ -1436,19 +1438,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             With keys:
 
             - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
-            - ``hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
-              cumulative, so column ``a`` holds the T² over the first ``a``
-              components and the last column is the full model's, as in
-              ``hotellings_t2_``.
+            - ``cumulative_hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
+              Hotelling's T², cumulative, so column ``a`` holds the T² over the first ``a``
+              components and the last column is the full model's, as in ``hotellings_t2_``.
+              Every ``diagnose`` of the family returns it in this shape (#983).
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
-
-        Notes
-        -----
-        :meth:`PLS.diagnose` (and ``MBPLS`` / ``MBPCA.diagnose``) return
-        ``hotellings_t2`` as a ``pd.Series`` holding the full model's T² only.
-        ``hotellings_t2.iloc[:, -1]`` here is the same quantity. The two shapes
-        are kept as they are because each is public API; compare them through
-        the last column, not the whole object.
+            - ``hotellings_t2``: deprecated since 2.4.0, to be removed in 3.0;
+              the same DataFrame as ``cumulative_hotellings_t2``. Reading it warns.
         """
         X_arr, sample_index = self._validated_rows(X)
         scores = X_arr @ self._loadings
@@ -1466,8 +1462,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         residuals = X_arr - scores @ self._loadings.T
         spe = np.sqrt(np.sum(residuals**2, axis=1))
         spe[rows] = estimates.spe
-        return Bunch(
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             scores=pd.DataFrame(scores, index=sample_index, columns=self._component_names),
+            cumulative_hotellings_t2=t2,
             hotellings_t2=t2,
             spe=pd.Series(spe, index=sample_index, name="SPE"),
         )
@@ -2214,7 +2212,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             **consensus_fields,
         )
 
-    def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
+    def detect_outliers(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> list[dict]:
         """Detect outlier observations using SPE and Hotelling's T² diagnostics.
 
         Combines two approaches:
@@ -2234,6 +2232,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         conf_level : float, default 0.95
             Confidence level in [0.8, 0.999]. Controls both the statistical
             limits and the ESD test's significance level (alpha = 1 - conf_level).
+        judged_rows : {"fitted", "new"} or None, optional
+            Which rows the T² limit judges (see :func:`hotellings_t2_limit`). This
+            method judges the rows the model was fitted to, so ``"fitted"`` gives
+            their limit. ``None``, the default, gives the ``"new"`` limit until 3.0
+            and the ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
 
         Returns
         -------
@@ -2250,11 +2253,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               decimals. A ratio whose denominator is 0 (perfect-fit SPE limit)
               or non-finite (T2 limit when A == N) is treated as 0 and does
               not contribute to the ranking.
+            - ``hotellings_t2_limit_note`` - only when ``judged_rows`` is
+              ``None`` and the limit changes in 3.0: the text of the warning.
 
         Examples
         --------
         >>> pca = PCA(n_components=3).fit(X_scaled)
-        >>> outliers = pca.detect_outliers(conf_level=0.95)
+        >>> outliers = pca.detect_outliers(conf_level=0.95, judged_rows="fitted")
         >>> for o in outliers:
         ...     print(f"{o['observation']}: {o['outlier_types']} (severity={o['severity']})")
         """
@@ -2270,7 +2275,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Statistical limits
         spe_lim = self.spe_limit(conf_level=conf_level)
-        t2_lim = self.hotellings_t2_limit(conf_level=conf_level)
+        t2_lim = self.hotellings_t2_limit(conf_level=conf_level, judged_rows=judged_rows)
+        # What the warning said, for a caller that reads the records rather than the warnings.
+        note = judged_rows_note(conf_level, self.n_components_, N, judged_rows)
 
         # Robust ESD outlier detection on each series
         max_outliers = max(1, N // 5)
@@ -2319,6 +2326,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     "hotellings_t2_limit": t2_lim,
                     "severity": round(severity, 4),
                 }
+                | ({} if note is None else {"hotellings_t2_limit_note": note})
             )
 
         results.sort(key=lambda d: d["severity"], reverse=True)

@@ -70,12 +70,14 @@ After fitting, every model exposes:
 - ``r2_x_per_block_cumulative_``, ``r2_x_per_block_per_component_``
 - ``block_vip_`` - per-block VIPs as ``dict[str, Series]``
 - ``block_spe_``, ``block_hotellings_t2_``, ``super_hotellings_t2_``
-- ``predict(X_new)`` - returns super-scores, block-scores, per-block SPE,
-  super Hotelling's T² (and Y predictions for MBPLS)
+- ``diagnose(X_new)`` - returns super-scores, block-scores, per-block SPE,
+  the cumulative super Hotelling's T² as ``cumulative_hotellings_t2`` (and Y
+  predictions for MBPLS)
 - ``spe_contributions(X)`` - per-variable squared residuals for fault
   diagnosis
 - ``block_spe_limit(name, conf_level)``, ``super_spe_limit(conf_level)``,
-  ``hotellings_t2_limit(conf_level)``
+  ``hotellings_t2_limit(conf_level, judged_rows="fitted")`` (or ``"new"`` for
+  rows the model was not fitted to)
 
 Worked example: LDPE tubular reactor (MBPLS)
 --------------------------------------------

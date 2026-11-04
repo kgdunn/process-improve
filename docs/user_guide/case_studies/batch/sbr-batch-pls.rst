@@ -64,8 +64,8 @@ PLS model from that row to the five quality attributes.
 
    R2X per component = 0.245, 0.127; R2Y per component = 0.653, 0.069
    lowest t1 = [37, 34, 38]; highest t2 = [34, 9]
-   batch 34: T2 = 28.2 (limit 6.6), SPE = 23.1 (limit 34.6)
-   batch 37: T2 = 19.2 (limit 6.6), SPE = 18.7 (limit 34.6)
+   batch 34: T2 = 28.2 (limit 5.8), SPE = 23.1 (limit 34.6)
+   batch 37: T2 = 19.2 (limit 5.8), SPE = 18.7 (limit 34.6)
 
 The first component explains 24.5% of the trajectories and 65.3% of the
 quality block; the second adds 12.7% and 6.9%. The score plot flags both

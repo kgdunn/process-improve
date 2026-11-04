@@ -77,6 +77,10 @@ BUDGET: dict[str, int] = {
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
     "PLR0912": 17,
+    # 51: #978 gives the standalone `ellipse_coordinates` its `judged_rows`, the rows the
+    # ellipse judges, which picks the law of its T2 limit. Every function and method that
+    # makes that choice takes the same keyword, so the warning of the coming default can be
+    # silenced at any call; the function's other seven arguments are its public signature.
     # 50: `max-args` is now 7 in pyproject.toml, not ruff's default of 5, so the 37
     # functions of six or seven arguments no longer breach, and their PLR0913 suppressions
     # went with them. The history below counted against the default of 5.
@@ -119,7 +123,7 @@ BUDGET: dict[str, int] = {
     # `select_n_components`' own. The width stops there: the function forms forward
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
-    "PLR0913": 50,
+    "PLR0913": 51,
     # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
     # arrays) and in #981 (each Z group scored on its own) alike.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper

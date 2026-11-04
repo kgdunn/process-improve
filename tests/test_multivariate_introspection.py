@@ -142,9 +142,9 @@ def test_score_plot_signature_and_doc() -> None:
 
 
 def test_hotellings_t2_limit_signature() -> None:
-    """The explicit ``hotellings_t2_limit`` method exposes only ``conf_level``."""
+    """The explicit ``hotellings_t2_limit`` method exposes ``conf_level`` and the rows it judges (#978)."""
     model = _fitted_pca()
-    assert list(inspect.signature(model.hotellings_t2_limit).parameters) == ["conf_level"]
+    assert list(inspect.signature(model.hotellings_t2_limit).parameters) == ["conf_level", "judged_rows"]
 
 
 def test_subclass_can_override_method() -> None:

@@ -103,11 +103,13 @@ These diagnostics work identically to PCA (see :doc:`pca`):
 
 - ``model.spe_`` and ``model.spe_limit()`` - conformity to the X-space
   correlation structure.
-- ``model.hotellings_t2_`` and ``model.hotellings_t2_limit()`` - extremity
-  within the model.
+- ``model.hotellings_t2_`` and ``model.hotellings_t2_limit(judged_rows="fitted")``
+  - extremity within the model (``judged_rows="new"`` for rows it was not
+  fitted to; see :doc:`pca`).
 - ``model.score_contributions(X)`` - decompose a score back to original
   variables.
-- ``model.detect_outliers()`` - combined statistical + robust ESD detection.
+- ``model.detect_outliers(judged_rows="fitted")`` - combined statistical +
+  robust ESD detection.
 - ``model.squared_cosine()`` - quality of representation of each observation,
   computed on the X-scores.
 - ``model.observation_contributions()`` - each observation's share of a
@@ -235,12 +237,15 @@ centres both blocks itself, so the condition cannot arise.
 Predictions
 -----------
 
-After fitting, ``model.predict(X_new)`` returns a ``Bunch`` with:
+After fitting, ``model.predict(X_new)`` returns the predicted Y values, and
+``model.diagnose(X_new)`` a ``Bunch`` with:
 
 - ``y_hat`` - the predicted Y values.
 - ``scores`` - the X-scores for the new observations.
 - ``spe`` - SPE values for the new observations.
-- ``hotellings_t2`` - T² values for the new observations.
+- ``cumulative_hotellings_t2`` - T² values for the new observations, one
+  column per component, as in ``hotellings_t2_``; the last column is the full
+  model's, to compare with ``model.hotellings_t2_limit(judged_rows="new")``.
 
 The underlying regression relationship is captured in
 ``model.beta_coefficients_``, which maps directly from (preprocessed) X to

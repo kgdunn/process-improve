@@ -821,7 +821,8 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
         spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
         complete_spe = np.sqrt(squared_spe[:, a] * to_complete)
         spe_limits[a] = spe_lim, float(spe_calculation(complete_spe, conf_level=conf_level))
-        t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
+        # A held-out row is new to the fold model that scored it (#978).
+        t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N, judged_rows="new")
         spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))  # pragma: no mutate - >= differs only at the limit
         # A component whose full-data Y loading is zero has no D ratio, so no held-out T2.
         if np.all(np.isfinite(pv_t2[:, a])):

@@ -69,7 +69,7 @@ import pandas as pd
 from sklearn.utils import Bunch
 
 from .._linalg import safe_inverse
-from ._common import SpecificationWarning, user_stacklevel
+from ._common import SpecificationWarning, components_with_spread, user_stacklevel
 
 if typing.TYPE_CHECKING:
     from collections.abc import Hashable, Iterable
@@ -165,7 +165,9 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         direct weights ``R = W (P'W)^{-1}``.
     score_variances : np.ndarray of shape (n_components,)
         Variance of each training score (the model's ``explained_variance_``),
-        used by the TSR regression.
+        used by the TSR regression. A component with no spread
+        (:func:`~process_improve.multivariate._common.components_with_spread`)
+        gets a TSR score of 0, and the regression runs over the others (#1124).
     observed : np.ndarray of shape (n_features,), dtype bool
         Mask of the observed features for this pattern.
     method : {"tsr", "scp", "pmp"}, default="tsr"
@@ -231,7 +233,12 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         condition = float(np.linalg.cond(gram))
         matrix = safe_inverse(gram, what="(P_observed' @ P_observed)") @ p_obs.T
     elif method == "tsr":
-        theta = np.diag(score_variances)
+        # A component with no spread has a zero in Theta and, in a rank-deficient fit, a residual
+        # near zero too, so the inner matrix is singular in its direction. It adds 0 to T² (#1124):
+        # its score is estimated at 0, and the regression runs over the components with spread.
+        keep = np.flatnonzero(components_with_spread(np.sqrt(score_variances)))
+        theta = np.diag(np.asarray(score_variances, dtype=float)[keep])
+        p_kept, g_kept = p_obs[:, keep], g_obs[:, keep]
         # Arteaga and Ferrer (2002): t_hat = Theta P*' G* [G*' S** G*]^-1 G*' z*,
         # with S** the covariance of the observed columns in the training data.
         # S** is the model plane plus the residual spread around it; the second
@@ -240,10 +247,11 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         # fit onto the plane (for a PCA, bitwise the ``pmp`` operator).
         # G*' E*' E* G* is formed as the Gram of the (n_train x A) product
         # E* G*, so nothing of size (n_observed x n_observed) is ever built.
-        inner = g_obs.T @ p_obs @ theta @ p_obs.T @ g_obs + ridge * np.eye(A)
-        inner = inner + _residual_inner(x_residuals, observed, g_obs)
+        inner = g_kept.T @ p_kept @ theta @ p_kept.T @ g_kept + ridge * np.eye(keep.size)
+        inner = inner + _residual_inner(x_residuals, observed, g_kept)
         condition = float(np.linalg.cond(inner))
-        matrix = theta @ p_obs.T @ g_obs @ safe_inverse(inner, what="(TSR inner matrix)") @ g_obs.T
+        matrix = np.zeros((A, n_observed))
+        matrix[keep] = theta @ p_kept.T @ g_kept @ safe_inverse(inner, what="(TSR inner matrix)") @ g_kept.T
     else:  # scp
         deflate = np.eye(n_observed)
         matrix = np.zeros((A, n_observed))

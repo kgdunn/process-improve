@@ -10,18 +10,103 @@ and the T2 confidence-ellipse coordinates. Depends only on
 
 from __future__ import annotations
 
+import warnings
+from typing import Literal
+
 import numpy as np
 import pandas as pd
+from scipy.stats import beta as beta_dist
 from scipy.stats import chi2, f
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
-from ._common import epsqrt
+from ._common import epsqrt, user_stacklevel
+
+#: The rows a Hotelling's T² limit can judge (#978): the rows the model was fitted to, or new rows.
+JudgedRows = Literal["fitted", "new"]
+
+#: What ``judged_rows=None`` resolves to. It becomes ``"fitted"`` in 3.0, as announced in 2.4.0 (#978).
+_JUDGED_ROWS_BY_DEFAULT: JudgedRows = "new"
 
 
-def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+def _judged_rows(judged_rows: JudgedRows | None) -> JudgedRows:
+    """Return the kind of row ``judged_rows`` names, with ``None`` resolved to the default."""
+    if judged_rows is None:
+        return _JUDGED_ROWS_BY_DEFAULT
+    if judged_rows not in ("fitted", "new"):
+        raise ValueError(f'judged_rows must be "fitted", "new" or None; got {judged_rows!r}.')
+    return judged_rows
+
+
+def _t2_limit(conf_level: float, n_components: int, n_rows: int, judged_rows: JudgedRows) -> float:
+    """Return the T² limit for validated arguments; see :func:`hotellings_t2_limit`."""
+    if n_components == 0:
+        # With no components T2 is zero for every observation, and so is its limit: the
+        # formulas below tend to 0 as A -> 0, but scipy cannot evaluate an F or a beta
+        # distribution with a first shape of 0 and returned NaN.
+        return 0.0
+    if n_components == n_rows:
+        return float("inf")  # pragma: no mutate - float('INF') is the same value
+    if judged_rows == "new":
+        return (
+            n_components
+            * (n_rows - 1)
+            * (n_rows + 1)
+            / (n_rows * (n_rows - n_components))
+            * f.isf((1 - conf_level), n_components, n_rows - n_components)
+        )
+    # A fitted row's T² can never exceed (N - 1)^2 / N. With N = A + 1 every fitted row sits
+    # exactly there, the limit of the beta law as its second shape (N - A - 1) / 2 tends to 0.
+    bound = (n_rows - 1) ** 2 / n_rows
+    if n_rows == n_components + 1:
+        return bound
+    return bound * beta_dist.isf(1 - conf_level, n_components / 2, (n_rows - n_components - 1) / 2)
+
+
+def judged_rows_note(conf_level: float, n_components: int, n_rows: int, judged_rows: JudgedRows | None) -> str | None:
+    """Return the text of the warning that ``judged_rows=None`` gives, or ``None`` when it gives none (#978).
+
+    A call warns only when its number changes in 3.0: when ``judged_rows`` is ``None`` and the
+    limit for fitted rows differs from the limit for new rows. Arguments are as validated by
+    :func:`hotellings_t2_limit`.
+    """
+    if judged_rows is not None:
+        return None
+    new = _t2_limit(conf_level, n_components, n_rows, "new")
+    fitted = _t2_limit(conf_level, n_components, n_rows, "fitted")
+    if new == fitted:
+        return None
+    return (
+        f"Hotelling's T² limit: judged_rows=None gives the F limit for new rows ({new:.4g} here) until 3.0, "
+        f"and from 3.0 the beta limit for the rows the model was fitted to ({fitted:.4g} here), as announced "
+        'in 2.4.0. Pass judged_rows="fitted" to judge the rows the model was fitted to (hotellings_t2_, a '
+        'score plot, outlier detection), or judged_rows="new" to judge rows it was not fitted to; either '
+        "silences this warning."
+    )
+
+
+def hotellings_t2_limit(
+    conf_level: float = 0.95,
+    n_components: int = 0,
+    n_rows: int = 0,
+    *,
+    judged_rows: JudgedRows | None = None,
+) -> float:
     """Return the Hotelling's T2 value at the given level of confidence.
+
+    The rows a model was fitted to and new rows need different limits (#978). Both the centre and
+    the spread of the scores are estimated from the ``N`` fitted rows. A fitted row took part in
+    both, so it sits closer to the centre and cannot look extreme: its T² never exceeds
+    ``(N - 1)^2 / N``. A new row took part in neither. For ``A`` components:
+
+    - ``judged_rows="fitted"``: ``((N - 1)^2 / N) * Beta(A/2, (N - A - 1)/2)``, the law of a fitted
+      row's T² (Tracy, Young and Mason, 1992).
+    - ``judged_rows="new"``: ``A (N^2 - 1) / (N (N - A)) * F(A, N - A)``, the law of a new row's T².
+
+    Both are exact when the ``A`` scores are a fixed set of normal variables whose centre and
+    spread are estimated from the ``N`` rows. The loadings of a PCA or a PLS model are estimated
+    from the same rows, so for its scores each is an approximation that improves as ``N`` grows.
 
     Parameters
     ----------
@@ -31,20 +116,34 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
         Number of components in the fitted multivariate model.
     n_rows : int
         Number of rows (observations) used to fit the model. Must be > 0.
+    judged_rows : {"fitted", "new"} or None, optional
+        Which rows the limit judges: ``"fitted"``, the rows the model was fitted to (the values
+        in ``hotellings_t2_``, the points of a score plot); or ``"new"``, rows it was not fitted
+        to (the T² from ``diagnose`` or ``project``, a monitored batch). ``None``, the default,
+        gives the ``"new"`` limit until 3.0 and the ``"fitted"`` one from 3.0. Until then it warns
+        with a :class:`FutureWarning` whenever the two differ; passing either value silences it.
 
     Returns
     -------
     float
         The Hotelling's T2 limit at the given level of confidence. Returns
-        ``0.0`` when ``n_components == 0`` and ``inf`` when ``n_components == n_rows``.
+        ``0.0`` when ``n_components == 0`` and ``inf`` when ``n_components == n_rows``. For
+        fitted rows with ``n_rows == n_components + 1``, where every fitted row's T² is
+        ``(N - 1)^2 / N``, it returns that value.
 
     Raises
     ------
     ValueError
         If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive,
-        if ``n_components`` is negative, or if ``n_components`` exceeds
+        if ``n_components`` is negative, if ``n_components`` exceeds
         ``n_rows`` (which would otherwise return a silent NaN from a negative
-        F denominator degrees of freedom).
+        F denominator degrees of freedom), or if ``judged_rows`` is not one of
+        its values.
+
+    References
+    ----------
+    Tracy, N. D., Young, J. C. and Mason, R. L., "Multivariate control charts for individual
+    observations", Journal of Quality Technology, 24(2), 88-95, 1992.
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -61,20 +160,11 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
             f"n_components ({n_components}) cannot exceed n_rows ({n_rows}); "
             "a model cannot have more components than observations."
         )
-    if n_components == 0:
-        # With no components T2 is zero for every observation, and so is its limit: the
-        # formula below tends to 0 as A -> 0, but scipy cannot evaluate an F distribution
-        # with 0 numerator degrees of freedom and returned NaN.
-        return 0.0
-    if n_components == n_rows:
-        return float("inf")  # pragma: no mutate - float('INF') is the same value
-    return (
-        n_components
-        * (n_rows - 1)
-        * (n_rows + 1)
-        / (n_rows * (n_rows - n_components))
-        * f.isf((1 - conf_level), n_components, n_rows - n_components)
-    )
+    kind = _judged_rows(judged_rows)
+    note = judged_rows_note(conf_level, n_components, n_rows, judged_rows)
+    if note is not None:
+        warnings.warn(note, FutureWarning, stacklevel=user_stacklevel())
+    return _t2_limit(conf_level, n_components, n_rows, kind)
 
 
 def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
@@ -228,7 +318,7 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     return critical_value * std_per_component
 
 
-def ellipse_coordinates(
+def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse judges, joins its public signature (#978)
     score_horiz: int,
     score_vert: int,
     conf_level: float = 0.95,
@@ -236,6 +326,8 @@ def ellipse_coordinates(
     n_components: int = 0,
     scaling_factor_for_scores: pd.Series | None = None,
     n_rows: int = 0,
+    *,
+    judged_rows: JudgedRows | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
         plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
@@ -269,7 +361,12 @@ def ellipse_coordinates(
         Used to scale the ellipse axes.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the
-        Hotelling's T^2 limit on 2 and ``N - 2`` degrees of freedom; must be strictly positive.
+        Hotelling's T^2 limit for 2 components; must be strictly positive.
+    judged_rows : {"fitted", "new"} or None, optional
+        Which rows the ellipse judges, as in :func:`hotellings_t2_limit`: ``"fitted"`` for the
+        scores of the rows the model was fitted to, the points of a score plot, or ``"new"`` for
+        rows it was not fitted to. ``None``, the default, draws the ``"new"`` ellipse until 3.0
+        and the ``"fitted"`` one from 3.0, and warns with a :class:`FutureWarning` until then.
 
     Returns
     -------
@@ -311,13 +408,14 @@ def ellipse_coordinates(
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     # The ellipse is the joint confidence region for the TWO plotted scores,
-    # so the T2 limit is computed with 2 degrees of freedom:
+    # so the T2 limit is computed for 2 components: for new rows
     # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used in
-    # Wold's texts. Using the full model's A here (the previous behaviour)
+    # Wold's texts, and for fitted rows ((N - 1)^2 / N) * Beta(1, (N - 3) / 2).
+    # Using the full model's A here (the previous behaviour)
     # draws a strictly larger ellipse (~42% too wide per axis at A=5, N=50;
     # ~2x the area), silently hiding genuine outliers.
     # ``n_components`` is still used above to bound the score indices.
-    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=2, n_rows=n_rows))
+    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=2, n_rows=n_rows, judged_rows=judged_rows))
     dt = 2 * np.pi / (n_points - 1)
     steps = np.linspace(0, n_points - 1, n_points)
     x = np.cos(steps * dt) * t2_limit_specific * s_h

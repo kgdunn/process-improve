@@ -63,6 +63,9 @@ from ._diagnostics import (
     vip as _vip,
 )
 from ._limits import (
+    JudgedRows,
+)
+from ._limits import (
     ellipse_coordinates as _ellipse_coordinates,
 )
 from ._limits import (
@@ -187,12 +190,18 @@ class _HotellingsT2LimitMixin:
         n_components_: int
         n_samples_: int
 
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
+    def hotellings_t2_limit(self, conf_level: float = 0.95, *, judged_rows: JudgedRows | None = None) -> float:
+        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`).
+
+        ``judged_rows`` is ``"fitted"`` to judge the rows the model was fitted to (its
+        ``hotellings_t2_``), or ``"new"`` to judge rows it was not fitted to. ``None`` gives the
+        ``"new"`` limit until 3.0 and the ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
+        """
         return _hotellings_t2_limit(
             conf_level=conf_level,
             n_components=self.n_components_,
             n_rows=self.n_samples_,
+            judged_rows=judged_rows,
         )
 
 
@@ -288,6 +297,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
         score_vert: int,
         conf_level: float = 0.95,
         n_points: int = 100,
+        *,
+        judged_rows: JudgedRows | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
         return _ellipse_coordinates(
@@ -298,4 +309,5 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
             n_components=self.n_components_,
             scaling_factor_for_scores=self.scaling_factor_for_scores_,
             n_rows=self.n_samples_,
+            judged_rows=judged_rows,
         )

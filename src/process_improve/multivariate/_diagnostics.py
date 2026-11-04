@@ -21,7 +21,8 @@ from scipy.stats import f as f_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
-from ._common import DataMatrix, _align_to_fit_features, epsqrt
+from .._linalg import safe_inverse
+from ._common import DataMatrix, _align_to_fit_features, components_with_spread, epsqrt
 from ._nipals import quick_regress, ssq
 from ._preprocessing import center
 from ._projection import project_rows
@@ -638,13 +639,10 @@ def _scores_and_guides(
 def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
     """Return the score standard deviations Hotelling's T² divides by, ``inf`` for a component it leaves out.
 
-    A component whose training score sd is at most ``epsqrt`` times the largest (or
-    ``epsqrt`` itself while every sd is below 1) holds none of the data's spread: the last
-    component of a rank-deficient fit has an sd near 1e-16, for instance. Its standardised
-    score is noise over noise for a training row and enormous for a new row off the model
-    plane, so it carries no T². A divisor of ``inf`` makes it add 0 for any finite score.
-    Every T² of PCA, PLS, MBPCA and MBPLS goes through this one rule, so a row gets the
-    same T² from ``fit`` as from ``diagnose`` or ``project``.
+    A component with no spread, by :func:`~process_improve.multivariate._common.components_with_spread`,
+    carries no T²: a divisor of ``inf`` makes it add 0 for any finite score. Every T² of PCA,
+    PLS, MBPCA and MBPLS goes through this one rule, so a row gets the same T² from ``fit`` as
+    from ``diagnose`` or ``project``.
 
     Parameters
     ----------
@@ -656,7 +654,35 @@ def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
     np.ndarray of shape (n_components,)
         ``score_sd``, with ``inf`` for each component left out.
     """
-    return np.where(score_sd > epsqrt * max(1.0, float(np.max(score_sd))), score_sd, np.inf)
+    return np.where(components_with_spread(score_sd), score_sd, np.inf)
+
+
+def t2_precision(covariance: np.ndarray, score_sd: np.ndarray, *, what: str) -> np.ndarray:
+    """Return the matrix ``S^-1`` of the T² ``t' S^-1 t`` for a full score covariance ``S`` (#1124).
+
+    A component with no spread, by the rule :func:`_t2_score_sd` applies to the training score
+    standard deviations ``score_sd``, gets a zero row and column, so it adds 0 to T², and the
+    inverse is taken over the other components only: their block of ``S``. The whole of ``S``
+    is singular when a component has no spread, since its scores are all about 0.
+
+    Parameters
+    ----------
+    covariance : np.ndarray of shape (n_components, n_components)
+        The score covariance ``S``.
+    score_sd : np.ndarray of shape (n_components,)
+        The model's training score standard deviations, which decide the components with spread.
+    what : str
+        What ``S`` is, for the error :func:`~process_improve._linalg.safe_inverse` raises when the
+        block of the components with spread is itself singular.
+
+    Returns
+    -------
+    np.ndarray of shape (n_components, n_components)
+    """
+    keep = np.flatnonzero(components_with_spread(score_sd))
+    precision = np.zeros_like(covariance, dtype=float)
+    precision[np.ix_(keep, keep)] = safe_inverse(covariance[np.ix_(keep, keep)], what=what)
+    return precision
 
 
 def cumulative_block_t2(scores: np.ndarray) -> np.ndarray:

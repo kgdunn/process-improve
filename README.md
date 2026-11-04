@@ -135,7 +135,7 @@ print(round(pca.spe_limit(conf_level=0.95), 1))  # 3.4
 
 # Which variables moved in run 54? All three belong to the second reactor zone
 print(pca.spe_contributions(new).loc[54].abs().nlargest(3).round(1).to_dict())  # {'z2': 5.9, 'Fi2': 3.1, 'Tcin2': 1.9}
-pca.score_plot()  # interactive Plotly figure
+pca.score_plot(judged_rows="fitted")  # interactive Plotly figure, its T² ellipse for the fitted runs
 ```
 
 ### How sure is this prediction?

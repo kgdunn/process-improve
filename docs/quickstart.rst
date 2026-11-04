@@ -33,15 +33,23 @@ PCA Example
    pca.loadings_  # Loading matrix (K x A)
    pca.r2_cumulative_  # Cumulative R² per component
 
-   # Diagnostics
-   pca.detect_outliers()
+   # Diagnostics: the T² limit for the rows the model was fitted to (see below)
+   pca.detect_outliers(judged_rows="fitted")
    pca.score_contributions(X_scaled, component=1)  # per-variable, sums to t1
 
    # Plots
-   pca.score_plot()
+   pca.score_plot(judged_rows="fitted")
    pca.loading_plot()
    pca.spe_plot()
-   pca.t2_plot()
+   pca.t2_plot(judged_rows="fitted")
+
+The rows a model was fitted to and new rows are judged against different
+Hotelling's T² limits: a fitted row helped estimate the centre and the spread
+of the scores, so it cannot lie as far out as a new row can. ``judged_rows``
+says which: ``"fitted"`` for ``hotellings_t2_``, a score plot or outlier
+detection, ``"new"`` for rows the model has not seen. Left out, it gives the
+limit for new rows until 3.0 and the one for fitted rows from 3.0, with a
+``FutureWarning`` until then.
 
 PLS Example
 -----------
@@ -66,10 +74,11 @@ PLS Example
    result = pls.diagnose(scaler_x.transform(X_new))
    result.y_hat  # Predicted Y
    result.spe  # SPE diagnostics
-   result.hotellings_t2  # Hotelling's T² diagnostics
+   result.cumulative_hotellings_t2  # Hotelling's T², one column per component
+   pls.hotellings_t2_limit(judged_rows="new")  # the limit for these new rows
 
    # Diagnostics
-   pls.detect_outliers()
+   pls.detect_outliers(judged_rows="fitted")
    pls.score_contributions(X_scaled, component=1)  # per-variable, sums to t1
 
 Component Selection

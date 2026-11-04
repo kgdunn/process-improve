@@ -1211,7 +1211,13 @@ def find_reference_batch(
                 "method": "pca_most_average",      # most average batch from a crude PCA
                 "n_components": 4,
                 "number_of_reference_batches": 1,  # only a single batch returned
+                "judged_rows": None,               # the T2 limit of the 90% screen
             }
+
+        ``"judged_rows"`` is passed to :meth:`PCA.hotellings_t2_limit` for the screen that
+        leaves out the batches above the 90% T2 limit. Those are the batches the PCA was
+        fitted to, so ``"fitted"`` gives their limit. ``None`` gives the limit for new rows
+        until 3.0 and the ``"fitted"`` one from 3.0, with a :class:`FutureWarning`.
 
     Returns
     -------
@@ -1261,7 +1267,8 @@ def find_reference_batch(
     pca_first = PCA(n_components=n_components).fit(mcuv)
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
-    hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90)
+    # These are the batches the model was fitted to; settings['judged_rows'] says which limit to use (#978).
+    hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90, judged_rows=settings.get("judged_rows"))
     to_keep = pca_first.hotellings_t2_.iloc[:, -1] < hotellings_t2_limit_90
 
     # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.

@@ -2372,7 +2372,7 @@ def test_pca_detect_outliers() -> None:
     pca = PCA(n_components=2).fit(X)
 
     # --- Basic contract ---
-    outliers = pca.detect_outliers(conf_level=0.95)
+    outliers = pca.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
     assert all(isinstance(o, dict) for o in outliers)
 
@@ -4203,7 +4203,7 @@ def test_pls_detect_outliers() -> None:
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    outliers = plsmodel.detect_outliers(conf_level=0.95)
+    outliers = plsmodel.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
 
     # Each outlier should be a dict with expected keys
@@ -4256,7 +4256,7 @@ def test_pls_detect_outliers_ldpe(
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    outliers = plsmodel.detect_outliers(conf_level=0.95)
+    outliers = plsmodel.detect_outliers(conf_level=0.95, judged_rows="fitted")
     assert isinstance(outliers, list)
 
     if len(outliers) > 0:
@@ -5608,7 +5608,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
+    expected_keys = ["hat", "t_scores_super", "cumulative_hotellings_t2", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
 
     # Test the predicted values are what were expected:
@@ -5729,7 +5729,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
+    expected_keys = ["hat", "t_scores_super", "cumulative_hotellings_t2", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
     assert predictions["spe"]["F"] is not None
@@ -6448,8 +6448,8 @@ def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative
         header = "LV #        R2: D      R2: Z      R2: F      R2: Y|    ms [iter]"
     rule = "------ ---------- ---------- ---------- ---------- -------------"
     lines = [
-        f"Hotelling's T2 limit [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
-        f"                     [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
+        f"Hotelling's T2 limit for new rows [95% limit]: {_tpls_t2_limit(0.95, n_components, n_rows):.4g}",
+        f"                                [99% limit]: {_tpls_t2_limit(0.99, n_components, n_rows):.4g}",
         rule,
         header,
         rule,
@@ -6595,7 +6595,14 @@ class TestTPLSWrittenOut:
             warnings.simplefilter("error")  # n4's F score is 0 / 0, and NaN without a word
             result = model.diagnose(DataFrameDict(copy.deepcopy(new)))
 
-        assert sorted(result) == ["hat", "hotellings_t2", "residuals", "spe", "t_scores_super"]
+        assert sorted(result) == [
+            "cumulative_hotellings_t2",
+            "hat",
+            "hotellings_t2",
+            "residuals",
+            "spe",
+            "t_scores_super",
+        ]
         index, components = new["F"]["A"].index, [1, 2, 3]
         assert np.isnan(by_hand["t"][4]).all()
         assert np.isfinite(by_hand["t"][:4]).all()
