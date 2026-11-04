@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import sklearn
 from scipy import sparse
+from sklearn.utils import Bunch
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
@@ -29,6 +30,7 @@ from scipy import sparse
 __all__ = [
     "Q2_MIN_INCREMENT",
     "DataMatrix",
+    "DiagnoseResult",
     "NotEnoughVarianceError",
     "SelectionRule",
     "SpecificationWarning",
@@ -292,6 +294,53 @@ def user_stacklevel() -> int:
         frame = frame.f_back
         level += 1
     return level
+
+
+class DiagnoseResult(Bunch):
+    """The :class:`~sklearn.utils.Bunch` a ``diagnose`` returns; reading its ``hotellings_t2`` warns (#983).
+
+    ``cumulative_hotellings_t2`` holds Hotelling's T² in one shape from every estimator: a
+    DataFrame with a row per diagnosed row and a column per component, column ``a`` holding the
+    T² over the first ``a`` components, as the fitted T² attribute does. ``hotellings_t2`` was
+    that DataFrame from PCA and TPLS, and its last column, a Series, from PLS, MBPLS and MBPCA.
+    It still holds what it did, until 3.0. Reading it by name, as an attribute, with ``[]`` or
+    with ``get``, gives a :class:`DeprecationWarning`; reading the whole result, as ``dict(result)``
+    or ``result.items()`` do, does not.
+
+    Parameters
+    ----------
+    estimator : str
+        The estimator's name under ``process_improve``, such as ``"multivariate.PLS"``, for the
+        warning.
+    **fields
+        The fields of the result.
+    """
+
+    def __init__(self, estimator: str, **fields: Any) -> None:  # noqa: ANN401 - a field of any type
+        super().__init__(**fields)
+        # Not a field: Bunch would store an attribute as a key.
+        self.__dict__["_estimator"] = estimator
+
+    def _warn_if_deprecated(self, key: object) -> None:
+        if key == "hotellings_t2":
+            # An unpickled result has no _estimator: Bunch.__setstate__ restores no attribute.
+            estimator = self.__dict__.get("_estimator", "multivariate model")
+            warnings.warn(
+                f"process_improve.{estimator}.diagnose(...).hotellings_t2 is deprecated since 2.4.0 and will be "
+                "removed in 3.0; use .cumulative_hotellings_t2 instead, which holds Hotelling's T² in the same "
+                "shape from every estimator: a column per component, cumulative, as the fitted T² attribute. "
+                "Its last column, .cumulative_hotellings_t2.iloc[:, -1], is the T² of the full model.",
+                category=DeprecationWarning,
+                stacklevel=user_stacklevel(),
+            )
+
+    def __getitem__(self, key: object) -> Any:  # noqa: ANN401 - a field of any type
+        self._warn_if_deprecated(key)
+        return super().__getitem__(key)
+
+    def get(self, key: object, default: Any = None) -> Any:  # noqa: ANN401 - as dict.get
+        self._warn_if_deprecated(key)
+        return super().get(key, default)
 
 
 class UncentredDataWarning(SpecificationWarning):

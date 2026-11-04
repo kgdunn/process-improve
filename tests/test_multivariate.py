@@ -5576,7 +5576,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test.diagnose(DataFrameDict(new_observation_raw))
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
+    expected_keys = ["hat", "t_scores_super", "cumulative_hotellings_t2", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
 
     # Test the predicted values are what were expected:
@@ -5697,7 +5697,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test_no_z.diagnose(new_observation_raw_no_z)
-    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe", "residuals"]
+    expected_keys = ["hat", "t_scores_super", "cumulative_hotellings_t2", "hotellings_t2", "spe", "residuals"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe"]["Z"] == {}
     assert predictions["spe"]["F"] is not None
@@ -6563,7 +6563,14 @@ class TestTPLSWrittenOut:
             warnings.simplefilter("error")  # n4's F score is 0 / 0, and NaN without a word
             result = model.diagnose(DataFrameDict(copy.deepcopy(new)))
 
-        assert sorted(result) == ["hat", "hotellings_t2", "residuals", "spe", "t_scores_super"]
+        assert sorted(result) == [
+            "cumulative_hotellings_t2",
+            "hat",
+            "hotellings_t2",
+            "residuals",
+            "spe",
+            "t_scores_super",
+        ]
         index, components = new["F"]["A"].index, [1, 2, 3]
         assert np.isnan(by_hand["t"][4]).all()
         assert np.isfinite(by_hand["t"][:4]).all()

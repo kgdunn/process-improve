@@ -28,6 +28,7 @@ from .._random import check_random_state
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
+    DiagnoseResult,
     NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
@@ -1220,10 +1221,16 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         (DataFrame, n_samples x n_components), ``block_scores`` (dict[str,
         DataFrame]), ``predictions`` (DataFrame on original Y scale),
         ``block_spe`` (dict[str, Series], per-block SPE of the new
-        observations) and ``hotellings_t2`` (Series of cumulative
-        Hotelling's T² over all components, per new observation). A row with
+        observations) and ``cumulative_hotellings_t2`` (DataFrame, n_samples x
+        n_components: column ``a`` holds the T² over the first ``a``
+        components, as in ``super_hotellings_t2_``; every ``diagnose`` of the
+        family returns it in this shape, #983). A row with
         nothing observed in a block has NaN for its block scores and its block
         SPE there, as in ``block_scores_`` and ``block_spe_``.
+
+        ``hotellings_t2``, the Series of the full model's T², is deprecated since
+        2.4.0 and is removed in 3.0; it is ``cumulative_hotellings_t2.iloc[:, -1]``,
+        and reading it warns.
 
         The rename (since 1.38.4, #395) matches :meth:`PLS.diagnose`
         and PCA.diagnose. The deprecated ``predict`` alias, which returned this
@@ -1564,15 +1571,17 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         }
         # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
         super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
-        hotellings_t2 = pd.Series(
-            np.sum((super_scores**2) / super_score_var, axis=1), index=sample_index, name="Hotelling's T²"
-        )
+        standardised = (super_scores**2) / super_score_var
+        cumulative = pd.DataFrame(np.cumsum(standardised, axis=1), index=sample_index, columns=component_names)
+        hotellings_t2 = pd.Series(np.sum(standardised, axis=1), index=sample_index, name="Hotelling's T²")
 
-        return Bunch(
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             super_scores=super_scores_df,
             block_scores=block_scores_df,
             predictions=predictions,
             block_spe=block_spe,
+            cumulative_hotellings_t2=cumulative,
             hotellings_t2=hotellings_t2,
         )
 

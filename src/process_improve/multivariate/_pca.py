@@ -29,6 +29,7 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
+    DiagnoseResult,
     NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
@@ -1419,19 +1420,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             With keys:
 
             - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
-            - ``hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
-              cumulative, so column ``a`` holds the T² over the first ``a``
-              components and the last column is the full model's, as in
-              ``hotellings_t2_``.
+            - ``cumulative_hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
+              Hotelling's T², cumulative, so column ``a`` holds the T² over the first ``a``
+              components and the last column is the full model's, as in ``hotellings_t2_``.
+              Every ``diagnose`` of the family returns it in this shape (#983).
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
-
-        Notes
-        -----
-        :meth:`PLS.diagnose` (and ``MBPLS`` / ``MBPCA.diagnose``) return
-        ``hotellings_t2`` as a ``pd.Series`` holding the full model's T² only.
-        ``hotellings_t2.iloc[:, -1]`` here is the same quantity. The two shapes
-        are kept as they are because each is public API; compare them through
-        the last column, not the whole object.
+            - ``hotellings_t2``: deprecated since 2.4.0, to be removed in 3.0;
+              the same DataFrame as ``cumulative_hotellings_t2``. Reading it warns.
         """
         X_arr, sample_index = self._validated_rows(X)
         scores = X_arr @ self._loadings
@@ -1444,8 +1439,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # SPE: residual after reconstruction
         residuals = X_arr - scores @ self._loadings.T
-        return Bunch(
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             scores=pd.DataFrame(scores, index=sample_index, columns=self._component_names),
+            cumulative_hotellings_t2=t2,
             hotellings_t2=t2,
             spe=pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=sample_index, name="SPE"),
         )

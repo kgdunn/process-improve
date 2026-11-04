@@ -919,7 +919,13 @@ class TestMBPCAWrittenOut:
         by_hand = _project_by_hand(_mbpca_written_out(blocks, 2), new)
         index, components = new["x"].index, [1, 2]
         result = model.diagnose(new)
-        assert sorted(result) == ["block_scores", "block_spe", "hotellings_t2", "super_scores"]
+        assert sorted(result) == [
+            "block_scores",
+            "block_spe",
+            "cumulative_hotellings_t2",
+            "hotellings_t2",
+            "super_scores",
+        ]
         _frames_near(result.super_scores, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
         _frames_near(model.transform(new), pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
         _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
@@ -2814,7 +2820,14 @@ class TestMBPLSNewRowsByHand:
             result = model.diagnose(new)
             from_arrays = model.diagnose({name: frame.to_numpy() for name, frame in new.items()})
             transformed, predicted = model.transform(new), model.predict(new)
-        assert sorted(result) == ["block_scores", "block_spe", "hotellings_t2", "predictions", "super_scores"]
+        assert sorted(result) == [
+            "block_scores",
+            "block_spe",
+            "cumulative_hotellings_t2",
+            "hotellings_t2",
+            "predictions",
+            "super_scores",
+        ]
         scores = pd.DataFrame(by_hand["t"], index=index, columns=components)
         assert scores.loc["n5"].isna().all()
         assert scores.drop(index="n5").notna().all().all()

@@ -382,7 +382,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         return Bunch(
             y_hat=y_hat.reindex(order),
             scores=diagnostics.scores.reindex(order),
-            hotellings_t2=diagnostics.hotellings_t2.reindex(order),
+            hotellings_t2=diagnostics.cumulative_hotellings_t2.iloc[:, -1].rename("Hotelling's T²").reindex(order),
             spe=diagnostics.spe.reindex(order),
         )
 

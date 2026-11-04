@@ -22,6 +22,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
+    DiagnoseResult,
     SpecificationWarning,
     _nz,
     _rows_with_data,
@@ -693,7 +694,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         return self._project(X).super_scores
 
     def diagnose(self, X: dict[str, pd.DataFrame]) -> Bunch:
-        """Project new data; return super_scores, block_scores, block_spe, hotellings_t2.
+        """Project new data; return super_scores, block_scores, block_spe, cumulative_hotellings_t2.
+
+        ``cumulative_hotellings_t2`` is a DataFrame, n_samples x n_components: column ``a``
+        holds the T² over the first ``a`` components, as in ``super_hotellings_t2_``; every
+        ``diagnose`` of the family returns it in this shape (#983). ``hotellings_t2``, the
+        Series of the full model's T², is deprecated since 2.4.0 and is removed in 3.0; it is
+        ``cumulative_hotellings_t2.iloc[:, -1]``, and reading it warns.
 
         The rename (since 1.38.4, #395) matches :meth:`PCA.diagnose` and
         :meth:`PLS.diagnose`. The deprecated ``predict`` alias was removed in
@@ -769,13 +776,15 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         }
         # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
         super_score_var = _t2_score_sd(np.sqrt(self.explained_variance_)) ** 2
-        hotellings_t2 = pd.Series(
-            np.sum((super_scores**2) / super_score_var, axis=1), index=sample_index, name="Hotelling's T²"
-        )
-        return Bunch(
+        standardised = (super_scores**2) / super_score_var
+        cumulative = pd.DataFrame(np.cumsum(standardised, axis=1), index=sample_index, columns=component_names)
+        hotellings_t2 = pd.Series(np.sum(standardised, axis=1), index=sample_index, name="Hotelling's T²")
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             super_scores=super_scores_df,
             block_scores=block_scores_df,
             block_spe=block_spe,
+            cumulative_hotellings_t2=cumulative,
             hotellings_t2=hotellings_t2,
         )
 

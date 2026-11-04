@@ -30,6 +30,7 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
+    DiagnoseResult,
     NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
@@ -504,7 +505,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             out = self.diagnose(pd.DataFrame(rows, columns=list(self._feature_names)))
             scores, y_hat = out.scores.to_numpy(dtype=float), out.y_hat.to_numpy(dtype=float)
             spe = out.spe.to_numpy(dtype=float)[:, None]
-            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], out.hotellings_t2.to_numpy(dtype=float), spe
+            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
+            return scores, y_hat, [out.residuals.to_numpy(dtype=float)], t2, spe
 
         return Probe(
             names=names, y_names=tuple(str(n) for n in self.beta_coefficients_.columns), groups={},
@@ -1331,21 +1333,19 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             With keys:
 
             - ``scores`` (pd.DataFrame, ``(n_samples, n_components)``).
-            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): T² of the full
-              model, the last column of the fitted ``hotellings_t2_``.
+            - ``cumulative_hotellings_t2`` (pd.DataFrame, ``(n_samples, n_components)``):
+              Hotelling's T², cumulative, so column ``a`` holds the T² over the first ``a``
+              components and the last column is the full model's, as in ``hotellings_t2_``.
+              Every ``diagnose`` of the family returns it in this shape (#983).
             - ``spe`` (pd.Series, ``(n_samples,)``): SPE of the full model.
             - ``y_hat`` (pd.DataFrame, ``(n_samples, n_targets)``): the
               predictions, on the original Y scale.
             - ``residuals`` (pd.DataFrame, ``(n_samples, n_features)``): what
               is left of each row after the components, in the scaled space
               the model was fitted in; ``spe`` is the length of each row.
-
-        Notes
-        -----
-        :meth:`PCA.diagnose` returns ``hotellings_t2`` as a cumulative
-        ``pd.DataFrame`` with one column per component, of which the last is
-        this Series. The two shapes are kept as they are because each is public
-        API; compare them through that last column.
+            - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): deprecated since
+              2.4.0, to be removed in 3.0; the T² of the full model, which is
+              ``cumulative_hotellings_t2.iloc[:, -1]``. Reading it warns.
 
         See Also
         --------
@@ -1356,16 +1356,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result = pls.diagnose(scaler_x.transform(X_new))
         >>> result.y_hat           # Predicted Y values
         >>> result.spe             # SPE for each new observation
-        >>> result.hotellings_t2   # T² for each new observation
+        >>> result.cumulative_hotellings_t2.iloc[:, -1]   # T² for each new observation
         """
         # Scores, T², SPE and y_hat are all computed in the space the model was fitted in.
         X = self._scaled_rows(X)
         scores = X @ self.direct_weights_
 
-        # Hotelling's T² (cumulative over all components), leaving out a component fit leaves out (#1026)
+        # Hotelling's T², leaving out a component fit leaves out (#1026): cumulative over the
+        # components, as in hotellings_t2_, and the full model's, the deprecated Series (#983).
+        standardised = pd.DataFrame((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2)
+        cumulative = standardised.cumsum(axis=1)
         # A Series of the scores' row labels: the DataFrame's row sums carry them.
-        t2 = pd.Series(((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2).sum(axis=1))
-        t2.name = "Hotelling's T²"
+        t2 = standardised.sum(axis=1).rename("Hotelling's T²")
 
         # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
         # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
@@ -1378,8 +1380,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Y predictions (computed in scaled-Y space; mapped back to original units)
         y_hat = self._in_y_units(scores @ self.y_loadings_.T)
 
-        return Bunch(
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             scores=scores,
+            cumulative_hotellings_t2=cumulative,
             hotellings_t2=t2,
             spe=spe_values,
             y_hat=y_hat,
@@ -2997,7 +3001,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         diagnostics = self.diagnose(X)
         y_hat = diagnostics.y_hat
-        t2_new = diagnostics.hotellings_t2.to_numpy()
+        t2_new = diagnostics.cumulative_hotellings_t2.iloc[:, -1].to_numpy()
 
         n_samples = self.n_samples_
         n_components = int(self.n_components_)

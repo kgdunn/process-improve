@@ -30,6 +30,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from ._common import (
+    DiagnoseResult,
     _model_method,
     _nz,
     check_at_least_one,
@@ -466,7 +467,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             y = np.hstack([out.hat[g].to_numpy(dtype=float) for g in self.quality_names])
             residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g, _ in columns]
             spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g, _ in columns])
-            t2 = out.hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
+            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
             return out.t_scores_super.to_numpy(dtype=float), y, residual, t2, spe
 
         def preproc(key: str, block: str, group: str, cols: list[str]) -> np.ndarray:
@@ -750,9 +751,13 @@ class TPLS(RegressorMixin, BaseEstimator):
               squared prediction error for the ``"Z"`` and ``"F"`` blocks,
               keyed first by block name and then by group; each inner
               DataFrame has shape ``(n_new, n_components)``.
-            - ``hotellings_t2`` (DataFrame, shape
+            - ``cumulative_hotellings_t2`` (DataFrame, shape
               ``(n_new, n_components)``) : cumulative Hotelling's T² per
-              new observation after each component.
+              new observation after each component, as in ``hotellings_t2``,
+              the fitted attribute. Every ``diagnose`` of the family returns it
+              in this shape (#983).
+            - ``hotellings_t2`` : deprecated since 2.4.0, to be removed in 3.0;
+              the same DataFrame as ``cumulative_hotellings_t2``. Reading it warns.
             - ``residuals`` (dict[str, dict[str, DataFrame]]) : what is left of
               each ``"Z"`` and ``"F"`` group after all the components, in the
               preprocessed (centred and scaled) units, keyed like ``spe``. The
@@ -843,7 +848,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
         # The T2 values, with the same cumulative per-component form (and the same rank-deficiency
         # guard) as ``fit`` stores in ``self.hotellings_t2``, so the two agree for the same rows (#502).
-        return Bunch(
+        t2 = pd.DataFrame(self._cumulative_hotellings_t2(scores), index=names_observations, columns=components)
+        return DiagnoseResult(
+            f"multivariate.{type(self).__name__}",
             hat=hat,
             t_scores_super=pd.DataFrame(scores, index=names_observations, columns=components),
             spe={
@@ -853,9 +860,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 }
                 for block in ("Z", "F")
             },
-            hotellings_t2=pd.DataFrame(
-                self._cumulative_hotellings_t2(scores), index=names_observations, columns=components
-            ),
+            cumulative_hotellings_t2=t2,
+            hotellings_t2=t2,
             # The blocks as deflated by the last component: the vectors whose lengths are SPE, for optimal inversion.
             residuals={
                 "F": {
