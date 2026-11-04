@@ -374,7 +374,8 @@ _PRESCALED_SD_ATOL: float = 0.05
 
 def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
     """Return the NaN-skipping column means and sample (``ddof=1``) standard deviations."""
-    values = np.asarray(pd.DataFrame(X), dtype=float)
+    # to_numpy, not np.asarray: it reads a nullable column's pd.NA as NaN, which np.asarray refuses.
+    values = pd.DataFrame(X).to_numpy(dtype=float)
     with warnings.catch_warnings():
         # All-NaN and single-observation columns raise numpy RuntimeWarnings;
         # both are filtered out by the callers below. Nothing else here warns.

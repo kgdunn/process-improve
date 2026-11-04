@@ -306,6 +306,26 @@ class NotEnoughVarianceError(RuntimeError):
     """
 
 
+def check_variance_left(block: str, values: np.ndarray, extracted: int, size: float) -> None:
+    """Refuse component ``extracted + 1`` when ``block`` has no variance left, relative to its size.
+
+    ``size`` is the block's norm before the first component. The floor is relative to it, as OPLS
+    judges it, so the same data in smaller units are not taken for none (#1070). PLS judges X and Y
+    this way before every component, and MBPLS judges Y (#1128), so a Y that is fitted exactly is
+    refused by both, in the same words. Missing cells are left out of the sum.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If ``block`` has no variance left.
+    """
+    if np.sqrt(np.nansum(values**2)) <= epsqrt * size:
+        raise NotEnoughVarianceError(
+            f"There is no variance left in the data array for {block}: cannot compute any more components "
+            f"beyond component {extracted}."
+        )
+
+
 def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.DataFrame:
     """Validate and align new-data columns against the features seen during ``fit``.
 

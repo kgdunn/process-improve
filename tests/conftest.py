@@ -30,12 +30,16 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 import warnings
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 import pytest
+from xdist import workermanage
 
 from tests._selection import affected_test_files, assign_shard, load_durations
 
@@ -43,18 +47,42 @@ ROOT = Path(__file__).resolve().parents[1]
 DURATIONS = Path(__file__).with_name(".test_durations.json")
 #: The thread counts of OpenBLAS, OpenMP and MKL, which each library reads when it loads.
 ONE_THREAD = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
+#: xdist's function that turns a worker's serialised warning back into a ``WarningMessage``.
+Rebuild = Callable[[dict[str, Any]], warnings.WarningMessage]
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Run the BLAS of each xdist worker on one thread, unless the environment already sets a count.
+    """Run each xdist worker's BLAS on one thread, and rebuild the workers' warnings one at a time.
 
     ``-n auto`` starts one worker per core, and each worker's BLAS would start a pool as wide again:
     sixteen threads on a four-core runner, which made the BLAS-heavy tests about a fifth slower. A
-    worker loads no BLAS before this hook runs, so the variables take effect.
+    worker loads no BLAS before this hook runs, so the variables take effect, unless the environment
+    already sets a count.
+
+    The controller rebuilds each warning a worker reports by importing the module that defines its
+    class, on a thread of that worker's own. When two workers report warnings from two packages the
+    controller has not imported yet (this library's ``SpecificationWarning`` and scikit-learn's
+    ``ConvergenceWarning``, say), the two threads import at the same moment and can deadlock in the
+    import system or meet a half-initialised pandas. The worker then goes down and its test counts as
+    failed (#1137). A lock makes the threads rebuild, and so import, one after the other.
     """
     if hasattr(config, "workerinput"):
         for name in ONE_THREAD:
             os.environ.setdefault(name, "1")
+    else:
+        # shortcut: replaces a function of pytest-xdist 3.8; remove it once xdist rebuilds warnings under a lock.
+        workermanage.unserialize_warning_message = _one_at_a_time(workermanage.unserialize_warning_message)
+
+
+def _one_at_a_time(rebuild: Rebuild) -> Rebuild:
+    """``rebuild`` behind a lock, so that no two threads run it at once."""
+    lock = threading.Lock()
+
+    def rebuild_alone(data: dict[str, Any]) -> warnings.WarningMessage:
+        with lock:
+            return rebuild(data)
+
+    return rebuild_alone
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

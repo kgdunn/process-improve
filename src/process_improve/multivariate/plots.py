@@ -1387,9 +1387,10 @@ def predictions_vs_observed_plot(
 
     observed = y_observed[variable].to_numpy(dtype=float)
     predicted = model.predictions_[variable].to_numpy(dtype=float)
-    rmse = float(np.sqrt(np.mean((observed - predicted) ** 2)))
-    lo = float(min(observed.min(), predicted.min()))
-    hi = float(max(observed.max(), predicted.max()))
+    # Over the observed cells, as PLS.rmse_ is: a missing Y cell made the RMSE and the axis range NaN.
+    rmse = float(np.sqrt(np.nanmean((observed - predicted) ** 2)))
+    drawn = np.concatenate([observed, predicted])
+    lo, hi = float(np.nanmin(drawn)), float(np.nanmax(drawn))
     pad = 0.05 * (hi - lo) if hi > lo else 1.0
 
     class Settings(BaseModel):
