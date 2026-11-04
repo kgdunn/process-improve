@@ -85,6 +85,11 @@ if TYPE_CHECKING:
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
 SPEC_VERSION = 1
+#: The sheet that holds each run's curve, when the study reads one: a row per run and a column per point.
+CURVE_SHEET = "Curves"
+#: The run sheet's order columns; the Curves sheet repeats them, so the reader sees which run each row is.
+RUN_ORDER = "Run order"
+ORDERS = ("Std order", RUN_ORDER)
 
 #: The run sheet's column marking simulated results. Its space keeps it apart from every factor
 #: and response, which must be variable names; workbooks written before used ``Source``.
@@ -2534,18 +2539,27 @@ def _outside_range(runs: pd.DataFrame, factors: list[Factor]) -> list[str]:
     return [f.name for f in numeric if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
 
 
-def _to_workbook(runs: pd.DataFrame, spec: dict) -> str:
-    """Write the run sheet and the hidden specification sheet, base64-encoded."""
+def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = None) -> str:
+    """Write the run sheet and the hidden specification sheet, base64-encoded; and the curves, when the study reads one.
+
+    The Curves sheet has a row per run, in the run sheet's order and with its run order, and a column per
+    point along the curve, headed by its value.
+    """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         runs.to_excel(xl, sheet_name=RUN_SHEET, index=False)
         pd.DataFrame({"spec": [json.dumps(spec)]}).to_excel(xl, sheet_name=SPEC_SHEET, index=False)
         xl.book[SPEC_SHEET].sheet_state = "hidden"
         xl.book[RUN_SHEET].freeze_panes = "A2"
+        if curves is not None:
+            orders = runs[[c for c in ORDERS if c in runs.columns]].reset_index(drop=True)
+            points = pd.DataFrame(curves, columns=spec["curve"]["argument"]["values"])
+            pd.concat([orders, points], axis=1).to_excel(xl, sheet_name=CURVE_SHEET, index=False)
+            xl.book[CURVE_SHEET].freeze_panes = "A2"
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict]:
+def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict, pd.DataFrame | None]:
     try:
         sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, engine="openpyxl")
     except Exception as exc:  # openpyxl raises several unrelated types on a bad file
@@ -2555,7 +2569,32 @@ def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict]:
     spec = json.loads(str(sheets[SPEC_SHEET]["spec"].iloc[0]))
     if spec.get("version") != SPEC_VERSION:
         raise ValueError("This workbook was made by a different version of the page.")
-    return sheets[RUN_SHEET], spec
+    return sheets[RUN_SHEET], spec, sheets.get(CURVE_SHEET)
+
+
+def _curves_read(sheet: pd.DataFrame | None, curve: dict, runs: pd.DataFrame) -> list[list[float | None] | None]:
+    """Read each run's curve back from the Curves sheet: None for a run whose row is blank, None for a blank point.
+
+    A row belongs to the run of its run order, so a sheet sorted in Excel still finds its runs; without run
+    orders, the rows are the runs in the run sheet's order.
+    """
+    if sheet is None:
+        return [None] * len(runs)
+    columns = [c for c in sheet.columns if _number(c) is not None]
+    points = curve["argument"]["values"]
+    if len(columns) != len(points) or not np.allclose([float(c) for c in columns], points, rtol=1e-9):
+        raise ValueError("The Curves sheet's columns are not the points along the curve this study reads it at.")
+    values = sheet[columns].apply(pd.to_numeric, errors="coerce")
+    if RUN_ORDER in sheet.columns and RUN_ORDER in runs.columns:
+        values.index = pd.to_numeric(sheet[RUN_ORDER], errors="coerce")
+        if values.index.has_duplicates:
+            raise ValueError("The Curves sheet lists one run order twice: each run has one row there.")
+        values = values.reindex(pd.to_numeric(runs[RUN_ORDER], errors="coerce"))
+    elif len(values) != len(runs):
+        raise ValueError(f"The Curves sheet has {len(values)} rows for {len(runs)} runs.")
+    return [
+        None if row.isna().all() else [None if pd.isna(v) else float(v) for v in row] for _, row in values.iterrows()
+    ]
 
 
 def analyze(request: dict) -> dict:
@@ -2566,7 +2605,7 @@ def analyze(request: dict) -> dict:
     Rows with an empty response are left out and reported, so a partly filled
     workbook can be analysed as the runs come in.
     """
-    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    runs, stored, _ = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
     # analyse, by its column; the first without it.
     checked = _checked_spec(stored)
@@ -4270,9 +4309,10 @@ def read_workbook(request: dict) -> dict:
     The first response's results and their sources are ``responses`` and ``sources``, as for a study of
     one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
     A run the workbook marks as simulated has every result it holds marked so. ``what_if`` holds the settings
-    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`).
+    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`). A study
+    that reads a curve has each run's in ``curves``, from the Curves sheet (see :func:`_curves_read`).
     """
-    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    runs, stored, curve_sheet = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
     names = [r["name"] for r in _responses(spec)]
     if missing := next((name for name in names if name not in runs.columns), None):
@@ -4304,6 +4344,8 @@ def read_workbook(request: dict) -> dict:
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
     if stored.get("what_if"):
         reply["what_if"] = _kept_settings(stored["what_if"])
+    if spec.get("curve") is not None:
+        reply["curves"] = _curves_read(curve_sheet, spec["curve"], runs)
     return reply
 
 
@@ -4367,7 +4409,8 @@ def workbook(request: dict) -> dict:
 
     A run is marked simulated when every result it holds is: ``sources`` holds the first
     response's sources, and ``more_sources`` each later response's, by its column. The settings the
-    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too.
+    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too. A
+    study that reads a curve has each run's ``curves`` on a sheet of their own.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
@@ -4394,7 +4437,11 @@ def workbook(request: dict) -> dict:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
     if request.get("what_if"):
         spec = {**spec, "what_if": _kept_settings(request["what_if"])}
-    return {"xlsx_base64": _to_workbook(runs, spec)}
+    curves = None
+    if spec.get("curve") is not None:
+        points = len(spec["curve"]["argument"]["values"])
+        curves = _curves_sent(request.get("curves") or [None] * len(runs), len(runs), points)
+    return {"xlsx_base64": _to_workbook(runs, spec, curves)}
 
 
 def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
@@ -7571,6 +7618,7 @@ def functional(request: dict) -> dict:
     its level in ``held``. shortcut: the search ignores the limits on the settings; keep to them there
     once a study with both limits and curves needs it.
     """
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
     from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
     spec = _checked_spec(request.get("spec") or {})
@@ -7618,6 +7666,7 @@ def functional(request: dict) -> dict:
             for name, row in result.components.iterrows()
         ],
         "notes": fit["notes"],
+        "plotly_js": get_plotlyjs_version(),
     }
     if request.get("target") is not None:
         reply["match"] = _matched(result, request, spec, grid.size)

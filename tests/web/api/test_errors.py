@@ -14,6 +14,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
+import pandas as pd
 import pytest
 
 from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic
@@ -141,6 +142,16 @@ def _curved(held: str = "held", curve: object = CURVED, **change: object) -> Cal
         return {**sent, "spec": {**sent["spec"], "curve": curve}, "curves": curves, **change}
 
     return payload
+
+
+def _curve_sheet(make: Callable[[pd.DataFrame], pd.DataFrame]) -> Callable[[dict], None]:
+    """Describe a curve read at three times in the stored specification, and give the workbook a Curves sheet."""
+
+    def edit(sheets: dict) -> None:
+        _stored(curve=CURVED)(sheets)
+        sheets["Curves"] = make(sheets["Runs"])
+
+    return edit
 
 
 def _typed(*limits: str, factors: list[dict] = FACTORS, **change: object) -> Callable[[Example], dict]:
@@ -1240,6 +1251,21 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_functional",
         lambda ex: {**_curved("supplied")(ex), "model": "main_effects", "target": [0, 1, 2], "held": {"S": "Z"}},
         "S at Z is none of its levels, A and B.",
+    ),
+    "curves: a Curves sheet read at other points": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda runs: pd.DataFrame({"Run order": runs["Run order"], 0: 0.0, 1: 1.0, 5: 2.0}))),
+        "The Curves sheet's columns are not the points along the curve this study reads it at.",
+    ),
+    "curves: a Curves sheet that lists a run twice": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda runs: pd.DataFrame({"Run order": 1, 0: 0.0, 1: [1.0] * len(runs), 2: 2.0}))),
+        "The Curves sheet lists one run order twice: each run has one row there.",
+    ),
+    "curves: a Curves sheet without run orders, short of runs": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda _: pd.DataFrame({0: [0.0], 1: [1.0], 2: [2.0]}))),
+        "The Curves sheet has 1 rows for 15 runs.",
     ),
 }
 

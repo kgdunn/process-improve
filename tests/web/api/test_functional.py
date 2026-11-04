@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import analyze_functional_experiment
-from tests.web._support import coded, held_of, run_sheet
+from tests.web._support import coded, edit_workbook, held_of, javascript, run_sheet, sheets_of, source
 
 TIME = np.linspace(0, 10, 11)
 CURVE = {"label": "Colour", "units": "AU", "argument": {"label": "Time", "units": "min", "values": TIME.tolist()}}
@@ -100,3 +100,38 @@ def test_a_categorical_factor_is_held_at_its_level_while_the_rest_are_searched(a
     assert match["match"]["settings"]["Catalyst"] == "B"
     assert match["match"]["settings"]["T"] == pytest.approx(made["T"], abs=6)
     assert [name for term in match["terms"] for name in term if name.startswith("Catalyst")]
+
+
+def test_the_curves_go_out_in_a_workbook_and_come_back_to_their_runs_however_its_rows_are_sorted(api, held):
+    request = with_curves(held)
+    request["curves"][2] = None  # a run still to do
+    request["curves"][3][4] = None  # a point a run missed
+    xlsx = api.ok("api_workbook", request)["xlsx_base64"]
+    sheets = sheets_of(xlsx)
+    assert list(sheets["Curves"].columns) == ["Std order", "Run order", *TIME.tolist()]
+    assert api.ok("api_read_workbook", {"xlsx_base64": xlsx})["curves"] == request["curves"]
+
+    def reverse(sheets: dict) -> None:
+        sheets["Curves"] = sheets["Curves"].iloc[::-1]  # sorted in Excel, from the last run to the first
+
+    back = api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(xlsx, reverse)})
+    assert back["curves"] == request["curves"]
+    assert api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(xlsx, lambda s: s.pop("Curves"))})["curves"] == [
+        None
+    ] * len(request["curves"])
+
+
+def test_the_page_draws_the_curve_and_both_its_bands_as_the_library_predicts_them(api, held, node):
+    request = with_curves(held)
+    reply = api.ok("api_functional", request)
+    module = source("best.js")
+    (columns,) = javascript(node, module, [("columnsAt", [reply["factors"], {"T": 185.0, "P": 1.4, "F": 12.0}])])
+    (drawn,) = javascript(node, module, [("curveAt", [reply, columns])])
+    design = coded(run_sheet(held), held["spec"]["factors"])
+    fit = analyze_functional_experiment(design, pd.DataFrame(request["curves"], columns=TIME), model=reply["formula"])
+    point = pd.DataFrame([{name: columns[name] for name in ("T", "P", "F")}])
+    bands = fit.predict(point, n_bootstrap=200, random_state=0)
+    assert drawn["curve"] == pytest.approx(bands["curve"].iloc[0].tolist(), rel=1e-5)
+    assert drawn["pointwise"][0] == pytest.approx(bands["pointwise_low"].iloc[0].tolist(), rel=1e-4)
+    assert drawn["simultaneous"][1] == pytest.approx(bands["simultaneous_high"].iloc[0].tolist(), rel=1e-4)
+    assert drawn["critical"] == pytest.approx(bands["critical_value"].iloc[0], rel=1e-4)

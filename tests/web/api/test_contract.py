@@ -15,6 +15,7 @@ import sys
 import types
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pytest
 
 from tests.web._support import FACTORS, held_of, source
@@ -741,6 +742,22 @@ READS: dict[str, list[str]] = {
     "predictors refused": ["responses[].error: str"],
     "mixture predictors": ["mixture: bool", "factors: list", "responses: list"],
     "limits broken": ["broken[].index: int", "broken[].expression: str"],
+    "curves": [
+        "points[]: number",
+        "runs: int",
+        "terms[].[]: str",
+        "mean[]: number",
+        "map[].[]: number",
+        "replicates[].mean[]: number",
+        "replicates[].map[].[]: number",
+        "t: number",
+        "widening: number",
+        "level: number",
+        "components[].kept: bool",
+        "plotly_js: str",
+    ],
+    "curves matched to a target": ["match.settings: dict"],
+    "upload of curves": ["curves[]: list?"],
 }
 
 #: The entry point each reply comes from.
@@ -802,13 +819,16 @@ ENTRY_POINTS = {
     "picture": "api_limits",
     "curved picture": "api_limits",
     "curved slice": "api_limits",
+    "curves": "api_functional",
+    "curves matched to a target": "api_functional",
+    "upload of curves": "api_read_workbook",
 }
 
 #: Entry points the page does not call: ``api_analyze`` analyses a workbook in one call, for the
 #: tests (``tests/web/wasm`` among them) and for scripted use; the page reads a workbook and then
 #: analyses its runs. ``api_compare_plan`` and ``api_compare`` are the two halves of
 #: ``api_candidates``, which the page calls once for both.
-NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare", "api_functional"}
+NOT_CALLED_BY_THE_PAGE = {"api_analyze", "api_compare_plan", "api_compare"}
 
 #: Three responses, as the brief lists them: a yield to maximise, a cost to minimise and a purity with a target.
 THREE = [
@@ -995,6 +1015,15 @@ def logged(analysed: dict) -> dict:
     return {**analysed, "spec": spec, "model": "main_effects"}
 
 
+def curved(held: dict) -> dict:
+    """Return the runs held, each giving a curve read at three times, which T raises and P bends."""
+    rng = np.random.default_rng(3)
+    rows = [dict(zip(held["columns"], row, strict=True)) for row in held["rows"]]
+    curves = [[0.0, 1 + (r["T"] - 175) / 50, 1.5 + (r["P"] - 2) / 4 + rng.normal(0, 0.01)] for r in rows]
+    curve = {"label": "Colour", "argument": {"label": "Time", "values": [0, 5, 10]}}
+    return {**held, "spec": {**held["spec"], "curve": curve}, "curves": curves}
+
+
 @pytest.fixture(scope="module")
 def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
     """Return the result of each kind of request, made once, when a test first asks for it.
@@ -1124,6 +1153,9 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "predictors refused": lambda: {**levels(api), "models": {"y": {"terms": [["Catalyst", "S"]]}}},
         "mixture predictors": lambda: blend(3),
         "limits broken": lambda: {"spec": on_a_limit()["spec"], "settings": {"T": 200, "P": 3, "F": 20}},
+        "curves": lambda: curved(held),
+        "curves matched to a target": lambda: {**curved(held), "target": [0.0, 1.2, 1.6]},
+        "upload of curves": lambda: api.ok("api_workbook", curved(held)),
     }
     return functools.cache(lambda kind: api.ok(ENTRY_POINTS[kind], requests[kind]()))
 
