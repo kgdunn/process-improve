@@ -381,10 +381,10 @@ export function withConfirmationRuns(design, at, count = CONFIRMATION_RUNS) {
  * Take a run sheet's confirmation runs away, with their results and sources, and its confirmation column with them.
  * ``results`` and ``marks`` hold each response's results and their sources, by its column.
  */
-export function withoutConfirmationRuns(design, results, marks) {
+export function withoutConfirmationRuns(design, results, marks, curves = null) {
   const { columns, rows, kept } = designRows(design);
   const keep = (byName) => Object.fromEntries(Object.entries(byName).map(([name, values]) => [name, values.filter((_, i) => kept[i])]));
-  return { columns, rows, results: keep(results), marks: keep(marks) };
+  return { columns, rows, results: keep(results), marks: keep(marks), curves: curves && curves.filter((_, i) => kept[i]) };
 }
 
 /** Whether a run sheet holds confirmation runs at these settings already, the settings ``at`` as the page adds them. */
@@ -637,6 +637,39 @@ export function predictAt(fit, columns) {
 function putBackAt(at, transform) {
   if (!transform) return at;
   return { ...at, ...Object.fromEntries(["predicted", "confidence", "prediction"].map((key) => [key, putBack(at[key], transform)])) };
+}
+
+/**
+ * A curve predicted at the columns of some settings (see columnsAt), from its fit as bootstrap.functional sends it,
+ * with the 95% bands the library's FunctionalFit.predict gives there. The curve is ``mean`` plus the model row times
+ * ``map``, at each of ``points``; each bootstrap replicate's is the same from its own. The band at each point is the
+ * curve plus or minus ``t`` times the replicates' standard deviation there. The band over the whole curve takes the
+ * ``level`` quantile of each replicate's largest departure, in those standard deviations, times ``widening``.
+ */
+export function curveAt(fit, columns) {
+  const row = fit.terms.map((parts) => parts.reduce((product, name) => product * columns[name], 1));
+  const along = (mean, map) => mean.map((m, g) => row.reduce((sum, x, j) => sum + x * map[j][g], m));
+  const curve = along(fit.mean, fit.map);
+  const replicates = fit.replicates.map((r) => along(r.mean, r.map));
+  const error = curve.map((_, g) => spread(replicates.map((r) => r[g])));
+  const largest = replicates.map((r) => Math.max(...r.map((v, g) => (error[g] > 0 ? Math.abs(v - curve[g]) / error[g] : 0))));
+  const critical = fit.widening * quantile(largest, fit.level);
+  const band = (k) => [curve.map((c, g) => c - k * error[g]), curve.map((c, g) => c + k * error[g])];
+  return { curve, error, pointwise: band(fit.t), simultaneous: band(critical), critical };
+}
+
+/** The standard deviation of some numbers, about their mean, over one fewer than there are. */
+function spread(values) {
+  const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+  return Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1));
+}
+
+/** The ``q`` quantile of some numbers, between the two nearest by a straight line, as numpy's quantile gives it. */
+function quantile(values, q) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (sorted.length - 1) * q;
+  const low = Math.floor(at);
+  return low + 1 < sorted.length ? sorted[low] + (at - low) * (sorted[low + 1] - sorted[low]) : sorted[low];
 }
 
 /**

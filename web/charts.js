@@ -991,3 +991,46 @@ export function blendOverlayFigure(overlay, responses, colours = palette()) {
     height: 440 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
   };
 }
+
+// ---------------------------------------------------------------- a curve each run gives
+/** What the curve chart's legend calls each line, and the band it shades. */
+export const CURVE_LINES = {
+  curve: "Predicted curve",
+  pointwise: "95% band at each point",
+  simultaneous: "95% band over the whole curve",
+  target: "Target",
+};
+
+/**
+ * A curve predicted at the what-if panel's settings (best.js curveAt), over the ``points`` along it: the curve, the
+ * 95% band at each point shaded, and the band over the whole curve dashed. ``words`` holds the curve's label and
+ * units and the points' (``along``, ``alongUnits``). A ``target`` the reader gave, ``{points, values}``, is dotted,
+ * with a gap where it has no value.
+ */
+export function curveFigure(points, predicted, words, target = null, colours = palette()) {
+  const { label = "Curve", units = "", along = "Along the curve", alongUnits = "" } = words;
+  const shade = withAlpha(colours.accent, 0.22);
+  const line = (name, x, y, style, more = {}) => ({ type: "scatter", mode: "lines", name, x, y, line: style, hoverinfo: "skip", ...more });
+  const edge = { color: colours.accent, width: 1, dash: "dash" };
+  const data = [
+    line(CURVE_LINES.pointwise, points, predicted.pointwise[0], { width: 0, color: shade }, { showlegend: false }),
+    line(CURVE_LINES.pointwise, points, predicted.pointwise[1], { width: 0, color: shade }, { fill: "tonexty", fillcolor: shade }),
+    line(CURVE_LINES.simultaneous, points, predicted.simultaneous[0], edge, { legendgroup: "whole" }),
+    line(CURVE_LINES.simultaneous, points, predicted.simultaneous[1], edge, { legendgroup: "whole", showlegend: false }),
+    {
+      ...line(CURVE_LINES.curve, points, predicted.curve, { color: colours.accent, width: 2.5 }),
+      hoverinfo: undefined,
+      hovertemplate: "%{x:.4g}: %{y:.4g}<extra></extra>",
+    },
+  ];
+  if (target) data.push(line(CURVE_LINES.target, target.points, target.values, { color: colours.fg, width: 2, dash: "dot" }, { connectgaps: false }));
+  return {
+    data,
+    layout: {
+      xaxis: { title: { text: withUnits(along, alongUnits) } },
+      yaxis: { title: { text: withUnits(label, units) } },
+      legend: LEGEND_ABOVE,
+      showlegend: true,
+    },
+  };
+}

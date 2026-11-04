@@ -3,7 +3,8 @@ Functional responses in designed experiments (investigation)
 
 Status: the first two bullets under "Proposed library surface" are implemented, as
 :class:`process_improve.multivariate.FPCA` and
-:func:`process_improve.experiments.analyze_functional_experiment`; the rest is proposed. This note records
+:func:`process_improve.experiments.analyze_functional_experiment`, and so is the browser app's part as
+"Browser app" below describes it; registration is not. This note records
 how functional principal component analysis (FPCA) could be added to ``process_improve`` for
 designed experiments, and to the browser app, and what a prototype on the book's case study showed.
 
@@ -136,18 +137,22 @@ Smallest change that covers the case study, with no new runtime dependency (``sc
 Browser app
 -----------
 
-* **Entry.** A response of kind *curve*: one response name, many columns (``colour[t0]`` to
-  ``colour[t9]``) in the run sheet and the workbook. ``MAX_RESPONSES`` stays at 5 by counting a
-  curve as one response.
-* **Analysis.** One worker call, ``api_functional``, returns the mean function and eigenfunctions
-  on a plotting grid, the score coefficients, :math:`(X^TX)^{-1}` and the residual covariance of
-  the scores. These are a few kilobytes.
-* **Profiler.** Prediction is linear in the coefficients, so the page draws the predicted curve and
-  its band in JavaScript as the factor sliders move, with no round trip to Pyodide. The same
-  numbers drive a second view: drag one FPC score and watch the curve shape change, which is how
-  a user learns what each eigenfunction means.
-* **Target curve.** Draw or paste a target curve; the page projects it to scores and the existing
-  best-settings search finds the factor settings closest to it.
+* **Entry.** A study holds one curve each run gives, beside its responses: ``spec.curve`` names it
+  and the points along it every run is read at, and the study keeps each run's curve (study format
+  6). The reader pastes the curves under the run sheet, a first row of points and then a row per
+  run, and the workbook carries them on a sheet of their own, matched to the runs by run order. A
+  curve does not count towards ``MAX_RESPONSES``.
+* **Analysis.** One worker call, ``api_functional``, fits the curves on the columns and the
+  estimable model Learn fits a response on. It returns the fitted curve and 200 wild-bootstrap
+  replicates of it, each as ``mean + row @ map``
+  (:meth:`~process_improve.experiments.FunctionalFit.curve_maps`), on at most 61 points.
+* **Profiler.** The what-if panel's sliders are the profiler: as a setting moves, the page builds
+  the model row and draws the predicted curve and both bands in JavaScript, as
+  :meth:`~process_improve.experiments.FunctionalFit.predict` forms them, with no call to Pyodide.
+  A view that moves one FPC score at a time is not built.
+* **Target curve.** The reader pastes a target curve; ``api_functional`` searches for the settings
+  closest to it (:meth:`~process_improve.experiments.FunctionalFit.match_target`), a categorical
+  factor held at its level, and the panel moves there and draws the target against the curve.
 
 Open questions
 --------------

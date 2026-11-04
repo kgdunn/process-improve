@@ -58,6 +58,10 @@ import {
   pickCandidate,
   pickSentence,
   pastedCells,
+  pastedCurves,
+  curvesSaid,
+  curveSaid,
+  pastedTarget,
   pastedNumber,
   placePasted,
   leftOutSentences,
@@ -1524,5 +1528,51 @@ describe("a plan beside a field's experiments", () => {
   test("says nothing without a plan or a field", () => {
     assert.equal(planVerdict(points, null), "");
     assert.equal(planVerdict([], { factors: 3, runs: 8 }), "");
+  });
+});
+
+describe("curves pasted from a spreadsheet", () => {
+  const runs = [3, 1, 4, 2]; // the run sheet's run numbers, in its order
+  const tab = (...rows) => rows.map((row) => row.join("\t")).join("\n");
+
+  test("read a first row of points, then a row per run in the run sheet's order", () => {
+    const pasted = pastedCurves(tab([0, 5, 10], [0, 1.2, 1.5], [0, "", "1,1"]), runs, 1000);
+    assert.deepEqual(pasted.points, [0, 5, 10]);
+    assert.deepEqual(pasted.curves, [[0, 1.2, 1.5], [0, null, 1.1], null, null], "a blank is a point missed; runs after wait");
+  });
+
+  test("send each row to its run by its run order, as the workbook's Curves sheet has it, leaving its other headings out", () => {
+    const pasted = pastedCurves(tab(["Std order", "Run order", 0, 5, 10], [2, 4, 0, 2, 3], [1, 1, 0, 1, 2], [4, 2, "", "", ""]), runs, 1000);
+    assert.deepEqual(pasted.curves, [null, [0, 1, 2], [0, 2, 3], null]);
+  });
+
+  test("that cannot be curves say why", () => {
+    const problem = (text, most = 1000) => pastedCurves(text, runs, most).problem;
+    assert.match(problem("0\t5\t10"), /then a row for each run/);
+    assert.match(problem(tab([0, 10, 5], [1, 2, 3])), /3 or more points along the curve, each after the one before/);
+    assert.match(problem(tab([0, 5, 10, 15], [1, 2, 3, 4]), 3), /at 3 points at most; this one has 4/);
+    assert.match(problem(tab([0, 5, 10], ...Array(5).fill([1, 2, 3]))), /5 rows of curves for 4 runs/);
+    assert.match(problem(tab(["Run", 0, 5, 10], [9, 1, 2, 3])), /Row 2 is for run 9, which the run sheet does not have/);
+    assert.match(problem(tab(["Run", 0, 5, 10], [1, 1, 2, 3], [1, 1, 2, 3])), /Run 1 has two rows of curves/);
+    assert.match(problem(tab([0, 5, 10], [1, "high", 3])), /Row 2 holds text where a number goes/);
+  });
+
+  test("are counted in a sentence, with what the points along them are", () => {
+    const curve = { label: "Colour", argument: { label: "Time", values: [0, 5, 10] } };
+    assert.equal(curvesSaid(curve, [[0, 1, 2], null, [0, 2, 3], null]), "Curves for 2 of 4 runs, each read at 3 points along Time.");
+    assert.equal(curvesSaid({ argument: { values: [1, 2, 3] } }, [null]), "Curves for 0 of 1 runs, each read at 3 points.");
+  });
+
+  test("a target is pasted as they are, at the points they are read at", () => {
+    assert.deepEqual(pastedTarget(tab([0, 5, 10], [0, "", 1.5]), [0, 5, 10], 1000), { values: [0, null, 1.5] });
+    assert.match(pastedTarget(tab([0, 5, 9], [0, 1, 1.5]), [0, 5, 10], 1000).problem, /not the ones the runs' curves are read at/);
+    assert.match(pastedTarget(tab([0, 5, 10], ["", "", ""]), [0, 5, 10], 1000).problem, /then the row of values you want/);
+    assert.match(pastedTarget(tab([0, 5, 10], [0, 1, 2], [0, 1, 2]), [0, 5, 10], 1000).problem, /2 rows of curves for 1 runs/);
+  });
+
+  test("the curve chart's caption says how many shapes the model follows, from how many runs", () => {
+    const fit = (kept) => ({ runs: 15, components: kept.map((k) => ({ kept: k })) });
+    assert.match(curveSaid(fit([true, false])), /^From 15 runs' curves, the model follows one shape in how they differ\./);
+    assert.match(curveSaid(fit([true, true, false])), /follows 2 shapes/);
   });
 });

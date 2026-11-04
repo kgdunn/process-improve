@@ -474,6 +474,26 @@
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
+          <details id="curves" class="curves">
+            <summary>Each run gives a curve</summary>
+            <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves
+              from a spreadsheet: a first row of the points along the curve, then a row for each run, in the run
+              sheet's order or under a Run order column. A blank cell is a point a run missed.</p>
+            <div class="row">
+              <label>What it measures <input id="curve-label" maxlength="64" placeholder="Colour" autocomplete="off"></label>
+              <label>Units <input id="curve-units" maxlength="32" autocomplete="off"></label>
+              <label>Along <input id="curve-along" maxlength="64" placeholder="Time" autocomplete="off"></label>
+              <label>Units along <input id="curve-along-units" maxlength="32" placeholder="min" autocomplete="off"></label>
+            </div>
+            <label class="block">The curves
+              <textarea id="curve-paste" rows="5" spellcheck="false" autocomplete="off"></textarea>
+            </label>
+            <div class="actions">
+              <button type="button" id="curve-use" class="primary">Use these curves</button>
+              <button type="button" id="curve-clear" class="link" hidden>Remove the curves</button>
+            </div>
+            <p id="curve-status" class="hint" role="status"></p>
+          </details>
           <div class="actions">
             <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
             <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
@@ -622,6 +642,19 @@
           <div id="what-if-settings" class="what-if-settings"></div>
           <p class="actions"><button type="button" id="what-if-back" class="link" hidden>Back to the best settings</button></p>
           <div id="what-if-out"></div>
+          <!-- The curve each run gives, predicted at these settings in the page's own JavaScript (best.js curveAt). -->
+          <div id="what-if-curve" hidden>
+            <div class="plot" id="what-if-curve-plot" role="img" aria-label="The curve predicted at these settings, with its 95% bands"></div>
+            <p id="what-if-curve-said" class="hint"></p>
+            <details id="curve-target">
+              <summary>Find the settings for a target curve</summary>
+              <p class="hint">Paste the curve you want as you pasted the runs' curves: the row of points along it, then
+                the row of values. Leave a value blank to leave that point free.</p>
+              <textarea id="curve-target-values" rows="2" spellcheck="false" autocomplete="off" aria-label="The target curve"></textarea>
+              <p class="actions"><button type="button" id="curve-target-find" class="primary">Find these settings</button></p>
+              <p id="curve-target-said" class="hint" role="status"></p>
+            </details>
+          </div>
           <!-- Settings kept with the study under a name (its what_if), each predicted again from the results each time
                the list is drawn, so a result changed since changes what it shows. -->
           <form id="what-if-keep" class="actions what-if-keep">
