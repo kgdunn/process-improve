@@ -439,6 +439,15 @@ class TestUncentredColumns:
         )
         assert _uncentred_columns(block) == ["constant_above_it"]
 
+    def test_a_nullable_column_reads_pd_na_as_missing(self) -> None:
+        """pd.NA in a nullable column is a missing value, as the estimators read it; it raised TypeError (#1081)."""
+        block = pd.DataFrame({"centred": [4.0, 0.0, -4.0, 0.0], "over": [4.4, 0.4, 0.4, 0.4]}).astype("Float64")
+        block.iloc[1, 0] = pd.NA
+        block.iloc[3, 1] = pd.NA
+        floats = block.astype(float)
+        assert _uncentred_columns(block) == _uncentred_columns(floats) == ["over"]
+        assert _looks_prescaled(block) is _looks_prescaled(floats) is False
+
 
 class TestScalingTrapMessages:
     """The full text of both warnings, and that they are not attributed to the helper that raises them."""

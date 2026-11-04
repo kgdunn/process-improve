@@ -188,6 +188,15 @@ def _scores_and_spe(
     return scores, float(np.sqrt(deflate @ deflate))
 
 
+def _scaled_prediction(x: np.ndarray, model: tuple[np.ndarray, ...]) -> np.ndarray:
+    """Return the scaled prediction of one scaled row by the PLS model ``(R, W, P, C)``, as ``scores @ C'``.
+
+    The scores are those of :func:`_scores_and_spe`, so a row with missing values is projected.
+    """
+    direct, weights, loadings, y_loadings = model
+    return _scores_and_spe(x, direct, weights, loadings)[0] @ y_loadings.T
+
+
 def _as_rows(X: DataMatrix) -> tuple[pd.Index, np.ndarray]:
     """Return the row labels of ``X`` (0, 1, ... for an array) and its values as floats.
 
@@ -907,6 +916,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         _my0: np.ndarray
         _sy0: np.ndarray
         _beta0: np.ndarray
+        _training_model: tuple[np.ndarray, ...]
         _norm_beta0: float
         _hist_static: list[np.ndarray]
         _hist_prep: list[np.ndarray]
@@ -1016,6 +1026,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._my0 = self.my_.copy()
         self._sy0 = self.sy_.copy()
         self._beta0 = self._beta_scaled.copy()
+        self._training_model = tuple(
+            part.copy() for part in (self._direct, self._weights, self._loadings, self._y_loadings)
+        )
         self._norm_beta0 = float(np.linalg.norm(self._beta0))
 
         self._start_limits(training_model.spe_.iloc[:, A - 1].to_numpy())
@@ -1042,13 +1055,15 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
         The split is exact by a one-at-a-time swap and uses the current model
         state, so streamed on each observation it attributes the departure from
-        the static model to the two mechanisms.
+        the static model to the two mechanisms. Each of the three predictions scores
+        the row as :meth:`predict` does, a row with missing values by single-component
+        projection over its observed values, so the sum is the prediction.
         """
-        xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_)  # a missing value at the centre
-        xs_static = np.nan_to_num((x0 - self._mx0) / self._sx0)
-        y_static = self._my0 + self._sy0 * (self._beta0.T @ xs_static)
-        y_prep = self.my_ + self.sy_ * (self._beta0.T @ xs_cur)
-        y_full = self.my_ + self.sy_ * (self._beta_scaled.T @ xs_cur)
+        xs_cur = (x0 - self.mx_) / self.sx_
+        y_static = self._my0 + self._sy0 * _scaled_prediction((x0 - self._mx0) / self._sx0, self._training_model)
+        y_prep = self.my_ + self.sy_ * _scaled_prediction(xs_cur, self._training_model)
+        current = (self._direct, self._weights, self._loadings, self._y_loadings)
+        y_full = self.my_ + self.sy_ * _scaled_prediction(xs_cur, current)
         return y_static, y_prep - y_static, y_full - y_prep
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:

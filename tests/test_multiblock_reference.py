@@ -3120,6 +3120,19 @@ class TestMBPLSPlotsAndSummary:
         np.testing.assert_array_equal(line.x, [2.0, 4.0])
         np.testing.assert_array_equal(line.y, [2.0, 4.0])
 
+    def test_the_rmsee_leaves_out_a_missing_y_cell(self) -> None:
+        """The RMSEE is over the observed cells, so a gap in Y gives a number, not nan (#1081).
+
+        A nullable column holding pd.NA reads the same.
+        """
+        blocks, y = _gappy_mbpls_data()
+        model = MBPLS(n_components=2).fit(blocks, y)
+        observed = y["q"].drop(index=y.index[1])
+        rmsee = np.sqrt(np.mean((observed - model.predictions_["q"].drop(index=y.index[1])) ** 2))
+        for drawn in (y, y.astype("Float64")):
+            (note,) = model.predictions_vs_observed_plot(drawn, variable="q").layout.annotations
+            assert note.text == f"RMSEE = {rmsee:.4g}"
+
 
 @pytest.mark.parametrize(
     "use",
