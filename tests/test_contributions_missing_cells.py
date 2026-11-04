@@ -54,18 +54,24 @@ class TestPCAWithMissingCells:
     ) -> None:
         # A NIPALS fit stores the last-iteration scores, which differ from a projection on the converged
         # loadings by the convergence tolerance (the loadings are not exactly orthogonal); the incomplete
-        # rows are held to the same tolerance as the complete ones, and exactly to the "scp" projection.
+        # rows are held to the same tolerance as the complete ones, and exactly to the "scp" projection,
+        # the score step of NIPALS, asked for by name since the default is diagnose's TSR (#1144).
         X, _ = data
-        residuals = spe_contributions(pca, X)
+        residuals = spe_contributions(pca, X, method="scp")
         np.testing.assert_allclose((residuals**2).sum(axis=1), pca.spe_.iloc[:, -1] ** 2, rtol=1e-3)
         for a in (1, 2):
-            contributions = score_contributions(pca, X, component=a)
+            contributions = score_contributions(pca, X, component=a, method="scp")
             np.testing.assert_allclose(contributions.sum(axis=1), pca.scores_.iloc[:, a - 1], rtol=1e-2, atol=1e-2)
-        np.testing.assert_allclose(t2_contributions(pca, X).sum(axis=1), pca.hotellings_t2_.iloc[:, -1], rtol=1e-2)
+        np.testing.assert_allclose(
+            t2_contributions(pca, X, method="scp").sum(axis=1), pca.hotellings_t2_.iloc[:, -1], rtol=1e-2
+        )
         projected = pca.project(X, method="scp")
         np.testing.assert_allclose((residuals**2).sum(axis=1), projected.spe**2, rtol=1e-9, atol=1e-12)
         np.testing.assert_allclose(
-            score_contributions(pca, X, component=2).sum(axis=1), projected.scores.iloc[:, 1], rtol=1e-9, atol=1e-12
+            score_contributions(pca, X, component=2, method="scp").sum(axis=1),
+            projected.scores.iloc[:, 1],
+            rtol=1e-9,
+            atol=1e-12,
         )
 
     def test_complete_rows_take_the_complete_data_path(self, pca: PCA, data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
@@ -149,7 +155,7 @@ class TestGroupContributionsWithMissingCells:
             assert shift.notna().all()
             rows = score_contributions(pca, X, component=component).fillna(0.0)
             np.testing.assert_allclose(shift, rows.loc[group].mean() - rows.loc[reference].mean(), rtol=1e-12)
-            scores = pca.project(X, method="scp").scores.iloc[:, component - 1]
+            scores = pca.diagnose(X).scores.iloc[:, component - 1]
             np.testing.assert_allclose(
                 shift.sum(), scores.loc[group].mean() - scores.loc[reference].mean(), rtol=1e-9, atol=1e-12
             )
