@@ -337,7 +337,9 @@ def _outside(fit: Fit, conf_level: float) -> dict[str, Any]:
             "T2": rows.loc[row, "T2"],
             "SPE": rows.loc[row, "SPE"],
             "beyond": [
-                name for name, limit in (("T2", t2_limit.loc[row]), ("SPE", limits["SPE"])) if rows.loc[row, name] > limit
+                name
+                for name, limit in (("T2", t2_limit.loc[row]), ("SPE", limits["SPE"]))
+                if rows.loc[row, name] > limit
             ],
             "excluded": bool(rows.loc[row, "excluded"]),
             "top_variables": fit.explain_group([row], top=3).top,
