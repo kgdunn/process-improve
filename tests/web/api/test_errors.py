@@ -14,6 +14,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
+import pandas as pd
 import pytest
 
 from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic
@@ -125,6 +126,32 @@ HALF_FRACTION = {
 def _supplied(**change: object) -> Callable[[Example], dict]:
     """Build a request about the runs of a design with a categorical factor, changed."""
     return lambda _: {**SUPPLIED, **change}
+
+
+#: A curve each run gives, read at three times.
+CURVED = {"label": "Colour", "argument": {"label": "Time", "units": "min", "values": [0, 1, 2]}}
+
+
+def _curved(held: str = "held", curve: object = CURVED, **change: object) -> Callable[[Example], dict]:
+    """Build a request for the curves of the runs of ``held`` (a key of the example), each run with one, changed."""
+
+    def payload(ex: Example) -> dict:
+        runs = ex.get(held, SUPPLIED)
+        curves = [[0.0, 1.0 + 0.1 * i, 1.5 + 0.02 * i * i] for i in range(len(runs["rows"]))]
+        sent = {key: runs[key] for key in ("spec", "columns", "rows")}
+        return {**sent, "spec": {**sent["spec"], "curve": curve}, "curves": curves, **change}
+
+    return payload
+
+
+def _curve_sheet(make: Callable[[pd.DataFrame], pd.DataFrame]) -> Callable[[dict], None]:
+    """Describe a curve read at three times in the stored specification, and give the workbook a Curves sheet."""
+
+    def edit(sheets: dict) -> None:
+        _stored(curve=CURVED)(sheets)
+        sheets["Curves"] = make(sheets["Runs"])
+
+    return edit
 
 
 def _typed(*limits: str, factors: list[dict] = FACTORS, **change: object) -> Callable[[Example], dict]:
@@ -1184,6 +1211,71 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "The process 'A synergy and an antagonism' is for a mixture's components: choose another for factors "
             "with ranges."
         ),
+    ),
+    "curves: a curve the page did not write": (
+        "api_functional",
+        _curved(curve={"label": "Colour"}),
+        "The page sent a curve this page did not write.",
+    ),
+    "curves: a point along the curve that is no number": (
+        "api_functional",
+        _curved(curve={"argument": {"values": [0, "soon", 2]}}),
+        "The page sent a curve this page did not write.",
+    ),
+    "curves: target settings that are not settings": (
+        "api_functional",
+        lambda ex: {**_curved()(ex), "target": [0, 1, 2], "held": "B"},
+        "The page sent settings this page did not write.",
+    ),
+    "curves: points along the curve that do not rise": (
+        "api_functional",
+        _curved(curve={"argument": {"values": [0, 2, 1]}}),
+        "A curve is read at 3 to 1000 points along it, each one after the point before.",
+    ),
+    "curves: for a study that measures none": (
+        "api_functional",
+        lambda ex: {**ex["held"], "curves": [None] * len(ex["held"]["rows"])},
+        "This study measures no curve: describe the curve each run gives, then paste the curves.",
+    ),
+    "curves: of a mixture": (
+        "api_functional",
+        _curved("mixture"),
+        "A mixture's curves are not analysed on this page yet.",
+    ),
+    "curves: fewer than the runs": (
+        "api_functional",
+        _curved(curves=[[0.0, 1.0, 2.0]]),
+        "1 curves were sent for 15 runs.",
+    ),
+    "curves: a curve of the wrong length": (
+        "api_functional",
+        lambda ex: {**_curved()(ex), "curves": [[0.0, 1.0], *_curved()(ex)["curves"][1:]]},
+        "Each run's curve holds 3 values, one per point along it, or blanks.",
+    ),
+    "curves: a target with no value": (
+        "api_functional",
+        _curved(target=[None, None, None]),
+        "Enter the target curve: at least one value along it.",
+    ),
+    "curves: a target search at a level a factor lacks": (
+        "api_functional",
+        lambda ex: {**_curved("supplied")(ex), "model": "main_effects", "target": [0, 1, 2], "held": {"S": "Z"}},
+        "S at Z is none of its levels, A and B.",
+    ),
+    "curves: a Curves sheet read at other points": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda runs: pd.DataFrame({"Run order": runs["Run order"], 0: 0.0, 1: 1.0, 5: 2.0}))),
+        "The Curves sheet's columns are not the points along the curve this study reads it at.",
+    ),
+    "curves: a Curves sheet that lists a run twice": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda runs: pd.DataFrame({"Run order": 1, 0: 0.0, 1: [1.0] * len(runs), 2: 2.0}))),
+        "The Curves sheet lists one run order twice: each run has one row there.",
+    ),
+    "curves: a Curves sheet without run orders, short of runs": (
+        "api_read_workbook",
+        _workbook(_curve_sheet(lambda _: pd.DataFrame({0: [0.0], 1: [1.0], 2: [2.0]}))),
+        "The Curves sheet has 1 rows for 15 runs.",
     ),
 }
 

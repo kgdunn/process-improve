@@ -17,6 +17,7 @@ import {
   coefficientFigure,
   correlationFigure,
   coxFigure,
+  curveFigure,
   chartImage,
   draw,
   fdsFigure,
@@ -81,6 +82,7 @@ import {
   withUnit,
   withoutConfirmationRuns,
   columnsAt,
+  curveAt,
   keptAs,
   predictAt,
   scenarioProblem,
@@ -188,6 +190,10 @@ import {
   pickCandidate,
   pickSentence,
   pastedCells,
+  pastedCurves,
+  curvesSaid,
+  curveSaid,
+  pastedTarget,
   placePasted,
   positional,
   powerScale,
@@ -229,6 +235,7 @@ import {
   campaignTitle,
   checkBookExample,
   checkCampaign,
+  CURVE_POINTS_HELD,
   checkConstraints,
   designKey,
   indexedName,
@@ -397,6 +404,7 @@ const state = {
   planKey: null, // the plan (factors, design and settings) the run sheet on the page was made from
   results: {}, // each response's results, by its column: one per run, in the design's row order, a number or null
   marks: {}, // where each result came from, as results holds them: "simulated", "entered" or null
+  curves: null, // each run's curve, when the study reads one (its spec's curve): a list per run, or null until read
   shown: null, // the column of the response Learn analyses: the first, or the one its tabs show
   models: {}, // the model each response is analysed with, by its column, as modelChoice gives one
   simulation: null, // what api_simulate returned: the true process, its noise and seed
@@ -405,6 +413,7 @@ const state = {
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
+  curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
   next: null, // the next step, {design, key, offers, notes, recommendation, waiting}: what api_next_runs returned for it
   widened: false, // the study was started with its ranges widened, nothing having stood out in the study before
@@ -455,6 +464,14 @@ const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name,
 
 /** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
 const sentResults = () => ({ ...splitResults(resultNames(), state.results), ...splitResults(resultNames(), state.marks, "sources") });
+
+/** Each run's curve as Python and a saved study take them, when the study reads one. */
+const sentCurves = () => (state.curves ? { curves: state.curves } : {});
+
+/** Make room for a curve on each run added at the end of the run sheet, when the study reads one. */
+function curvesFor(added) {
+  if (state.curves) state.curves = [...state.curves, ...Array(added).fill(null)];
+}
 
 /** Whether any result is simulated, and whether every result is, so all came from the known process. */
 const someSimulated = () => Object.values(state.marks).some((marks) => marks.includes("simulated"));
@@ -1812,6 +1829,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   $("#share-out").hidden = true;
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
+  state.curves = null;
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
@@ -2515,6 +2533,7 @@ function renderRuns() {
   t.onpaste = pasteResults;
   describeSource();
   renderBadges();
+  renderCurves();
 }
 
 /** Follow results typed or pasted into the run sheet: where they came from, the code, the badges, the analysis. */
@@ -2527,13 +2546,77 @@ function resultsChanged() {
   scheduleSave();
 }
 
-/** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
-function pasteSheet() {
+/** The run sheet's run numbers, in its order: its Run order column, or 1, 2, ... for runs as given without one. */
+function runNumbers() {
   const d = state.design;
   const runAt = d.columns.indexOf("Run order");
+  return d.rows.map((row, i) => (runAt >= 0 ? row[runAt] : i + 1));
+}
+
+// ---------------------------------------------------------------- each run's curve
+/**
+ * Show the box the curves are pasted into, under the run sheet: the curve's words, and how many runs have theirs.
+ * A mixture's curves are not analysed on this page, so its run sheet has no box.
+ */
+function renderCurves() {
+  const box = $("#curves");
+  box.hidden = isMixture(state.design.spec.design_type);
+  const curve = state.design.spec.curve;
+  if (curve) {
+    // the study's words; without a curve yet, the boxes keep what the reader is typing before pasting
+    $("#curve-label").value = curve.label ?? "";
+    $("#curve-units").value = curve.units ?? "";
+    $("#curve-along").value = curve.argument.label ?? "";
+    $("#curve-along-units").value = curve.argument.units ?? "";
+  }
+  $("#curve-clear").hidden = !curve;
+  $("#curve-status").textContent = curve ? curvesSaid(curve, state.curves) : "";
+  if (curve) box.open = true;
+}
+
+/** The reader's words for the curve and for the points along it, as a study keeps them: each left out when blank. */
+function curveWords() {
+  const words = (label, units) => ({ ...(label ? { label } : {}), ...(units ? { units } : {}) });
+  const along = words($("#curve-along").value.trim(), $("#curve-along-units").value.trim());
+  return { ...words($("#curve-label").value.trim(), $("#curve-units").value.trim()), along };
+}
+
+/** Take the curves pasted into the box (logic.js pastedCurves): the study then reads a curve on each run. */
+function useCurves() {
+  const pasted = pastedCurves($("#curve-paste").value, runNumbers(), CURVE_POINTS_HELD);
+  if (pasted.problem) {
+    $("#curve-status").textContent = pasted.problem;
+    return;
+  }
+  const { along, ...words } = curveWords();
+  setCurve({ ...words, argument: { ...along, values: pasted.points } }, pasted.curves);
+  $("#curve-paste").value = "";
+}
+
+/** Keep the reader's words for the curve as they type them, once the study reads one. */
+function curveWordsChanged() {
+  const curve = state.design?.spec.curve;
+  if (!curve) return;
+  const { along, ...words } = curveWords();
+  setCurve({ ...words, argument: { ...along, values: curve.argument.values } }, state.curves);
+}
+
+/** Set the study's curve and each run's, or take both away (null), then show, save and analyse what changed. */
+function setCurve(curve, curves) {
+  const { curve: _, ...spec } = state.design.spec;
+  state.design = { ...state.design, spec: curve ? { ...spec, curve } : spec };
+  state.curves = curve ? curves : null;
+  state.curve = { fit: null, problem: null, target: null };
+  renderCurves();
+  scheduleAnalysis();
+  scheduleSave();
+}
+
+/** The run sheet as a pasted block is placed on it (logic.js placePasted): its run numbers, rows as shown, responses. */
+function pasteSheet() {
   const shown = [...$("#design-table").querySelectorAll("tbody tr")].map((tr) => tr.querySelector("input[data-index]"));
   return {
-    runs: d.rows.map((row, i) => (runAt >= 0 ? row[runAt] : i + 1)),
+    runs: runNumbers(),
     order: shown.filter(Boolean).map((input) => Number(input.dataset.index)),
     names: resultNames(),
     labels: Object.fromEntries(resultNames().map((name) => [name, wordsOf(name).label])),
@@ -2701,6 +2784,7 @@ async function downloadWorkbook() {
     model: modelOf(first),
     ...(Object.keys(models).length ? { models } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...sentCurves(),
   });
   if (!reply.ok) {
     setStatus(reply.error, "error");
@@ -3044,6 +3128,7 @@ async function readUpload(file) {
   const names = resultNames();
   state.results = joinResults(names, r.responses, r.more_responses);
   state.marks = joinResults(names, r.sources, r.more_sources);
+  state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
   state.example = false;
@@ -3138,7 +3223,7 @@ function chosenControl() {
  * goal, the balance of them follows, whichever response is shown.
  */
 async function analyseRuns() {
-  if (!state.design || !anyResult(state.results)) {
+  if (!state.design || (!anyResult(state.results) && !curvesRead())) {
     clearAnalysis();
     clearBalance();
     clearWhatIf();
@@ -3147,11 +3232,14 @@ async function analyseRuns() {
   }
   renderPicker();
   if (!state.results[state.shown]?.some((v) => v !== null)) {
-    // Some other response has results: this one waits for its own.
+    // Some other response has results, or only the curves are in: this one waits for its own.
     clearAnalysis();
-    $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: enter them in Run.`;
+    const curvesOnly = !anyResult(state.results);
+    const where = curvesOnly ? "the runs' curves are drawn under What if" : "enter them in Run";
+    $("#analyse-empty").textContent = `No results for ${wordsOf(state.shown).label} yet: ${where}.`;
     setStatus(`No results for ${wordsOf(state.shown).label} yet.`);
     await findBalance();
+    await findCurve();
     await findWhatIf();
     return;
   }
@@ -3174,7 +3262,8 @@ async function analyseRuns() {
     if (mine !== ticket) return;
   }
   await findBalance();
-  await findWhatIf(); // after the best settings and the balance, which it opens at
+  await findCurve();
+  await findWhatIf(); // after the best settings and the balance, which it opens at, and the curves it draws
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -4151,6 +4240,7 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
     state.results[name] = [...state.results[name], ...Array(added).fill(null)];
     state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
   }
+  curvesFor(added);
   renderRuns();
   renderStudyBar();
   const practice = Boolean(state.simulation) && someSimulated();
@@ -4168,10 +4258,11 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
 /** Take the confirmation runs off the run sheet, with their results. */
 async function removeConfirmationRuns() {
   if (!state.design) return;
-  const { columns, rows, results, marks } = withoutConfirmationRuns(state.design, state.results, state.marks);
+  const { columns, rows, results, marks, curves } = withoutConfirmationRuns(state.design, state.results, state.marks, state.curves);
   state.design = { ...state.design, columns, rows };
   state.results = results;
   state.marks = marks;
+  state.curves = curves;
   renderRuns();
   renderStudyBar();
   showResultsCode();
@@ -4424,6 +4515,8 @@ function clearWhatIf() {
   whatIfTicket += 1;
   clearTimeout(whatIfLimitsTimer);
   state.whatIf = null;
+  state.curve.target = null; // a target belongs to the panel it was matched in
+  $("#curve-target-said").textContent = "";
   $("#what-if").hidden = true;
   hidePython("what-if");
 }
@@ -4433,7 +4526,7 @@ function clearWhatIf() {
  * are found, so it can open at them. Settings the reader chose are kept while they still fit the factors.
  */
 async function findWhatIf() {
-  if (!state.design || !anyResult(state.results)) {
+  if (!state.design || (!anyResult(state.results) && !curvesRead())) {
     clearWhatIf();
     return;
   }
@@ -4443,9 +4536,13 @@ async function findWhatIf() {
   showWhatIf(reply.ok ? reply.result : null);
 }
 
-/** Show the what-if panel for the fits Python sent (bootstrap.predictors); with none to predict from, take it away. */
+/**
+ * Show the what-if panel for the fits Python sent (bootstrap.predictors), and the curves' (findCurve); with none to
+ * predict from, nor a reason the curves could not be fitted, take it away.
+ */
 function showWhatIf(result) {
-  if (!result || result.mixture || !result.responses.some((r) => r.terms)) {
+  const curve = state.curve.fit || state.curve.problem;
+  if (!result || result.mixture || (!result.responses.some((r) => r.terms) && !curve)) {
     clearWhatIf();
     return;
   }
@@ -4531,13 +4628,88 @@ function renderWhatIf() {
   showWhatIfSettings();
   $("#what-if-back").textContent = WHAT_IF_BACK[start.from];
   $("#what-if-back").hidden = w.factors.every((f) => start.settings[f.name] === w.settings[f.name]);
+  // a study whose only results so far are its curves has no response to list: the curve below is the prediction
+  const fitted = w.responses.some((r) => r.terms);
   $("#what-if-out").replaceChildren(
-    table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS),
-    ...noteList(whatIfSentences(responses, w.broken), "warnings"),
+    ...(fitted ? [table(WHAT_IF_COLUMNS, whatIfRows(responses), WHAT_IF_TERMS)] : []),
+    ...noteList(whatIfSentences(fitted ? responses : [], w.broken), "warnings"),
   );
   const formulas = Object.fromEntries(w.responses.filter((r) => r.terms).map((r) => [r.name, r.formula]));
   const kept = state.scenarios.filter((s) => !keptProblem(w, s)).map((s) => ({ name: s.name, at: columnsAt(w.factors, s.settings) }));
-  showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
+  if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
+  else hidePython("what-if");
+  renderCurve(at);
+}
+
+// ---------------------------------------------------------------- the curve at the what-if settings
+/** Whether some run has its curve read. */
+const curvesRead = () => Boolean(state.curves?.some(Boolean));
+
+let curveTicket = 0;
+
+/**
+ * Fit the runs' curves (bootstrap.functional) once per analysis, so the what-if panel draws the curve at its settings
+ * in the page's own JavaScript; or keep why they cannot be fitted yet, which the panel says in place of the curve.
+ */
+async function findCurve() {
+  const mine = ++curveTicket;
+  state.curve = { ...state.curve, fit: null, problem: null };
+  if (!state.design || !curvesRead()) return;
+  const reply = await call("api_functional", curveRequest());
+  if (mine !== curveTicket) return;
+  if (!reply.ok) {
+    state.curve.problem = reply.error;
+    return;
+  }
+  state.curve.fit = reply.result;
+  state.plotlyJs ??= reply.result.plotly_js;
+}
+
+/** What Python fits the curves from: the runs, their curves, and the model Learn fits. */
+const curveRequest = () => ({ ...held(), ...sentResults(), ...sentCurves(), model: modelChoice() });
+
+/** Draw the curve at the panel's settings (best.js curveAt), with its bands and any target; or say why there is none. */
+function renderCurve(at) {
+  const { fit, problem, target } = state.curve;
+  $("#what-if-curve").hidden = !fit && !problem;
+  $("#what-if-curve-plot").hidden = !fit;
+  $("#curve-target").hidden = !fit;
+  if (!fit) {
+    $("#what-if-curve-said").textContent = problem ?? "";
+    return;
+  }
+  const { label, units, argument } = state.design.spec.curve;
+  const words = { label, units, along: argument.label, alongUnits: argument.units };
+  const goal = target ? { points: argument.values, values: target } : null;
+  if (state.plotlyJs) draw($("#what-if-curve-plot"), () => curveFigure(fit.points, curveAt(fit, at), words, goal), state.plotlyJs);
+  $("#what-if-curve-said").textContent = curveSaid(fit);
+}
+
+/**
+ * Find the settings whose predicted curve comes closest to the target pasted (logic.js pastedTarget), searched by
+ * bootstrap.functional with each categorical factor held at the panel's level, and move the panel there.
+ */
+async function findTarget() {
+  const said = $("#curve-target-said");
+  const w = state.whatIf;
+  const pasted = pastedTarget($("#curve-target-values").value, state.design.spec.curve.argument.values, CURVE_POINTS_HELD);
+  if (pasted.problem) {
+    said.textContent = pasted.problem;
+    return;
+  }
+  said.textContent = "Searching for the settings...";
+  const held = Object.fromEntries(w.factors.filter((f) => f.kind === "categorical").map((f) => [f.name, w.settings[f.name]]));
+  const reply = await call("api_functional", { ...curveRequest(), target: pasted.values, held });
+  if (!reply.ok || state.whatIf !== w) {
+    said.textContent = reply.ok ? "" : reply.error;
+    return;
+  }
+  state.curve.target = pasted.values;
+  w.settings = { ...w.settings, ...reply.result.match.settings };
+  renderWhatIf();
+  checkWhatIfLimits();
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  said.textContent = `The curve comes closest to the target at ${settingsWords(w.factors, w.settings, units)}, drawn above against it.`;
 }
 
 /** The reader moved a setting: every response follows at once, and the limits it breaks a moment later. */
@@ -4841,6 +5013,7 @@ async function addRuns(kind) {
     state.results[name] = [...state.results[name], ...Array(added).fill(null)];
     state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
   }
+  curvesFor(added);
   setDesignForm(grown.spec);
   state.planKey = planKey();
   state.picked = null;
@@ -5207,6 +5380,7 @@ function currentCampaign() {
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...sentCurves(),
   };
 }
 
@@ -5441,6 +5615,7 @@ async function openCampaign(c, record, message) {
   const names = resultNames();
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
+  state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
@@ -5979,6 +6154,10 @@ $("#balance-reset").onclick = () => {
 };
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
+$("#curve-use").onclick = useCurves;
+$("#curve-target-find").onclick = findTarget;
+$("#curve-clear").onclick = () => setCurve(null, null);
+for (const id of ["#curve-label", "#curve-units", "#curve-along", "#curve-along-units"]) $(id).onchange = curveWordsChanged;
 $("#notebook").onclick = downloadNotebook;
 $("#report").onclick = downloadReport;
 $("#learn-report-button").onclick = downloadReport;

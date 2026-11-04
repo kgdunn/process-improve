@@ -1372,6 +1372,75 @@ export function placePasted(cells, sheet, at) {
   return { values, said };
 }
 
+// ---------------------------------------------------------------- curves pasted from a spreadsheet
+/**
+ * Curves pasted from a spreadsheet: a first row holding the points along the curve (the times, say), each heading
+ * its column, then a row for each run. A column headed by a run number's heading ("Run order", as the workbook's
+ * Curves sheet has) sends each row to its run, so rows can come in any order; without one, the rows are the runs in
+ * the run sheet's order, from the first. Other headings, such as "Std order", are left out. ``runs`` holds the run
+ * sheet's run numbers in its order, and ``most`` the most points a curve holds.
+ *
+ * Returns ``{points, curves}``, with a curve per run of the sheet (null for a run no row gives, or whose row is
+ * blank; null for a blank cell), or ``{problem}``, a sentence saying what is wrong.
+ */
+export function pastedCurves(text, runs, most) {
+  const lines = pastedCells(text).filter((line) => line.some((cell) => cell !== ""));
+  if (lines.length < 2) return { problem: "Paste a first row of the points along the curve, then a row for each run." };
+  const [head, ...body] = lines;
+  const at = head.flatMap((cell, j) => (typeof pastedNumber(cell) === "number" ? [j] : []));
+  const points = at.map((j) => pastedNumber(head[j]));
+  if (points.length < 3 || points.some((p, i) => i > 0 && p <= points[i - 1])) {
+    return { problem: "The first row needs 3 or more points along the curve, each after the one before." };
+  }
+  if (points.length > most) return { problem: `A curve is read at ${most} points at most; this one has ${points.length}.` };
+  const byRun = head.findIndex((cell) => RUN_HEADINGS.includes(headingKey(cell)));
+  if (byRun < 0 && body.length > runs.length) return { problem: `There are ${body.length} rows of curves for ${runs.length} runs.` };
+  const curves = runs.map(() => null);
+  for (const [i, line] of body.entries()) {
+    const row = byRun < 0 ? i : runs.indexOf(pastedNumber(line[byRun] ?? ""));
+    if (row < 0) return { problem: `Row ${i + 2} is for run ${line[byRun]}, which the run sheet does not have.` };
+    if (curves[row]) return { problem: `Run ${runs[row]} has two rows of curves.` };
+    const values = at.map((j) => pastedNumber(line[j] ?? ""));
+    if (values.includes(undefined)) return { problem: `Row ${i + 2} holds text where a number goes.` };
+    curves[row] = values.every((v) => v === null) ? null : values;
+  }
+  return { points, curves };
+}
+
+/**
+ * A target curve pasted as the runs' curves are (pastedCurves): the row of points along it, then the row of the
+ * values wanted, at the ``points`` the runs' curves are read at. Returns ``{values}``, null at a point left free,
+ * or ``{problem}``.
+ */
+export function pastedTarget(text, points, most) {
+  if (pastedCells(text).filter((line) => line.some((cell) => cell !== "")).length < 2) {
+    return { problem: "Paste the row of points along the curve, then the row of values you want." };
+  }
+  const pasted = pastedCurves(text, [1], most);
+  if (pasted.problem) return pasted;
+  const near = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+  if (pasted.points.length !== points.length || !pasted.points.every((p, i) => near(p, points[i]))) {
+    return { problem: "The target's points are not the ones the runs' curves are read at: copy that row from the curves." };
+  }
+  return { values: pasted.curves[0] };
+}
+
+/** What the curve chart's caption says: what the model follows, from how many runs, and what each band holds. */
+export function curveSaid(fit) {
+  const shapes = fit.components.filter((c) => c.kept).length;
+  return (
+    `From ${fit.runs} runs' curves, the model follows ${shapes === 1 ? "one shape" : `${shapes} shapes`} in how they differ. ` +
+    "The shaded band holds the mean curve at these settings at each point 95% of the time; the dashed lines hold the whole of it."
+  );
+}
+
+/** What Run says of a study's curves: how many runs have theirs, and how many points along the curve each is read at. */
+export function curvesSaid(curve, curves) {
+  const read = curves.filter(Boolean).length;
+  const along = curve.argument.label ? ` along ${curve.argument.label}` : "";
+  return `Curves for ${read} of ${curves.length} runs, each read at ${curve.argument.values.length} points${along}.`;
+}
+
 // ---------------------------------------------------------------- limits on the settings
 /** The most limits a study can have on its settings; mirrors bootstrap.MAX_CONSTRAINTS. */
 export const MAX_CONSTRAINTS = 8;

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { CAMPAIGN_VERSION, LEVELS_FORMAT, MANY_FACTORS_FORMAT, WHAT_IF_FORMAT, checkCampaign, packCampaign, shareable } from "../../../web/campaign.js";
+import { CAMPAIGN_VERSION, CURVE_FORMAT, LEVELS_FORMAT, MANY_FACTORS_FORMAT, WHAT_IF_FORMAT, checkCampaign, packCampaign, shareable } from "../../../web/campaign.js";
 import { canonicalJson, sha256 } from "../../../web/report.js";
 import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, studyFile, studyOf } from "../../../web/study-file.js";
 
@@ -176,30 +176,45 @@ describe("the study file", () => {
     assert.equal(studies[1].study.v, 1, "a study without kept settings keeps the format it had");
   });
 
-  test("an earlier Factorial, of format 4, refuses a study with kept settings as saved by a later one", async () => {
-    // The page as it was before format 5: these modules, reading formats 1 to 4. Its study file and its links
-    // refuse a study by its format, so it never opens one only to drop the kept settings on its next save.
-    const dir = mkdtempSync(join(tmpdir(), "factorial-format-4-"));
+  /**
+   * The page as it was before format ``format`` + 1: these modules, reading formats 1 to ``format``. Its study file
+   * and its links refuse a study by its format, so it never opens one only to drop what it cannot hold on its next
+   * save; the other studies in the file open.
+   */
+  async function refusedByAnEarlierPage(format, study) {
+    const dir = mkdtempSync(join(tmpdir(), `factorial-format-${format}-`));
     try {
       const web = new URL("../../../web/", import.meta.url);
       for (const name of ["study-file.js", "report.js", "logic.js"]) copyFileSync(new URL(name, web), join(dir, name));
       const source = readFileSync(new URL("campaign.js", web), "utf8");
-      const earlier = source.replace("export const CAMPAIGN_VERSION = 5;", "export const CAMPAIGN_VERSION = 4;");
+      const earlier = source.replace(/export const CAMPAIGN_VERSION = \d+;/, `export const CAMPAIGN_VERSION = ${format};`);
       assert.notEqual(earlier, source);
       writeFileSync(join(dir, "campaign.js"), earlier);
       const before = await import(pathToFileURL(join(dir, "study-file.js")).href);
       const linked = await import(pathToFileURL(join(dir, "campaign.js")).href);
-      const study = { ...record("kept", "Kept"), v: WHAT_IF_FORMAT, what_if: [{ name: "Hot", settings: { T: 200, Supplier: "A" } }] };
       const { studies, refused } = await before.readStudyFile(await asText([study, record("none", "Without")]));
+      const saved = format + 1;
       assert.deepEqual(refused, [
-        { title: "Kept", reason: "it was saved by a later Factorial, in study format 5; reload the page for the latest Factorial" },
+        { title: study.title, reason: `it was saved by a later Factorial, in study format ${saved}; reload the page for the latest Factorial` },
       ]);
       assert.deepEqual(studies.map((s) => s.id), ["none"], "the other studies in the file open");
       const link = await packCampaign(shareable(checkCampaign(studyOf(study)), true));
-      await assert.rejects(linked.unpackCampaign(link), /it was saved in format 5, and this page reads formats 1 to 4/);
+      await assert.rejects(linked.unpackCampaign(link), new RegExp(`it was saved in format ${saved}, and this page reads formats 1 to ${format}`));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+
+  test("an earlier Factorial, of format 4, refuses a study with kept settings as saved by a later one", async () => {
+    const study = { ...record("kept", "Kept"), v: WHAT_IF_FORMAT, what_if: [{ name: "Hot", settings: { T: 200, Supplier: "A" } }] };
+    await refusedByAnEarlierPage(WHAT_IF_FORMAT - 1, study);
+  });
+
+  test("an earlier Factorial, of format 5, refuses a study that reads a curve on each run as saved by a later one", async () => {
+    const study = { ...record("curved", "Curved"), v: CURVE_FORMAT };
+    study.design.spec.curve = { label: "Colour", argument: { label: "Time", values: [0, 5, 10] } };
+    study.curves = [[0, 1, 2], null, null, null];
+    await refusedByAnEarlierPage(CURVE_FORMAT - 1, study);
   });
 
   test("names its file from the study's title", () => {

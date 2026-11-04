@@ -97,6 +97,9 @@ ready.catch(() => {}); // each call is answered with the reason
 // The page calls only the api_* entry points bootstrap.py defines; nothing else in its namespace answers.
 const ENTRY_POINT = /^api_[a-z_]+$/;
 
+// The entry points whose replies the page draws charts from, and which name the Plotly.js they are drawn with.
+const CHARTS = new Set(["api_plots", "api_functional"]);
+
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
     const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
@@ -104,11 +107,11 @@ self.onmessage = async ({ data: { id, fn, payload } }) => {
     const pyodide = await ready;
     const entry = pyodide.globals.get(fn);
     if (typeof entry !== "function") throw refused;
-    if (fn === "api_plots") await installPlotly(pyodide);
+    if (CHARTS.has(fn)) await installPlotly(pyodide);
     const reply = entry(payload ?? "{}");
     self.postMessage({ id, reply });
   } catch (err) {
-    if (fn === "api_plots") plotly = null; // the next chart tries the install again
+    if (CHARTS.has(fn)) plotly = null; // the next chart tries the install again
     self.postMessage({ id, reply: JSON.stringify({ ok: false, error: oneLine(err) }) });
   }
 };

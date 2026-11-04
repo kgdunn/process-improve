@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 from patsy import DesignInfo, PatsyError, build_design_matrices, dmatrix
 from scipy import optimize, stats
+from scipy.interpolate import BSpline
 from sklearn.base import clone
 
 from process_improve._random import check_random_state
@@ -60,14 +61,46 @@ def _projection(matrix: np.ndarray) -> _Projection:
     return _Projection(hat=hat, df_model=rank - int(has_constant), df_residual=matrix.shape[0] - rank)
 
 
-def _component_table(model: FPCA, projection: _Projection, significance_level: float) -> pd.DataFrame:
-    """Return each component's share of the variance, its F-test, and whether it is kept, up to ``VARIANCE_TESTED``."""
+@dataclass(frozen=True)
+class _Components:
+    """A functional PCA as B-spline coefficients: the mean's, each eigenfunction's, the scores and variance shares."""
+
+    mean_coef: np.ndarray
+    eigen_coef: np.ndarray
+    scores: np.ndarray
+    ratio: np.ndarray
+
+
+def _components_of(model: FPCA) -> _Components:
+    """Return a fitted FPCA's components."""
     ratio = model.explained_variance_ratio_.to_numpy()
+    return _Components(model._mean_coef, model._eigen_coef, model.scores_.to_numpy(), ratio)
+
+
+def _refit(model: FPCA, curves: np.ndarray) -> _Components:
+    """Return the components of curves on a fitted FPCA's grid, basis and smoothing: its coefficients, then one SVD.
+
+    A bootstrap replicate keeps all three, so a full refit, which builds the basis again and runs a PCA with
+    its diagnostics, does ten times the work. The SVD fixes each component only up to sign, which a curve
+    rebuilt from a score times its eigenfunction does not see.
+    """
+    coefficients = model._coefficients(curves, model.smoothing_)
+    mean = coefficients.mean(axis=0)
+    left, sizes, right = np.linalg.svd((coefficients - mean) @ model._root_gram, full_matrices=False)
+    keep = min(curves.shape[0] - 1, sizes.size)  # centred curves span one dimension fewer than there are curves
+    total = float(np.sum(sizes**2))
+    ratio = sizes[:keep] ** 2 / total if total > 0 else np.zeros(keep)
+    return _Components(mean, model._inverse_root_gram @ right[:keep].T, left[:, :keep] * sizes[:keep], ratio)
+
+
+def _component_table(components: _Components, projection: _Projection, significance_level: float) -> pd.DataFrame:
+    """Return each component's share of the variance, its F-test, and whether it is kept, up to ``VARIANCE_TESTED``."""
+    ratio = components.ratio
     cumulative = np.cumsum(ratio)
     by_variance = int(np.searchsorted(cumulative, VARIANCE_KEPT - 1e-12) + 1)
     last = max(by_variance, int(np.searchsorted(cumulative, VARIANCE_TESTED - 1e-12) + 1))
     last = min(last, len(ratio))
-    scores = model.scores_.to_numpy()[:, :last]
+    scores = components.scores[:, :last]
     explained = ((projection.hat @ scores) ** 2).sum(axis=0)
     unexplained = ((scores - projection.hat @ scores) ** 2).sum(axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -84,7 +117,7 @@ def _component_table(model: FPCA, projection: _Projection, significance_level: f
             "kept": kept,
             "reason": np.where(order < by_variance, "variance", np.where(kept, "factor test", "")),
         },
-        index=model.explained_variance_ratio_.index[:last],
+        index=pd.Index([f"FPC {a + 1}" for a in range(last)]),
     )
 
 
@@ -95,9 +128,9 @@ def _full_scores(model: FPCA, position: list[int], values: np.ndarray) -> np.nda
     return full
 
 
-def _kept_scores(model: FPCA, kept: np.ndarray) -> np.ndarray:
+def _kept_scores(scores: np.ndarray, kept: np.ndarray) -> np.ndarray:
     """Return the scores with the components not kept set to zero, so the curves they rebuild leave those out."""
-    scores = model.scores_.to_numpy().copy()
+    scores = scores.copy()
     mask = np.zeros(scores.shape[1], dtype=bool)
     mask[: kept.size] = kept
     scores[:, ~mask] = 0.0
@@ -184,11 +217,8 @@ class FunctionalFit:
             ``critical_value``: each new point's multiple of the standard error that the simultaneous band
             spans. ``level`` and ``n_bootstrap``, as used.
         """
-        if int(n_bootstrap) < 2:
-            raise ValueError(f"n_bootstrap must be at least 2; got {n_bootstrap}.")
         if not 0 < level < 1:
             raise ValueError(f"level must lie between 0 and 1; got {level}.")
-        rng = check_random_state(random_state)
         if self._blocks and BLOCK_COL in new_points:
             raise ValueError(
                 f"new_points has a {BLOCK_COL!r} column, but a curve is predicted for the average over the blocks; "
@@ -199,19 +229,70 @@ class FunctionalFit:
             (new_matrix,) = build_design_matrices([self._design], points, return_type="matrix")
         except PatsyError as error:
             raise ValueError(f"new_points cannot be read by the model {self.formula!r}: {error}") from None
+        rows = np.asarray(new_matrix)
+        maps = self.curve_maps(n_bootstrap=n_bootstrap, random_state=random_state)
+        estimate = maps["mean"] + rows @ maps["map"]
+        replicates = maps["replicate_means"][:, None, :] + np.einsum("np,bpg->bng", rows, maps["replicate_maps"])
+        return _bands(estimate, replicates, maps["df_residual"], level, (new_points.index, self.fpca.grid_))
+
+    def curve_maps(
+        self,
+        *,
+        grid: np.ndarray | None = None,
+        n_bootstrap: int = 400,
+        random_state: int | np.random.Generator | None = None,
+    ) -> dict[str, Any]:
+        """Return the fitted curve, and each wild-bootstrap replicate of it, as an affine map of a model row.
+
+        At settings whose row of the model matrix is ``x``, the predicted curve is ``mean + x @ map`` and
+        replicate ``b``'s is ``replicate_means[b] + x @ replicate_maps[b]``. The bootstrap is the one
+        :meth:`predict` describes, and :meth:`predict` forms its bands from these maps. A caller that
+        predicts at many settings, as a page does while a reader moves them, needs only these numbers and
+        the row.
+
+        Parameters
+        ----------
+        grid : numpy.ndarray or None, default=None
+            Points to give the curves at, within the fitted range; the FPCA's grid when not given. A coarser
+            grid keeps the maps small for a curve measured at many points, such as a spectrum.
+        n_bootstrap : int, default=400
+            Number of bootstrap replicates.
+        random_state : int, numpy.random.Generator, or None, default=None
+            Seeds the bootstrap, per the reproducibility contract.
+
+        Returns
+        -------
+        dict
+            ``terms``, the model matrix's columns; ``mean``, one value per grid point; ``map``, a row per term;
+            ``replicate_means`` and ``replicate_maps``, the same for each replicate; and ``df_residual``.
+        """
+        if int(n_bootstrap) < 2:
+            raise ValueError(f"n_bootstrap must be at least 2; got {n_bootstrap}.")
+        rng = check_random_state(random_state)
         projection = _projection(self._model_matrix)
-        to_new = np.asarray(new_matrix) @ np.linalg.pinv(self._model_matrix)
+        to_coefficients = np.linalg.pinv(self._model_matrix)
         kept = self.components["kept"].to_numpy()
-        estimate = self._curves_at(self.fpca, kept, to_new)
         fitted = self._curves_at(self.fpca, kept, projection.hat)
         leverage = np.clip(np.diag(projection.hat), 0.0, 1.0)
         # OLS residuals are smaller than the errors by sqrt(1 - h); a run fitted exactly (h = 1) has none to resample.
         scale = np.divide(1.0, np.sqrt(1.0 - leverage), out=np.zeros_like(leverage), where=leverage < 1.0)
         residuals = (self._curves.to_numpy() - fitted) * scale[:, None]
-        replicates = np.stack(
-            [self._replicate(fitted, residuals, projection, to_new, rng) for _ in range(int(n_bootstrap))]
-        )
-        return _bands(estimate, replicates, projection.df_residual, level, (new_points.index, self.fpca.grid_))
+        at = self.fpca.grid_ if grid is None else np.asarray(grid, dtype=float)
+        if at.min() < self.fpca.grid_[0] or at.max() > self.fpca.grid_[-1]:
+            raise ValueError(f"grid must lie within the fitted range [{self.fpca.grid_[0]}, {self.fpca.grid_[-1]}].")
+        basis = BSpline.design_matrix(at, self.fpca.knots_, self.fpca.degree).toarray()
+        mean, linear = _affine(_components_of(self.fpca), kept, to_coefficients, basis)
+        replicates = [
+            self._replicate(fitted, residuals, projection, to_coefficients, rng, basis) for _ in range(int(n_bootstrap))
+        ]
+        return {
+            "terms": list(self._design.column_names),
+            "mean": mean,
+            "map": linear,
+            "replicate_means": np.stack([m for m, _ in replicates]),
+            "replicate_maps": np.stack([m for _, m in replicates]),
+            "df_residual": projection.df_residual,
+        }
 
     def match_target(
         self,
@@ -257,7 +338,7 @@ class FunctionalFit:
         kept = self.components["kept"].to_numpy()
         names = self.components.index[kept]
         goal = self.fpca.transform(np.asarray(target, dtype=float).reshape(1, -1)).iloc[0][names].to_numpy()
-        coefficients = np.linalg.pinv(self._model_matrix) @ _kept_scores(self.fpca, kept)
+        coefficients = np.linalg.pinv(self._model_matrix) @ _kept_scores(self.fpca.scores_.to_numpy(), kept)
         searched, held = self._search_space(bounds)
         position = np.flatnonzero(kept).tolist()
 
@@ -338,24 +419,37 @@ class FunctionalFit:
 
     def _curves_at(self, model: FPCA, kept: np.ndarray, to_points: np.ndarray) -> np.ndarray:
         """Return the curves the fitted scores predict, through a linear map from the runs to the points."""
-        return model.inverse_transform(to_points @ _kept_scores(model, kept), grid=self.fpca.grid_).to_numpy()
+        scores = to_points @ _kept_scores(model.scores_.to_numpy(), kept)
+        return model.inverse_transform(scores, grid=self.fpca.grid_).to_numpy()
 
     def _replicate(
         self,
         fitted: np.ndarray,
         residuals: np.ndarray,
         projection: _Projection,
-        to_new: np.ndarray,
+        to_coefficients: np.ndarray,
         rng: np.random.Generator,
-    ) -> np.ndarray:
-        """Return the new points' curves predicted from one wild-bootstrap replicate of the runs."""
+        basis: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return one wild-bootstrap replicate of the runs' fit, as its mean curve and its map (see :func:`_affine`)."""
         signs = rng.choice([-1.0, 1.0], size=int(self._groups.max()) + 1)[self._groups]
-        resampled = pd.DataFrame(fitted + signs[:, None] * residuals, columns=self._curves.columns)
         # shortcut: the smoothing penalty is not chosen again, so the bands leave out the uncertainty of GCV's
         # choice; choose it per replicate if that ever matters.
-        model = clone(self.fpca).set_params(n_components=None, smoothing=self.fpca.smoothing_).fit(resampled)
-        table = _component_table(model, projection, self._significance_level)
-        return self._curves_at(model, table["kept"].to_numpy(), to_new)
+        components = _refit(self.fpca, fitted + signs[:, None] * residuals)
+        table = _component_table(components, projection, self._significance_level)
+        return _affine(components, table["kept"].to_numpy(), to_coefficients, basis)
+
+
+def _affine(
+    components: _Components, kept: np.ndarray, to_coefficients: np.ndarray, basis: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return a fit's mean curve, through the B-splines ``basis`` at its points, and the map from a model row.
+
+    The rebuilt curve is affine in the scores, and the predicted scores are linear in the row, so the curve
+    at a row is the mean plus the row times the coefficients of the kept scores times their eigenfunctions.
+    """
+    shapes = (basis @ components.eigen_coef).T
+    return basis @ components.mean_coef, to_coefficients @ _kept_scores(components.scores, kept) @ shapes
 
 
 def _bands(
@@ -449,7 +543,7 @@ def analyze_functional_experiment(
             f"The model has {projection.df_model + 1} estimable terms but there are {len(curves)} runs, so no "
             "residual degrees of freedom are left to test or bound the scores. Fit a smaller model, or add runs."
         )
-    table = _component_table(fitted, projection, significance_level)
+    table = _component_table(_components_of(fitted), projection, significance_level)
     return FunctionalFit(
         fpca=fitted,
         components=table,

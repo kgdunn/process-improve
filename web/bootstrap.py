@@ -48,6 +48,7 @@ from process_improve.experiments import (
     NotSeparableError,
     TrueProcess,
     analyze_experiment,
+    analyze_functional_experiment,
     augment_design,
     compare_designs,
     constraint_through_cuts,
@@ -84,6 +85,11 @@ if TYPE_CHECKING:
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
 SPEC_VERSION = 1
+#: The sheet that holds each run's curve, when the study reads one: a row per run and a column per point.
+CURVE_SHEET = "Curves"
+#: The run sheet's order columns; the Curves sheet repeats them, so the reader sees which run each row is.
+RUN_ORDER = "Run order"
+ORDERS = ("Std order", RUN_ORDER)
 
 #: The run sheet's column marking simulated results. Its space keeps it apart from every factor
 #: and response, which must be variable names; workbooks written before used ``Source``.
@@ -498,6 +504,22 @@ TRANSFORMS: dict[str, dict[str, Any]] = {
 #: The most responses a study measures. Each has a column of its own on the run sheet, its own model and its own
 #: analysis; the first one sizes the design, as the brief's typical value, noise and smallest change are its own.
 MAX_RESPONSES = 5
+
+#: The most points along a curve a study measures each run's curve at, as many as a spectrum has.
+MAX_CURVE_POINTS = 1000
+#: The most points the page draws a predicted curve at: a curve measured at more is drawn at this many, evenly
+#: spaced, which keeps the bootstrap's maps the page predicts from small.
+CURVE_DRAWN = 61
+#: The bootstrap replicates a curve's bands are worked from: few enough for Pyodide to refit in a few seconds,
+#: enough for the 95% quantile of each replicate's largest departure, which the simultaneous band rests on.
+CURVE_REPLICATES = 200
+#: The significant figures the maps are sent with: the bands need no more, and the reply is a third the size.
+CURVE_FIGURES = 6
+#: The column that carries each run's place on the run sheet through to the runs fitted, so its curve follows it.
+CURVE_ROW = "_curve_row"
+#: The random starts of the search for the settings that reproduce a target curve: each start costs Pyodide a
+#: fraction of a second, and a model of a few factors has few local minima for more starts to find.
+CURVE_STARTS = 8
 
 #: How far apart the seeds of two responses' simulated noise are: the response in place j (0 for the first) draws
 #: its noise with the seed plus j times this, so each response has noise of its own and the first keeps the seed's.
@@ -2517,18 +2539,27 @@ def _outside_range(runs: pd.DataFrame, factors: list[Factor]) -> list[str]:
     return [f.name for f in numeric if runs[f.name].min() < f.low - 1e-9 or runs[f.name].max() > f.high + 1e-9]
 
 
-def _to_workbook(runs: pd.DataFrame, spec: dict) -> str:
-    """Write the run sheet and the hidden specification sheet, base64-encoded."""
+def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = None) -> str:
+    """Write the run sheet and the hidden specification sheet, base64-encoded; and the curves, when the study reads one.
+
+    The Curves sheet has a row per run, in the run sheet's order and with its run order, and a column per
+    point along the curve, headed by its value.
+    """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         runs.to_excel(xl, sheet_name=RUN_SHEET, index=False)
         pd.DataFrame({"spec": [json.dumps(spec)]}).to_excel(xl, sheet_name=SPEC_SHEET, index=False)
         xl.book[SPEC_SHEET].sheet_state = "hidden"
         xl.book[RUN_SHEET].freeze_panes = "A2"
+        if curves is not None:
+            orders = runs[[c for c in ORDERS if c in runs.columns]].reset_index(drop=True)
+            points = pd.DataFrame(curves, columns=spec["curve"]["argument"]["values"])
+            pd.concat([orders, points], axis=1).to_excel(xl, sheet_name=CURVE_SHEET, index=False)
+            xl.book[CURVE_SHEET].freeze_panes = "A2"
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict]:
+def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict, pd.DataFrame | None]:
     try:
         sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, engine="openpyxl")
     except Exception as exc:  # openpyxl raises several unrelated types on a bad file
@@ -2538,7 +2569,32 @@ def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict]:
     spec = json.loads(str(sheets[SPEC_SHEET]["spec"].iloc[0]))
     if spec.get("version") != SPEC_VERSION:
         raise ValueError("This workbook was made by a different version of the page.")
-    return sheets[RUN_SHEET], spec
+    return sheets[RUN_SHEET], spec, sheets.get(CURVE_SHEET)
+
+
+def _curves_read(sheet: pd.DataFrame | None, curve: dict, runs: pd.DataFrame) -> list[list[float | None] | None]:
+    """Read each run's curve back from the Curves sheet: None for a run whose row is blank, None for a blank point.
+
+    A row belongs to the run of its run order, so a sheet sorted in Excel still finds its runs; without run
+    orders, the rows are the runs in the run sheet's order.
+    """
+    if sheet is None:
+        return [None] * len(runs)
+    columns = [c for c in sheet.columns if _number(c) is not None]
+    points = curve["argument"]["values"]
+    if len(columns) != len(points) or not np.allclose([float(c) for c in columns], points, rtol=1e-9):
+        raise ValueError("The Curves sheet's columns are not the points along the curve this study reads it at.")
+    values = sheet[columns].apply(pd.to_numeric, errors="coerce")
+    if RUN_ORDER in sheet.columns and RUN_ORDER in runs.columns:
+        values.index = pd.to_numeric(sheet[RUN_ORDER], errors="coerce")
+        if values.index.has_duplicates:
+            raise ValueError("The Curves sheet lists one run order twice: each run has one row there.")
+        values = values.reindex(pd.to_numeric(runs[RUN_ORDER], errors="coerce"))
+    elif len(values) != len(runs):
+        raise ValueError(f"The Curves sheet has {len(values)} rows for {len(runs)} runs.")
+    return [
+        None if row.isna().all() else [None if pd.isna(v) else float(v) for v in row] for _, row in values.iterrows()
+    ]
 
 
 def analyze(request: dict) -> dict:
@@ -2549,7 +2605,7 @@ def analyze(request: dict) -> dict:
     Rows with an empty response are left out and reported, so a partly filled
     workbook can be analysed as the runs come in.
     """
-    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    runs, stored, _ = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     # A workbook can arrive from anywhere: its specification is checked as data. ``response`` names the response to
     # analyse, by its column; the first without it.
     checked = _checked_spec(stored)
@@ -3791,7 +3847,7 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         else:
             _checked_model(one, names, labelled)
     # read_workbook checks what_if itself.
-    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if")
+    dropped = ("response_info", "responses", "aim", "constraints", "analysis_transforms", "what_if", "curve")
     checked = {key: value for key, value in spec.items() if key not in dropped}
     limits = _checked_constraints(spec.get("constraints"), factors)
     transforms = _checked_transforms(spec, responses)
@@ -3805,7 +3861,34 @@ def _checked_spec(spec: dict) -> dict[str, Any]:
         **_aimed(spec),
         **({"constraints": limits} if limits else {}),
         **({"analysis_transforms": transforms} if transforms else {}),
+        **({"curve": _checked_curve(spec["curve"])} if spec.get("curve") is not None else {}),
     }
+
+
+def _checked_curve(raw: object) -> dict[str, Any]:
+    """Check a study's curve response: the reader's words for it and its units, and where along it each run is read.
+
+    ``argument`` says what the points along the curve are (its ``label`` and ``units``, such as a time in
+    minutes) and their ``values``: 3 to :data:`MAX_CURVE_POINTS` numbers, each larger than the one before.
+    Every run is read at the same points; a point a run lacks is a blank in its curve.
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("argument"), dict):
+        raise ValueError("The page sent a curve this page did not write.")  # noqa: TRY004 - a refusal, like the rest
+    argument = raw["argument"]
+    values = argument.get("values")
+    if not isinstance(values, list) or any(isinstance(v, bool) or _number(v) is None for v in values):
+        raise ValueError("The page sent a curve this page did not write.")
+    points = [float(v) for v in values]
+    if not 3 <= len(points) <= MAX_CURVE_POINTS or any(b <= a for a, b in itertools.pairwise(points)):
+        raise ValueError(
+            f"A curve is read at 3 to {MAX_CURVE_POINTS} points along it, each one after the point before."
+        )
+
+    def words(of: dict) -> dict[str, str]:
+        fields = (("label", 64), ("units", 32))
+        return {key: text for key, most in fields if (text := _described_text(of.get(key), most))}
+
+    return {**words(raw), "argument": {**words(argument), "values": points}}
 
 
 def _checked_transforms(spec: dict, responses: list[dict[str, Any]]) -> dict[str, str]:
@@ -4226,9 +4309,10 @@ def read_workbook(request: dict) -> dict:
     The first response's results and their sources are ``responses`` and ``sources``, as for a study of
     one response; with several, ``more_responses`` and ``more_sources`` hold each later one's, by its column.
     A run the workbook marks as simulated has every result it holds marked so. ``what_if`` holds the settings
-    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`).
+    the reader kept from the what-if panel, when the workbook keeps any (see :func:`_kept_settings`). A study
+    that reads a curve has each run's in ``curves``, from the Curves sheet (see :func:`_curves_read`).
     """
-    runs, stored = _read_workbook(base64.b64decode(request["xlsx_base64"]))
+    runs, stored, curve_sheet = _read_workbook(base64.b64decode(request["xlsx_base64"]))
     spec = _checked_spec(stored)
     names = [r["name"] for r in _responses(spec)]
     if missing := next((name for name in names if name not in runs.columns), None):
@@ -4260,6 +4344,8 @@ def read_workbook(request: dict) -> dict:
         reply["more_sources"] = {name: results[name][1] for name in names[1:]}
     if stored.get("what_if"):
         reply["what_if"] = _kept_settings(stored["what_if"])
+    if spec.get("curve") is not None:
+        reply["curves"] = _curves_read(curve_sheet, spec["curve"], runs)
     return reply
 
 
@@ -4323,7 +4409,8 @@ def workbook(request: dict) -> dict:
 
     A run is marked simulated when every result it holds is: ``sources`` holds the first
     response's sources, and ``more_sources`` each later response's, by its column. The settings the
-    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too.
+    reader kept from the what-if panel, ``what_if``, are kept in the stored specification too. A
+    study that reads a curve has each run's ``curves`` on a sheet of their own.
     """
     spec = _checked_spec(request.get("spec") or {})
     if request.get("model"):
@@ -4350,7 +4437,11 @@ def workbook(request: dict) -> dict:
         spec = {**spec, "simulated": {k: simulated.get(k) for k in ("scenario", "sigma", "seed")}}
     if request.get("what_if"):
         spec = {**spec, "what_if": _kept_settings(request["what_if"])}
-    return {"xlsx_base64": _to_workbook(runs, spec)}
+    curves = None
+    if spec.get("curve") is not None:
+        points = len(spec["curve"]["argument"]["values"])
+        curves = _curves_sent(request.get("curves") or [None] * len(runs), len(runs), points)
+    return {"xlsx_base64": _to_workbook(runs, spec, curves)}
 
 
 def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
@@ -7506,6 +7597,141 @@ def _coding(factor: dict, spec: dict) -> dict[str, Any]:
     return {"name": factor["name"], "kind": "categorical", "levels": levels, "columns": columns}
 
 
+def functional(request: dict) -> dict:
+    """Fit a study's curves, and return the fit as numbers the page predicts whole curves from, with their bands.
+
+    Each run's curve (``curves``: a list per run of one value per point of the study's ``curve``, a blank
+    where it was not read, or null for a run not measured yet) is reduced by functional PCA, and each kept
+    score modelled against the factors with :func:`~process_improve.experiments.analyze_functional_experiment`.
+    The runs are coded and the model made estimable as Learn fits a response (:func:`_fit_estimable`), so a
+    curve is predicted from the same columns as the what-if panel predicts a response from (``factors``, as
+    :func:`predictors` sends them), and a curve is predicted for the average block.
+
+    The curve at settings whose model row is ``x`` is ``mean + x @ map``; ``replicates`` hold the same for
+    each of :data:`CURVE_REPLICATES` wild-bootstrap replicates (:meth:`~process_improve.experiments.
+    FunctionalFit.curve_maps`), which the page turns into bands (``curveAt`` in ``web/best.js``) as
+    :meth:`~process_improve.experiments.FunctionalFit.predict` does, with ``t`` and ``widening``. A curve read
+    at more than :data:`CURVE_DRAWN` points is drawn at that many, evenly spaced (``points``).
+
+    ``target``, one value per point or a blank, asks for the settings whose predicted curve comes closest
+    to it (:meth:`~process_improve.experiments.FunctionalFit.match_target`), a categorical factor held at
+    its level in ``held``. shortcut: the search ignores the limits on the settings; keep to them there
+    once a study with both limits and curves needs it.
+    """
+    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
+
+    spec = _checked_spec(request.get("spec") or {})
+    if spec.get("curve") is None:
+        raise ValueError("This study measures no curve: describe the curve each run gives, then paste the curves.")
+    if _mixture(spec):
+        raise ValueError("A mixture's curves are not analysed on this page yet.")
+    grid = np.asarray(spec["curve"]["argument"]["values"])
+    runs = _runs_frame(request, spec)
+    sent = _curves_sent(request.get("curves"), len(runs), grid.size)
+    design = _design_runs(runs.assign(**{CURVE_ROW: np.arange(len(runs))}))
+    values = sent[design[CURVE_ROW].to_numpy()]
+    done = np.isfinite(values).any(axis=1)  # a run with no point read has no curve yet
+    names = [f["name"] for f in spec["factors"]]
+    categorical = _categorical_names(spec)
+    model, columns = _fitted_model(_checked_model(request.get("model") or spec["model"], names, categorical), spec)
+    coded = _design_frame(design, spec, columns)[done].reset_index(drop=True)
+    curves = pd.DataFrame(values[done], columns=grid)
+    with _listening():
+        # which terms the runs can estimate depends on the runs alone, so any one number per run decides it
+        stand_in = pd.Series(np.nanmean(values[done], axis=1), name="curve")
+        fit = _fit_estimable(coded, stand_in, model, columns, categorical)
+        result = analyze_functional_experiment(coded, curves, model=fit["formula"])
+        drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
+        maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
+    kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
+    t = float(stats.t.ppf(0.5 + LEVEL / 2, max(maps["df_residual"], 1)))
+    reply = {
+        "points": drawn,
+        "runs": len(curves),
+        "factors": [_coding(f, spec) for f in spec["factors"]],
+        "formula": result.formula,
+        "terms": [list(_parts(maps["terms"][i])) for i in kept],
+        "mean": _figures(maps["mean"]),
+        "map": _figures(maps["map"][kept]),
+        "replicates": [
+            {"mean": _figures(mean), "map": _figures(linear[kept])}
+            for mean, linear in zip(maps["replicate_means"], maps["replicate_maps"], strict=True)
+        ],
+        "t": t,
+        "widening": t / float(stats.norm.ppf(0.5 + LEVEL / 2)),
+        "level": LEVEL,
+        "components": [
+            {"name": str(name), "variance": float(row["variance_ratio"]), "kept": bool(row["kept"])}
+            for name, row in result.components.iterrows()
+        ],
+        "notes": fit["notes"],
+        "plotly_js": get_plotlyjs_version(),
+    }
+    if request.get("target") is not None:
+        reply["match"] = _matched(result, request, spec, grid.size)
+    return reply
+
+
+def _curves_sent(raw: object, n_runs: int, n_points: int) -> np.ndarray:
+    """Return the runs' curves as an array, a row per run and a column per point; NaN where nothing was read."""
+    if not isinstance(raw, list) or len(raw) != n_runs:
+        raise ValueError(f"{len(raw) if isinstance(raw, list) else 0} curves were sent for {n_runs} runs.")
+    rows = np.full((n_runs, n_points), np.nan)
+    for i, curve in enumerate(raw):
+        if curve is None:
+            continue
+        if not isinstance(curve, list) or len(curve) != n_points or any(isinstance(v, bool) for v in curve):
+            raise ValueError(f"Each run's curve holds {n_points} values, one per point along it, or blanks.")
+        rows[i] = [np.nan if (number := _number(v)) is None else number for v in curve]
+    return rows
+
+
+def _figures(values: np.ndarray) -> list:
+    """Return an array as nested lists of numbers, each to :data:`CURVE_FIGURES` significant figures.
+
+    Each is an integer over a power of ten (or times one), so it is the double nearest that decimal, which
+    JSON then writes in its few digits.
+    """
+    array = np.asarray(values, dtype=float)
+    size = np.floor(np.log10(np.abs(array), out=np.zeros_like(array), where=array != 0))
+    places = CURVE_FIGURES - 1 - size
+    up = 10.0 ** np.maximum(places, 0)
+    down = 10.0 ** np.maximum(-places, 0)
+    return (np.round(array * up / down) * down / up).tolist()
+
+
+def _matched(result: Any, request: dict, spec: dict, n_points: int) -> dict[str, Any]:  # noqa: ANN401 - a FunctionalFit
+    """Return the settings, in the factors' own units or levels, whose predicted curve comes closest to the target.
+
+    The search runs over the coded columns the model names; a categorical factor is held at its level.
+    """
+    target = _curves_sent([request["target"]], 1, n_points)[0]
+    if not np.isfinite(target).any():
+        raise ValueError("Enter the target curve: at least one value along it.")
+    held_levels = request.get("held") or {}
+    if not isinstance(held_levels, dict):
+        raise ValueError("The page sent settings this page did not write.")  # noqa: TRY004 - a refusal, like the rest
+    bounds: dict[str, float] = {}
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            level = held_levels.get(f["name"], levels[0])
+            if level not in levels:
+                raise ValueError(f"{f['name']} at {level} is none of its levels, {_listed(levels)}.")
+            code = float(np.linspace(-1.0, 1.0, len(levels))[levels.index(level)])
+            named = _held_columns({f["name"]: code}, spec).items()
+            bounds |= {c: v for c, v in named if re.search(rf"\b{re.escape(c)}\b", result.formula)}
+    found = result.match_target(target, bounds=bounds or None, n_starts=CURVE_STARTS, random_state=0)
+    settings = {}
+    for f in spec["factors"]:
+        if _categorical(f):
+            settings[f["name"]] = held_levels.get(f["name"], _levels_of(f)[0])
+        elif f["name"] in found["settings"]:
+            settings[f["name"]] = f["low"] + (float(found["settings"][f["name"]]) + 1) / 2 * (f["high"] - f["low"])
+    return {"settings": settings, "distance": found["distance"]}
+
+
 def outside_limits(request: dict) -> dict:
     """Name the limits on the settings that some settings break, each by its place in the study's list.
 
@@ -8194,6 +8420,11 @@ def api_add_runs(payload: str) -> str:
 def api_predictors(payload: str) -> str:
     """JSON wrapper around :func:`predictors`."""
     return _reply(predictors, payload)
+
+
+def api_functional(payload: str) -> str:
+    """JSON wrapper around :func:`functional`."""
+    return _reply(functional, payload)
 
 
 def api_outside_limits(payload: str) -> str:

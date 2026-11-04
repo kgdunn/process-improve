@@ -26,6 +26,8 @@ import {
   coefficientFigure,
   correlationFigure,
   coxFigure,
+  CURVE_LINES,
+  curveFigure,
   fdsFigure,
   markBest,
   niceStep,
@@ -474,4 +476,35 @@ test("a report's charts take the light theme's colours, as style.css gives them"
   const start = css.indexOf(":root {");
   const light = css.slice(start, css.indexOf("}", start));
   for (const [name, colour] of Object.entries(LIGHT)) assert.match(light, new RegExp(`--${name}: ${colour};`), name);
+});
+
+describe("the curve predicted at the what-if settings", () => {
+  const predicted = { curve: [0, 1, 1.4], pointwise: [[0, 0.9, 1.2], [0, 1.1, 1.6]], simultaneous: [[0, 0.8, 1.1], [0, 1.2, 1.7]] };
+  const words = { label: "Colour", units: "AU", along: "Time", alongUnits: "min" };
+
+  test("shades the band at each point, dashes the band over the whole curve, and names its axes with their units", () => {
+    const { data, layout } = curveFigure([0, 5, 10], predicted, words, null, COLOURS);
+    assert.deepEqual(data.map((trace) => trace.name), [
+      CURVE_LINES.pointwise,
+      CURVE_LINES.pointwise,
+      CURVE_LINES.simultaneous,
+      CURVE_LINES.simultaneous,
+      CURVE_LINES.curve,
+    ]);
+    assert.equal(data[1].fill, "tonexty", "the band fills down to its lower edge");
+    assert.deepEqual([data[2].line.dash, data[3].line.dash], ["dash", "dash"]);
+    assert.deepEqual(data[4].y, predicted.curve);
+    assert.equal(data.filter((trace) => trace.showlegend !== false).length, 3, "one legend entry a line");
+    assert.equal(layout.xaxis.title.text, "Time (min)");
+    assert.equal(layout.yaxis.title.text, "Colour (AU)");
+  });
+
+  test("dots a target the reader gave, at its own points, with a gap where it has no value", () => {
+    const target = { points: [0, 5, 10], values: [0, null, 1.5] };
+    const { data } = curveFigure([0, 5, 10], predicted, {}, target, COLOURS);
+    const dotted = data.at(-1);
+    assert.equal(dotted.name, CURVE_LINES.target);
+    assert.deepEqual(dotted.y, target.values);
+    assert.equal(dotted.connectgaps, false);
+  });
 });

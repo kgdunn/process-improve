@@ -405,7 +405,10 @@ describe("confirmation runs on the run sheet", () => {
       rows: SHEET.rows,
       results: { Yield: [50, 51], Cost: [9, null] },
       marks: { Yield: ["entered", "entered"], Cost: ["entered", null] },
+      curves: null,
     });
+    const curves = [[0, 1, 2], null, [0, 2, 3], null, null];
+    assert.deepEqual(withoutConfirmationRuns(added, results, marks, curves).curves, [[0, 1, 2], null], "each run's curve too");
   });
 
   test("a mark typed in a workbook is read whatever its case", () => {
