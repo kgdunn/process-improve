@@ -158,6 +158,17 @@ class TestInteractionTerms:
             warnings.simplefilter("error", SpecificationWarning)
             interaction_terms(parents, [("a", "b")])
 
+    def test_a_nullable_column_holding_pd_na_reads_as_missing(self) -> None:
+        """pd.NA is a missing value, as NaN is; the check of the scaling raised TypeError on it (#1081)."""
+        floats = self._parents()
+        floats.iloc[3, 0] = np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", SpecificationWarning)
+            terms, constants = interaction_terms(floats.astype("Float64"), [("a", "b")])
+        expected_terms, expected_constants = interaction_terms(floats, [("a", "b")])
+        np.testing.assert_allclose(terms.to_numpy(dtype=float), expected_terms.to_numpy(), rtol=1e-14)
+        pd.testing.assert_frame_equal(constants, expected_constants)
+
     def test_a_self_pair_gives_a_quadratic_term(self) -> None:
         parents = self._parents()
         terms, _constants = interaction_terms(parents, [("a", "a")])

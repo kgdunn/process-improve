@@ -316,6 +316,25 @@ class TestComponentCount:
         with pytest.raises(NotEnoughVarianceError, match=r"beyond component 0\.$"):
             OPLS(n_orthogonal_components=1, scale=False).fit(X, pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0]}))
 
+    @pytest.mark.parametrize("n_orthogonal", [0, 1])
+    def test_a_constant_y_is_refused_as_pls_refuses_it(
+        self, synthetic_single_response: tuple[pd.DataFrame, pd.DataFrame], n_orthogonal: int
+    ) -> None:
+        """A constant response is 0 once centred, so it gives no predictive direction (#1128).
+
+        OPLS raised a LinAlgError with an orthogonal component, and predicted NaN without one.
+        Unscaled, a response of zeros is refused the same way.
+        """
+        X, _y = synthetic_single_response
+        constant = pd.DataFrame({"y": np.full(len(X), 0.1)})
+        message = r"^There is no variance in Y: the response is constant, so there is nothing for X to explain\.$"
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            OPLS(n_orthogonal_components=n_orthogonal).fit(X, constant)
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            OPLS(n_orthogonal_components=n_orthogonal, scale=False).fit(X - X.mean(), constant * 0.0)
+        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for Y"):
+            PLS(n_components=1 + n_orthogonal).fit(X, constant)
+
     def test_two_samples_are_enough(self, cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         """With two rows the variance of a score divides its sum of squares by 2 - 1 = 1."""
         X, y = cheese

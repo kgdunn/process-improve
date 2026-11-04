@@ -24,7 +24,7 @@ from sklearn.model_selection import BaseCrossValidator, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
-from .._random import check_random_state
+from .._random import check_random_state, sklearn_random_state
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
@@ -38,6 +38,7 @@ from ._common import (
     _scale_block_contributions,
     _select_n_components,
     check_at_least_one,
+    check_variance_left,
     epsqrt,
     informative_widths,
     largest_ssq_column,
@@ -676,7 +677,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Raises
         ------
         NotEnoughVarianceError
-            If every column of Y is constant or has no observed value, as :meth:`PLS.fit` raises.
+            If every column of Y, or every column of every X-block, is constant or has no observed
+            value, or if Y has no variance left for a component, as when it is fitted exactly: as
+            :meth:`PLS.fit` raises.
         """
         check_at_least_one("n_components", self.n_components)
         y = _validate_fit_arguments(X, y)
@@ -701,6 +704,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 "There is no variance in Y: every response is constant or has no observed value, "
                 "so there is nothing for X to explain."
             )
+        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128)
+        if sum(ssq(values) for values in x_blocks_pp.values()) < epsqrt:  # pragma: no mutate - <= as for Y above
+            raise NotEnoughVarianceError(
+                "There is no variance in X: every column of every block is constant or has no observed value, "
+                "so there is nothing to explain Y by."
+            )
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,
@@ -718,11 +727,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         initial = _InitialSumsOfSquares.of(x_blocks_pp, y_pp)
         x_def = {name: values.copy() for name, values in x_blocks_pp.items()}
         y_def = y_pp.copy()
+        y_size = float(np.sqrt(ssq(y_def)))  # no variance left is judged against Y's size before the first component
 
         reach = y_reach(list(x_def.values()), y_def)
         exhausted = False
         for a in range(self.n_components_):
             start = time.time()
+            check_variance_left("Y", y_def, a, y_size)  # a Y fitted exactly is refused, as PLS refuses it (#1128)
             exhausted = exhausted or y_is_exhausted("MBPLS", a, list(x_def.values()), y_def, reach)
             if exhausted:
                 component = _component_along_x(x_def, y_def, context)
@@ -1157,9 +1168,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             variable = str(self.predictions_.columns[0])
         if variable not in self.predictions_.columns:
             raise ValueError(f"Unknown Y-variable '{variable}'. Known: {list(self.predictions_.columns)}.")
-        observed = pd.Series(y_observed[variable].to_numpy())
+        observed = pd.Series(y_observed[variable].to_numpy(dtype=float))  # pd.NA as NaN
         predicted = pd.Series(self.predictions_[variable].to_numpy())
-        rmsee = float(np.sqrt(np.mean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
+        # Over the observed cells, as the fit is: a missing Y cell made the RMSEE NaN.
+        rmsee = float(np.sqrt(np.nanmean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
         lo = float(min(observed.min(), predicted.min()))
         hi = float(max(observed.max(), predicted.max()))
         pad = 0.05 * (hi - lo) if hi > lo else 1.0
@@ -1291,7 +1303,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
         n_repeats: int | None = None,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         selection_rule: SelectionRule = "1se",
         **mbpls_kwargs,
     ) -> Bunch:
@@ -1331,8 +1343,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         n_repeats : int, optional
             How many times to repeat the split with a fresh shuffle. Resolved
             to 10 when ``cv`` is an integer; pass 1 to disable repeats.
-        random_state : int, optional
-            Seed for the shuffling. Ignored when ``cv`` is a splitter.
+        random_state : int, numpy.random.Generator or None, optional
+            Seed for the shuffling; a Generator gives its next draw of an int,
+            as :meth:`PLS.select_n_components` takes it. Ignored when ``cv`` is
+            a splitter.
         selection_rule : {"1se", "min", "q2_increment"}, default "1se"
             How ``n_components`` is chosen from the curve. See
             :data:`~process_improve.multivariate._common.SelectionRule`.
@@ -1393,7 +1407,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             # One repeat of a RepeatedKFold is the shuffled KFold the docstring names: the same
             # random_state draws the same folds.
             repeats = 10 if n_repeats is None else int(n_repeats)
-            splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
+            seed = sklearn_random_state(random_state)  # RepeatedKFold refuses a Generator (#1128)
+            splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
             n_splits = cv
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)

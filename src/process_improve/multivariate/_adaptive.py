@@ -74,7 +74,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
-from ._common import DataMatrix, check_at_least_one, epsqrt
+from ._common import DataMatrix, _align_to_fit_features, check_at_least_one, epsqrt
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -186,6 +186,15 @@ def _scores_and_spe(
         scores[a] = float(deflate @ along) / denom if observed else 0.0
         deflate = deflate - scores[a] * np.where(missing, 0.0, loadings[:, a])
     return scores, float(np.sqrt(deflate @ deflate))
+
+
+def _scaled_prediction(x: np.ndarray, model: tuple[np.ndarray, ...]) -> np.ndarray:
+    """Return the scaled prediction of one scaled row by the PLS model ``(R, W, P, C)``, as ``scores @ C'``.
+
+    The scores are those of :func:`_scores_and_spe`, so a row with missing values is projected.
+    """
+    direct, weights, loadings, y_loadings = model
+    return _scores_and_spe(x, direct, weights, loadings)[0] @ y_loadings.T
 
 
 def _as_rows(X: DataMatrix) -> tuple[pd.Index, np.ndarray]:
@@ -416,6 +425,16 @@ class _AdaptiveModel(_LatentVariableModel):
         labels, rows = _as_rows(X)
         scores = np.reshape([self._project(row)[0] for row in rows], (len(labels), self.n_components))
         return pd.DataFrame(scores, index=labels, columns=self._component_names)
+
+    def _scaled_rows(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Return ``X`` centred and scaled by the *current* centre and spread, as ``_project`` reads each row.
+
+        The contribution functions read new rows through this, so they take the data :meth:`transform`
+        takes (#1125). They pass a frame, whose columns are matched to the fit as PCA and PLS match them.
+        """
+        check_is_fitted(self, "mx_")
+        labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names))
+        return pd.DataFrame((rows - self.mx_) / self.sx_, index=labels, columns=self._feature_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
 
@@ -898,6 +917,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         _my0: np.ndarray
         _sy0: np.ndarray
         _beta0: np.ndarray
+        _training_model: tuple[np.ndarray, ...]
         _norm_beta0: float
         _hist_static: list[np.ndarray]
         _hist_prep: list[np.ndarray]
@@ -1007,6 +1027,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._my0 = self.my_.copy()
         self._sy0 = self.sy_.copy()
         self._beta0 = self._beta_scaled.copy()
+        self._training_model = tuple(
+            part.copy() for part in (self._direct, self._weights, self._loadings, self._y_loadings)
+        )
         self._norm_beta0 = float(np.linalg.norm(self._beta0))
 
         self._start_limits(training_model.spe_.iloc[:, A - 1].to_numpy())
@@ -1033,13 +1056,15 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
         The split is exact by a one-at-a-time swap and uses the current model
         state, so streamed on each observation it attributes the departure from
-        the static model to the two mechanisms.
+        the static model to the two mechanisms. Each of the three predictions scores
+        the row as :meth:`predict` does, a row with missing values by single-component
+        projection over its observed values, so the sum is the prediction.
         """
-        xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_)  # a missing value at the centre
-        xs_static = np.nan_to_num((x0 - self._mx0) / self._sx0)
-        y_static = self._my0 + self._sy0 * (self._beta0.T @ xs_static)
-        y_prep = self.my_ + self.sy_ * (self._beta0.T @ xs_cur)
-        y_full = self.my_ + self.sy_ * (self._beta_scaled.T @ xs_cur)
+        xs_cur = (x0 - self.mx_) / self.sx_
+        y_static = self._my0 + self._sy0 * _scaled_prediction((x0 - self._mx0) / self._sx0, self._training_model)
+        y_prep = self.my_ + self.sy_ * _scaled_prediction(xs_cur, self._training_model)
+        current = (self._direct, self._weights, self._loadings, self._y_loadings)
+        y_full = self.my_ + self.sy_ * _scaled_prediction(xs_cur, current)
         return y_static, y_prep - y_static, y_full - y_prep
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:

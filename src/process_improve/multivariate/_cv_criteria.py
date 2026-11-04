@@ -81,7 +81,13 @@ from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
-from ._common import SpecificationWarning, _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
+from ._common import (
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    _equal_weight_r2_total,
+    _select_n_components,
+    _vandervoet_randomization,
+)
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
 from ._nipals import _kernel_pls, _sign_align
@@ -998,6 +1004,16 @@ def _pseudo_validation_set(
         {**pls_kwargs, "scale": False, "warn_on_uncentred": False} if settings.scope == "global" else pls_kwargs
     )
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
+    # A component fitted after Y is exhausted has a Y-loading of 0, so no D ratio, and its NaN
+    # scores would make every cell of X_pv NaN: refused, naming the count the data support (#1128).
+    no_ratio = np.flatnonzero(~np.any(model.y_loadings_.to_numpy(), axis=0))
+    if no_ratio.size:
+        supported = int(no_ratio[0])
+        raise NotEnoughVarianceError(
+            f"The data support {supported} component(s), not the {A} asked for: from component {supported + 1} on "
+            "there is nothing left in Y that X can explain, so the model fitted to all rows gives those components "
+            f"a Y-loading of 0, and they have no D ratio. Pass n_components={supported} or fewer."
+        )
     global_model = model if settings.scope == "global" else None
     folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, global_model=global_model)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)

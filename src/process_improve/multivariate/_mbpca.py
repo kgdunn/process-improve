@@ -453,9 +453,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     :class:`TPLS` fit an all-missing row. A column with nothing observed
     is left out of the model, with a ``UserWarning`` that names it: its
     loadings are 0, and a value a new row has in it adds nothing to that
-    row's scores or SPE (#1098). Predict-time score estimation for new
-    observations with NaN (Trimmed Score Regression / Projection to the
-    Model Plane) is a separate follow-up: such a row has NaN scores and SPE.
+    row's scores or SPE (#1098).
+
+    :meth:`transform` and :meth:`diagnose` score a new row as the fit
+    scores its own: over the cells the row has, so a training row is given
+    its fitted scores again (#1076). Its block SPE is over those cells too,
+    and NaN for a block it has nothing observed in. A new row with nothing
+    observed at all has NaN scores, SPE and T², where the fit places such a
+    row at 0.
 
     References
     ----------
@@ -702,6 +707,12 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         Series of the full model's T², is deprecated since 2.4.0 and is removed in 3.0; it is
         ``cumulative_hotellings_t2.iloc[:, -1]``, and reading it warns.
 
+        A row with missing cells is scored over the cells it has, as the fit
+        scores a row. A row with nothing observed in a block has NaN for its
+        block scores and its block SPE there, as in ``block_scores_`` and
+        ``block_spe_``; a row with nothing observed at all has NaN scores and T²
+        as well.
+
         The rename (since 1.38.4, #395) matches :meth:`PCA.diagnose` and
         :meth:`PLS.diagnose`. The deprecated ``predict`` alias was removed in
         2.0.
@@ -712,13 +723,51 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     def _scaled_block(self, name: str, block: pd.DataFrame) -> np.ndarray:
         """Centre and scale one block of new rows as the fit did.
 
-        A column the fit left out, having no observed value (#1098), is read at its centre, 0: its
-        loading is 0, so a value there adds nothing to a score or an SPE. The projection does not
-        skip a missing cell, so a NaN left there would make every score of the row NaN.
+        A column the fit left out, having no observed value (#1098), is read as missing, as every
+        cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
+        nothing observed in the block unless it has a value in one of the block's other columns.
         """
-        values = self.preproc_[name].transform(block).to_numpy()
-        # A model pickled before #1098 left no column out
-        return np.where(getattr(self, "_unobserved_columns", {}).get(name, False), 0.0, values)
+        return np.where(self._left_out(name), np.nan, self.preproc_[name].transform(block).to_numpy())
+
+    def _left_out(self, name: str) -> np.ndarray | bool:
+        """Which columns of a block the fit left out (#1098); a model pickled before then left none out."""
+        return getattr(self, "_unobserved_columns", {}).get(name, False)
+
+    def _project_component(
+        self, x_def: dict[str, np.ndarray], a: int
+    ) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str, np.ndarray]]:
+        """Score new rows on component ``a`` as the fit scores its own rows, then deflate them by it.
+
+        Each score is the fit's regression over the cells a row has, so a missing cell leaves the
+        row scored from the rest (#1076). A block the row has nothing observed in has no block
+        score and no say in the super score. A row with nothing observed at all has no super score
+        either: NaN, where the fit places it at 0. On a complete row each regression divides by a
+        loading of unit length, so the scores are the plain products.
+
+        Returns the block scores, the super score, and the blocks with the component removed.
+        """
+        sqrt_kb = self._block_scale()
+        p_s = self.super_loadings_.values[:, a]
+        block_scores: dict[str, np.ndarray] = {}
+        for name in self.block_names_:
+            t_b = quick_regress(x_def[name], self.block_loadings_[name].values[:, [a]], per="row").flatten()
+            block_scores[name] = np.where(
+                _rows_with_data(x_def[name]),
+                t_b / sqrt_kb[name],
+                np.nan,  # pragma: no mutate - None reads as NaN in a float array
+            )
+        summary = np.column_stack([block_scores[name] for name in self.block_names_])
+        t_super = np.where(
+            _rows_with_data(summary),
+            quick_regress(summary, p_s[:, np.newaxis], per="row").flatten(),
+            np.nan,  # pragma: no mutate - None reads as NaN in a float array
+        )
+        # A row with no super score has nothing observed, so the NaN removes nothing from it.
+        deflated = {
+            name: x_def[name] - np.outer(t_super, self.block_loadings_[name].values[:, a] * p_s[b_idx] * sqrt_kb[name])
+            for b_idx, name in enumerate(self.block_names_)
+        }
+        return block_scores, t_super, deflated
 
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):
@@ -741,26 +790,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
         n_components = self.n_components_
         n_new = next(iter(x_def.values())).shape[0]
-        sqrt_kb = self._block_scale()
 
         super_scores = np.zeros((n_new, n_components))
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
-
-        # The block and super loadings have unit length, so each score is a plain product.
         for a in range(n_components):
-            t_b_row = np.zeros((n_new, len(self.block_names_)))
-            for b_idx, name in enumerate(self.block_names_):
-                p_b = self.block_loadings_[name].values[:, a]
-                t_b = x_def[name] @ p_b / sqrt_kb[name]
-                block_scores[name][:, a] = t_b
-                t_b_row[:, b_idx] = t_b
-            p_s = self.super_loadings_.values[:, a]
-            t_super = t_b_row @ p_s
-            super_scores[:, a] = t_super
-            for b_idx, name in enumerate(self.block_names_):
-                p_b = self.block_loadings_[name].values[:, a]
-                p_deflate = p_b * p_s[b_idx] * sqrt_kb[name]
-                x_def[name] = x_def[name] - np.outer(t_super, p_deflate)
+            t_b, super_scores[:, a], x_def = self._project_component(x_def, a)
+            for name in self.block_names_:
+                block_scores[name][:, a] = t_b[name]
 
         component_names = list(range(1, n_components + 1))
         super_scores_df = pd.DataFrame(super_scores, index=sample_index, columns=component_names)
@@ -768,10 +804,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             name: pd.DataFrame(block_scores[name], index=sample_index, columns=component_names)
             for name in self.block_names_
         }
-        # A row with a missing cell has no scores here, and so no residual: its SPE is NaN, as in
-        # PCA.diagnose. A sum that skipped the NaN gave such a row, an empty one included, an SPE of 0.
+        # Over the cells the row has. A block with none has no SPE, NaN, not the 0 of a perfect fit (#1076).
         block_spe = {
-            name: pd.Series(np.sqrt(np.sum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
+            name: pd.Series(
+                np.where(
+                    _rows_with_data(x_def[name]),
+                    np.sqrt(np.nansum(x_def[name] ** 2, axis=1)),
+                    np.nan,  # pragma: no mutate - None reads as NaN in a float array
+                ),
+                index=sample_index,
+                name=f"SPE[{name}]",
+            )
             for name in self.block_names_
         }
         # A super score with no spread carries no T², by the rule PCA and PLS use (#1026)
@@ -837,7 +880,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             p_s = self.super_loadings_.values[b_idx, :]  # (A,)
             p_eff = p_b * p_s * sqrt_kb[name]  # (K_b, A) effective loading
             x_hat = super_scores @ p_eff.T
-            residuals_sq = (x_pp - x_hat) ** 2
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPLS, PCA and PLS (#1114)
+            residuals_sq = np.where(self._left_out(name), 0.0, (x_pp - x_hat) ** 2)
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
@@ -868,17 +912,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 sample_index = block.index
             x_def[name] = self._scaled_block(name, block)
 
-        # The block and super loadings have unit length, so each score is a plain product.
-        sqrt_kb = self._block_scale()
         for a in range(int(component) - 1):
-            t_b_row = np.column_stack(
-                [x_def[name] @ self.block_loadings_[name].values[:, a] / sqrt_kb[name] for name in self.block_names_]
-            )
-            p_s = self.super_loadings_.values[:, a]
-            t_super = t_b_row @ p_s
-            for b_idx, name in enumerate(self.block_names_):
-                p_b = self.block_loadings_[name].values[:, a]
-                x_def[name] = x_def[name] - np.outer(t_super, p_b * p_s[b_idx] * sqrt_kb[name])
+            x_def = self._project_component(x_def, a)[2]
 
         assert sample_index is not None
         return x_def, sample_index
@@ -906,6 +941,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         where :math:`\tilde{x}^{(a)}` is the block data deflated through the
         first :math:`a-1` components.
 
+        A row with missing cells is scored over the cells it has, as in
+        :meth:`diagnose`. Its contributions are NaN at the missing cells, and
+        their sum is not its super score.
+
         See :meth:`MBPLS.score_contributions` for the parameter and return
         descriptions; the API is identical.
         """
@@ -916,10 +955,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         sqrt_kb = self._block_scale()
 
         # The block and super loadings have unit length: the products p_b'p_b and p_s'p_s are 1.
+        # shortcut: on a row with missing cells they are taken over the cells the row has, which this
+        # leaves out, so the row's contributions do not sum to its super score; upgrade with MBPLS's.
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
             weight = self.block_loadings_[name].values[:, a] / sqrt_kb[name] * p_s[b_idx]
-            raw[name] = deflated[name] * weight
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPLS, PCA and PLS (#1114)
+            raw[name] = np.where(self._left_out(name), 0.0, deflated[name] * weight)
 
         raw = _scale_block_contributions(raw, scaling)
         return {

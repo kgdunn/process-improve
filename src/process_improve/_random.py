@@ -90,3 +90,23 @@ def check_random_state(
     if isinstance(random_state, numbers.Integral) and not isinstance(random_state, bool):
         return np.random.default_rng(int(random_state))
     raise TypeError(f"random_state must be int | np.random.Generator | None, got {type(random_state).__name__}.")
+
+
+def sklearn_random_state(random_state: int | np.random.Generator | None) -> int | None:
+    """Return ``random_state`` in a form scikit-learn's splitters take (#1128).
+
+    A splitter such as :class:`~sklearn.model_selection.KFold` takes an int or ``None``, and
+    refuses a :class:`numpy.random.Generator`. A Generator gives its next draw of an int, so
+    it advances as any draw from it does; anything else is returned as it is, so an int draws
+    the folds it always has.
+
+    Examples
+    --------
+    >>> sklearn_random_state(3)
+    3
+    >>> sklearn_random_state(np.random.default_rng(0)) == int(np.random.default_rng(0).integers(2**31))
+    True
+    """
+    if isinstance(random_state, np.random.Generator):
+        return int(random_state.integers(2**31))
+    return random_state

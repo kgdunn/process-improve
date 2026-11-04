@@ -42,7 +42,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
-from process_improve.multivariate._common import _nz
+from process_improve.multivariate._common import _align_to_fit_features, _nz
 from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
 from process_improve.multivariate._diagnostics import cumulative_block_t2
 from process_improve.multivariate._impute import impute_low_rank
@@ -2170,9 +2170,7 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
     """
     assert epsqrt == 2.0**-26
     s = np.array([1.5, 1.5 * 2.0**-26, 1.75 * 2.0**-26, 2.0**-26])
-    model = SimpleNamespace(
-        scores_=None, loadings_=pd.DataFrame(np.eye(4), index=list("abcd")), scaling_factor_for_scores_=pd.Series(s)
-    )
+    model = _identity_model(4, scaling_factor_for_scores_=pd.Series(s))
     contributions = t2_contributions(model, pd.DataFrame([[3.0, 1.0, 1.0, 1.0]], columns=list("abcd")))
     np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
@@ -2274,12 +2272,20 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
 
 
 def _multiblock_on_a_plane(estimator: type, flat: pd.DataFrame) -> MBPCA | MBPLS:
-    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d."""
+    """Fit three components of ``estimator`` to two blocks of rows on a plane, columns a, b and c, d.
+
+    MBPLS's y has a part no column reaches, so two components leave Y with nothing X can explain,
+    and the third is fitted along X. A y on the plane would be fitted exactly, and a third
+    component refused, as PLS refuses it (#1128).
+    """
     blocks = {"A": flat[["a", "b"]], "B": flat[["c", "d"]]}
     model = estimator(n_components=3)
     if estimator is MBPLS:
-        with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
-            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"]}))
+        reached = np.linalg.qr(np.column_stack([np.ones(len(flat)), flat.to_numpy()]))[0]
+        unreached = np.random.default_rng(1).standard_normal(len(flat))
+        unreached -= reached @ (reached.T @ unreached)
+        with pytest.warns(SpecificationWarning, match="from component 3 on there is nothing left in Y"):
+            return model.fit(blocks, pd.DataFrame({"y": flat["a"] + 2.0 * flat["b"] + unreached}))
     return model.fit(blocks)
 
 
@@ -2711,7 +2717,33 @@ def test_pls_entry_points_read_arrays_as_their_dataframes(entry_point: str, y_fo
     np.testing.assert_allclose(calls[entry_point](X.to_numpy(), other_y), calls[entry_point](X, y))
 
 
-def test_pls_nested_cv_refuses_when_no_held_out_row_is_predicted() -> None:
+@pytest.mark.parametrize(
+    "run",
+    [
+        lambda X, y, seed: PLS.select_n_components(X, y, **{**_PLS_QUICK_SELECT, "random_state": seed}).rmsecv,
+        lambda X, y, seed: (
+            PLS.select_n_components(X, y, **{**_PLS_QUICK_SELECT, "n_repeats": 2, "random_state": seed}).rmsecv
+        ),
+        lambda X, y, seed: PLS.nested_cv(X, y, **{**_PLS_QUICK_NESTED, "random_state": seed}).cv_predictions,
+        lambda X, y, seed: (
+            PLS(n_components=2).fit(X, y).cross_validate(X, y, cv=5, random_state=seed, show_progress=False).rmse_cv
+        ),
+    ],
+    ids=["select-n-components", "select-n-components-repeated", "nested-cv", "cross-validate-k-fold"],
+)
+def test_pls_cross_validation_takes_a_generator_as_random_state(
+    run: Callable[[pd.DataFrame, pd.DataFrame, int | np.random.Generator], pd.Series | pd.DataFrame],
+) -> None:
+    """A Generator gives the folds its next draw of an int, as across the package (#1128).
+
+    scikit-learn's splitters refuse a Generator, and so did these, with a ValueError.
+    """
+    X, y = _pls_ten_rows()
+    drawn = int(np.random.default_rng(5).integers(2**31))
+    expected = run(X, y, drawn)
+    assert not expected.equals(run(X, y, drawn + 1))  # the folds move these numbers
+    pd.testing.assert_frame_equal(pd.DataFrame(run(X, y, np.random.default_rng(5))), pd.DataFrame(expected))
+
     """When no held-out row gets a prediction, nested CV says so.
 
     One outer fold holds out the two rows with no observed X, which no projection can score,
@@ -7516,6 +7548,27 @@ def test_predictions_vs_observed_plot() -> None:
     assert "quality" in fig_q.layout.title.text
 
 
+def test_predictions_vs_observed_plot_leaves_out_a_missing_y_cell() -> None:
+    """The RMSE and the y = x line are over the observed cells, as PLS.rmse_ is; with NaN they were NaN (#1081)."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"X{i}" for i in range(6)])
+    Y = pd.DataFrame(X.values @ rng.standard_normal(6) + 0.3 * rng.standard_normal(50), columns=["y"])
+    Y_s = MCUVScaler().fit_transform(Y)
+    Y_s.iloc[4, 0] = np.nan
+    model = PLS(n_components=3).fit(MCUVScaler().fit_transform(X), Y_s)
+
+    fig = model.predictions_vs_observed_plot(y_observed=Y_s)
+    observed = Y_s["y"].drop(index=4).to_numpy()
+    predicted = model.predictions_["y"].drop(index=4).to_numpy()
+    rmse = np.sqrt(np.mean((observed - predicted) ** 2))
+    assert rmse == pytest.approx(model.rmse_.loc["y", 3], rel=1e-12)
+    assert fig.layout.annotations[0].text == f"RMSE = {rmse:.4g}"
+    line = next(trace for trace in fig.data if trace.name == "y = x")
+    low = min(observed.min(), model.predictions_["y"].min())
+    high = max(observed.max(), model.predictions_["y"].max())
+    np.testing.assert_allclose(line.x, [low - 0.05 * (high - low), high + 0.05 * (high - low)], rtol=1e-14)
+
+
 def test_coefficient_plot() -> None:
     """The coefficient plot shows one bar per X-variable, matching beta_coefficients_."""
     rng = np.random.default_rng(1)
@@ -8254,9 +8307,18 @@ def test_rv_refuses_its_inputs_in_full() -> None:
 
 
 def _identity_model(n_features: int, **attributes: object) -> SimpleNamespace:
-    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable."""
-    names = list("abcdefgh"[:n_features])
-    return SimpleNamespace(scores_=None, loadings_=pd.DataFrame(np.eye(n_features), index=names), **attributes)
+    """Return a PCA stand-in whose loadings are the identity, so each score is its own variable.
+
+    Like PCA it scales nothing: its ``_scaled_rows``, which the contribution functions read new
+    rows through (#1125), only matches the columns to the fit, by name or by position.
+    """
+    names = pd.Index(list("abcdefgh"[:n_features]))
+    return SimpleNamespace(
+        scores_=None,
+        loadings_=pd.DataFrame(np.eye(n_features), index=names),
+        _scaled_rows=lambda X: _align_to_fit_features(X, names),
+        **attributes,
+    )
 
 
 def test_score_and_group_contributions_by_hand() -> None:

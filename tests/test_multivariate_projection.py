@@ -1,7 +1,6 @@
 """Tests for missing-data score estimation: PCA.project / PLS.project and the operators."""
 
 import pathlib
-import re
 
 import numpy as np
 import pandas as pd
@@ -137,13 +136,29 @@ def test_pls_project_predicts_with_missing_columns(fitted_pls: PLS, correlated_d
     assert corr > 0.99
 
 
-def test_all_nan_row_rejected(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
-    """A row with no observed features is rejected with a clear message."""
-    scaled = MCUVScaler().fit_transform(correlated_data)
-    hidden = scaled.iloc[:3].copy()
-    hidden.iloc[1] = np.nan
-    with pytest.raises(ValueError, match="no observed features"):
-        fitted_pca.project(hidden)
+@pytest.mark.parametrize("method", PROJECTION_METHODS)
+def test_a_row_with_nothing_observed_sits_at_the_model_centre(
+    fitted_pca: PCA, fitted_pls: PLS, correlated_data: pd.DataFrame, method: str
+) -> None:
+    """A row with no observed feature projects to the centre, where fit() places one (#1125).
+
+    Its scores, T2 and SPE are 0, it has no observed feature, and its condition number is
+    inf: nothing of the information is left. A PLS model predicts the training mean of Y for
+    it. The other rows project as they do without it.
+    """
+    for model, rows in ((fitted_pca, MCUVScaler().fit_transform(correlated_data)), (fitted_pls, correlated_data)):
+        hidden = rows.iloc[:3].copy()
+        hidden.iloc[1] = np.nan
+        projected = model.project(hidden, method=method)
+        assert (projected.scores.iloc[1] == 0.0).all()
+        assert projected.hotellings_t2.iloc[1] == 0.0
+        assert projected.spe.iloc[1] == 0.0
+        assert projected.n_observed.iloc[1] == 0
+        assert projected.condition_number.iloc[1] == np.inf
+        others = model.project(hidden.iloc[[0, 2]], method=method)
+        pd.testing.assert_frame_equal(projected.scores.iloc[[0, 2]], others.scores)
+        if model is fitted_pls:
+            np.testing.assert_allclose(projected.y_hat.iloc[1], fitted_pls.predictions_.mean(), atol=1e-10)
 
 
 def test_unknown_method_rejected(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
@@ -172,12 +187,18 @@ def test_coerce_observed_mask_errors() -> None:
     assert mask.tolist() == [False, True, True]
 
 
-def test_operator_for_pattern_empty_mask_rejected() -> None:
-    """An all-False observed mask is rejected at the operator level."""
+@pytest.mark.parametrize("method", PROJECTION_METHODS)
+def test_operator_for_pattern_with_nothing_observed_maps_to_the_centre(method: str) -> None:
+    """With nothing observed the operator has no column: every row it is applied to scores 0 (#1125).
+
+    Nothing of the information is left, so the condition number is inf, as SCP gives a
+    component with no observed weight.
+    """
     P = np.ones((4, 2))
-    message = "At least one feature must be observed to estimate scores; the observed mask is all-False."
-    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
-        operator_for_pattern(P, P, np.ones(2), np.zeros(4, dtype=bool))
+    operator = operator_for_pattern(P, P, np.ones(2), np.zeros(4, dtype=bool), method=method)
+    assert operator.matrix.shape == (2, 0)
+    assert operator.condition_number == np.inf
+    assert operator.method == method
 
 
 @pytest.mark.parametrize(
@@ -474,9 +495,14 @@ def test_project_rows_by_hand() -> None:
     assert result.n_observed[0] == 3
 
 
-def test_project_rows_names_the_first_row_with_nothing_observed() -> None:
+def test_project_rows_places_rows_with_nothing_observed_at_the_centre() -> None:
+    """Rows with nothing observed score 0, with no SPE, no observed feature and an inf condition (#1125)."""
     x = np.array([[0.5, -1.0, 2.0], [np.nan] * 3, [1.0, 2.0, np.nan], [np.nan] * 3])
-    with pytest.raises(
-        ValueError, match=r"^Row 1 has no observed features \(all-NaN\); scores cannot be estimated for it\.$"
-    ):
-        project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x)
+    result = project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x, method="scp")
+    np.testing.assert_array_equal(result.scores[[1, 3]], np.zeros((2, 2)))
+    np.testing.assert_array_equal(result.spe[[1, 3]], [0.0, 0.0])
+    np.testing.assert_array_equal(result.n_observed[[1, 3]], [0, 0])
+    np.testing.assert_array_equal(result.condition_number[[1, 3]], [np.inf, np.inf])
+    np.testing.assert_array_equal(
+        result.scores[[0, 2]], project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x[[0, 2]], method="scp").scores
+    )
