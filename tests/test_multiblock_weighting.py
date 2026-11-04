@@ -208,6 +208,54 @@ class TestNothingLeftInY:
         ):
             MBPLS(n_components=1).fit(plain, unobserved)
 
+    @pytest.mark.parametrize("algorithm", ["dense", "nipals"])
+    def test_mbpls_refuses_blocks_of_constants_as_pls_does(self, blocks: tuple, algorithm: str) -> None:
+        """Blocks with nothing to explain Y by leave every weight 0, and a new row with no score (#1128).
+
+        MBPLS fitted them, and predicted NaN for every new row. PLS refuses the same columns, and
+        so does MBPLS now. The constant columns of the padded block count as constant here too.
+        """
+        _plain, padded, y = blocks
+        constant = {name: block * 0.0 + 2.0 for name, block in padded.items()}
+        message = (
+            "^There is no variance in X: every column of every block is constant or has no observed value, "
+            "so there is nothing to explain Y by.$"
+        )
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            MBPLS(n_components=1, algorithm=algorithm).fit(constant, y)
+        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for X"):
+            PLS(n_components=1).fit(pd.concat(constant.values(), axis=1), y)
+
+    def test_mbpls_refuses_blocks_with_no_observed_value_as_pls_does(self, blocks: tuple) -> None:
+        """A block of constants beside one with no observed value has nothing to explain Y by either (#1128)."""
+        plain, _padded, y = blocks
+        unobserved = {"a": plain["a"] * 0.0 + 2.0, "b": plain["b"] * np.nan}
+        with (
+            pytest.warns(UserWarning, match=r'^Block X\["b"\] has columns with no observed values'),
+            pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X"),
+        ):
+            MBPLS(n_components=1).fit(unobserved, y)
+
+    def test_mbpls_refuses_a_component_once_y_is_fitted_exactly_as_pls_does(self) -> None:
+        """One component fits ``y = A + B`` exactly, so a second has nothing to explain, in PLS or MBPLS (#1128).
+
+        The columns of a 2^3 design are exactly orthogonal, and ``y`` lies along the first
+        component of each model. MBPLS went on with a component along X, where PLS refuses one.
+        """
+        design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["A", "B", "C"])
+        y = pd.DataFrame({"y": design["A"] + design["B"]})
+        split = {"AB": design[["A", "B"]], "C": design[["C"]]}
+        np.testing.assert_allclose(MBPLS(n_components=1).fit(split, y).predictions_, y, rtol=0, atol=1e-14)
+        message = (
+            r"^There is no variance left in the data array for Y: cannot compute any more components beyond "
+            r"component 1\.$"
+        )
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            PLS(n_components=2).fit(design, y)
+        for algorithm in ("dense", "nipals"):
+            with pytest.raises(NotEnoughVarianceError, match=message):
+                MBPLS(n_components=2, algorithm=algorithm).fit(split, y)
+
     def test_data_with_more_to_explain_are_not_flagged(self, blocks: tuple) -> None:
         plain, _padded, y = blocks
         y2 = y.assign(y2=plain["a"]["a1"] - plain["b"]["b2"])

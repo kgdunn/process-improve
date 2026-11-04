@@ -38,6 +38,8 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
+    # 31: #1128 moved PLS NIPALS's two "no variance left" refusals into a helper MBPLS
+    # shares, taking `PLS._fit_nipals` under C901.
     # 32: #1029 fitted the in-fold centre and scale of PCA's element-wise
     # cross-validation with MCUVScaler, taking `_pca_ekf_press` under C901.
     # 33: #1026 built PCA.fit's Hotelling's T² as one cumulative sum through the
@@ -61,7 +63,7 @@ BUDGET: dict[str, int] = {
     # breach C901. The ratchet fails on a count *below* budget precisely so the
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
-    "C901": 32,
+    "C901": 31,
     # 17: #1028 merged with #981 scored every Z group of `TPLS.diagnose`, none or
     # several, in one loop, which needs no branch for a model without Z and takes
     # that function under PLR0912.

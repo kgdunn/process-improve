@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import pathlib
 import re
 import warnings
@@ -50,7 +51,7 @@ from process_improve.multivariate._cv_criteria import (
     _weight_angles,
 )
 from process_improve.multivariate._limits import hotellings_t2_limit, spe_calculation
-from process_improve.multivariate.methods import PRM
+from process_improve.multivariate.methods import PRM, NotEnoughVarianceError
 from process_improve.simulation import LatentStructure
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
@@ -1769,6 +1770,28 @@ def test_pseudo_validation_component_count_runs_from_one_to_the_cap() -> None:
             pseudo_validation_set(X, Y, n_components=count, cv=cv, random_state=0)
     with pytest.raises(ValueError, match=r"^scope must be 'global' or 'local'; got 'elsewhere'\.$"):
         pseudo_validation_set(X, Y, n_components=1, scope="elsewhere")  # type: ignore[arg-type]
+
+
+def test_pseudo_validation_set_refuses_the_components_with_no_y_loading() -> None:
+    """A component fitted after Y is exhausted has a Y-loading of 0, so no D ratio, and is refused (#1128).
+
+    A replicated 2^3 design has exactly orthogonal columns, so one PLS component gives the
+    least-squares fit and the others are fitted along X. Their held-out scores were NaN, and so
+    was every cell of ``X_pv``.
+    """
+    design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 2, columns=["A", "B", "C"])
+    y = pd.DataFrame({"y": design.to_numpy() @ [1.0, 2.0, -1.0] + np.random.default_rng(0).normal(0, 0.3, 16)})
+    assert np.isfinite(pseudo_validation_set(design, y, n_components=1, cv=4, random_state=0).X_pv.to_numpy()).all()
+    message = (
+        r"^The data support 1 component\(s\), not the 3 asked for: from component 2 on there is nothing left in Y "
+        r"that X can explain, so the model fitted to all rows gives those components a Y-loading of 0, and they "
+        r"have no D ratio\. Pass n_components=1 or fewer\.$"
+    )
+    with (
+        pytest.warns(SpecificationWarning, match="from component 2 on there is nothing left in Y"),
+        pytest.raises(NotEnoughVarianceError, match=message),
+    ):
+        pseudo_validation_set(design, y, n_components=3, cv=4, random_state=0)
 
 
 def test_pseudo_validation_set_by_hand_one_row_at_a_time_with_a_row_at_the_centre() -> None:

@@ -25,12 +25,12 @@ from sklearn.utils.validation import check_is_fitted, validate_data
 from tqdm import tqdm
 
 from .._linalg import safe_inverse
+from .._random import sklearn_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     Q2_MIN_INCREMENT,
     DataMatrix,
-    NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
     UncentredDataWarning,
@@ -42,6 +42,7 @@ from ._common import (
     _select_n_components,
     _vandervoet_randomization,
     check_at_least_one,
+    check_variance_left,
     epsqrt,
     largest_ssq_column,
     resolve_loop_settings,
@@ -581,7 +582,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     x_loadings_ = _LazyFrame("_x_loadings", index="_feature_names", columns="_component_names")
     x_weights_ = _LazyFrame("_x_weights", index="_feature_names", columns="_component_names")
 
-    def _fit_nipals(  # noqa: PLR0915, C901
+    def _fit_nipals(  # noqa: PLR0915
         self,
         X: DataMatrix,
         Y: DataMatrix,
@@ -645,23 +646,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         reach = y_reach([Xd], Yd)
         # No variance left is judged against each block's size before the first component, as OPLS
         # judges it, so the same data in smaller units are not taken for none (#1070).
-        x_size, y_size = np.sqrt(ssq(Xd)), np.sqrt(ssq(Yd))
+        x_size, y_size = float(np.sqrt(ssq(Xd))), float(np.sqrt(ssq(Yd)))
         exhausted = False  # pragma: no mutate - None reads as False in the or below
         for a in range(A):
             start_time = time.time()
 
-            if np.sqrt(ssq(Xd)) <= epsqrt * x_size:
-                emsg = (
-                    "There is no variance left in the data array for X: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise NotEnoughVarianceError(emsg)
-            if np.sqrt(ssq(Yd)) <= epsqrt * y_size:
-                emsg = (
-                    "There is no variance left in the data array for Y: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise NotEnoughVarianceError(emsg)
+            check_variance_left("X", Xd, a, x_size)
+            check_variance_left("Y", Yd, a, y_size)
             # Y has variance left, but none that X can still reach (#913): this component, and every later one,
             # takes the largest direction left in X (X as its own target) rather than iterating to max_iter.
             exhausted = exhausted or y_is_exhausted("PLS", a, [Xd], Yd, reach)
@@ -1708,7 +1699,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
         n_repeats: int | None = None,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         selection_rule: SelectionRule = "1se",
         scale_inside_folds: bool = True,
         min_q2_increase: float = Q2_MIN_INCREMENT,
@@ -1763,9 +1754,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             slightly optimistic because test folds overlap across repeats;
             that is fine for the 1-SE *selection* rule but should not be
             reported as an unbiased generalisation variance.
-        random_state : int, optional
+        random_state : int, numpy.random.Generator or None, optional
             Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
-            shuffling. Ignored when ``cv`` is a pre-built splitter.
+            shuffling; a Generator gives them its next draw of an int. Ignored
+            when ``cv`` is a pre-built splitter.
         selection_rule : {"1se", "min", "q2_increment", "randomization"}, default "1se"
             How the recommended component count is chosen.
             See :data:`~process_improve.multivariate._common.SelectionRule`
@@ -1914,11 +1906,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             repeats = 10 if n_repeats is None else int(n_repeats)
             if repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {repeats}.")
+            seed = sklearn_random_state(random_state)  # the splitters refuse a Generator (#1128)
             splitter: BaseCrossValidator
             if repeats == 1:
-                splitter = KFold(n_splits=cv, shuffle=True, random_state=random_state)
+                splitter = KFold(n_splits=cv, shuffle=True, random_state=seed)
             else:
-                splitter = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
+                splitter = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
             splits = list(splitter.split(X))  # (Repeated)KFold reads only the number of rows
             first_repeat_fold_count = cv
         else:
@@ -2429,6 +2422,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               with ``diagnose``.
             - ``scope`` (str): the scope used.
 
+        Raises
+        ------
+        NotEnoughVarianceError
+            If ``n_components`` is more than the data support: a component fitted after there is
+            nothing left in Y that X can explain has a Y-loading of 0, and so no D ratio.
+
         See Also
         --------
         compare_cv_criteria : Uses the same construction to report alarm rates per component.
@@ -2457,7 +2456,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         min_q2_increase: float = Q2_MIN_INCREMENT,
         n_permutations: int = 999,
         alpha: float = 0.01,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         **pls_kwargs,
     ) -> Bunch:
         """Nested cross-validation for an honest PLS performance estimate.
@@ -2495,10 +2494,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             transformed to the original Y scale before RMSEP accumulates.
         min_q2_increase, n_permutations, alpha
             Forwarded to the inner :meth:`select_n_components` per rule.
-        random_state : int, optional
+        random_state : int, numpy.random.Generator or None, optional
             Seed for the outer-fold shuffle and the inner CV. The inner
             seed is offset per outer fold so each outer split sees a fresh
-            shuffled inner CV.
+            shuffled inner CV. A Generator gives its next draw of an int,
+            which is then used as an int is.
         **pls_kwargs
             Forwarded to :class:`PLS` for both the inner CV and the final
             outer-train fits.
@@ -2536,9 +2536,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         """
         # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
         X, Y = pd.DataFrame(X), pd.DataFrame(Y)
-
-        N = X.shape[0]
-        M = Y.shape[1]
+        random_state = sklearn_random_state(random_state)  # offset per outer fold below, so an int (#1128)
+        N, M = X.shape[0], Y.shape[1]
 
         if isinstance(outer_cv, int):
             if outer_cv < 2:
@@ -2732,7 +2731,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         cv: int | str = "loo",
         n_bootstrap: int = 0,
         conf_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: int | np.random.Generator | None = None,
         show_progress: bool = True,
         sample_weight: np.ndarray | None = None,
     ) -> Bunch:
@@ -2760,7 +2759,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Overrides the ``cv`` parameter when set.
         conf_level : float, default 0.95
             Confidence level for the beta-coefficient intervals, in (0, 1).
-        random_state : int or None, default None
+        random_state : int, numpy.random.Generator or None, default None
             Random seed for reproducibility (K-fold shuffle and bootstrap).
         show_progress : bool, default True
             Whether to display a ``tqdm`` progress bar.
@@ -2857,7 +2856,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             desc = "Jackknife (LOO)"
         else:
             method = "kfold"
-            resamples = list(KFold(n_splits=int(cv), shuffle=True, random_state=random_state).split(X))
+            seed = sklearn_random_state(random_state)  # KFold refuses a Generator (#1128)
+            resamples = list(KFold(n_splits=int(cv), shuffle=True, random_state=seed).split(X))
             desc = f"{int(cv)}-Fold CV"
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---

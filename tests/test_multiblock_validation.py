@@ -7,6 +7,7 @@ run once per class. Everything fits a 10-row, two-block set in milliseconds.
 
 from __future__ import annotations
 
+import itertools
 import re
 from collections.abc import Callable
 
@@ -347,13 +348,28 @@ def test_mbpls_refuses_a_y_of_another_height() -> None:
 def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
     """With nothing in X to explain Y by, R2Y is 0 and the super VIP is zero rather than NaN.
 
-    A Y with nothing to explain is refused (#1075); blocks of constants leave every weight 0 instead.
+    The columns of a 2^4 design are exactly orthogonal, so blocks of three of them have nothing to
+    explain the fourth by, and every weight is 0. A Y with nothing to explain is refused (#1075), and
+    so are blocks of constants (#1128).
     """
-    blocks, y = _blocks()
-    with pytest.warns(SpecificationWarning, match="from component 2 on there is nothing left in Y"):
-        model = MBPLS(n_components=2).fit({name: block * 0.0 + 1.0 for name, block in blocks.items()}, y)
+    design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("abcy"))
+    model = MBPLS(n_components=2).fit({"ab": design[["a", "b"]], "c": design[["c"]]}, design[["y"]])
     np.testing.assert_array_equal(model.r2_y_cumulative_.to_numpy(), [0.0, 0.0])
     np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
+
+
+def test_mbpls_select_n_components_takes_a_generator_as_random_state() -> None:
+    """A Generator gives the folds its next draw of an int, as PLS.select_n_components takes it (#1128).
+
+    ``RepeatedKFold`` refuses a Generator, and so did this, with a ValueError.
+    """
+    blocks, y = _blocks(n=20)
+    settings = {"max_components": 2, "cv": 4, "n_repeats": 2}
+    drawn = int(np.random.default_rng(5).integers(2**31))
+    expected = MBPLS.select_n_components(blocks, y, random_state=drawn, **settings).per_fold_rmsecv
+    assert not expected.equals(MBPLS.select_n_components(blocks, y, random_state=drawn + 1, **settings).per_fold_rmsecv)
+    result = MBPLS.select_n_components(blocks, y, random_state=np.random.default_rng(5), **settings)
+    pd.testing.assert_frame_equal(result.per_fold_rmsecv, expected)
 
 
 def test_mbpls_predictions_plot_defaults_to_the_first_y_and_refuses_an_unknown_one() -> None:

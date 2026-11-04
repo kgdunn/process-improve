@@ -2579,9 +2579,9 @@ class TestMBPLSWrittenOut:
 
         Every masked regression of a square array must be told whether it runs over the
         columns or the rows: the block weights and scores of block ``p``, the super weight over
-        the three block scores, Y's loading and score, and the deflating loadings. The third
-        component finds nothing left in Y, three rows holding two directions, and is fitted
-        along X, whose Y-loading is a regression on the square Y too.
+        the three block scores, Y's loading and score, and the deflating loadings. Three centred
+        rows hold two directions, so two components fit Y exactly, and a third is refused, as
+        PLS refuses it (#1128).
         """
         blocks = {
             "p": pd.DataFrame([[1.0, 4.0, 2.0], [3.0, 1.0, 5.0], [0.0, 2.0, 2.5]], columns=["p0", "p1", "p2"]),
@@ -2591,18 +2591,22 @@ class TestMBPLSWrittenOut:
         y = pd.DataFrame([[1.0, 0.0, 2.0], [2.0, 3.0, 1.0], [4.0, 1.0, 1.5]], columns=["a", "b", "c"])
         model = MBPLS(n_components=2, algorithm="nipals").fit(blocks, y)
         _check_mbpls_fitted(model, blocks, y, _mbpls_written_out(blocks, y, 2), rtol=1e-9)
-        with pytest.warns(SpecificationWarning, match=r"^MBPLS: from component 3 on there is nothing left in Y"):
-            third = MBPLS(n_components=3, algorithm="nipals").fit(blocks, y)
-        np.testing.assert_array_equal(third.super_y_scores_[3], np.zeros(3))
-        _frames_near(third.super_scores_[[1, 2]], model.super_scores_, 1e-9)
+        message = (
+            r"^There is no variance left in the data array for Y: cannot compute any more components beyond "
+            r"component 2\.$"
+        )
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            MBPLS(n_components=3, algorithm="nipals").fit(blocks, y)
 
     @pytest.mark.parametrize("algorithm", ["dense", "nipals"])
     def test_once_y_is_explained_the_later_components_follow_x(self, algorithm: str) -> None:
-        """Y is the first principal component of the weighted blocks, so one component explains all of it.
+        """Y is the first principal component of the weighted blocks, and a part no column reaches.
 
-        From the second component on, ``X'Y`` is about zero, and each component is fitted along
-        the largest direction left in the blocks over ``sqrt(K_b)``, the blocks three and two
-        columns wide, with a Y-loading of about zero and no Y-score.
+        One component explains all of Y that X can, 90% of it. From the second component on,
+        ``X'Y`` is about zero, and each component is fitted along the largest direction left in
+        the blocks over ``sqrt(K_b)``, the blocks three and two columns wide, with a Y-loading of
+        0 and no Y-score. Without the part no column reaches, one component fits Y exactly, and a
+        second is refused, as PLS refuses it (#1128).
         """
         rng = np.random.default_rng(3)
         latent = rng.standard_normal((12, 3))
@@ -2611,10 +2615,19 @@ class TestMBPLSWrittenOut:
             "narrow": pd.DataFrame(latent @ rng.standard_normal((3, 2)) + 0.3 * rng.standard_normal((12, 2))),
         }
         weighted = np.hstack([MCUVScaler().fit_transform(frame) / np.sqrt(frame.shape[1]) for frame in blocks.values()])
-        y = pd.DataFrame({"y": 3.0 * np.linalg.svd(weighted, full_matrices=False)[0][:, 0] + 1.0})
+        first = np.linalg.svd(weighted, full_matrices=False)[0][:, 0]
+        with pytest.raises(
+            NotEnoughVarianceError, match=r"for Y: cannot compute any more components beyond component 1\.$"
+        ):
+            MBPLS(n_components=2, algorithm=algorithm).fit(blocks, pd.DataFrame({"y": 3.0 * first + 1.0}))
+
+        reached = np.linalg.qr(np.column_stack([np.ones(12), weighted]))[0]
+        unreached = rng.standard_normal(12)
+        unreached -= reached @ (reached.T @ unreached)
+        y = pd.DataFrame({"y": 3.0 * first + unreached / np.linalg.norm(unreached) + 1.0})
         message = (
             r"^MBPLS: from component 2 on there is nothing left in Y that X can explain: what is left of Y is "
-            r"uncorrelated with what is left of X \(R²Y stays at 1\)\. The data support 1 component\(s\); "
+            r"uncorrelated with what is left of X \(R²Y stays at 0\.9\)\. The data support 1 component\(s\); "
         )
         with pytest.warns(SpecificationWarning, match=message):
             model = MBPLS(n_components=3, algorithm=algorithm).fit(blocks, y)
