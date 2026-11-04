@@ -1018,6 +1018,51 @@ def test_partial_fit_is_update_row_by_row(synthetic_pls_data: tuple[pd.DataFrame
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_unlabelled_rows_are_numbered_on_from_the_last_label(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """Each array given to partial_fit, and each update without a label, continues the count (#1082).
+
+    The count goes on from the last label when it is an integer, and from the number of rows
+    recorded so far when it is not, so the history frames keep one label per row.
+    """
+    X, Y = synthetic_pls_data
+    model = _fit_either(cls, X.iloc[:90], Y.iloc[:90])
+    rows = X.iloc[90:].to_numpy()
+    model.partial_fit(rows[:3])
+    model.partial_fit(rows[3:5])
+    model.partial_fit(X.iloc[95:97].set_axis([20, 21]))
+    model.update(rows[7])
+    model.partial_fit(X.iloc[98:99].set_axis(["late"]))
+    model.partial_fit(rows[9:11])
+    assert list(model.spe_.index) == [0, 1, 2, 3, 4, 20, 21, 22, "late", 9, 10]
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+@pytest.mark.parametrize("window", [10, 19])
+def test_a_window_too_short_for_the_rolling_spe_limit_is_refused(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type, window: int
+) -> None:
+    """The rolling SPE limit is refitted only from 20 values, so a shorter window is refused (#1082).
+
+    Such a window can never hold 20 values, and the limit would stay at its training value with no
+    sign of it. The refused fit leaves the model unfitted. A window of 20 is accepted, and its limit
+    moves as the rows stream in.
+    """
+    X, Y = synthetic_pls_data
+    model = cls(n_components=2, spe_limit_window=window)
+    message = rf"^spe_limit_window must be >= 20 \(the larger of 20 and n_components \+ 2, .*\); got {window}\.$"
+    with pytest.raises(ValueError, match=message):
+        model.fit(X) if cls is AdaptivePCA else model.fit(X, Y)
+    with pytest.raises(NotFittedError):
+        model.update(X.iloc[0])
+
+    accepted = _fit_either(cls, X.iloc[:150], Y.iloc[:150], spe_limit_window=20)
+    limits = {accepted.update(row).spe_limit for row in X.iloc[150:].to_numpy()}
+    assert len(limits) > 1
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
 def test_a_model_whose_fit_was_refused_is_not_fitted(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
 ) -> None:
@@ -1224,16 +1269,17 @@ def test_the_t2_limit_and_each_field_of_an_update(synthetic_pca_data: pd.DataFra
     )
 
 
-def test_the_rolling_spe_limit_waits_for_a_plus_2_values_past_20() -> None:
-    """With 19 components the window must hold 21 SPEs, not 20, before the rolling limit takes over."""
+def test_with_19_components_the_rolling_spe_limit_needs_a_window_of_21() -> None:
+    """With 19 components the rolling limit is fitted to at least A + 2 = 21 SPEs, so a window of 20 is refused."""
     rng = np.random.default_rng(3)
     train = pd.DataFrame(rng.standard_normal((30, 25)))
     _, _, _, spe = _pca_by_svd(train, 19)
-    for window, expected in [(20, spe), (21, spe[-21:])]:
-        model = AdaptivePCA(n_components=19, spe_limit_window=window).fit(train)
-        assert model.update(train.iloc[0].to_numpy()).spe_limit == pytest.approx(
-            _spe_limit_by_hand(expected, 0.95), rel=1e-9
-        )
+    model = AdaptivePCA(n_components=19, spe_limit_window=21).fit(train)
+    assert model.update(train.iloc[0].to_numpy()).spe_limit == pytest.approx(
+        _spe_limit_by_hand(spe[-21:], 0.95), rel=1e-9
+    )
+    with pytest.raises(ValueError, match=r"^spe_limit_window must be >= 21 \(.*\); got 20\.$"):
+        AdaptivePCA(n_components=19, spe_limit_window=20).fit(train)
 
 
 def test_the_default_window_holds_the_last_200_training_spes(synthetic_pca_data: pd.DataFrame) -> None:

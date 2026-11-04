@@ -308,13 +308,27 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_injection: list[float] = []
         self._hist_kernel_norm: list[float] = []
 
+    def _check_spe_limit_window(self, n_components: int) -> None:
+        """Refuse a rolling SPE window that cannot hold the values its limit is fitted to (#1082).
+
+        The rolling limit is refitted only from ``max(20, A + 2)`` squared SPEs, as fewer give an
+        unreliable fit. A shorter window never holds that many, so the limit would stay at its
+        training value with no sign of it. Checked whether or not ``adaptive_spe_limit`` is set,
+        since that flag is read at every update and can be turned on after ``fit``.
+        """
+        self._min_spe_window = max(20, n_components + 2)
+        if not self.spe_limit_window >= self._min_spe_window:
+            raise ValueError(
+                f"spe_limit_window must be >= {self._min_spe_window} (the larger of 20 and n_components + 2, "
+                f"the fewest SPE values the rolling SPE limit is fitted to); got {self.spe_limit_window}."
+            )
+
     def _start_limits(self, training_spe: np.ndarray) -> None:
         """Set the T2 limit, the training SPE limit, and the rolling window of squared SPEs it starts from."""
         A, N = self.n_components_, self.n_samples_
         # Every monitored row is new to the model the limit comes from (#978).
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N, judged_rows="new")
         self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
-        self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque((training_spe**2).tolist(), maxlen=int(self.spe_limit_window))
 
     def _monitor(self, x0: np.ndarray, t2: float, spe: float) -> tuple[float, bool, bool]:
@@ -369,8 +383,13 @@ class _AdaptiveModel(_LatentVariableModel):
         training data, in training standard-deviation units; ``scale_shift`` is the
         mean fractional change of the scaling vector. ``injection`` is the gamma
         term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
-        change to ``X'X``; both are zero on observations that did not update.
+        change to ``X'X``; both are zero on observations that did not update. A row with no
+        ``label`` is numbered one past the last label when that is an integer, and by the
+        number of rows recorded so far when it is not, so the count goes on across calls (#1082).
         """
+        if label is None:
+            last = self._hist_index[-1] if self._hist_index else -1
+            label = last + 1 if pd.api.types.is_integer(last) else len(self._hist_index)
         distance = self._distance()
         self._hist_scores.append(scores)
         self._hist_t2.append(t2)
@@ -380,7 +399,7 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_scale_shift.append(float(np.mean(np.abs(self.sx_ / self._sx0 - 1.0))))
         self._hist_injection.append(self._last_injection if updated else 0.0)
         self._hist_kernel_norm.append(self._last_kernel_norm if updated else 0.0)
-        self._hist_index.append(label if label is not None else len(self._hist_index))
+        self._hist_index.append(label)
         return distance
 
     def _update_scaling_factor(self) -> None:
@@ -405,7 +424,9 @@ class _AdaptiveModel(_LatentVariableModel):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            New observations, processed one row at a time.
+            New observations, processed one row at a time. A DataFrame's row labels
+            are recorded in the history frames; the rows of an array are numbered on
+            from the last label, as :meth:`update` numbers a row given no label.
         Y : array-like of shape (n_samples, n_targets), optional
             Matching responses (PLS only). A row whose response has a missing
             value updates the X-space model but not the regression part, which
@@ -417,9 +438,10 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         check_is_fitted(self, "mx_")
         labels, rows = _as_rows(X)
+        labelled = isinstance(X, pd.DataFrame)
         y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
         for pos, label in enumerate(labels):
-            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label)
+            self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label if labelled else None)
         return self
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
@@ -658,7 +680,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Recompute the SPE limit from a rolling window of recent in-control SPE
         values; otherwise keep the fixed limit from the training model.
     spe_limit_window : int, default=200
-        Length of the rolling SPE window when ``adaptive_spe_limit`` is True.
+        Length of the rolling SPE window when ``adaptive_spe_limit`` is True. At least
+        ``max(20, n_components + 2)``, the fewest SPE values the rolling limit is fitted to;
+        :meth:`fit` refuses a shorter window.
     conf_level : float, default=0.95
         Confidence level for the T2 and SPE limits.
 
@@ -733,6 +757,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
             raise ValueError(f"forgetting_factor must lie in [0, 1]; got {self.forgetting_factor}.")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError(f"gamma must lie in [0, 1]; got {self.gamma}.")
+        self._check_spe_limit_window(A)
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
 
@@ -817,7 +842,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         y_row : ignored
             Present for a uniform signature with :class:`AdaptivePLS`.
         label : hashable, optional
-            Index label recorded in the history frames for this observation.
+            Index label recorded in the history frames for this observation. If
+            omitted, one past the last label when that is an integer, otherwise
+            the number of observations recorded so far.
 
         Returns
         -------
@@ -988,6 +1015,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             raise ValueError(f"forgetting_factor must lie in [0, 1]; got {self.forgetting_factor}.")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError(f"gamma must lie in [0, 1]; got {self.gamma}.")
+        self._check_spe_limit_window(A)
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
         self.lambda_center_y_ = self._as_vector(self.lambda_center_y, M, "lambda_center_y")
@@ -1145,7 +1173,8 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             The matching response, if available. When omitted, the X-space model
             still adapts but the regression part is held.
         label : hashable, optional
-            Index label recorded in the history frames.
+            Index label recorded in the history frames, numbered as in
+            :meth:`AdaptivePCA.update` if omitted.
 
         Returns
         -------
