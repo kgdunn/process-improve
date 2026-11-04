@@ -425,6 +425,15 @@ Choose the algorithm with ``algorithm=``, and its convergence settings with
    print(model.fitting_info_["iterations"])
    print(model.fitting_info_["timing"])
 
+A new row with missing cells is scored from the cells it has. ``transform``,
+``diagnose`` and, for PLS, ``predict`` use trimmed score regression, the default
+of ``model.project(X_new)``, and take the row's SPE over its observed cells; the
+contribution plots split those same scores, T² and SPE. A row with nothing
+observed is NaN. ``project`` adds the choice of estimator (``method="scp"`` or
+``"pmp"``), a ``ridge`` for a row with very few observed cells, and each row's
+``condition_number``. Nothing in the result marks a row as estimated, so find
+such rows with ``X_new.isna().any(axis=1)``.
+
 Troubleshooting
 ---------------
 

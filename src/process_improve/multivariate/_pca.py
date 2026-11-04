@@ -1351,14 +1351,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ----------
         X : array-like of shape (n_samples, n_features)
             New data to project. Must have the same number of features as
-            the training data.
+            the training data. A row with a missing cell (NaN) is scored from
+            the cells it has, as :meth:`diagnose` scores it.
 
         Returns
         -------
         scores : pd.DataFrame of shape (n_samples, n_components)
+            The scores of :meth:`diagnose`.
         """
-        X_arr, sample_index = self._validated_rows(X)
-        return pd.DataFrame(X_arr @ self._loadings, index=sample_index, columns=self._component_names)
+        return self.diagnose(X).scores
 
     def _validated_rows(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index | None]:
         """Return ``X`` checked against the fit, its columns in the fitted order, and its row labels.
@@ -1422,6 +1423,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
+            New rows. A row with a missing cell (NaN) is scored from the cells
+            it has, by trimmed score regression, the estimator :meth:`project`
+            uses by default, and its SPE is over those cells; until 2.4.0 its
+            scores, T² and SPE were NaN (#1144). A row with nothing observed
+            stays NaN. So does a row with too few observed cells for its
+            scores, typically fewer than ``n_components``, with a
+            :class:`SpecificationWarning`. :meth:`project` gives the other
+            estimators, a ``ridge``, and each row's conditioning.
 
         Returns
         -------
@@ -1439,6 +1448,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """
         X_arr, sample_index = self._validated_rows(X)
         scores = X_arr @ self._loadings
+        # A row with a missing cell is scored from the cells it has, as project() scores it by default (#1144)
+        rows, estimates = self._estimate_rows_with_gaps(X_arr)
+        scores[rows] = estimates.scores
 
         # Hotelling's T² (cumulative), leaving out a component fit leaves out (#1026)
         score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
@@ -1446,14 +1458,16 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             np.cumsum((scores / score_sd) ** 2, axis=1), index=sample_index, columns=self._component_names
         )
 
-        # SPE: residual after reconstruction
+        # SPE: residual after reconstruction, over the cells a row has
         residuals = X_arr - scores @ self._loadings.T
+        spe = np.sqrt(np.sum(residuals**2, axis=1))
+        spe[rows] = estimates.spe
         return DiagnoseResult(
             f"multivariate.{type(self).__name__}",
             scores=pd.DataFrame(scores, index=sample_index, columns=self._component_names),
             cumulative_hotellings_t2=t2,
             hotellings_t2=t2,
-            spe=pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=sample_index, name="SPE"),
+            spe=pd.Series(spe, index=sample_index, name="SPE"),
         )
 
     def project(
@@ -1465,14 +1479,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     ) -> Bunch:
         """Estimate scores and diagnostics for rows that may contain missing values.
 
-        Whereas :meth:`transform` and :meth:`diagnose` propagate NaN, this
-        method estimates the scores of partially-observed rows from the
+        This method estimates the scores of partially-observed rows from the
         observed columns only, using the missing-data estimators of Arteaga
         and Ferrer (2002): trimmed score regression (``"tsr"``, the default
         and the statistically strongest), single-component projection
         (``"scp"``), or projection to the model plane (``"pmp"``). Rows with
         no missing values take the standard complete-data path, so their
-        scores are bitwise identical to :meth:`transform`.
+        scores are bitwise identical to :meth:`transform`. :meth:`transform`
+        and :meth:`diagnose` score a row with a missing cell by this method's
+        default, through the same code; this method adds the choice of
+        estimator, the ``ridge``, and each row's ``condition_number``, and
+        raises where they give NaN for a row the estimator cannot be inverted
+        for (#1144).
 
         This is the "batch so far" primitive of online batch monitoring: the
         future part of an unfolded batch row is missing by construction, and
@@ -1511,15 +1529,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             :class:`process_improve.batch.BatchMonitor`.
         """
         X_arr, sample_index = self._validated_rows(X)
-        raw = project_rows(
-            self._loadings,
-            self._loadings,
-            self.explained_variance_,
-            X_arr,
-            method=method,
-            ridge=ridge,
-            x_residuals=getattr(self, "_x_residuals", None),
-        )
+        raw = project_rows(x_scaled=X_arr, method=method, ridge=ridge, **self._projection_inputs())
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         # A component fit leaves out of T² is left out here too (#1026).
         s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
@@ -1564,21 +1574,26 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self, "loadings_")
         mask = coerce_observed_mask(observed, self._feature_names)
-        op = operator_for_pattern(
-            self._loadings,
-            self._loadings,
-            self.explained_variance_,
-            mask,
-            method=method,
-            ridge=ridge,
-            x_residuals=getattr(self, "_x_residuals", None),
-        )
+        op = operator_for_pattern(observed=mask, method=method, ridge=ridge, **self._projection_inputs())
         matrix = pd.DataFrame(
             op.matrix,
             index=self._component_names,
             columns=pd.Index(self._feature_names)[mask],
         )
         return Bunch(matrix=matrix, condition_number=op.condition_number, method=op.method)
+
+    def _projection_inputs(self) -> dict[str, typing.Any]:
+        """Return the fitted matrices the missing-data estimators of :meth:`project` read, by their argument names.
+
+        For PCA the loadings both generate the scores and reconstruct the rows, and are the
+        weights single-component projection projects onto, the default of the estimators.
+        """
+        return {
+            "x_loadings": self._loadings,
+            "guide": self._loadings,
+            "score_variances": self.explained_variance_,
+            "x_residuals": getattr(self, "_x_residuals", None),
+        }
 
     def score(self, X: DataMatrix, y: DataMatrix | None = None) -> float:  # noqa: ARG002
         """Negative mean squared reconstruction error (higher is better).

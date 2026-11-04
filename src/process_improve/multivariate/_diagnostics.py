@@ -25,7 +25,7 @@ from .._linalg import safe_inverse
 from ._common import DataMatrix, _align_to_fit_features, components_with_spread, epsqrt
 from ._nipals import quick_regress, ssq
 from ._preprocessing import center
-from ._projection import operator_for_pattern
+from ._projection import project_rows
 
 # These diagnostics operate on a *fitted* PCA or PLS model via duck typing (they
 # read attributes such as ``scores_`` / ``spe_`` after guarding with
@@ -600,51 +600,40 @@ def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarra
 
 
 def _scores_and_guides(
-    model: BaseEstimator, X_values: np.ndarray, R: np.ndarray, P: np.ndarray, method: str, ridge: float
+    model: BaseEstimator, X_values: np.ndarray, R: np.ndarray, P: np.ndarray, method: str | None, ridge: float
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Return the scores of every row and, when rows have missing cells, the per-row score-generating matrices.
 
     A complete row's score is ``x @ R``. A row with missing cells has its scores
-    estimated from the observed cells with the missing-data operator ``M`` of
-    :func:`~process_improve.multivariate._projection.operator_for_pattern`
-    (``t_hat = M @ x_observed``), so its contributions use ``M`` where a
-    complete row uses ``R``. The second return value is ``None`` when every
-    row is complete, and otherwise an array of shape (n_samples, n_features,
-    n_components) holding ``R`` for the complete rows and, for the others,
-    ``M.T`` on the observed features and zero on the missing ones.
+    estimated from the observed cells by
+    :func:`~process_improve.multivariate._projection.project_rows`, the code
+    ``project``, ``transform`` and ``diagnose`` score it with, through the
+    operator ``M`` of its pattern (``t_hat = M @ x_observed``); its
+    contributions use ``M`` where a complete row uses ``R``. ``method=None``
+    takes the estimator the model's ``transform`` and ``diagnose`` use, so the
+    contributions split the scores they give (#1144). A row whose estimator
+    cannot be inverted is NaN, with a warning, as there. The second return value
+    is ``None`` when every row is complete, and otherwise an array of shape
+    (n_samples, n_features, n_components) holding ``R`` for the complete rows
+    and, for the others, ``M.T`` on the observed features and zero on the
+    missing ones.
     """
-    observed = ~np.isnan(X_values)
-    complete = observed.all(axis=1)
-    if complete.all():
+    if not np.isnan(X_values).any():
         return X_values @ R, None
-    scores = np.full((X_values.shape[0], R.shape[1]), np.nan)
-    scores[complete] = X_values[complete] @ R  # the complete rows keep the exact complete-data path
-    variances = np.asarray(model.explained_variance_)
-    # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
-    weights = np.asarray(model.x_weights_) if hasattr(model, "direct_weights_") else None
-    guides = np.broadcast_to(R, (X_values.shape[0], *R.shape)).copy()
-    patterns: dict[bytes, list[int]] = {}
-    for i in np.flatnonzero(~complete):
-        patterns.setdefault(observed[i].tobytes(), []).append(int(i))
-    for key, rows in patterns.items():
-        mask = np.frombuffer(key, dtype=bool)
-        operator = operator_for_pattern(
-            P,
-            R,
-            variances,
-            mask,
-            method=method,
-            ridge=ridge,
-            x_weights=weights,
-            x_residuals=getattr(model, "_x_residuals", None),
-        )
-        guide = np.zeros_like(R)
-        guide[mask, :] = operator.matrix.T
-        guides[rows] = guide
-        # A missing cell meets a row of zeros in the guide, so the value it is filled with does not matter.
-        filled = np.where(observed[rows], X_values[rows], 0.0)  # pragma: no mutate - any fill: see above
-        scores[rows] = filled @ guide
-    return scores, guides
+    estimated = project_rows(
+        P,
+        R,
+        np.asarray(model.explained_variance_),
+        X_values,
+        method=getattr(model, "_MISSING_CELL_ESTIMATOR", "tsr") if method is None else method,
+        ridge=ridge,
+        # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
+        x_weights=np.asarray(model.x_weights_) if hasattr(model, "direct_weights_") else None,
+        x_residuals=getattr(model, "_x_residuals", None),
+        singular="nan",
+        with_guides=True,
+    )
+    return estimated.scores, estimated.guides
 
 
 def _t2_score_sd(score_sd: np.ndarray) -> np.ndarray:
@@ -731,7 +720,7 @@ def t2_contributions(
     X: DataMatrix,
     components: list[int] | None = None,
     *,
-    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
+    method: str | None = None,
     ridge: float = 0.0,
 ) -> pd.DataFrame:
     r"""Per-variable contributions to Hotelling's :math:`T^2`.
@@ -758,11 +747,14 @@ def t2_contributions(
     A row with missing cells (NaN) gets its scores from its observed cells
     alone, with the estimator named by ``method``, the missing-data operators
     of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
-    defined at every observed cell and NaN at the missing ones, so the row
-    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
-    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
-    PCA model fitted with missing data the training rows reproduce the stored
-    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    defined at every observed cell and NaN at the missing ones, which add
+    nothing to the row sums (``sum(axis=1)`` skips NaN). The default estimator
+    is the one the model's ``transform`` and ``diagnose`` score the row with,
+    ``"tsr"`` for PCA and PLS and ``"scp"`` for the adaptive models, so the
+    contributions split the scores, T² and SPE they give it (#1144).
+    ``method="scp"`` is the single-component projection the NIPALS fit uses:
+    on a model fitted with missing data, the training rows then reproduce the
+    stored ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
     convergence tolerance, as the complete rows do. A column the fit left out,
     having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
     so it contributes 0 whatever ``X`` holds there.
@@ -777,7 +769,8 @@ def t2_contributions(
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
-        Passing the training data reproduces the model's stored ``hotellings_t2_``.
+        Passing the training data reproduces the model's stored ``hotellings_t2_``
+        (with ``method="scp"`` when it has missing cells).
         Until #1125 the model's own scaling was skipped here: code that
         scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
         and passes the unscaled data instead.
@@ -785,9 +778,10 @@ def t2_contributions(
         **1-based** component indices to decompose over, matching the model's
         column convention. ``None`` (default) uses all fitted components, so the
         row sums equal the cumulative :math:`T^2`.
-    method : {"scp", "tsr", "pmp"}, default="scp"
+    method : {"tsr", "scp", "pmp"} or None, default=None
         Score estimator for the rows with missing cells; ignored when ``X`` is
-        complete. See :meth:`PCA.project`.
+        complete. ``None`` takes the one the model's ``transform`` and
+        ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
         Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
@@ -845,7 +839,7 @@ def spe_contributions(
     model: BaseEstimator,
     X: DataMatrix,
     *,
-    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
+    method: str | None = None,
     ridge: float = 0.0,
 ) -> pd.DataFrame:
     r"""Per-variable squared-prediction-error (SPE / DModX) contributions.
@@ -868,11 +862,14 @@ def spe_contributions(
     A row with missing cells (NaN) gets its scores from its observed cells
     alone, with the estimator named by ``method``, the missing-data operators
     of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
-    defined at every observed cell and NaN at the missing ones, so the row
-    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
-    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
-    PCA model fitted with missing data the training rows reproduce the stored
-    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    defined at every observed cell and NaN at the missing ones, which add
+    nothing to the row sums (``sum(axis=1)`` skips NaN). The default estimator
+    is the one the model's ``transform`` and ``diagnose`` score the row with,
+    ``"tsr"`` for PCA and PLS and ``"scp"`` for the adaptive models, so the
+    contributions split the scores, T² and SPE they give it (#1144).
+    ``method="scp"`` is the single-component projection the NIPALS fit uses:
+    on a model fitted with missing data, the training rows then reproduce the
+    stored ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
     convergence tolerance, as the complete rows do. A column the fit left out,
     having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
     so it contributes 0 whatever ``X`` holds there.
@@ -887,13 +884,15 @@ def spe_contributions(
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
-        Passing the training data reproduces the model's stored ``spe_``.
+        Passing the training data reproduces the model's stored ``spe_``
+        (with ``method="scp"`` when it has missing cells).
         Until #1125 the model's own scaling was skipped here: code that
         scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
         and passes the unscaled data instead.
-    method : {"scp", "tsr", "pmp"}, default="scp"
+    method : {"tsr", "scp", "pmp"} or None, default=None
         Score estimator for the rows with missing cells; ignored when ``X`` is
-        complete. See :meth:`PCA.project`.
+        complete. ``None`` takes the one the model's ``transform`` and
+        ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
         Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
@@ -972,7 +971,7 @@ def score_contributions(
     component: int = 1,
     scaling: str = "none",
     *,
-    method: str = "scp",  # pragma: no mutate - _validate_method lowercases it, so "SCP" is the same default
+    method: str | None = None,
     ridge: float = 0.0,
     **deprecated: object,
 ) -> pd.DataFrame:
@@ -1004,11 +1003,14 @@ def score_contributions(
     A row with missing cells (NaN) gets its scores from its observed cells
     alone, with the estimator named by ``method``, the missing-data operators
     of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
-    defined at every observed cell and NaN at the missing ones, so the row
-    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
-    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
-    PCA model fitted with missing data the training rows reproduce the stored
-    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    defined at every observed cell and NaN at the missing ones, which add
+    nothing to the row sums (``sum(axis=1)`` skips NaN). The default estimator
+    is the one the model's ``transform`` and ``diagnose`` score the row with,
+    ``"tsr"`` for PCA and PLS and ``"scp"`` for the adaptive models, so the
+    contributions split the scores, T² and SPE they give it (#1144).
+    ``method="scp"`` is the single-component projection the NIPALS fit uses:
+    on a model fitted with missing data, the training rows then reproduce the
+    stored ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
     convergence tolerance, as the complete rows do. A column the fit left out,
     having no observed value, is read at 0, as :meth:`PCA.transform` reads it,
     so it contributes 0 whatever ``X`` holds there.
@@ -1023,7 +1025,8 @@ def score_contributions(
         (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
         ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
         training data was, for example with :class:`MCUVScaler`.
-        Passing the training data reproduces the model's stored ``scores_``.
+        Passing the training data reproduces the model's stored ``scores_``
+        (with ``method="scp"`` when it has missing cells).
         Until #1125 the model's own scaling was skipped here: code that
         scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
         and passes the unscaled data instead.
@@ -1039,9 +1042,10 @@ def score_contributions(
         contributions, so each row is on a common footing. Both scalings leave
         the *pattern* of bars within a row unchanged; neither preserves the sum
         to the score.
-    method : {"scp", "tsr", "pmp"}, default="scp"
+    method : {"tsr", "scp", "pmp"} or None, default=None
         Score estimator for the rows with missing cells; ignored when ``X`` is
-        complete. See :meth:`PCA.project`.
+        complete. ``None`` takes the one the model's ``transform`` and
+        ``diagnose`` use. See :meth:`PCA.project`.
     ridge : float, default=0.0
         Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
         :meth:`PCA.project`.
@@ -1263,8 +1267,8 @@ def _complete_through_model(
     """Align ``X`` to the fit and return ``(X_aligned, x, R, P)`` with every missing cell filled.
 
     A missing cell is replaced by the model's reconstruction of it, from the scores that
-    the row's observed cells give (the estimator :func:`spe_contributions` uses), so the
-    cross-products MEDA and oMEDA are built from are of complete data.
+    the row's observed cells give by single-component projection, as the NIPALS fit scores
+    such a row, so the cross-products MEDA and oMEDA are built from are of complete data.
     """
     X_df, R, P = _contribution_inputs(model, X)
     x = X_df.to_numpy(dtype=float)

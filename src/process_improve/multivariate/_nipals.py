@@ -269,6 +269,30 @@ def _quick_regress_complete(Y: np.ndarray, x: np.ndarray, denom_floor: float, pe
     return (numer / denom)[:, np.newaxis]
 
 
+def row_regression_divisors(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
+    """Return, for each row of ``Y``, what :func:`quick_regress` with ``per="row"`` divides it by.
+
+    That is ``x'x`` over the row's present cells, so a row's coefficient splits into one term
+    per present cell, ``y_k x_k`` over this, and the terms add up to it: the split the
+    contribution plots take (#1144). Where :func:`quick_regress` returns 0 for a row, because
+    the masked ``x`` keeps no signal (see "Degenerate denominators" there), it is ``inf``, so
+    every term is 0 as well.
+
+    Parameters
+    ----------
+    Y : np.ndarray of shape (n_rows, n_columns)
+        The rows regressed, NaN where missing.
+    x : np.ndarray of shape (n_columns,)
+        The vector each row is regressed on.
+
+    Returns
+    -------
+    np.ndarray of shape (n_rows,)
+    """
+    divisors = ~np.isnan(Y) @ (x**2)
+    return np.where(divisors > epsqrt * float(ssq(x)), divisors, np.inf)
+
+
 def internal_pls_nipals_fit_one_pc(
     x_space: np.ndarray,
     y_space: np.ndarray,

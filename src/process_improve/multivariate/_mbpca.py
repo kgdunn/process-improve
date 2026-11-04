@@ -36,7 +36,7 @@ from ._common import (
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
-from ._nipals import quick_regress, ssq
+from ._nipals import quick_regress, row_regression_divisors, ssq
 from ._preprocessing import MCUVScaler
 
 try:
@@ -727,7 +727,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         cell of it was in the fit: a value there adds nothing to a score or an SPE, and a row has
         nothing observed in the block unless it has a value in one of the block's other columns.
         """
-        return np.where(self._left_out(name), np.nan, self.preproc_[name].transform(block).to_numpy())
+        # One memory layout whatever pandas hands over, as in MBPLS._scaled_block (#1148)
+        values = self.preproc_[name].transform(block).to_numpy()
+        return np.ascontiguousarray(np.where(self._left_out(name), np.nan, values))
 
     def _left_out(self, name: str) -> np.ndarray | bool:
         """Which columns of a block the fit left out (#1098); a model pickled before then left none out."""
@@ -942,8 +944,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         first :math:`a-1` components.
 
         A row with missing cells is scored over the cells it has, as in
-        :meth:`diagnose`. Its contributions are NaN at the missing cells, and
-        their sum is not its super score.
+        :meth:`diagnose`: :math:`p_b^\top p_b` is then taken over the row's
+        cells in block :math:`b`, and :math:`p_\mathrm{super}^\top
+        p_\mathrm{super}` over the blocks it has a score in, so its
+        contributions still add up to its super score (#1144). They are NaN at
+        the missing cells, which add nothing to the sum.
 
         See :meth:`MBPLS.score_contributions` for the parameter and return
         descriptions; the API is identical.
@@ -954,14 +959,18 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         p_s = self.super_loadings_.values[:, a]
         sqrt_kb = self._block_scale()
 
-        # The block and super loadings have unit length: the products p_b'p_b and p_s'p_s are 1.
-        # shortcut: on a row with missing cells they are taken over the cells the row has, which this
-        # leaves out, so the row's contributions do not sum to its super score; upgrade with MBPLS's.
+        # Each score is the fit's masked regression (_project_component), so each term divides by what
+        # it divides by: p_b'p_b over the row's cells in the block, and p_s'p_s over the blocks the row
+        # has a score in. On a complete row both are the loadings' unit length (#1144).
+        has_score = np.column_stack([_rows_with_data(deflated[name]) for name in self.block_names_])
+        super_divisor = row_regression_divisors(np.where(has_score, 0.0, np.nan), p_s)
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
-            weight = self.block_loadings_[name].values[:, a] / sqrt_kb[name] * p_s[b_idx]
+            p_b = self.block_loadings_[name].values[:, a]
+            divisor = row_regression_divisors(deflated[name], p_b) * super_divisor
+            weight = p_b / sqrt_kb[name] * p_s[b_idx]
             # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPLS, PCA and PLS (#1114)
-            raw[name] = np.where(self._left_out(name), 0.0, deflated[name] * weight)
+            raw[name] = np.where(self._left_out(name), 0.0, deflated[name] * weight / divisor[:, np.newaxis])
 
         raw = _scale_block_contributions(raw, scaling)
         return {
@@ -986,7 +995,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """
         per_block = self.score_contributions(X, component=component)
         out: dict[str, pd.Series] = {}
-        for name, frame in per_block.items():
+        for name, contributions in per_block.items():
+            # A missing cell adds nothing to its row's super score, so it adds nothing to the mean (#1144),
+            # where skipping its NaN averaged the column over the other rows alone.
+            frame = contributions.fillna(0.0)
             deviation = _select_rows(frame, group, "group").mean(axis=0)
             if reference is not None:
                 deviation = deviation - _select_rows(frame, reference, "reference").mean(axis=0)

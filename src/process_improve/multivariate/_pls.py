@@ -1173,16 +1173,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Data to transform.
+            Data to transform. A row with a missing cell (NaN) is scored from
+            the cells it has, as :meth:`diagnose` scores it.
         Y : array-like of shape (n_samples, n_targets), optional
             Ignored. Present for API compatibility with sklearn pipelines.
 
         Returns
         -------
         X_scores : pd.DataFrame of shape (n_samples, n_components)
-            Projected X data (scores).
+            Projected X data (scores): those of :meth:`diagnose`.
         """
-        return self._scaled_rows(X) @ self.direct_weights_
+        return self.diagnose(X).scores
 
     def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
         """Return new rows checked against the fit, in the space the model was fitted in.
@@ -1317,6 +1318,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
+            New rows. A row with a missing cell (NaN) is scored from the cells
+            it has, by trimmed score regression, the estimator :meth:`project`
+            uses by default, and predicted from those scores; until 2.4.0 its
+            scores, SPE and predictions were NaN and its T² 0 (#1144). A row
+            with nothing observed is NaN throughout. So is a row with too few
+            observed cells for its scores, typically fewer than
+            ``n_components``, with a :class:`SpecificationWarning`.
+            :meth:`project` gives the other estimators, a ``ridge``, and each
+            row's conditioning.
 
         Returns
         -------
@@ -1333,7 +1343,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               predictions, on the original Y scale.
             - ``residuals`` (pd.DataFrame, ``(n_samples, n_features)``): what
               is left of each row after the components, in the scaled space
-              the model was fitted in; ``spe`` is the length of each row.
+              the model was fitted in, NaN at a missing cell; ``spe`` is the
+              length of each row over its other cells.
             - ``hotellings_t2`` (pd.Series, ``(n_samples,)``): deprecated since
               2.4.0, to be removed in 3.0; the T² of the full model, which is
               ``cumulative_hotellings_t2.iloc[:, -1]``. Reading it warns.
@@ -1352,21 +1363,28 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Scores, T², SPE and y_hat are all computed in the space the model was fitted in.
         X = self._scaled_rows(X)
         scores = X @ self.direct_weights_
+        # A row with a missing cell is scored from the cells it has, as project() scores it by default (#1144)
+        rows, estimates = self._estimate_rows_with_gaps(X.to_numpy())
+        scores.iloc[rows] = estimates.scores
 
         # Hotelling's T², leaving out a component fit leaves out (#1026): cumulative over the
         # components, as in hotellings_t2_, and the full model's, the deprecated Series (#983).
-        standardised = pd.DataFrame((scores / _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())) ** 2)
-        cumulative = standardised.cumsum(axis=1)
+        # A row with no scores has no T², where skipping its NaN made it 0 (#1144).
+        score_sd = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
+        standardised = scores.div(score_sd, axis="columns") ** 2
+        cumulative = standardised.cumsum(axis=1, skipna=False)
         # A Series of the scores' row labels: the DataFrame's row sums carry them.
-        t2 = standardised.sum(axis=1).rename("Hotelling's T²")
+        t2 = standardised.sum(axis=1, skipna=False).rename("Hotelling's T²")
 
         # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
         # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
         # relabels the columns 0..K-1, which then misaligns the ``X - X_hat`` subtraction to all-NaN
-        # and collapses every SPE to 0.
+        # and collapses every SPE to 0. A row with a missing cell has its SPE over the cells it has.
         x_hat = scores.to_numpy() @ self._x_loadings.T
         residuals = X.to_numpy() - x_hat
-        spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
+        spe = np.sqrt(np.power(residuals, 2).sum(axis=1))
+        spe[rows] = estimates.spe
+        spe_values = pd.Series(spe, index=X.index, name="SPE")
 
         # Y predictions (computed in scaled-Y space; mapped back to original units)
         y_hat = self._in_y_units(scores @ self.y_loadings_.T)
@@ -1390,8 +1408,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     ) -> Bunch:
         """Estimate scores, prediction and diagnostics for rows with missing values.
 
-        Whereas :meth:`transform` and :meth:`diagnose` propagate NaN into the
-        scores, this method estimates the scores of partially-observed rows
+        This method estimates the scores of partially-observed rows
         from the observed columns only, using the missing-data estimators of
         Arteaga and Ferrer (2002): trimmed score regression (``"tsr"``, the
         default and statistically the strongest), single-component projection
@@ -1403,7 +1420,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         and SCP tend to the model's own scores; PMP, the least-squares fit of
         the observed columns onto the loadings, does not for a PLS model,
         whose scores come from the weights rather than the loadings, so
-        prefer the other two here.
+        prefer the other two here. :meth:`transform`, :meth:`diagnose` and
+        :meth:`predict` score a row with a missing cell by this method's
+        default, through the same code; this method adds the choice of
+        estimator, the ``ridge``, and each row's ``condition_number``, and
+        raises where they give NaN for a row the estimator cannot be inverted
+        for (#1144).
 
         This is the "batch so far" primitive for predicting the final quality
         of a running batch: the future part of the unfolded row is missing by
@@ -1445,16 +1467,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Missing entries survive the scaling as NaN, so the pattern of observed columns is unchanged.
         X_df = self._scaled_rows(X)
         sample_index = X_df.index
-        raw = project_rows(
-            self._x_loadings,
-            self.direct_weights_.to_numpy(),
-            self.explained_variance_,
-            X_df.to_numpy(),
-            method=method,
-            ridge=ridge,
-            x_weights=self._x_weights,
-            x_residuals=getattr(self, "_x_residuals", None),
-        )
+        raw = project_rows(x_scaled=X_df.to_numpy(), method=method, ridge=ridge, **self._projection_inputs())
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         # A component fit leaves out of T² is left out here too (#1026).
         s = _t2_score_sd(self.scaling_factor_for_scores_.to_numpy())
@@ -1504,22 +1517,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         """
         check_is_fitted(self, "direct_weights_")
         mask = coerce_observed_mask(observed, self._feature_names)
-        op = operator_for_pattern(
-            self._x_loadings,
-            self.direct_weights_.to_numpy(),
-            self.explained_variance_,
-            mask,
-            method=method,
-            ridge=ridge,
-            x_weights=self._x_weights,
-            x_residuals=getattr(self, "_x_residuals", None),
-        )
+        op = operator_for_pattern(observed=mask, method=method, ridge=ridge, **self._projection_inputs())
         matrix = pd.DataFrame(
             op.matrix,
             index=self._component_names,
             columns=pd.Index(self._feature_names)[mask],
         )
         return Bunch(matrix=matrix, condition_number=op.condition_number, method=op.method)
+
+    def _projection_inputs(self) -> dict[str, typing.Any]:
+        """Return the fitted matrices the missing-data estimators of :meth:`project` read, by their argument names.
+
+        The direct weights generate the scores, the loadings reconstruct the rows, and the
+        weights are what single-component projection projects onto, as NIPALS does.
+        """
+        return {
+            "x_loadings": self._x_loadings,
+            "guide": self.direct_weights_.to_numpy(),
+            "score_variances": self.explained_variance_,
+            "x_weights": self._x_weights,
+            "x_residuals": getattr(self, "_x_residuals", None),
+        }
 
     def invert(
         self,

@@ -2880,6 +2880,23 @@ def _new_mbpls_rows(blocks: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     return new
 
 
+def _mbpls_contributions_by_hand(fitted: dict, before: dict[str, np.ndarray], a: int) -> dict[str, np.ndarray]:
+    """Split each new row's super score on component ``a`` into one term per cell of the deflated blocks.
+
+    ``g`` is the super score's weight on each variable. A row's super score divides by ``g'g``
+    over the cells it has and multiplies by ``g'g``, so each of its terms does too: 1 on a
+    complete row (#1144).
+    """
+    g = {
+        name: fitted["w_b"][name][:, a] * fitted["w"][b, a] / np.sqrt(fitted["widths"][name])
+        for b, name in enumerate(before)
+    }
+    g_all = np.concatenate(list(g.values()))
+    observed = sum(~np.isnan(before[name]) @ g[name] ** 2 for name in before)
+    row_scale = (g_all @ g_all) / np.where(observed > 0, observed, np.nan)
+    return {name: before[name] * g[name] * row_scale[:, np.newaxis] for name in before}
+
+
 class TestMBPLSNewRowsByHand:
     """New rows, their scores, predictions, SPE, T² and contributions, against the model written out."""
 
@@ -2946,21 +2963,15 @@ class TestMBPLSNewRowsByHand:
             a = component - 1
             contributions = model.score_contributions(new, component=component)
             expected = {
-                name: pd.DataFrame(
-                    by_hand["before"][a][name]
-                    * fitted["w_b"][name][:, a]
-                    * fitted["w"][b, a]
-                    / np.sqrt(fitted["widths"][name]),
-                    index=index,
-                    columns=new[name].columns,
-                )
-                for b, name in enumerate(new)
+                name: pd.DataFrame(terms, index=index, columns=new[name].columns)
+                for name, terms in _mbpls_contributions_by_hand(fitted, by_hand["before"][a], a).items()
             }
             for name in new:
                 _frames_near(contributions[name], expected[name], 1e-10)
-            complete = ["n0", "n1", "n2"]
-            total = sum(frame.loc[complete].sum(axis=1) for frame in expected.values())
-            np.testing.assert_allclose(total, by_hand["t"][:3, a], rtol=1e-12)
+            # Every row with a value adds up to its super score: the complete ones, n3 with a gap, n4 with no x.
+            scored = ["n0", "n1", "n2", "n3", "n4"]
+            total = sum(frame.loc[scored].sum(axis=1) for frame in expected.values())
+            np.testing.assert_allclose(total, by_hand["t"][:5, a], rtol=1e-12)
             if component == 2:
                 group = model.group_contributions(new, group=["n0", "n2"], reference=["n1"], component=2)
                 centred = model.group_contributions(new, group=["n0", "n2"], component=2)
