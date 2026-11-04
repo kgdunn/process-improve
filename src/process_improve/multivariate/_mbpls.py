@@ -103,10 +103,16 @@ def _pooled_super_score(
     unchanged. A row with nothing observed under a non-zero weight has no score: it comes back
     as NaN, the division by NaN in place of 0 giving no warning.
     """
-    stacked_x = np.hstack([x_def[name] for name in block_names])
-    numerator = np.nan_to_num(stacked_x) @ stacked_weights
-    denominator = ~np.isnan(stacked_x) @ (stacked_weights**2)
-    return numerator / np.where(denominator > 0, denominator, np.nan) * float(stacked_weights @ stacked_weights)
+    numerator = np.nan_to_num(np.hstack([x_def[name] for name in block_names])) @ stacked_weights
+    return numerator / _pooled_divisor(x_def, stacked_weights, block_names) * float(stacked_weights @ stacked_weights)
+
+
+def _pooled_divisor(
+    x_def: dict[str, np.ndarray], stacked_weights: np.ndarray, block_names: Sequence[str]
+) -> np.ndarray:
+    """Return what :func:`_pooled_super_score` divides each row by: ``g'g`` over its observed cells, or NaN for none."""
+    denominator = ~np.isnan(np.hstack([x_def[name] for name in block_names])) @ (stacked_weights**2)
+    return np.where(denominator > 0, denominator, np.nan)
 
 
 def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.DataFrame:
@@ -1037,6 +1043,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         first :math:`a-1` components, which is what the super score at component
         :math:`a` is actually formed from.
 
+        A row with missing cells is scored over the cells it has, as in
+        :meth:`diagnose`: its super score divides by the weights' sum of
+        squares over those cells, and so does each of its contributions, which
+        then still add up to it (#1144). They are NaN at the missing cells,
+        which add nothing to the sum.
+
         Parameters
         ----------
         X : dict[str, pd.DataFrame]
@@ -1069,15 +1081,20 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         deflated, sample_index = self._deflated_blocks(X, component)
         a = int(component) - 1
 
+        sqrt_kb = self._block_scale()
+        weights = {name: self.block_weights_[name].values[:, a] for name in self.block_names_}
+        stacked = _stacked_super_weights(weights, self.super_weights_.values[:, a], sqrt_kb, self.block_names_)
+        # The pooled super score divides by g'g over the row's observed cells and multiplies by g'g, so each
+        # term takes that ratio too: 1 on a complete row, and what makes a row with a gap add up (#1144).
+        row_scale = float(stacked @ stacked) / _pooled_divisor(deflated, stacked, self.block_names_)
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
-            sqrt_kb = self._block_scale()[name]
-            w_b = self.block_weights_[name].values[:, a]
             w_s = float(self.super_weights_.values[b_idx, a])
             # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114).
             # A model pickled before #1098 left none out.
             left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
-            raw[name] = np.where(left_out, 0.0, deflated[name] * (w_b * w_s / sqrt_kb))
+            terms = deflated[name] * (weights[name] * w_s / sqrt_kb[name]) * row_scale[:, np.newaxis]
+            raw[name] = np.where(left_out, 0.0, terms)
 
         raw = _scale_block_contributions(raw, scaling)
         return {
@@ -1102,7 +1119,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """
         per_block = self.score_contributions(X, component=component)
         out: dict[str, pd.Series] = {}
-        for name, frame in per_block.items():
+        for name, contributions in per_block.items():
+            # A missing cell adds nothing to its row's super score, so it adds nothing to the mean (#1144),
+            # where skipping its NaN averaged the column over the other rows alone.
+            frame = contributions.fillna(0.0)
             deviation = _select_rows(frame, group, "group").mean(axis=0)
             if reference is not None:
                 deviation = deviation - _select_rows(frame, reference, "reference").mean(axis=0)
@@ -1497,7 +1517,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """
         values = self.preproc_[name].transform(block).to_numpy()
         # A model pickled before #1098 left no column out
-        return np.where(getattr(self, "_unobserved_columns", {}).get(name, False), np.nan, values)
+        left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
+        # One memory layout, whatever pandas hands over. A row-major and a column-major block take
+        # different BLAS kernels, which round differently, so a row's scores would depend on how
+        # its DataFrame was built (pandas 2.3 with numpy 2.2, #1148).
+        return np.ascontiguousarray(np.where(left_out, np.nan, values))
 
     def _in_y_units(self, scaled: np.ndarray, index: pd.Index) -> pd.DataFrame:
         """Return predictions in the scaled space on Y's original scale, labelled with its columns.

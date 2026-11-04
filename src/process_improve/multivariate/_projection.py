@@ -69,7 +69,7 @@ import pandas as pd
 from sklearn.utils import Bunch
 
 from .._linalg import safe_inverse
-from ._common import SpecificationWarning
+from ._common import SpecificationWarning, user_stacklevel
 
 if typing.TYPE_CHECKING:
     from collections.abc import Hashable, Iterable
@@ -275,6 +275,8 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     ridge: float = 0.0,
     x_weights: np.ndarray | None = None,
     x_residuals: np.ndarray | None = None,
+    singular: str = "raise",
+    with_guides: bool = False,
 ) -> Bunch:
     """Estimate scores, SPE and conditioning for rows that may contain NaN.
 
@@ -298,6 +300,15 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     x_residuals : np.ndarray of shape (n_train, n_features), optional
         As in :func:`operator_for_pattern`: the training residual block that
         ``tsr`` regresses with.
+    singular : {"raise", "nan"}, default="raise"
+        What a pattern gives when the matrix its estimator inverts is
+        singular, as it is when fewer features are observed than there are
+        components: ``"raise"`` the :class:`numpy.linalg.LinAlgError` of
+        :func:`operator_for_pattern`, as ``project`` does; ``"nan"`` NaN for
+        its rows, with one :class:`SpecificationWarning` that counts them, as
+        ``transform``, ``diagnose`` and the contribution functions do (#1144).
+    with_guides : bool, default=False
+        Also return ``guides``, the matrix that maps each row to its scores.
 
     Returns
     -------
@@ -305,8 +316,13 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
         With keys ``scores`` (n_rows x n_components), ``spe`` (n_rows; the
         square root of the residual sum of squares over the *observed*
         columns only), ``condition_number`` (n_rows; 1.0-adjacent for
-        complete rows), and ``n_observed`` (n_rows, int). A row with nothing
-        observed scores 0, has an SPE of 0 and a condition number of inf.
+        complete rows), ``n_observed`` (n_rows, int) and ``guides``. A row
+        with nothing observed scores 0, has an SPE of 0 and a condition
+        number of inf. ``guides`` is None unless asked for, and is then of
+        shape (n_rows, n_features, n_components): ``guide`` for a complete
+        row, and for the others the operator's transpose on the observed
+        features and 0 on the missing ones, so a row's scores are its
+        observed values times it, the split the contribution functions take.
     """
     method = _validate_method(method)
     n_rows, n_features = x_scaled.shape
@@ -314,9 +330,9 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     scores = np.empty((n_rows, A))
     spe = np.empty(n_rows)
     condition = np.empty(n_rows)
-    n_observed = np.empty(n_rows, dtype=int)
-
     observed_mask = ~np.isnan(x_scaled)
+    guides = np.broadcast_to(guide, (n_rows, n_features, A)).copy() if with_guides else None
+
     complete = observed_mask.all(axis=1)
     if complete.any():
         rows = x_scaled[complete]
@@ -324,15 +340,14 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
         residuals = rows - scores[complete] @ x_loadings.T
         spe[complete] = np.sqrt(np.sum(residuals**2, axis=1))
         condition[complete] = 1.0
-        n_observed[complete] = n_features
 
-    incomplete_idx = np.flatnonzero(~complete)
-    if incomplete_idx.size:
-        patterns: dict[bytes, list[int]] = {}
-        for i in incomplete_idx:
-            patterns.setdefault(observed_mask[i].tobytes(), []).append(int(i))
-        for key, row_ids in patterns.items():
-            mask = np.frombuffer(key, dtype=bool)
+    patterns: dict[bytes, list[int]] = {}
+    for i in np.flatnonzero(~complete):
+        patterns.setdefault(observed_mask[i].tobytes(), []).append(int(i))
+    unestimated = 0
+    for key, row_ids in patterns.items():
+        mask = np.frombuffer(key, dtype=bool)
+        try:
             op = operator_for_pattern(
                 x_loadings,
                 guide,
@@ -343,12 +358,37 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
                 x_weights=x_weights,
                 x_residuals=x_residuals,
             )
-            z_obs = x_scaled[np.ix_(np.asarray(row_ids), np.flatnonzero(mask))]
-            t_hat = z_obs @ op.matrix.T
-            scores[row_ids] = t_hat
-            residual_obs = z_obs - t_hat @ x_loadings[mask, :].T
-            spe[row_ids] = np.sqrt(np.sum(residual_obs**2, axis=1))
-            condition[row_ids] = op.condition_number
-            n_observed[row_ids] = int(mask.sum())
+        except np.linalg.LinAlgError:
+            if singular == "raise":
+                raise
+            # An operator of NaN gives these rows NaN for everything that follows from their scores.
+            op = Bunch(matrix=np.full((A, int(mask.sum())), np.nan), condition_number=np.inf)
+            unestimated += len(row_ids)
+        z_obs = x_scaled[np.ix_(np.asarray(row_ids), np.flatnonzero(mask))]
+        t_hat = z_obs @ op.matrix.T
+        scores[row_ids] = t_hat
+        residual_obs = z_obs - t_hat @ x_loadings[mask, :].T
+        spe[row_ids] = np.sqrt(np.sum(residual_obs**2, axis=1))
+        condition[row_ids] = op.condition_number
+        if guides is not None:
+            guides[row_ids] = 0.0
+            guides[np.ix_(row_ids, np.flatnonzero(mask))] = op.matrix.T
+    _warn_unestimated(unestimated, A, method)
+    return Bunch(
+        scores=scores, spe=spe, condition_number=condition, n_observed=observed_mask.sum(axis=1), guides=guides
+    )
 
-    return Bunch(scores=scores, spe=spe, condition_number=condition, n_observed=n_observed)
+
+def _warn_unestimated(n_rows: int, n_components: int, method: str) -> None:
+    """Say how many rows :func:`project_rows` gave NaN because their estimator's matrix is singular."""
+    if n_rows == 0:
+        return
+    rows = "1 row with missing cells has" if n_rows == 1 else f"{n_rows} rows with missing cells have"
+    warnings.warn(
+        f"{rows} too few observed values to estimate {n_components} scores by method={method!r}: the matrix the "
+        "estimator inverts is singular, as it is when fewer values are observed than there are components. Such a "
+        "row is given NaN scores, as a row with nothing observed is. The model's project() estimates it with a "
+        "ridge above 0.",
+        SpecificationWarning,
+        stacklevel=user_stacklevel(),
+    )

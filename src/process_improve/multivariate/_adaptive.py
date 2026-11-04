@@ -258,6 +258,9 @@ class _AdaptiveModel(_LatentVariableModel):
     """
 
     _RENAME_CONTEXT: typing.ClassVar[str] = "adaptive multivariate"
+    # transform scores a row with a missing cell by single-component projection (_scores_and_spe),
+    # and keeps no training residuals for TSR, so the contributions split that score.
+    _MISSING_CELL_ESTIMATOR: typing.ClassVar[str] = "scp"
 
     if typing.TYPE_CHECKING:  # fitted state set in each subclass's fit()
         mx_: np.ndarray

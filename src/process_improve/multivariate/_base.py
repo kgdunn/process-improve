@@ -26,6 +26,7 @@ import typing
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
+from sklearn.utils import Bunch
 
 from ._common import _model_method
 from ._diagnostics import (
@@ -73,6 +74,7 @@ from ._limits import (
 from ._limits import (
     spe_limit as _spe_limit,
 )
+from ._projection import project_rows
 from .plots import (
     correlation_loadings_plot as _correlation_loadings_plot,
 )
@@ -206,6 +208,42 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
 
     if typing.TYPE_CHECKING:  # fitted attribute provided by concrete subclasses
         scaling_factor_for_scores_: pd.Series
+
+        def _projection_inputs(self) -> dict[str, typing.Any]:
+            """Return the fitted matrices the missing-data estimators read (each concrete model's own)."""
+
+    # The estimator transform and diagnose score a row with a missing cell by, and the contribution
+    # functions split its scores by: project()'s default, trimmed score regression (#1144).
+    _MISSING_CELL_ESTIMATOR: typing.ClassVar[str] = "tsr"
+
+    def _estimate_rows_with_gaps(self, x_scaled: np.ndarray) -> tuple[np.ndarray, Bunch]:
+        """Return which rows have a missing cell and an observed one, and their scores and SPE by ``project()``.
+
+        ``transform``, ``diagnose`` and ``predict`` score such a row through this, the code
+        ``project()`` runs with its default estimator, so the two cannot drift (#1144). A row with
+        nothing observed, but in a column the fit left out (#1098), is not one of them: it says
+        nothing about its scores, and keeps NaN. A row the estimator cannot be inverted for is NaN,
+        with a warning, where ``project()`` raises.
+
+        Parameters
+        ----------
+        x_scaled : np.ndarray of shape (n_samples, n_features)
+            The rows in the space the model was fitted in, NaN where missing.
+
+        Returns
+        -------
+        rows : np.ndarray of int
+            The positions of those rows.
+        estimates : sklearn.utils.Bunch
+            :func:`~process_improve.multivariate._projection.project_rows` of those rows.
+        """
+        left_out = np.asarray(getattr(self, "_unobserved_columns", False))
+        observed = ~np.isnan(x_scaled) & ~left_out
+        rows = np.flatnonzero(np.isnan(x_scaled).any(axis=1) & observed.any(axis=1))
+        estimates = project_rows(
+            x_scaled=x_scaled[rows], method=self._MISSING_CELL_ESTIMATOR, singular="nan", **self._projection_inputs()
+        )
+        return rows, estimates
 
     def __getstate__(self) -> dict:
         """Exclude the lazily-built DataFrame cache from pickling (ENG-18).
