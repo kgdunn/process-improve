@@ -96,7 +96,7 @@ Two arguments there are doing real work:
 - `PLS.fit(X, Y)` accepts 1-D `Y` (the shape sklearn pipelines pass for
   single-target regression); promoted to `(N, 1)` internally.
 - `PLS.predict(X)` returns a `pd.DataFrame` (sklearn-compatible).
-- `PLS.diagnose(X)` returns the rich `Bunch(scores, hotellings_t2, spe,
+- `PLS.diagnose(X)` returns the rich `Bunch(scores, cumulative_hotellings_t2, spe,
   y_hat)` that `predict()` used to return before 1.35.0.
 - `PLS.score(X, Y, sample_weight=...)` accepts `sample_weight` (forwards
   to `sklearn.metrics.r2_score`). Note `fit` does *not* accept
