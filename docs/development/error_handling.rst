@@ -218,6 +218,15 @@ dropped, a degenerate fold during cross-validation), use
         stacklevel=2,
     )
 
+``stacklevel=2`` names the caller's line only when the caller called
+the function that warns. A warning raised in a private helper, in an
+inner fit, or under scikit-learn's ``_fit_context`` wrapper of ``fit``
+is more frames away, and a fixed count then names a line in the
+library. The multivariate estimators pass
+``stacklevel=user_stacklevel()`` from ``multivariate/_common.py``
+instead: it counts the frames to the first one outside
+``process_improve`` and scikit-learn.
+
 Category guide:
 
 - ``RuntimeWarning`` - the result was returned but the user

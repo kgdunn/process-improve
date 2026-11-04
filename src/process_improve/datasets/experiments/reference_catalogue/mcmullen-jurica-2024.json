@@ -2335,8 +2335,28 @@
       "quote": "k = 1, FVE = 90.717% (final choice)"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_variance_explained",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "components": 1,
+      "disagreement": "the library smooths each time course by P-splines, with one penalty chosen by generalised cross-validation, and its first component explains 92.9% of the variance; the source smooths the pooled time courses' mean and covariance with a local linear kernel smoother (Eqs. S2 to S8)",
+      "cause": "method"
      }
     },
     {
@@ -2349,8 +2369,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 12 ... 87.21"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 12,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2363,8 +2405,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 13 ... 81.01"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 13,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2377,8 +2441,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 15 ... -6.56"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 15,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2391,8 +2477,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 16 ... -38.79"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 16,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2405,8 +2513,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 17 ... -34.91"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 17,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2419,8 +2549,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 22 ... 58.00"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 22,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2433,8 +2585,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 23 ... 36.74"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 23,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2447,8 +2621,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 24 ... 70.93"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 24,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2461,8 +2657,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 25 ... 54.78"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 25,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2475,8 +2693,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 27 ... 104.76"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 27,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2489,8 +2729,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 32 ... -97.28"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 32,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2503,8 +2765,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 33 ... 22.41"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 33,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2517,8 +2801,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 34 ... 62.83"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 34,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2531,8 +2837,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 35 ... 1.09"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 35,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {
@@ -2545,8 +2873,30 @@
       "quote": "Table S9: Estimated FPC Scores (Eq. S9) ... 37 ... 88.19"
      },
      "check": {
-      "manual": "the library has no functional PCA of curves sampled at different times: the source smooths the pooled time courses with a local linear kernel smoother for the mean and the covariance (Eqs. S2 to S8) and estimates each score by conditional expectation (Eq. S10)",
-      "cause": "library_gap"
+      "kind": "fpc_score",
+      "response": "lcap",
+      "runs": [
+       12,
+       13,
+       15,
+       16,
+       17,
+       22,
+       23,
+       24,
+       25,
+       27,
+       32,
+       33,
+       34,
+       35,
+       37
+      ],
+      "run": 37,
+      "component": 1,
+      "argument_scale": 24,
+      "disagreement": "with the time in hours, which the source integrates over, the source's 15 scores are 0.984 times the library's plus 32.7, to within a residual standard deviation of 2.1. Scores about the mean of the curves they come from average zero, and the source's average 32.7; centring on the mean of all 40 reactions, or of rounds 1 to 3, 2 to 4, 3 to 4 or 4 alone, gives 59 to 106 instead. The source also estimates each score by conditional expectation (Eq. S10), not by integration",
+      "cause": "unexplained"
      }
     },
     {

@@ -11,12 +11,16 @@ sibling submodules, so it sits at the base of the dependency graph.
 from __future__ import annotations
 
 import functools
+import inspect
+import os
 import warnings
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
+import sklearn
 from scipy import sparse
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
@@ -237,6 +241,30 @@ def _reject_sparse(X: object, estimator_name: str) -> None:
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
+
+
+#: The directories a warning must not point into: this package, and scikit-learn, whose
+#: ``_fit_context`` wraps ``fit``. Each ends in a separator, so a sibling directory whose
+#: name merely starts the same is not one of them.
+_LIBRARY_DIRECTORIES = (str(Path(__file__).parents[1]) + os.sep, str(Path(sklearn.__file__).parent) + os.sep)
+
+
+def user_stacklevel() -> int:
+    """Return the ``stacklevel`` that points a warning at the first frame outside this package and scikit-learn.
+
+    Pass it as ``warnings.warn(..., stacklevel=user_stacklevel())``. A fixed count is wrong as
+    soon as a frame comes between the caller and the warning: a private helper, sklearn's
+    ``_fit_context`` wrapper, a subclass's ``fit``, an inner fit, or mutmut's trampoline. The
+    warning then names a line in the library, which the caller cannot act on (#1079).
+    Python 3.12's ``skip_file_prefixes`` does the same, and this serves 3.11 too.
+    """
+    frame = inspect.currentframe()
+    frame = frame.f_back if frame is not None else None  # the function that warns: stacklevel 1
+    level = 1
+    while frame is not None and frame.f_code.co_filename.startswith(_LIBRARY_DIRECTORIES):
+        frame = frame.f_back
+        level += 1
+    return level
 
 
 class UncentredDataWarning(SpecificationWarning):

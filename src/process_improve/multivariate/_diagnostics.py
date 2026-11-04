@@ -170,8 +170,8 @@ def _target_projection_arrays(
     The target-projection direction is the (unit-normalised) regression vector
     ``b`` for the chosen response, read from ``model.beta_coefficients_``; the
     scores are ``t = X w_tp`` and the loadings ``p = X^T t / (t^T t)``. ``X``
-    must be preprocessed the same way as the training data (the same convention
-    as :func:`t2_contributions` / :func:`spe_contributions`).
+    is the data ``predict`` takes, moved into the model's scaled space first,
+    as :func:`t2_contributions` and :func:`spe_contributions` move it.
     """
     if not hasattr(model, "beta_coefficients_"):
         msg = "Model is not fitted, or is not a PLS model with 'beta_coefficients_'."
@@ -240,8 +240,10 @@ def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int |
     model : PLS
         A fitted PLS model (must expose ``beta_coefficients_``).
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data (for
-        example with :class:`MCUVScaler`).
+        The data the model's ``predict`` takes, in the units it was fitted
+        on. A model that centres and scales ``X`` itself (``PLS(scale=True)``,
+        the default) does so here first; ``PLS(scale=False)`` does not, and is
+        given ``X`` scaled as its training data was.
     response : str or int or None, default=None
         Which response (Y column) to project onto. ``None`` is allowed only for
         a single-response model; otherwise pass the response label (or its
@@ -361,8 +363,10 @@ def selectivity_ratio(
     model : PLS
         A fitted PLS model (must expose ``beta_coefficients_``).
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data (for
-        example with :class:`MCUVScaler`).
+        The data the model's ``predict`` takes, in the units it was fitted
+        on. A model that centres and scales ``X`` itself (``PLS(scale=True)``,
+        the default) does so here first; ``PLS(scale=False)`` does not, and is
+        given ``X`` scaled as its training data was.
     response : str or int or None, default=None
         Which response to compute SR for. ``None`` returns a feature-by-response
         DataFrame when the model has several responses, or a Series for a
@@ -554,7 +558,13 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
 
 def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Align ``X`` to the fitted features and return ``(X_aligned, R, P)``.
+    """Return ``(X_rows, R, P)``: ``X`` in the space the model was fitted in, and the model's matrices.
+
+    ``X`` is the data ``transform`` and ``diagnose`` take, and is read through the
+    model's own ``_scaled_rows``, as they read it (#1125): checked against the fit,
+    its columns in the fitted order, centred and scaled when the model does that
+    itself (``PLS(scale=True)``), and 0 in a column the fit left out (#1098), so
+    that column contributes 0 (#1114).
 
     ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
     (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
@@ -566,18 +576,11 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
         raise ValueError(msg)
 
     is_pls = hasattr(model, "direct_weights_")
-    reconstruction = model.x_loadings_ if is_pls else model.loadings_
-    directions = model.direct_weights_ if is_pls else model.loadings_
-    P = np.asarray(reconstruction)
-    R = np.asarray(directions)
-
-    if not isinstance(X, pd.DataFrame):
-        X = pd.DataFrame(X)
-    X = _align_to_fit_features(X, reconstruction.index)
-    # A column the fit left out (#1098) is read at 0, as transform reads it, so it contributes 0 (#1114),
-    # and a NaN there does not send every row down the missing-data path. A model pickled before then left
-    # none out.
-    return X.mask(np.broadcast_to(getattr(model, "_unobserved_columns", False), X.shape), 0.0), R, P
+    P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
+    R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
+    # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
+    # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names.
+    return model._scaled_rows(X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)), R, P
 
 
 def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
@@ -624,9 +627,6 @@ def _scores_and_guides(
         patterns.setdefault(observed[i].tobytes(), []).append(int(i))
     for key, rows in patterns.items():
         mask = np.frombuffer(key, dtype=bool)
-        if not mask.any():
-            msg = f"Row {rows[0]} has no observed features (all-NaN); its contributions cannot be computed."
-            raise ValueError(msg)
         operator = operator_for_pattern(
             P,
             R,
@@ -746,9 +746,15 @@ def t2_contributions(
     model : PCA or PLS
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data (for
-        example with :class:`MCUVScaler`). Passing the training data reproduces
-        the model's stored ``hotellings_t2_``.
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`.
+        Passing the training data reproduces the model's stored ``hotellings_t2_``.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     components : list of int, optional
         **1-based** component indices to decompose over, matching the model's
         column convention. ``None`` (default) uses all fitted components, so the
@@ -850,8 +856,15 @@ def spe_contributions(
     model : PCA or PLS
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data. Passing the
-        training data reproduces the model's stored ``spe_``.
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`.
+        Passing the training data reproduces the model's stored ``spe_``.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     method : {"scp", "tsr", "pmp"}, default="scp"
         Score estimator for the rows with missing cells; ignored when ``X`` is
         complete. See :meth:`PCA.project`.
@@ -894,7 +907,7 @@ def _score_contribution_terms(model: BaseEstimator, X: DataMatrix, component: in
 
 
 _SCORE_CONTRIBUTIONS_USAGE = """\
-score_contributions() takes the preprocessed data X, not a score vector.
+score_contributions() takes the data X, as transform does, not a score vector.
 
 A contribution is x_ik * R_ka, so the per-variable terms sum to the score being
 decomposed. That needs the observation's data, which a score vector does not
@@ -979,9 +992,15 @@ def score_contributions(
     model : PCA or PLS
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data (for
-        example with :class:`MCUVScaler`). Passing the training data reproduces
-        the model's stored ``scores_``.
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`.
+        Passing the training data reproduces the model's stored ``scores_``.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     component : int, default=1
         **1-based** component index whose score is decomposed, matching the
         model's column convention.
@@ -1091,12 +1110,25 @@ def group_contributions(
     directly for anything else: the paper suggests the first-order orthogonal
     polynomial when a run of batches is drifting rather than stepping.
 
+    A row with missing cells takes part with the contributions
+    :func:`score_contributions` gives it, from its observed cells alone. A
+    missing cell has no part in its row's score, so it adds nothing here,
+    and the contributions still sum to the weighted combination of the
+    scores, now the estimated ones for such a row.
+
     Parameters
     ----------
     model : PCA or PLS
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data.
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     group : sequence, optional
         Index labels of the observations of interest, or a boolean mask the
         same length as ``X``. Selection is by label, not by position; pass
@@ -1137,26 +1169,29 @@ def group_contributions(
     --------
     score_contributions : The single-observation form.
     """
-    X_df, r_a = _score_contribution_terms(model, X, component)
+    # Each row's contributions, from its observed cells alone when it has a missing one, as
+    # score_contributions gives them; a missing cell is NaN there and adds nothing to its row's
+    # score, so it adds nothing to the combination either, rather than making its column NaN.
+    per_row = score_contributions(model, X, component=component)
 
     if weights is not None:
         if group is not None or reference is not None:
             msg = "Pass either weights, or group/reference, not both."
             raise ValueError(msg)
         w = np.asarray(weights, dtype=float)
-        if w.ndim != 1 or w.size != len(X_df):
-            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {w.shape}."
+        if w.ndim != 1 or w.size != len(per_row):
+            msg = f"weights must have one entry per row of X ({len(per_row)}), got shape {w.shape}."
             raise ValueError(msg)
     else:
         if group is None:
             msg = "Pass group (optionally with reference), or weights."
             raise ValueError(msg)
-        w = _mean_weights(X_df, group, "group")
+        w = _mean_weights(per_row, group, "group")
         if reference is not None:
-            w -= _mean_weights(X_df, reference, "reference")
+            w -= _mean_weights(per_row, reference, "reference")
 
-    deviation = w @ X_df.to_numpy(dtype=float)
-    return pd.Series(deviation * r_a, index=X_df.columns, name="group_contributions")
+    values = per_row.to_numpy()
+    return pd.Series(w @ np.where(np.isnan(values), 0.0, values), index=per_row.columns, name="group_contributions")
 
 
 def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarray:
@@ -1280,9 +1315,16 @@ def meda(model: BaseEstimator, X: DataMatrix, *, signed: bool = True, seriate: b
         A fitted PCA or PLS model. Every fitted component is used; to see the map
         at fewer components, fit a model with fewer.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data, usually the
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`. Usually the
         training data itself. A missing cell is filled with the model's
         reconstruction of it before the cross-products are formed.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     signed : bool, default=True
         Return the signed index. ``False`` returns the goodness of prediction
         :math:`q^2_{jk}` itself.
@@ -1405,8 +1447,15 @@ def omeda(
     model : PCA or PLS
         A fitted PCA or PLS model; every fitted component is used.
     X : array-like of shape (n_samples, n_features)
-        Preprocessed data, scaled the same way as the training data. A missing
+        The data the model's ``transform`` and ``diagnose`` take, in the units
+        it was fitted on. A model that centres and scales ``X`` itself
+        (``PLS(scale=True)``, the default) does so here first; ``PCA`` and
+        ``PLS(scale=False)`` do not, and are given ``X`` scaled as their
+        training data was, for example with :class:`MCUVScaler`. A missing
         cell is filled with the model's reconstruction of it.
+        Until #1125 the model's own scaling was skipped here: code that
+        scaled ``X`` by hand for a ``scale=True`` model now scales it twice,
+        and passes the unscaled data instead.
     group : sequence, optional
         Index labels of the observations of interest, or a boolean mask the same
         length as ``X``. Selection is by label, not by position; pass

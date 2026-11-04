@@ -1345,6 +1345,7 @@ def test_a_component_whose_deflating_loadings_are_all_zero_keeps_its_signs() -> 
         block_loadings={"a": np.array([-1.0])},
         block_scores={"a": np.array([-0.5, 0.5])},
         iterations=1,
+        converged=True,
     )
     assert _apply_sign_convention(component, context) is component
 
@@ -2798,6 +2799,7 @@ def test_an_mbpls_component_whose_loadings_are_all_zero_keeps_its_signs() -> Non
         super_y_score=np.array([-2.0, 2.0]),
         super_y_loading=np.array([-3.0]),
         iterations=1,
+        converged=True,
     )
     assert _apply_sign_convention(component, {"a": np.zeros((2, 1))}, context) is component
 
