@@ -11,6 +11,428 @@ those changes.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-04
+
+### Added
+
+- **`multivariate.FPCA`: functional PCA of curves.** Each curve (a time course, a profile or a
+  spectrum per sample) is smoothed by one penalised B-spline smoother, its penalty chosen by
+  generalised cross-validation pooled over the curves, and the components are found in the L2
+  metric of the basis, so they are orthonormal functions whatever the number of B-splines.
+  Missing points are `NaN`, so curves sampled at their own times fit too. `transform` scores new
+  curves, `inverse_transform` rebuilds curves or their derivatives from scores, and `pca_` holds
+  the underlying PCA, whose Hotelling's T² and SPE flag an unusual curve. On the methoxylation case
+  of McMullen and Jurica (2024) in the reference catalogue, the first component's scores correlate
+  0.999 with the source's.
+- **The reference catalogue checks the functional PCA numbers of a curve response.** Two check
+  kinds read a curve through `multivariate.FPCA`: `fpc_variance_explained`, the percent of
+  variance its first components explain, and `fpc_score`, a run's score. `argument_scale` reads
+  a time printed in other units, such as hours / 24, in the units the source integrates over.
+  McMullen and Jurica's (2024) 16 FPCA numbers are now recomputed rather than listed as a gap in
+  the library. They do not agree, and each records why: the variance share differs by smoothing
+  method (92.9% against 90.717%), and the scores are 0.984 times the library's plus an offset of
+  32.7 that is not explained yet.
+- **`experiments.analyze_functional_experiment`: designed experiments whose response is a curve.**
+  The curves are reduced by `multivariate.FPCA`, and the components are kept up to 99% of their
+  variance, plus any later one up to 99.9% whose score the design factors explain by an F-test: a
+  factor can drive a shape that carries little of the variance. Each kept score is analysed with
+  `analyze_experiment` under the same model, so coding, blocks, mixture models and a `WholePlot`
+  column work as they do for one number. The `FunctionalFit` it returns holds the analyses and the
+  residual covariance of the scores, and `FunctionalFit.predict` gives the predicted curve at new
+  settings with pointwise and simultaneous bands from a wild bootstrap. The bootstrap refits the
+  FPCA and the choice of components in each replicate, and draws one sign per whole plot. In a
+  simulation of an 18-run design, 95% bands covered the true curve 87% of the time pointwise and
+  88% over the whole curve.
+  `FunctionalFit.match_target` finds the factor settings whose predicted curve comes closest to a
+  target curve, by a bounded multistart search in the space of the kept scores, where the L2 distance
+  between curves is the distance between their scores; a factor can be searched within a range or
+  held at a value.
+- **Curve responses in the browser app.** A study can read a curve on each run, such as a colour over
+  time or a spectrum. The reader pastes the runs' curves under the run sheet, and the workbook carries
+  them on a "Curves" sheet. In Learn, the what-if panel draws the curve predicted at its settings, with
+  95% bands at each point and over the whole curve, and redraws it as a setting moves without asking
+  Python again. A target curve pasted there moves the panel to the settings whose curve comes closest.
+  `FunctionalFit.curve_maps` gives the fitted curve and each bootstrap replicate as `mean + row @ map`,
+  the numbers the page predicts from; an optional `grid` keeps a spectrum's maps small. Each bootstrap
+  replicate now reuses the fit's basis, which makes the bands about ten times faster to compute.
+
+### Changed
+
+- **`MBPCA` and `MBPLS` fit a row with every value missing, as `PCA`, `PLS` and `TPLS` do.** The row scores 0
+  and has no weight in the fit; `MBPLS` predicts it at Y's mean. Both models refused it, and `MBPCA` also refused
+  a row with nothing in only one block: that row now keeps a super score from the blocks it has, with NaN for
+  its block score and block SPE in the empty block, as in `MBPLS`. `MBPLS` also fits a row with no observed
+  response, which gets a Y-score of 0. Scored as a new row by `diagnose`, `transform` or `predict`, a row with
+  nothing observed has NaN scores, SPE, T² and predictions, as in `PCA` and `PLS`. (#1098)
+- **A column with every value missing is named in a `UserWarning` and left out of the model by `PCA`, `PLS`,
+  `MBPCA` and `MBPLS`, as `TPLS` does since #982.** `MBPCA` and `MBPLS` refused the fit; `PCA` and `PLS` fitted it
+  without a word, and a NaN that a new row had in the column made every score and prediction of that row NaN.
+  The column now gets zero loadings and weights, the rest of the fit is the fit of the data without the column,
+  and a value that a new row has in it changes nothing. The column still counts in `n_features_in_` and
+  `feature_names_in_`, so new data keeps the columns of the fit. A response with every value missing (`PLS`,
+  `MBPLS`) has NaN predictions; `PLS` predicted it as 0. The warning names the block: `X`, `Y`, or `X["name"]`
+  for a block of a multiblock model, for example `Block X has columns with no observed values, which carry no
+  information and are excluded from the model: 'c'. Drop them, or check the data for a sensor that was never
+  logged.` (#1098)
+- **A region whose limits name a categorical level now weights each allowed combination of levels by the volume
+  of its settings (#783).** `DesignRegion.sample_frame` drew each allowed combination equally often, and so did the
+  I-criterion of `generate_design` (`design_type="i_optimal"`, and the region sample of `"g_optimal"`) and
+  `evaluate_design`'s average prediction variance, FDS curve and G-efficiency over such a region. Each combination
+  is now drawn in proportion to the share of the box its limits leave (`region.given(...).volume_fraction()`), so
+  every setting the region allows is equally likely: with `not (catalyst == 'B' and T > 180)` on 150 to 200 degC,
+  catalyst B keeps 60% of the range and counts 0.6 times as much as A or C. A combination whose limits leave no
+  volume is not drawn. I-optimal designs, their `trace_criterion`, and the averages over such a region change: the
+  12-run I-optimal design over T, P, catalyst (A, B) and solvent (X, Y) with that limit now runs catalyst A 4 times
+  and B twice in each solvent, not 3 times each. Rules that only remove combinations of levels leave every
+  combination the same volume, and their numbers do not change. `evaluate_design` now finds the columns the rules
+  leave estimable on the region's support points as well as on its sample, so a combination with little or no
+  volume still counts there, as it does in `generate_design`.
+- **`selectivity_ratio` gives `inf`, not 0, for a feature with no residual.** A feature the
+  target-projected component reproduces exactly is the most selective one possible, but it got 0,
+  as a feature with no signal does, and so sorted last. It now gets `inf` and sorts first. The
+  residual counts as none when its sum of squares is at most machine epsilon times the explained
+  one, since rounding leaves about 1e-32 of it rather than 0; every finite ratio is therefore below
+  about 4.5e15. A feature with no sum of squares at all (0 / 0) still gets 0. This changes a
+  published value, also in `find_predictive_descriptors`, where a lone descriptor now gets `inf`;
+  its p-values do not change. The `sensory_analyze_descriptive` tool reports an infinite ratio as
+  `null`, as it reports every non-finite number, because JSON cannot carry infinity. Cap the ratio
+  with `Series.clip(upper=...)` where a finite number is needed. (#1085)
+- **`PCA` and `PLS` `transform`, `diagnose` and `predict` give a new row with a missing cell estimated scores,
+  T², SPE and predictions, where they gave NaN.** The row is scored from the cells it has by trimmed score
+  regression, the estimator `project()` uses by default, through the same code, and its SPE is over those cells,
+  as `MBPCA`, `MBPLS` and `TPLS` already scored such a row. **Code that used NaN from these methods to find rows
+  with missing cells must now check for missing cells itself**, for example with `X.isna().any(axis=1)`. A complete
+  row keeps its numbers exactly. A row with nothing observed is NaN, as before, and `PLS.diagnose` no longer gives
+  it a T² of 0; it gave that too to a row with a missing cell. A row with too few observed cells for the estimator,
+  typically fewer than `n_components`, is NaN with a `SpecificationWarning`; `project()` raises for it, and
+  estimates it with a `ridge` above 0. What is built on these methods follows: `PLSDA` and `PRM`, which inherit
+  them (`PLSDA` predicted the first class for such a row), `PLS.score`, which raised `ValueError`, and
+  `PLS.cross_validate` on X with gaps, whose PRESS, RMSE and Q² left out every held-out row with a missing cell.
+  (#1144)
+
+### Deprecated
+
+- **`OPLS(copy=...)` is deprecated and has no effect.** `OPLS` never modifies the `X` or `Y` it is
+  given, so there is nothing to copy. Passing `copy`, to either value, warns with a
+  `DeprecationWarning` when the model is fitted; it will be removed in 3.0. A model built without
+  it, or cloned from one, fits without the warning. (#1078)
+- **`optimal_inversion` and `inversion_sensitivity` with an input that has no lower or no upper bound are
+  deprecated.** Only the T² and SPE limits then hold that input, and the answer can set it to a value it cannot
+  take, such as a negative amount. Give every searched input its extreme limits in `InversionRules(bounds=...)`.
+  A TPLS formula's lot fractions keep their default of 0 to 1, and a fixed input needs none. Until 3.0 such a call
+  warns with a `FutureWarning` that names the inputs, at the caller's own line; from 3.0 it is an error. (#1126)
+- **`randomization_test_mbpls(seed=...)` is deprecated since 2.4.0 and will be removed in 3.0; use
+  `random_state`.** `random_state` takes an int, a `numpy.random.Generator` or `None`, as every function of
+  the package that draws random numbers does, and an int draws the same permutations as the same `seed` did.
+  Passing `seed` warns with a `DeprecationWarning`; passing both raises a `TypeError`. (#1072)
+- **`PLS(copy=...)` is deprecated and has no effect, and so is the `copy` that `PLSDA` and `PRM`
+  pass through to it.** None of the three modifies the `X` or `Y` it is given, so there is nothing
+  to copy. Passing `copy`, to either value, warns with a `DeprecationWarning` when the model is
+  fitted, once, from the line that called `fit`; it will be removed in 3.0. A model built without
+  it, or cloned from one, fits without the warning, and its `get_params()["copy"]` is now `None`.
+  (#1114)
+- **`diagnose(...).hotellings_t2` is deprecated since 2.4.0 and will be removed in 3.0; use
+  `cumulative_hotellings_t2`.** The old field was a cumulative DataFrame from `PCA`, `TPLS` and `BatchPCA`,
+  and the full model's T² as a Series from `PLS` (and `PLSDA`, `PRM`), `MBPLS` and `MBPCA`, so code that
+  handled both had to know which it held. `cumulative_hotellings_t2` has one shape from every `diagnose`:
+  a row per diagnosed row and a column per component, column `a` holding the T² over the first `a`
+  components, with the labels and the values of the fitted T² (`hotellings_t2_`, `TPLS.hotellings_t2`,
+  `super_hotellings_t2_`). Its last column, `.iloc[:, -1]`, is the old Series. The old field still holds
+  what it did; reading it by name gives a `DeprecationWarning` at the reader's line, and reading the whole
+  result, as `dict(result)` does, does not. (#983)
+- **The Hotelling's T² limit for the rows a model was fitted to changes in 3.0, from the F law to the beta
+  law; announced in 2.4.0.** A fitted row helped estimate the centre and the spread of the scores, so its
+  T² can never exceed (N - 1)²/N, and its law is ((N - 1)²/N)·Beta(A/2, (N - A - 1)/2). The F limit,
+  A(N² - 1)/(N(N - A))·F(A, N - A), is the law of a new row, and it is too wide for fitted rows: at N = 20
+  and A = 2 it flags 0.8% of them where it states 5%, and below N = 12 it can flag none. (#978)
+  - `judged_rows="fitted"` or `"new"` says which rows a limit judges. `hotellings_t2_limit` and
+    `ellipse_coordinates` take it, as do the methods of the same names on every model that has them (`PCA`,
+    `PLS` and its subclasses, `OPLS`, `TPLS`, `MBPLS`, `MBPCA`, the adaptive models, `BatchPCA` and
+    `BatchPLS`), and `score_plot`, `t2_plot` and `detect_outliers`; `find_reference_batch` takes it as a
+    `settings` key.
+  - Until 3.0 the default, `None`, gives the F limit, as before, and a call whose number would change
+    issues a `FutureWarning` at the caller's line, with both numbers. `detect_outliers` also puts the
+    warning's text in each record, as `hotellings_t2_limit_note`. Passing either value silences it; a call
+    with no components, or as many components as rows, does not warn. From 3.0 `None` means `"fitted"`.
+  - Code that judges new rows already says so and is unchanged: `BatchMonitor`, the adaptive models, the
+    batch control functions, the held-out rows of `compare_cv_criteria`, optimal inversion and the
+    `pca_predict` and `pls_predict` tools. `MidCourseCorrector` uses the shared limit in place of its own
+    copy of the F formula.
+  - Two results change now, since a tool cannot see a warning: the `detect_multivariate_outliers` tool
+    judges its fitted rows by the beta limit, and the multivariate workbench (the `mva_` tools and the
+    browser's model page) judges its fitted rows, and draws its score-plot ellipse, by the beta limit, and
+    the rows a model left out by the F limit, which it reports as `"T2 new rows"`.
+
+### Fixed
+
+- **`OPLS.fit` checks `Y` before fitting, as `PLS.fit` does.** A `Y` with a different number of
+  rows from `X` raises `PLS`'s `ValueError`, which names both counts, instead of an error from a
+  matrix product. A missing or infinite `Y` cell raises a `ValueError` that says so, as the same
+  cell in `X` does, instead of a singular-matrix `LinAlgError` or a message that blamed `X`. (#1078)
+- **`PRM.compare_cv_criteria` tests PRM's held-out score correlation against a null of PRM's
+  own.** Its permutation null refitted the folds by kernel PLS, and took the observed correlation
+  from the same PLS pipeline, so `r_cv_p` and `r_cv_threshold` were plain PLS's, not those of the
+  `r_cv` beside them. Each permutation now repeats PRM's own cross-validation, refitting every
+  fold with PRM. The numbers change, and each permutation is about a hundred times slower, so
+  PRM's default is now 49 permutations instead of 199 (`n_cv_permutations=None`): the smallest
+  attainable p-value is 0.02, still enough to decide at `alpha=0.05`. Pass `n_cv_permutations`
+  to draw more. `n_cv_permutations=0` still gives the quick normal approximation. `PLS`'s null
+  and its default of 199 are unchanged. (#1087)
+- **`PRM` keeps a row out of the fit when its weight underflows to 0.** A row far out in both X
+  and y (1e100 standardised units, say) has a residual weight and a leverage weight whose product
+  underflows to 0. That 0 was replaced with 1e-6, as the R package chemometrics does, and at that
+  weight the row's size let it lead the next weighted fit: the loop ran to `max_weight_iter`
+  without converging, and the predictions of the other rows moved by three times y's standard
+  deviation. The weight now stays 0, so `robust_weights_` lies in [0, 1], and the fit is the one
+  the other rows give. Data without such a row give the same model as before. (#1087)
+- **`PRM` gives the same model in any units.** With `scale=True`, a column of X or Y whose robust
+  spread (1.4826 times its median absolute deviation) was below 1.5e-8 was left in its own units.
+  A column of X in units 1e9 times smaller then dropped out of the model and moved the predictions
+  by up to twice y's standard deviation, and a Y in such units stopped the fit with no variance
+  left in Y. A column is now left unscaled only when its median absolute deviation is exactly 0.
+  The residuals are also standardised in the units the fit runs in, so the floor on their median
+  no longer held the residual weights of a Y in small units near 1, which had left vertical
+  outliers in the fit. (#1070)
+- **`midcourse_correction` leaves a component with no spread out of its T², as `fit` does.** With
+  no `score_covariance`, it weighted each component by `1 / explained_variance_`, so the last
+  component of a rank-deficient `BatchPLS` fit, whose variance is near 0, got a weight near 1/0 and
+  ruled the T² penalty, the T² cap and the reported `t2`. It now uses the rule `hotellings_t2_`
+  uses: a component whose score standard deviation is at most 1.5e-8 times the largest one gets
+  weight 0. Models with no such component give the same numbers as before. (#1086)
+- **The contribution functions take the same `X` as `transform`, `predict` and `diagnose`, and apply the model's
+  own centring and scaling to it.** `t2_contributions`, `spe_contributions`, `score_contributions`,
+  `group_contributions`, `meda` and `omeda`, as functions and as methods, used `X` as given. `PLS(scale=True)`,
+  the default, and `PLSDA` and `PRM`, which inherit it, centre and scale `X` inside `fit`, so such a model's own
+  training data gave contributions that bore no relation to the stored values, with no warning: 12,528,124 for a
+  row whose stored T² is 0.0528. The docstrings said that passing the training data reproduces the stored
+  `hotellings_t2_`, and now it does for these models too. **Code that scaled `X` by hand for a `scale=True`
+  model now scales it twice, and gets different numbers: pass the unscaled data instead.** `PCA` and
+  `PLS(scale=False)` do no scaling of their own, so nothing changes for them; `MBPLS` and `MBPCA` already applied
+  theirs. `AdaptivePCA` and `AdaptivePLS` now centre and scale with their current centre and spread, as their
+  `transform` does. `target_projection` and `selectivity_ratio` already applied the model's scaling; their
+  docstrings now say so. (#1125)
+- **A row with no observed value is placed at the model centre by the contribution functions and by
+  `PCA.project` and `PLS.project`, as `fit` places it, where they refused it.** Its scores, T² and SPE are 0, its
+  contributions are NaN at every cell and sum to 0, a PLS model predicts the training mean of Y for it, and its
+  `condition_number` is inf. `projection_matrix` with no observed feature returns an operator with no column. (#1125)
+- **`group_contributions` leaves out a missing cell, where it made the whole column NaN.** Each row takes part
+  with the contributions `score_contributions` gives it, from its observed cells alone, so the result still sums
+  to the weighted combination of the scores. On complete data the values do not change beyond rounding. (#1125)
+- **A mixture analysed with an explicit formula keeps its coefficients in proportions.** A
+  formula over blends alone that holds the constant, such as `"y ~ x1 + x2 + x3 + x1:x2 - 1"`, is
+  analysed as the Scheffé model it is, and with `coding="auto"` its coefficients are now in
+  proportions, as for the `scheffe_*` keywords. Before, each component was coded from -1 to +1, as
+  for a process factor, and the coefficients meant nothing. `coding="coded"` now raises for it, and
+  neither `"coefficients"` nor `"split_plot"` reports a `factor_coding` for its components.
+  `"model_selection"` on a Scheffé model refits the selected model with the constant that blends
+  rounded for printing make up, as the main fit does, so its `r_squared` and `r_squared_adj` are
+  about the mean, not about zero. (#1094)
+- **A definitive screening design built from a larger conference matrix says so.** No conference
+  matrix of order 22 or 34 can be built, so 21 or 22 factors take order 24 (49 runs, not 45) and
+  33 or 34 factors take order 38 (77 runs, not 69). Only the docstring said so; `generate_design`
+  now gives a `UserWarning` and the same text as `metadata["note"]`. (#1094)
+- **The `residuals_vs_order` plot draws the residuals in run order.** It numbered them in the rows'
+  order, so a design stored in standard order was drawn in standard order, which hides the drift
+  over time the plot exists to show. When `design_data` has a `RunOrder` column that gives each
+  residual a distinct number, the residuals are now drawn against it, as `residual_diagnostics`
+  already orders them for its `run_order` check. (#1094)
+- **A contrast that patsy would read as another level's position is refused.** `evaluate_design`
+  takes a `Block` column named in the formula as labels, `'1'`, `'2'` and so on, so
+  `C(Block, Treatment(1))` asked for block 1 but patsy read the integer as a position and used
+  block 2, with no word of it. Wherever a level is spelled as the integer but the position picks
+  another, the formula now raises a `ValueError` that names the levels and the spelling that works,
+  `C(Block, Treatment('1'))`, as it does since #1064 for a level the column does not have. An
+  integer whose position is the level spelled the same, or that spells no level, is read as before.
+  (#1094)
+- **`fit` checks `n_components`, `max_iter` and `tol`, however they were set.** `MBPCA`, `MBPLS`
+  and `TPLS` checked some of them in `__init__`, which `set_params` and `clone` do not pass
+  through, and no estimator checked `max_iter` in `fit`. A value set that way fitted with a
+  convergence warning, or failed later with a numpy error. Now `PCA`, `PLS`, `PLSDA`, `PRM`,
+  `MBPCA`, `MBPLS`, `TPLS` and `AdaptivePCA` check them in `fit`, with one message each across the
+  family: `n_components must be >= 1; got 0.`, `max_iter must be >= 1; got 0.`, and the
+  `Tolerance ...` messages for a `tol` that is not between machine precision and 10. `__init__`
+  stores its arguments without checking them, as sklearn requires, so building `MBPCA`, `MBPLS` or
+  `TPLS` with an out-of-range value no longer raises until `fit`; `TPLS` also checks `d_matrix` in
+  `fit` now. Two values that fitted before are now refused: `PCA` checks `tol` and `max_iter` on
+  the SVD path too, where they are not used, and `TPLS` refuses a `tol` of 10 or more, or one
+  below machine precision, as the other iterative estimators do. (#1071)
+- **`optimal_inversion` reports `proven_optimal=True` for an optimum whose multipliers do not settle.** With many
+  inputs at a bound, the binding rows are dependent and the least-squares multipliers can miss at a true optimum, so
+  `kkt_residual` stayed above 1e-3 and the answer was reported as not proven. The answer is now also proven when one
+  linear program, over the rules, the bounds and each limit's tangent plane at the answer, does no better. The
+  restarts that look for a better point stop on the same proof. On the bundled TPLS example, bounded by its
+  training range, the cheapest blend under two quality windows (cost 6.955066, `kkt_residual` 0.035) is now
+  proven. (#1126)
+- **`InversionRules` accepts numpy numbers as bounds and minimum amounts.** A bound taken from an integer column's
+  `min()` or `max()` (`numpy.int64`) was refused as not a number. (#1126)
+- **`MBPLS.fit` refuses a response with no variation, as `PLS.fit` does.** A `Y` whose every column is
+  constant, or has no observed value, raises `NotEnoughVarianceError`: `There is no variance in Y: every
+  response is constant or has no observed value, so there is nothing for X to explain.` `MBPLS` used to fit
+  it with every weight 0, and `predict` then gave NaN for every new row, while `predictions_` gave Y's mean.
+  A constant response beside one that varies is still fitted, and predicted at its mean. (#1075)
+- **A component that `MBPLS` or `PLS` fits after Y is exhausted leaves the predictions as they were.** From
+  the component that the `SpecificationWarning` "from component k on there is nothing left in Y that X can
+  explain" names, each component takes the largest direction left in X, and its Y-loading is now 0. It was
+  Y's regression on the component's score: about zero while X had variance left, but once every column of X
+  was spent the score was round-off, and the regression the ratio of two round-off errors. So an `MBPLS` with
+  more components than its blocks have columns moved its `predictions_`, `predict` and R²Y: on 30 rows of
+  four columns in two blocks, six components moved the predictions by 0.016 from those of four, with
+  Y-loadings of about 1e13 for the last two. `PLS` refuses a component once X has no variance left, so its
+  predictions moved by much less: 7.5e-10 on the designed experiment in its tests. (#1074)
+- **`randomization_test_mbpls` refits each permutation with the fitted model's settings.** It copied the
+  model's number of components only, and refitted with the defaults for `tol`, `max_iter`, `algorithm` and
+  `missing_data_settings`, so a model fitted with other settings was compared with the null of another
+  estimator. Each permuted model is now a clone of the model under test, with only the rows of Y changed. A
+  model fitted with the defaults gets the same `risk_pct` as before. (#1072)
+- **A tool's `print` no longer reaches the stdio MCP server's protocol stream.** While it serves,
+  the MCP SDK points file descriptor 1 at stderr, so output written there from C (osqp's "Polishing
+  not needed ...", HiGHS) goes to stderr. A Python `print` stays in `sys.stdout`'s buffer when stdout
+  is a pipe, and was written when the server exited, after the SDK had pointed fd 1 back at the
+  protocol stream; in safe mode it was lost with the worker. `execute_tool_call` now flushes
+  `sys.stdout` as each call ends, so the print goes to stderr. (#1095)
+- **`selectivity_ratio` and `target_projection` skip a missing cell of `X`, as the NIPALS fit does.** One
+  missing value made every target-projected score and loading NaN, and every selectivity ratio 0, with no
+  warning, so `find_predictive_descriptors` reported nothing for a descriptor block with gaps. A row's score is
+  now regressed on the observed part of the target-projected weight, a feature's loading on the scores of the
+  rows where it is observed, and both sums of squares of the ratio run over the feature's observed cells. On
+  complete data the values do not change beyond rounding. (#1114)
+- **A column the fit left out, having no observed value (#1098), contributes 0 to `t2_contributions`,
+  `spe_contributions`, `score_contributions` and `group_contributions`, as `transform` reads it at 0.** For
+  `PCA` and `PLS`, a value a new row had in it was a whole SPE contribution, and a NaN there sent every row down
+  the missing-data path and gave the column NaN; `MBPLS` gave the column NaN. `PLS.invert` now gives such a
+  column NaN in `x_new`, where it gave 0 on X's original scale, a value the model knows nothing about. A
+  response the fit left out needs no value in `y_desired`, and its `y_hat` is NaN, as `predict` gives it;
+  `invert` refused a target without it, and predicted it at 0. (#1114)
+- **NIPALS no longer reports a component that converged on its last allowed pass as not
+  converged.** PCA, PLS, MBPLS and MBPCA warned "without converging" whenever a component used all
+  `max_iter` passes, even when that last pass met `tol`. The warning, and the `converged` entry of
+  `MBPLS` and `MBPCA`'s `fitting_info_`, now follow the convergence test itself. (#1080)
+- **PCA and PLS NIPALS fit the same components in any units.** The test for "no variance left"
+  compared what was left of X (or Y) with an absolute 1.5e-8, so the same data in small units, such
+  as `X * 1e-5` under `PLS(scale=False)` or `PCA(algorithm="nipals")`, stopped at the first
+  component with `NotEnoughVarianceError`. What is left is now judged against the block's size
+  before the first component, as `OPLS` judges it: a component is refused when the norm left is at
+  most `sqrt(eps)` (about 1.5e-8) times the block's norm. A block of zeros, or one whose rank is used
+  up, is still refused. (#1070)
+- **Non-convergence warnings name the caller's line.** The warning that a PCA, PLS, MBPLS or MBPCA
+  component did not converge named a line inside `process_improve` or in scikit-learn's `base.py`.
+  It now names the line that called `fit`, also through a subclass such as `PLSDA` or an estimator
+  that fits PLS inside its own `fit`. So does PLS's warning that its imputed cells were still
+  moving, which named the caller only when `PLS.fit` was called directly. (#1079)
+- **The `robust_regression` tool no longer times out above about 800 points.** Its default drew 999
+  bootstrap resamples whatever the number of points, and each costs time in proportion to the square
+  of that number, so a hosted call passed the 10 s tool timeout. `n_boot` now defaults to 999 up to
+  197 points and to fewer above, so up to 1,000 points the bootstrap does at most the work of 39
+  resamples of 1,000 points (156 resamples at 500 points). From 1,000 points up it draws 39, the
+  fewest on which a 95% percentile interval rests, and the time again grows as the square of the
+  number of points: a hosted call with more than about 1,500 points can still time out on a slow
+  machine. Fewer resamples give rougher intervals; pass `n_boot` to set the number, as before. The
+  output reports the number drawn as `n_boot`. Calls with 197 points or fewer, and calls that set
+  `n_boot`, return the same numbers as before. The library function `robust_regression` keeps its
+  default of 999. (#1095)
+- **`AdaptivePCA` and `AdaptivePLS` refuse a `spe_limit_window` too short for the rolling SPE limit.**
+  The rolling limit is refitted only once the window holds `max(20, n_components + 2)` SPE values, as
+  fewer give an unreliable limit. A shorter window never holds that many, so with
+  `adaptive_spe_limit=True` the limit stayed at its training value for good, with no sign of it. `fit`
+  now raises `ValueError: spe_limit_window must be >= 20 (...); got 10.` for such a window, whether or not
+  `adaptive_spe_limit` is set. A window that was long enough gives the same limits as before. (#1082)
+- **`AdaptivePCA.partial_fit` and `AdaptivePLS.partial_fit` number the rows of an array on from the last
+  label.** Each call numbered its rows from 0 again, so after two calls `scores_`, `spe_`,
+  `hotellings_t2_`, `distance_` and the other history frames had duplicate index labels. A row given no
+  label, from an array or from `update` without `label`, is now numbered one past the last label when that
+  is an integer, and by the number of rows recorded so far when it is not. A DataFrame's row labels are
+  recorded as before. (#1082)
+- **The contributions of a row with a missing cell add up to the score, T² and SPE that the model gives that
+  row.** `t2_contributions`, `spe_contributions`, `score_contributions` and `group_contributions` of `PCA` and
+  `PLS`, and of the estimators built on them, now take by default (`method=None`) the estimator their `transform`
+  and `diagnose` use: trimmed score regression. They took single-component projection, so for such a row they
+  split another score than the one `diagnose` reports. `method="scp"` gives the old numbers, with which a
+  training row reproduces the stored `scores_`. A row too sparse for the estimator is NaN with a warning, where
+  `method="tsr"` or `"pmp"` raised. `AdaptivePCA` and `AdaptivePLS` keep single-component projection, which
+  their `transform` uses. `MBPCA` and `MBPLS` `score_contributions` divided every row by the loadings' or
+  weights' sum of squares over all the cells, and a row with a missing cell now divides by it over its own cells,
+  as its super score does: on one test row the contributions summed to 0.296 against a super score of 0.458. Their
+  `group_contributions` counts a missing cell as 0, where the column mean skipped it and averaged over the other
+  rows alone. On complete rows the values do not change beyond rounding. (#1144)
+- **`MBPCA.transform` and `MBPCA.diagnose` score a new row with a missing cell over the cells it has, as the
+  fit scores its own rows.** One missing cell gave the row NaN super and block scores, a NaN T², and an SPE of 0
+  in every block, the SPE of a row the model fits exactly. Each score is now the fit's masked regression, block
+  by block and then over the blocks the row has a score in, so scoring the training data again gives every row
+  its fitted scores and SPE. A block SPE is over the cells the row has in the block, and NaN for a block it has
+  nothing observed in; a row with nothing observed at all has NaN scores, SPE and T². A column the fit left out
+  (#1098) counts as missing, as in `MBPLS`. On complete rows the values do not change beyond rounding. (#1076)
+- **`MBPLS.fit` refuses X-blocks with no variation, as `PLS.fit` does.** When every column of every
+  block is constant or has no observed value, it raises `NotEnoughVarianceError`: `There is no
+  variance in X: every column of every block is constant or has no observed value, so there is
+  nothing to explain Y by.` `MBPLS` used to fit them with every weight 0, and `predict` then gave
+  NaN for every new row. (#1128)
+- **`MBPLS.fit` refuses a component once Y is fitted exactly, as `PLS.fit` does.** It raises
+  `NotEnoughVarianceError`: `There is no variance left in the data array for Y: cannot compute any
+  more components beyond component 1.`, naming the components fitted. It used to fit that component,
+  and every later one, along X, with a `SpecificationWarning`. A Y with variation left that X cannot
+  reach is still fitted along X, as before. (#1128)
+- **`OPLS.fit` refuses a constant response with `NotEnoughVarianceError`:** `There is no variance in
+  Y: the response is constant, so there is nothing for X to explain.` It raised a `LinAlgError` with
+  an orthogonal component, and with none it predicted NaN for every row. (#1128)
+- **`random_state` takes a `numpy.random.Generator` in `MBPLS.select_n_components`, and in
+  `PLS.select_n_components`, `PLS.nested_cv` and `PLS.cross_validate`, as every function of the
+  package that draws random numbers does.** The folds are drawn from the Generator's next draw of an
+  int; an int draws the same folds as before. A Generator raised a `ValueError` from scikit-learn.
+  (#1128)
+- **`pseudo_validation_set` refuses more components than the data support.** A component fitted
+  after there is nothing left in Y that X can explain has a Y-loading of 0, and so no D ratio, and
+  every cell of `X_pv` came back NaN; in 2.3.0 that Y-loading was round-off, and `X_pv` could be
+  about 1e15 times too large. It now raises `NotEnoughVarianceError`, naming the count the data
+  support. (#1128)
+- **The predicted-vs-observed plots give a number when a Y cell is missing.** The RMSE annotation of
+  `PLS.predictions_vs_observed_plot` (and of `predictions_vs_observed_plot`, which `BatchPLS` also draws) and
+  the RMSEE annotation of `MBPLS.predictions_vs_observed_plot` were `nan`, and the PLS plot's `y = x` line had
+  no extent. Both now count only the observed cells, as `PLS.rmse_` does. On complete data the plots do not
+  change. (#1081)
+- **`interaction_terms` accepts an `x_log` with `pd.NA` in a nullable column, and reads it as a missing
+  value, as the estimators do.** Its check that `x_log` is centred and unit-variance scaled raised
+  `TypeError`. (#1081)
+- **`AdaptivePLS` scores a row with missing values the same way in its prediction channels as in `predict`.**
+  The `static`, `preprocessing` and `kernel` channels of `decompose_prediction` and `prediction_channels_`
+  put a missing value at the centre, while `predict`, `update` and `predictions_` project the row over its
+  observed values one component at a time. The `adaptive` channel therefore differed from the prediction for
+  such a row. All three channels now project the row, the `static` and `preprocessing` ones with the training
+  model, so the `adaptive` channel is the prediction. The predictions do not change, and neither do the
+  channels of a complete row beyond rounding. (#1081)
+- **`spe_plot` and `t2_plot` leave out the limit line when `settings={"show_limit": False}`.** Both
+  plots accepted and validated the setting, then drew the confidence-limit line anyway, on every estimator
+  that offers them (`PCA`, `PLS`, `PLSDA`, `PRM`, the adaptive models, `BatchPCA`, `BatchPLS`). The line is now
+  drawn only when the setting asks for it, and the limit is computed only then, so `t2_plot` without its line
+  gives no `FutureWarning` about a limit it does not show. The `y = 0` reference line stays. (#1150)
+- **`PCA`, `MBPCA`, `MBPLS` and `TPLS` take a numpy integer or float wherever they take a Python one.**
+  `n_components=np.int64(2)`, a count as `np.argmax` or a grid of `np.arange` values gives it, was refused
+  with `InvalidParameterError`, and so were a numpy `max_iter` and `tol=np.float32(1e-6)`, though `PLS` took
+  them. The constraints these estimators declare, and those of `BatchPCA`, `BatchPLS` and `BatchMonitor`, now
+  name any integer and any real number, so a whole-number `tol` such as `tol=1` is accepted too. The range
+  checks and their messages do not change. (#1127)
+- **`TPLS.__init__` stores its arguments and nothing else, and `AdaptivePCA.fit` and `AdaptivePLS.fit` leave
+  `n_components` as given.** `TPLS` set `is_fitted_` and `required_blocks_` in `__init__`; they now exist
+  from `fit` on, and `plot` is a property, so `model.plot.scores()` and `model.plot.loadings()` work as
+  before. The adaptive models wrote `int(n_components)` back into `n_components`, which `clone` and
+  `get_params` read; the count they fitted is in `n_components_`, as for the rest of the family. (#1127)
+- **`CA`, `MCA`, `FAMD`, `MFA`, `FPCA` and `impute_low_rank` refuse an `n_components` below 1 with the
+  family's message,** `n_components must be >= 1; got 0.`, where they said `n_components must be at least
+  1`. (#1127)
+- **A component with no spread no longer stops a TSR projection or a T² from a full score covariance.**
+  The last component of a rank-deficient fit has scores that are all about 0, which made two inverses
+  singular and raised `LinAlgError`: the trimmed score regression of `PCA.project`, `PLS.project`,
+  `BatchPCA.predict_online`, `BatchMonitor` and the batch control functions, and the score covariance of
+  `MidCourseCorrector.predict` and of `midcourse_correction(score_covariance=...)`. `BatchMonitor.fit`
+  refused such a model with a `ValueError`. Each now follows the rule every other T² uses: a component whose
+  score standard deviation is at most 1.5e-8 times the largest one gets a score estimate of 0 from TSR, adds
+  0 to T², and is left out of the inverse. Models with no such component give the same numbers as before.
+  (#1124)
+- **`TPLS` with `skip_f_matrix_preprocessing=True` no longer warns that an F column with no variance is
+  excluded.** F is used as given, so such a column, for example a lot no training blend uses, stays in the fit
+  and counts in every F score. The warning said it was left out. No number changes. A column of F with no
+  observed value is still named, because it is left out as a missing cell is. The docstring now says that the
+  caller owns F's preprocessing when it is skipped. (#1084)
+
 ## [2.3.1] - 2026-11-03
 
 ### Fixed
@@ -11374,7 +11796,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.3.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/kgdunn/process-improve/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/kgdunn/process-improve/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/kgdunn/process-improve/compare/v2.2.2...v2.3.0
 [2.2.2]: https://github.com/kgdunn/process-improve/compare/v2.2.0...v2.2.2
