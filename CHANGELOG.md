@@ -399,6 +399,25 @@ those changes.
   such a row. All three channels now project the row, the `static` and `preprocessing` ones with the training
   model, so the `adaptive` channel is the prediction. The predictions do not change, and neither do the
   channels of a complete row beyond rounding. (#1081)
+- **`spe_plot` and `t2_plot` leave out the limit line when `settings={"show_limit": False}`.** Both
+  plots accepted and validated the setting, then drew the confidence-limit line anyway, on every estimator
+  that offers them (`PCA`, `PLS`, `PLSDA`, `PRM`, the adaptive models, `BatchPCA`, `BatchPLS`). The line is now
+  drawn only when the setting asks for it, and the limit is computed only then, so `t2_plot` without its line
+  gives no `FutureWarning` about a limit it does not show. The `y = 0` reference line stays. (#1150)
+- **`PCA`, `MBPCA`, `MBPLS` and `TPLS` take a numpy integer or float wherever they take a Python one.**
+  `n_components=np.int64(2)`, a count as `np.argmax` or a grid of `np.arange` values gives it, was refused
+  with `InvalidParameterError`, and so were a numpy `max_iter` and `tol=np.float32(1e-6)`, though `PLS` took
+  them. The constraints these estimators declare, and those of `BatchPCA`, `BatchPLS` and `BatchMonitor`, now
+  name any integer and any real number, so a whole-number `tol` such as `tol=1` is accepted too. The range
+  checks and their messages do not change. (#1127)
+- **`TPLS.__init__` stores its arguments and nothing else, and `AdaptivePCA.fit` and `AdaptivePLS.fit` leave
+  `n_components` as given.** `TPLS` set `is_fitted_` and `required_blocks_` in `__init__`; they now exist
+  from `fit` on, and `plot` is a property, so `model.plot.scores()` and `model.plot.loadings()` work as
+  before. The adaptive models wrote `int(n_components)` back into `n_components`, which `clone` and
+  `get_params` read; the count they fitted is in `n_components_`, as for the rest of the family. (#1127)
+- **`CA`, `MCA`, `FAMD`, `MFA`, `FPCA` and `impute_low_rank` refuse an `n_components` below 1 with the
+  family's message,** `n_components must be >= 1; got 0.`, where they said `n_components must be at least
+  1`. (#1127)
 - **A component with no spread no longer stops a TSR projection or a T² from a full score covariance.**
   The last component of a rank-deficient fit has scores that are all about 0, which made two inverses
   singular and raised `LinAlgError`: the trimmed score regression of `PCA.project`, `PLS.project`,
@@ -408,6 +427,11 @@ those changes.
   score standard deviation is at most 1.5e-8 times the largest one gets a score estimate of 0 from TSR, adds
   0 to T², and is left out of the inverse. Models with no such component give the same numbers as before.
   (#1124)
+- **`TPLS` with `skip_f_matrix_preprocessing=True` no longer warns that an F column with no variance is
+  excluded.** F is used as given, so such a column, for example a lot no training blend uses, stays in the fit
+  and counts in every F score. The warning said it was left out. No number changes. A column of F with no
+  observed value is still named, because it is left out as a missing cell is. The docstring now says that the
+  caller owns F's preprocessing when it is skipped. (#1084)
 
 ## [2.3.1] - 2026-11-03
 
