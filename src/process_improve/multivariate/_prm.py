@@ -23,6 +23,7 @@ its ``sample_weight``.
 
 from __future__ import annotations
 
+import numbers
 import typing
 import warnings
 from collections.abc import Callable
@@ -218,6 +219,8 @@ class PRM(PLS):
     #: Each permutation refits every fold with PRM, so the default count is lower than PLS's 199.
     _default_n_cv_permutations: typing.ClassVar[int] = 49
 
+    _parameter_constraints: typing.ClassVar = {**PLS._parameter_constraints, "max_weight_iter": [numbers.Integral]}
+
     def __init__(  # noqa: PLR0913 - mirrors PLS's constructor plus four loop controls
         self,
         n_components: int,
@@ -260,6 +263,7 @@ class PRM(PLS):
         ValueError
             If ``cutoff``, ``max_weight_iter`` or ``coefficient_tol`` is out of range.
         """
+        self._validate_params()
         if not np.isfinite(self.cutoff) or self.cutoff <= 0:
             raise ValueError(f"cutoff must be a positive finite number; got {self.cutoff!r}.")
         check_at_least_one("max_weight_iter", self.max_weight_iter)

@@ -29,6 +29,7 @@ space in latent variable regression modeling", Journal of Chemometrics, 39
 
 from __future__ import annotations
 
+import numbers
 import typing
 import warnings
 
@@ -140,6 +141,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
     spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
 
+    _parameter_constraints: typing.ClassVar = {"n_orthogonal_components": [numbers.Integral]}
+
     def __init__(
         self,
         n_orthogonal_components: int,
@@ -188,6 +191,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             components than the rank of the centred X; or if Y is constant (with
             ``scale=False``, if Y is 0 throughout).
         """
+        self._validate_params()
         if self.copy is not None:
             warnings.warn(
                 "process_improve.multivariate.methods.OPLS.copy is deprecated since 2.4.0 and will be removed in "

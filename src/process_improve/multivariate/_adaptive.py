@@ -64,6 +64,7 @@ and is reused from :mod:`process_improve.multivariate._limits`.
 
 from __future__ import annotations
 
+import numbers
 import typing
 from collections import deque
 
@@ -258,6 +259,7 @@ class _AdaptiveModel(_LatentVariableModel):
     """
 
     _RENAME_CONTEXT: typing.ClassVar[str] = "adaptive multivariate"
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
     # transform scores a row with a missing cell by single-component projection (_scores_and_spe),
     # and keeps no training residuals for TSR, so the contributions split that score.
     _MISSING_CELL_ESTIMATOR: typing.ClassVar[str] = "scp"
@@ -742,6 +744,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         -------
         self : AdaptivePCA
         """
+        self._validate_params()
         check_at_least_one("n_components", self.n_components)
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         self._feature_names = X_df.columns
@@ -994,6 +997,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         -------
         self : AdaptivePLS
         """
+        self._validate_params()
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         # np.asarray of a 1-D Series / array yields a single-column frame, so Y is
         # always 2-D here.

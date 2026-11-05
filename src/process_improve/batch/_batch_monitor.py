@@ -180,6 +180,7 @@ class BatchMonitor(BaseEstimator):
         -------
         self : BatchMonitor
         """
+        self._validate_params()
         if self.spe_statistic not in SPE_STATISTICS:
             raise ValueError(f"spe_statistic must be one of {SPE_STATISTICS}; got {self.spe_statistic!r}.")
         window = operator.index(self.spe_window)

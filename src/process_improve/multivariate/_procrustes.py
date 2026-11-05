@@ -11,6 +11,8 @@ residuals), object by object and configuration by configuration.
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 from collections.abc import Mapping
 
@@ -206,6 +208,8 @@ class GPA(BaseEstimator):
     >>> gpa.consensus_test(random_state=0).p_value               # doctest: +SKIP
     """
 
+    _parameter_constraints: typing.ClassVar = {"tol": [numbers.Real], "max_iter": [numbers.Integral]}
+
     def __init__(self, scale: bool = True, tol: float = 1e-10, max_iter: int = 100):
         self.scale = scale
         self.tol = tol
@@ -284,6 +288,7 @@ class GPA(BaseEstimator):
         SpecificationWarning
             If ``max_iter`` rounds end before the residual settles.
         """
+        self._validate_params()
         frames = _check_configurations(X)
         if len(next(iter(frames.values()))) < 3:
             raise ValueError(

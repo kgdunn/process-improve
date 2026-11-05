@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import numbers
 import time
 import typing
 import warnings
@@ -423,6 +424,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     >>> pls.scores_.shape
     (4, 1)
     """
+
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [numbers.Integral, None],
+        "max_iter": [numbers.Integral],
+        "tol": [numbers.Real],
+        "missing_data_settings": [dict, None],
+    }
 
     def __init__(
         self,
@@ -939,6 +947,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
+        self._validate_params()
         # PLSDA and PRM fit through this method, and warn from their own fit instead: once, at their caller.
         if self.copy is not None and type(self).fit is PLS.fit:
             warnings.warn(

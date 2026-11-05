@@ -12,6 +12,8 @@ for how the scores serve a designed experiment.
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 
 import numpy as np
@@ -147,6 +149,8 @@ class FPCA(TransformerMixin, BaseEstimator):
     eigenfunctions_ = _LazyFrame("_eigenfunctions", index="_grid_index", columns="_component_names")
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral, None]}
+
     def __init__(
         self,
         n_components: int | None = None,
@@ -186,6 +190,7 @@ class FPCA(TransformerMixin, BaseEstimator):
         FPCA
             The fitted model.
         """
+        self._validate_params()
         values, self._sample_index, self.grid_ = self._read(X, grid)
         n_curves, n_points = values.shape
         if n_curves < 2:

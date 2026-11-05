@@ -111,7 +111,7 @@ def _tpls_blocks(empty: str) -> tuple[dict[str, pd.DataFrame], DataFrameDict]:
 def test_a_block_with_no_columns_is_refused_by_name(
     xy: tuple[pd.DataFrame, pd.DataFrame], estimator: str, label: str
 ) -> None:
-    """numpy's "at least one array or dtype is required" named neither the block nor the cause."""
+    """The message from numpy, "at least one array or dtype is required", named neither the block nor the cause."""
     X, y = xy
     blocks = {"b1": X[["a", "b"]], "b2": X[[]] if label == 'X["b2"]' else X[["c", "d"]]}
     fits = {

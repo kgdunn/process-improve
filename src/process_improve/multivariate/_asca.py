@@ -21,6 +21,8 @@ Two variants ride on the same decomposition:
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 
 import numpy as np
@@ -206,6 +208,8 @@ class ASCA(BaseEstimator):
     # `help` and `inspect.signature` stay accurate and a subclass can override it.
     effect_summary_plot = _model_method(_effect_summary_plot)
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+
     def __init__(
         self,
         n_components: int = 2,
@@ -244,6 +248,7 @@ class ASCA(BaseEstimator):
             If ``X`` and ``design`` disagree on the number of rows, if either holds
             missing values, or if a factor has only one level (it can carry no effect).
         """
+        self._validate_params()
         X, design = self._validated(X, design)
         self.feature_names_in_ = np.asarray(X.columns)
         # MCUVScaler's centre and scale: a column is constant when its values are all
