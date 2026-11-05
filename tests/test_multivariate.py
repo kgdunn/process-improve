@@ -838,16 +838,17 @@ def test_mcuv_constant_single_value_and_empty_columns() -> None:
     np.testing.assert_array_equal(out, [[0.0, 0.0, np.nan], [0.0, np.nan, np.nan], [0.0, np.nan, np.nan]])
 
 
-def test_mcuv_does_not_divide_by_a_spread_at_or_below_sqrt_tiny() -> None:
-    """The square root of the smallest normal float is 2**-511; a standard deviation that small scales by 1.
+def test_mcuv_does_not_divide_by_a_spread_below_the_smallest_normal_float() -> None:
+    """The smallest normal float is 2**-1022; a standard deviation below it scales by 1 (#1070).
 
-    The first column, 2**-510, 0 and 2**-511, has mean 2**-511 and deviations of +-2**-511 and 0, so its
-    sample standard deviation is exactly 2**-511. The second, a thousand times larger, keeps its own.
+    The first column, 2**-1022, 0 and 2**-1023, has mean 2**-1023 and deviations of +-2**-1023 and 0, so
+    its sample standard deviation is exactly 2**-1023. The second, twice as large, keeps its own, and so
+    does the third, 2**-600: the floor was the square root of the smallest normal float, 1.5e-154, which
+    took a column in units near 1e-160 for a constant one.
     """
-    X = np.array([[2.0**-510, 2.0**-500], [0.0, 0.0], [2.0**-511, 2.0**-501]])
+    X = np.array([[2.0**-1022, 2.0**-1021, 2.0**-599], [0.0, 0.0, 0.0], [2.0**-1023, 2.0**-1022, 2.0**-600]])
     scaler = MCUVScaler().fit(X)
-    assert scaler.scale_.iloc[0] == 1.0
-    assert scaler.scale_.iloc[1] == pytest.approx(np.std(X[:, 1], ddof=1), rel=1e-15)
+    assert scaler.scale_.tolist() == [1.0, 2.0**-1022, 2.0**-600]
 
 
 def test_center_and_scale_by_hand_along_either_axis() -> None:
@@ -9555,7 +9556,7 @@ def _ekf_fill(X: np.ndarray, unknown: np.ndarray, a: int, constants: tuple, sett
             recon = _low_rank_reconstruction(Xa - mean, a) + mean
         Xa = np.where(unknown, recon, Xa)
         current = Xa[unknown] / sd
-        if np.linalg.norm(current - previous) < settings["tol"] * max(1.0, np.linalg.norm(previous)):
+        if np.linalg.norm(current - previous) < settings["tol"] * np.linalg.norm(previous):
             break
         previous = current
     return Xa
@@ -9570,7 +9571,7 @@ def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: i
     its spread their sd, kept at 1 for fewer than two cells or cells all equal, in any units. The
     unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
     (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
-    scaled change is below ``tol`` times the norm of their scaled values (at least 1), or
+    scaled change is below ``tol`` times the norm of their scaled values, in any units (#1070), or
     for ``max_iter`` rounds. PRESS sums the held-out cells' scaled squared errors, the null
     reference their scaled squared deviations from the centre; totals are averaged over
     the repeats. ``settings`` holds ``max_iter``, ``tol`` and ``scale``. Returns the six

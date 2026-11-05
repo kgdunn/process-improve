@@ -1548,19 +1548,22 @@ def test_autoscale_parameters_by_hand() -> None:
     """Means and ddof=1 sds over observed cells; no spread, one value, or none, scales by 1, and nothing warns."""
     values = np.array(
         [
-            [1.0, 5.0, np.nan, 3.0, 2.0**-510],
+            [1.0, 5.0, np.nan, 3.0, 2.0**-1022],
             [3.0, 5.0, np.nan, np.nan, 0.0],
-            [5.0, 5.0, np.nan, np.nan, 2.0**-511],
+            [5.0, 5.0, np.nan, np.nan, 2.0**-1023],
         ]
     )
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         centre, scale = _autoscale_parameters(values)
-    np.testing.assert_array_equal(centre, [3.0, 5.0, np.nan, 3.0, 2.0**-511])
-    # The last column's sd is exactly 2**-511, the square root of the smallest normal float: no spread.
+    np.testing.assert_array_equal(centre, [3.0, 5.0, np.nan, 3.0, 2.0**-1023])
+    # The last column's sd is exactly 2**-1023, below the smallest normal float, 2**-1022: no spread.
+    # Its square underflows, so the sd is only that because it is taken in units of the column (#1070).
     np.testing.assert_array_equal(scale, [2.0, 1.0, 1.0, 1.0, 1.0])
     _, scale = _autoscale_parameters(values[:, [4]] * 2.0)
-    assert scale[0] == 2.0**-510
+    assert scale[0] == 2.0**-1022
+    _, scale = _autoscale_parameters(values[:, [4]] * 2.0**423)
+    assert scale[0] == 2.0**-600  # 2.4e-181: a floor of 1.5e-154 left the column unscaled, as MCUVScaler's did
 
 
 def test_permutation_summary_counts_every_permutation() -> None:

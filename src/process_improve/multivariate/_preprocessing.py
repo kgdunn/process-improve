@@ -117,7 +117,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # catch: a column with fewer than two observed values, whose
         # nanstd(ddof=1) is NaN (NaN == 0 is False, so the equality test
         # missed it and transform emitted an all-NaN column); and a
-        # denormal standard deviation, whose reciprocal overflows. That floor
+        # denormal standard deviation, whose reciprocal can overflow. That floor
         # is the smallest normal float: at its square root (1.5e-154) it took a
         # column in units near 1e-160 for a constant one (#1070).
         # An all-NaN column additionally has a NaN center; treat it as
