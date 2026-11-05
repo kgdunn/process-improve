@@ -355,15 +355,18 @@ def _select(name: str, X: pd.DataFrame, y: pd.DataFrame) -> pd.Series:
         return PLSDA.select_n_components(X, classes, n_repeats=1, **settings).rmsecv["total"]
     if name == "MBPLS":
         return MBPLS.select_n_components(_blocks(X), y, n_repeats=1, **settings).rmsecv
+    if name == "PLS.nested_cv":
+        return PLS.nested_cv(X, y, outer_cv=3, inner_cv=3, max_components=3, random_state=0).rmsep
     return PLS.select_n_components(X, y, n_repeats=1, **settings).rmsecv["total"]
 
 
-@pytest.mark.parametrize("name", ["PCA", "PLS", "PLSDA", "MBPLS"])
+@pytest.mark.parametrize("name", ["PCA", "PLS", "PLSDA", "MBPLS", "PLS.nested_cv"])
 def test_select_n_components_reads_a_pandas_missing_value_as_missing(name: str) -> None:
     """A nullable column's pd.NA is a missing cell to ``select_n_components``, as it is to ``fit`` (#1144).
 
-    PCA raised ``TypeError`` on converting it to a float, and PLS (and PLSDA through it) on testing
-    it for NaN, where ``fit`` took it. The curve is the one of the same data with NaN.
+    PCA raised ``TypeError`` on converting it to a float, and PLS (and PLSDA through it, and
+    ``PLS.nested_cv``) on testing it for NaN, where ``fit`` took it. The curve is the one of the
+    same data with NaN.
     """
     X, y = _data()
     gappy = _with_gaps(X)

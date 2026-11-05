@@ -2558,8 +2558,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result = PLS.nested_cv(X, Y, max_components=8, random_state=0)
         >>> result.rmsep["total"]
         """
-        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
-        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        # An array is numbered from 0, a Series keeps its name, and a nullable column's pd.NA is a missing cell.
+        X, Y = _float_frame(X), _float_frame(Y)
         random_state = sklearn_random_state(random_state)  # offset per outer fold below, so an int (#1128)
         N, M = X.shape[0], Y.shape[1]
 
