@@ -911,7 +911,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             r2 = {block: np.cumsum(values) for block, values in r2.items()}
         for a, iterations in enumerate(self.fitting_statistics["iterations"]):
             time_ms = self.fitting_statistics["milliseconds"][a]
-            r2_z = f"{r2['Z'][a] * 100:>10.1f}" if "Z" in r2 else "        -"
+            r2_z = f"{r2['Z'][a] * 100:>10.1f}" if "Z" in r2 else f"{'-':>10}"
             time_iter = f"{time_ms:>5.0f} [{iterations:>4d}]"
             line = (
                 f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {r2_z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}"
