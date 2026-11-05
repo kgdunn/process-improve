@@ -17,7 +17,19 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.multivariate.methods import MBPCA, MBPLS, PCA, PLS, PRM, TPLS, DataFrameDict, MCUVScaler
+from process_improve.multivariate._prm import _spreads
+from process_improve.multivariate._robust import row_norms
+from process_improve.multivariate.methods import (
+    MBPCA,
+    MBPLS,
+    PCA,
+    PLS,
+    PRM,
+    TPLS,
+    DataFrameDict,
+    MCUVScaler,
+    SpecificationWarning,
+)
 
 DATA = Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
 LDPE = pd.read_csv(DATA / "LDPE" / "LDPE.csv", index_col=0)
@@ -55,13 +67,15 @@ def _pca_scaled(units: float) -> Outputs:
 
 def _pca_count(units: float) -> Outputs:
     """Count the components, each fold left in the units it was given."""
-    found = PCA.select_n_components(X * units, max_components=8, scale_inside_folds=False, random_state=0)
+    with pytest.warns(SpecificationWarning, match="scale_inside_folds=False leaks"):
+        found = PCA.select_n_components(X * units, max_components=10, scale_inside_folds=False, random_state=0)
     return {"count": np.array([found.n_components]), "Q2": found.q2.to_numpy()}
 
 
 def _pls(units: float, *, scale: bool) -> Outputs:
     """Fit PLS: unscaled, its scores and predictions move with the units; T² never does."""
-    model = PLS(n_components=3, scale=scale).fit(X * units, Y * units)
+    centred = Y - Y.mean()  # unscaled, PLS centres nothing
+    model = PLS(n_components=3, scale=scale).fit(X * units, centred * units)
     return {
         "scores": model.scores_.to_numpy() / (1.0 if scale else units),
         "predictions": model.predict(X * units).to_numpy() / units,
@@ -150,3 +164,50 @@ def test_the_same_data_in_other_units_give_the_same_model(case: str, units: floa
     for name, values in expected.items():
         largest = float(np.max(np.abs(values)))
         np.testing.assert_allclose(found[name], values, rtol=1e-6, atol=1e-6 * largest, err_msg=f"{case}: {name}")
+
+
+@pytest.mark.dataset
+# PLS's fit statistics (score sds, R², T²) take every row, unweighted, and the far row's squares overflow there.
+@pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning", "ignore:invalid value:RuntimeWarning")
+@pytest.mark.parametrize("scale", [True, False], ids=["scaled", "unscaled"])
+@pytest.mark.parametrize("block", ["X", "Y", "both"])
+def test_a_prm_row_whose_squares_overflow_gets_a_weight_of_zero(block: str, scale: bool) -> None:
+    """A row 1e160 out leaves the PRM fit with a weight of 0, and the model is the one a row 1e300 out gives (#1114).
+
+    The squares of such a row overflow, so its distance was ``inf`` and PRM raised "distances must
+    be finite". The L1 median gave it no pull either, where a row of any other size pulls the
+    centre by a unit vector towards it.
+    """
+
+    def fit(far: float) -> PRM:
+        x_rows, y_rows = X.copy(), Y[["Conv"]].copy()
+        if block in {"X", "both"}:
+            x_rows.iloc[5, :] = far
+        if block in {"Y", "both"}:
+            y_rows.iloc[5, :] = far
+        return PRM(n_components=2, scale=scale).fit(x_rows, y_rows)
+
+    near, far = fit(1e160), fit(1e300)
+    assert near.robust_weights_[5] == 0.0
+    np.testing.assert_allclose(near.robust_weights_, far.robust_weights_, rtol=1e-12, atol=1e-15)
+    np.testing.assert_allclose(near.predict(X), far.predict(X), rtol=1e-12)
+
+
+def test_prm_spreads_by_hand() -> None:
+    """The spread PRM's floors are relative to: 1.4826 times the MAD, else the largest deviation, else 0.
+
+    The columns: 0, 1, 2, 3, 10 (median 2, absolute deviations 2, 1, 0, 1, 8, MAD 1); four zeros
+    and a 4 (MAD 0, largest deviation 4); and a constant.
+    """
+    rows = np.array([[0.0, 0.0, 2.0], [1.0, 0.0, 2.0], [2.0, 0.0, 2.0], [3.0, 0.0, 2.0], [10.0, 4.0, 2.0]])
+    np.testing.assert_array_equal(_spreads(rows), [1.4826, 4.0, 0.0])
+    np.testing.assert_array_equal(_spreads(rows * 2.0**-500), np.array([1.4826, 4.0, 0.0]) * 2.0**-500)
+
+
+def test_row_lengths_are_exact_and_finite_where_squares_overflow() -> None:
+    """A row's length is the same, bit for bit, as numpy's where no square overflows, and finite where one does."""
+    rng = np.random.default_rng(0)
+    ordinary = rng.standard_normal((20, 5)) * 10.0 ** rng.integers(-100, 100, size=(20, 1))
+    np.testing.assert_array_equal(row_norms(ordinary), np.linalg.norm(ordinary, axis=1))
+    far = np.array([[3e160, -4e160], [3e300, 4e300], [0.0, 0.0], [3e-170, -4e-170]])
+    np.testing.assert_allclose(row_norms(far), [5e160, 5e300, 0.0, 5e-170], rtol=1e-15)
