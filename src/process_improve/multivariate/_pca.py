@@ -1807,7 +1807,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915, C901
+    def select_n_components(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
         *,
