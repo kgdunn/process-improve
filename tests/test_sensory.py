@@ -6,6 +6,7 @@ mode is a stub and is covered by the not-implemented tests below.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 
@@ -923,6 +924,16 @@ def test_fit_pls_safe_steps_the_components_down(monkeypatch, max_ok, expected_co
     model, used = _fit_pls_safe(pd.DataFrame({"x": [1.0, 2.0]}), pd.DataFrame({"y": [1.0, 2.0]}), 3)
     assert used == expected_components
     assert (model is None) == (expected_components == 0)
+
+
+def test_fit_pls_safe_gives_no_model_for_an_attribute_no_descriptor_explains():
+    """An attribute uncorrelated with every descriptor has no component; PLS refuses it, and there is no model (#1144).
+
+    In a 2^3 design the interaction ab is orthogonal to a, b and c. PLS raised a LinAlgError there,
+    which this caught; it now raises NotEnoughVarianceError, which it catches too.
+    """
+    x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["a", "b", "c"])
+    assert _fit_pls_safe(x, (x["a"] * x["b"]).to_frame("y"), 2) == (None, 0)
 
 
 def _predictive_case() -> tuple[pd.DataFrame, pd.DataFrame]:

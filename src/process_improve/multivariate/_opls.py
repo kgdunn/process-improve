@@ -40,7 +40,7 @@ from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, check_x_explains_y, epsqrt
 from ._preprocessing import MCUVScaler
 
 if typing.TYPE_CHECKING:
@@ -247,6 +247,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             raise NotEnoughVarianceError(
                 "There is no variance in Y: the response is constant, so there is nothing for X to explain."
             )
+        check_x_explains_y([Xmat], y)  # nor does a response uncorrelated with every column of X (#1144)
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
