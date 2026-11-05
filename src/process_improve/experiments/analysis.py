@@ -79,6 +79,7 @@ from process_improve.experiments._analyses.split_plot import (
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments._lm import (
+    block_levels,
     real_names,
     stand_ins_for,
     suggest_identifier,
@@ -591,7 +592,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     Block-to-block differences left out of the model go into the residual and mask real
     effects (Montgomery, *Design and Analysis of Experiments*, chapter 7). The blocks
     enter as sum-coded contrast columns, ``Block1`` to ``Block{b-1}`` for ``b`` blocks
-    (in sorted order, the last block coded -1 in every column). An explicit formula gets
+    (numbered blocks in numeric order, the last block coded -1 in every column). An explicit formula gets
     them only where it names ``Block`` as a term of its own, in that term's place, so the
     blocks are a categorical factor there as in a named model, not a number. A Scheffe
     mixture model, and an explicit formula that does not name ``Block``, are not changed;
@@ -619,7 +620,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
             return df, formula, ()
         rhs = " + ".join(term for term in terms if term != BLOCK_COL)
 
-    levels = sorted(df[BLOCK_COL].unique(), key=str)
+    levels = block_levels(df[BLOCK_COL])
     df = df.copy()
     names: list[str] = []
     for k, level in enumerate(levels[:-1], start=1):
@@ -1068,7 +1069,7 @@ def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
     """
     if not fit.blocks or BLOCK_COL not in points:
         return points.assign(**{b: 0.0 for b in fit.blocks if b not in points})
-    levels = sorted(fit.df[BLOCK_COL].unique(), key=str)  # in the order _add_block_term coded them
+    levels = block_levels(fit.df[BLOCK_COL])  # in the order _add_block_term coded them
     named = points[BLOCK_COL]
     unknown = sorted({str(v) for v in named.dropna() if v not in set(levels)})
     if unknown:
