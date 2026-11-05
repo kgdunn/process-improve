@@ -90,7 +90,12 @@ def _spreads(rows: np.ndarray) -> np.ndarray:
 
 
 def _robust_scaler(
-    block: pd.DataFrame, active: np.ndarray, *, scale: bool, unit: float, centre: Callable[[np.ndarray], np.ndarray]
+    block: pd.DataFrame,
+    active: np.ndarray,
+    *,
+    scale: bool,
+    centre: Callable[[np.ndarray], np.ndarray],
+    unit: float = 1.0,
 ) -> MCUVScaler:
     """Return a scaler centred robustly, once, on the rows the prior keeps.
 
