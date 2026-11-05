@@ -1574,7 +1574,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             The desired response, on the original (un-scaled) Y scale. A scalar
             is accepted for a single-target model; otherwise supply one value per
             target. A Series/DataFrame/dict is aligned to the fitted target
-            names; a plain array must follow the fitted target order.
+            names; a plain array must follow the fitted target order. A
+            DataFrame must have one row: one target is inverted at a time.
             A response the fit left out, having no observed value, cannot be
             targeted: its value is not used, and may be missing.
         null_space_coordinates : np.ndarray, optional
@@ -1654,11 +1655,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     f"target(s): {list(target_names)}."
                 )
             y_des_df = pd.DataFrame(y_arr, columns=target_names)
+        if len(y_des_df) != 1:
+            raise ValueError(
+                f"y_desired has {len(y_des_df)} rows; invert finds the inputs for one target at a time: pass one "
+                "row, or call invert once per row."
+            )
         # A response the fit left out (#1098) has zero loadings, so no score can move it: its target is not
         # used, and may be missing (#1114). A model pickled before then left none out.
         targeted = ~np.broadcast_to(getattr(self, "_unobserved_targets", False), (n_targets,))
-        if y_des_df.loc[:, targeted].isna().any(axis=None):
-            raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names)}.")
+        missing = targeted & y_des_df.isna().to_numpy()[0]
+        if missing.any():
+            raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names[missing])}.")
 
         # Move the target into the scaled Y space the model was fit in.
         y_des_scaled = (
@@ -3007,7 +3014,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             The result of :meth:`cross_validate`. When supplied, its
             cross-validated RMSE (``rmse_cv``) is used for the error variance,
             which is preferable to the optimistic calibration RMSE used
-            otherwise.
+            otherwise. A jackknife or K-fold result has one; a bootstrap
+            result does not, and is refused.
 
         Returns
         -------
@@ -3032,6 +3040,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # optimistic for genuinely new observations).
         df = max(n_samples - n_components - 1, 1)
         if cv_result is not None:
+            if cv_result.get("rmse_cv") is None:
+                raise ValueError(
+                    f"cv_result is a {cv_result.get('method')!r} result, which has no rmse_cv: a bootstrap holds no "
+                    "rows out. Pass the result of cross_validate with n_bootstrap=0, which runs the jackknife "
+                    "(cv='loo') or K-fold (cv=K)."
+                )
             # Already an out-of-sample error: it needs no dof correction.
             error_std = np.asarray(cv_result.rmse_cv)
         else:
