@@ -14,3 +14,13 @@
 - **A mixture model's `"split_plot"` coefficients are labelled `coding: "actual"`.** They were labelled
   `"coded"`, although the components are proportions that have no coded scale, as `"coefficients"`
   already reports. (#1129)
+- **The K-optimal search no longer lets the BLAS kernel choose between tied swaps.** At each step the candidate
+  exchange behind `generate_design(..., "k_optimal")` took the first of the swaps that tie for the best
+  condition number in the order the eigenvectors of `X'X` ranked them. An extreme eigenvalue is usually
+  repeated on a grid, so those eigenvectors are any basis of its eigenspace, which the BLAS kernel's
+  rounding picks, and the same `random_state` gave designs of different quality on AVX2 and AVX-512
+  processors: a 3-factor interactions design in 10 runs had a condition number of 1.25 on one and 1.27 on
+  the other. The first tied swap, by design run and then candidate, is now made. Over 9 cases and 5
+  seeds, four OpenBLAS kernels then agree on every condition number, where one case-seed pair differed;
+  on an AVX2 processor 8 of the 45 designs change, 6 to another design with the same condition number and
+  2 from 1.25 to 1.27. (#1129)
