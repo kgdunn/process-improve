@@ -1048,6 +1048,18 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
+def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
+    """Return the terms of a formula analysed as a mixture model, less the blocks; None for any other model.
+
+    model_selection searches them as it does a Scheffe model's: not as the interactions model,
+    whose intercept the blends already make up (#1129). It leaves the blocks out of every model.
+    """
+    if not fit.mixture or fit.model in SCHEFFE_MODELS:
+        return None
+    terms = ModelDesc.from_formula(fit.model.split("~", 1)[1]).rhs_termlist
+    return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
+
+
 def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
     """Give each new point the block contrasts of the block its ``Block`` column names.
 
@@ -1108,7 +1120,11 @@ def _handlers(
             fit.df, fit.response_col, fit.factor_cols, fit.alpha, group_cols=fit.group_cols
         ),
         "model_selection": lambda: _run_model_selection(
-            fit.df, fit.response_col, fit.factor_cols, model=fit.searched_model or fit.model
+            fit.df,
+            fit.response_col,
+            fit.factor_cols,
+            model=fit.searched_model or fit.model,
+            mixture_terms=_mixture_formula_terms(fit),
         ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),
@@ -1618,9 +1634,8 @@ def analyze_experiment(  # noqa: PLR0913
         results.update(handlers[t]())
     if "model_selection" in results:
         chosen = results["model_selection"]
-        chosen["selected_formula"] = chosen["selected_formula"].replace(
-            f"{response_col} ~", f"{reported_response} ~", 1
-        )
+        for key in ("selected_formula", "candidate_model"):  # a mixture formula is searched as itself
+            chosen[key] = chosen[key].replace(f"{response_col} ~", f"{reported_response} ~", 1)
     return real_names(results, stand_ins)
 
 
