@@ -259,7 +259,10 @@ class _AdaptiveModel(_LatentVariableModel):
     """
 
     _RENAME_CONTEXT: typing.ClassVar[str] = "adaptive multivariate"
-    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [numbers.Integral],
+        "spe_limit_window": [numbers.Integral],
+    }
     # transform scores a row with a missing cell by single-component projection (_scores_and_spe),
     # and keeps no training residuals for TSR, so the contributions split that score.
     _MISSING_CELL_ESTIMATOR: typing.ClassVar[str] = "scp"

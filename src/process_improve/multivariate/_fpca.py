@@ -149,7 +149,12 @@ class FPCA(TransformerMixin, BaseEstimator):
     eigenfunctions_ = _LazyFrame("_eigenfunctions", index="_grid_index", columns="_component_names")
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
 
-    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral, None]}
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [numbers.Integral, None],
+        "n_basis": [numbers.Integral, None],
+        "degree": [numbers.Integral],
+        "penalty_order": [numbers.Integral],
+    }
 
     def __init__(
         self,

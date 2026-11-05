@@ -722,7 +722,7 @@ _EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[Bas
         lambda _: MFA(groups={"g1": ["a", "b"], "g2": ["c", "d"]}, n_components=2),
         lambda model, data: model.fit(data["X"]),
     ),
-    "FPCA": (lambda _: FPCA(n_components=2), lambda model, data: model.fit(data["curves"])),
+    "FPCA": (lambda _: FPCA(n_components=2, n_basis=10), lambda model, data: model.fit(data["curves"])),
     "ASCA": (lambda _: ASCA(n_components=2), lambda model, data: model.fit(data["X"], data["design"])),
     "GPA": (lambda _: GPA(), lambda model, data: model.fit(data["configurations"])),
     "BatchPCA": (lambda _: BatchPCA(n_components=2), lambda model, data: model.fit(data["batches"])),
@@ -736,8 +736,17 @@ _EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[Bas
     ),
 }
 
-# The settings that count something: components, or rounds of an iteration.
-_COUNTS = ("n_components", "n_orthogonal_components", "max_iter", "max_weight_iter")
+# The settings that count something: components, rounds of an iteration, rows of a window, or B-splines.
+_COUNTS = (
+    "n_components",
+    "n_orthogonal_components",
+    "max_iter",
+    "max_weight_iter",
+    "spe_limit_window",
+    "n_basis",
+    "degree",
+    "penalty_order",
+)
 
 
 def _count_settings() -> list:
