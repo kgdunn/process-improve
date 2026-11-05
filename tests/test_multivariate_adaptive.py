@@ -1023,9 +1023,9 @@ def test_unlabelled_rows_are_numbered_on_from_the_largest_integer_label(
 ) -> None:
     """Each array given to partial_fit, and each update without a label, continues the count (#1082, #1144).
 
-    The count goes on from the largest integer label recorded so far, whatever labels came since, so
-    the history frames keep one label per row. It went on from the number of rows recorded after a
-    label that is not an integer, and so repeated 2 after the labels 2 and "x".
+    The count goes on from the largest integer label recorded so far, or from the number of rows
+    recorded when that is larger, so the history frames keep one label per row. It went on from the
+    number of rows after a label that is not an integer, and so repeated 2 after the labels 2 and "x".
     """
     X, Y = synthetic_pls_data
     model = _fit_either(cls, X.iloc[:90], Y.iloc[:90])
