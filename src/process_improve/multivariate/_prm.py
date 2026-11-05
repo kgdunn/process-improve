@@ -33,7 +33,7 @@ import pandas as pd
 from ._common import DataMatrix, epsqrt
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
-from ._robust import fair_weights, l1_median
+from ._robust import fair_weights, l1_median, row_norms
 
 #: Scale factor making the median absolute deviation consistent for the
 #: standard deviation of a Gaussian, so a column's robust spread reads in its units.
@@ -77,8 +77,20 @@ def _column_medians(rows: np.ndarray) -> np.ndarray:
     return np.median(rows, axis=0)
 
 
+def _spreads(rows: np.ndarray) -> np.ndarray:
+    """Return each column's spread about its median, in its units, which the floors in the weights are relative to.
+
+    It is 1.4826 times the column's median absolute deviation; where more than half the values
+    are equal, which makes that 0, it is the largest absolute deviation; and 0 for a constant
+    column. A floor relative to it reads the same data in any units the same way (#1114).
+    """
+    deviations = np.abs(rows - np.median(rows, axis=0))
+    mad = np.median(deviations, axis=0) * _MAD_TO_SIGMA
+    return np.where(mad > 0, mad, np.max(deviations, axis=0))
+
+
 def _robust_scaler(
-    block: pd.DataFrame, active: np.ndarray, *, scale: bool, centre: Callable[[np.ndarray], np.ndarray]
+    block: pd.DataFrame, active: np.ndarray, *, scale: bool, unit: float, centre: Callable[[np.ndarray], np.ndarray]
 ) -> MCUVScaler:
     """Return a scaler centred robustly, once, on the rows the prior keeps.
 
@@ -86,17 +98,19 @@ def _robust_scaler(
     median of each column (``centre=_column_medians``, for Y). With ``scale``, each
     column is also divided by 1.4826 times its median absolute deviation, or by 1
     where that is 0, and the centre is taken in those units, the space the leverage
-    distances are then measured in.
+    distances are then measured in. Without, the centre is taken in units of ``unit``,
+    one number for the block: the L1 median is then the same, and its tolerance is
+    relative to the data's spread, not to their units (#1114).
     """
     rows = block.to_numpy()[active]
-    spread = np.ones(rows.shape[1])
+    spread = np.full(rows.shape[1], unit)
     if scale:
         mad = np.median(np.abs(rows - np.median(rows, axis=0)), axis=0) * _MAD_TO_SIGMA
         spread = np.where(mad > 0, mad, 1.0)
     # Fitted for the sklearn metadata of the block (feature names, counts); centre and spread replaced.
     scaler = MCUVScaler().fit(block)
     scaler.center_[:] = centre(rows / spread) * spread
-    scaler.scale_[:] = spread
+    scaler.scale_[:] = spread if scale else 1.0
     return scaler
 
 
@@ -110,12 +124,12 @@ def _residual_weights(residuals: np.ndarray, active: np.ndarray, cutoff: float) 
     """
     centred = residuals - np.median(residuals[active], axis=0)
     spread = np.maximum(np.median(np.abs(centred[active]), axis=0), epsqrt)
-    return fair_weights(np.linalg.norm(centred / spread, axis=1), cutoff)
+    return fair_weights(row_norms(centred / spread), cutoff)
 
 
 def _leverage_weights(points: np.ndarray, active: np.ndarray, cutoff: float) -> np.ndarray:
     """Fair weight of each row's distance from the L1 median of the points, over the median distance."""
-    distances = np.linalg.norm(points - l1_median(points[active]), axis=1)
+    distances = row_norms(points - l1_median(points[active]))
     return fair_weights(distances / max(float(np.median(distances[active])), epsqrt), cutoff)
 
 
@@ -302,14 +316,16 @@ class PRM(PLS):
 
     def _reweighted(self, Y: pd.DataFrame, fit_weights: np.ndarray, active: np.ndarray) -> tuple[np.ndarray, float]:
         """Return the weights the current fit gives each row, and the norm of its regression on unit-length scores."""
-        # In the units the fit runs in, as for the starting weights. A constant per target leaves the weights
-        # as they are, except that the floor on the median residual is then relative to Y's robust spread,
-        # not to Y's units, in which a Y in small units held every residual weight near 1 (#1070).
-        residuals = (Y.to_numpy() - self.predictions_.to_numpy()) / self._robust_scalers[1].scale_.to_numpy()
+        # In units of each target's spread, as for the starting weights. A constant per target leaves the
+        # weights as they are, except that the floor on the median residual is then relative to Y's robust
+        # spread, not to Y's units, in which a Y in small units held every residual weight near 1 (#1070, #1114).
+        residuals = (Y.to_numpy() - self.predictions_.to_numpy()) / self._y_units
         residual = _residual_weights(residuals, active, self.cutoff)
         # Each component scaled to unit length in the weighted fit, as SIMPLS's scores
         # are; NIPALS's first components are much the longest, and would decide alone.
-        lengths = np.maximum(np.linalg.norm(np.sqrt(fit_weights)[:, None] * self._scores, axis=0), epsqrt)
+        # A length of 0 is floored relative to the longest, so in any units (#1114).
+        lengths = np.linalg.norm(np.sqrt(fit_weights)[:, None] * self._scores, axis=0)
+        lengths = np.maximum(lengths, epsqrt * np.max(lengths))
         leverage = _leverage_weights(self._scores / lengths, active, self.cutoff)
         # A product that underflows to 0 stays 0 and the row leaves the next fit (see the module notes). Rows
         # left with a positive weight need no count here: should fewer be left than there are components, the
@@ -367,16 +383,24 @@ class PRM(PLS):
 
         prior = _checked_prior(sample_weight, X_df.shape[0])
         active = prior > 0
+        # Every floor in the weights, and the L1 median's tolerance, is relative to the data's own spread,
+        # not to their units (#1114). X keeps one number for the block, which leaves its distances in
+        # proportion; scaled, X is already in units of its spread. Each target has its own.
+        x_spread = float(np.max(_spreads(X_df.to_numpy()[active])))
+        x_unit = 1.0 if self.scale or x_spread == 0 else x_spread
+        y_spreads = _spreads(Y_df.to_numpy()[active])
+        self._y_units = np.where(y_spreads > 0, y_spreads, 1.0)
         self._robust_scalers = (
-            _robust_scaler(X_df, active, scale=self.scale, centre=l1_median),
-            _robust_scaler(Y_df, active, scale=self.scale, centre=_column_medians),
+            _robust_scaler(X_df, active, scale=self.scale, unit=x_unit, centre=l1_median),
+            _robust_scaler(Y_df, active, scale=self.scale, unit=1.0, centre=_column_medians),
         )
-        x_centred = self._robust_scalers[0].transform(X_df).to_numpy()
-        y_centred = self._robust_scalers[1].transform(Y_df).to_numpy()
+        x_centred = self._robust_scalers[0].transform(X_df).to_numpy() / x_unit
+        y_centred = (Y_df.to_numpy() - self._robust_scalers[1].center_.to_numpy()) / self._y_units
         weights = _leverage_weights(x_centred, active, self.cutoff) * _residual_weights(y_centred, active, self.cutoff)
 
         self.weights_converged_ = False
         regression_norm = np.inf
+        y_reference = self._y_units / self._robust_scalers[1].scale_.to_numpy()
         for iteration in range(1, int(self.max_weight_iter) + 1):
             self.n_weight_iter_ = iteration
             fit_weights = prior * weights
@@ -385,7 +409,8 @@ class PRM(PLS):
             self.weight_shift_ = float(np.max(np.abs(updated - weights)))
             change = abs(norm - regression_norm)  # infinite on the first iteration
             weights, regression_norm = updated, norm
-            threshold = self.coefficient_tol * max(norm, epsqrt)
+            # The norm is in the units the fit runs in: Y's spread when scaled, Y's units when not (#1114).
+            threshold = self.coefficient_tol * max(norm, epsqrt * float(np.max(y_reference)))
             if change <= threshold:  # pragma: no mutate - < differs only at a change of exactly the threshold
                 self.weights_converged_ = True
                 break
