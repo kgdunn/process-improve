@@ -24,7 +24,7 @@ import pandas as pd
 import pytest
 
 from process_improve.multivariate._base import _LazyFrame
-from process_improve.multivariate.methods import MBPCA, MBPLS, PCA, PLS, TPLS, DataFrameDict, MCUVScaler
+from process_improve.multivariate.methods import MBPCA, MBPLS, OPLS, PCA, PLS, TPLS, DataFrameDict, MCUVScaler
 
 
 @pytest.fixture
@@ -138,6 +138,11 @@ def _fit_pls(rng: np.random.Generator) -> tuple[object, list[pd.DataFrame]]:
     return PLS(n_components=2).fit(x, y), [x, y]
 
 
+def _fit_opls(rng: np.random.Generator) -> tuple[object, list[pd.DataFrame]]:
+    x, y = _named(20, list("abcd"), rng, "run", "variable"), _named(20, ["y"], rng, "run", "response")
+    return OPLS(n_orthogonal_components=1).fit(x, y), [x, y]
+
+
 def _fit_mbpls(rng: np.random.Generator) -> tuple[object, list[pd.DataFrame]]:
     blocks = {"a": _named(20, ["a1", "a2"], rng, "run", "variable"), "b": _named(20, ["b1", "b2"], rng, "run", "var")}
     y = _named(20, ["y1", "y2"], rng, "run", "response")
@@ -209,7 +214,7 @@ def _axis_names(model: object) -> dict[str, list]:
     return found
 
 
-@pytest.mark.parametrize("fit", [_fit_pca, _fit_pls, _fit_mbpls, _fit_mbpca, _fit_tpls])
+@pytest.mark.parametrize("fit", [_fit_pca, _fit_pls, _fit_opls, _fit_mbpls, _fit_mbpca, _fit_tpls])
 def test_renaming_the_callers_axes_after_the_fit_leaves_the_model_as_it_was(
     fit: Callable[[np.random.Generator], tuple[object, list[pd.DataFrame]]],
 ) -> None:
