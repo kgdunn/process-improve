@@ -268,6 +268,35 @@ def test_display_results_prints_the_iterations_as_integers(cls: type[MultiblockM
     assert re.fullmatch(r"  Iterations per PC: \[\d+, \d+\]", lines[-2]), lines[-2]
 
 
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+@pytest.mark.parametrize("show_cumulative", [True, False])
+def test_display_results_lines_up_each_value_under_its_header(
+    cls: type[MultiblockModel], show_cumulative: bool
+) -> None:
+    """#1083: each value ends where its header ends, and reads back as the fitted R².
+
+    The headers were as wide as their text and the values were nine characters wide, so with a
+    block name of any other length the columns drifted away from their headers.
+    """
+    blocks, y = _blocks()
+    blocks = {"a_long_block_name": blocks["a"], "b": blocks["b"]}
+    model = _fit(cls, blocks, y)
+    lines = model.display_results(show_cumulative=show_cumulative).splitlines()
+    header, *rows = lines[1:4]
+    right_edges = [[match.end() for match in re.finditer(r"\S+", line)] for line in (header, *rows)]
+    assert right_edges[1:] == [right_edges[0]] * len(rows)
+
+    r2x = model.r2_x_per_block_cumulative_ if show_cumulative else model.r2_x_per_block_per_component_
+    for component, row in enumerate(rows, start=1):
+        cells = dict(zip(header.split(), row.split(), strict=True))
+        expected = {"PC": str(component), **{f"R²X[{name}]": f"{r2x.loc[name, component]:.4f}" for name in blocks}}
+        if cls is MBPLS:
+            r2y = model.r2_y_cumulative_ if show_cumulative else model.r2_y_per_component_
+            expected["R²Y"] = f"{r2y.loc[component]:.4f}"
+        assert cells == expected
+    assert lines[4] == ""
+
+
 def _assert_same(after: object, before: object) -> None:
     """Assert two diagnose results, or parts of them, equal: frames, series, and dicts of either."""
     if isinstance(before, dict):

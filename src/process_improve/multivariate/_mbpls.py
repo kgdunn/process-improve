@@ -1226,17 +1226,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
         rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
-        rows.append(header)
-        rows.append("-" * len(header))
-        for a in range(self.n_components_):
-            cells = [f"{i:>3d}" for i in [a + 1]]
-            for name in self.block_names_:
-                src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-                cells.append(f"{src.loc[name].iloc[a]:>9.4f}")
-            r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
-            cells.append(f"{r2y_src.iloc[a]:>9.4f}")
-            rows.append(" | ".join(cells))
+        src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
+        r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
+        table = src.T.rename(columns=lambda name: f"R²X[{name}]").assign(**{"R²Y": r2y_src})
+        rows.append(table.rename_axis("PC").reset_index().to_string(index=False, float_format="{:.4f}".format))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
