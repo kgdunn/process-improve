@@ -32,6 +32,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from ._common import (
     DiagnoseResult,
+    NotEnoughVarianceError,
     SpecificationWarning,
     _model_method,
     _nz,
@@ -557,6 +558,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range.
         TypeError
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
+        NotEnoughVarianceError
+            If the first Y block, or F, D and Z together, have no variance, as MBPLS raises, or if a
+            component's scores are not finite because a block has no variation for the iteration to follow.
 
         Warns
         -----
@@ -682,6 +686,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.f_mats = {key: nan_to_zeros(self.f_mats[key]) for key in group_keys}
         self.z_mats = {key: nan_to_zeros(self.z_mats[key]) for key in X["Z"]}
         self.y_mats = {key: nan_to_zeros(self.y_mats[key]) for key in X["Y"]}
+        self._refuse_blocks_with_no_variance()
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         self.observation_names = X["F"][group_keys[0]].index
@@ -1185,15 +1190,37 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         return delta_gap < self.tol
 
+    def _refuse_blocks_with_no_variance(self) -> None:
+        """Refuse nothing to explain, or nothing to explain it by, before the iteration, as MBPLS does (#1144).
+
+        Scaling leaves a constant column absent, and an absent cell is 0 here, so a block with
+        no variance is all zeros, in any units. The iteration explains the first Y block. A group
+        of F carries something only with its D, as its blend scores weigh F by the properties.
+        """
+        key, y_block = next(iter(self.y_mats.items()))
+        if not np.any(y_block):
+            raise NotEnoughVarianceError(
+                f'There is no variance in Y["{key}"]: every response is constant or has no observed value, '
+                "so there is nothing for F, D and Z to explain."
+            )
+        if not any(np.any(self.f_mats[key]) and np.any(self.d_mats[key]) for key in self.d_mats) and not any(
+            np.any(z_block) for z_block in self.z_mats.values()
+        ):
+            raise NotEnoughVarianceError(
+                "There is no variance in F, D and Z: no group has a column of F and a column of D that vary, "
+                "and no column of Z varies, so there is nothing to explain Y by."
+            )
+
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
-        """Raise ``ValueError`` when a component's scores are not finite.
+        """Raise ``NotEnoughVarianceError`` when a component's scores are not finite.
 
         A NaN never leaves the iteration once it is in it, and the convergence test can never
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
         row or a material with nothing observed no longer causes one: it gets a zero score or
         loading and no weight (#513). What is left is a direction the iteration cannot take,
-        because the vector it regresses on is zero: every column of the first Y block, or
-        every column of D or F, has no variation.
+        because the vector it regresses on is zero: every column of a D or F group has no
+        variation, or a block has none left. It was a ``ValueError``; it is the family's error
+        for data without the variance to fit, as the checks before the iteration are (#1144).
         """
         if np.isfinite(t_super_i).all():
             return
@@ -1202,7 +1229,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             "no variation for the iteration to follow. Check that at least one column of the first Y "
             "block, and at least one column of each D and F group, varies and is observed."
         )
-        raise ValueError(msg)
+        raise NotEnoughVarianceError(msg)
 
     def _super_block_names(self) -> list[str]:
         """Row labels of ``w_loadings_super``: one per Z group, as the fit scores each on its own, then F."""
