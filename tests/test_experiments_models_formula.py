@@ -518,13 +518,12 @@ class TestBlocksInNumericOrder:
 
     def test_a_block_named_as_text_still_reads_with_a_deprecation_warning(self) -> None:
         metrics = ["d_efficiency", "a_optimality", "vif"]
-        with pytest.warns(DeprecationWarning, match="numbered block as text") as caught:
+        with pytest.warns(DeprecationWarning, match="deprecated since 2.5.0") as caught:
             old = evaluate_design(_TWELVE_BLOCKS, "A + B + C(Block, Treatment('1'))", metric=metrics)
         (warning,) = [w for w in caught if issubclass(w.category, DeprecationWarning)]
         assert str(warning.message) == (
-            "In process_improve.experiments.evaluate_design, naming a numbered block as text, as in "
-            "C(Block, Treatment('1')), is deprecated since 2.5.0 and will be removed in 3.0: the blocks are read "
-            "as numbers. Write C(Block, Treatment(1)) instead."
+            "process_improve.experiments.evaluate_design(model=...C(Block,Treatment('1'))...) is deprecated since "
+            "2.5.0 and will be removed in 3.0; use C(Block, Treatment(1)) instead: the blocks are read as numbers."
         )
         assert warning.filename == __file__
         new = evaluate_design(_TWELVE_BLOCKS, "A + B + C(Block, Treatment(1))", metric=metrics)

@@ -2158,11 +2158,11 @@ def _blocks_as_factor(blocks: pd.Series, model: str) -> pd.Categorical:
         return factor
     from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
 
-    old = ", ".join(f"C(Block, {contrast}({level!r}))" for contrast, level in as_text)
+    contrast, level = as_text[0]
     new = ", ".join(f"C(Block, {contrast}({numbers[str(level)]}))" for contrast, level in as_text)
     warnings.warn(
-        f"In process_improve.experiments.evaluate_design, naming a numbered block as text, as in {old}, is "
-        f"deprecated since 2.5.0 and will be removed in 3.0: the blocks are read as numbers. Write {new} instead.",
+        f"process_improve.experiments.evaluate_design(model=...C(Block,{contrast}({level!r}))...) is deprecated "
+        f"since 2.5.0 and will be removed in 3.0; use {new} instead: the blocks are read as numbers.",
         category=DeprecationWarning,
         stacklevel=user_stacklevel(),
     )
