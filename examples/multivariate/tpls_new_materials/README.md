@@ -44,8 +44,9 @@ two blends by 29%.
    exactly unchanged (checked on the pyphi data). There the usage spread `sigma_j` of the 9
    Group 2 lots spans a factor of 20, so in the autoscaled model two lots with identical
    properties would get effects 20 times apart. The lot effects in that data set are small, so
-   the change is small (0.002 Y standard deviations); in the simulation with uneven usage the
-   autoscaled model's error on new materials is 16% higher than the centred model's.
+   the change is small (0.002 Y standard deviations, `results/pyphi_invariance_checks.csv`); in
+   the simulation with uneven usage the autoscaled model's error on new materials is 16% higher
+   than the centred model's.
 4. **The D-block deflation caps the fit.** After each component TPLS deflates D by `r v'`,
    which removes that material direction from D for good. When the super score also carries Z,
    or a second group of materials, Y needs that direction again in a later component, with a
@@ -301,3 +302,9 @@ python domain.py    # applicability domain and the far material, after study.py
 ```
 
 `simulate.py` documents the simulated truth; `study.py` the leave-one-material-out protocol.
+
+`python study.py --quick` and `python domain.py --quick` run every step on one data set, with
+one or two left-out materials and one or two components, in under a minute each, and write
+nothing; the test suite runs both. The invariance checks are cheap, so the quick run does them
+in full and fails unless they reproduce `results/invariance_checks.csv` and
+`results/pyphi_invariance_checks.csv`. Every other table needs the full run.
