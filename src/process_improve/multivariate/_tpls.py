@@ -32,6 +32,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from ._common import (
     DiagnoseResult,
+    SpecificationWarning,
     _model_method,
     _nz,
     check_at_least_one,
@@ -39,6 +40,7 @@ from ._common import (
     largest_ssq_column,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import JudgedRows, spe_calculation
@@ -244,7 +246,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         cross-validation.
 
     max_iter : int, optional
-        The maximum number of iterations for the TPLS algorithm. Default is 500.
+        The maximum number of iterations for the TPLS algorithm. Default is 500. A component
+        that has not converged by then is the state of its last pass, and the fit warns.
 
     skip_f_matrix_preprocessing : bool, optional
         If True, the F (formula) matrices are used as-is, skipping the internal
@@ -295,8 +298,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     is_fitted_ : bool
         Set to True once ``fit()`` completes.
     fitting_statistics : dict
-        Per-component ``iterations``, ``convergance_tolerance`` and
-        ``milliseconds`` lists.
+        Per-component ``iterations``, ``convergance_tolerance``, ``milliseconds`` and
+        ``converged`` lists. ``converged`` holds whether the component met ``tol`` within
+        ``max_iter`` passes, as ``fitting_info_["converged"]`` does on MBPLS and MBPCA.
     preproc_ : dict
         Nested per-block per-group preprocessors, indexed as
         ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
@@ -553,6 +557,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range.
         TypeError
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
+
+        Warns
+        -----
+        SpecificationWarning
+            If a component did not converge within ``max_iter`` passes (#1163).
         """
         _reject_separate_y(y, "TPLS.fit")
         if not isinstance(X, DataFrameDict):
@@ -570,7 +579,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.skip_f_matrix_preprocessing_ = self.skip_f_matrix_preprocessing
 
         # Storage for pre-processing and the raw matrices
-        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
+        self.fitting_statistics: dict[str, list] = {
+            "iterations": [],
+            "convergance_tolerance": [],
+            "milliseconds": [],
+            "converged": [],
+        }
         # Per block / per group preprocessing parameters. "center" and "scale" are pd.Series (one entry
         # per column); the D-block additionally stores a scalar "block" factor (float). The heterogeneous
         # value types make `Any` the honest inner annotation here. See `_preprocess`.
@@ -1724,7 +1738,9 @@ class TPLS(RegressorMixin, BaseEstimator):
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
                 self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
-                if self._has_converged(starting_vector=u_prior, revised_vector=u_super_i):
+                # Read after the loop: the last pass allowed can converge too (#1080).
+                converged = self._has_converged(starting_vector=u_prior, revised_vector=u_super_i)
+                if converged:
                     break
 
             logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
@@ -1736,6 +1752,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.fitting_statistics["iterations"].append(n_iter)
             self.fitting_statistics["convergance_tolerance"].append(delta_gap)
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
+            self.fitting_statistics["converged"].append(converged)
 
             # Store model coefficients
             self._store_model_coefficients(
@@ -1750,6 +1767,22 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limits (after all components have been fitted).
         self._calculate_model_statistics_and_limits()
+        self._warn_about_components_not_converged()
+
+    def _warn_about_components_not_converged(self) -> None:
+        """Warn about each component whose loop stopped at ``max_iter``, in the words of MBPLS and MBPCA.
+
+        The loop is not a power iteration, and it can alternate between two states for ever: the
+        component is then the state of the last pass, which differs from one platform to another (#1163).
+        """
+        failed = [a + 1 for a, converged in enumerate(self.fitting_statistics["converged"]) if not converged]
+        if failed:
+            warnings.warn(
+                f"TPLS NIPALS did not converge within max_iter={self.max_iter_} for "
+                f"component(s) {failed}; results for those components may be unreliable.",
+                SpecificationWarning,
+                stacklevel=user_stacklevel(),
+            )
 
 
 # Named regression metrics understood by :func:`make_tpls_scorer`, each paired with the
