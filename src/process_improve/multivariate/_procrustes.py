@@ -24,7 +24,7 @@ from sklearn.utils.validation import check_is_fitted
 from process_improve._random import check_random_state
 from process_improve.visualization.themes import DEFAULT_THEME
 
-from ._common import SpecificationWarning
+from ._common import SpecificationWarning, check_at_least_one
 
 try:
     import plotly.graph_objects as go
@@ -419,8 +419,7 @@ class GPA(BaseEstimator):
             If ``n_permutations`` is below 1.
         """
         check_is_fitted(self)
-        if int(n_permutations) < 1:
-            raise ValueError(f"n_permutations must be at least 1; got {n_permutations}.")
+        check_at_least_one("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         null = np.empty(int(n_permutations))
         for index in range(len(null)):

@@ -1426,8 +1426,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)
 
-        if max_components is not None and int(max_components) < 1:
-            raise ValueError(f"max_components must be at least 1; got {max_components}.")
+        check_at_least_one("max_components", max_components)
 
         splits = list(splitter.split(y))
         smallest_train = min(len(train) for train, _ in splits)

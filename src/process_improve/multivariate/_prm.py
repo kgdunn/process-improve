@@ -30,7 +30,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
-from ._common import DataMatrix, epsqrt
+from ._common import DataMatrix, check_at_least_one, epsqrt
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 from ._robust import fair_weights, l1_median
@@ -262,8 +262,7 @@ class PRM(PLS):
         """
         if not np.isfinite(self.cutoff) or self.cutoff <= 0:
             raise ValueError(f"cutoff must be a positive finite number; got {self.cutoff!r}.")
-        if int(self.max_weight_iter) < 1:
-            raise ValueError(f"max_weight_iter must be at least 1; got {self.max_weight_iter!r}.")
+        check_at_least_one("max_weight_iter", self.max_weight_iter)
         if not np.isfinite(self.coefficient_tol) or self.coefficient_tol <= 0:
             raise ValueError(f"coefficient_tol must be a positive finite number; got {self.coefficient_tol!r}.")
         if self.weight_tol is not None:
