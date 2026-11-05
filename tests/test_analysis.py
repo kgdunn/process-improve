@@ -2090,7 +2090,7 @@ class TestMixtureConstant:
         keyword = self._fit(df, "scheffe_quadratic", analysis_type=analysis)
         formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis)
         shown, expected = (r["split_plot"] if analysis == "split_plot" else r for r in (formula, keyword))
-        assert shown["coding"] == expected["coding"]
+        assert shown["coding"] == expected["coding"] == "actual"  # #1129: split_plot said "coded"
         assert "factor_coding" not in shown  # proportions are not to be recoded by optimize_responses
         if analysis == "coefficients":
             coefficients = {row["term"]: row["coefficient"] for row in formula["coefficients"]}

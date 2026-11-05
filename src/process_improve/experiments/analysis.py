@@ -1031,7 +1031,7 @@ def _split_plot(fit: _Fit, points: pd.DataFrame | None) -> dict[str, Any]:
     result["split_plot"] = {
         "response_name": fit.response_name or fit.response_col,
         "factor_names": list(fit.factor_cols),
-        "coding": "actual" if coding else "coded",
+        "coding": "actual" if coding or fit.mixture else "coded",  # a mixture's proportions have no coded scale
         **({"factor_coding": coding} if coding else {}),
         **result["split_plot"],
     }
