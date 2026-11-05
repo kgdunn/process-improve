@@ -1198,10 +1198,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         no variance is all zeros, in any units. The iteration explains the first Y block. A group
         of F carries something only with its D, as its blend scores weigh F by the properties.
         """
-        key, y_block = next(iter(self.y_mats.items()))
+        y_key, y_block = next(iter(self.y_mats.items()))
         if not np.any(y_block):
             raise NotEnoughVarianceError(
-                f'There is no variance in Y["{key}"]: every response is constant or has no observed value, '
+                f'There is no variance in Y["{y_key}"]: every response is constant or has no observed value, '
                 "so there is nothing for F, D and Z to explain."
             )
         if not any(np.any(self.f_mats[key]) and np.any(self.d_mats[key]) for key in self.d_mats) and not any(
