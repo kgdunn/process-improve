@@ -8433,17 +8433,23 @@ def test_t2_contributions_by_hand_over_the_components_selected() -> None:
             t2_contributions(model, X, components=wrong)
 
 
-def test_contribution_scalings_leave_a_largest_or_total_of_at_most_epsqrt_alone() -> None:
-    """``"maximum"`` and ``"within"`` divide by 1 when the largest contribution, or a row's total, is at most epsqrt.
+@pytest.mark.parametrize("units", [2.0**-40, 1.0, 2.0**40])
+def test_contribution_scalings_are_relative_to_the_largest_in_any_units(units: float) -> None:
+    """``"maximum"`` divides by the largest contribution unless it is 0; ``"within"`` leaves a row alone
+    whose total is at most epsqrt times the largest row's total (#1070).
 
-    epsqrt is exactly ``2**-26``. Such contributions keep their size, rather than being blown up to 1.
+    epsqrt is exactly ``2**-26``, and the units are powers of two, so every bound is exact. An
+    absolute epsqrt left every bar of data in small units unscaled.
     """
     model, tiny = _identity_model(2), 2.0**-26
-    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"])
-    expected = pd.DataFrame([[tiny, 0.0], [-tiny / 2, 0.0]], columns=["a", "b"])
+    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"]) * units
+    expected = pd.DataFrame([[1.0, 0.0], [-0.5, 0.0]], columns=["a", "b"])
     pd.testing.assert_frame_equal(score_contributions(model, X, scaling="maximum"), expected, check_exact=True)
-    rows = pd.DataFrame([[tiny, 5.0], [tiny / 2, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"])
-    expected = pd.DataFrame([[tiny, 0.0], [tiny / 2, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
+    zeros = pd.DataFrame([[0.0, 5.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, zeros, scaling="maximum"), 0.0 * zeros)
+    # Totals of 3 epsqrt, exactly the bound, 3.5 epsqrt, 0 and 3: the first and the third are left alone.
+    rows = pd.DataFrame([[3 * tiny, 5.0], [-3.5 * tiny, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"]) * units
+    expected = pd.DataFrame([[3 * tiny * units, 0.0], [-1.0, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
     pd.testing.assert_frame_equal(score_contributions(model, rows, scaling="within"), expected, check_exact=True)
 
 
