@@ -64,6 +64,7 @@ from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
 from process_improve.experiments.designs_constrained import MAX_EXPRESSION_LENGTH, factor_lookup, parse_constraint
+from process_improve.experiments.run_sheet import _without_the_clock
 from process_improve.univariate import (
     bartlett_test,
     dunnett_value,
@@ -2543,7 +2544,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
     """Write the run sheet and the hidden specification sheet, base64-encoded; and the curves, when the study reads one.
 
     The Curves sheet has a row per run, in the run sheet's order and with its run order, and a column per
-    point along the curve, headed by its value.
+    point along the curve, headed by its value. The workbook holds no time of day, so one study gives one file.
     """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
@@ -2556,7 +2557,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
             points = pd.DataFrame(curves, columns=spec["curve"]["argument"]["values"])
             pd.concat([orders, points], axis=1).to_excel(xl, sheet_name=CURVE_SHEET, index=False)
             xl.book[CURVE_SHEET].freeze_panes = "A2"
-    return base64.b64encode(buf.getvalue()).decode("ascii")
+    return base64.b64encode(_without_the_clock(buf.getvalue())).decode("ascii")
 
 
 def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict, pd.DataFrame | None]:
