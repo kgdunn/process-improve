@@ -9,6 +9,7 @@ The contributions of the row then add up to the score, T² and SPE the model giv
 from __future__ import annotations
 
 import copy
+import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -342,3 +343,34 @@ def test_contributions_of_a_row_with_a_missing_cell_add_up_to_what_the_model_giv
     for label, parts, whole in _contribution_totals(name):
         assert np.isfinite(whole).all(), f"{name} {label}"
         np.testing.assert_allclose(parts, whole, rtol=1e-10, atol=1e-12, err_msg=f"{name} {label}")
+
+
+def _select(name: str, X: pd.DataFrame, y: pd.DataFrame) -> pd.Series:
+    """Run ``select_n_components`` of the estimator ``name`` with three folds and return its main curve."""
+    settings = {"max_components": 3, "cv": 3, "random_state": 0}
+    if name == "PCA":
+        return PCA.select_n_components(X, n_repeats=1, **settings).press
+    if name == "PLSDA":
+        classes = np.where(y["y"] > y["y"].median(), "high", "low")
+        return PLSDA.select_n_components(X, classes, n_repeats=1, **settings).rmsecv["total"]
+    if name == "MBPLS":
+        return MBPLS.select_n_components(_blocks(X), y, n_repeats=1, **settings).rmsecv
+    return PLS.select_n_components(X, y, n_repeats=1, **settings).rmsecv["total"]
+
+
+@pytest.mark.parametrize("name", ["PCA", "PLS", "PLSDA", "MBPLS"])
+def test_select_n_components_reads_a_pandas_missing_value_as_missing(name: str) -> None:
+    """A nullable column's pd.NA is a missing cell to ``select_n_components``, as it is to ``fit`` (#1144).
+
+    PCA raised ``TypeError`` on converting it to a float, and PLS (and PLSDA through it) on testing
+    it for NaN, where ``fit`` took it. The curve is the one of the same data with NaN.
+    """
+    X, y = _data()
+    gappy = _with_gaps(X)
+    nullable = gappy.astype("Float64")
+    assert nullable.isna().equals(gappy.isna())
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # whatever the selection warns of, it warns of for both
+        expected = _select(name, gappy, y)
+        got = _select(name, nullable, y.astype("Float64"))
+    pd.testing.assert_series_equal(got, expected, rtol=1e-12)

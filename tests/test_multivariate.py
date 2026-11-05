@@ -6599,6 +6599,26 @@ class TestTPLSWrittenOut:
         with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
             model.fit(DataFrameDict(blocks))
 
+    def test_an_f_of_constants_used_as_given_has_an_importance_of_0_without_a_warning(self) -> None:
+        """#1144: every blend with the same F row, used as given, leaves F nothing to explain, so its VIP is 0.
+
+        F then says nothing about how the blends differ: its loadings and R2 are 0, and Z carries the
+        fit. Both VIPs of F divided 0 by 0, with numpy's warnings, and were NaN; a block that a
+        component leaves untouched has a VIP of 0, as in MBPLS.
+        """
+        d_matrix, blocks = _t_shaped(gaps=False)
+        for frame in blocks["F"].values():
+            frame.loc[:, :] = np.arange(1, frame.shape[1] + 1) / 10.0
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            model.fit(DataFrameDict(blocks))
+            importances = [model.vip("F"), model.vip("F", method="deflated")]
+        for importance in importances:
+            for group in importance.values():
+                np.testing.assert_array_equal(group.to_numpy(), 0.0)
+        assert np.isfinite(model.vip("D", method="deflated")["A"]).all()
+
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:
@@ -8129,6 +8149,34 @@ def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
     np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.8, -1.4, 10 / 3], rtol=1e-14)
     np.testing.assert_allclose(tp.loadings.to_numpy(), [975 / 1583, 55 / 74], rtol=1e-14)
     np.testing.assert_allclose(ratio.to_numpy(), [4225 / 524, 121 / 27], rtol=1e-13)
+
+
+def test_the_selectivity_ratio_s_f_critical_value_counts_each_feature_s_observed_rows() -> None:
+    """Each feature's ratio is formed over its observed cells, so its F critical value counts those rows (#1144).
+
+    Ten rows with a gap in b and two in c: a's ratio is formed over 10 rows, b's over 9 and c's over
+    8, with N - 2 and N - 3 degrees of freedom each. The value for all 10 rows was given for every
+    feature, so b and c were held to a lower bar than their rows support. A row with nothing
+    observed counts for no feature; when every feature has the same count the value is one number.
+    """
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((10, 3)), columns=["a", "b", "c"])
+    gaps = X.copy()
+    gaps.loc[3, "b"] = gaps.loc[[1, 6], "c"] = np.nan
+    model = SimpleNamespace(
+        beta_coefficients_=pd.DataFrame({"y": [0.0, 0.0, 0.0]}, index=["a", "b", "c"]),
+        direct_weights_=pd.DataFrame([[1.0], [2.0], [-1.0]], index=["a", "b", "c"]),
+        y_loadings_=pd.DataFrame([[1.0]], index=["y"]),
+    )
+    critical = selectivity_ratio(model, gaps, conf_level=0.9).attrs["f_critical"]
+    expected = pd.Series([f_dist.ppf(0.9, n - 2, n - 3) for n in (10, 9, 8)], index=["a", "b", "c"], name="f_critical")
+    pd.testing.assert_series_equal(critical, expected, rtol=1e-12)
+    assert selectivity_ratio(model, X, conf_level=0.9).attrs["f_critical"] == pytest.approx(f_dist.ppf(0.9, 8, 7))
+    blank_row = X.copy()
+    blank_row.loc[5] = np.nan
+    assert selectivity_ratio(model, blank_row, conf_level=0.9).attrs["f_critical"] == pytest.approx(
+        f_dist.ppf(0.9, 7, 6), rel=1e-12
+    )
 
 
 def test_selectivity_ratio_of_a_pls_fitted_with_missing_values_is_not_0() -> None:

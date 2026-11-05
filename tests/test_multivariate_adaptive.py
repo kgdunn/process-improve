@@ -1018,13 +1018,14 @@ def test_partial_fit_is_update_row_by_row(synthetic_pls_data: tuple[pd.DataFrame
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
-def test_unlabelled_rows_are_numbered_on_from_the_last_label(
+def test_unlabelled_rows_are_numbered_on_from_the_largest_integer_label(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
 ) -> None:
-    """Each array given to partial_fit, and each update without a label, continues the count (#1082).
+    """Each array given to partial_fit, and each update without a label, continues the count (#1082, #1144).
 
-    The count goes on from the last label when it is an integer, and from the number of rows
-    recorded so far when it is not, so the history frames keep one label per row.
+    The count goes on from the largest integer label recorded so far, whatever labels came since, so
+    the history frames keep one label per row. It went on from the number of rows recorded after a
+    label that is not an integer, and so repeated 2 after the labels 2 and "x".
     """
     X, Y = synthetic_pls_data
     model = _fit_either(cls, X.iloc[:90], Y.iloc[:90])
@@ -1035,7 +1036,47 @@ def test_unlabelled_rows_are_numbered_on_from_the_last_label(
     model.update(rows[7])
     model.partial_fit(X.iloc[98:99].set_axis(["late"]))
     model.partial_fit(rows[9:11])
-    assert list(model.spe_.index) == [0, 1, 2, 3, 4, 20, 21, 22, "late", 9, 10]
+    model.partial_fit(X.iloc[90:91].set_axis([12]))
+    model.update(rows[1])
+    assert list(model.spe_.index) == [0, 1, 2, 3, 4, 20, 21, 22, "late", 23, 24, 12, 25]
+
+    mixed = _fit_either(cls, X.iloc[:90], Y.iloc[:90])
+    mixed.update(rows[0], label=2)
+    mixed.update(rows[1], label="x")
+    mixed.update(rows[2])
+    assert list(mixed.spe_.index) == [2, "x", 3]
+
+
+@pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
+def test_frames_with_pandas_default_row_numbers_are_numbered_on(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], cls: type
+) -> None:
+    """A frame whose rows pandas numbered 0, 1, ... carries no labels of its own, so its rows are counted on (#1144).
+
+    Two such frames of ten rows each gave the labels 0 to 9 twice. A frame with labels of its own,
+    such as a later slice of a longer frame, keeps them.
+    """
+    X, Y = synthetic_pls_data
+    model = _fit_either(cls, X.iloc[:80], Y.iloc[:80])
+    first, second = (X.iloc[start : start + 10].reset_index(drop=True) for start in (80, 90))
+    y_rows = None if cls is AdaptivePCA else Y.iloc[80:90].reset_index(drop=True)
+    model.partial_fit(first, y_rows)
+    model.partial_fit(second, y_rows)
+    model.partial_fit(X.iloc[95:97].set_axis(pd.RangeIndex(40, 42)))
+    assert list(model.spe_.index) == [*range(20), 40, 41]
+    assert model.spe_.index.is_unique
+
+
+def test_a_history_kept_before_the_count_was_stored_numbers_on_from_it(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """A model pickled before #1144 kept no count; it is read off the labels its history holds."""
+    X, _ = synthetic_pls_data
+    model = AdaptivePCA(n_components=2).fit(X.iloc[:90])
+    model.partial_fit(X.iloc[90:92].set_axis([7, "x"]))
+    del model._next_label
+    model.update(X.iloc[92].to_numpy())
+    assert list(model.spe_.index) == [7, "x", 8]
 
 
 @pytest.mark.parametrize("cls", [AdaptivePCA, AdaptivePLS])
