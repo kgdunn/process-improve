@@ -459,6 +459,23 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         )
 
     # ------------------------------------------------------------------ #
+    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+        """Return the rows :meth:`transform` reads, scaled as the fit scaled its own: what the contributions read."""
+        X_scaled, index = self._prepare(X)
+        return pd.DataFrame(X_scaled, index=index, columns=self._feature_names)
+
+    def _contribution_matrices(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return ``(R, P)``, with the scores ``[t_p | T_o] = X R`` and X rebuilt as ``[t_p | T_o] P'`` (#1144).
+
+        The contribution functions split a score, T2 or SPE with these, as they use PLS's direct
+        weights and loadings. The orthogonal scores are ``X W_o (P_o' W_o)^-1``, as PLS's are
+        ``X W (P'W)^-1``, and the predictive score is ``X F w_p``, ``F`` the orthogonal filter.
+        """
+        weights, loadings = self.orthogonal_weights_.to_numpy(), self.orthogonal_loadings_.to_numpy()
+        if weights.shape[1]:
+            weights = weights @ safe_inverse(loadings.T @ weights, what="(P_o' @ W_o)")
+        return np.hstack([self._osc_filter @ self._w_p, weights]), np.hstack([self._p_p, loadings])
+
     def _prepare(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index | None]:
         """Validate new X, capture its index, and move it to the scaled space."""
         check_is_fitted(self)

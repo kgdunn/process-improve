@@ -581,15 +581,19 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
     (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
     direct (rotated) weights ``direct_weights_`` and ``P`` is ``x_loadings_``.
-    PLS is recognised by the presence of ``direct_weights_``.
+    PLS is recognised by the presence of ``direct_weights_``. OPLS, which has
+    neither, gives its own through ``_contribution_matrices`` (#1144).
     """
     if not hasattr(model, "scores_"):
         msg = "Model is not fitted. Call fit() before computing contributions."
         raise ValueError(msg)
 
     is_pls = hasattr(model, "direct_weights_")
-    P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
-    R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
+    if hasattr(model, "_contribution_matrices"):
+        R, P = model._contribution_matrices()
+    else:
+        P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
+        R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
     # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
     # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names.
     return model._scaled_rows(X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)), R, P
