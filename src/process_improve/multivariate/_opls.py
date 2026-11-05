@@ -217,7 +217,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         self.n_targets_ = 1
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
-            raise ValueError("n_orthogonal_components must be >= 0.")
+            raise ValueError(f"n_orthogonal_components must be >= 0; got {self.n_orthogonal_components}.")
         most = min(self.n_samples_, n_features)
         if 1 + n_ortho > most:
             warnings.warn(
@@ -433,10 +433,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
         y_arr = np.atleast_1d(np.asarray(_as_scalar(y_desired), dtype=float))
         if y_arr.size != 1:
-            raise ValueError("OPLS.invert expects a single desired response value.")
+            raise ValueError(f"y_desired has {y_arr.size} values; OPLS.invert expects a single desired response value.")
         y_value = float(y_arr[0])
         if not np.isfinite(y_value):
-            raise ValueError("y_desired must be a finite value.")
+            raise ValueError(f"y_desired must be a finite value; got {y_value}.")
 
         # Scale the target to the fitting space.
         if self._y_scaler is not None:

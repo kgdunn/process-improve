@@ -486,13 +486,15 @@ class TestLabels:
 class TestInputsAndMessages:
     def test_the_messages_in_full(self, cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         X, y = cheese
-        with pytest.raises(ValueError, match=r"^n_orthogonal_components must be >= 0\.$"):
+        with pytest.raises(ValueError, match=r"^n_orthogonal_components must be >= 0; got -1\.$"):
             OPLS(n_orthogonal_components=-1).fit(X, y)
         opls = OPLS(n_orthogonal_components=1).fit(X, y)
-        with pytest.raises(ValueError, match=r"^OPLS\.invert expects a single desired response value\.$"):
+        with pytest.raises(
+            ValueError, match=r"^y_desired has 2 values; OPLS\.invert expects a single desired response value\.$"
+        ):
             opls.invert(np.array([1.0, 2.0]))
         for target in (np.inf, None):
-            with pytest.raises(ValueError, match=r"^y_desired must be a finite value\.$"):
+            with pytest.raises(ValueError, match=r"^y_desired must be a finite value; got (inf|nan)\.$"):
                 opls.invert(target)  # type: ignore[arg-type]
 
     def test_the_predictive_score_of_an_inversion_is_its_design_s_score(
