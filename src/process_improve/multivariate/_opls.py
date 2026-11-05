@@ -188,8 +188,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             or holds a missing or infinite value.
         NotEnoughVarianceError
             If X has no variance left for a component, as when there are more
-            components than the rank of the centred X; or if Y is constant (with
-            ``scale=False``, if Y is 0 throughout).
+            components than the rank of the centred X; if Y is constant (with
+            ``scale=False``, if Y is 0 throughout); or if X has no covariance with Y.
         """
         self._validate_params()
         if self.copy is not None:

@@ -227,8 +227,9 @@ def test_a_training_row_with_nothing_observed_has_no_spe(estimator: str) -> None
     X, y = _data()
     X.iloc[5] = np.nan
     for spe in _spe_of_rows(estimator, X, y):
+        others = np.delete(spe, 5, axis=0)
         assert np.isnan(spe[5]).all()
-        assert np.isfinite(np.delete(spe, 5, axis=0)).all()
+        assert np.isfinite(others).all()
 
 
 @pytest.mark.parametrize("estimator", ["PCA", "PLS"])
@@ -330,10 +331,11 @@ def test_a_row_with_nothing_observed_is_left_out_of_press_and_q2(tool: str) -> N
     X, y = _data()
     X.iloc[5] = np.nan
     predicted, press, q2 = _held_out_q2(tool, X, y)
-    assert np.isnan(predicted[5])
-    assert np.isfinite(np.delete(predicted, 5)).all()
+    others = np.delete(predicted, 5)
     observed = np.delete(y["y"].to_numpy(), 5)
-    by_hand = float(np.sum((observed - np.delete(predicted, 5)) ** 2))
+    assert np.isnan(predicted[5])
+    assert np.isfinite(others).all()
+    by_hand = float(np.sum((observed - others) ** 2))
     assert press == pytest.approx(by_hand)
     assert q2 == pytest.approx(1 - by_hand / float(np.sum((observed - observed.mean()) ** 2)))
 
