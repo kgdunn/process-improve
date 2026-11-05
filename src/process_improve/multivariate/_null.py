@@ -46,7 +46,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import hypergeom
 
-from ._common import SpecificationWarning
+from ._common import SpecificationWarning, user_stacklevel
 from ._pls import PLS
 
 __all__ = [
@@ -393,7 +393,7 @@ def count_discoveries_under_null(
             "the empirical FDR cannot be read as a property of the data. Seed the selector (or "
             "make it deterministic) and re-run.",
             SpecificationWarning,
-            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            stacklevel=user_stacklevel(),
         )
 
     rng = np.random.default_rng(seed)

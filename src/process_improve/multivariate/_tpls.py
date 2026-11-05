@@ -39,6 +39,7 @@ from ._common import (
     largest_ssq_column,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import JudgedRows, spe_calculation
@@ -1134,7 +1135,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             warnings.warn(  # a UserWarning, warn's default category
                 f"Block {label} has columns with no variance, which carry no information and are "
                 f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 

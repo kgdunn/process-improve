@@ -783,7 +783,7 @@ def _eastment_krzanowski_press(
             "model is fitted on fewer rows or columns than the whole. Component counts "
             "above that are reported as NaN. Use fewer folds to evaluate more.",
             SpecificationWarning,
-            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            stacklevel=user_stacklevel(),
         )
 
     press = np.full(max_components, np.nan)
@@ -1037,7 +1037,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 f"the minimum of either the number of rows ({N}) or "
                 f"the number of columns ({K}).",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=user_stacklevel(),
             )
             A = min_dim
         # The resolved (possibly clamped) component count is a fitted attribute;
@@ -2175,7 +2175,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 f"largest count tried rather than an optimum. Evaluate more components, or use "
                 f"a scheme that holds data out ({alternatives}), before reading this as an answer.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
 
         consensus_fields: dict[str, object] = {}

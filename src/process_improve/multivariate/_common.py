@@ -850,7 +850,7 @@ def y_is_exhausted(
         f"is uncorrelated with what is left of X (R²Y stays at {r2y:.4g}). The data support {a} component(s); "
         "each later one takes the largest direction left in X and leaves the predictions unchanged.",
         SpecificationWarning,
-        stacklevel=4,
+        stacklevel=user_stacklevel(),
     )
     return True
 
@@ -889,7 +889,7 @@ def _rows_with_data(values: np.ndarray) -> np.ndarray:
     return np.any(~np.isnan(values), axis=1)
 
 
-def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> np.ndarray:
+def unobserved_columns(block: pd.DataFrame, label: str) -> np.ndarray:
     """Return which columns of a training block have no observed value, and warn, naming them, if any do.
 
     Such a column carries no information, so every estimator of the family leaves it out of
@@ -903,9 +903,6 @@ def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> 
         The training block, NaN where missing.
     label : str
         Where the block sits, as ``'X'``, ``'Y'``, ``'X["name"]'`` or ``'F["group"]'``.
-    stacklevel : int, default=4
-        Passed to :func:`warnings.warn`: 4 reaches the caller of a ``fit`` wrapped in sklearn's
-        ``_fit_context``, which calls this directly.
 
     Returns
     -------
@@ -918,7 +915,7 @@ def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> 
         warnings.warn(  # a UserWarning, warn's default category
             f"Block {label} has columns with no observed values, which carry no information and are "
             f"excluded from the model: {named}. Drop them, or check the data for a sensor that was never logged.",
-            stacklevel=stacklevel,
+            stacklevel=user_stacklevel(),
         )
     return unobserved
 

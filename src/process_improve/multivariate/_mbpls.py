@@ -1697,7 +1697,7 @@ def randomization_test_mbpls(
             "process_improve.multivariate.methods.randomization_test_mbpls(seed=...) is deprecated since 2.4.0 "
             "and will be removed in 3.0; use random_state instead.",
             DeprecationWarning,
-            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            stacklevel=user_stacklevel(),
         )
         if random_state is not None:
             raise TypeError("Pass random_state only: seed is its deprecated name.")
