@@ -381,7 +381,7 @@ class UncentredDataWarning(SpecificationWarning):
     """
 
 
-class NotEnoughVarianceError(RuntimeError):
+class NotEnoughVarianceError(RuntimeError, ValueError):
     """Raised when more components are requested than the data's variance supports.
 
     During NIPALS extraction (PCA / PLS) the deflated data array can run out of
@@ -391,7 +391,11 @@ class NotEnoughVarianceError(RuntimeError):
 
     Subclasses :class:`RuntimeError` so existing ``except RuntimeError`` handlers
     keep working, while callers that want to react specifically (e.g. trimming the
-    component count during cross-validation) can catch this narrower type.
+    component count during cross-validation) can catch this narrower type. It is a
+    :class:`ValueError` as well, because it replaced the ``ValueError`` TPLS raised for
+    data with no variance and the ``LinAlgError`` (a ``ValueError``) PLS and OPLS
+    raised for a Y with no covariance with X: an ``except ValueError`` written for
+    those still catches it.
     """
 
 

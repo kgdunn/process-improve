@@ -354,6 +354,9 @@ def test_a_constant_y_is_refused_as_mbpls_refuses_it() -> None:
     )
     with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match=message):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    # Code written for the ValueError TPLS raised before still catches the refusal.
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(ValueError, match=message):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
     flat = {"x": pd.concat([blocks["Z"]["Z1"], blocks["F"]["G"]], axis=1)}
     with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y: every response is constant"):
         MBPLS(n_components=1).fit(flat, blocks["Y"]["Y1"])

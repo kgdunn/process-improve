@@ -5165,11 +5165,15 @@ def test_equal_weight_r2_total_needs_one_row_per_component() -> None:
 
 
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
-    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
+    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError and as ValueError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad
     # ``except RuntimeError`` handlers keep working while callers can catch the
     # narrower type (e.g. to trim the component count during cross-validation).
+    # It is a ValueError too: it replaced the ValueError TPLS raised for data with no
+    # variance, and the LinAlgError (a ValueError) PLS and OPLS raised for a Y with no
+    # covariance with X, so a caller's ``except ValueError`` still catches it.
     assert issubclass(NotEnoughVarianceError, RuntimeError)
+    assert issubclass(NotEnoughVarianceError, ValueError)
 
     # PLS: rank-1 X (two identical columns) cannot support a 2nd component.
     X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0, 5.0], "b": [1.0, 2.0, 3.0, 4.0, 5.0]})
