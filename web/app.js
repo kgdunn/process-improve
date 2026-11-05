@@ -302,7 +302,9 @@ let pythonErrors = [];
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    if (!pythonFailure) setStatus(data.status, data.state);
+    if (pythonFailure) return;
+    setStatus(data.status, data.state);
+    pythonSaid = statusTicket;
     return;
   }
   const { fn, resolve } = pending.get(data.id);
@@ -352,6 +354,8 @@ const STATUS_WAIT = 400;
 let statusTimer = null;
 /** One more each time the status line is set, so a reply can tell whether the page said something after it was asked. */
 let statusTicket = 0;
+/** The status ticket of Python's last note on how far it has got, such as installing plotly: the call's end replaces it. */
+let pythonSaid = 0;
 
 /**
  * Say what Python is doing on the status line; state is "busy" (the mark's runs light up), "ok"
@@ -3159,7 +3163,10 @@ async function readUpload(file) {
 // ---------------------------------------------------------------- analyse step
 let analysisTimer = null;
 let ticket = 0;
-/** The status ticket once the analysis said it is complete; a status set after it (a refused add) is newer, and stays. */
+/**
+ * The status ticket once the analysis said it is complete: its charts say so again, or why they could not be drawn, only
+ * while nothing has been said since but a note from Python on how far it has got. A refused add, say, stays.
+ */
 let analysisSaid = 0;
 
 /** Analyse a moment after the last keystroke, rather than on every one. */
@@ -4041,7 +4048,7 @@ async function drawCharts(request, mine, given = null) {
 
 async function libraryPlots(request, mine) {
   const reply = await call("api_plots", request);
-  if (mine === ticket && statusTicket === analysisSaid) {
+  if (mine === ticket && [analysisSaid, pythonSaid].includes(statusTicket)) {
     setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
   }
   return reply.ok ? reply.result : null;

@@ -33,6 +33,8 @@
     pi.fakes[fn] = reply;
   };
   pi.count = (fn) => pi.calls.filter((c) => c.fn === fn).length;
+  /** Post a note on how far Python has got, as worker.js does while it installs plotly; with the native worker only. */
+  pi.note = (status, state = "busy") => pi.worker.emit({ status, state });
   /** Ask Python directly, as the page would, without the page seeing the call or its reply. */
   pi.ask = (fn, payload = {}) => {
     if (window.__piTransport === "native") return window.__piNative(fn, JSON.stringify(payload)).then(JSON.parse);
@@ -91,6 +93,7 @@
   class NativeWorker extends EventTarget {
     constructor(url) {
       super();
+      pi.worker = this;
       this.url = url;
       this.onmessage = null;
       this.onerror = null;
