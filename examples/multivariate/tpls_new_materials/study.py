@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 from new_materials import centre_f, predict
 from simulate import simulate
 
-from process_improve.multivariate.methods import PLS, DataFrameDict
+from process_improve.multivariate.methods import PLS, TPLS, DataFrameDict
 
 ZERO_SHOT = {
     "ignore the material": mt.ignore_material,
@@ -102,13 +102,29 @@ def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "m
     return long.pivot_table(index=index, columns=columns, values="value", aggfunc=aggfunc)
 
 
-def invariance_checks(data: dict, group: str, n_components: int = 6) -> pd.DataFrame:
+def require_convergence(model: TPLS, fit: str) -> None:
+    """Refuse a fit with a component that stopped at ``max_iter``.
+
+    TPLS stops there without a warning. On the simulated data of :func:`invariance_checks`,
+    with D deflated, the iteration for the third component alternates between two states for
+    ever, and the model is whichever state the last iteration lands on: that differs between
+    platforms (0.042 on Linux, 0.032 on macOS for the autoscaled split-a-lot check at 6 components).
+    """
+    iterations = model.fitting_statistics["iterations"]
+    if max(iterations) >= model.max_iter_:
+        msg = f"{fit}: a component stopped at max_iter={model.max_iter_} without converging ({iterations})"
+        raise RuntimeError(msg)
+
+
+def invariance_checks(data: dict, group: str, n_components: int = 2) -> pd.DataFrame:
     """Run the two tests a model must pass to take new materials; changes are in Y standard deviations.
 
     1. Split one lot of ``group`` into two identical half-lots (the twin entered as a new material).
     2. Add to D a material of ``group`` that no blend uses, and predict the training blends again.
 
-    Each entry is the largest change of any prediction; a model that passes shows 0.
+    Each entry is the largest change of any prediction; a model that passes shows 0. Every fit
+    must converge (:func:`require_convergence`); 2 components is the most at which the D-deflated
+    fits of the simulated data set do.
     """
     d, f_group = data["D"][group], data["F"][group]
     sd = next(iter(data["Y"].values())).std().to_numpy()
@@ -126,6 +142,7 @@ def invariance_checks(data: dict, group: str, n_components: int = 6) -> pd.DataF
     for name, centred, deflate_d in variants:
         mt.FIT_CACHE.clear()
         model, means = mt.fit_tpls(data, n_components, centred=centred, deflate_d=deflate_d)
+        require_convergence(model, name)
 
         def run(f: dict, d_new: dict | None = None, model=model, means=means, centred=centred) -> np.ndarray:
             f = centre_f(f, means) if centred else f
@@ -139,6 +156,7 @@ def invariance_checks(data: dict, group: str, n_components: int = 6) -> pd.DataF
         padded = {**data, "D": {**data["D"], group: pd.concat([d, unused])}, "F": padded_f}
         mt.FIT_CACHE.clear()
         refit, refit_means = mt.fit_tpls(padded, n_components, centred=centred, deflate_d=deflate_d)
+        require_convergence(refit, f"{name}, refit")
         f = centre_f(padded_f, refit_means) if centred else padded_f
         new = predict(refit, DataFrameDict({"F": f, "Z": data["Z"], "Y": {}})).to_numpy()
         rows[name]["add an unused material, refit"] = np.max(np.abs(new - base) / sd)

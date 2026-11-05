@@ -33,8 +33,8 @@ two blends by 29%.
    excludes it: at prediction the new material's fraction is multiplied by zero, as if it were
    not in the blend. The refit also changes the model, because the new row changes the centring
    and scaling of D and enters the D-block deflation: in the simulation, adding one material
-   that no blend uses moved the predictions of the blends that do not use it by up to 0.50 Y
-   standard deviations.
+   that no blend uses moved the predictions of the blends that do not use it by up to 0.023 Y
+   standard deviations (2 components, `results/invariance_checks.csv`).
 3. **Autoscaled F ties a material's effect to how it was used, not to what it is.** With F
    divided by the standard deviation `sigma_j` of each material's fraction, the effect of
    material `j` on Y is `b(d_j) / sigma_j`, where `b(d_j)` depends on its properties alone. A
@@ -67,9 +67,12 @@ With one group and no Z every variant reaches the truth. Add Z or a second group
 D-deflated models stop between 0.59 and 0.77, while the same model without the deflation keeps
 up with PLS on the mixture properties.
 
-The deflation also makes TPLS fragile. Adding to D one material that no blend uses, and
-refitting, moved the predictions of the blends by up to 0.50 Y standard deviations (autoscaled
-F) and 0.56 (centred F); without the deflation, by 0.04.
+The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
+checks, with D deflated, the iteration for the third component does not converge: it alternates
+between two states, and TPLS stops at its iteration limit without a warning. The model, and
+every prediction from it, is then whichever state the last iteration lands on, which differs
+between platforms. Without the deflation every component of that data set converges. The
+invariance checks therefore use 2 components, and refuse a fit that did not converge.
 
 ## Why a new material can be predicted at all
 
