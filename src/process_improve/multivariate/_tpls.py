@@ -689,7 +689,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         self._refuse_blocks_with_no_variance()
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
-        self.observation_names = X["F"][group_keys[0]].index
+        # A copy, so that a name the caller gives this axis later does not rename the model's frames
+        self.observation_names = X["F"][group_keys[0]].index.copy()
         self.property_names = {key: self.d_matrix[key].columns.to_list() for key in group_keys}
         self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}

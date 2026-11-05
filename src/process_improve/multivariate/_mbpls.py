@@ -35,6 +35,7 @@ from ._common import (
     SpecificationWarning,
     _equal_weight_r2_total,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
@@ -689,7 +690,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             :meth:`PLS.fit` raises.
         """
         check_at_least_one("n_components", self.n_components)
-        y = _validate_fit_arguments(X, y)
+        y = _own_axes(_validate_fit_arguments(X, y))
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X, y)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}

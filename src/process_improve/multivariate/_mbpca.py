@@ -26,6 +26,7 @@ from ._common import (
     DiagnoseResult,
     SpecificationWarning,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     check_at_least_one,
@@ -517,6 +518,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """
         check_at_least_one("n_components", self.n_components)
         _validate_blocks(X)
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
