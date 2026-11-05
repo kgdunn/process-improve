@@ -209,7 +209,9 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         r"nothing left in Y that X can explain",
     ),
     "PLS: centring and scaling outside the folds": (
-        lambda: PLS.select_n_components(X, Y, max_components=2, cv=5, n_repeats=1, scale_inside_folds=False),
+        lambda: PLS.select_n_components(
+            X, Y, max_components=2, cv=5, n_repeats=1, scale_inside_folds=False, random_state=0
+        ),
         r"scale_inside_folds=False leaks",
     ),
     "PLS: cross-validation criteria on data that are already autoscaled": (
