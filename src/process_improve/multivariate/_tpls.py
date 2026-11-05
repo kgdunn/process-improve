@@ -1725,10 +1725,16 @@ class TPLS(RegressorMixin, BaseEstimator):
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
                 self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
-                if self._has_converged(starting_vector=u_prior, revised_vector=u_super_i):
+                converged = self._has_converged(starting_vector=u_prior, revised_vector=u_super_i)
+                if converged:
                     break
 
-            logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
+            logger.debug(
+                "TPLS: super-component %d %s in %d iterations",
+                pc_a + 1,
+                "converged" if converged else "did not converge",
+                n_iter,
+            )
 
             # After convergance. Step 12: Now store information.
             # =================

@@ -227,8 +227,10 @@ library. Every warning in ``multivariate/`` and ``batch/`` passes
 instead: it counts the frames to the first one whose module is
 outside ``process_improve``, scikit-learn and mutmut, whose
 trampoline calls each function the nightly mutation run mutates.
-``tests/test_warnings_name_the_callers_line.py`` holds one case per
-warning; a new warning adds its case there.
+Each of these warnings has a test that its file is the test's own,
+most of them as a case of
+``tests/test_warnings_name_the_callers_line.py``, where a new warning
+adds its case.
 
 Category guide:
 

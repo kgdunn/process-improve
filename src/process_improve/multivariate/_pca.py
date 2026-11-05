@@ -1237,7 +1237,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             iterations[a] = itern
             # Whether the last pass met the tolerance, not whether it was the last one allowed: a
             # component can converge on that pass (#1080).
-            if not scores_converged(t_a_guess, t_a, settings["md_tol"]):
+            converged = scores_converged(t_a_guess, t_a, settings["md_tol"])
+            if not converged:
                 warnings.warn(
                     f"PCA NIPALS: component {a + 1} reached the maximum number of "
                     f"iterations ({settings['md_max_iter']}) without converging.",
@@ -1245,8 +1246,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     stacklevel=user_stacklevel(),
                 )
             logger.debug(
-                "PCA NIPALS: component %d converged in %d iterations (tol=%g)",
+                "PCA NIPALS: component %d %s in %d iterations (tol=%g)",
                 a + 1,
+                "converged" if converged else "did not converge",
                 itern,
                 settings["md_tol"],
             )

@@ -704,8 +704,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             timing[a] = time.time() - start_time
             iterations[a] = itern
             logger.debug(
-                "PLS NIPALS: component %d converged in %d iterations (tol=%g)",
+                "PLS NIPALS: component %d %s in %d iterations (tol=%g)",
                 a + 1,
+                "converged" if converged else "did not converge",
                 itern,
                 settings["md_tol"],
             )
