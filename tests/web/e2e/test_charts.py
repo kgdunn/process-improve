@@ -26,7 +26,10 @@ def plots(page, box: str = "#charts") -> list[list[dict]]:
 
 
 def test_the_charts_say_the_analysis_is_complete_after_python_s_note_on_them(blank_page):
-    """Python says it is installing plotly while the first charts are on their way: the charts' end replaces the note."""
+    """Python says it is installing plotly while the first charts are on their way.
+
+    The charts' end replaces that note.
+    """
     page = blank_page
     generate(page, design_type="full_factorial", n_center_points=0)
     plotted = page.evaluate("window.__pi.count('api_plots')")
