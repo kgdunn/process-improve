@@ -486,7 +486,7 @@ class PLSDA(ClassifierMixin, PLS):
         samples land in the right class. sklearn's convention (higher is better) holds
         either way, but only accuracy answers the question a classifier is asked.
         """
-        correct = self.predict(X) == np.ravel(y)
+        correct = self.predict(X) == _labels_for(X, y)
         return float(np.average(correct, weights=None if sample_weight is None else np.ravel(sample_weight)))
 
     def _confusion(self, truth: np.ndarray, predicted: np.ndarray) -> pd.DataFrame:
@@ -542,10 +542,10 @@ class PLSDA(ClassifierMixin, PLS):
         Raises
         ------
         ValueError
-            If ``y`` holds a label the model was not fitted on.
+            If ``y`` holds a label the model was not fitted on, or its length does not match ``X``.
         """
         check_is_fitted(self)
-        truth = np.asarray(y).ravel()
+        truth = _labels_for(X, y)
         unseen = set(np.unique(truth)) - set(self.classes_.tolist())
         if unseen:
             msg = (
@@ -604,7 +604,7 @@ class PLSDA(ClassifierMixin, PLS):
             raise ValueError(msg)
         column = int(matches[0])
         scores = self.decision_function(X).to_numpy()[:, column]
-        return float(roc_auc_score(np.ravel(y) == positive_class, scores))
+        return float(roc_auc_score(_labels_for(X, y) == positive_class, scores))
 
     def permutation_test(
         self,
@@ -796,16 +796,26 @@ class PLSDA(ClassifierMixin, PLS):
         return PLS(**pls_settings).fit(X, indicators).cross_validate(X, indicators, **settings)
 
 
+def _labels_for(X: DataMatrix, y: DataMatrix | pd.Series) -> np.ndarray:
+    """Return the labels as one flat array, refusing a count that differs from ``X``'s rows (#1077).
+
+    X and its labels are paired row by row; without this check a short ``y`` failed in ``zip`` or
+    in numpy's broadcasting, with a message that named neither.
+    """
+    labels = np.asarray(y).ravel()
+    if labels.shape[0] != len(X):
+        msg = f"X has {len(X)} rows but y has {labels.shape[0]} labels."
+        raise ValueError(msg)
+    return labels
+
+
 def _indicator_matrix(X: DataMatrix, y: DataMatrix | pd.Series) -> tuple[np.ndarray, pd.DataFrame]:
     """Return the labels as one flat array, and the class-indicator matrix PLS-DA regresses ``X`` on.
 
     The matrix has one column per class, sorted and named ``str(class)``, holding 1.0 where
     a row is in that class and 0.0 elsewhere, and ``X``'s row labels.
     """
-    labels = np.asarray(y).ravel()
-    if labels.shape[0] != X.shape[0]:
-        msg = f"X has {X.shape[0]} rows but y has {labels.shape[0]} labels."
-        raise ValueError(msg)
+    labels = _labels_for(X, y)
     missing = int(pd.isna(labels).sum())
     if missing:
         msg = f"y has no label in {missing} of its rows; every row needs a class."
