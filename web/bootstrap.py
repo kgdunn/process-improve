@@ -2813,7 +2813,7 @@ def _grouped_anova(rows: list[dict], frame: pd.DataFrame, y: pd.Series, formula:
         out.append(
             {
                 **row,
-                "source": source,
+                "source": _pretty(source),  # written as the page writes an interaction, Catalyst·T
                 "df": len(members),
                 "sum_sq": ss,
                 "mean_sq": mean_sq,

@@ -7,3 +7,6 @@
 - **The workbook factori.al downloads no longer holds the time it was written.** Its created and modified
   dates, and the date of every member of its zip archive, are now 1 January 1980, as in the `write_run_sheet`
   workbook, so two downloads of the same study are the same file; the cells are as before. (#1096)
+- **factori.al writes a grouped interaction in its analysis of variance as it writes every other one.** The
+  row that tests a categorical factor's interaction over all its levels together read `Catalyst:T`, beside
+  `Catalyst[B]·T` in the coefficients and `T·P` in the other rows; it now reads `Catalyst·T`. (#1096)

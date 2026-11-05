@@ -108,12 +108,13 @@ def test_a_factor_of_several_levels_is_fitted_as_a_contrast_per_level_but_the_la
 
 
 def test_the_anova_tests_the_factor_as_one_source_of_a_degree_of_freedom_per_level_but_one(catalysts):
+    """The grouped interaction is written as the page writes every interaction, Catalyst·T, as its coefficients are."""
     _, analysis = catalysts
     rows = {a["source"]: a for a in analysis["anova"]}
-    assert list(rows) == ["Catalyst", "T", "Catalyst:T", "Residual"]
-    assert (rows["Catalyst"]["df"], rows["Catalyst:T"]["df"], rows["Residual"]["df"]) == (2, 2, 6)
+    assert list(rows) == ["Catalyst", "T", "Catalyst·T", "Residual"]
+    assert (rows["Catalyst"]["df"], rows["Catalyst·T"]["df"], rows["Residual"]["df"]) == (2, 2, 6)
     assert rows["Catalyst"]["p_value"] < 0.001
-    assert rows["Catalyst:T"]["p_value"] > 0.05, "the catalysts do not change T's slope"
+    assert rows["Catalyst·T"]["p_value"] > 0.05, "the catalysts do not change T's slope"
 
 
 def test_the_grouped_sum_of_squares_is_what_leaving_the_factor_out_costs(api, catalysts):
@@ -141,7 +142,7 @@ def test_the_anova_is_of_type_ii_as_statsmodels_gives_it_for_unbalanced_runs(api
     frame = pd.DataFrame({"Catalyst": sheet["Catalyst"], "T": (sheet["T"] - 175) / 25, "y": y}).dropna()
     table = anova_lm(ols("y ~ C(Catalyst, Sum) * T", frame).fit(), typ=2)
     rows = {a["source"]: a for a in analysis["anova"]}
-    for source, row in [("Catalyst", "C(Catalyst, Sum)"), ("T", "T"), ("Catalyst:T", "C(Catalyst, Sum):T")]:
+    for source, row in [("Catalyst", "C(Catalyst, Sum)"), ("T", "T"), ("Catalyst·T", "C(Catalyst, Sum):T")]:
         assert rows[source]["sum_sq"] == pytest.approx(table.loc[row, "sum_sq"]), source
         assert rows[source]["F"] == pytest.approx(table.loc[row, "F"]), source
 
@@ -168,8 +169,8 @@ def test_a_factor_nested_in_another_is_fitted_within_each_of_its_levels_as_stats
     frame = pd.DataFrame({"S": sheet["Supplier"].astype(str), "B": sheet["Batch"], "y": y})
     table = anova_lm(ols("y ~ S + S:B", frame).fit(), typ=2)
     rows = {a["source"]: a for a in analysis["anova"]}
-    assert (rows["Supplier"]["df"], rows["Supplier:Batch"]["df"], rows["Residual"]["df"]) == (2, 9, 12)
-    for source, row in [("Supplier", "S"), ("Supplier:Batch", "S:B"), ("Residual", "Residual")]:
+    assert (rows["Supplier"]["df"], rows["Supplier·Batch"]["df"], rows["Residual"]["df"]) == (2, 9, 12)
+    for source, row in [("Supplier", "S"), ("Supplier·Batch", "S:B"), ("Residual", "Residual")]:
         assert rows[source]["sum_sq"] == pytest.approx(table.loc[row, "sum_sq"]), source
     labels = [c["label"] for c in analysis["coefficients"]]
     assert "Supplier[3]·Batch[a]" in labels, "batch a's effect within the third supplier"
