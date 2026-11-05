@@ -1505,9 +1505,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         The VIP values are calculated as follows:
             VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
 
-        where n is the number of features (rows in the loadings matrix).
+        where n is the number of features (rows in the loadings matrix). A block that no component
+        explains, such as an F whose every blend has the same row, used as given, has an R^2 of 0
+        throughout and a VIP of 0, as in MBPLS, not 0 / 0 (#1144).
         """
         n = loadings.shape[0]
+        if not np.sum(r2_vector) > 0:  # not, so a NaN sum gives 0 as well
+            return np.zeros(n)
         return np.sqrt(n * np.sum(r2_vector * (loadings**2), axis=1) / np.sum(r2_vector))
 
     def _cumulative_hotellings_t2(self, t_scores_super: np.ndarray) -> np.ndarray:
