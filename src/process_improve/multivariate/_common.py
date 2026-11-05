@@ -85,11 +85,14 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     """Return which components hold some of the data's spread: the one rule every Hotelling's T² uses (#1026, #1124).
 
     A component whose training score standard deviation is at most ``epsqrt`` times the largest
-    (or ``epsqrt`` itself while every sd is below 1) holds none of it: the last component of a
-    rank-deficient fit has an sd near 1e-16, for instance. Its standardised score is noise over
-    noise for a training row and enormous for a new row off the model plane, so it adds 0 to T².
-    It is also left out of every matrix that a T² or a trimmed score regression inverts, which it
-    would make singular.
+    holds none of it: the last component of a rank-deficient fit has an sd near 1e-16 times the
+    first, for instance. Its standardised score is noise over noise for a training row and
+    enormous for a new row off the model plane, so it adds 0 to T². It is also left out of every
+    matrix that a T² or a trimmed score regression inverts, which it would make singular.
+
+    The floor is relative to the largest sd in any units. It used to be ``epsqrt`` itself while
+    every sd was below 1, which took every component of data in small units for one with no
+    spread, and gave them a T² of 0 (#1070).
 
     Parameters
     ----------
@@ -103,7 +106,8 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
         True for each component with spread.
     """
     score_sd = np.asarray(score_sd, dtype=float)
-    return score_sd > epsqrt * max(1.0, float(np.max(score_sd)))
+    # fmax skips a NaN sd, as max(1.0, ...) did: that component is left out, the others are not.
+    return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
 
 
 #: Smallest positive float; used to floor NIPALS denominators away from zero.

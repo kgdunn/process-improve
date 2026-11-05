@@ -97,6 +97,7 @@ from process_improve.multivariate.methods import (
     vip,
 )
 from process_improve.multivariate.plots import _x_space_loadings
+from tests._no_spread import thin_residual
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -2161,7 +2162,7 @@ def test_t2_contributions_count_the_components_that_fit_counts_in_t2() -> None:
 
 
 def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
-    """A score sd counts when it exceeds ``epsqrt * max(1, largest sd)``; at the bound it does not.
+    """A score sd counts when it exceeds ``epsqrt`` times the largest sd; at the bound it does not.
 
     A stand-in model whose loadings are the identity, so each score is its own variable
     and each contribution is ``x_k^2 / s_k^2``, or 0 for a component left out. The largest
@@ -2175,12 +2176,12 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
     np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
 
-def _rows_on_a_plane(units: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _rows_on_a_plane() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return 30 centred rows that span a plane in four columns, and one row well off that plane."""
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
-    flat = pd.DataFrame((plane - plane.mean(axis=0)) * units, columns=list("abcd"))
-    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd")) * units
+    flat = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd"))
 
 
 def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out() -> None:
@@ -2232,24 +2233,25 @@ def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None
 def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leaves_out() -> None:
     """PLS's T² of a new row, and of an inverted target, counts only the components with spread (#1026).
 
-    In units of 1e-3, unscaled, with noise of sd 1e-10 off the plane: the noise is above PLS's floor,
-    which is relative to the size of X (#1070), so a third component is fitted to it. Its score sd,
-    about 1e-10, is below epsqrt, which T² reads as no spread while every sd is below 1, so fit()
-    leaves it out of T². A row off the plane scores on it all the same. Its T² is
+    Twelve columns on a plane, unscaled, and a residual spread thinly over the ten directions off
+    it: the residual is above PLS's floor, which is relative to the size of X (#1070), so a third
+    component is fitted to it. Its score sd is below epsqrt times the first's, which T² reads as no
+    spread, so fit() leaves it out of T². A row off the plane scores on it all the same. Its T² is
     ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution from its
     scores, which diagnose gives ``x_new`` too. The third component is fitted after Y is exhausted,
     so it has no Y-loading (#1074) and lies in invert's null space: the solution is moved along it,
     to give it a third score.
     """
-    flat, new = _rows_on_a_plane(units=1e-3)
-    noise = 1e-10 * np.random.default_rng(2).standard_normal((30, 4))
-    flat += noise - noise.mean(axis=0)
-    y = pd.DataFrame({"y": flat.to_numpy() @ [1e3, 2e3, 0.0, 0.0]})
-    y += 0.1 * np.random.default_rng(1).standard_normal((30, 1))
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 12))
+    plane -= plane.mean(axis=0)
+    flat = pd.DataFrame(plane + thin_residual(plane), columns=[f"x{k}" for k in range(12)])
+    new = pd.DataFrame(rng.standard_normal((1, 12)), columns=flat.columns)
+    y = pd.DataFrame({"y": plane[:, 0] + 2.0 * plane[:, 1] + 0.1 * np.random.default_rng(1).standard_normal(30)})
     with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
         pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
     s = pls.scaling_factor_for_scores_.to_numpy()
-    assert s[2] < 1e-6 * s[0]
+    assert s[2] <= epsqrt * s[0]
     t = new.to_numpy() @ pls.direct_weights_.to_numpy()
     assert abs(t[0, 2]) > 1e6 * s[2]  # the new row is well off the plane
     by_hand = np.sum(t[0, :2] ** 2 / s[:2] ** 2)
@@ -6207,7 +6209,7 @@ def _tpls_written_out(
     found["gap"] = [component["gap"] for component in components]
     t, ((y_name, _),) = found["t"], left["Y"].items()
     found["sd"] = sd = np.sqrt(np.sum(t**2, axis=0) / (len(t) - 1))
-    usable = sd > epsqrt * max(1.0, float(sd.max()))
+    usable = sd > epsqrt * float(sd.max())
     found["t2"] = np.cumsum(np.where(usable, t**2 / np.where(usable, sd, 1.0) ** 2, 0.0), axis=1)
     found["hat_"] = t @ found["q"].T
     found["hat"] = found["hat_"] * scaling["Y", y_name][1] + scaling["Y", y_name][0]
@@ -6266,7 +6268,7 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
         t_all.append(t)
     t = np.column_stack(t_all)
     centre, spread = next(value for key, value in fitted["scaling"].items() if key[0] == "Y")
-    usable = fitted["sd"] > epsqrt * max(1.0, float(fitted["sd"].max()))
+    usable = fitted["sd"] > epsqrt * float(fitted["sd"].max())
     return {
         "t": t,
         "t2": np.cumsum(np.where(usable, t**2 / np.where(usable, fitted["sd"], 1.0) ** 2, 0.0), axis=1),

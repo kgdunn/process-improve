@@ -9,6 +9,7 @@ from sklearn.utils import Bunch
 
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
+from tests._no_spread import batches_with_a_thin_residual
 
 pytest.importorskip("osqp")
 
@@ -517,25 +518,17 @@ def test_ok_status_means_both_caps_hold_across_settings(fitted: BatchPLS, batch_
 def test_component_with_no_spread_adds_nothing_to_t2() -> None:
     """#1086: the T2 weight leaves out a component with no spread, as the PLS model's own T2 does.
 
-    Unscaled tags that vary by 1e-3, with a third pattern at 1e-9: the third pattern is above
-    PLS's floor, which is relative to the size of X (#1070), so a third component is fitted to it.
-    Its score sd is below epsqrt, which T2 reads as no spread while every sd is below 1. Its
-    weight of ``1 / explained_variance_`` was about 1e12 times the first one's, so it ruled the T2.
+    Unscaled trajectories in two patterns, and a residual spread thinly over the other directions:
+    the residual is above PLS's floor, which is relative to the size of X (#1070), so a third
+    component is fitted to it. Its score sd is below epsqrt times the first's, which T2 reads as
+    no spread. Its weight of ``1 / explained_variance_`` was about 1e16 times the first one's, so it
+    ruled the T2.
     """
-    rng = np.random.default_rng(0)
-    time = np.arange(10)
-    batches, quality = {}, []
-    for i in range(40):
-        a, b, c = rng.standard_normal(3)
-        u = 1e-3 * a * np.sin(time / 3.0) + 1e-9 * c * np.cos(time / 2.0)
-        r = 1e-3 * (b * np.cos(time / 4.0) + 0.5 * a * np.sin(time / 3.0))
-        batches[f"b{i}"] = pd.DataFrame({"u": u, "r": r})
-        quality.append(2.0 * a + b + 0.3 * rng.standard_normal())
-    y = pd.DataFrame({"q": quality}, index=list(batches))
+    batches, y = batches_with_a_thin_residual()
     model = BatchPLS(n_components=3, scale=False).fit(batches, y)
     variance = np.asarray(model.explained_variance_, dtype=float)
     sd = np.sqrt(variance)
-    assert sd[2] < 1.5e-8 * max(1.0, sd[0])  # the rule by which T2 leaves a component out
+    assert sd[2] <= 1.5e-8 * sd[0]  # the rule by which T2 leaves a component out
 
     k = 5
     # The default "tsr" estimator runs over the components with spread (#1124).
