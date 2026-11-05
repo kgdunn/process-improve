@@ -9,6 +9,8 @@ already scaled, and nothing changes for it.
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -281,6 +283,8 @@ def test_batch_models_take_the_batches_transform_takes(kind: str) -> None:
     for name in ("t2_contributions", "spe_contributions", "score_contributions"):
         method = getattr(model, name)
         pd.testing.assert_frame_equal(method(new, initial_conditions=new_z), method(scaled), check_exact=True)
+        assert "initial_conditions" in inspect.signature(method).parameters
+        assert "as :meth:`transform` takes them" in method.__doc__
     scores = model.transform(new, initial_conditions=new_z)
     for component in range(1, N_COMPONENTS + 1):
         parts = model.score_contributions(new, component=component, initial_conditions=new_z).sum(axis=1)

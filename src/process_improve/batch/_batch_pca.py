@@ -42,7 +42,7 @@ from ..multivariate.plots import loading_plot as _loading_plot
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
-from ._common import inner_method
+from ._common import contribution_method, inner_method
 from ._online import (
     coerce_single_initial_conditions,
     forecast_frame,
@@ -566,10 +566,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         pd.DataFrame of shape (n_batches, n_unfolded_features)
             The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
             space, indexed by batch identifier, with the 2-level unfolded
-            column index. This is the ``X`` argument that
-            :meth:`score_contributions`, :meth:`spe_contributions` and
-            :meth:`t2_contributions` expect; passing the training batches
-            reproduces the fitted scores.
+            column index. Passing the training batches reproduces the fitted
+            scores. :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` take this matrix, or the batches
+            themselves, as :meth:`transform` takes them.
         """
         return self._scaled_wide(X, initial_conditions)
 
@@ -612,6 +612,6 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     explained_variance_plot = _pca_method(_explained_variance_plot)
     spe_limit = _pca_method(_spe_limit)
     score_limit = _pca_method(_score_limit)
-    t2_contributions = _pca_method(_t2_contributions)
-    spe_contributions = _pca_method(_spe_contributions)
-    score_contributions = _pca_method(_score_contributions)
+    t2_contributions = contribution_method(_t2_contributions, inner="_pca", fitted="loadings_")
+    spe_contributions = contribution_method(_spe_contributions, inner="_pca", fitted="loadings_")
+    score_contributions = contribution_method(_score_contributions, inner="_pca", fitted="loadings_")
