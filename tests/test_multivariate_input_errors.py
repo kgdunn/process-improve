@@ -106,6 +106,7 @@ def _tpls_blocks(empty: str) -> tuple[dict[str, pd.DataFrame], DataFrameDict]:
         ("TPLS", 'Z["Z1"]'),
         ("TPLS", 'Y["Y1"]'),
         ("TPLS", 'd_matrix["G"]'),
+        ("TPLS", 'F["G"]'),
     ],
 )
 def test_a_block_with_no_columns_is_refused_by_name(

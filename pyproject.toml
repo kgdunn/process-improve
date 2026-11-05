@@ -541,4 +541,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_cv_criteria.py",
     "tests/test_multivariate_plsda.py",
     "tests/test_multivariate_asca.py",
+    "tests/test_multivariate_input_errors.py",
 ]
