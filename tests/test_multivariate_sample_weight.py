@@ -85,6 +85,14 @@ def test_sample_weight_half_zero_equals_fit_on_remaining_half() -> None:
         np.abs(subset.x_loadings_.values),
         atol=1e-9,
     )
+    # So do the summaries of the fit: they are measured in its weights, which leave the dropped rows out (#1114).
+    for attribute in ("r2_cumulative_", "r2_per_component_", "r2_per_variable_", "r2y_per_variable_", "rmse_"):
+        np.testing.assert_allclose(
+            np.asarray(getattr(weighted, attribute)),
+            np.asarray(getattr(subset, attribute)),
+            atol=1e-9,
+            err_msg=f"{attribute} of the half-zero fit differs from the fit on the surviving rows",
+        )
 
 
 def test_sample_weight_recovers_true_beta_under_heteroscedastic_noise() -> None:
