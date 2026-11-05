@@ -1399,39 +1399,6 @@ def test_robust_regression_rejects_unknown_interval_options(kwargs: dict, messag
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("conflevel", [np.nan, np.inf, 1.5])
-@pytest.mark.parametrize(
-    "chosen",
-    [{}, {"intervals": "least_squares"}, {"intervals": "bootstrap"}],
-    ids=["default", "least_squares", "bootstrap"],
-)
-def test_robust_regression_conflevel_without_an_interval_gives_nan_intervals(
-    monkeypatch: pytest.MonkeyPatch, conflevel: float, chosen: dict
-) -> None:
-    """A conflevel with no t value returns the fit with NaN intervals, as 2.2.2 did, and draws no resample.
-
-    2.3.0's bootstrap asked for percentiles outside 0 to 100 and raised, after all its resamples.
-    """
-
-    def refuse(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("the bootstrap ran")
-
-    monkeypatch.setattr("process_improve.regression._robust_regression._bootstrap_lines", refuse)
-    x, y = _line_with_outliers(np.random.default_rng(10))
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        out = robust_regression(x, y, conflevel=conflevel, pi_resolution=7, **chosen)
-
-    assert out["coefficients"][0] == pytest.approx(repeated_median_slope(x, y))
-    assert out["conf_intervals"].shape == (1, 2)
-    assert np.isnan(out["conf_intervals"]).all()
-    assert np.isnan(out["conf_interval_intercept"]).all()
-    assert out["pi_range"].shape == (7, 3)
-    np.testing.assert_array_equal(out["pi_range"][:, 0], np.linspace(x.min(), x.max(), 7))
-    assert np.isnan(out["pi_range"][:, 1:]).all()
-    assert "intervals_note" not in out
-
-
 def test_robust_regression_default_gives_least_squares_intervals_and_announces_the_bootstrap(
     simple_robust_regression_data: tuple[np.ndarray, np.ndarray],
 ) -> None:

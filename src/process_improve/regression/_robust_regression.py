@@ -11,7 +11,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
-from ..univariate.metrics import t_value
+from ..univariate.metrics import _check_probability, t_value
 
 __eps = np.finfo(np.float32).eps
 
@@ -255,7 +255,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     na_rm : bool, default True
         If True, removes all observations with one or more missing values.
     conflevel : float, default 0.95
-        Confidence level for the confidence and prediction intervals.
+        Confidence level for the confidence and prediction intervals, strictly between 0 and 1.
     nowarn : bool, default False
         If True, skips the minimum-size check and the SEC-19 cap on the number of points.
         Users should ensure data validity beforehand.
@@ -330,12 +330,11 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     requires for a changed default, so code that kept running got other numbers; 2.3.1
     restored least squares. The default becomes ``"bootstrap"`` in 3.0, because its intervals
     resist outliers as the slope does. Until then a call that the change would affect (one
-    with spread in x, a finite ``SE`` and a ``conflevel`` that has an interval) warns and
-    carries ``intervals_note``.
+    with spread in x and a finite ``SE``) warns and carries ``intervals_note``.
 
-    A ``conflevel`` that has no t value (NaN, infinite, or larger than 1 in absolute value)
-    gives NaN intervals, with the x column of ``pi_range`` kept, whichever ``intervals`` is,
-    and no resample is drawn.
+    A ``conflevel`` outside (0, 1), NaN included, raises ``ValueError`` before any work is
+    done. Up to 2.4.0 a level between -1 and 0 gave a reversed interval, and one with no t
+    value gave NaN intervals.
 
     With ``intervals="bootstrap"`` the three interval keys are percentile
     intervals over the resamples, each refitted as above. A resample whose x values are all
@@ -357,6 +356,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     """
     if intervals not in (None, "bootstrap", "least_squares"):
         raise ValueError(f"intervals must be 'bootstrap' or 'least_squares'; got {intervals!r}.")
+    _check_probability("conflevel", conflevel)
 
     out: dict[str, Any] = {
         "N": None,
@@ -489,10 +489,9 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         ]
     )
 
-    # With no spread in x, a non-finite value kept in (SE is then not finite), or a conflevel with no t value
-    # (NaN, infinite, or outside -1 to 1, exactly where the bootstrap's percentiles would fall outside 0 to 100),
-    # the NaN intervals above stand whichever intervals is, so the default's change in 3.0 changes nothing.
-    has_intervals = out["x_ssq"] >= __eps and np.isfinite(out["SE"]) and not np.isnan(c_t)
+    # With no spread in x, or a non-finite value kept in (SE is then not finite), the NaN intervals above stand
+    # whichever intervals is, so the default's change in 3.0 changes nothing.
+    has_intervals = out["x_ssq"] >= __eps and np.isfinite(out["SE"])
     if intervals is None and has_intervals:
         out["intervals_note"] = (
             "process_improve.regression.robust_regression's default intervals='least_squares' is deprecated since "
@@ -728,6 +727,7 @@ class OLS(RegressorMixin, BaseEstimator):
         self : OLS
             Fitted estimator.
         """
+        _check_probability("conflevel", self.conflevel)
         # Preserve original input metadata (length, names) before we drop NA rows.
         if isinstance(X, pd.DataFrame):
             X_full = X.copy()
@@ -968,6 +968,7 @@ class OLS(RegressorMixin, BaseEstimator):
         """
         assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling prediction_interval()."
         cl = self.conflevel if conflevel is None else conflevel
+        _check_probability("conflevel", cl)
 
         X_arr = X.to_numpy(dtype=float) if isinstance(X, pd.Series | pd.DataFrame) else np.asarray(X, dtype=float)
 

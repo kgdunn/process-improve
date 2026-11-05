@@ -36,6 +36,7 @@ import numpy as np
 from scipy import integrate, optimize, stats
 
 from process_improve._random import check_random_state
+from process_improve.univariate.metrics import _check_probability
 
 ALTERNATIVES = ("two-sided", "greater", "less")
 #: Beyond this many arrangements, a randomization test samples them instead of enumerating them all.
@@ -163,6 +164,7 @@ def ttest_one_sample(x: Sequence[float], mu: float = 0.0, conflevel: float = 0.9
         two-sided ``p_value`` and the one-sided ``p_value_greater`` and ``p_value_less``, and
         ``ci_low`` and ``ci_high``.
     """
+    _check_probability("conflevel", conflevel)
     values = np.asarray(x, dtype=float)
     n = len(values)
     if n < 2:
@@ -573,8 +575,7 @@ def variance_interval(variance: float, df: float, conflevel: float = 0.95) -> di
         raise ValueError(f"variance must be a finite number of at least 0; got {variance!r}.")
     if not df > 0:
         raise ValueError(f"df must be positive; got {df!r}.")
-    if not 0 < conflevel < 1:
-        raise ValueError(f"conflevel must be between 0 and 1; got {conflevel!r}.")
+    _check_probability("conflevel", conflevel)
     alpha = 1 - conflevel
     low = df * variance / float(stats.chi2.ppf(1 - alpha / 2, df))
     high = df * variance / float(stats.chi2.ppf(alpha / 2, df))
