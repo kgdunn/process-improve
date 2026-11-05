@@ -80,6 +80,7 @@ REGRESSIONS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], object]] = {
     "PRM": lambda X, Y: PRM(n_components=2).fit(X, Y),
     "OPLS": lambda X, Y: OPLS(n_orthogonal_components=1).fit(X, Y),
     "MBPLS": lambda X, Y: MBPLS(n_components=2).fit(_blocks(X), Y),
+    "AdaptivePLS": lambda X, Y: AdaptivePLS(n_components=2).fit(X, Y),
 }
 
 
@@ -111,6 +112,16 @@ def test_an_x_with_no_variance_is_refused_before_any_warning(estimator: str) -> 
         warnings.simplefilter("error")
         with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance"):
             REGRESSIONS[estimator](X * 0.0, y)
+
+
+def test_opls_refuses_an_x_with_no_covariance_with_y() -> None:
+    """An X that varies but is orthogonal to y gave OPLS a NaN model, after a RuntimeWarning (#1114)."""
+    X = pd.DataFrame({"a": [1.0, -1.0, 1.0, -1.0], "b": [1.0, 1.0, -1.0, -1.0]})
+    y = pd.DataFrame({"y": [1.0, -1.0, -1.0, 1.0]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(NotEnoughVarianceError, match=r"^X has no covariance with Y"):
+            OPLS(n_orthogonal_components=0).fit(X, y)
 
 
 # --- A block with no columns -------------------------------------------------------------------------
@@ -276,20 +287,55 @@ def test_cross_validation_takes_a_column_with_nothing_observed(tool: str) -> Non
     assert np.isfinite(press).all()
 
 
-def test_select_leaves_a_row_with_nothing_observed_out_of_press_and_q2() -> None:
-    """Such a held-out row has no prediction, as ``predict`` gives it none (#1148): out of PRESS and its reference."""
+@pytest.mark.parametrize("tool", ["PLS.select_n_components", "MBPLS.select_n_components", "compare_cv_criteria"])
+def test_the_default_component_count_leaves_out_a_column_with_nothing_observed(tool: str) -> None:
+    """Such a column adds no component, so the default count of components is capped by the others.
+
+    Capped by every column, the folds were asked for more components than they have, and refused.
+    """
+    X, y = _data()
+    X["c"] = np.nan
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=r"Block X.* has columns with no observed values")
+        if tool == "PLS.select_n_components":
+            press = PLS.select_n_components(X, y, n_repeats=1, random_state=0).press
+        elif tool == "MBPLS.select_n_components":
+            press = MBPLS.select_n_components(_blocks(X), y, n_repeats=1, random_state=0).press
+        else:
+            press = compare_cv_criteria(X, y, n_permutations=9, n_cv_permutations=9, random_state=0).press
+    assert len(press) == 4
+
+
+def _held_out_q2(tool: str, X: pd.DataFrame, y: pd.DataFrame) -> tuple[np.ndarray, float, float]:
+    """Run ``tool`` and return its held-out predictions, its PRESS and its Q2, at one component count."""
+    if tool == "PLS.cross_validate":
+        result = PLS(n_components=2).fit(X, y).cross_validate(X, y, cv=5, random_state=0, show_progress=False)
+        return result.y_hat_cv.to_numpy().ravel(), result.press, float(result.q_squared.iloc[0])
+    if tool == "PLS.select_n_components":
+        result = PLS.select_n_components(X, y, max_components=2, n_repeats=1, random_state=0, selection_rule="min")
+    else:
+        result = MBPLS.select_n_components(
+            _blocks(X), y, max_components=2, n_repeats=1, random_state=0, selection_rule="min"
+        )
+    a = result.n_components
+    return result.cv_predictions.to_numpy().ravel(), result.press[a], result.r2y_validated.loc[a, "total"]
+
+
+@pytest.mark.parametrize("tool", ["PLS.select_n_components", "MBPLS.select_n_components", "PLS.cross_validate"])
+def test_a_row_with_nothing_observed_is_left_out_of_press_and_q2(tool: str) -> None:
+    """Held out, such a row has no prediction, as ``predict`` gives it none (#1148), so Q2 is over the other rows.
+
+    ``select_n_components`` raised RuntimeError; the other two left it out of PRESS but kept it in Q2's reference.
+    """
     X, y = _data()
     X.iloc[5] = np.nan
-    result = PLS.select_n_components(X, y, max_components=2, n_repeats=1, random_state=0, selection_rule="min")
-    predicted = result.cv_predictions.to_numpy().ravel()
+    predicted, press, q2 = _held_out_q2(tool, X, y)
     assert np.isnan(predicted[5])
     assert np.isfinite(np.delete(predicted, 5)).all()
     observed = np.delete(y["y"].to_numpy(), 5)
-    reference = float(np.sum((observed - y["y"].mean()) ** 2))
-    a = result.n_components
-    press = float(np.sum((observed - np.delete(predicted, 5)) ** 2))
-    assert result.press[a] == pytest.approx(press)
-    assert result.r2y_validated.loc[a, "total"] == pytest.approx(1 - press / reference)
+    by_hand = float(np.sum((observed - np.delete(predicted, 5)) ** 2))
+    assert press == pytest.approx(by_hand)
+    assert q2 == pytest.approx(1 - by_hand / float(np.sum((observed - observed.mean()) ** 2)))
 
 
 # --- A count that is not a whole number --------------------------------------------------------------
@@ -314,6 +360,7 @@ COUNTS: dict[str, Callable[[pd.DataFrame, pd.DataFrame, float], object]] = {
     "compare_cv_criteria(max_components)": lambda X, y, v: compare_cv_criteria(X, y, max_components=v),
     "compare_cv_criteria(n_permutations)": lambda X, y, v: compare_cv_criteria(X, y, n_permutations=v),
     "compare_cv_criteria(n_cv_permutations)": lambda X, y, v: compare_cv_criteria(X, y, n_cv_permutations=v),
+    "pseudo_validation_set(n_components)": lambda X, y, v: pseudo_validation_set(X, y, n_components=v),
     "PLS.nested_cv(max_components)": lambda X, y, v: PLS.nested_cv(X, y, max_components=v),
     "PLS.nested_cv(n_permutations)": lambda X, y, v: PLS.nested_cv(X, y, n_permutations=v),
     "PLSDA.permutation_test(n_permutations)": lambda X, y, v: (
@@ -324,6 +371,9 @@ COUNTS: dict[str, Callable[[pd.DataFrame, pd.DataFrame, float], object]] = {
     ),
     "ASCA.permutation_test(n_permutations)": lambda X, _, v: (
         ASCA(n_components=1).fit(X, pd.DataFrame({"f": ["a", "b"] * (N_ROWS // 2)})).permutation_test(n_permutations=v)
+    ),
+    "ASCA.vasca(n_permutations)": lambda X, _, v: (
+        ASCA(n_components=1).fit(X, pd.DataFrame({"f": ["a", "b"] * (N_ROWS // 2)})).vasca("f", n_permutations=v)
     ),
     "GPA.consensus_test(n_permutations)": lambda X, _, v: (
         GPA().fit({"one": X, "two": X + 0.1}).consensus_test(n_permutations=v)

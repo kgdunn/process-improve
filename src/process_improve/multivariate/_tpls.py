@@ -35,6 +35,7 @@ from ._common import (
     _model_method,
     _nz,
     check_at_least_one,
+    constant_columns,
     epsqrt,
     largest_ssq_column,
     refuse_empty_block,
@@ -1128,15 +1129,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         # No variance: its observed values are all equal, in any units, as MCUVScaler reads a
         # column. An sd below a floor (it was sqrt(eps)) also took a column in small units for a
         # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
-        # a NaN maximum and minimum, which are not equal, so it is not counted here.
-        degenerate = (y.max() == y.min()) & (y.shape[0] > 1)
-        if degenerate.any() and not used_as_given:
-            named = ", ".join(repr(col) for col in y.columns[degenerate])
-            warnings.warn(  # a UserWarning, warn's default category
-                f"Block {label} has columns with no variance, which carry no information and are "
-                f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
-            )
+        # a NaN maximum and minimum, which are not equal, so it is not counted here. It is named
+        # in the warning the whole family gives (#1114).
+        with warnings.catch_warnings():
+            if used_as_given:  # a column used as given stays in the fit, so it is not named (#1084)
+                warnings.simplefilter("ignore", UserWarning)
+            degenerate = constant_columns(y, label, self)
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 
     def _validate_df(self, df: pd.DataFrame, label: str) -> None:
@@ -1572,40 +1570,39 @@ class TPLS(RegressorMixin, BaseEstimator):
         # and predicted values. Since the matrices are deflated by the predictive part of the model already, the
         # data in these matrices is already the prediction error. Calculate the **squared** portion, and store it.
         column_name = [f"SPE with A={self.n_components_}"]
+
+        def row_spe(residuals: np.ndarray, present: np.ndarray) -> np.ndarray:
+            # A row with nothing observed in the block has no SPE there, as in MBPCA and MBPLS (#1114)
+            return np.where(present.any(axis=1), np.sqrt(np.sum(np.square(residuals), axis=1)), np.nan)
+
         self.spe["Y"] = {
             key: pd.DataFrame(
-                np.sqrt(np.sum(np.square(self.y_mats[key]), axis=1)),
-                index=self.observation_names,
-                columns=column_name,
+                row_spe(self.y_mats[key], self.not_na_y[key]), index=self.observation_names, columns=column_name
             )
             for key in self.y_mats
         }
-        self.spe_limit["Y"] = {key: partial(spe_calculation, self.spe["Y"][key].to_numpy()) for key in self.y_mats}
         self.spe["Z"] = {
             key: pd.DataFrame(
-                np.sqrt(np.sum(np.square(self.z_mats[key]), axis=1)),
-                index=self.observation_names,
-                columns=column_name,
+                row_spe(self.z_mats[key], self.not_na_z[key]), index=self.observation_names, columns=column_name
             )
             for key in self.z_mats
         }
-        self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].to_numpy()) for key in self.z_mats}
-
         # SPE for the D-space, one per material: the rows of D.
         self.spe["D"] = {
-            key: pd.Series(np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1)), index=self.material_names[key])
+            key: pd.Series(row_spe(self.d_mats[key], self.not_na_d[key]), index=self.material_names[key])
             for key in self.d_mats
         }
-        self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].to_numpy()) for key in self.d_mats}
         self.spe["F"] = {
             key: pd.DataFrame(
-                np.sqrt(np.sum(np.square(self.f_mats[key]), axis=1)),
-                index=self.observation_names,
-                columns=column_name,
+                row_spe(self.f_mats[key], self.not_na_f[key]), index=self.observation_names, columns=column_name
             )
             for key in self.f_mats
         }
-        self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].to_numpy()) for key in self.f_mats}
+        # Each limit over the rows that have an SPE
+        for block in ("Y", "Z", "D", "F"):
+            self.spe_limit[block] = {
+                key: partial(spe_calculation, spe.dropna().to_numpy()) for key, spe in self.spe[block].items()
+            }
 
         # The Y-space predictions, scaled back from the preprocessed space to the original one.
         self.hat: dict[str, pd.DataFrame] = {

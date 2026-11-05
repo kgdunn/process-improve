@@ -23,6 +23,7 @@ import pandas as pd
 import sklearn
 from scipy import sparse
 from sklearn.utils import Bunch
+from sklearn.utils.validation import check_array
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
@@ -35,7 +36,9 @@ __all__ = [
     "SelectionRule",
     "SpecificationWarning",
     "UncentredDataWarning",
+    "check_response_block",
     "components_with_spread",
+    "constant_columns",
     "epsqrt",
     "informative_widths",
     "unobserved_columns",
@@ -137,7 +140,7 @@ _TOL_CEILING = 10.0
 
 
 def check_at_least_one(name: str, value: float | None) -> None:
-    """Refuse a count below 1, from ``fit`` (#1071).
+    """Refuse a count that is not a whole number of at least 1, from ``fit`` (#1071).
 
     ``__init__`` stores its arguments unchanged, as sklearn requires, and ``set_params`` and
     ``clone`` do not pass through any check there, so ``fit`` is the one place every route to
@@ -148,27 +151,52 @@ def check_at_least_one(name: str, value: float | None) -> None:
     ----------
     name : str
         The parameter's name, used in the error message.
-    value : float or None
+    value : int or None
         The value to check.
 
     Raises
     ------
     ValueError
-        If ``value`` is below 1, or NaN.
+        If ``value`` is not a whole number (NaN included), or is below 1.
     """
-    if value is not None and not value >= 1:
+    check_whole(name, value)
+    if value is not None and value < 1:
         raise ValueError(f"{name} must be >= 1; got {value}.")
 
 
-def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
-    """Refuse a block with no columns, naming it (#1077).
+def check_whole(name: str, value: float | None) -> None:
+    """Refuse a count that is not a whole number; ``None`` passes (#1114).
 
-    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
-    array or dtype is required", which names neither the block nor the cause.
+    A count of 2.5 was read as 2, without a word, or failed in a slice with a ``TypeError``.
+    A float with no fractional part is refused too, as scikit-learn's ``Integral`` constraint
+    refuses it in an estimator's settings.
 
     Parameters
     ----------
-    block : pd.DataFrame
+    name : str
+        The parameter's name, used in the error message.
+    value : int or None
+        The value to check.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not an integer, NaN included.
+    """
+    if value is not None and not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{name} must be a whole number; got {value}.")
+
+
+def refuse_empty_block(block: DataMatrix, label: str) -> None:
+    """Refuse a block with no columns, naming it (#1077).
+
+    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
+    array or dtype is required", which names neither the block nor the cause. An array is read
+    the same way, so a single-block estimator can check its input before scikit-learn does (#1114).
+
+    Parameters
+    ----------
+    block : pd.DataFrame or np.ndarray
         The block to check.
     label : str
         Where the block sits, as ``'y'``, ``'X["name"]'`` or ``'Z["group"]'``.
@@ -178,7 +206,7 @@ def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
     ValueError
         If ``block`` has no columns.
     """
-    if block.shape[1] == 0:
+    if np.shape(block)[1:] == (0,):  # 2-D with no columns; anything else is left to the checks that follow
         raise ValueError(f"Block {label} has no columns; a block needs at least one.")
 
 
@@ -946,6 +974,91 @@ def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> 
             stacklevel=stacklevel,
         )
     return unobserved
+
+
+def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.ndarray:
+    """Return which columns of a training block have no variance, and warn, naming them, if any do (#1114).
+
+    A column whose observed values are all equal, or which has one, carries no information about
+    how the rows differ. TPLS named it; PCA, PLS, MBPCA and MBPLS fitted it without a word. Its
+    wording is now the family's. A column with no observed value is not counted here:
+    :func:`unobserved_columns` names it, for its own cause. One row has no spread to judge.
+
+    Only a fit the caller asked for warns. A fit that another routine of this package runs, on a
+    cross-validation fold or on a matrix it derived (ASCA's effect matrices, FPCA's basis
+    coefficients), would name a column the caller never gave it, or one that varies in the
+    caller's data.
+
+    Parameters
+    ----------
+    block : pd.DataFrame
+        The training block, NaN where missing.
+    label : str
+        Where the block sits, as ``'X'``, ``'Y'``, ``'X["name"]'`` or ``'Z["group"]'``.
+    estimator : object
+        The estimator being fitted.
+
+    Returns
+    -------
+    np.ndarray of bool, shape (n_features,)
+        True for a column with no variance.
+    """
+    # An all-NaN column has a NaN maximum and minimum, which are not equal.
+    constant = ((block.max() == block.min()) & (block.shape[0] > 1)).to_numpy()
+    if constant.any() and _fit_asked_for_by_the_caller(estimator):
+        named = ", ".join(repr(col) for col in block.columns[constant])
+        warnings.warn(  # a UserWarning, warn's default category
+            f"Block {label} has columns with no variance, which carry no information: {named}. Drop them, "
+            "or check the data for a stuck sensor.",
+            stacklevel=user_stacklevel(),
+        )
+    return constant
+
+
+def _fit_asked_for_by_the_caller(estimator: object) -> bool:
+    """Return whether the caller's code, not another routine of this package, is fitting ``estimator``.
+
+    The outermost frame of this package under the caller's is the routine the caller called. It
+    is a method of ``estimator`` itself (its ``fit``, past an inherited ``fit`` and scikit-learn's
+    wrapper) when the caller fits it; it is a cross-validation, a resampling or another estimator
+    when that routine fits it on the caller's behalf.
+    """
+    frame = inspect.currentframe()
+    outermost = None
+    while frame is not None:
+        package = str(frame.f_globals.get("__name__", "")).partition(".")[0]
+        if package == "process_improve":
+            outermost = frame
+        elif package not in ("sklearn", "mutmut"):  # scikit-learn's wrapper of fit; mutmut's trampoline
+            break
+        frame = frame.f_back
+    return outermost is not None and outermost.f_locals.get("self") is estimator
+
+
+def check_response_block(Y: pd.DataFrame, n_samples: int) -> None:
+    """Refuse a response block X's rows cannot pair with, or one with an infinite value, as X is refused (#1114).
+
+    ``validate_data`` checks X alone. The next to meet Y was a scaler, which reported an infinite
+    response as "Input X contains infinity", and PRM's robust centring, which met a Y of another
+    length as an ``IndexError``.
+
+    Parameters
+    ----------
+    Y : pd.DataFrame
+        The response block, NaN where missing.
+    n_samples : int
+        The number of rows of X.
+
+    Raises
+    ------
+    ValueError
+        If ``Y`` has a row count other than ``n_samples``, or an infinite value.
+    """
+    if Y.shape[0] != n_samples:
+        raise ValueError(
+            f"The X and Y arrays must have the same number of rows: X has {n_samples} and Y has {Y.shape[0]}."
+        )
+    check_array(Y, dtype="numeric", ensure_all_finite="allow-nan", ensure_min_features=0, input_name="Y")
 
 
 class BlockSet(dict):

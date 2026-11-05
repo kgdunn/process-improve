@@ -41,12 +41,17 @@ from ._common import (
     _model_method,
     _nz,
     _reject_sparse,
+    _rows_with_data,
     _select_n_components,
     _vandervoet_randomization,
     check_at_least_one,
+    check_response_block,
     check_variance_left,
+    check_whole,
+    constant_columns,
     epsqrt,
     largest_ssq_column,
+    refuse_empty_block,
     resolve_loop_settings,
     unobserved_columns,
     user_stacklevel,
@@ -377,7 +382,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         single number per observation with ``model.spe_.iloc[:, -1]``, not with
         ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
         answer at one component and silently gives ``n_samples * n_components``
-        values above it.
+        values above it. A row with nothing observed has no residual, and an
+        SPE of NaN, as in ``diagnose``.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
         Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
         above: column ``a`` uses the first ``a`` components and the last column
@@ -385,7 +391,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     r2_per_component_ : pd.Series of length n_components
         Fractional R² (on Y) explained by each component.
     r2_cumulative_ : pd.Series of length n_components
-        Cumulative R² (on Y) after each component.
+        Cumulative R² (on Y) after each component. A fit with ``sample_weight``
+        measures this and every other R², and ``rmse_``, in its weights, so a
+        row of weight 0 is left out of them as it is left out of the fit.
     r2_per_variable_ : pd.DataFrame of shape (n_features, n_components)
         Per-variable cumulative R² for X after each component.
     r2y_per_variable_ : pd.DataFrame of shape (n_targets, n_components)
@@ -975,6 +983,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Reject sparse before validate_data does, so the message names the
         # ColumnTransformer knob rather than `.toarray()` (#399).
         _reject_sparse(X, "PLS")
+        refuse_empty_block(X, "X")
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels; pandas
         # numbers an array's rows and columns from 0.
@@ -984,6 +993,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
         if not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y, index=sample_index)
+        refuse_empty_block(Y, "Y")
         # The responses as floats, a pandas missing value (pd.NA) as NaN, as validate_data reads X:
         # without scaling nothing else converts them, and pd.NA raised TypeError (#1027). Columns
         # of floats are left as they are: a copy can change the memory layout, and with it the
@@ -993,12 +1003,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Y = Y.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
 
         self.n_samples_: int = X.shape[0]
-        Ny: int = Y.shape[0]
         self.n_targets_: int = Y.shape[1]
-        if Ny != self.n_samples_:
-            raise ValueError(
-                f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
-            )
+        check_response_block(Y, self.n_samples_)
         if sample_weight is not None and sample_weight.shape[0] != self.n_samples_:
             raise ValueError(
                 f"sample_weight has {sample_weight.shape[0]} entries; expected {self.n_samples_} to match X / Y."
@@ -1090,6 +1096,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
         else:
             X, Y = self._fit_imputed(unscaled_x, unscaled_y, A, settings, sample_weight=sample_weight)
+        # Named once the fit has not refused the blocks, so a block with no variance at all gets that error alone.
+        constant_columns(unscaled_x, "X", self)
+        constant_columns(unscaled_y, "Y", self)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
@@ -1148,20 +1157,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # missing data they are not, and SS(Yhat) can DECREASE as a component is added,
         # which made r2_per_component_ negative and vip() NaN. Per-variable R^2 is
         # undefined for a column with no variance to explain: NaN there, SEC-21 (#270).
-        x_total, y_total = ssq(X_values, axis=0), ssq(Y_values, axis=0)
+        # A weighted fit, PRM's too, is measured in the weights it was fitted with, so a row of weight 0
+        # is left out, as from the fit. Measured on every row, a component could lower a robust fit's R²
+        # on the outliers it had set aside, and vip() took the square root of a negative number (#1114).
+        row_weight = np.ones(N) if sample_weight is None else sample_weight
+        root = np.sqrt(row_weight)[:, np.newaxis]
+        cell_weight = np.where(np.isnan(Y_values), 0.0, root**2)
+        x_total, y_total = ssq(root * X_values, axis=0), ssq(root * Y_values, axis=0)
         spe, r2x, r2y, r2_cumulative, rmse = [], [], [], [], []
         for a in range(1, A + 1):
             x_left = X_values - T[:, :a] @ P[:, :a].T
             y_left = Y_values - T[:, :a] @ C[:, :a].T
             spe.append(np.sqrt(ssq(x_left, axis=1)))
-            r2x.append(1 - ssq(x_left, axis=0) / np.where(x_total > 0, x_total, np.nan))
-            r2y.append(1 - ssq(y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
-            r2_cumulative.append(1 - ssq(y_left) / np.sum(y_total))
+            r2x.append(1 - ssq(root * x_left, axis=0) / np.where(x_total > 0, x_total, np.nan))
+            r2y.append(1 - ssq(root * y_left, axis=0) / np.where(y_total > 0, y_total, np.nan))
+            r2_cumulative.append(1 - ssq(root * y_left) / np.sum(y_total))
             # Over the observed cells, as the R2 is: one missing Y cell made its column NaN (#1027).
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)  # a response with no observed value has no RMSE
-                rmse.append(np.sqrt(np.nanmean(y_left**2, axis=0)))
-        self._spe = np.column_stack(spe)
+                rmse.append(np.sqrt(np.nansum(cell_weight * y_left**2, axis=0) / cell_weight.sum(axis=0)))
+        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
+        self._spe = np.where(_rows_with_data(unscaled_x.to_numpy())[:, np.newaxis], np.column_stack(spe), np.nan)
         self.r2_cumulative_ = pd.Series(r2_cumulative, index=component_names, name="Output cumulative R²")
         self.r2_per_component_ = pd.Series(
             np.diff(r2_cumulative, prepend=0.0), index=component_names, name="Output R² per component"
@@ -1933,6 +1949,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         """
         # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
         X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        check_at_least_one("max_components", max_components)
+        check_at_least_one("n_repeats", n_repeats)
+        check_whole("n_permutations", n_permutations)  # 0 is allowed: it draws none
 
         _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="CV fold", metric="RMSECV")
 
@@ -1943,8 +1962,6 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             if cv < 2:
                 raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
             repeats = 10 if n_repeats is None else int(n_repeats)
-            if repeats < 1:
-                raise ValueError(f"n_repeats must be >= 1; got {repeats}.")
             seed = sklearn_random_state(random_state)  # the splitters refuse a Generator (#1128)
             splitter: BaseCrossValidator
             if repeats == 1:
@@ -1967,7 +1984,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # scaling the cap was n, and a fold model on as few rows as columns ran out of X (#1027).
         probe: dict[str, typing.Any] = {"n_components": 1}  # pragma: no mutate - only whether it centres is read
         centred = scale_inside_folds or cls(**probe, **pls_kwargs)._centres_and_scales()
-        upper = min(min_train_size - centred, K)
+        # A column with nothing observed is left out of every fold model, so it adds no component (#1114).
+        upper = min(min_train_size - centred, int(X.notna().any().sum()))
         if max_components is None:
             max_components = upper
         A = min(int(max_components), upper)
@@ -1998,7 +2016,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         x_columns = list(X.columns)
         y_columns = list(Y.columns)
         x_values = X.to_numpy()
-        y_values = Y.to_numpy()
+        # A held-out row with nothing observed in X has no prediction, as predict gives it none (#1148): it is
+        # judged as a row with no observed response is, and left out of PRESS and its reference (#1114).
+        y_values = np.where(_rows_with_data(x_values)[:, np.newaxis], Y.to_numpy(), np.nan)
         for fold_idx, (train_idx, test_idx) in enumerate(splits):
             model = cls(n_components=A, **pls_kwargs)
             (x_centre, x_scale), (y_centre, y_scale) = _fit_fold(
@@ -2052,8 +2072,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # often as it contributes to PRESS. A splitter that tests some rows
         # more than others (or not at all) is then handled exactly, rather
         # than through a whole-dataset repeat multiplier.
-        y_centred_sq = (y_values - np.nanmean(y_values, axis=0)) ** 2
-        x_centred_sq = (x_values - np.nanmean(x_values, axis=0)) ** 2
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # a column with no observed value has no mean
+            y_centred_sq = (y_values - np.nanmean(y_values, axis=0)) ** 2
+            x_centred_sq = (x_values - np.nanmean(x_values, axis=0)) ** 2
         tss_y = np.nansum(test_counts[:, None] * y_centred_sq, axis=0)
         tss_x = np.nansum(test_counts[:, None] * x_centred_sq, axis=0)
 
@@ -2965,11 +2987,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         if method != "bootstrap":
             y_hat_cv_df = pd.DataFrame(y_hat_cv, index=Y.index, columns=Y.columns)
-            residuals = Y.values - y_hat_cv
+            # A row with nothing observed in X has no prediction, and is left out of Q2's reference
+            # too, as select_n_components leaves it out (#1114).
+            y_judged = np.where(_rows_with_data(X.to_numpy(dtype=float))[:, np.newaxis], Y.to_numpy(), np.nan)
+            residuals = y_judged - y_hat_cv
             press_val = float(np.nansum(residuals**2))
             # nanmean, not mean: a single NaN in Y otherwise propagates through
             # the column mean and turns the whole ss_total (and Q2) into NaN.
-            ss_total = np.nansum((Y.values - np.nanmean(Y.values, axis=0)) ** 2, axis=0)
+            ss_total = np.nansum((y_judged - np.nanmean(y_judged, axis=0)) ** 2, axis=0)
             ss_res = np.nansum(residuals**2, axis=0)
 
             rmse_vals = np.sqrt(np.nanmean(residuals**2, axis=0))

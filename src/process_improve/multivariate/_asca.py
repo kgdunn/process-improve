@@ -42,7 +42,7 @@ from process_improve.experiments._lm import (
 )
 from process_improve.univariate.metrics import benjamini_hochberg
 
-from ._common import DataMatrix, _model_method, epsqrt
+from ._common import DataMatrix, _model_method, check_whole, epsqrt, refuse_empty_block
 from ._pca import PCA
 from ._preprocessing import MCUVScaler
 from .plots import effect_summary_plot as _effect_summary_plot
@@ -249,6 +249,7 @@ class ASCA(BaseEstimator):
             missing values, or if a factor has only one level (it can carry no effect).
         """
         self._validate_params()
+        refuse_empty_block(X, "X")
         X, design = self._validated(X, design)
         self.feature_names_in_ = np.asarray(X.columns)
         # MCUVScaler's centre and scale: a column is constant when its values are all
@@ -412,6 +413,7 @@ class ASCA(BaseEstimator):
         not repeated: the statistic is the sum of squares of the effect matrix, which the
         decomposition produces directly.
         """
+        check_whole("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         design_array = self._design_array
         pvalues = {}
@@ -520,6 +522,7 @@ class ASCA(BaseEstimator):
         if term not in self.terms_:
             msg = f"{term!r} is not a fitted term; choose one of {self.terms_}."
             raise ValueError(msg)
+        check_whole("n_permutations", n_permutations)
 
         rng = check_random_state(random_state)
         per_variable = (self.effect_matrices_[term].to_numpy() ** 2).sum(axis=0)

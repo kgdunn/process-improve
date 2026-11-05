@@ -41,7 +41,7 @@ from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, constant_columns, epsqrt, refuse_empty_block
 from ._preprocessing import MCUVScaler
 
 if typing.TYPE_CHECKING:
@@ -199,10 +199,12 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 DeprecationWarning,
                 stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
             )
+        refuse_empty_block(X, "X")
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2)
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)  # an array's labels are positions
+        given_x = X
         # Y is read by position, so its own row labels need not match X's; a Series keeps its name.
         Y = pd.DataFrame(Y)
         if Y.shape[1] != 1:
@@ -252,16 +254,19 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 "There is no variance in Y: the response is constant, so there is nothing for X to explain."
             )
 
+        # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114).
+        size = float(np.linalg.norm(Xmat))
+        _check_variance_left(Xmat, size, 0)
+        constant_columns(given_x, "X", self)
+
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
-        w_p = Xmat.T @ y
-        w_p = w_p / np.linalg.norm(w_p)  # (K, 1)
+        w_p = _predictive_direction(Xmat, y, size)  # (K, 1)
 
         W_o = np.zeros((n_features, n_ortho))
         P_o = np.zeros((n_features, n_ortho))
         T_o = np.zeros((self.n_samples_, n_ortho))
         Xd = Xmat.copy()
-        size = float(np.linalg.norm(Xmat))
         for i in range(n_ortho):
             _check_variance_left(Xd, size, i)
             t = Xd @ w_p  # (N, 1)
@@ -472,6 +477,22 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         if self._x_scaler is not None:
             X_df = self._x_scaler.transform(X_df)
         return X_df.to_numpy(), index
+
+
+def _predictive_direction(x: np.ndarray, y: np.ndarray, size: float) -> np.ndarray:
+    """Return ``X'y`` at unit length, refusing an X that has no covariance with y (#1114).
+
+    Such an X varies, so it passes :func:`_check_variance_left`, but gives no direction: dividing
+    by the zero length made the whole model NaN, after a ``RuntimeWarning``. Judged relative to the
+    sizes of X and y, as that check is.
+    """
+    direction = x.T @ y
+    length = float(np.linalg.norm(direction))
+    if length <= epsqrt * size * float(np.linalg.norm(y)):  # pragma: no mutate - < differs only at equality
+        raise NotEnoughVarianceError(
+            "X has no covariance with Y: no direction in X predicts the response, so there is no predictive component."
+        )
+    return direction / length
 
 
 def _check_variance_left(remaining: np.ndarray, size: float, extracted: int) -> None:

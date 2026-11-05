@@ -1082,6 +1082,7 @@ class TestMBPCAWrittenOut:
         assert np.sum(MCUVScaler().fit_transform(blocks["a"]).to_numpy() ** 2) < 1.0
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
             model = MBPCA(n_components=1).fit(blocks)
         assert model.block_informative_widths_ == {"a": 1, "b": 1, "c": 1}
         _frames_near(
@@ -2715,6 +2716,7 @@ class TestMBPLSWrittenOut:
         assert np.sum(MCUVScaler().fit_transform(y[["y0"]]).to_numpy() ** 2) < 1.0
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
             model = MBPLS(n_components=1).fit(blocks, y)
         with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y"):
             MBPLS(n_components=1).fit(blocks, y[["y1"]])

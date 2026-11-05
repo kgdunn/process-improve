@@ -27,7 +27,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from process_improve._random import check_random_state
 
-from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _model_method, epsqrt
+from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _model_method, check_whole, epsqrt
 from ._pls import PLS
 from .plots import confusion_matrix_plot as _confusion_matrix_plot
 
@@ -675,6 +675,7 @@ class PLSDA(ClassifierMixin, PLS):
             by the Van der Voet and multiblock randomization tests in this package.
         """
         check_is_fitted(self)
+        check_whole("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         labels = np.asarray(y).ravel()
         rows = pd.DataFrame(X)  # selected by position; PLS reads an array's columns by position too
