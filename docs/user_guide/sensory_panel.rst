@@ -277,7 +277,10 @@ panel consensus; the slope is the panelist's scaling coefficient ``beta``:
 per panelist and attribute, plus two product-effect F-tests: the MAM one (using
 the leftover disagreement as the error term) and the classical one (using the
 raw interaction). Removing the scale-usage differences from the error makes the
-MAM F-test more powerful.
+MAM F-test more powerful. The closed form needs every panelist to score every
+product: for an attribute with a missing cell the F-tests are NaN, a
+``RuntimeWarning`` names the panelists and products of the missing cells, and so
+does the attribute's ``note`` column, which says why any F-test is NaN.
 
 Instead of dropping a panelist who merely scales differently, you can *align*
 the panel: :func:`~process_improve.sensory.align_scores` rescales every panelist
