@@ -169,6 +169,15 @@ Tracking and rollout
   ``pyproject.toml``: once the package reaches it, the test
   fails, so we cannot forget to delete the shim. The test
   runs in CI with the rest of the suite.
+- The same test reads every ``warnings.warn(..., FutureWarning)``
+  call, the warning of a changed default. Its message names the
+  release that announced the change (``since 2.3.1`` or
+  ``announced in 2.4.0``) and the major release that makes it
+  (``in 3.0`` or ``from 3.0``), one major apart. It may be a
+  literal at the call, or a name, a key or a function of the
+  module that holds the literal. Once the package reaches the
+  major release, the test fails until the default is changed
+  and the warning and its note are deleted.
 
 Cross-references
 ----------------
