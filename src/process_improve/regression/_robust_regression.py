@@ -330,7 +330,9 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     requires for a changed default, so code that kept running got other numbers; 2.3.1
     restored least squares. The default becomes ``"bootstrap"`` in 3.0, because its intervals
     resist outliers as the slope does. Until then a call that the change would affect (one
-    with spread in x and a finite ``SE``) warns and carries ``intervals_note``.
+    with spread in x, a finite ``SE`` and residuals that are more than rounding) warns and
+    carries ``intervals_note``. A perfect fit stays quiet: every resample lies on its line,
+    so both kinds of interval have zero width.
 
     A ``conflevel`` outside (0, 1), NaN included, raises ``ValueError`` before any work is
     done. Up to 2.4.0 a level between -1 and 0 gave a reversed interval, and one with no t
@@ -492,7 +494,12 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     # With no spread in x, or a non-finite value kept in (SE is then not finite), the NaN intervals above stand
     # whichever intervals is, so the default's change in 3.0 changes nothing.
     has_intervals = out["x_ssq"] >= __eps and np.isfinite(out["SE"])
-    if intervals is None and has_intervals:
+    # Nor does it for a perfect fit, whose residuals are rounding errors of a few units in the last place of the
+    # line's largest term (at most 6 over 4,000 random exact lines): every resample lies on that line, so both
+    # kinds of interval have zero width.
+    largest_term = max(np.abs(y).max(), abs(intercept), np.abs(slope * x).max())
+    perfect_fit = out["SE"] <= 16 * np.finfo(float).eps * largest_term
+    if intervals is None and has_intervals and not perfect_fit:
         out["intervals_note"] = (
             "process_improve.regression.robust_regression's default intervals='least_squares' is deprecated since "
             "2.3.1 and will change to intervals='bootstrap' in 3.0, whose percentile-bootstrap intervals resist "

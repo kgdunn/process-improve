@@ -448,8 +448,10 @@ class TestRobustRegressionPandasSeriesInput:
 
     def test_series_gives_the_same_answer_as_ndarray(self) -> None:
         x, y = self._data()
-        from_arrays = robust_regression(x, y)
-        from_series = robust_regression(pd.Series(x, name="dose"), pd.Series(y, name="response"))
+        from_arrays = robust_regression(x, y, intervals="least_squares")
+        from_series = robust_regression(
+            pd.Series(x, name="dose"), pd.Series(y, name="response"), intervals="least_squares"
+        )
 
         assert from_series["N"] == from_arrays["N"]
         assert from_series["coefficients"] == pytest.approx(from_arrays["coefficients"])
@@ -464,7 +466,7 @@ class TestRobustRegressionPandasSeriesInput:
         y_s = pd.Series(y, index=range(7))
         assert not x_s.index.intersection(y_s.index).size  # nothing to align on
 
-        out = robust_regression(x_s, y_s)
+        out = robust_regression(x_s, y_s, intervals="least_squares")
         assert out["N"] == 7
         assert out["coefficients"][0] == pytest.approx(-1.5)
 
@@ -474,7 +476,7 @@ class TestRobustRegressionPandasSeriesInput:
         y_with_gaps = pd.Series(y).copy()
         y_with_gaps.iloc[[1, 3]] = np.nan
 
-        out = robust_regression(pd.Series(x), y_with_gaps)
+        out = robust_regression(pd.Series(x), y_with_gaps, intervals="least_squares")
         assert out["N"] == 5
         assert out["coefficients"][0] == pytest.approx(-1.5)
 
@@ -494,7 +496,7 @@ def test_simple_regression_no_error() -> None:
 def test_simple_robust_regression_no_intercept(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """Test simple robust regression with fit_intercept=False."""
     X, y = simple_robust_regression_data
-    out = robust_regression(X.ravel(), y, fit_intercept=False)
+    out = robust_regression(X.ravel(), y, fit_intercept=False, intervals="least_squares")
 
     # Basic structure checks
     assert out["intercept"] == 0.0  # Should be exactly 0.0, not None or np.nan
@@ -963,8 +965,8 @@ def test_robust_regression_keeps_incomplete_rows_when_na_rm_is_false() -> None:
     x = np.arange(10.0)
     y = 2.0 * x + 1.0 + np.random.default_rng(0).normal(scale=0.1, size=10)
     x[3] = np.nan
-    kept = robust_regression(x, y, na_rm=False)
-    dropped = robust_regression(x, y)
+    kept = robust_regression(x, y, na_rm=False, intervals="least_squares")
+    dropped = robust_regression(x, y, intervals="least_squares")
 
     assert (kept["N"], dropped["N"]) == (10, 9)
     assert kept["coefficients"][0] == pytest.approx(dropped["coefficients"][0])
@@ -1438,16 +1440,42 @@ def test_robust_regression_default_gives_least_squares_intervals_and_announces_t
         pytest.param(np.array([1.0, 2.0]), np.array([1.0, 3.0]), {}, id="two-points"),
         pytest.param(np.array([2.0, 2, 2, 2, 2]), np.array([1.0, 2, 3, 2.5, 1.5]), {}, id="no-spread-in-x"),
         pytest.param(np.array([1.0, 2, np.nan, 4, 5]), np.array([3.0, 5, 7, 9, 12]), {"na_rm": False}, id="nan-kept"),
+        pytest.param(np.arange(1.0, 6), 10.0 - np.arange(1.0, 6), {}, id="perfect-fit"),
+        pytest.param(0.1 * np.arange(1, 21), 0.07 * np.arange(1, 21) - 0.3, {}, id="perfect-up-to-rounding"),
+        pytest.param(np.arange(1.0, 6), 2.0 * np.arange(1.0, 6), {"fit_intercept": False}, id="perfect-no-intercept"),
     ],
 )
 def test_robust_regression_is_quiet_when_intervals_is_chosen_or_the_change_leaves_them(
     x: np.ndarray, y: np.ndarray, kwargs: dict
 ) -> None:
-    """Passing ``intervals``, to either value, is silent, and so is a fit whose intervals are NaN either way."""
+    """Passing ``intervals``, to either value, is silent, and so is a fit whose intervals the change leaves alone.
+
+    Those are the fits whose intervals are NaN either way, and a perfect fit, whose intervals have zero width
+    either way: every resample lies on its line (#1132).
+    """
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         out = robust_regression(x, y, **kwargs)
     assert "intervals_note" not in out
+
+
+def test_robust_regression_perfect_fit_has_the_same_intervals_either_way() -> None:
+    """The bootstrap gives a perfect fit's least-squares intervals, which is why the default stays quiet there."""
+    x = 0.1 * np.arange(1, 21)
+    y = 0.07 * np.arange(1, 21) - 0.3
+    ls = robust_regression(x, y, intervals="least_squares")
+    boot = robust_regression(x, y, intervals="bootstrap", n_boot=99)
+    for key in ("conf_intervals", "conf_interval_intercept", "pi_range"):
+        np.testing.assert_allclose(boot[key], ls[key], rtol=0, atol=1e-15)
+
+
+def test_robust_regression_in_small_units_still_announces_the_bootstrap() -> None:
+    """A perfect fit is judged against the size of the data, not a fixed tolerance: noise in nanounits warns."""
+    x = np.arange(1.0, 21)
+    with pytest.warns(FutureWarning, match="will change to intervals='bootstrap' in 3.0"):
+        out = robust_regression(x, 1e-9 * (x + np.sin(x)))
+    assert out["SE"] < 1e-8
+    assert "intervals_note" in out
 
 
 def test_robust_regression_tool_keeps_the_bootstrap_intervals_without_a_warning() -> None:
