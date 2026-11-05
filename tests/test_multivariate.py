@@ -11069,7 +11069,7 @@ def test_pls_invert_refuses_a_target_or_a_move_it_cannot_use_in_full() -> None:
         ValueError, match=r"^y_desired has 3 value\(s\); expected 2 to match the fitted target\(s\): \['y0', 'y1'\]\.$"
     ):
         pls.invert([1.0, 2.0, 3.0])
-    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y0', 'y1'\]\.$"):
+    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y1'\]\.$"):
         pls.invert({"y0": 1.0})
     message = r"^null_space_coordinates has 2 value\(s\); expected 1 to match the null-space dimension \(A - r\)\.$"
     with pytest.raises(ValueError, match=message):
