@@ -312,14 +312,11 @@ def _selectivity_ratio_one(
     # "significant" at conf_level, with N-2 and N-3 degrees of freedom. The
     # sensory layer prefers a permutation test, so this is advisory metadata.
     # With N <= 3 a degree of freedom is below 1, and scipy returns NaN.
-    # N is the feature's own count of observed rows, over which its ratio is formed (#1144).
+    # N is the feature's own count of observed rows, over which its ratio is formed (#1144), so the
+    # value is one per feature, a Series whatever the counts: one type for the code that reads it.
     n_observed = (~np.isnan(X_values)).sum(axis=0)
     critical = f_dist.ppf(conf_level, dfn=n_observed - 2, dfd=n_observed - 3)
-    series.attrs["f_critical"] = (
-        float(critical[0])
-        if np.unique(n_observed).size == 1
-        else pd.Series(critical, index=X_df.columns, name="f_critical")
-    )
+    series.attrs["f_critical"] = pd.Series(critical, index=X_df.columns, name="f_critical")
     series.attrs["conf_level"] = float(conf_level)
     series.attrs["response"] = label
     return series
@@ -381,10 +378,9 @@ def selectivity_ratio(
         single-response model.
     conf_level : float, default=0.95
         Confidence level for the advisory F-based critical value, attached to
-        the result's ``.attrs["f_critical"]``. It has :math:`N - 2` and
-        :math:`N - 3` degrees of freedom, :math:`N` being the number of rows a
-        feature is observed in: one float when every feature has the same
-        :math:`N`, and otherwise a Series indexed by feature, so that
+        the result's ``.attrs["f_critical"]``: a Series indexed by feature,
+        with :math:`N - 2` and :math:`N - 3` degrees of freedom, :math:`N`
+        being the number of rows the feature is observed in. So
         ``ratio > ratio.attrs["f_critical"]`` compares each feature with its own.
 
     Returns

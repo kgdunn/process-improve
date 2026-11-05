@@ -1,8 +1,9 @@
 - **The selectivity ratio's F critical value counts each feature's observed rows.** A feature's
   ratio is formed over its observed cells, but `attrs["f_critical"]` counted every row of `X`, so a
-  feature with gaps was held to a lower bar than its rows support. It stays one float when every
-  feature has the same count, and is a Series indexed by feature when gaps make the counts differ,
-  so `ratio > ratio.attrs["f_critical"]` compares each feature with its own (#1144).
+  feature with gaps was held to a lower bar than its rows support. It is now a Series indexed by
+  feature, also when every feature has the same count, where it was one float: read one feature's
+  value as `ratio.attrs["f_critical"]["name"]`, and `ratio > ratio.attrs["f_critical"]` compares
+  each feature with its own (#1144).
 - **`OPLS` contributions work.** `t2_contributions`, `spe_contributions`, `score_contributions`,
   `group_contributions`, `meda` and `omeda` raised `AttributeError` (no `loadings_`). They take the
   `X` that `transform` takes, and on the training data add up to the stored T², SPE and scores, as

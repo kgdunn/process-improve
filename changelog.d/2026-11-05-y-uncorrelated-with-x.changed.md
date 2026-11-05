@@ -3,6 +3,6 @@
   `numpy.linalg.LinAlgError` that blamed collinear columns, after numpy's division warnings, and
   `MBPLS` fitted every weight 0, with an R²Y of 0, and predicted NaN for every new row. All now
   raise `NotEnoughVarianceError`, as for a constant Y: "There is nothing in X to explain Y by: Y is
-  uncorrelated with every column of X." Code that caught `LinAlgError` here catches
-  `NotEnoughVarianceError` (a `RuntimeError`) instead. `X'Y` is judged against `||X|| ||Y||`, so the
-  units of the data do not matter (#1144).
+  uncorrelated with every column of X." `NotEnoughVarianceError` is a `ValueError` as well
+  (#1166), so code that caught the old `LinAlgError`, a `ValueError`, still catches it. `X'Y` is
+  judged against `||X|| ||Y||`, so the units of the data do not matter (#1144).
