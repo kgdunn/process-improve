@@ -682,36 +682,38 @@ class TPLS(RegressorMixin, BaseEstimator):
         # j = block name [z, f, d, y, super]
         # ----------------
         self.t_scores_super: pd.DataFrame = pd.DataFrame(index=self.observation_names)
+        # The frames start from copies of the blocks' own axes, not the name lists, so each keeps its axis
+        # name (#1083), and renaming the caller's axis later does not rename the model's.
         self.r_loadings_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.material_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.d_matrix[key].index.copy()) for key in group_keys
         }
         self.w_loadings_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
+            key: pd.DataFrame(index=X["Z"][key].columns.copy()) for key in self.z_mats
         }
         self.w_loadings_super = pd.DataFrame(index=self._super_block_names())
         # Capture the correlation of the properties in D; for the last component.
         self.s_loadings_d: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.d_matrix[key].columns.copy()) for key in group_keys
         }
         # Captures the deflation of the properties in D; for the last component.
         self.v_loadings_d: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.d_matrix[key].columns.copy()) for key in group_keys
         }
         self.p_loadings_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.material_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.d_matrix[key].index.copy()) for key in group_keys
         }
         self.p_loadings_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
+            key: pd.DataFrame(index=X["Z"][key].columns.copy()) for key in self.z_mats
         }
         self.q_loadings_y: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.quality_names[key]) for key in self.y_mats
+            key: pd.DataFrame(index=X["Y"][key].columns.copy()) for key in self.y_mats
         }
 
         # Model performance
         # -----------------
         # 1. Prediction matrices (hat matrices for Y-space) in pre-processed space
         self.hat_: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.observation_names, columns=self.quality_names[key], dtype=float).fillna(0)
+            key: pd.DataFrame(index=self.observation_names, columns=X["Y"][key].columns.copy(), dtype=float).fillna(0)
             for key in self.y_mats
         }
         # 2. Squared prediction error (SPE) for each observation, per component, per block
@@ -851,7 +853,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 scores @ self.q_loadings_y[key].to_numpy().T * self.preproc_["Y"][key]["scale"].to_numpy()
                 + self.preproc_["Y"][key]["center"].to_numpy(),
                 index=names_observations,
-                columns=self.quality_names[key],
+                columns=self.q_loadings_y[key].index,
             )
             for key in self.y_mats
         }
@@ -874,11 +876,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             # The blocks as deflated by the last component: the vectors whose lengths are SPE, for optimal inversion.
             residuals={
                 "F": {
-                    key: pd.DataFrame(values, index=X["F"][key].index, columns=self.material_names[key])
+                    key: pd.DataFrame(values, index=X["F"][key].index, columns=self.p_loadings_f[key].index)
                     for key, values in x_f.items()
                 },
                 "Z": {
-                    key: pd.DataFrame(values, index=X["Z"][key].index, columns=self.condition_names[key])
+                    key: pd.DataFrame(values, index=X["Z"][key].index, columns=self.p_loadings_z[key].index)
                     for key, values in x_z.items()
                 },
             },
@@ -1374,14 +1376,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         start = 0
         for key in self.property_names:
             end = start + len(self.property_names[key])
-            vip_split_d[key] = pd.Series(vip_d[start:end], index=self.property_names[key])
+            vip_split_d[key] = pd.Series(vip_d[start:end], index=self.s_loadings_d[key].index)
             start = end
 
         vip_split_f = {}
         start = 0
         for key in self.material_names:
             end = start + len(self.material_names[key])
-            vip_split_f[key] = pd.Series(vip_f[start:end], index=self.material_names[key])
+            vip_split_f[key] = pd.Series(vip_f[start:end], index=self.r_loadings_f[key].index)
             start = end
         return vip_split_d, vip_split_f
 
@@ -1589,7 +1591,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # SPE for the D-space, one per material: the rows of D.
         self.spe["D"] = {
-            key: pd.Series(np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1)), index=self.material_names[key])
+            key: pd.Series(np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1)), index=self.r_loadings_f[key].index)
             for key in self.d_mats
         }
         self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].to_numpy()) for key in self.d_mats}
