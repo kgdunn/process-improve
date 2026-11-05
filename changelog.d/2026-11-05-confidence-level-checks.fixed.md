@@ -5,9 +5,11 @@
   `multiple_linear_regression`, `OLS.prediction_interval`, `ttest_one_sample`,
   `ttest_independent`, `ttest_paired` (and their `_from_df` forms), `confidence_interval`,
   `least_squares_means`, `intraclass_correlation_interval`, `BlockedFit.predict`,
-  `selectivity_ratio`, `product_means`, `compare_products` and `analyze_descriptive` now raise
-  `ValueError: conflevel must lie in (0, 1); got -0.5.` (or `conf_level`, as the function names it)
-  before any work is done, as the multivariate limits already did. `robust_regression` gave NaN
+  `selectivity_ratio`, `product_means`, `compare_products`, `analyze_descriptive` and the DOE
+  plots of `visualize_doe` now raise `ValueError: conflevel must lie in (0, 1); got -0.5.` (or
+  `conf_level` or `confidence_level`, as the function names it) before any work is done, as the
+  multivariate limits already did. The `visualize_doe` tool's `confidence_level` was not bounded;
+  its schema now refuses a level outside (0, 1), as the other tools' schemas do. `robust_regression` gave NaN
   intervals for a level of NaN, infinity or above 1 since 2.3.1; it raises the same error now.
   `variance_interval` and `nonlinear_regression` already refused such a level; their message now
   reads the same as the others. (#1132)

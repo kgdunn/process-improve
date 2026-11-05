@@ -16,10 +16,13 @@ import pytest
 
 from process_improve.experiments import Comparisons, fit_across_blocks, least_squares_means
 from process_improve.experiments.random_effects import intraclass_correlation_interval
+from process_improve.experiments.visualization.plots.registry import create_plot
 from process_improve.multivariate import PLS, MCUVScaler
 from process_improve.regression.methods import OLS, multiple_linear_regression, robust_regression
 from process_improve.regression.nonlinear import nonlinear_regression
 from process_improve.sensory.analysis import product_means
+from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_spec import execute_tool_call
 from process_improve.univariate.classical import ttest_one_sample, variance_interval
 from process_improve.univariate.metrics import confidence_interval, ttest_independent, ttest_paired
 
@@ -91,6 +94,7 @@ CALLS: dict[str, tuple[str, Callable[[float], Any]]] = {
         lambda c: intraclass_correlation_interval(29.73, 1.90, 3, 4, conflevel=c),
     ),
     "BlockedFit.predict": ("conf_level", _across_blocks),
+    "create_plot": ("confidence_level", lambda c: create_plot("pareto", confidence_level=c)),
     "PLS.selectivity_ratio": ("conf_level", lambda c: _pls()[0].selectivity_ratio(_pls()[1], conf_level=c)),
 }
 
@@ -110,3 +114,16 @@ def test_a_confidence_level_inside_0_1_is_accepted(call: str) -> None:
     """The check refuses only levels outside (0, 1): each call runs at 0.9."""
     _name, function = CALLS[call]
     function(0.9)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("robust_regression", {"x": [1.0, 2.0, 3.0, 4.0], "y": [2.0, 4.1, 5.9, 8.2], "confidence_level": 1.5}),
+        ("visualize_doe", {"plot_type": "pareto", "confidence_level": 95}),
+    ],
+)
+def test_a_tool_refuses_a_confidence_level_outside_0_1_at_its_schema(tool: str, arguments: dict) -> None:
+    """A hosted caller is refused by the input contract, before any worker starts."""
+    with pytest.raises(ToolInputInvalidError, match="confidence_level"):
+        execute_tool_call(tool, arguments)
