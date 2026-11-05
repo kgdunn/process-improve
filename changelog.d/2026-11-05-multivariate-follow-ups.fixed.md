@@ -11,9 +11,13 @@
 - **`PCA.select_n_components`, `PLS.select_n_components` and `PLS.nested_cv` read a pandas
   missing value (`pd.NA`) as a missing cell**, as `fit` does. A nullable column holding one raised
   `TypeError`; `PLSDA` followed `PLS` (#1144).
-- **TPLS gives a block that no component explains a VIP of 0.** An `F` whose every blend has the
-  same row, used as given (`skip_f_matrix_preprocessing=True`), has loadings and R² of 0; both of
-  its VIPs divided 0 by 0, with numpy's `RuntimeWarning`, and were NaN (#1144).
+- **TPLS refuses an `F` group with no variation used as given on every numpy build.** A group
+  whose every blend has the same row, with `skip_f_matrix_preprocessing=True`, gives the iteration
+  only rounding error to follow. Depending on the numpy build, TPLS refused the fit after an
+  overflow warning, or fitted it with F weights near 1e15 and no weight for F: one such group then
+  took a varying group out of the model without a word, and an all-constant `F` had VIPs of NaN. It
+  is now refused before the iteration follows the rounding error, with the message that asks for
+  each D and F group to vary (#1144).
 - **Adaptive history labels no longer repeat.** A row with no label is numbered one past the
   largest integer label recorded so far, or by the number of rows recorded when that is larger; it
   went on from the last label, so the labels 2 and "x" gave the next row 2 again. A DataFrame whose
