@@ -59,7 +59,7 @@ FITS: dict[str, Callable[[int], object]] = {
 
 
 def _fit_info(model: object) -> dict:
-    """The per-component record of a fit: ``fitting_info_``, which TPLS calls ``fitting_statistics``."""
+    """Return the per-component record of a fit: ``fitting_info_``, which TPLS calls ``fitting_statistics``."""
     return model.fitting_statistics if isinstance(model, TPLS) else model.fitting_info_  # type: ignore[attr-defined]
 
 

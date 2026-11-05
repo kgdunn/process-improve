@@ -123,7 +123,7 @@ class TestPLSFeatureNames:
 
 
 def _named(rows: int, columns: list[str], rng: np.random.Generator, index: str, axis: str) -> pd.DataFrame:
-    """A frame of random numbers whose row and column axes carry a name."""
+    """Return a frame of random numbers whose row and column axes carry a name."""
     frame = pd.DataFrame(rng.normal(size=(rows, len(columns))), columns=columns, index=[f"r{i}" for i in range(rows)])
     return frame.rename_axis(index=index, columns=axis)
 
@@ -162,40 +162,50 @@ def _fit_tpls(rng: np.random.Generator) -> tuple[object, list[pd.DataFrame]]:
     return TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks)), callers
 
 
-def _axis_names(model: object) -> dict[str, list]:
-    """The axis names of every frame, series and index a fitted model holds, by where it holds them.
+def _names_of(value: object) -> list | None:
+    """Return the axis names of an index, series or frame, and None for anything else."""
+    if isinstance(value, pd.Index):
+        return list(value.names)
+    if isinstance(value, pd.Series):
+        return list(value.index.names)
+    if isinstance(value, pd.DataFrame):
+        return [*value.index.names, *value.columns.names]
+    return None
 
-    It looks inside dicts, lists and the package's own objects (the scalers), and builds the
-    lazily built frames. The constructor's parameters are left out: scikit-learn keeps them as
-    given, so TPLS's ``d_matrix`` is the caller's own dict.
+
+def _collect(value: object, where: str, found: dict[str, list]) -> None:
+    """Record the axis names of ``value``, or of what it holds: in dicts, lists and the package's own objects."""
+    names = _names_of(value)
+    if names is not None:
+        found[where] = names
+        return
+    if isinstance(value, dict):
+        items = list(value.items())
+    elif isinstance(value, list | tuple):
+        items = list(enumerate(value))
+    elif type(value).__module__.startswith("process_improve") and hasattr(value, "__dict__"):
+        items = list(vars(value).items())  # the scalers a model keeps
+    else:
+        return
+    for key, item in items:
+        _collect(item, f"{where}[{key!r}]", found)
+
+
+def _axis_names(model: object) -> dict[str, list]:
+    """Return the axis names of every frame, series and index a fitted model holds, by where it holds them.
+
+    The lazily built frames are built. The constructor's parameters are left out: scikit-learn
+    keeps them as given, so TPLS's ``d_matrix`` is the caller's own dict.
     """
     found: dict[str, list] = {}
-
-    def visit(value: object, where: str) -> None:
-        if isinstance(value, pd.Index):
-            found[where] = list(value.names)
-        elif isinstance(value, pd.Series):
-            found[where] = list(value.index.names)
-        elif isinstance(value, pd.DataFrame):
-            found[where] = [*value.index.names, *value.columns.names]
-        elif isinstance(value, dict):
-            for key, item in value.items():
-                visit(item, f"{where}[{key!r}]")
-        elif isinstance(value, list | tuple):
-            for position, item in enumerate(value):
-                visit(item, f"{where}[{position}]")
-        elif type(value).__module__.startswith("process_improve") and hasattr(value, "__dict__"):
-            for key, item in vars(value).items():
-                visit(item, f"{where}.{key}")
-
     parameters = set(model.get_params())  # type: ignore[attr-defined]
     for key, value in vars(model).items():
         if key not in parameters and key != "_frame_cache":
-            visit(value, key)
+            _collect(value, key, found)
     for owner in type(model).__mro__:
         for key, value in vars(owner).items():
             if isinstance(value, _LazyFrame):
-                visit(getattr(model, key), key)
+                _collect(getattr(model, key), key, found)
     return found
 
 
