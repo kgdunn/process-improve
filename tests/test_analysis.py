@@ -2331,7 +2331,8 @@ class TestModelSelectionCriterion:
         assert chosen["n_terms"] == len(chosen["selected_terms"])
 
     @pytest.mark.dataset
-    def test_a_mixture_formula_is_searched_over_its_own_blending_terms(self) -> None:
+    @pytest.mark.parametrize("lhs", ["y ~ ", ""])
+    def test_a_mixture_formula_is_searched_over_its_own_blending_terms(self, lhs: str) -> None:
         """Kurotori's propellant (Box and Draper, Table 17.1) needs its special cubic term (#1129).
 
         The book's quadratic leaves a residual sum of squares of 0.037, its special cubic 0.0003, and
@@ -2342,7 +2343,7 @@ class TestModelSelectionCriterion:
         name = "box-draper-17-kurotori-propellant"
         (case,) = [e for e in reference_experiments("box-draper-2007") if e["name"] == name]
         runs = pd.DataFrame(case["runs"]["rows"], columns=case["runs"]["columns"])[["z1", "z2", "z3", "y"]]
-        formula = "y ~ z1 + z2 + z3 + z1:z2 + z1:z3 + z2:z3 + z1:z2:z3 - 1"
+        formula = lhs + "z1 + z2 + z3 + z1:z2 + z1:z3 + z2:z3 + z1:z2:z3 - 1"
         chosen = {}
         for model in ("scheffe_special_cubic", formula):
             with warnings.catch_warnings():

@@ -1056,7 +1056,7 @@ def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
     """
     if not fit.mixture or fit.model in SCHEFFE_MODELS:
         return None
-    terms = ModelDesc.from_formula(fit.model.split("~", 1)[1]).rhs_termlist
+    terms = ModelDesc.from_formula(fit.model).rhs_termlist
     return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
 
 
