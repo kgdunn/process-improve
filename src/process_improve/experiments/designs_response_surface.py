@@ -689,7 +689,11 @@ def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
 
 
 def dispatch_dsd(
-    factors: list[Factor], budget: int | None = None, categorical_method: str = "dsd"
+    factors: list[Factor],
+    budget: int | None = None,
+    categorical_method: str = "dsd",
+    *,
+    design_name: str = "definitive screening design",
 ) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
@@ -755,6 +759,10 @@ def dispatch_dsd(
     categorical_method : {"dsd", "orth"}
         How two-level categorical factors are added: DSD-augment (the default) or
         ORTH-augment.
+    design_name : str
+        What the note and the warning call the design: :func:`dispatch_omars
+        <process_improve.experiments.designs_omars.dispatch_omars>` builds the same design
+        as the minimal OMARS design.
 
     Returns
     -------
@@ -798,12 +806,13 @@ def dispatch_dsd(
     usual = k + k % 2
     if budget is None and m > usual:
         meta["note"] = (
-            f"No conference matrix of order {usual} can be built here, so the definitive screening design for {k} "
+            f"No conference matrix of order {usual} can be built here, so the {design_name} for {k} "
             f"factors uses the next order that can, {m}: {2 * m + extra} runs rather than {2 * usual + extra}, with "
             f"{m - k} fake factors (columns left out of the design)."
         )
-        # stacklevel 4: past _dispatch_dsd and generate_design, to the line that asked for the design.
-        warnings.warn(meta["note"], category=UserWarning, stacklevel=4)
+        from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
+
+        warnings.warn(meta["note"], category=UserWarning, stacklevel=user_stacklevel())
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta
     meta["n_categorical"], meta["categorical_method"] = len(categorical), categorical_method

@@ -267,7 +267,7 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     if len(factors) < 3:
         raise ValueError("OMARS designs require at least 3 factors.")
 
-    coded_matrix, dsd_meta = dispatch_dsd(factors)
+    coded_matrix, dsd_meta = dispatch_dsd(factors, design_name="OMARS design")
     meta = {**dsd_meta, "family": "conference_foldover"}
     if verify:
         meta["omars_verified"] = is_omars(coded_matrix)
