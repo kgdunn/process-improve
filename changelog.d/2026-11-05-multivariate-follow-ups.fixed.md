@@ -7,9 +7,9 @@
   `group_contributions`, `meda` and `omeda` raised `AttributeError` (no `loadings_`). They take the
   `X` that `transform` takes, and on the training data add up to the stored T², SPE and scores, as
   the rest of the family's do (#1144).
-- **`PCA.select_n_components` and `PLS.select_n_components` read a pandas missing value (`pd.NA`)
-  as a missing cell**, as `fit` does. A nullable column holding one raised `TypeError`; `PLSDA`
-  followed `PLS` (#1144).
+- **`PCA.select_n_components`, `PLS.select_n_components` and `PLS.nested_cv` read a pandas
+  missing value (`pd.NA`) as a missing cell**, as `fit` does. A nullable column holding one raised
+  `TypeError`; `PLSDA` followed `PLS` (#1144).
 - **TPLS gives a block that no component explains a VIP of 0.** An `F` whose every blend has the
   same row, used as given (`skip_f_matrix_preprocessing=True`), has loadings and R² of 0; both of
   its VIPs divided 0 by 0, with numpy's `RuntimeWarning`, and were NaN (#1144).
