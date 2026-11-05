@@ -588,10 +588,10 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
         msg = "Model is not fitted. Call fit() before computing contributions."
         raise ValueError(msg)
 
-    is_pls = hasattr(model, "direct_weights_")
     if hasattr(model, "_contribution_matrices"):
         R, P = model._contribution_matrices()
     else:
+        is_pls = hasattr(model, "direct_weights_")
         P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
         R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
     # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
