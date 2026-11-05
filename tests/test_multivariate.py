@@ -6600,25 +6600,24 @@ class TestTPLSWrittenOut:
         with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
             model.fit(DataFrameDict(blocks))
 
-    def test_an_f_of_constants_used_as_given_has_an_importance_of_0_without_a_warning(self) -> None:
-        """#1144: every blend with the same F row, used as given, leaves F nothing to explain, so its VIP is 0.
+    @pytest.mark.parametrize("constant", [["A", "B"], ["B"]], ids=["every-group", "one-group"])
+    def test_an_f_group_with_no_variation_used_as_given_is_refused_on_every_numpy(self, constant: list[str]) -> None:
+        """#1144: an F group whose every blend has the same row, used as given, is refused, as the error says.
 
-        F then says nothing about how the blends differ: its loadings and R2 are 0, and Z carries the
-        fit. Both VIPs of F divided 0 by 0, with numpy's warnings, and were NaN; a block that a
-        component leaves untouched has a VIP of 0, as in MBPLS.
+        Against a centred u, such a group's F'u is rounding error: exactly 0 with numpy 2.2, which
+        refused the fit after an overflow warning, and about 1e-17 with numpy 2.5, which fitted.
+        Regressing D on that remainder gave F weights near 1e15 and an F super weight of 0, so one
+        such group took the varying one out of the model without a word.
         """
         d_matrix, blocks = _t_shaped(gaps=False)
-        for frame in blocks["F"].values():
+        for group in constant:
+            frame = blocks["F"][group]
             frame.loc[:, :] = np.arange(1, frame.shape[1] + 1) / 10.0
         model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            model.fit(DataFrameDict(blocks))
-            importances = [model.vip("F"), model.vip("F", method="deflated")]
-        for importance in importances:
-            for group in importance.values():
-                np.testing.assert_array_equal(group.to_numpy(), 0.0)
-        assert np.isfinite(model.vip("D", method="deflated")["A"]).all()
+            with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: .* each D and F group, varies"):
+                model.fit(DataFrameDict(blocks))
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
