@@ -1111,6 +1111,23 @@ def test_mam_f_test_is_undefined_without_disagreement_to_test_against(scores, cl
     assert np.isfinite(ftest["f_product_classical"]) == classical_defined
     if not classical_defined:
         assert (mam.scaling["beta"] == 1.0).all()
+    # The row says why each NaN F-test is NaN, and names only the tests that are (#1099).
+    assert "MAM F-test" in ftest["note"]
+    assert ("classical F-test" in ftest["note"]) != classical_defined
+
+
+@pytest.mark.parametrize(
+    ("scores", "reason"),
+    [
+        pytest.param({"P1": [3.0], "P2": [4.0]}, "only one product", id="one-product"),
+        pytest.param({"P1": [3.0, 5.0, 4.0]}, "interaction has no degrees of freedom", id="one-panelist"),
+    ],
+)
+def test_mam_note_says_why_a_degenerate_panel_has_no_f_test(scores, reason):
+    """A panel too small for an F-test gets NaN F-tests and a note naming the reason, not a blank (#1099)."""
+    ftest = mixed_assessor_model(_cell_panel(scores)).ftests.iloc[0]
+    assert np.isnan(ftest["f_product_classical"])
+    assert reason in ftest["note"]
 
 
 def test_mam_f_tests_are_nan_with_a_warning_when_a_cell_is_missing():
@@ -1118,14 +1135,37 @@ def test_mam_f_tests_are_nan_with_a_warning_when_a_cell_is_missing():
     panel = _scaling_panel()
     complete = mixed_assessor_model(panel).ftests.iloc[0]
     assert np.isfinite(complete["f_product_mam"])
+    assert complete["note"] == ""
 
     one_missing = panel[~((panel["panelist_id"] == "P3") & (panel["product"] == "prod2"))]
-    with pytest.warns(RuntimeWarning, match=r"\['A'\] a panelist did not score.*mixed_assessor_model_reml"):
+    with pytest.warns(RuntimeWarning, match=r"\['A'\].*mixed_assessor_model_reml") as caught:
         mam = mixed_assessor_model(one_missing)
     ftest = mam.ftests.iloc[0]
     for column in ("f_product_mam", "p_product_mam", "f_product_classical", "p_product_classical"):
         assert np.isnan(ftest[column]), column
     assert np.isfinite(mam.scaling["beta"]).all()
+    # The warning and the row both name the panelist and the product of the missing cell (#1099).
+    cell = "panelist 'P3' did not score product(s) ['prod2']"
+    assert cell in str(caught[0].message)
+    assert cell in ftest["note"]
+    assert "mixed_assessor_model_reml" in ftest["note"]
+
+
+def test_mam_warning_names_the_missing_cells_of_each_attribute():
+    """Attributes with the same missing cells are named together; a complete attribute keeps its F-tests."""
+    panel = _scaling_panel()
+    panel = pd.concat([panel, panel.assign(attribute="B"), panel.assign(attribute="C")], ignore_index=True)
+    gone = ((panel["panelist_id"] == "P3") & (panel["product"] == "prod2") & panel["attribute"].isin(["A", "B"])) | (
+        (panel["panelist_id"] == "P5") & panel["product"].isin(["prod0", "prod1"]) & (panel["attribute"] == "C")
+    )
+    with pytest.warns(RuntimeWarning) as caught:
+        mam = mixed_assessor_model(panel[~gone])
+    message = str(caught[0].message)
+    assert "in attribute(s) ['A', 'B'], panelist 'P3' did not score product(s) ['prod2']" in message
+    assert "in attribute(s) ['C'], panelist 'P5' did not score product(s) ['prod0', 'prod1']" in message
+    notes = mam.ftests.set_index("attribute")["note"]
+    assert "'P5'" in notes["C"]
+    assert "'P5'" not in notes["A"]
 
 
 def test_analyze_correction_align_changes_means_and_reports_mam():
@@ -1159,6 +1199,28 @@ def test_tool_panel_check_returns_scorecard_and_mam():
     assert beta["P1"] > 1.3  # expander
     assert "aligned_panel" in out
     assert {"scorecard", "ftests"}.issubset({*out, *out["mam"]})
+
+
+def test_tool_panel_check_says_which_cell_is_missing():
+    """The tool's F-test row and its library warning name the missing cell; a direct call warns the same (#1099)."""
+    from process_improve.sensory.tools import _PanelCheckInput, sensory_panel_check
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _scaling_panel()
+    panel = panel[~((panel["panelist_id"] == "P3") & (panel["product"] == "prod2"))].to_dict(orient="records")
+    out = execute_tool_call("sensory_panel_check", {"panel": panel})
+    json.dumps(out)
+    cell = "panelist 'P3' did not score product(s) ['prod2']"
+    ftest = out["mam"]["ftests"][0]
+    assert ftest["f_product_mam"] is None
+    assert cell in ftest["note"]
+    messages = [w["message"] for w in out["library_warnings"]]
+    assert any(cell in m for m in messages)
+
+    with pytest.warns(RuntimeWarning) as caught:
+        direct = sensory_panel_check(_PanelCheckInput(panel=panel))
+    assert [str(w.message) for w in caught] == messages
+    assert direct["mam"]["ftests"][0]["note"] == ftest["note"]
 
 
 def test_tool_panel_check_missing_columns():
