@@ -36,6 +36,7 @@ from ._common import (
     SpecificationWarning,
     _model_method,
     _nz,
+    _own_axes,
     check_at_least_one,
     epsqrt,
     largest_ssq_column,
@@ -1138,6 +1139,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             A column with no observed value is excluded the same way and gets the same
             warning, worded for its own cause (#982).
         """
+        # pandas 2 hands a reduction the caller's own column labels, so a name given to them after
+        # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
+        y = _own_axes(y)
         centering = y.mean()
         scaling = y.std() if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)  # pandas' default ddof is 1
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
