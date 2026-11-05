@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, check_is_fitted, validate_data
 
-from ._common import DataMatrix, SpecificationWarning, _reject_sparse
+from ._common import DataMatrix, SpecificationWarning, _reject_sparse, column_sd
 
 
 class MCUVScaler(TransformerMixin, BaseEstimator):
@@ -104,7 +104,7 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
             # so the warnings are noise for the caller. Nothing else here warns.
             warnings.simplefilter("ignore")
             center = np.nanmean(X_arr, axis=0)
-            scale = np.nanstd(X_arr, axis=0, ddof=1)
+            scale = column_sd(X_arr)  # nanstd without overflow or underflow, in any units (#1070)
             highest = np.nanmax(X_arr, axis=0)
             constant = highest == np.nanmin(X_arr, axis=0)
         # Constant columns are left as-is (scale to 1.0) rather than
@@ -117,12 +117,14 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # catch: a column with fewer than two observed values, whose
         # nanstd(ddof=1) is NaN (NaN == 0 is False, so the equality test
         # missed it and transform emitted an all-NaN column); and a
-        # denormal-tiny standard deviation, whose reciprocal overflows.
+        # denormal standard deviation, whose reciprocal overflows. That floor
+        # is the smallest normal float: at its square root (1.5e-154) it took a
+        # column in units near 1e-160 for a constant one (#1070).
         # An all-NaN column additionally has a NaN center; treat it as
         # constant-at-zero so transform passes the NaN cells through
         # unchanged instead of poisoning them further.
-        tiny = float(np.finfo(float).tiny) ** 0.5
-        scale = np.where(constant | ~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+        tiny = float(np.finfo(float).tiny)
+        scale = np.where(constant | ~np.isfinite(scale) | (scale < tiny), 1.0, scale)
         center = np.where(constant, highest, center)
         center = np.where(np.isfinite(center), center, 0.0)
 

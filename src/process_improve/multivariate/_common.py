@@ -110,6 +110,35 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
 
 
+def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
+    """Return the sample standard deviation (``ddof=1``) of each column, missing values skipped, in any units.
+
+    A square overflows beyond about 1e154 and underflows to 0 below about 1e-162, so a standard
+    deviation taken in the data's own units was ``inf`` for data near 1e160 and 0 for data near
+    1e-160 (#1070). Each column is divided first by the power of two just above its largest
+    absolute value, which brings it within (-1, 1), and the result multiplied back. Dividing by a
+    power of two is exact, so a column whose standard deviation did not overflow or underflow
+    gives the same one, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+        The data, with NaN where a value is missing.
+
+    Returns
+    -------
+    np.ndarray of shape (n_features,)
+        The standard deviations, NaN for a column with fewer than two observed values.
+    """
+    values = np.asarray(values, dtype=float)
+    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
+    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    unit = np.ldexp(1.0, exponent)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
+        return np.nanstd(values / unit, axis=0, ddof=1) * unit
+
+
 #: Smallest positive float; used to floor NIPALS denominators away from zero.
 _DENOM_FLOOR = float(np.finfo(float).tiny)
 
