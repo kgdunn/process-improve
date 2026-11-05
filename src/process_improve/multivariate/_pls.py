@@ -37,6 +37,7 @@ from ._common import (
     UncentredDataWarning,
     _align_to_fit_features,
     _equal_weight_r2_total,
+    _float_frame,
     _model_method,
     _nz,
     _reject_sparse,
@@ -1915,8 +1916,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> # Caller-supplied splitter (n_repeats is ignored here):
         >>> PLS.select_n_components(X, Y, cv=KFold(10, shuffle=True, random_state=0))
         """
-        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
-        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        # An array is numbered from 0, a Series keeps its name, and a nullable column's pd.NA is a missing cell.
+        X, Y = _float_frame(X), _float_frame(Y)
 
         _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="CV fold", metric="RMSECV")
 

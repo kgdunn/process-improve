@@ -473,6 +473,17 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
     return X
 
 
+def _float_frame(data: DataMatrix) -> pd.DataFrame:
+    """Return ``data`` as a DataFrame of floats, a pandas missing value (pd.NA) as NaN, as ``fit`` reads it (#1144).
+
+    An array's rows and columns are numbered from 0, and a Series keeps its name, as
+    ``pd.DataFrame`` gives them. A frame of floats is returned as it is: a copy can change
+    its memory layout, and with it the order sums run in.
+    """
+    frame = pd.DataFrame(data)
+    return frame if (frame.dtypes == np.float64).all() else frame.astype(float)
+
+
 def _component_curve(values: np.ndarray | pd.Series | list[float], name: str) -> np.ndarray:
     """Return a per-component curve as a float array whose entry ``i`` belongs to ``i + 1`` components.
 
