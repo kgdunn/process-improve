@@ -689,11 +689,7 @@ def _dsd_order_for_budget(k: int, extra: int, budget: int | None) -> int:
 
 
 def dispatch_dsd(
-    factors: list[Factor],
-    budget: int | None = None,
-    categorical_method: str = "dsd",
-    *,
-    design_name: str = "definitive screening design",
+    factors: list[Factor], budget: int | None = None, categorical_method: str = "dsd"
 ) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
@@ -759,10 +755,6 @@ def dispatch_dsd(
     categorical_method : {"dsd", "orth"}
         How two-level categorical factors are added: DSD-augment (the default) or
         ORTH-augment.
-    design_name : str
-        What the note and the warning call the design: :func:`dispatch_omars
-        <process_improve.experiments.designs_omars.dispatch_omars>` builds the same design
-        as the minimal OMARS design.
 
     Returns
     -------
@@ -787,6 +779,13 @@ def dispatch_dsd(
     * Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
       selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
     """
+    return _conference_foldover(factors, budget, categorical_method, "definitive screening design")
+
+
+def _conference_foldover(
+    factors: list[Factor], budget: int | None, categorical_method: str, design_name: str
+) -> tuple[np.ndarray, dict]:
+    """Return :func:`dispatch_dsd`'s design, called ``design_name`` in its note, as the minimal OMARS design is."""
     k = len(factors)
     categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]
     for j in categorical:
