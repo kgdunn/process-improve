@@ -1158,15 +1158,16 @@ class TestMBPCAWrittenOut:
         model = MBPCA(n_components=2).fit(blocks)
         model.fitting_info_["timing"] = np.array([0.1, 0.00123])
         r2 = np.vstack([_mbpca_written_out(blocks, 2)["r2_block"][name] for name in blocks])
+        # Each value is as wide as its header, so it sits right under it (#1083).
         header = "  PC | R²X[x] | R²X[y] | R²X[z]"
 
         def summary(values: np.ndarray) -> str:
-            rows = [f"  {a + 1} | " + " | ".join(f"{value:9.4f}" for value in values[:, a]) for a in range(2)]
+            rows = [f"   {a + 1} | " + " | ".join(f"{value:6.4f}" for value in values[:, a]) for a in range(2)]
             return "\n".join(
                 [
                     "MBPCA model: 2 component(s), 3 X-block(s)",
                     header,
-                    "-" * 31,
+                    "  " + "-" * (len(header) - 2),
                     *rows,
                     "",
                     "  Iterations per PC: [10, 16]",
@@ -3055,15 +3056,16 @@ class TestMBPLSPlotsAndSummary:
         model.fitting_info_["timing"] = np.array([0.1, 0.00123])
         expected = _mbpls_written_out(blocks, y, 2)
         r2 = np.vstack([*(expected["r2_block"][name] for name in blocks), expected["r2_y"]])
-        header = "  PC | R²X[x] | R²X[y] | R²X[z] | R²Y"
+        # Each value is right-aligned under its header, as wide as the wider of the two (#1083).
+        header = "  PC | R²X[x] | R²X[y] | R²X[z] |    R²Y"
 
         def summary(values: np.ndarray) -> str:
-            rows = [f"  {a + 1} | " + " | ".join(f"{value:9.4f}" for value in values[:, a]) for a in range(2)]
+            rows = [f"   {a + 1} | " + " | ".join(f"{value:6.4f}" for value in values[:, a]) for a in range(2)]
             return "\n".join(
                 [
                     "MBPLS model: 2 component(s), 3 X-block(s)",
                     header,
-                    "-" * len(header),
+                    "  " + "-" * (len(header) - 2),
                     *rows,
                     "",
                     "  Iterations per PC: [27, 8]",

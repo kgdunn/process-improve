@@ -275,26 +275,27 @@ def test_display_results_lines_up_each_value_under_its_header(
 ) -> None:
     """#1083: each value ends where its header ends, and reads back as the fitted R².
 
-    The headers were as wide as their text and the values were nine characters wide, so with a
+    The headers were as wide as their text and the values nine characters wide, so with a
     block name of any other length the columns drifted away from their headers.
     """
     blocks, y = _blocks()
     blocks = {"a_long_block_name": blocks["a"], "b": blocks["b"]}
     model = _fit(cls, blocks, y)
     lines = model.display_results(show_cumulative=show_cumulative).splitlines()
-    header, *rows = lines[1:4]
+    header, rule, *rows = lines[1:5]
+    assert rule == "  " + "-" * (len(header) - 2)
     right_edges = [[match.end() for match in re.finditer(r"\S+", line)] for line in (header, *rows)]
     assert right_edges[1:] == [right_edges[0]] * len(rows)
 
     r2x = model.r2_x_per_block_cumulative_ if show_cumulative else model.r2_x_per_block_per_component_
     for component, row in enumerate(rows, start=1):
-        cells = dict(zip(header.split(), row.split(), strict=True))
+        cells = dict(zip(header.split(" | "), row.split(" | "), strict=True))
         expected = {"PC": str(component), **{f"R²X[{name}]": f"{r2x.loc[name, component]:.4f}" for name in blocks}}
         if cls is MBPLS:
             r2y = model.r2_y_cumulative_ if show_cumulative else model.r2_y_per_component_
             expected["R²Y"] = f"{r2y.loc[component]:.4f}"
-        assert cells == expected
-    assert lines[4] == ""
+        assert {label.strip(): value.strip() for label, value in cells.items()} == expected
+    assert lines[5] == ""
 
 
 def _assert_same(after: object, before: object) -> None:

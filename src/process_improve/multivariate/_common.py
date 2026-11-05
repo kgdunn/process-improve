@@ -38,6 +38,7 @@ __all__ = [
     "components_with_spread",
     "epsqrt",
     "informative_widths",
+    "text_table",
     "unobserved_columns",
     "y_is_exhausted",
     "y_reach",
@@ -885,6 +886,29 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
             spread = np.nanstd(values, axis=0)
         out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
     return out
+
+
+def text_table(header: list[str], rows: list[list[str]]) -> list[str]:
+    """Lay out a table as lines of text: each column right-aligned to its widest cell, header included (#1083).
+
+    Parameters
+    ----------
+    header : list[str]
+        The column headers.
+    rows : list[list[str]]
+        The formatted cells of each row, one per column.
+
+    Returns
+    -------
+    list[str]
+        The header, a rule of dashes as long as it, then one line per row, each indented by two
+        spaces, with the cells separated by ``" | "``.
+    """
+    widths = [max(len(cell) for cell in column) for column in zip(header, *rows, strict=True)]
+    lines = [
+        " | ".join(cell.rjust(width) for cell, width in zip(line, widths, strict=True)) for line in (header, *rows)
+    ]
+    return [f"  {line}" for line in [lines[0], "-" * len(lines[0]), *lines[1:]]]
 
 
 def _rows_with_data(values: np.ndarray) -> np.ndarray:

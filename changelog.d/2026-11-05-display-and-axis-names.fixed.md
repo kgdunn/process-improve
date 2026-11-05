@@ -1,7 +1,7 @@
 - **`MBPCA.display_results` and `MBPLS.display_results` line up their columns.** The headers were
   as wide as their text and the values nine characters wide, so with a block name of any other
-  length the R² values sat away from their headers. The table is now printed by pandas, with each
-  value right-aligned under its header; it has no `|` separators or dashed rule any more.
+  length the R² values sat away from their headers. Each column is now as wide as its widest
+  cell, header included, with every value right-aligned under its header.
   `TPLS.display_results` without a Z block printed its `-` placeholder one character narrower than
   a number, which moved the F, Y and timing columns one place to the left; they now line up. (#1083)
 - **`TPLS` keeps the names of the axes it labels.** A D block whose index is named, such as `Lot#`
