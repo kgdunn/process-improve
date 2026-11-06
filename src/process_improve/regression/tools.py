@@ -10,10 +10,11 @@ model as its single positional argument.
 
 from __future__ import annotations
 
+from collections.abc import Sized
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -28,6 +29,13 @@ def _register(name: str) -> None:
 # robust_regression
 # ---------------------------------------------------------------------------
 
+#: The most points the tool fits (#1130). The default 39 resamples and the fit itself are 40 repeated
+#: medians, each O(N^2): measured on a 2.1 GHz Xeon under load, the hosted call took 1.25 s at 1,500
+#: points and 2.6 to 2.9 s at 2,000. On a machine 3 times slower, as ``_default_n_boot`` assumes,
+#: that is about 4 s and 8 s of the 10 s timeout, so 2,000 points would leave too little for the
+#: worker's start-up.
+_MAX_POINTS = 1_500
+
 
 class RobustRegressionInput(BaseModel):
     """Input contract for ``robust_regression``."""
@@ -37,11 +45,13 @@ class RobustRegressionInput(BaseModel):
     x: list[float] = Field(
         ...,
         min_length=3,
-        description="Independent variable (predictor) values.",
+        max_length=_MAX_POINTS,
+        description=f"Independent variable (predictor) values, at most {_MAX_POINTS:,}.",
     )
     y: list[float] = Field(
         ...,
         min_length=3,
+        max_length=_MAX_POINTS,
         description="Dependent variable (response) values. Must be same length as x.",
     )
     confidence_level: float = Field(
@@ -67,6 +77,20 @@ class RobustRegressionInput(BaseModel):
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
 
+    @field_validator("x", "y", mode="before")
+    @classmethod
+    def _at_most_max_points(cls, values: Any) -> Any:  # noqa: ANN401 - the raw input, checked by pydantic next
+        """Say why a call with more points is refused; ``max_length`` puts the limit in the schema, this runs first."""
+        if isinstance(values, Sized) and len(values) > _MAX_POINTS:
+            msg = (
+                f"robust_regression fits at most {_MAX_POINTS:,} points as a tool; got {len(values):,}. Each "
+                "bootstrap resample refits the repeated median, whose cost grows as the square of the number of "
+                f"points, so more would run past the tool's time limit. Fit a random sample of {_MAX_POINTS:,} "
+                "points, or call process_improve.regression.robust_regression in Python."
+            )
+            raise ValueError(msg)
+        return values
+
 
 #: The fewest resamples the tool draws by default: 0.025 * (39 + 1) = 1, so each limit of a 95%
 #: percentile interval rests on the most extreme of 39 resampled slopes. Fewer would make the
@@ -84,9 +108,9 @@ def _default_n_boot(n_points: int) -> int:
     """
     # shortcut: sized for a machine 3 times slower than one measured at 12.9 ms per fit of 1,000 points
     # and 467 ms per fit of 5,000 (13 to 19 ns per pairwise slope). There, 39 resamples of 1,000 points
-    # take about 1.5 s of the 10 s timeout, but 39 of 5,000 take about a minute, so a hosted call above
-    # about 1,500 points can still time out. Upgrade to an O(N log N) repeated median, or to
-    # least-squares intervals for large N, if hosted callers need more points.
+    # take about 1.5 s of the 10 s timeout, but 39 of 5,000 take about a minute, so the tool refuses
+    # more than _MAX_POINTS points. Upgrade to an O(N log N) repeated median, or to least-squares
+    # intervals for large N, if hosted callers need more points.
     return min(999, max(_MIN_DEFAULT_N_BOOT, _MIN_DEFAULT_N_BOOT * 1_000**2 // n_points**2))
 
 
@@ -103,7 +127,8 @@ def _default_n_boot(n_points: int) -> int:
         "with the repeated median, so like the slope they resist outliers. R-squared and the "
         "standard errors use least-squares formulas on the residuals around the robust line, so "
         "an outlier raises the standard errors and lowers R-squared even when it does not move "
-        "the slope. Each resample costs time in proportion to the square of the number of points. "
+        "the slope. Each resample costs time in proportion to the square of the number of points, so the "
+        f"tool fits at most {_MAX_POINTS:,} points. "
         "Use this when you suspect outliers in the data or want a more reliable fit."
     ),
     input_model=RobustRegressionInput,

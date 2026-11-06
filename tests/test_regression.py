@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve import tool_safety
 from process_improve.regression.methods import (
     OLS,
     multiple_linear_regression,
@@ -14,10 +15,11 @@ from process_improve.regression.methods import (
     robust_regression,
 )
 from process_improve.regression.tools import (
+    RobustRegressionInput,
     _default_n_boot,
     get_regression_tool_specs,
 )
-from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_safety import ToolInputInvalidError, safe_execute_tool_call
 from process_improve.tool_spec import execute_tool_call
 
 
@@ -1050,6 +1052,38 @@ def test_robust_regression_tool_returns_error_on_mismatched_lengths() -> None:
         {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0]},
     )
     assert "error" in result
+
+
+def test_robust_regression_tool_refuses_more_points_than_it_fits_in_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Above 1,500 points a hosted call is refused by the input contract, before a worker starts, and says why.
+
+    At 5,000 points the call took 31 s in-process and timed out (#1130).
+    """
+
+    def no_worker(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("a worker was started")
+
+    monkeypatch.setattr(tool_safety, "_create_pool", no_worker)
+    x = np.arange(5_000.0).tolist()
+    with pytest.raises(
+        ToolInputInvalidError,
+        match=(
+            r"robust_regression fits at most 1,500 points as a tool; got 5,000\. Each bootstrap resample refits "
+            r"the repeated median.*Fit a random sample of 1,500 points"
+        ),
+    ):
+        safe_execute_tool_call("robust_regression", {"x": x, "y": x})
+
+
+def test_robust_regression_tool_states_its_limit_and_accepts_it() -> None:
+    """The schema an agent reads gives the limit, and a call of exactly that size passes the contract."""
+    spec = next(s for s in get_regression_tool_specs() if s["name"] == "robust_regression")
+    properties = spec["input_schema"]["properties"]
+    assert properties["x"]["maxItems"] == properties["y"]["maxItems"] == 1_500
+    assert "at most 1,500 points" in spec["description"]
+
+    x = np.arange(1_500.0).tolist()
+    assert len(RobustRegressionInput.model_validate({"x": x, "y": x}).x) == 1_500
 
 
 def test_robust_regression_tool_needs_three_complete_pairs() -> None:
