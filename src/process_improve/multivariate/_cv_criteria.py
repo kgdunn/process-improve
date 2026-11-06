@@ -91,6 +91,7 @@ from ._common import (
     _vandervoet_randomization,
     check_at_least_one,
     check_whole,
+    column_sd,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
@@ -402,11 +403,11 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
 def _autoscale_parameters(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Column means and ``ddof=1`` standard deviations over observed cells, with the :class:`MCUVScaler` guard."""
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanmean and nanstd warn no other kind
+        warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanmean warns no other kind
         centre = np.nanmean(values, axis=0)
-        scale = np.nanstd(values, axis=0, ddof=1)
-    tiny = float(np.finfo(float).tiny) ** 0.5
-    return centre, np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+    scale = column_sd(values)  # in any units, as MCUVScaler's (#1070)
+    tiny = float(np.finfo(float).tiny)
+    return centre, np.where(~np.isfinite(scale) | (scale < tiny), 1.0, scale)
 
 
 def _score_correlation_null(

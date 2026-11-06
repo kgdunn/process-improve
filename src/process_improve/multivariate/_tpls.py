@@ -38,6 +38,7 @@ from ._common import (
     _nz,
     _own_axes,
     check_at_least_one,
+    column_sd,
     constant_columns,
     epsqrt,
     largest_ssq_column,
@@ -1147,7 +1148,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
         y = _own_axes(y)
         centering = y.mean()
-        scaling = y.std() if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)  # pandas' default ddof is 1
+        # ddof=1, as pandas' std, and in any units: pandas' std was inf near 1e160 and 0 near 1e-160 (#1070)
+        scaling = pd.Series(column_sd(y), index=y.columns) if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
         # it is named separately, in the warning the whole family gives (#1098), because "no
         # variance" would send the caller to the wrong cause.

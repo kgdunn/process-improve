@@ -23,7 +23,13 @@ from sklearn.utils import Bunch
 
 from .._linalg import safe_inverse
 from ..univariate.metrics import _check_probability
-from ._common import DataMatrix, _align_to_fit_features, components_with_spread, epsqrt
+from ._common import (
+    DataMatrix,
+    _align_to_fit_features,
+    _scale_block_contributions,
+    components_with_spread,
+    epsqrt,
+)
 from ._nipals import quick_regress, ssq
 from ._preprocessing import center
 from ._projection import project_rows
@@ -1107,18 +1113,10 @@ def score_contributions(
     _scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     contributions = X_values * (r_a if guides is None else guides[:, :, int(component) - 1])
 
-    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do).
-    if scaling == "maximum":
-        largest = float(np.nanmax(np.abs(contributions)))
-        contributions = contributions / (largest if largest > epsqrt else 1.0)
-    elif scaling == "within":
-        row_total = np.nansum(np.abs(contributions), axis=1, keepdims=True)
-        contributions = contributions / np.where(row_total > epsqrt, row_total, 1.0)
-    elif scaling != "none":
-        msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
-        raise ValueError(msg)
-
-    return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
+    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do). One block is the
+    # multi-block case with a single block, so the floors are the same in both (#1070).
+    scaled = _scale_block_contributions({"X": contributions}, scaling)["X"]
+    return pd.DataFrame(scaled, index=X_df.index, columns=X_df.columns)
 
 
 def group_contributions(
