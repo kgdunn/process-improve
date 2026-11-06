@@ -145,6 +145,7 @@ def test_the_docstring_example_prints_what_it_shows():
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["A", "A"], "distinct factors"),
         (pd.DataFrame({"A": [0, 1, 0], "y": [1.0, 2.0, 3.0]}), ["A"], "exactly three settings"),
         (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, np.nan, 3.0]}), ["A"], "finite number in every run"),
+        (pd.DataFrame({"A": [0, 1, 2], "y": [1.0, 2.0, 3.0]}), ["A", "y"], "'y' cannot also be a factor"),
     ],
 )
 def test_data_that_cannot_be_split_are_refused(data, factors, message):
