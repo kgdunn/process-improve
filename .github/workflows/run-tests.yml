@@ -75,7 +75,10 @@ jobs:
   # not on a reader's screen. The rest of tests/web runs in every test job.
   web-app:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 20 minutes as a rule. On a slow runner the apt mirror can hold the Chromium install
+    # for 10 minutes and the tests run half as slowly again, about 38 minutes in all, which 30
+    # cut off with no test failed (#1160, #1164).
+    timeout-minutes: 45
     steps:
     - uses: actions/checkout@v7
     - name: Set up the project environment
