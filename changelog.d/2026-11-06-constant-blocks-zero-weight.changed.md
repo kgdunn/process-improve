@@ -6,7 +6,9 @@
   it reads "every column of every block"). `PCA` and `MBPCA` fitted such an X, with scores that told
   no row apart; `PLS` and `OPLS` refused it with "There is no variance left in the data array for X:
   cannot compute any more components beyond component 0.". The error comes alone, before any warning
-  names the columns. `PLS` judges X over the rows its `sample_weight` keeps. (#1144)
+  names the columns. `PLS` judges X over the rows its `sample_weight` keeps. A `PCA` that another
+  routine of this package fits on a matrix it derived, such as `ASCA`'s effect matrix of a term with
+  no effect, is fitted as before. (#1144)
 - **A block with no variance, beside blocks that vary, gets zero weight, and one warning names it as a
   block.** `MBPCA` and `MBPLS` already fitted it with zero block scores, weights, VIP and
   contributions; the warning listed every one of its columns, and now reads: 'Block X["b"] has no
