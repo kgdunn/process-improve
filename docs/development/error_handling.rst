@@ -205,30 +205,32 @@ should mirror them.
 For conditions that are recoverable but worth surfacing (a
 non-converged solution returned anyway, a constant column
 dropped, a degenerate fold during cross-validation), use
-``warnings.warn`` with the right category and ``stacklevel=2``:
+``warnings.warn`` with the right category and
+``stacklevel=user_stacklevel()``:
 
 ::
 
     import warnings
 
+    from process_improve._warnings import user_stacklevel
+
     warnings.warn(
         "PLS NIPALS hit max_iter without converging; results may "
         "be unstable. Pass max_iter=... to extend.",
         category=RuntimeWarning,
-        stacklevel=2,
+        stacklevel=user_stacklevel(),
     )
 
-``stacklevel=2`` names the caller's line only when the caller called
-the function that warns. A warning raised in a private helper, in an
-inner fit, or under scikit-learn's ``_fit_context`` wrapper of ``fit``
-is more frames away, and a fixed count then names a line in the
-library. Every warning in ``multivariate/`` and ``batch/`` passes
-``stacklevel=user_stacklevel()`` from ``multivariate/_common.py``
-instead: it counts the frames to the first one whose module is
-outside ``process_improve``, scikit-learn and mutmut, whose
-trampoline calls each function the nightly mutation run mutates.
-Each of these warnings has a test that its file is the test's own,
-most of them as a case of
+``user_stacklevel()`` counts the frames to the first one whose module
+is outside ``process_improve``, scikit-learn and mutmut, whose
+trampoline calls each function the nightly mutation run mutates, so
+the warning names the caller's line. A fixed ``stacklevel=2`` does
+that only when the caller called the function that warns. A warning
+raised in a private helper, in an inner fit, or under scikit-learn's
+``_fit_context`` wrapper of ``fit`` is more frames away, and a fixed
+count then names a line in the library. Every warning in the package
+passes ``stacklevel=user_stacklevel()``, and each has a test that its
+file is the test's own, most of them as a case of
 ``tests/test_warnings_name_the_callers_line.py``, where a new warning
 adds its case.
 

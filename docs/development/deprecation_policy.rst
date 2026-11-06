@@ -59,19 +59,21 @@ Mechanism
 
 A renamed attribute or function uses the helper
 ``warnings.warn`` from the standard library with the
-``DeprecationWarning`` category and ``stacklevel=2`` (consistent
-with :doc:`error_handling`):
+``DeprecationWarning`` category and ``stacklevel=user_stacklevel()``,
+which names the caller's line (see :doc:`error_handling`):
 
 ::
 
     import warnings
+
+    from process_improve._warnings import user_stacklevel
 
     def old_name(*args, **kwargs):
         warnings.warn(
             "process_improve.X.old_name is deprecated since 1.23.0 "
             "and will be removed in 2.0; use X.new_name instead.",
             category=DeprecationWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
         return new_name(*args, **kwargs)
 
