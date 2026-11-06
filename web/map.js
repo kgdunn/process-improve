@@ -478,7 +478,7 @@ function renderHow() {
         groups tighter, and stops when no move helps. It visits the terms in a random order.
         Consensus clustering (<a href="https://doi.org/10.1038/srep00336" target="_blank" rel="noopener">Lancichinetti and Fortunato, 2012</a>)
         makes it repeatable: ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
-        ${Math.round(m.threshold * 100)}% of runs is kept, as strongly as that share, and the rest dropped; rounds repeat
+        ${Math.round(m.threshold * 100)}% of runs is kept, and the rest dropped; rounds repeat
         until all ${m.runs} runs agree. A term left on its own joins the group it was most often in. Link weights:
         ${light}; every other link counts 1.</p>
       <p>Two groupings are compared pair by pair: for each pair of terms, are they together in both, or apart in both?
