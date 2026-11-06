@@ -1158,7 +1158,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             warnings.warn(  # a UserWarning, warn's default category
                 f"Block {label} has columns with no variance, which carry no information and are "
                 f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 
@@ -1775,7 +1775,12 @@ class TPLS(RegressorMixin, BaseEstimator):
                 if converged:
                     break
 
-            logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
+            logger.debug(
+                "TPLS: super-component %d %s in %d iterations",
+                pc_a + 1,
+                "converged" if converged else "did not converge",
+                n_iter,
+            )
 
             # After convergance. Step 12: Now store information.
             # =================

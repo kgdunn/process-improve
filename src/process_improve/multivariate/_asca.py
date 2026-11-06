@@ -40,7 +40,7 @@ from process_improve.experiments._lm import (
 )
 from process_improve.univariate.metrics import benjamini_hochberg
 
-from ._common import DataMatrix, _model_method, epsqrt
+from ._common import DataMatrix, _model_method, epsqrt, user_stacklevel
 from ._pca import PCA
 from ._preprocessing import MCUVScaler
 from .plots import effect_summary_plot as _effect_summary_plot
@@ -352,7 +352,7 @@ class ASCA(BaseEstimator):
             "Every term is still fitted simultaneously by least squares, which is the usual ASCA treatment, "
             "but a term's share depends on how the shared variation is attributed (the Type I / II / III "
             "question). Read the percentages as indicative rather than as a partition.",
-            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            stacklevel=user_stacklevel(),
         )
 
     def _fit_term_pca(self, term: str) -> PCA:

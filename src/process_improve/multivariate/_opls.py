@@ -40,7 +40,7 @@ from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt, user_stacklevel
 from ._preprocessing import MCUVScaler
 
 if typing.TYPE_CHECKING:
@@ -193,7 +193,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 "process_improve.multivariate.methods.OPLS.copy is deprecated since 2.4.0 and will be removed in "
                 "3.0; no replacement. copy has no effect: OPLS never modifies the X or Y it is given, so leave it out.",
                 DeprecationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
         # Copies, so that a name the caller gives these axes later does not rename the model's frames
         sample_index: pd.Index | None = X.index.copy() if isinstance(X, pd.DataFrame) else None
@@ -222,7 +222,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 f"of components is the minimum of either the number of rows ({self.n_samples_}) or the number of "
                 f"columns ({n_features}).",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
             n_ortho = most - 1
         # Fitted attribute: 1 predictive plus n_ortho orthogonal components.
