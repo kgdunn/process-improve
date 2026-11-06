@@ -481,7 +481,7 @@ function renderHow() {
         ${Math.round(m.threshold * 100)}% of runs is kept, and the rest dropped; rounds repeat
         until all ${m.runs} runs agree. A term left on its own joins the group it was most often in. Link weights:
         ${light}; every other link counts 1.</p>
-      <p>Two groupings are compared pair by pair: for each pair of terms, are they together in both, or apart in both?
+      <p>Two groupings are compared pair by pair: for each pair of terms, are they together in both, or separate in both?
         The share of pairs that match, corrected for what chance alone would give, is the adjusted Rand index: 1 for
         identical groupings, about 0 for unrelated ones.</p>
       <p>Single runs reproduce these ${DATA.clusters.length} topics at a median of ${m.single_median.toFixed(2)}, and as
