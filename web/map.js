@@ -1,4 +1,4 @@
-// The concept map (map/index.html): the ideas of designed experiments, as Process Improvement using Data teaches them,
+// The concept map (map/index.html): the ideas of designed experiments in Process Improvement using Data,
 // and how they link. Zoomed out it shows the topics; zooming in opens the larger ones into sub-topics, then names their
 // terms; a tapped term shows its definition, the line of the book it comes from, and its links.
 //
@@ -59,7 +59,7 @@ const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id)
 
 // Kinds of term hidden from the map, remembered in this browser. The selected term always stays visible.
 const hidden = new Set();
-try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || "[]")) if (k in FAMILIES) hidden.add(k); } catch {}
+try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || '["context"]')) if (k in FAMILIES) hidden.add(k); } catch {}
 const drawLegend = () => {
   document.getElementById("legend").innerHTML = `<span>Show:</span>` + Object.entries(FAMILIES)
     .map(([k, [label]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
@@ -425,18 +425,18 @@ function renderHow() {
     <h2 id="how-title">How this map was made</h2>
 
     <h3>1. Where the ideas come from</h3>
-    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at learnche.org/pid, mostly
+    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" target="_blank" rel="noopener">learnche.org/pid</a>, mostly
       from its chapter on designing and analysing experiments. Each term, and each link between two terms, quotes the
       line of the book it rests on, and the map is checked against the book each time it is built.</p>
     <details><summary>Show the numbers</summary>
       <p>${N} terms: ${inChapter(5)} from chapter 5 and ${inChapter(7)} from the design side of a case study in chapter 7,
         whose multivariate sections are left out. A first list was written by hand from the chapter's text; reviewers
-        then checked every term and link against the chapter as it is now, and added what its newer sections teach,
+        then checked every term and link against the chapter as it is now, and added what its newer sections cover,
         such as OMARS designs, Lenth's method and desirability.</p>
     </details>
 
     <h3>2. What the points and lines mean</h3>
-    <p>Each point is one idea the book teaches, and its shape says what kind: a design or a property of one, a method,
+    <p>Each point is one idea the book explains, and its shape says what kind: a design or a property of one, a method,
       a concept, a guideline or warning sign, or an example. Tap one to read its definition and the book's own words.</p>
     <p>Each line is a short sentence that joins two ideas, for example:</p>
     <ul>${examples.map(e => `<li><b>${name(e.source)}</b> ${read(e.type, 0)} <b>${name(e.target)}</b></li>`).join("")}</ul>
@@ -449,9 +449,9 @@ function renderHow() {
       depends on chance, so it makes hundreds of tries and keeps the grouping they agree on. Chance then has little say
       in the topics.</p>
     <details><summary>Show the numbers</summary>
-      <p>The method is Louvain clustering: it moves one term at a time into a neighbour's group whenever that makes the
+      <p>The method is <a href="https://en.wikipedia.org/wiki/Louvain_method" target="_blank" rel="noopener">Louvain clustering</a>: it moves one term at a time into a neighbour's group whenever that makes the
         groups tighter, and stops when no move helps. It visits the terms in a random order, so a term linked about
-        equally to two groups lands wherever its turn falls. Consensus clustering (Lancichinetti and Fortunato, 2012)
+        equally to two groups lands wherever its turn falls. Consensus clustering (<a href="https://doi.org/10.1038/srep00336" target="_blank" rel="noopener">Lancichinetti and Fortunato, 2012</a>)
         makes it repeatable: ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
         ${Math.round(m.threshold * 100)}% of runs is kept, as strongly as that share, and the rest dropped; rounds repeat
         until all ${m.runs} runs agree. A term left on its own joins the group it was most often in. Link weights:
@@ -463,6 +463,7 @@ function renderHow() {
         low as ${m.single_min.toFixed(2)}, over ${m.single_runs} seeds. Consensus from seeds it had not used reproduces
         them at ${m.consensus_other.map(x => x.toFixed(2)).join(" and ")}; the terms that still move sit between two
         topics.</p>
+      <p><a href="${m.code}" target="_blank" rel="noopener">The Python code that finds the topics and sub-topics</a>.</p>
     </details>
 
     <h3>4. How the sub-topics are found</h3>

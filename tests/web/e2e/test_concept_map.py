@@ -94,6 +94,8 @@ def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
+    examples = page.get_attribute('#legend button[data-fam="context"]', "aria-pressed")
+    assert examples == "false", "examples, questions and sources start hidden"
 
 
 @pytest.mark.parametrize("context_options", [PHONE])
@@ -280,3 +282,8 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
              .map((e) => e.tagName.toLowerCase() + (e.className ? '.' + e.className : ''))"""
     )
     assert wider == []
+    lines = page.evaluate(
+        """() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('.lede'));
+                   return new Set([...r.getClientRects()].map((b) => Math.round(b.top))).size; }"""
+    )
+    assert lines <= 2, f"the lede takes {lines} lines on a phone"

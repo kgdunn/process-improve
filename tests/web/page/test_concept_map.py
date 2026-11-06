@@ -79,7 +79,17 @@ def test_the_explanation_has_every_number_it_reads():
         "single_median",
         "single_min",
         "consensus_other",
+        "code",
     ):
         assert key in method, key
     for c in GRAPH["clusters"]:
         assert {"agreement", "moved", "subs", "short", "name", "size", "r", "x", "y"} <= set(c), c["id"]
+
+
+def test_the_page_never_says_the_book_teaches():
+    """The map shows or explains what the book holds; "teach" and "taught" are kept off the page and its terms."""
+    words = source("map.js") + source("map/index.html") + " ".join(n["definition"] for n in GRAPH["nodes"])
+    assert not re.search(r"\bteach|\btaught", words, re.IGNORECASE)
+    assert GRAPH["method"]["code"].startswith("https://github.com/kgdunn/pid-book/blob/"), (
+        "the clustering code it links"
+    )
