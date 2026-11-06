@@ -11,6 +11,7 @@ import json
 import re
 import struct
 
+from process_improve.experiments.design_catalog import FAMILIES
 from tests.web._support import APP_SOURCES, WEB, source
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
@@ -108,3 +109,15 @@ def test_a_link_to_the_map_shows_the_map():
     assert f'<meta property="og:image:width" content="{width}">' in page
     assert f'<meta property="og:image:height" content="{height}">' in page
     assert "map/og-card.png" in APP_SOURCES, "the build publishes it"
+
+
+def test_each_catalog_family_the_map_has_links_to_its_term():
+    """The catalog's design details link to the map by term id: a family must exist, and so must its term."""
+    table = re.search(r"const ON_THE_MAP = \{(.*?)\};", source("catalog.js"), re.DOTALL)
+    assert table
+    pairs = dict(re.findall(r"(\w+): \"(\w+)\"", table.group(1)))
+    terms = {n["id"] for n in GRAPH["nodes"]}
+    assert pairs, "the catalog links to the map"
+    for family, term in pairs.items():
+        assert family in FAMILIES, family
+        assert term in terms, term

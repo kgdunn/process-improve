@@ -117,6 +117,9 @@ def test_a_design_s_detail_opens_on_the_design_its_source_and_its_use(context, s
     stray = "a => [...a.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('')"
     assert page.eval_on_selector("#detail-body .actions", stray).strip() == "", "no text between the buttons"
     assert "d=bhh-pilot-plant-2-3" in page.url
+    on_the_map = page.locator("#detail-body .detail__map a")
+    assert on_the_map.text_content() == "Full factorial on the concept map"
+    assert on_the_map.get_attribute("href").endswith("map/#full-factorial")
     page.keyboard.press("Escape")
     page.wait_for_selector("#detail:not([open])", state="attached")
     # The dialog's close event, which takes the design out of the address, fires after its open attribute goes.
@@ -366,6 +369,9 @@ def test_a_published_design_opens_in_factorial_with_the_source_s_results(context
     settled(page)
     assert len(run_sheet(page)) == 8
     assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
+    title = page.text_content("#study-title")
+    assert title != "y", "a response known only by its column name does not name the study"
+    assert page.text_content("#campaign-banner").startswith(f"Opened from the catalog: {title}, ")
 
 
 def test_a_published_study_names_its_source_and_learn_shows_what_it_prints_beside_its_own(context, site):
@@ -634,3 +640,13 @@ def test_a_link_that_names_a_design_in_its_query_opens_it(context, site):
     page.wait_for_selector("#detail[open]")
     assert page.text_content("#detail-title").startswith("Central composite, 3 factors")
     assert page.url == f"{site}catalog/#d={CCD}", "the address keeps it in the fragment, which no server sees"
+
+
+def test_a_design_s_family_opens_on_the_concept_map(context, site):
+    """The link under a design's type opens the map on that term, with its definition and the book's line."""
+    page = open_catalog(context, site)
+    page.click(f".result__title[data-id='{PILOT}']")
+    page.wait_for_selector("#detail[open]")
+    page.click("#detail-body .detail__map a")
+    page.wait_for_url("**/map/#full-factorial")
+    page.wait_for_function("() => document.querySelector('#card h2')?.textContent === 'Full factorial'")

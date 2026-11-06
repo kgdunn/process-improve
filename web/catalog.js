@@ -866,9 +866,25 @@ function designType(design) {
   return element("details", { class: "detail__family" }, element("summary", { text: `About this design type: ${label}` }), ...about);
 }
 
+/** The term each design family is on the concept map (map/), for the families the map has. */
+const ON_THE_MAP = {
+  full_factorial: "full_factorial", fractional_factorial: "fractional_factorial", plackett_burman: "plackett_burman",
+  ccd: "ccd", box_behnken: "box_behnken", mixture: "mixture_design", optimal: "optimal_design", dsd: "dsd",
+  omars: "omars_design", split_plot: "split_plot_design", block_design: "blocking",
+};
+
+/** A link that opens the concept map on this design's family, with its links to the other ideas; null without one. */
+function onTheMap(design) {
+  const term = ON_THE_MAP[design.family];
+  if (!term) return null;
+  const label = catalog.families[design.family]?.label ?? design.family;
+  const link = element("a", { href: app(`map/#${term.replaceAll("_", "-")}`), text: `${label} on the concept map` });
+  return element("p", { class: "hint detail__map" }, link);
+}
+
 function detailBody(design, detail) {
   const source = catalog.sources[design.source];
-  const body = [detailHead(design, detail, source), designType(design), ...entryNotes(detail)];
+  const body = [detailHead(design, detail, source), designType(design), onTheMap(design), ...entryNotes(detail)].filter(Boolean);
   const limit = parseLimit(state.limit);
   const outcome = limit.ok ? outcomes.get(design.id) : null;
   if (outcome) {

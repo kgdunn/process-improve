@@ -206,6 +206,7 @@ import {
   responseLabelProblems,
   responseName,
   responseProblems,
+  DEFAULT_RESPONSE,
   responseTitle,
   responsesOf,
   responsesTitle,
@@ -554,17 +555,24 @@ function renderBadges() {
   badge("learn", r2 === null || r2 === undefined ? "" : `R² ${Number(r2).toFixed(2)}`);
 }
 
-/** Name the study in the bar: its responses as the brief describes them, and the design or the factors. */
+/**
+ * Name the study in the bar: its responses as the brief describes them, and the design or the factors. A response
+ * known only by the column name the page gives it ("y"), as a study opened from the catalog can be, names nothing:
+ * the bar then shows the study's own name, as Your studies lists it.
+ */
 function renderStudyBar() {
   const info = readResponseInfo();
   const name = info.label ?? state.design?.spec.response ?? "";
   const described = describedResponses();
+  const unnamed = name === DEFAULT_RESPONSE && state.design;
   $("#study-title").textContent =
     described.length > 1
       ? responsesTitle(described.map(({ info: one }, i) => ({ name: i ? "" : name || "y", ...one })))
-      : name
-        ? responseTitle(info, name)
-        : "A new study";
+      : unnamed
+        ? (state.campaign?.title ?? titleOf(state.design.spec))
+        : name
+          ? responseTitle(info, name)
+          : "A new study";
   const k = readFactors().length;
   const noun = mixturePlanned() ? "component" : "factor";
   const about = state.design
