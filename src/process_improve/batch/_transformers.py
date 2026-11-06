@@ -62,9 +62,9 @@ def _columns_to_align(X: object, columns_to_align: Sequence | None, caller: str)
     interpolation of :func:`~process_improve.batch.resample_to_reference`, and makes every
     distance of a dynamic time warping ``NaN``.
     """
-    named = None if columns_to_align is None else list(columns_to_align)
-    columns = list(_resolve_columns_to_align(typing.cast("dict", X), named, caller))
     batches = typing.cast("dict", X)
+    named = None if columns_to_align is None else list(columns_to_align)
+    columns = list(_resolve_columns_to_align(batches, named, caller))
     lacking = {batch_id: [c for c in columns if c not in batch] for batch_id, batch in batches.items()}
     lacking = {batch_id: tags for batch_id, tags in lacking.items() if tags}
     if lacking:
