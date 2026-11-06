@@ -23,6 +23,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
 
 __all__ = ["read_run_sheet", "run_sheet"]
@@ -361,5 +362,5 @@ def _warn_outside(actual: pd.DataFrame, factors: Sequence[Factor]) -> None:
         warnings.warn(
             f"The run sheet sets factors outside their ranges: {'; '.join(outside)}.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )

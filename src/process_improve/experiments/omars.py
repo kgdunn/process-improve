@@ -67,6 +67,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from process_improve._warnings import user_stacklevel
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -542,7 +544,7 @@ def analyze_omars(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915
             "main-effect tests and the second-order search are then not valid: second-order effects leak "
             "into the main effects. Fit the full second-order model by least squares instead.",
             category=RuntimeWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
     intercept = np.ones((n_runs, 1))
     total = np.hstack((intercept, coded, full_so))

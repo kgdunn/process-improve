@@ -32,6 +32,7 @@ import pandas as pd
 from patsy import dmatrix
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
 from process_improve.experiments._lm import (
     real_names,
@@ -93,7 +94,7 @@ def _safe_evaluate(design: pd.DataFrame, model: str | None = None) -> dict[str, 
         # Evaluation may not apply to every design; return no metrics, say so, and let
         # unexpected error types propagate.
         logger.warning("Design evaluation skipped: %s", exc)
-        warnings.warn(f"Design metrics were not computed: {exc}", UserWarning, stacklevel=5)
+        warnings.warn(f"Design metrics were not computed: {exc}", UserWarning, stacklevel=user_stacklevel())
         return {}
 
 
@@ -1002,7 +1003,7 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
             "other half), or use 'add_runs_optimal' with this target_model."
         )
         notes.append(message)
-        warnings.warn(message, UserWarning, stacklevel=3)
+        warnings.warn(message, UserWarning, stacklevel=user_stacklevel())
 
     explanation, before_m, after_m = _explain_changes(
         ctx.existing_design, augmented, ctx.factor_names, ctx.generators, notes
@@ -1159,7 +1160,7 @@ def _existing_outside(ctx: _AugmentContext) -> list[Any]:
             f"{len(labels)} run(s) of the existing design lie outside the region (index {labels}), breaking "
             f"{'; '.join(broken)}. They are kept as given, and no new run is placed outside the region.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return labels
 

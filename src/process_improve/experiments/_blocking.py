@@ -44,6 +44,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from process_improve._warnings import user_stacklevel
+
 #: Largest number of block-generator sets the confounding search scores exhaustively.
 _MAX_GENERATOR_SETS = 200_000
 #: Random starts and passes of the block exchange.
@@ -292,7 +294,7 @@ def _warn_on_lost_interactions(cube: np.ndarray, labels: np.ndarray, names: list
             f"{', '.join(lost)} with blocks, so the full quadratic model cannot estimate "
             f"{'it' if len(lost) == 1 else 'them'}. Use fewer blocks, or a larger cube.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=user_stacklevel(),
         )
 
 

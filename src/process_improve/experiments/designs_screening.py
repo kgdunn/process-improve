@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import fracfact, pbdesign
 from process_improve.experiments._finite_fields import hadamard_matrix
 from process_improve.experiments._orthogonal_arrays import ORTHOGONAL_ARRAY_NAMES, orthogonal_array
@@ -542,7 +543,7 @@ def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:
         warnings.warn(
             f"No {smallest}-run Plackett-Burman design is built here, so the design for {k} factors has {n} runs.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
     if n in _PB_CYCLIC_ROWS:
         return _cyclic_design(_PB_CYCLIC_ROWS[n])[:, :k], {

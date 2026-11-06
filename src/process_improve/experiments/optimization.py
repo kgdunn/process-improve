@@ -42,6 +42,7 @@ from patsy import PatsyError
 from scipy import optimize
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._desirability import (
     SCORED_GOALS,
     check_goal,
@@ -772,7 +773,7 @@ def _align_goals_to_models(
                 "Matching goals to fitted models by position: not every model has 'response_name' and not every "
                 "goal has 'response'. Name both to have them matched by name instead.",
                 UserWarning,
-                stacklevel=4,
+                stacklevel=user_stacklevel(),
             )
         return goals
 
@@ -868,7 +869,7 @@ def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion
             f"region is honoured by 'desirability' and 'pareto_front' only; it is ignored by {method!r}, "
             "which works over search_bounds instead.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
         return None
     return region
@@ -1170,7 +1171,7 @@ def _optimize_desirability(  # noqa: PLR0913
             "the composite desirability is 0. The setting reported is the one that came closest to meeting every "
             "goal's limits; widen search_bounds or relax the limits.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=user_stacklevel(),
         )
 
     names = [m.get("response_name", "response") for m in fitted_models]
@@ -1419,7 +1420,7 @@ def _ridge_within_bounds(
             "largest |bound|; it cannot follow search_bounds that differ between factors or are not symmetric "
             "about 0. Path points outside the bounds have inside_search_bounds=False.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return ridge
 

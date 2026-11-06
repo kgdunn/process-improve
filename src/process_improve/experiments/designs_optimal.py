@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -650,7 +651,7 @@ def _candidate_exchange(
             f"hard_to_change={list(req.hard_to_change)} is ignored, so this is an ordinary (not a split-plot) "
             f"design: {refusal}. metadata['hard_to_change_ignored'] records it.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
         meta["hard_to_change_ignored"] = list(req.hard_to_change)
     return matrix, meta
