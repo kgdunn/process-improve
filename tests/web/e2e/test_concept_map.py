@@ -38,6 +38,27 @@ STATE = """() => {
 }"""
 
 
+# Resolves once the map has stopped moving and redrawn: a fixed sleep raced the zoom under load. Two frames first, as
+# an animation started by a click joins cy.animated() on the next tick; two after, for the refresh a move queues.
+SETTLED = """() => new Promise((done) => {
+  const cy = window.conceptMap.cy, frame = (f) => requestAnimationFrame(f);
+  const wait = () => (cy.animated() ? frame(wait) : frame(() => frame(done)));
+  frame(() => frame(wait));
+})"""
+
+
+def _settled(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    page.evaluate(SETTLED)
+
+
+def _go(page: Any, term_id: str) -> None:  # noqa: ANN401 - a Playwright Page
+    """Select a term by its address, as a shared link does, and wait for the map to reach it."""
+    name = next(n["name"] for n in GRAPH["nodes"] if n["id"] == term_id)
+    page.evaluate("(h) => { location.hash = h; }", term_id.replace("_", "-"))
+    page.wait_for_function("(name) => document.querySelector('#card h2').textContent === name", arg=name)
+    _settled(page)
+
+
 def _open(context: Any, site: str) -> Any:  # noqa: ANN401 - Playwright objects
     page = context.new_page()
     page.goto(f"{site}map/")
@@ -58,10 +79,10 @@ def _rendered(page: Any, node_id: str) -> dict[str, float]:  # noqa: ANN401 - a 
 def _open_topic(page: Any, topic: dict[str, Any]) -> None:  # noqa: ANN401 - a Playwright Page
     """Tap the topic's circle, from the overview, as a reader would."""
     page.click("#home")
-    page.wait_for_timeout(500)
+    _settled(page)
     page.mouse.click(*_on_map(page, _rendered(page, topic["id"])))
     page.wait_for_function("(name) => document.querySelector('#card h2').textContent === name", arg=topic["name"])
-    page.wait_for_timeout(500)
+    _settled(page)
 
 
 BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
@@ -130,7 +151,7 @@ def test_zooming_in_names_more_terms_never_overlapping_and_a_little_larger(conte
         assert state["overlaps"] == 0, f"{state['overlaps']} overlaps among {state['labels']} names"
         fonts.append(state["font"])
         page.click("#zin")
-        page.wait_for_timeout(500)
+        _settled(page)
     named = [f for f in fonts if f]
     assert named, "terms are named once zoomed in"
     assert all(b > a or b >= 19 for a, b in pairwise(named)), fonts
@@ -138,11 +159,9 @@ def test_zooming_in_names_more_terms_never_overlapping_and_a_little_larger(conte
 
 def test_a_tap_on_a_term_shows_its_definition_its_book_line_and_lights_its_links(context, site):
     page = _open(context, site)
-    page.evaluate("() => { location.hash = 'full-factorial'; }")
-    page.wait_for_function("() => document.querySelector('#card h2').textContent === 'Full factorial'")
-    page.wait_for_timeout(600)
+    _go(page, "full_factorial")
     page.mouse.click(*_on_map(page, _rendered(page, "full_factorial")))
-    page.wait_for_timeout(400)
+    _settled(page)
     term = next(n for n in GRAPH["nodes"] if n["id"] == "full_factorial")
     assert page.text_content("#card h2") == term["name"]
     assert term["evidence"] in page.text_content("#card .map-quote cite")
@@ -186,11 +205,9 @@ def test_a_drag_that_starts_on_a_topic_pans_the_map(context, site):
 
 def test_term_names_can_be_switched_off_and_the_choice_is_remembered(context, site):
     page = _open(context, site)
-    page.evaluate("() => { location.hash = 'resolution'; }")
-    page.wait_for_function("() => document.querySelector('#card h2').textContent === 'Resolution'")
-    page.wait_for_timeout(600)
+    _go(page, "resolution")
     page.click("#labels")
-    page.wait_for_timeout(300)
+    _settled(page)
     assert page.evaluate(STATE)["labels"] == 1, "only the selected term keeps its name"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
@@ -202,15 +219,14 @@ def test_a_kind_of_term_can_be_hidden_and_the_choice_is_remembered(context, site
     _open_topic(page, BIGGEST)
     shown = page.evaluate(STATE)
     page.click('#legend button[data-fam="concept"]')
-    page.wait_for_timeout(300)
+    _settled(page)
     fewer = page.evaluate(STATE)
     concepts = page.evaluate(
         "() => window.conceptMap.cy.nodes('.term').filter((n) => n.data('fam') === 'concept' && n.visible()).length"
     )
     assert concepts == 0
     assert fewer["links"] < shown["links"], "a hidden term's links go with it"
-    page.evaluate("() => { location.hash = 'confounding'; }")
-    page.wait_for_timeout(600)
+    _go(page, "confounding")
     assert page.evaluate("() => window.conceptMap.cy.getElementById('confounding').visible()"), "the selected stays"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
