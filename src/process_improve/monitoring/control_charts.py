@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 import numpy as np
 import pandas as pd
 
+from .._warnings import user_stacklevel
 from ..regression.methods import repeated_median_slope
 from ..univariate.metrics import median_absolute_deviation
 
@@ -196,7 +197,7 @@ def _pop_deprecated_s(sigma: float | None, kwargs: dict[str, Any]) -> float | No
         "process_improve.monitoring.control_charts.ControlChart.calculate_limits(s=...) is deprecated "
         "since 2.2.0 and will be removed in 3.0; use ControlChart.calculate_limits(sigma=...) instead.",
         category=DeprecationWarning,
-        stacklevel=3,  # the caller of calculate_limits
+        stacklevel=user_stacklevel(),
     )
     return kwargs.pop("s")
 

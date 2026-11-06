@@ -3,6 +3,7 @@ import pandas as pd
 from scipy import stats
 from sklearn.utils import Bunch
 
+from .._warnings import user_stacklevel
 from ..univariate.metrics import Sn
 
 
@@ -121,8 +122,7 @@ def calculate_cpk(  # noqa: C901
                 f"Cpk_{side}: spread is zero or non-finite; returning NaN. "
                 "Likely cause: constant column or only one non-NaN value.",
                 category=RuntimeWarning,
-                # The caller of calculate_cpk: this helper sits inside it, so 2 named a line of calculate_cpk.
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
             return np.nan
         return numer / (3 * denom)

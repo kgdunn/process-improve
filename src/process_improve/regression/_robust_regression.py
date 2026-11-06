@@ -11,6 +11,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
+from .._warnings import user_stacklevel
 from ..univariate.metrics import _check_probability, t_value
 
 __eps = np.finfo(np.float32).eps
@@ -506,7 +507,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
             "outliers as the slope does. Pass intervals='least_squares' to keep these numbers, or "
             "intervals='bootstrap' for the new ones; either silences this warning."
         )
-        warnings.warn(out["intervals_note"], FutureWarning, stacklevel=2)
+        warnings.warn(out["intervals_note"], FutureWarning, stacklevel=user_stacklevel())
     if intervals == "bootstrap" and has_intervals:
         slopes, intercepts, errors = _bootstrap_lines(x, y, fit_intercept, n_boot, check_random_state(random_state))
         tails = [50 * (1 - conflevel), 50 * (1 + conflevel)]
