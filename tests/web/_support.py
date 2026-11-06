@@ -67,6 +67,11 @@ APP_SOURCES = (
     "dialogs.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
+    # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
+    "map/index.html",
+    "map.js",
+    "map/graph.json",
+    "vendor/cytoscape.mjs",
     "worker.js",
     "bootstrap.py",
     "runtime.json",

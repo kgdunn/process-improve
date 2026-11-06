@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concept map: Factorial</title>
+  <meta name="description" content="The ideas of designed experiments, as the book Process Improvement using Data teaches them, and how they link: zoom from topics to the terms in them, and tap a term to read it with the line of the book it comes from.">
+  <link rel="canonical" href="https://factori.al/map/">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="process-improve">
+  <meta property="og:title" content="Concept map: Factorial">
+  <meta property="og:description" content="The ideas of designed experiments and how they link, each one quoting the book it comes from.">
+  <meta property="og:url" content="https://factori.al/map/">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main class="map">
+  <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <h1>Concept map</h1>
+  <p class="lede">The ideas of designed experiments, as one book teaches them, and how they link. Zoom from the topics to
+    the terms in them; tap a term to read it.</p>
+  <p class="map-meta"><span id="map-stats"></span>
+    <button type="button" class="map-howlink" id="howlink">How this map was made</button></p>
+
+  <div class="map-search">
+    <label for="q">Find a term</label>
+    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="aliasing, CCD, foldover, randomization..."
+      aria-controls="results">
+    <div class="map-results" id="results" role="listbox" hidden></div>
+  </div>
+
+  <div class="map-box">
+    <div id="cy" role="img" aria-label="Map of the topics and terms. The same items are listed as buttons below the map."></div>
+  </div>
+  <div class="map-bar">
+    <div class="map-strip" id="strip"><span id="striptext"></span>
+      <button type="button" class="button" id="details">Details</button></div>
+    <div class="map-controls">
+      <button type="button" class="button" id="labels" aria-pressed="true" aria-label="Show term names" title="Show term names">Aa</button>
+      <button type="button" class="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" class="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" class="button" id="home" aria-label="Show all topics">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="map-legend" id="legend" role="group" aria-label="Kinds of term shown on the map"></div>
+
+  <section class="map-card" id="card" aria-live="polite"></section>
+  <div class="map-links" id="links" aria-label="Links from the selected item"></div>
+
+  <section class="map-how" id="how" aria-labelledby="how-title"></section>
+</main>
+<script src="../map.js" type="module"></script>
+</body>
+</html>
