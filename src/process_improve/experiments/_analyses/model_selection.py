@@ -96,7 +96,7 @@ def _mixture_process_terms(
     """Terms the search may use on mixture-process data: the mixture-process ``model`` less its linear blending terms.
 
     They are searched free of heredity, as a Scheffe model's are: a process main effect enters
-    through the products ``x_i:z_k``, so ``z_k`` itself is no term to need.
+    through the products ``x_i:z_k``, so ``z_k:z_l`` and ``I(z_k ** 2)`` have no term ``z_k`` to need.
     """
     levels = dict.fromkeys(categorical, ())  # only which factors are categorical matters here: they have no square
     terms = mixture_process_model(components, process, model, levels).terms
