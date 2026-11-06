@@ -973,7 +973,8 @@ class OLS(RegressorMixin, BaseEstimator):
             prediction), and ``lower`` / ``upper`` (the prediction-interval
             bounds).
         """
-        assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling prediction_interval()."
+        if not getattr(self, "is_fitted_", False):
+            raise NotFittedError("OLS must be fitted before calling prediction_interval().")
         cl = self.conflevel if conflevel is None else conflevel
         _check_probability("conflevel", cl)
 
