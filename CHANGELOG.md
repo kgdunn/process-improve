@@ -11,6 +11,100 @@ those changes.
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-06
+
+### Added
+
+- **A concept graph of designed experiments in the browser app, at `map/`.** The ideas of designed experiments
+  in *Process Improvement using Data* and how they link: 217 terms and 411 links, each quoting the line of the
+  book it comes from, grouped into 10 topics and 26 sub-topics by consensus Louvain clustering. Zoom from the
+  topics to their terms, tap a term for its definition, the book's line and a link into the book, and read how
+  the map was made. Each design family in the catalog that the map holds links to its term there, and a shared
+  link to factori.al/map/ shows the map's own card. The graph is built and checked against the book in the
+  pid-book repository.
+
+### Changed
+
+- **Numbered blocks are coded in numeric order, so block 10 follows block 9.** `evaluate_design`
+  read a `Block` column named in its formula as text, and `analyze_experiment` sorted the blocks as
+  text, so with 10 or more blocks block 10 came after block 1: `analyze_experiment`'s `Block2` was
+  block 10, and the block coded -1 in every contrast column was block 9, not the last one. Both now
+  sort the blocks by number. With 10 or more blocks the block contrasts' coefficients, names and
+  VIFs are reordered, and the A-criterion and the condition numbers, which depend on how the blocks
+  are coded, can change; the fit, its predictions and the D- and I-criteria do not. In
+  `evaluate_design`, `C(Block, Treatment(1))` now names block 1, where it was refused. (#1129)
+- **The book's reference catalogue follows the mixed-level case study's T² diagnostics to pid-book #409.**
+  The book now judges the case study's sixty runs by the T² limit for the rows the model was fitted to
+  (`judged_rows="fitted"`), 7.5 rather than the F limit 8.7, so the catalogue records that limit, the runs
+  over it under each of the four codings, and the goal's projection, SPE limit and quotations as the book
+  now prints them.
+
+### Deprecated
+
+- **Naming a numbered block as text in an `evaluate_design` contrast is deprecated.**
+  `C(Block, Treatment('1'))` is deprecated since 2.5.0 and will be removed in 3.0; write
+  `C(Block, Treatment(1))`, which now names block 1. Until 3.0 the text spelling still reads the
+  block, with a `DeprecationWarning` that points at the caller's line, and gives the numbers it
+  gave in 2.4.0 for designs of up to 9 blocks. (#1129)
+
+### Fixed
+
+- **`"model_selection"` on a mixture formula searches the formula's own terms.** A formula over blends
+  alone that holds the constant, such as `"y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + x1:x2:x3 - 1"`, is
+  analysed as a Scheffé model, but `"model_selection"` searched it as `"interactions"`: with an
+  intercept the blends already make up, and without any term beyond the two-factor products. On
+  Kurotori's propellant (Box and Draper, Table 17.1) it selected `y ~ 1`, with an `r_squared` of 0,
+  where `"scheffe_special_cubic"` keeps the special cubic term. Every linear blending term now stays
+  in, the search chooses among the formula's other terms, `candidate_model` is the formula, and there
+  is no `note`. (#1129)
+- **The conference-order warning of the minimal OMARS design names OMARS, at the caller's line.**
+  `generate_design(factors, "omars")` for 21, 22, 33 or 34 factors warned, and noted in
+  `metadata["note"]`, that the "definitive screening design" steps up its conference order, and the
+  warning named a line in the library. It now says "OMARS design", and from `generate_design`,
+  `dispatch_omars` or `dispatch_dsd` it points at the line that asked for the design. (#1129)
+- **A mixture model's `"split_plot"` coefficients are labelled `coding: "actual"`.** They were labelled
+  `"coded"`, although the components are proportions that have no coded scale, as `"coefficients"`
+  already reports. (#1129)
+- **The K-optimal search no longer lets the BLAS kernel choose between tied swaps.** At each step the candidate
+  exchange behind `generate_design(..., "k_optimal")` took the first of the swaps that tie for the best
+  condition number in the order the eigenvectors of `X'X` ranked them. An extreme eigenvalue is usually
+  repeated on a grid, so those eigenvectors are any basis of its eigenspace, which the BLAS kernel's
+  rounding picks, and the same `random_state` gave designs of different quality on AVX2 and AVX-512
+  processors: a 3-factor interactions design in 10 runs had a condition number of 1.25 on one and 1.27 on
+  the other. The first tied swap, by design run and then candidate, is now made. Over 9 cases and 5
+  seeds, four OpenBLAS kernels then agree on every condition number, where one case-seed pair differed;
+  on an AVX2 processor 8 of the 45 designs change, 6 to another design with the same condition number and
+  2 from 1.25 to 1.27. (#1129)
+- **Every warning in `multivariate` and `batch` names the line that made the call.** Some named a
+  line inside `process_improve` or in scikit-learn's `base.py` instead: `PCA.fit`'s warning that
+  more components were asked for than the data hold, `TPLS.fit`'s that a column has no variance or
+  no observed value, `PCA.select_n_components`'s that the folds of `cv_scheme="ek"` cannot reach
+  the components, `PLS.compare_cv_criteria`'s that X is already autoscaled, `MCA.fit`'s that it was
+  asked for more axes than the table has, `BatchScaler.fit`'s that a tag has a zero range, and the
+  warnings of the PLS that `PLSDA`, `PRM` and `AdaptivePLS` fit inside their own `fit`. The others
+  named the caller only when it called the method that warns directly. (#1079)
+- **PCA's, PLS's and TPLS's debug log says whether each component converged.** It said a component
+  "converged" also when it reached `max_iter` without converging. (#1079)
+- **On factori.al, a balance of the responses asked for before a rename no longer shows the old factor
+  names.** A rename now takes the balance away, with any balance still on its way, as it takes the what-if
+  panel away, until the analysis under the new names finds it again. (#1096)
+- **On factori.al, a refusal to add runs stays on the status line.** When the reader asked for runs while
+  the analysis's charts were being drawn, the charts then said "Analysis complete." over the refusal. The
+  charts now leave the status line alone once something else has been said on it. (#1096)
+- **The workbook factori.al downloads no longer holds the time it was written.** Its created and modified
+  dates, and the date of every member of its zip archive, are now 1 January 1980, as in the `write_run_sheet`
+  workbook, so two downloads of the same study are the same file; the cells are as before. (#1096)
+- **factori.al writes a grouped interaction in its analysis of variance as it writes every other one.** The
+  row that tests a categorical factor's interaction over all its levels together read `Catalyst:T`, beside
+  `Catalyst[B]·T` in the coefficients and `T·P` in the other rows; it now reads `Catalyst·T`. (#1096)
+- **On a phone, factori.al's dialogs can be closed.** The Feedback form, the comparison of designs and the
+  catalog's details were as tall as the screen with the browser's address bar and toolbar hidden, so with them
+  showing the dialog ran under both, its close button with it. A dialog now fits the screen as it is, and its
+  close button stays in reach however far it is scrolled.
+- **A study opened from the catalog is named by its title, not "y".** A study whose response is known only by
+  the column name the page gives it showed "y" above Design, Run and Learn; it now shows the study's own name,
+  as Your studies lists it.
+
 ## [2.4.0] - 2026-11-04
 
 ### Added
@@ -11796,7 +11890,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/kgdunn/process-improve/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/kgdunn/process-improve/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/kgdunn/process-improve/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/kgdunn/process-improve/compare/v2.2.2...v2.3.0
