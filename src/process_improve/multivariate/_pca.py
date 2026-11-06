@@ -41,6 +41,7 @@ from ._common import (
     _rows_with_data,
     _select_n_components,
     check_at_least_one,
+    check_x_varies,
     constant_columns,
     epsqrt,
     refuse_empty_block,
@@ -990,6 +991,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         -------
         self : PCA
 
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as across the
+            family (#1144): such an X tells no row from another.
+
         Warns
         -----
         UserWarning
@@ -1034,6 +1041,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # A column with nothing observed gets a zero loading from NIPALS and TSR; it is named, as
         # across the family, and a value a new row has in it is ignored (#1098).
         self._unobserved_columns = unobserved_columns(X, "X")
+        check_x_varies([X], explains_y=False)  # an X in which nothing varies tells no row apart (#1144)
         constant_columns(X, "X", self)
 
         # Clamp n_components

@@ -312,9 +312,12 @@ class TestComponentCount:
         np.testing.assert_allclose(tiny.scores_, unit.scores_ * 1e-6, rtol=1e-8)
 
     def test_an_x_with_no_variance_has_no_component(self) -> None:
-        X = pd.DataFrame(np.zeros((4, 2)))
-        with pytest.raises(NotEnoughVarianceError, match=r"beyond component 0\.$"):
-            OPLS(n_orthogonal_components=1, scale=False).fit(X, pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0]}))
+        """Refused in the family's words (#1144), with or without scaling, in any units."""
+        message = r"^There is no variance in X: every column is constant or has no observed value, so there is nothing"
+        y = pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0]})
+        for X, scale in ((np.zeros((4, 2)), False), (np.full((4, 2), 7.0), False), (np.full((4, 2), 7.0), True)):
+            with pytest.raises(NotEnoughVarianceError, match=message):
+                OPLS(n_orthogonal_components=1, scale=scale).fit(pd.DataFrame(X), y)
 
     @pytest.mark.parametrize("n_orthogonal", [0, 1])
     def test_a_constant_y_is_refused_as_pls_refuses_it(

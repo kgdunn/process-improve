@@ -30,6 +30,7 @@ from ._common import (
     _rows_with_data,
     _scale_block_contributions,
     check_at_least_one,
+    check_x_varies,
     constant_columns,
     epsqrt,
     informative_widths,
@@ -519,6 +520,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             index (and row count). Each block is preprocessed independently.
         y : None
             Ignored; accepted so the transformer plugs into a sklearn Pipeline.
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of every block is constant or has no observed value, as across the
+            family (#1144). A block with no variance beside one that varies is fitted with zero
+            weight: its block scores, loadings and contributions are 0, and a warning names it.
         """
         check_at_least_one("n_components", self.n_components)
         _validate_blocks(X)
@@ -526,8 +534,6 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
-        for name in self.block_names_:
-            constant_columns(X[name], f'X["{name}"]', self)
         algo = self._resolve_algorithm(X)
         # The resolved settings reach the loop. They used to be computed here and dropped,
         # so the caller's loop settings were validated and then ignored (#588).
@@ -538,7 +544,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             estimator_name="MBPCA",
         )
 
-        x_blocks_pp = self._preprocess(X)
+        x_blocks_pp = self._preprocess(X)  # refuses a block of fewer than two rows
+        # An X in which nothing varies tells no row apart: refused, as across the family, before its columns are named
+        check_x_varies([X[name] for name in self.block_names_], explains_y=False)
+        for name in self.block_names_:
+            constant_columns(X[name], f'X["{name}"]', self)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPCALoopContext(
             algo=algo,
