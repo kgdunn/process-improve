@@ -165,7 +165,7 @@ def test_rejects_a_component_count_below_one() -> None:
     more components still supports one. Zero can only come from the argument.
     """
     blocks, y = _two_block_data(n=20)
-    with pytest.raises(ValueError, match=r"max_components must be at least 1; got 0"):
+    with pytest.raises(ValueError, match=r"max_components must be >= 1; got 0"):
         MBPLS.select_n_components(blocks, y, max_components=0, cv=2, random_state=0)
 
 

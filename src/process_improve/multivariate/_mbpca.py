@@ -32,6 +32,7 @@ from ._common import (
     check_at_least_one,
     epsqrt,
     informative_widths,
+    refuse_empty_block,
     resolve_loop_settings,
     text_table,
     unobserved_columns,
@@ -60,6 +61,7 @@ def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
     for name, block in X.items():
         if not isinstance(block, pd.DataFrame):
             raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
+        refuse_empty_block(block, f'X["{name}"]')
     names = list(X)
     n_samples = X[names[0]].shape[0]
     for name in names:

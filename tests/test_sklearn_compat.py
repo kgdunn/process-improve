@@ -29,9 +29,17 @@ from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to a
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils._param_validation import InvalidParameterError, validate_parameter_constraints
 
+from process_improve.batch import BatchMonitor, BatchPCA, BatchPLS
 from process_improve.multivariate.methods import (
+    ASCA,
+    CA,
+    FAMD,
+    FPCA,
+    GPA,
     MBPCA,
     MBPLS,
+    MCA,
+    MFA,
     OPLS,
     PCA,
     PLS,
@@ -675,3 +683,145 @@ def test_the_constructor_stores_its_arguments_and_nothing_else(name: str) -> Non
     """``__init__`` sets no public attribute but its arguments, as sklearn requires: no fitted state (#1127)."""
     model = _FAMILY[name][0](_range_check_data())
     assert {attr for attr in vars(model) if not attr.startswith("_")} == set(model.get_params(deep=False))
+
+
+# ---------------------------------------------------------------------------
+# #1144: one rule for every estimator's settings, checked by its fit
+# ---------------------------------------------------------------------------
+
+
+def _every_estimator_data() -> dict[str, typing.Any]:
+    """``_range_check_data``, plus what the categorical, functional, ANOVA, Procrustes and batch estimators fit."""
+    data = _range_check_data()
+    rng = np.random.default_rng(1)
+    categories = pd.DataFrame({name: rng.choice(list(levels), 30) for name, levels in [("c1", "abc"), ("c2", "xyz")]})
+    batches = {i: pd.DataFrame({"T": rng.normal(size=8) + np.arange(8), "P": rng.normal(size=8)}) for i in range(12)}
+    data.update(
+        {
+            "table": pd.DataFrame(rng.integers(1, 20, size=(5, 4)), columns=list("pqrs")),
+            "categories": categories,
+            "mixed": pd.concat([data["X"], categories], axis=1),
+            "curves": pd.DataFrame(np.sin(np.linspace(0, 3, 25)) * rng.normal(1, 0.3, (30, 1))),
+            "design": pd.DataFrame({"f": np.repeat(["lo", "hi"], 15), "g": np.tile(["u", "v", "w"], 10)}),
+            "configurations": {"one": data["X"].iloc[:8], "two": data["X"].iloc[:8] * 2 + 1},
+            "batches": batches,
+            "batch_quality": pd.DataFrame({"q": rng.normal(size=12)}),
+        }
+    )
+    return data
+
+
+# Every public estimator that takes a count or declares constraints: how to build a valid one, and how to fit it.
+_EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[BaseEstimator, dict], object]]] = {
+    **_FAMILY,
+    "OPLS": (lambda _: OPLS(n_orthogonal_components=1), lambda model, data: model.fit(data["X"], data["y"])),
+    "CA": (lambda _: CA(n_components=2), lambda model, data: model.fit(data["table"])),
+    "MCA": (lambda _: MCA(n_components=2), lambda model, data: model.fit(data["categories"])),
+    "FAMD": (lambda _: FAMD(n_components=2), lambda model, data: model.fit(data["mixed"])),
+    "MFA": (
+        lambda _: MFA(groups={"g1": ["a", "b"], "g2": ["c", "d"]}, n_components=2),
+        lambda model, data: model.fit(data["X"]),
+    ),
+    "FPCA": (lambda _: FPCA(n_components=2, n_basis=10), lambda model, data: model.fit(data["curves"])),
+    "ASCA": (lambda _: ASCA(n_components=2), lambda model, data: model.fit(data["X"], data["design"])),
+    "GPA": (lambda _: GPA(), lambda model, data: model.fit(data["configurations"])),
+    "BatchPCA": (lambda _: BatchPCA(n_components=2), lambda model, data: model.fit(data["batches"])),
+    "BatchPLS": (
+        lambda _: BatchPLS(n_components=2),
+        lambda model, data: model.fit(data["batches"], data["batch_quality"]),
+    ),
+    "BatchMonitor": (
+        lambda data: BatchMonitor(BatchPCA(n_components=2).fit(data["batches"])),
+        lambda model, data: model.fit(data["batches"]),
+    ),
+}
+
+# The settings that count something: components, rounds of an iteration, rows of a window, or B-splines.
+_COUNTS = (
+    "n_components",
+    "n_orthogonal_components",
+    "max_iter",
+    "max_weight_iter",
+    "spe_limit_window",
+    "n_basis",
+    "degree",
+    "penalty_order",
+)
+
+
+def _count_settings() -> list:
+    """One case per estimator and count setting it takes."""
+    data = _every_estimator_data()
+    return [
+        pytest.param(name, param, id=f"{name}-{param}")
+        for name, (make, _) in _EVERY_ESTIMATOR.items()
+        for param in _COUNTS
+        if param in make(data).get_params(deep=False)
+    ]
+
+
+def test_the_registry_holds_every_estimator_that_counts_or_declares_constraints() -> None:
+    """A new estimator with a count or constraints joins the tests below, or this fails (#1144)."""
+    expected = {
+        cls.__name__
+        for cls in _all_subclasses(BaseEstimator)
+        if cls.__module__.startswith("process_improve.")
+        and not cls.__name__.startswith("_")
+        and (hasattr(cls, "_parameter_constraints") or set(_COUNTS) & set(cls._get_param_names()))
+    }
+    assert expected == set(_EVERY_ESTIMATOR)
+
+
+@pytest.mark.parametrize(("name", "param"), _count_settings())
+def test_a_count_that_is_not_a_whole_number_is_refused(name: str, param: str) -> None:
+    """``n_components=2.5`` fitted two components without a word outside PCA and the multi-block family (#1144)."""
+    data = _every_estimator_data()
+    make, fit = _EVERY_ESTIMATOR[name]
+    model = make(data).set_params(**{param: 2.5})
+    message = rf"^The '{param}' parameter of {name} must be an instance of 'int'( or None)?\. Got 2\.5 instead\.$"
+    with pytest.raises(InvalidParameterError, match=message):
+        fit(model, data)
+
+
+@pytest.mark.parametrize(("name", "param"), _count_settings())
+def test_a_count_that_is_a_numpy_integer_is_taken(name: str, param: str) -> None:
+    """A count from ``np.argmax`` or ``np.arange`` is a whole number too, and fits (#1140)."""
+    data = _every_estimator_data()
+    make, fit = _EVERY_ESTIMATOR[name]
+    model = make(data)
+    fit(model.set_params(**{param: np.int64(model.get_params()[param])}), data)
+
+
+def _declared_settings() -> list:
+    """One case per estimator and setting it declares a constraint for."""
+    data = _every_estimator_data()
+    return [
+        pytest.param(name, param, id=f"{name}-{param}")
+        for name, (make, _) in _EVERY_ESTIMATOR.items()
+        for param in getattr(make(data), "_parameter_constraints", {})
+    ]
+
+
+@pytest.mark.parametrize(("name", "param"), _declared_settings())
+def test_fit_checks_every_declared_constraint(name: str, param: str) -> None:
+    """A declaration nothing checks is no check: the batch estimators declared theirs and never read them (#1144)."""
+    data = _every_estimator_data()
+    make, fit = _EVERY_ESTIMATOR[name]
+    model = make(data).set_params(**{param: object()})
+    with pytest.raises(InvalidParameterError, match=rf"^The '{param}' parameter of {name} must be "):
+        fit(model, data)
+
+
+# The counts a method takes as an argument, not a setting: each refuses 0 in the settings' words.
+_COUNT_ARGUMENTS: dict[str, Callable[[dict], object]] = {
+    "max_weight_iter": lambda data: PRM(n_components=2, max_weight_iter=0).fit(data["X"], data["y"]),
+    "max_components": lambda data: MBPLS.select_n_components(data["blocks"], data["y"], max_components=0),
+    "n_permutations": lambda data: GPA().fit(data["configurations"]).consensus_test(n_permutations=0),
+}
+
+
+@pytest.mark.parametrize("name", list(_COUNT_ARGUMENTS))
+def test_a_count_below_one_is_refused_in_the_family_wording(name: str) -> None:
+    """These three said "at least 1" where every setting says ">= 1" (#1144)."""
+    with pytest.raises(ValueError, match=rf"^{name} must be >= 1; got 0\.$"):
+        _COUNT_ARGUMENTS[name](_every_estimator_data())

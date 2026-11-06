@@ -158,8 +158,8 @@ class BatchPCA(TransformerMixin, BaseEstimator):
 
     _parameter_constraints: typing.ClassVar = {
         "n_components": [numbers.Integral, None],
-        "scale": [bool],
-        "group_by_batch": [bool],
+        "scale": ["boolean"],
+        "group_by_batch": ["boolean"],
         "algorithm": [str],
     }
 
@@ -244,6 +244,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         -------
         self : BatchPCA
         """
+        self._validate_params()
         wide = self._unfold(X, initial_conditions)
 
         scaler = MCUVScaler().fit(wide)

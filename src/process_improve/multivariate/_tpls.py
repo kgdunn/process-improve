@@ -40,6 +40,7 @@ from ._common import (
     check_at_least_one,
     epsqrt,
     largest_ssq_column,
+    refuse_empty_block,
     resolve_loop_settings,
     unobserved_columns,
     user_stacklevel,
@@ -1096,12 +1097,12 @@ class TPLS(RegressorMixin, BaseEstimator):
             raise ValueError(msg)
 
         for key in X["Y"]:
-            self._validate_df(X["Y"][key])
+            self._validate_df(X["Y"][key], f'Y["{key}"]')
         for key in X["Z"]:
-            self._validate_df(X["Z"][key])
+            self._validate_df(X["Z"][key], f'Z["{key}"]')
         for key in self.d_matrix:
-            self._validate_df(self.d_matrix[key])
-            self._validate_df(X["F"][key])
+            self._validate_df(self.d_matrix[key], f'd_matrix["{key}"]')
+            self._validate_df(X["F"][key], f'F["{key}"]')
 
     def _learn_center_and_scaling_parameters(
         self, y: pd.DataFrame, label: str, *, used_as_given: bool = False
@@ -1164,16 +1165,19 @@ class TPLS(RegressorMixin, BaseEstimator):
             )
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 
-    def _validate_df(self, df: pd.DataFrame) -> None:
+    def _validate_df(self, df: pd.DataFrame, label: str) -> None:
         """
-        Refuse a block that is not numbers TPLS can use: a column that is not float64 or int64, an
-        infinite value, or no rows (`check_array` from scikit-learn, whose other defaults hold for a
-        DataFrame). A missing value is allowed.
+        Refuse a block that is not numbers TPLS can use: no columns, a column that is not float64 or
+        int64, an infinite value, or no rows (`check_array` from scikit-learn, whose other defaults hold
+        for a DataFrame). A missing value is allowed.
 
         Parameters
         ----------
         df : {pd.DataFrame}
+        label : str
+            Where the block sits, as ``'Z["group"]'``, named in the message for a block with no columns.
         """
+        refuse_empty_block(df, label)
         # Ensure all columns are dtype "float64" or "int64". (``np.dtypes.IntDType`` is the
         # C ``int``, which is int32, so it must not stand in for int64 here.)
         if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.Int64DType)) for col in df.dtypes]):

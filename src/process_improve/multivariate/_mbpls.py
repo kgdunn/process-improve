@@ -44,6 +44,7 @@ from ._common import (
     epsqrt,
     informative_widths,
     largest_ssq_column,
+    refuse_empty_block,
     resolve_loop_settings,
     text_table,
     unobserved_columns,
@@ -53,6 +54,7 @@ from ._common import (
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
+from ._mbpca import _validate_blocks
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
 
@@ -121,21 +123,11 @@ def _pooled_divisor(
 
 def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.DataFrame:
     """Check the shapes and types ``fit`` was handed, and return ``y`` as a DataFrame."""
-    if not isinstance(X, dict) or len(X) == 0:
-        raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
+    _validate_blocks(X)
     if not isinstance(y, pd.DataFrame):
         y = pd.DataFrame(y)
-    for name, block in X.items():
-        if not isinstance(block, pd.DataFrame):
-            raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
-
+    refuse_empty_block(y, "y")
     n_samples = X[next(iter(X))].shape[0]
-    for name in X:
-        if X[name].shape[0] != n_samples:
-            raise ValueError(
-                f"All X-blocks must have the same row count. Block '{name}' has "
-                f"{X[name].shape[0]} rows; expected {n_samples}."
-            )
     if y.shape[0] != n_samples:
         raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
     return y
@@ -1434,8 +1426,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)
 
-        if max_components is not None and int(max_components) < 1:
-            raise ValueError(f"max_components must be at least 1; got {max_components}.")
+        check_at_least_one("max_components", max_components)
 
         splits = list(splitter.split(y))
         smallest_train = min(len(train) for train, _ in splits)

@@ -29,6 +29,7 @@ space in latent variable regression modeling", Journal of Chemometrics, 39
 
 from __future__ import annotations
 
+import numbers
 import typing
 import warnings
 
@@ -140,6 +141,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
     spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
 
+    _parameter_constraints: typing.ClassVar = {"n_orthogonal_components": [numbers.Integral]}
+
     def __init__(
         self,
         n_orthogonal_components: int,
@@ -188,6 +191,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             components than the rank of the centred X; or if Y is constant (with
             ``scale=False``, if Y is 0 throughout).
         """
+        self._validate_params()
         if self.copy is not None:
             warnings.warn(
                 "process_improve.multivariate.methods.OPLS.copy is deprecated since 2.4.0 and will be removed in "
@@ -214,7 +218,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         self.n_targets_ = 1
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
-            raise ValueError("n_orthogonal_components must be >= 0.")
+            raise ValueError(f"n_orthogonal_components must be >= 0; got {self.n_orthogonal_components}.")
         most = min(self.n_samples_, n_features)
         if 1 + n_ortho > most:
             warnings.warn(
@@ -430,10 +434,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
         y_arr = np.atleast_1d(np.asarray(_as_scalar(y_desired), dtype=float))
         if y_arr.size != 1:
-            raise ValueError("OPLS.invert expects a single desired response value.")
+            raise ValueError(f"y_desired has {y_arr.size} values; OPLS.invert expects a single desired response value.")
         y_value = float(y_arr[0])
         if not np.isfinite(y_value):
-            raise ValueError("y_desired must be a finite value.")
+            raise ValueError(f"y_desired must be a finite value; got {y_value}.")
 
         # Scale the target to the fitting space.
         if self._y_scaler is not None:

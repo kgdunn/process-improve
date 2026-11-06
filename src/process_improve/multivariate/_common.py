@@ -171,6 +171,28 @@ def check_at_least_one(name: str, value: float | None) -> None:
         raise ValueError(f"{name} must be >= 1; got {value}.")
 
 
+def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
+    """Refuse a block with no columns, naming it (#1077).
+
+    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
+    array or dtype is required", which names neither the block nor the cause.
+
+    Parameters
+    ----------
+    block : pd.DataFrame
+        The block to check.
+    label : str
+        Where the block sits, as ``'y'``, ``'X["name"]'`` or ``'Z["group"]'``.
+
+    Raises
+    ------
+    ValueError
+        If ``block`` has no columns.
+    """
+    if block.shape[1] == 0:
+        raise ValueError(f"Block {label} has no columns; a block needs at least one.")
+
+
 def resolve_loop_settings(
     *,
     tol: float,
