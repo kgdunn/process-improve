@@ -8,8 +8,10 @@ end (success path) and, where cheap, also exercises its except-branch.
 
 from __future__ import annotations
 
+import itertools
 import json
 import pathlib
+import re
 
 import pandas as pd
 import pytest
@@ -942,3 +944,144 @@ def test_region_round_trips_through_the_tools() -> None:
     optimum = best["desirability"]["optimal_actual"]
     assert best["desirability"]["within_region"]
     assert 3 * optimum["T"] + 5 * optimum["D"] <= 600 + 1e-6
+
+
+# ---------------------------------------------------------------------------
+# yates_table and interaction_components: the textbook tables of a factorial's analysis
+# ---------------------------------------------------------------------------
+
+#: Box, Hunter and Hunter's pilot plant (Table 10.5): a 2^3 in temperature T, concentration C and catalyst K.
+_PILOT_PLANT = [
+    {"T": t, "C": c, "K": k, "y": y}
+    for (k, c, t), y in zip(itertools.product((-1, 1), repeat=3), [60, 72, 54, 68, 52, 83, 45, 80], strict=True)
+]
+
+#: Box and Draper's textile experiment (Table 7.1): cycles to failure Y of a 3^3 in length, amplitude and load.
+_TEXTILE = [
+    {"x1": x1, "x2": x2, "x3": x3, "Y": y}
+    for (x3, x2, x1), y in zip(
+        itertools.product((-1, 0, 1), repeat=3),
+        [
+            *(674, 1414, 3636, 338, 1022, 1568, 170, 442, 1140, 370, 1198, 3184, 266, 620, 1070, 118, 332, 884),
+            *(292, 634, 2000, 210, 438, 566, 90, 220, 360),
+        ],
+        strict=True,
+    )
+]
+
+#: Montgomery's tool life (Example 5.5): two runs at each of the nine settings of angle A and speed B.
+_TOOL_LIFE = [
+    {"A": a, "B": b, "y": y}
+    for (a, b), y in zip(
+        [(a, b) for a in (15, 20, 25) for b in (125, 125, 150, 150, 175, 175)],
+        [-2, -1, -3, 0, 2, 3, 0, 2, 1, 3, 4, 6, -1, 0, 5, 6, 0, -1],
+        strict=True,
+    )
+]
+
+
+class TestYatesTable:
+    """Yates's algorithm as a tool: the pilot plant's Tables 10.5, 10A.1 and 10A.2, and Box and Draper's 7G.1."""
+
+    def test_the_pilot_plant_s_columns_effects_and_checks(self) -> None:
+        result = execute_tool_call("yates_table", {"design_matrix": _PILOT_PLANT[::-1], "response_column": "y"})
+        table = pd.DataFrame(result["table"])
+        assert table["(3)"].tolist() == [514, 92, -20, 6, 6, 40, 0, 2], "in standard order, whatever the runs' order"
+        assert table["effect"].tolist() == ["mean", "T", "C", "T:C", "K", "T:K", "C:K", "T:C:K"]
+        assert table["estimate"].tolist() == [64.25, 23.0, -5.0, 1.5, 1.5, 10.0, 0.0, 0.5]
+        assert result["sum_of_squares"] == {"y": 34342, "(1)": 68684, "(2)": 137368, "(3)": 274736}
+        assert (result["factor_names"], result["response_name"], result["levels"]) == (["T", "C", "K"], "y", 2)
+        assert "reverse" not in result
+
+    def test_keep_runs_the_algorithm_in_reverse(self) -> None:
+        tool_input = {"design_matrix": _PILOT_PLANT, "response_column": "y", "keep": ["T", "C", "T:K"]}
+        reverse = execute_tool_call("yates_table", tool_input)["reverse"]
+        assert [row["fitted"] for row in reverse["table"]] == [60.25, 73.25, 55.25, 68.25, 50.25, 83.25, 45.25, 78.25]
+        assert reverse["sum_of_squares"]["fitted"] == 34332.5
+        assert reverse["sum_of_squares"]["residual"] == 9.5
+
+    def test_a_three_level_factorial_is_worked_by_the_three_level_algorithm(self) -> None:
+        """Table 7G.1: z'y, its divisor z'z and the orthogonal effect of x1, and no normal score for the mean."""
+        result = execute_tool_call("yates_table", {"design_matrix": _TEXTILE, "response_column": "Y"})
+        assert result["levels"] == 3
+        assert "sum_of_squares" not in result
+        first, x1 = result["table"][:2]
+        assert [row["(3)"] for row in result["table"][:4]] == [23256, 11880, 4296, -9646]
+        assert (x1["effect"], x1["divisor"], x1["estimate"], x1["sum_sq"]) == ("x1", 18, 660.0, 7840800.0)
+        assert first["normal_score"] is None
+        assert isinstance(x1["normal_score"], float)
+
+    def test_keep_is_for_a_two_level_factorial(self) -> None:
+        tool_input = {"design_matrix": _TEXTILE, "response_column": "Y", "keep": ["x1"]}
+        assert "two-level" in execute_tool_call("yates_table", tool_input)["error"]
+
+    def test_run_order_and_block_columns_are_not_factors(self) -> None:
+        rows = [dict(row, RunOrder=i, Block=1) for i, row in enumerate(_PILOT_PLANT)]
+        result = execute_tool_call("yates_table", {"design_matrix": rows, "response_column": "y"})
+        assert result["factor_names"] == ["T", "C", "K"]
+
+    @pytest.mark.parametrize(
+        ("change", "reason"),
+        [
+            ({"design_matrix": [*_PILOT_PLANT, _PILOT_PLANT[0]]}, "Average replicates first"),
+            ({"design_matrix": [dict(r, T=r["T"] / 2) for r in _PILOT_PLANT]}, "coded -1 and \\+1"),
+            ({"response_column": "z"}, "response_column 'z'"),
+            ({"factor_names": ["T", "Q"]}, "factor_names \\['Q'\\]"),
+            ({"keep": ["T", "TK"]}, "has no effect \\['TK'\\]"),
+        ],
+    )
+    def test_what_the_algorithm_cannot_work_is_an_error_envelope(self, change: dict, reason: str) -> None:
+        result = execute_tool_call("yates_table", {"design_matrix": _PILOT_PLANT, "response_column": "y", **change})
+        assert re.search(reason, result["error"])
+
+    def test_unknown_key_is_rejected_by_the_schema(self) -> None:
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("yates_table", {"design_matrix": _PILOT_PLANT, "response_column": "y", "bogus": 1})
+
+    def test_output_is_json_serialisable(self) -> None:
+        for rows, response in ((_PILOT_PLANT, "y"), (_TEXTILE, "Y")):
+            result = execute_tool_call("yates_table", {"design_matrix": rows, "response_column": response})
+            assert json.loads(json.dumps(result, allow_nan=False)) == result
+
+
+class TestInteractionComponents:
+    """The components of interaction of three-level factors as a tool: Montgomery's tool life (section 9.2)."""
+
+    def test_the_tool_life_interaction_splits_into_its_two_components(self) -> None:
+        tool_input = {"design_matrix": _TOOL_LIFE, "response_column": "y", "factor_names": ["A", "B"]}
+        result = execute_tool_call("interaction_components", tool_input)
+        rows = {row["component"]: row for row in result["components"]}
+        assert list(rows) == ["A", "B", "AB", "AB2"]
+        assert (rows["AB"]["yates"], rows["AB2"]["yates"]) == ("J(AB)", "I(AB)")
+        assert rows["AB"]["sum_of_squares"] == pytest.approx(392 / 6 - 24**2 / 18)
+        assert rows["AB2"]["sum_of_squares"] == pytest.approx(28.0)
+        assert {row["df"] for row in result["components"]} == {2}
+        assert (result["factor_names"], result["response_name"]) == (["A", "B"], "y")
+        assert json.loads(json.dumps(result, allow_nan=False)) == result
+
+    @pytest.mark.parametrize(
+        ("change", "reason"),
+        [
+            ({"design_matrix": [dict(r, B=min(r["B"], 150)) for r in _TOOL_LIFE]}, "exactly three settings"),
+            ({"response_column": "z"}, "missing \\['z'\\]"),
+        ],
+    )
+    def test_what_has_no_components_is_an_error_envelope(self, change: dict, reason: str) -> None:
+        tool_input = {"design_matrix": _TOOL_LIFE, "response_column": "y", "factor_names": ["A", "B"], **change}
+        assert re.search(reason, execute_tool_call("interaction_components", tool_input)["error"])
+
+    def test_more_factors_than_the_tool_takes_are_rejected_by_the_schema(self) -> None:
+        """Seven factors would make 1093 rows of components; the schema stops at six."""
+        rows = [dict(r, **dict.fromkeys("CDEFG", 0)) for r in _TOOL_LIFE]
+        tool_input = {"design_matrix": rows, "response_column": "y", "factor_names": list("ABCDEFG")}
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("interaction_components", tool_input)
+
+
+def test_the_factorial_table_tools_are_registered_in_the_experiments_tool_specs() -> None:
+    from process_improve.experiments.tools import get_experiments_tool_specs
+
+    specs = {s["name"]: s for s in get_experiments_tool_specs()}
+    for name in ("yates_table", "interaction_components"):
+        assert specs[name]["input_schema"]["additionalProperties"] is False
+        assert specs[name]["category"] == "experiments"

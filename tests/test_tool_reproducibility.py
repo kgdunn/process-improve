@@ -208,6 +208,12 @@ SAMPLE_INPUTS: dict[str, dict[str, Any] | Callable[[], dict[str, Any]]] = {
         "n_simulations": 5,
     },
     "compare_designs": {"designs": {"3^2": _THREE_LEVELS, "2^2": _THREE_LEVELS[::2]}, "model": "main_effects"},
+    "yates_table": {"design_matrix": _FACTORIAL[:4], "response_column": "y", "keep": ["A"]},
+    "interaction_components": {
+        "design_matrix": [dict(r, y=v) for r, v in zip(_THREE_LEVELS, _VALUES, strict=False)],
+        "response_column": "y",
+        "factor_names": ["A", "B"],
+    },
     # simulation: reveal_simulator reads the hidden model from the host context the test sets up
     "reveal_simulator": {"sim_id": "sim"},
     "simulate_batch_campaign": {"n_batches": 5},

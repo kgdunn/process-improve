@@ -184,6 +184,8 @@ calling, rather than guessing at field names.
 | `simulate_design_performance` | "Would this design find what I expect?" Designs run many times on the process you expect and analysed as the next step analyses them: the share that finds each term, false alarms, distance from the best settings |
 | `analyze_experiment` | ANOVA, effects, diagnostics, Lenth, Box-Cox, confirmation |
 | `analyze_omars` | The staged analysis of a definitive screening (DSD) or OMARS design; returns a model formula to fit and optimise |
+| `yates_table` | The working a textbook prints for a full 2^k or 3^k factorial: Yates's columns, effects and sums of squares; with `keep`, a 2^k model's fitted values by the reverse algorithm |
+| `interaction_components` | The two-degree-of-freedom components of interactions of three-level factors: AB and AB^2 (Yates's J and I), ABC to AB^2C^2 (Z, Y, X, W) |
 | `recommend_next_step` | "What do I run next?" After every round: confirm, axial runs, fold-over, the path of steepest ascent, or stop, with the runs in real units |
 | `fit_linear_model` | Explicit model formula when you need control |
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |

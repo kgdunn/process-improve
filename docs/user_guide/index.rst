@@ -17,6 +17,7 @@ User Guide
    constrained_designs
    region_limits
    screening_and_space_filling
+   factorial_tables
    split_plot_analysis
    blocked_models
    glm_analysis
