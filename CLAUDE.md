@@ -348,6 +348,13 @@ Handle PR events that arrive on their own (a CI failure, a review comment, a
 merge-conflict notice) when they arrive; otherwise the user asks for a status
 when they want one.
 
+**Found but not fixed becomes an issue.** Before a PR is reported, file each
+thing it found and left. Search the open issues first, so each problem lives in
+one issue: add the item to the open issue that already holds it (a multivariate
+item goes to the omnibus issue, #1149, as a comment under its aspect, when no
+more specific issue holds it), or open a new issue for it. The PR body links
+those issues; it does not list the items for the maintainer to triage.
+
 ## Communication style
 
 - Lead with the result. Your first sentence answers "what happened" or "what's

@@ -26,6 +26,7 @@ from ._common import (
     DiagnoseResult,
     SpecificationWarning,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     check_at_least_one,
@@ -34,6 +35,7 @@ from ._common import (
     informative_widths,
     refuse_empty_block,
     resolve_loop_settings,
+    text_table,
     unobserved_columns,
     user_stacklevel,
 )
@@ -520,6 +522,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """
         check_at_least_one("n_components", self.n_components)
         _validate_blocks(X)
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
@@ -1058,14 +1061,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """Format a short text summary of per-block R²X, iterations and timing."""
         check_is_fitted(self, "super_scores_")
         rows: list[str] = [f"MBPCA model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)"]
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_)
-        rows.append(header)
-        rows.append("-" * len(header))
         src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-        for a in range(self.n_components_):
-            cells = [f"{a + 1:>3d}"]
-            cells.extend(f"{src.loc[name].iloc[a]:>9.4f}" for name in self.block_names_)
-            rows.append(" | ".join(cells))
+        header = ["PC", *(f"R²X[{name}]" for name in self.block_names_)]
+        body = [
+            [str(a + 1), *(f"{src.loc[name].iloc[a]:.4f}" for name in self.block_names_)]
+            for a in range(self.n_components_)
+        ]
+        rows.extend(text_table(header, body))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")

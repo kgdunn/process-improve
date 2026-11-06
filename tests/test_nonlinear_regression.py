@@ -144,7 +144,7 @@ def test_two_regressors_reach_the_model_as_a_two_column_array():
         ({"b1": np.nan, "b2": 0.5}, [1.0, 2.0, 3.0], 0.95, "Each starting value must be a finite number"),
         ({"b1": 1.0, "b2": 0.5}, [1.0, np.inf, 3.0], 0.95, "y must be a sequence of finite numbers"),
         ({"b1": 1.0, "b2": 0.5}, [1.0, 2.0], 0.95, "2 rows leave no residual degree of freedom for 2 parameters"),
-        ({"b1": 1.0, "b2": 0.5}, [1.0, 2.0, 3.0], 1.0, "conf_level must be between 0 and 1"),
+        ({"b1": 1.0, "b2": 0.5}, [1.0, 2.0, 3.0], 1.0, r"conf_level must lie in \(0, 1\); got 1.0"),
     ],
 )
 def test_arguments_that_cannot_be_fitted_are_refused(start, y, conf_level, message):

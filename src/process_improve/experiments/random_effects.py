@@ -39,6 +39,7 @@ from scipy import stats
 
 from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.regression._variance_components import fit_variance_components, require_apart_from_residual
+from process_improve.univariate.metrics import _check_probability
 
 ERROR = "Error"
 
@@ -404,6 +405,7 @@ def intraclass_correlation_interval(
         ``ratio_low`` (:math:`L`) and ``ratio_high`` (:math:`U`); ``icc_low`` and ``icc_high``;
         and ``error_low`` and ``error_high``, the chi-squared interval of the error variance.
     """
+    _check_probability("conflevel", conflevel)
     alpha = 1 - conflevel
     df_error = (df_treatment + 1) * (n - 1)  # a levels of n observations each
     f0 = ms_treatment / ms_error

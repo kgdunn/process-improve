@@ -423,6 +423,32 @@ def test_a_dsd_stepped_up_to_a_larger_conference_order_says_so(k: int, usual: in
     assert result.metadata["fake_factors"] == order - k
 
 
+@pytest.mark.parametrize(("design_type", "named"), [("dsd", "definitive screening design"), ("omars", "OMARS design")])
+def test_a_stepped_up_conference_order_names_the_design_asked_for_at_the_line_that_asked(
+    design_type: str, named: str
+) -> None:
+    """The minimal OMARS design is the DSD's construction, but its warning names OMARS (#1129).
+
+    The warning pointed a fixed number of frames up, which through OMARS's extra frame named a
+    line in the library.
+    """
+    factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(21)]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = generate_design(factors, design_type, n_center_points=0)
+    (stepped,) = [w for w in caught if "conference matrix of order 22" in str(w.message)]
+    assert f"so the {named} for 21 factors uses the next order" in str(stepped.message)
+    assert stepped.filename == __file__
+    assert result.metadata["note"] == str(stepped.message)
+
+
+def test_dispatch_dsd_called_directly_points_its_step_up_warning_at_the_caller() -> None:
+    factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(21)]
+    with pytest.warns(UserWarning, match="conference matrix of order 22") as caught:
+        dispatch_dsd(factors)
+    assert caught[0].filename == __file__
+
+
 def test_a_dsd_at_its_usual_conference_order_has_no_note() -> None:
     factors = [Factor(name=f"x{i}", low=-1, high=1) for i in range(20)]
     with warnings.catch_warnings(record=True) as caught:

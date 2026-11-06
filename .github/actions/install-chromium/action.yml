@@ -1,0 +1,32 @@
+name: Install Chromium for Playwright
+description: >
+  The Chromium the browser tests drive, from the cache when it is there, without the font
+  packages that `playwright install --with-deps` adds. Needs the project environment
+  (./.github/actions/setup-env) first, for uv.
+
+runs:
+  using: composite
+  steps:
+    # Its download took 25 s in some runs and 7 to 10 min in others (#926). tests/web/_browser.py
+    # holds the Playwright pin, so a new pin starts a new cache.
+    - name: Cache Chromium for Playwright
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/web/_browser.py') }}
+    # Not --with-deps: the runner image has the libraries Chromium needs, and --with-deps also
+    # fetched nine font packages from apt on every run, for scripts the app does not show
+    # (Chinese, Japanese, Thai) and for X11. When the mirror was slow that took 10 minutes (#1160,
+    # #1164). The app's text needs Latin, Greek and a few symbols, which DejaVu Sans on the image
+    # covers. The system packages are installed only if Chromium cannot start without them.
+    - name: Install Chromium, and its system packages only if it cannot start
+      shell: bash
+      run: |
+        uv run --with playwright==1.64.1 playwright install chromium
+        start='from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            p.chromium.launch().close()'
+        if ! uv run --with playwright==1.64.1 python -c "$start"; then
+          echo "::warning::Chromium does not start on this runner image without its system packages; installing them."
+          uv run --with playwright==1.64.1 playwright install-deps chromium
+        fi

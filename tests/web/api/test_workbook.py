@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import zipfile
 
 import numpy as np
 import pytest
@@ -50,6 +51,21 @@ def test_the_workbook_opens_on_its_run_sheet_with_the_design_hidden(design):
     assert book.sheetnames == ["Runs", "_pi_design"]
     assert book["_pi_design"].sheet_state == "hidden"
     assert book["Runs"].freeze_panes == "A2", "the header row stays in view"
+
+
+def test_the_workbook_holds_no_time_of_day(api, held, simulated):
+    """Two downloads of one study are the same file: every date in it is fixed, as in write_run_sheet's workbook."""
+    openpyxl = pytest.importorskip("openpyxl")
+    request = {**held, "responses": simulated["responses"], "sources": ["simulated"] * 15, "simulated": simulated}
+    book = api.ok("api_workbook", request)["xlsx_base64"]
+    assert api.ok("api_workbook", request)["xlsx_base64"] == book
+    # Two downloads in the same second agree whether or not the clock is in the file; these checks do not.
+    data = base64.b64decode(book)
+    fixed = (1980, 1, 1, 0, 0, 0)
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert {info.date_time for info in archive.infolist()} == {fixed}
+    properties = openpyxl.load_workbook(io.BytesIO(data)).properties
+    assert properties.created.timetuple()[:6] == properties.modified.timetuple()[:6] == fixed
 
 
 # --------------------------------------------------------------------------- reading back

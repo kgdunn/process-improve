@@ -88,6 +88,29 @@ def test_tpls_display_results_flags_a_component_stopped_by_max_iter(tpls_pyphi_d
     assert not any("max iter reached" in row for row in component_rows(converged))
 
 
+@pytest.mark.parametrize("with_z", [True, False], ids=["with-z", "without-z"])
+def test_tpls_display_results_lines_up_its_columns(tpls_pyphi_data: dict, with_z: bool) -> None:
+    """#1083: every row has its R2 columns and its "|" under the header's, with or without a Z block.
+
+    Without a Z block the "-" placeholder was one character narrower than a number, so the F and
+    Y columns, and the timing after them, sat one place to the left of their headers.
+    """
+    d_matrix = tpls_pyphi_data.pop("D")
+    if not with_z:
+        tpls_pyphi_data["Z"] = {}
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(tpls_pyphi_data))
+    lines = model.display_results().splitlines()
+    header = next(line for line in lines if line.startswith("LV #"))
+    rows = [line for line in lines if re.match(r"LV \d", line)]
+    right_edges = [match.end() for match in re.finditer(r"\)", header)]  # each "sum(R2: X)" ends at ")"
+    assert len(rows) == 2
+    for row in rows:
+        assert row.index("|") == header.index("|")
+        assert all(row[edge - 1] != " " and row[edge] == " " for edge in right_edges[:-1]), row
+    if not with_z:
+        assert all(row[header.index("Z)") + 1] == "-" for row in rows)
+
+
 def test_tpls_help_returns_the_quick_reference(tpls_pyphi_data: dict) -> None:
     """help() needs no fit, and returns the quick reference as plain text."""
     text = TPLS(n_components=2, d_matrix=tpls_pyphi_data["D"]).help()

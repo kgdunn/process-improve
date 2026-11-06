@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+        uses: ./.github/actions/install-chromium
       # A CDN can fail for a moment, so the tests run a second time, a minute later, before the
       # job fails. Nothing is cached, as on a reader's first visit.
       - name: Run the smoke tests against the published app
@@ -124,13 +124,14 @@ jobs:
         if: steps.pyodide.outputs.skip != 'true'
         with:
           node-version: "22"
-      - name: Install Pyodide for Node.js and Chromium for Playwright
+      - name: Install Pyodide for Node.js
         if: steps.pyodide.outputs.skip != 'true'
         env:
           NEWEST: ${{ steps.pyodide.outputs.newest }}
-        run: |
-          npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock "pyodide@$NEWEST"
-          uv run --with playwright==1.64.1 playwright install --with-deps chromium
+        run: npm install --prefix ~/.cache/process-improve/node --no-save --no-package-lock "pyodide@$NEWEST"
+      - name: Install Chromium for Playwright
+        if: steps.pyodide.outputs.skip != 'true'
+        uses: ./.github/actions/install-chromium
       - name: Build the app on the newest release
         if: steps.pyodide.outputs.skip != 'true'
         run: uv run python scripts/build_web_app.py -o dist/web-app

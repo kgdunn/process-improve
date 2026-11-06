@@ -1003,8 +1003,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # ColumnTransformer knob rather than `.toarray()` (#399).
         _reject_sparse(X, "PCA")
         refuse_empty_block(X, "X")
-        sample_index = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        # Copies, so that a name the caller gives these axes later does not rename the model's frames
+        sample_index = X.index.copy() if isinstance(X, pd.DataFrame) else None
+        feature_columns = X.columns.copy() if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,

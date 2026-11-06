@@ -65,7 +65,7 @@ from scipy.stats import studentized_range
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
-from process_improve.univariate.metrics import confidence_interval
+from process_improve.univariate.metrics import _check_probability, confidence_interval
 
 #: Regular expression that recovers the original column name from a patsy
 #: ``C(Q('name'))`` term, so ANOVA tables read in the caller's own vocabulary.
@@ -483,6 +483,7 @@ def compare_products(  # noqa: PLR0913
     ... )
     >>> res.letters.query("condition == 'REF'").head()
     """
+    _check_probability("conf_level", conf_level)
     primary = primary or factors[0]
     stratum_col = within or "stratum"
     anova = factorial_anova(panel, factors=factors, block=block, interactions=interactions)

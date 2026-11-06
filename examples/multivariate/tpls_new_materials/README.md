@@ -33,8 +33,8 @@ two blends by 29%.
    excludes it: at prediction the new material's fraction is multiplied by zero, as if it were
    not in the blend. The refit also changes the model, because the new row changes the centring
    and scaling of D and enters the D-block deflation: in the simulation, adding one material
-   that no blend uses moved the predictions of the blends that do not use it by up to 0.50 Y
-   standard deviations.
+   that no blend uses moved the predictions of the blends that do not use it by up to 0.023 Y
+   standard deviations (2 components, `results/invariance_checks.csv`).
 3. **Autoscaled F ties a material's effect to how it was used, not to what it is.** With F
    divided by the standard deviation `sigma_j` of each material's fraction, the effect of
    material `j` on Y is `b(d_j) / sigma_j`, where `b(d_j)` depends on its properties alone. A
@@ -44,8 +44,9 @@ two blends by 29%.
    exactly unchanged (checked on the pyphi data). There the usage spread `sigma_j` of the 9
    Group 2 lots spans a factor of 20, so in the autoscaled model two lots with identical
    properties would get effects 20 times apart. The lot effects in that data set are small, so
-   the change is small (0.002 Y standard deviations); in the simulation with uneven usage the
-   autoscaled model's error on new materials is 16% higher than the centred model's.
+   the change is small (0.002 Y standard deviations, `results/pyphi_invariance_checks.csv`); in
+   the simulation with uneven usage the autoscaled model's error on new materials is 16% higher
+   than the centred model's.
 4. **The D-block deflation caps the fit.** After each component TPLS deflates D by `r v'`,
    which removes that material direction from D for good. When the super score also carries Z,
    or a second group of materials, Y needs that direction again in a later component, with a
@@ -66,9 +67,12 @@ With one group and no Z every variant reaches the truth. Add Z or a second group
 D-deflated models stop between 0.59 and 0.77, while the same model without the deflation keeps
 up with PLS on the mixture properties.
 
-The deflation also makes TPLS fragile. Adding to D one material that no blend uses, and
-refitting, moved the predictions of the blends by up to 0.50 Y standard deviations (autoscaled
-F) and 0.56 (centred F); without the deflation, by 0.04.
+The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
+checks, with D deflated, the iteration for the third component does not converge: it alternates
+between two states, and TPLS stops at its iteration limit without a warning. The model, and
+every prediction from it, is then whichever state the last iteration lands on, which differs
+between platforms. Without the deflation every component of that data set converges. The
+invariance checks therefore use 2 components, and refuse a fit that did not converge.
 
 ## Why a new material can be predicted at all
 
@@ -301,3 +305,9 @@ python domain.py    # applicability domain and the far material, after study.py
 ```
 
 `simulate.py` documents the simulated truth; `study.py` the leave-one-material-out protocol.
+
+`python study.py --quick` and `python domain.py --quick` run every step on one data set, with
+one or two left-out materials and one or two components, in under a minute each, and write
+nothing; the test suite runs both. The invariance checks are cheap, so the quick run does them
+in full and fails unless they reproduce `results/invariance_checks.csv` and
+`results/pyphi_invariance_checks.csv`. Every other table needs the full run.

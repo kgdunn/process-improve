@@ -21,6 +21,7 @@ from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
+from ..univariate.metrics import _check_probability
 from ._common import epsqrt, user_stacklevel
 
 #: The rows a Hotelling's T² limit can judge (#978): the rows the model was fitted to, or new rows.
@@ -145,8 +146,7 @@ def hotellings_t2_limit(
     Tracy, N. D., Young, J. C. and Mason, R. L., "Multivariate control charts for individual
     observations", Journal of Quality Technology, 24(2), 88-95, 1992.
     """
-    if not 0.0 < conf_level < 1.0:
-        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    _check_probability("conf_level", conf_level)
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_components < 0:
@@ -235,8 +235,7 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     SPE (an SPE^4 quantity) against an absolute tolerance, which fired on
     well-scaled data whose SPE values were merely small in magnitude.
     """
-    if not 0.0 < conf_level < 1.0:
-        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    _check_probability("conf_level", conf_level)
 
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
@@ -308,8 +307,7 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     since ``sqrt(F(1, N - 1))`` is exactly the two-sided ``t_{N - 1}``
     quantile.
     """
-    if not 0.0 < conf_level < 1.0:
-        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    _check_probability("conf_level", conf_level)
     check_is_fitted(model, "scores_")  # pragma: no mutate - None checks the same fitted state
 
     scores = np.asarray(model.scores_, dtype=float)  # pragma: no mutate - the scores are already float
@@ -394,8 +392,7 @@ def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse ju
         raise ValueError(f"score_horiz must lie in [1, {n_components}]; got {score_horiz}.")
     if not 1 <= score_vert <= n_components:
         raise ValueError(f"score_vert must lie in [1, {n_components}]; got {score_vert}.")
-    if not 0 < conf_level < 1:  # pragma: no mutate - hotellings_t2_limit repeats this check
-        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    _check_probability("conf_level", conf_level)
     if n_rows <= 0:  # pragma: no mutate - hotellings_t2_limit refuses n_rows below 2 too
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_points < 2:

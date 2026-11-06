@@ -3,6 +3,7 @@
 Nothing else runs these examples, so a renamed or removed name would break them silently. An example
 that needs a package which no extra of this project installs (a forecasting model, a graph
 database, a notebook widget) is skipped, but the ``process_improve`` names it imports must still exist.
+A script that takes too long for CI has a quick mode, which it names ``--quick``: the test runs that.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from IPython.core.inputtransformer2 import TransformerManager
 EXAMPLES = Path(__file__).parents[1] / "examples"
 SCRIPTS = sorted(path for path in EXAMPLES.rglob("*.py") if path.name != "__init__.py")
 NOTEBOOKS = sorted(path for path in EXAMPLES.rglob("*.ipynb") if ".ipynb_checkpoints" not in path.parts)
+QUICK = "--quick"
 
 
 def _name(example: Path) -> str:
@@ -50,6 +52,11 @@ def _imports(example: Path) -> list[tuple[str, list[str]]]:
     return found
 
 
+def _has_quick_mode(script: Path) -> bool:
+    """Whether the script has a quick mode; such a script takes seconds even in it, so its run is tiered ``slow``."""
+    return QUICK in _source(script)
+
+
 def _skip_unless_installed(example: Path) -> None:
     """Skip the test when the example imports a package that is not installed, and name it."""
     absent = sorted({name.split(".")[0] for name, _ in _imports(example)} - set(sys.stdlib_module_names))
@@ -73,13 +80,24 @@ def test_the_package_names_an_example_imports_exist(example: Path) -> None:
 
 
 @pytest.mark.dataset
-@pytest.mark.parametrize("script", SCRIPTS, ids=_name)
+@pytest.mark.parametrize(
+    "script",
+    [pytest.param(path, marks=pytest.mark.slow) if _has_quick_mode(path) else path for path in SCRIPTS],
+    ids=_name,
+)
 def test_the_example_runs(script: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # The modules beside it import as they do for ``python script.py``; and a script may add to sys.path.
+    monkeypatch.setattr(sys, "path", [str(script.parent), *sys.path])
     _skip_unless_installed(script)
     monkeypatch.setattr(go.Figure, "show", lambda *_args, **_kwargs: None)  # it would open a browser
-    monkeypatch.setattr(sys, "path", list(sys.path))  # a script may add to it
+    monkeypatch.setattr(sys, "argv", [str(script), *([QUICK] if _has_quick_mode(script) else [])])
     monkeypatch.chdir(tmp_path)  # anything a script writes lands here
-    runpy.run_path(str(script), run_name="__main__")
+    try:
+        runpy.run_path(str(script), run_name="__main__")
+    finally:  # modules beside a script have plain names (``methods``, ``study``): do not leave them to another
+        for name, module in list(sys.modules.items()):
+            if Path(getattr(module, "__file__", None) or "").parent == script.parent:
+                del sys.modules[name]
 
 
 @pytest.mark.dataset

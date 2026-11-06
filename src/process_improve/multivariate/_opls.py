@@ -207,8 +207,9 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 stacklevel=user_stacklevel(),
             )
         refuse_empty_block(X, "X")
-        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
+        # Copies, so that a name the caller gives these axes later does not rename the model's frames
+        sample_index: pd.Index | None = X.index.copy() if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns.copy() if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2)
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)  # an array's labels are positions
         given_x = X
@@ -222,7 +223,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Y.shape[0]}."
             )
         # Missing and infinite cells refused as validate_data refuses them in X, and the response read as floats.
-        Y = pd.DataFrame(check_array(Y, input_name="Y"), columns=Y.columns)
+        Y = pd.DataFrame(check_array(Y, input_name="Y"), columns=Y.columns.copy())
         self.n_targets_ = 1
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:

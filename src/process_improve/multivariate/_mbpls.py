@@ -35,6 +35,7 @@ from ._common import (
     SpecificationWarning,
     _equal_weight_r2_total,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
@@ -48,6 +49,7 @@ from ._common import (
     largest_ssq_column,
     refuse_empty_block,
     resolve_loop_settings,
+    text_table,
     unobserved_columns,
     user_stacklevel,
     y_is_exhausted,
@@ -682,7 +684,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             :meth:`PLS.fit` raises.
         """
         check_at_least_one("n_components", self.n_components)
-        y = _validate_fit_arguments(X, y)
+        y = _own_axes(_validate_fit_arguments(X, y))
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X, y)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
@@ -1223,17 +1226,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
         rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
-        rows.append(header)
-        rows.append("-" * len(header))
-        for a in range(self.n_components_):
-            cells = [f"{i:>3d}" for i in [a + 1]]
-            for name in self.block_names_:
-                src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-                cells.append(f"{src.loc[name].iloc[a]:>9.4f}")
-            r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
-            cells.append(f"{r2y_src.iloc[a]:>9.4f}")
-            rows.append(" | ".join(cells))
+        src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
+        r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
+        header = ["PC", *(f"R²X[{name}]" for name in self.block_names_), "R²Y"]
+        body = [
+            [str(a + 1), *(f"{src.loc[name].iloc[a]:.4f}" for name in self.block_names_), f"{r2y_src.iloc[a]:.4f}"]
+            for a in range(self.n_components_)
+        ]
+        rows.extend(text_table(header, body))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")

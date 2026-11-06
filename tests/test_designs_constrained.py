@@ -471,6 +471,38 @@ class TestEOptimal:
         assert result.metadata["min_eigenvalue"] > 0
 
 
+def test_k_swap_is_the_same_whichever_eigenvectors_span_a_repeated_eigenvalue(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Of the swaps that tie for the best, the first is made, whatever basis the eigensolver returns (#1129).
+
+    The 2^3 factorial with one corner run twice more has, for the interactions model, the smallest
+    eigenvalue of X'X, 8, six times over: its eigenvector is any vector of that eigenspace, and the
+    BLAS kernel's rounding picks one. Several swaps tie for the best condition number, and the one
+    made followed the order that vector ranked them in, so it differed from one processor to another.
+    """
+
+    def interactions(points: np.ndarray) -> np.ndarray:
+        a, b, c = points.T
+        return np.column_stack([np.ones(len(points)), a, b, c, a * b, a * c, b * c])
+
+    f_cand = interactions(np.array(list(itertools.product([-1.0, 0.0, 1.0], repeat=3))))
+    f_design = interactions(np.vstack([list(itertools.product([-1.0, 1.0], repeat=3)), -np.ones((2, 3))]))
+    info = f_design.T @ f_design
+    eigh, rng = np.linalg.eigh, np.random.default_rng(0)
+
+    def any_basis(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Eigenvalues, with the eigenvectors of the smallest rotated within their eigenspace."""
+        values, vectors = eigh(matrix)
+        repeated = np.flatnonzero(np.isclose(values, values[0]))
+        rotation = np.linalg.qr(rng.normal(size=(len(repeated), len(repeated))))[0]
+        vectors[:, repeated] = vectors[:, repeated] @ rotation
+        return values, vectors
+
+    first = Criterion.k().best_swap(info, f_design, f_cand)
+    monkeypatch.setattr(np.linalg, "eigh", any_basis)
+    assert [Criterion.k().best_swap(info, f_design, f_cand) for _ in range(5)] == [first] * 5
+    assert first[2] > 0
+
+
 # ---------------------------------------------------------------------------
 # Row-wise exchange, greedy start, grid cap and polish
 # ---------------------------------------------------------------------------
