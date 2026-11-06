@@ -624,6 +624,25 @@ def test_batch_dtw_runs_one_iteration_even_when_the_tolerance_is_already_met() -
     assert set(outputs["aligned_batch_dfdict"]) == {"x", "y"}
 
 
+def test_batch_dtw_returns_the_trajectory_its_last_iteration_aligned_to() -> None:
+    """The reference batch itself after one iteration; after the third, the average of the iteration before (#1105)."""
+    batches = {"x": _warped_batch(30), "y": _warped_batch(36) + 0.1, "z": _warped_batch(42)}
+    one = batch_dtw(batches, ["a", "b"], reference_batch="y", settings={"show_progress": False, "tolerance": 5})
+    pd.testing.assert_frame_equal(one["reference_trajectory"], batches["y"], rtol=1e-12)
+
+    four = batch_dtw(
+        batches,
+        ["a", "b"],
+        reference_batch="y",
+        settings={"show_progress": False, "tolerance": 0, "maximum_iterations": 4, "subsample": 2},
+    )
+    assert len(four["weight_history"]) == 4
+    assert list(four["reference_trajectory"].columns) == ["a", "b"]
+    assert four["reference_trajectory"].index.equals(pd.RangeIndex(18))
+    # An average over the three batches, so no longer the reference batch shifted by 0.1.
+    assert not np.allclose(four["reference_trajectory"], batches["y"].iloc[::2])
+
+
 @pytest.mark.parametrize("reference_batch", ["long", "one"], ids=["short-batch", "short-reference"])
 def test_resample_to_reference_rejects_a_batch_of_one_row(reference_batch: str) -> None:
     """One row has no duration to rescale, so it is refused by name instead of failing inside scipy (#513)."""
