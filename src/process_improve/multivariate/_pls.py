@@ -39,6 +39,7 @@ from ._common import (
     _equal_weight_r2_total,
     _model_method,
     _nz,
+    _own_axes,
     _reject_sparse,
     _select_n_components,
     _vandervoet_randomization,
@@ -970,12 +971,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels; pandas
         # numbers an array's rows and columns from 0.
-        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
+        # Copies, so that a name the caller gives these axes later does not rename the model's frames
+        sample_index: pd.Index | None = X.index.copy() if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns.copy() if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2, ensure_all_finite="allow-nan")
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        if not isinstance(Y, pd.DataFrame):
-            Y = pd.DataFrame(Y, index=sample_index)
+        Y = _own_axes(Y) if isinstance(Y, pd.DataFrame) else pd.DataFrame(Y, index=sample_index)
         # The responses as floats, a pandas missing value (pd.NA) as NaN, as validate_data reads X:
         # without scaling nothing else converts them, and pd.NA raised TypeError (#1027). Columns
         # of floats are left as they are: a copy can change the memory layout, and with it the

@@ -123,6 +123,19 @@ def _nz(denominator: float) -> float:
     return max(_DENOM_FLOOR, denominator)
 
 
+def _own_axes(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return ``frame`` with copies of its row and column labels, and its values unchanged and not copied.
+
+    pandas passes an index on by reference: a frame built on the caller's ``X.index`` holds
+    that very object, so a name given to the caller's axis after the fit renamed the
+    model's frames too. A model takes its labels from here, or from ``Index.copy``, instead.
+    """
+    owned = frame.copy(deep=False)
+    owned.index = frame.index.copy()
+    owned.columns = frame.columns.copy()
+    return owned
+
+
 #: The ``missing_data_settings`` keys removed in 2.0, and the constructor parameter that
 #: replaced each one. ``md_method`` is not here: it names the imputation algorithm, which
 #: is the one axis ``missing_data_settings`` still owns.
@@ -366,7 +379,7 @@ class UncentredDataWarning(SpecificationWarning):
     """
 
 
-class NotEnoughVarianceError(RuntimeError):
+class NotEnoughVarianceError(RuntimeError, ValueError):
     """Raised when more components are requested than the data's variance supports.
 
     During NIPALS extraction (PCA / PLS) the deflated data array can run out of
@@ -376,7 +389,11 @@ class NotEnoughVarianceError(RuntimeError):
 
     Subclasses :class:`RuntimeError` so existing ``except RuntimeError`` handlers
     keep working, while callers that want to react specifically (e.g. trimming the
-    component count during cross-validation) can catch this narrower type.
+    component count during cross-validation) can catch this narrower type. It is a
+    :class:`ValueError` as well, because it replaced the ``ValueError`` TPLS raised for
+    data with no variance and the ``LinAlgError`` (a ``ValueError``) PLS and OPLS
+    raised for a Y with no covariance with X: an ``except ValueError`` written for
+    those still catches it.
     """
 
 

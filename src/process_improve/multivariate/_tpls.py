@@ -32,8 +32,11 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from ._common import (
     DiagnoseResult,
+    NotEnoughVarianceError,
+    SpecificationWarning,
     _model_method,
     _nz,
+    _own_axes,
     check_at_least_one,
     epsqrt,
     largest_ssq_column,
@@ -245,7 +248,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         cross-validation.
 
     max_iter : int, optional
-        The maximum number of iterations for the TPLS algorithm. Default is 500.
+        The maximum number of iterations for the TPLS algorithm. Default is 500. A component
+        that has not converged by then is the state of its last pass, and the fit warns.
 
     skip_f_matrix_preprocessing : bool, optional
         If True, the F (formula) matrices are used as-is, skipping the internal
@@ -296,8 +300,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     is_fitted_ : bool
         Set to True once ``fit()`` completes.
     fitting_statistics : dict
-        Per-component ``iterations``, ``convergance_tolerance`` and
-        ``milliseconds`` lists.
+        Per-component ``iterations``, ``convergance_tolerance``, ``milliseconds`` and
+        ``converged`` lists. ``converged`` holds whether the component met ``tol`` within
+        ``max_iter`` passes, as ``fitting_info_["converged"]`` does on MBPLS and MBPCA.
     preproc_ : dict
         Nested per-block per-group preprocessors, indexed as
         ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
@@ -554,6 +559,14 @@ class TPLS(RegressorMixin, BaseEstimator):
             If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range.
         TypeError
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
+        NotEnoughVarianceError
+            If the first Y block, or F, D and Z together, have no variance, as MBPLS raises, or if a
+            component's scores are not finite because a block has no variation for the iteration to follow.
+
+        Warns
+        -----
+        SpecificationWarning
+            If a component did not converge within ``max_iter`` passes (#1163).
         """
         _reject_separate_y(y, "TPLS.fit")
         if not isinstance(X, DataFrameDict):
@@ -571,7 +584,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.skip_f_matrix_preprocessing_ = self.skip_f_matrix_preprocessing
 
         # Storage for pre-processing and the raw matrices
-        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
+        self.fitting_statistics: dict[str, list] = {
+            "iterations": [],
+            "convergance_tolerance": [],
+            "milliseconds": [],
+            "converged": [],
+        }
         # Per block / per group preprocessing parameters. "center" and "scale" are pd.Series (one entry
         # per column); the D-block additionally stores a scalar "block" factor (float). The heterogeneous
         # value types make `Any` the honest inner annotation here. See `_preprocess`.
@@ -669,9 +687,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.f_mats = {key: nan_to_zeros(self.f_mats[key]) for key in group_keys}
         self.z_mats = {key: nan_to_zeros(self.z_mats[key]) for key in X["Z"]}
         self.y_mats = {key: nan_to_zeros(self.y_mats[key]) for key in X["Y"]}
+        self._refuse_blocks_with_no_variance()
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
-        self.observation_names = X["F"][group_keys[0]].index
+        # A copy, so that a name the caller gives this axis later does not rename the model's frames
+        self.observation_names = X["F"][group_keys[0]].index.copy()
         self.property_names = {key: self.d_matrix[key].columns.to_list() for key in group_keys}
         self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
@@ -1121,6 +1141,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             A column with no observed value is excluded the same way and gets the same
             warning, worded for its own cause (#982).
         """
+        # pandas 2 hands a reduction the caller's own column labels, so a name given to them after
+        # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
+        y = _own_axes(y)
         centering = y.mean()
         scaling = y.std() if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)  # pandas' default ddof is 1
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
@@ -1174,15 +1197,37 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         return delta_gap < self.tol
 
+    def _refuse_blocks_with_no_variance(self) -> None:
+        """Refuse nothing to explain, or nothing to explain it by, before the iteration, as MBPLS does (#1144).
+
+        Scaling leaves a constant column absent, and an absent cell is 0 here, so a block with
+        no variance is all zeros, in any units. The iteration explains the first Y block. A group
+        of F carries something only with its D, as its blend scores weigh F by the properties.
+        """
+        y_key, y_block = next(iter(self.y_mats.items()))
+        if not np.any(y_block):
+            raise NotEnoughVarianceError(
+                f'There is no variance in Y["{y_key}"]: every response is constant or has no observed value, '
+                "so there is nothing for F, D and Z to explain."
+            )
+        if not any(np.any(self.f_mats[key]) and np.any(self.d_mats[key]) for key in self.d_mats) and not any(
+            np.any(z_block) for z_block in self.z_mats.values()
+        ):
+            raise NotEnoughVarianceError(
+                "There is no variance in F, D and Z: no group has a column of F and a column of D that vary, "
+                "and no column of Z varies, so there is nothing to explain Y by."
+            )
+
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
-        """Raise ``ValueError`` when a component's scores are not finite.
+        """Raise ``NotEnoughVarianceError`` when a component's scores are not finite.
 
         A NaN never leaves the iteration once it is in it, and the convergence test can never
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
         row or a material with nothing observed no longer causes one: it gets a zero score or
         loading and no weight (#513). What is left is a direction the iteration cannot take,
-        because the vector it regresses on is zero: every column of the first Y block, or
-        every column of D or F, has no variation.
+        because the vector it regresses on is zero: every column of a D or F group has no
+        variation, or a block has none left. It was a ``ValueError``; it is the family's error
+        for data without the variance to fit, as the checks before the iteration are (#1144).
         """
         if np.isfinite(t_super_i).all():
             return
@@ -1191,7 +1236,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             "no variation for the iteration to follow. Check that at least one column of the first Y "
             "block, and at least one column of each D and F group, varies and is observed."
         )
-        raise ValueError(msg)
+        raise NotEnoughVarianceError(msg)
 
     def _super_block_names(self) -> list[str]:
         """Row labels of ``w_loadings_super``: one per Z group, as the fit scores each on its own, then F."""
@@ -1727,6 +1772,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
                 self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
+                # Read after the loop: the last pass allowed can converge too (#1080).
                 converged = self._has_converged(starting_vector=u_prior, revised_vector=u_super_i)
                 if converged:
                     break
@@ -1745,6 +1791,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.fitting_statistics["iterations"].append(n_iter)
             self.fitting_statistics["convergance_tolerance"].append(delta_gap)
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
+            self.fitting_statistics["converged"].append(converged)
 
             # Store model coefficients
             self._store_model_coefficients(
@@ -1759,6 +1806,22 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limits (after all components have been fitted).
         self._calculate_model_statistics_and_limits()
+        self._warn_about_components_not_converged()
+
+    def _warn_about_components_not_converged(self) -> None:
+        """Warn about each component whose loop stopped at ``max_iter``, in the words of MBPLS and MBPCA.
+
+        The loop is not a power iteration, and it can alternate between two states for ever: the
+        component is then the state of the last pass, which differs from one platform to another (#1163).
+        """
+        failed = [a + 1 for a, converged in enumerate(self.fitting_statistics["converged"]) if not converged]
+        if failed:
+            warnings.warn(
+                f"TPLS NIPALS did not converge within max_iter={self.max_iter_} for "
+                f"component(s) {failed}; results for those components may be unreliable.",
+                SpecificationWarning,
+                stacklevel=user_stacklevel(),
+            )
 
 
 # Named regression metrics understood by :func:`make_tpls_scorer`, each paired with the
