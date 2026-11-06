@@ -203,9 +203,11 @@ def check_predictive_signal(
 
     Raises
     ------
+    TypeError
+        If ``x`` or ``y`` is not a :class:`pandas.DataFrame`.
     ValueError
-        If the blocks disagree on rows, ``n_perm`` is below 1, or
-        ``fit_predict`` returns the wrong shape.
+        If the blocks disagree on rows, ``y`` has fewer than two rows,
+        ``n_perm`` is below 1, or ``fit_predict`` returns the wrong shape.
 
     Notes
     -----
@@ -357,6 +359,8 @@ def count_discoveries_under_null(
 
     Raises
     ------
+    TypeError
+        If ``x`` or ``y`` is not a :class:`pandas.DataFrame`.
     ValueError
         If the blocks disagree on rows or ``n_perm`` is below 1.
 
