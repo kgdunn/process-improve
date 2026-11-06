@@ -1514,8 +1514,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         VIP scores are computed during fitting for the D-block (material properties) and
         F-block (formulation variables) and stored in :attr:`feature_importance`. Each
         component is weighted by its share of that block's own variance (its per-column
-        R2, averaged over the columns of each group and then over the groups), not of Y
-        as a PLS VIP is.
+        R2, averaged over the columns of each group and then over the groups with a column
+        that varies), not of Y as a PLS VIP is. A group with no variation has zero weight, and a
+        VIP of 0.
 
         Parameters
         ----------
