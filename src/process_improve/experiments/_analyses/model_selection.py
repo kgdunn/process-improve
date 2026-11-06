@@ -23,7 +23,8 @@ otherwise, as in a screening or supersaturated design.
 
 A Scheffe mixture model has no intercept, since the components sum to 1: every
 linear blending term stays in, and the search chooses among the non-linear blending
-terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic).
+terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic). A formula analysed as a
+mixture model is searched the same way, over its own terms.
 """
 
 from __future__ import annotations
@@ -179,6 +180,7 @@ def _run_model_selection(
     factor_cols: list[str],
     model: str | None = None,
     criterion: str = "aicc",
+    mixture_terms: list[str] | None = None,
 ) -> dict[str, Any]:
     """Select the terms of ``model`` that the data support, by stepwise search with heredity.
 
@@ -192,10 +194,15 @@ def _run_model_selection(
         Factor column names.
     model : str or None
         ``"main_effects"``, ``"interactions"`` (also for ``None``), ``"quadratic"`` or a
-        Scheffé model: the largest model the search may reach. Any other model (a
-        formula) searches the interactions model and says so in a note.
+        Scheffé model: the largest model the search may reach. A formula analysed as a
+        mixture model is searched over ``mixture_terms``; any other formula searches the
+        interactions model and says so in a note.
     criterion : str
         ``"aicc"`` (default), ``"aic"`` or ``"bic"``.
+    mixture_terms : list[str] or None
+        The terms of ``model``, a formula analysed as a mixture model, or None for any
+        other model. As in a Scheffé model, its linear blending terms (the factors) all
+        stay in, and the search chooses among the others.
 
     Returns
     -------
@@ -208,17 +215,22 @@ def _run_model_selection(
     if criterion not in _CRITERIA:
         raise ValueError(f"criterion must be one of {', '.join(_CRITERIA)}; got {criterion!r}.")
     searchable = ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS)
-    searched = model if model in searchable else "interactions"
-    mixture = searched in SCHEFFE_MODELS
-    fixed = list(factor_cols) if mixture else None
-    terms = _candidate_terms(factor_cols, searched)
+    if mixture_terms is not None:
+        searched = model
+        fixed = [t for t in mixture_terms if t in factor_cols]
+        terms = [_Term(t, frozenset()) for t in mixture_terms if t not in factor_cols]
+    else:
+        searched = model if model in searchable else "interactions"
+        fixed = list(factor_cols) if searched in SCHEFFE_MODELS else []
+        terms = _candidate_terms(factor_cols, searched)
+    mixture = bool(fixed)
     data = design_df[design_df[[response_col, *factor_cols]].notna().all(axis=1)]
     y = data[response_col].to_numpy(dtype=float)
     selected, value, direction = _search(_Scorer(data, y, terms, criterion, fixed=fixed), terms, len(y))
 
     names = [t.name for t in terms if t.name in selected]  # in candidate order: mains, 2FIs, squares
     if mixture:
-        formula = f"{response_col} ~ -1 + {' + '.join([*factor_cols, *names])}"
+        formula = f"{response_col} ~ -1 + {' + '.join([*fixed, *names])}"
     else:
         formula = f"{response_col} ~ {' + '.join(names)}" if names else f"{response_col} ~ 1"
     fit = smf.ols(formula, data=data).fit()
@@ -227,7 +239,7 @@ def _run_model_selection(
         fit = smf.ols(formula, data=data, hasconst=True).fit()
     result: dict[str, Any] = {
         "selected_formula": formula,
-        "selected_terms": [*factor_cols, *names] if mixture else names,
+        "selected_terms": [*fixed, *names],
         "candidate_model": searched,
         "criterion": criterion,
         "criterion_value": float(value),

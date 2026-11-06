@@ -573,7 +573,7 @@ def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
     a spelling that works. Patsy reads an integer that is not a level as the position of one
     (``Treatment(0)`` is the first level), so an integer is refused only past the last position, and
     where a level is spelled as the integer but the position picks another: of the labels ``'1'``,
-    ``'2'`` and ``'3'``, as ``evaluate_design`` reads a ``Block`` column, ``Treatment(1)`` is ``'2'``.
+    ``'2'`` and ``'3'``, ``Treatment(1)`` is ``'2'``.
 
     Parameters
     ----------
@@ -607,6 +607,23 @@ def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
                 f"levels are {levels!r}{reading}. Write the level as the column holds it, as in "
                 f"C({column}, {contrast}({levels[0] if spelling is None else spelling!r}))."
             )
+
+
+def named_levels(formula: str, column: str) -> list[tuple[str, object]]:
+    """Return the contrast and the level of each ``C(column, Treatment(level))`` or ``Sum(level)`` in *formula*."""
+    found = []
+    for side in formula.split("~"):
+        tree = _parsed_side(side)
+        for node in ast.walk(tree) if tree else ():
+            named = _named_level(node)
+            if named is not None and named[0] == column:
+                found.append(named[1:])
+    return found
+
+
+def block_levels(blocks: pd.Series) -> list[Any]:
+    """Return the blocks in the order they are coded: numbers by value, so block 10 follows block 9, labels as text."""
+    return list(pd.Categorical(blocks.to_numpy()).categories)
 
 
 def _named_level(node: ast.AST) -> tuple[str, str, object] | None:
