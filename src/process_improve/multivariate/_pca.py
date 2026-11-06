@@ -35,6 +35,7 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _fit_asked_for_by_the_caller,
     _float_frame,
     _nz,
     _reject_sparse,
@@ -995,7 +996,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ------
         NotEnoughVarianceError
             If every column of X is constant or has no observed value, as across the
-            family (#1144): such an X tells no row from another.
+            family (#1144): such an X tells no row from another. A fit that another
+            routine of this package runs on a matrix it derived, such as ASCA's effect
+            matrix of a term with no effect, is not refused.
 
         Warns
         -----
@@ -1041,7 +1044,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # A column with nothing observed gets a zero loading from NIPALS and TSR; it is named, as
         # across the family, and a value a new row has in it is ignored (#1098).
         self._unobserved_columns = unobserved_columns(X, "X")
-        check_x_varies([X], explains_y=False)  # an X in which nothing varies tells no row apart (#1144)
+        # An X in which nothing varies tells no row apart (#1144). A matrix another routine of this
+        # package derived and fits, as ASCA's effect matrix of a term with no effect, is fitted as it was:
+        # that routine reads its zero scores as the answer.
+        if _fit_asked_for_by_the_caller(self):
+            check_x_varies([X], explains_y=False)
         constant_columns(X, "X", self)
 
         # Clamp n_components

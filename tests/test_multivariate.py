@@ -50,6 +50,7 @@ from process_improve.multivariate._pca import _leverage_corrected_press, _low_ra
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
+    ASCA,
     MBPCA,
     MBPLS,
     OPLS,
@@ -951,15 +952,11 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
 
 
 def test_pca_errors_no_variance_to_start() -> None:
-    """Arrays with no variance should seem to work, but should have no variability explained."""
+    """An array with no variance is refused, as across the family (#1144); it was fitted, with zero scores."""
     K, N, A = 17, 12, 5
-    data = pd.DataFrame(np.zeros((N, K)))
-    model = PCA(n_components=A)
-    # with pytest.raises(RuntimeError):
-    model.fit(data)
-    assert np.sum(model.scores_.values) == pytest.approx(0, abs=epsqrt)
-    assert model.r2_cumulative_.sum() == pytest.approx(0, abs=epsqrt)
-    assert np.isnan(model.r2_cumulative_[A - 1])
+    for value in (0.0, 4.0):  # a constant that is not 0 too, though PCA does not centre it
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+            PCA(n_components=A).fit(pd.DataFrame(np.full((N, K), value)))
 
 
 def test_pca_invalid_calls() -> None:
@@ -9409,10 +9406,13 @@ def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
     P, T = _svd_reference(small, 1)
     expected = 1 - np.sum((small - T @ P.T) ** 2) / np.sum(small**2)
     assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X"):
+        PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))  # the caller's fit is refused (#1144)
+    # ASCA's effect matrix of a term with no effect is a block of zeros, which ASCA's own PCA fits
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
-        pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
+        pca = ASCA(n_components=2).fit(np.zeros((4, 3)), pd.DataFrame({"f": ["a", "b"] * 2})).models_["f"]
+    assert pca.algorithm_ == "svd"
     assert pca.r2_cumulative_.isna().all()
     assert pca.r2_per_component_.isna().all()
     assert pca.r2_per_variable_.isna().all().all()
@@ -9564,8 +9564,8 @@ def test_pca_nipals_judges_the_variance_left_against_the_block() -> None:
         np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
         np.testing.assert_allclose(pca.scores_.to_numpy(), [[units * 2.0**-13], [0.0]], atol=1e-20)
     message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
-    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
-        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)  # in the family's words (#1144)
     with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
         PCA(n_components=2, algorithm="nipals").fit(X)
     PCA(n_components=2, algorithm="nipals").fit(np.diag([1e3, 2e3 * epsqrt]))
@@ -12006,6 +12006,11 @@ def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None
             f"There is no variance left in the data array for {block}: cannot compute any more components beyond "
             "component 0."
         )
+        if block == "X":  # in the family's words (#1144)
+            message = (
+                "There is no variance in X: every column is constant or has no observed value, so there is nothing "
+                "to explain Y by."
+            )
         with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
             model.fit(X, Y)
 

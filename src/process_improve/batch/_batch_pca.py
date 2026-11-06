@@ -28,7 +28,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
-from ..multivariate._common import DiagnoseResult
+from ..multivariate._common import DiagnoseResult, check_x_varies
 from ..multivariate._diagnostics import score_contributions as _score_contributions
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
 from ..multivariate._diagnostics import t2_contributions as _t2_contributions
@@ -246,6 +246,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         """
         self._validate_params()
         wide = self._unfold(X, initial_conditions)
+        check_x_varies([wide], explains_y=False)  # as PCA refuses it when the caller fits it (#1144)
 
         scaler = MCUVScaler().fit(wide)
         if not self.scale:
