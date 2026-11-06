@@ -256,8 +256,8 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_url("**/map/")
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     page.click("text=Back to Factorial")
-    page.wait_for_selector("footer >> text=concept map")
-    page.click("footer >> text=concept map")
+    page.wait_for_selector("footer a[href='map/']")
+    page.click("footer a[href='map/']")
     page.wait_for_url("**/map/")
 
 

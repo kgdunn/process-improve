@@ -412,6 +412,7 @@ def test_the_map_draws_a_mark_for_every_design_listed(context, site):
 
 def _drag_a_box(page, factors: tuple[float, float], runs: tuple[float, float]) -> None:
     """Drag a box on the map over a span of factors and runs, as a reader does with the mouse."""
+    page.locator("#map").scroll_into_view_if_needed()  # the mouse reaches only what is in the window
     corners = page.evaluate(
         """([factors, runs]) => {
           const div = document.querySelector('#map');
