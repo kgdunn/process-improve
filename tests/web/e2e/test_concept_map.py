@@ -284,7 +284,9 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
     )
     assert wider == []
     lines = page.evaluate(
-        """() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('.lede'));
+        # In DejaVu Sans, wider than any phone's own font, so two lines here are two lines on any phone.
+        """() => { const lede = document.querySelector('.lede'); lede.style.fontFamily = '"DejaVu Sans", sans-serif';
+                   const r = document.createRange(); r.selectNodeContents(lede);
                    return new Set([...r.getClientRects()].map((b) => Math.round(b.top))).size; }"""
     )
     assert lines <= 2, f"the lede takes {lines} lines on a phone"
