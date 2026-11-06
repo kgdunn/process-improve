@@ -1544,8 +1544,6 @@ main.map .lede { margin: 0; }
 .map-aka { color: var(--muted); font-size: 0.92rem; }
 .map-quote { margin: 4px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--muted); }
 .map-quote p { font-style: italic; }
-.map-quote cite { display: block; margin-top: 2px; font-style: normal; font-size: 0.78rem; overflow-wrap: anywhere;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .map-book { font-size: 0.9rem; overflow-wrap: anywhere; }
 .map-links { display: grid; gap: 10px; }
 .map-rel { display: grid; gap: 6px; }
@@ -1561,7 +1559,6 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .map-how ul { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
 .map-how ul li { color: var(--muted); }
 .map-how ul b { color: var(--fg); }
-.map-how .map-cite { font-size: 0.78rem; overflow-wrap: anywhere; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .map-how details { margin: 0; }
 .map-how details > :not(summary) { margin-top: 8px; }
 .map-tablewrap { overflow-x: auto; max-width: 100%; }

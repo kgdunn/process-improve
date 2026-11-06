@@ -8,6 +8,7 @@ and what the page remembers. ``window.conceptMap`` gives them the map's ``cy`` a
 from __future__ import annotations
 
 import json
+import re
 from itertools import pairwise
 from typing import Any
 
@@ -93,7 +94,6 @@ def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
-    assert page.text_content("#map-stats").endswith(" topics.")
 
 
 @pytest.mark.parametrize("context_options", [PHONE])
@@ -164,7 +164,9 @@ def test_a_tap_on_a_term_shows_its_definition_its_book_line_and_lights_its_links
     _settled(page)
     term = next(n for n in GRAPH["nodes"] if n["id"] == "full_factorial")
     assert page.text_content("#card h2") == term["name"]
-    assert term["evidence"] in page.text_content("#card .map-quote cite")
+    assert page.text_content("#card .map-quote") == term["quote"]
+    assert ".rst" not in page.text_content("#card"), "the book's line, not its source file"
+    assert page.get_attribute("#card .map-book a", "href").startswith("https://learnche.org/pid/")
     lit = page.evaluate(
         "() => { const cy = window.conceptMap.cy; "
         "return [cy.edges('.link.hl').length, cy.getElementById('full_factorial').connectedEdges('.link').length]; }"
@@ -240,6 +242,10 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     text = how.text_content()
     assert "undefined" not in text
     assert "NaN" not in text
+    told = page.evaluate(
+        "() => [...document.querySelectorAll('#how > p, #how > ul')].map((e) => e.textContent).join(' ')"
+    )
+    assert not re.search(r"\d", told), "an overview in words: the exact numbers wait behind 'Show the numbers'"
     for details in how.locator("details").all():
         details.locator("summary").click()
     numbers = how.text_content()

@@ -43,14 +43,6 @@ const TERM_GAP = 62;   // least distance between two terms in the drawing (layou
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-// Counts read as words, the way the app writes them: "ten", "about two hundred".
-const ONES = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
-const TENS = { 20: "twenty", 30: "thirty", 40: "forty", 50: "fifty", 60: "sixty", 70: "seventy", 80: "eighty", 90: "ninety" };
-function words(n) {
-  if (n < ONES.length) return ONES[n];
-  const scale = 10 ** Math.floor(Math.log10(n)), round = Math.round(n / scale) * scale;
-  return `about ${round >= 100 ? `${ONES[round / 100] || round / 100} hundred` : TENS[round]}`;
-}
 const terms = new Map(DATA.nodes.map(n => [n.id, n]));
 const topics = new Map(DATA.clusters.map(c => [c.id, c]));
 // Sub-topics: the second level inside the larger topics; each knows its topic.
@@ -65,8 +57,6 @@ const bookUrl = n => {
 };
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
 
-document.getElementById("map-stats").textContent =
-  `${words(DATA.nodes.length)[0].toUpperCase()}${words(DATA.nodes.length).slice(1)} terms in ${words(DATA.clusters.length)} topics.`;
 // Kinds of term hidden from the map, remembered in this browser. The selected term always stays visible.
 const hidden = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || "[]")) if (k in FAMILIES) hidden.add(k); } catch {}
@@ -302,8 +292,8 @@ function render() {
     card.style.setProperty("--fam", color);
     card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${esc(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
-      <blockquote class="map-quote"><p>${esc(n.quote)}</p><cite>${esc(n.evidence)}</cite></blockquote>
-      <p class="map-book">In the book: <a href="${bookUrl(n)}" target="_blank" rel="noopener">${esc(n.book_label || n.book_file.split("/").pop())}</a></p>`;
+      <blockquote class="map-quote"><p>${esc(n.quote)}</p></blockquote>
+      <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {
       const [rel, other] = e.source === selected ? [read(e.type, 0), e.target] : [read(e.type, 1), e.source];
@@ -434,38 +424,35 @@ function renderHow() {
   document.getElementById("how").innerHTML = `
     <h2 id="how-title">How this map was made</h2>
 
-    <h3>1. Where the text comes from</h3>
-    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at learnche.org/pid: its chapter
-      on the design and analysis of experiments, and the design side of one case study in its chapter of applications.
-      The rest of that chapter, on multivariate methods, is left out.</p>
-    <p>A first list of terms and links was written by hand from the chapter's text. Reviewers then checked every term
-      and link against the chapter as it is now, and added what its newer sections teach, such as OMARS designs,
-      Lenth's method and desirability. Each check quoted the book, and a script confirmed every quote.</p>
-
-    <h3>2. Where the terms and links come from</h3>
-    <p>Each point on the map is one term the chapter teaches. Its shape says what kind: a design or a property of one,
-      a method, a concept, a guideline or warning sign, or an example, question or source. Tap one to read its
-      definition, in the book's words where it has them, and the line of the book it comes from.</p>
-    <p>Each line is a short sentence, term, verb, term, and it cites the line of the book it rests on. For example:</p>
-    <ul>${examples.map(e => `<li><b>${name(e.source)}</b> ${read(e.type, 0)} <b>${name(e.target)}</b>
-      <span class="map-cite">${esc(e.evidence)}</span></li>`).join("")}</ul>
-    <p>Before the map is built, every quote is checked against the book once more. If the book changes under a term,
-      the map is not rebuilt until the term is brought back in line.</p>
+    <h3>1. Where the ideas come from</h3>
+    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at learnche.org/pid, mostly
+      from its chapter on designing and analysing experiments. Each term, and each link between two terms, quotes the
+      line of the book it rests on, and the map is checked against the book each time it is built.</p>
     <details><summary>Show the numbers</summary>
-      <p>${N} terms, ${inChapter(5)} from chapter 5 and ${inChapter(7)} from chapter 7, and ${E} links using ${verbs} verbs.
-        A definition is at most 32 words.</p>
+      <p>${N} terms: ${inChapter(5)} from chapter 5 and ${inChapter(7)} from the design side of a case study in chapter 7,
+        whose multivariate sections are left out. A first list was written by hand from the chapter's text; reviewers
+        then checked every term and link against the chapter as it is now, and added what its newer sections teach,
+        such as OMARS designs, Lenth's method and desirability.</p>
+    </details>
+
+    <h3>2. What the points and lines mean</h3>
+    <p>Each point is one idea the book teaches, and its shape says what kind: a design or a property of one, a method,
+      a concept, a guideline or warning sign, or an example. Tap one to read its definition and the book's own words.</p>
+    <p>Each line is a short sentence that joins two ideas, for example:</p>
+    <ul>${examples.map(e => `<li><b>${name(e.source)}</b> ${read(e.type, 0)} <b>${name(e.target)}</b></li>`).join("")}</ul>
+    <details><summary>Show the numbers</summary>
+      <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>
     </details>
 
     <h3>3. How the topics are found</h3>
-    <p>A topic is a group of terms linked more to each other than to the rest. A computer finds such groups: it moves
-      one term at a time into a neighbour's group whenever that makes the groups tighter, and stops when no move helps.
-      Links that only say where a term is taught or shown count for less than links that say what it is.</p>
-    <p>One try depends on chance, in the order it visits the terms: a term linked about equally to two groups lands
-      wherever its turn falls, so two tries can disagree. The map therefore makes hundreds of tries, keeps the pairs of
-      terms that most of them put together, groups those pairs the same way, and repeats until every try agrees.</p>
+    <p>A topic is a group of ideas linked more to each other than to the rest. A computer finds the groups, but one try
+      depends on chance, so it makes hundreds of tries and keeps the grouping they agree on. Chance then has little say
+      in the topics.</p>
     <details><summary>Show the numbers</summary>
-      <p>The method is Louvain clustering, made repeatable by consensus clustering (Lancichinetti and Fortunato, 2012):
-        ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
+      <p>The method is Louvain clustering: it moves one term at a time into a neighbour's group whenever that makes the
+        groups tighter, and stops when no move helps. It visits the terms in a random order, so a term linked about
+        equally to two groups lands wherever its turn falls. Consensus clustering (Lancichinetti and Fortunato, 2012)
+        makes it repeatable: ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
         ${Math.round(m.threshold * 100)}% of runs is kept, as strongly as that share, and the rest dropped; rounds repeat
         until all ${m.runs} runs agree. A term left on its own joins the group it was most often in. Link weights:
         ${light}; every other link counts 1.</p>
@@ -479,14 +466,8 @@ function renderHow() {
     </details>
 
     <h3>4. How the sub-topics are found</h3>
-    <p>Inside the larger topics the same is done again, and a topic opens into sub-topics only where repeated tries
-      agree on the split. Where they do not, the topic is shown whole: a split that changes with chance would change
-      the map for no reason in the book.</p>
-    ${whole.map(c => `<p>In "${esc(c.short)}", the tries disagree on where ${quoted(c.moved)} belong, so that topic is shown
-      whole.</p>`).join("")}
-    <p>On the map, sub-topics appear as dashed circles once you zoom past the topics, named in their middle. Zoom on,
-      and their names move to the edge while their terms are named. A sub-topic is named after its most connected term,
-      or given a clearer heading by hand.</p>
+    <p>The larger topics are split the same way, but only where the tries agree on the split; the others are shown
+      whole. Zoom past the topics to see the sub-topics as dashed circles, each named after its most connected term.</p>
     <details><summary>Show the numbers</summary>
       <p>A topic gets sub-topics when it has at least ${m.sub_min_size} terms and two other seed batches reproduce its
         split at an adjusted Rand index of ${m.sub_min_agreement} or better. That holds for ${withSubs.length} of the
@@ -498,7 +479,8 @@ function renderHow() {
       ${whole.map(c => `<p>In "${esc(c.short)}" (${c.size} terms), another seed batch moved ${quoted(c.moved)} from one
         sub-group to another; every other term kept its group. Agreement is counted over all ${pairs(c.size)} pairs of
         terms, and the pairs these ${c.moved.length} terms form with their old and new group-mates bring it down to
-        ${c.agreement.toFixed(2)}.</p>`).join("")}
+        ${c.agreement.toFixed(2)}. A split that changes with chance would change the map for no reason in the book, so
+        this topic is shown whole.</p>`).join("")}
     </details>`;
 }
 renderHow();
