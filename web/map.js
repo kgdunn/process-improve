@@ -484,10 +484,11 @@ function renderHow() {
       <p>Two groupings are compared pair by pair: for each pair of terms, are they together in both, or separate in both?
         The fraction of pairs that match, after correcting for what chance alone would give, is the adjusted Rand index: 1 for
         identical groupings, about 0 for unrelated ones.</p>
-      <p>Single runs reproduce these ${DATA.clusters.length} topics at a median of ${m.single_median.toFixed(2)}, and as
-        low as ${m.single_min.toFixed(2)}, over ${m.single_runs} seeds. Consensus from seeds it had not used reproduces
-        them at ${m.consensus_other.map(x => x.toFixed(2)).join(" and ")}; the terms that still move sit between two
-        topics.</p>
+      <p>To test this, a computer ran ${m.single_runs} times on its own, each from a different random start. A typical
+        run matched the ${DATA.clusters.length} topics on this map at ${m.single_median.toFixed(2)}, and the worst at
+        ${m.single_min.toFixed(2)}, so a single run puts quite a few terms in a different topic. The full method, repeated
+        twice from fresh random starts, matched them at ${m.consensus_other.map(x => x.toFixed(2)).join(" and ")}. The few
+        terms that still moved are linked about equally to two topics.</p>
       <p><a href="${m.code}" target="_blank" rel="noopener">The Python code that finds the topics and sub-topics</a>.</p>
     </details>
 
