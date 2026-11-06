@@ -23,7 +23,7 @@ from scipy.interpolate import BSpline
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from ._base import _LazyFrame
-from ._common import SpecificationWarning, check_at_least_one
+from ._common import SpecificationWarning, check_at_least_one, user_stacklevel
 from ._impute import _group_by_pattern
 from ._pca import PCA
 
@@ -359,6 +359,6 @@ class FPCA(TransformerMixin, BaseEstimator):
                 f"{wanted} components were asked for, but {n_curves} curves on {self.n_basis_} B-splines support "
                 f"at most {most}; fitting {most}.",
                 SpecificationWarning,
-                stacklevel=3,
+                stacklevel=user_stacklevel(),
             )
         return min(wanted, most)

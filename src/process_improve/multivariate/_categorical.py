@@ -35,7 +35,7 @@ from pydantic import BaseModel
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ._common import DataMatrix, SpecificationWarning, check_at_least_one, refuse_empty_block
+from ._common import DataMatrix, SpecificationWarning, check_at_least_one, refuse_empty_block, user_stacklevel
 from ._pca import _opposes_convention
 
 try:
@@ -219,7 +219,7 @@ class CA(TransformerMixin, BaseEstimator):
                 f"Asked for {keep} axes, but this {table.shape[0]} x {table.shape[1]} table has {rank} with "
                 f"any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
             keep = rank
 
@@ -788,7 +788,7 @@ class FAMD(TransformerMixin, BaseEstimator):
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
             keep = rank
 
@@ -1083,7 +1083,7 @@ class MFA(TransformerMixin, BaseEstimator):
             warnings.warn(
                 f"Asked for {keep} axes, but this table has {rank} with any inertia; keeping {rank}.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
             keep = rank
 

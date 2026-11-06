@@ -12,15 +12,12 @@ from __future__ import annotations
 
 import functools
 import inspect
-import os
 import warnings
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
-import sklearn
 from scipy import sparse
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array
@@ -322,25 +319,25 @@ class SpecificationWarning(UserWarning):
     """Parent warning class."""
 
 
-#: The directories a warning must not point into: this package, and scikit-learn, whose
-#: ``_fit_context`` wraps ``fit``. Each ends in a separator, so a sibling directory whose
-#: name merely starts the same is not one of them.
-_LIBRARY_DIRECTORIES = (str(Path(__file__).parents[1]) + os.sep, str(Path(sklearn.__file__).parent) + os.sep)
+#: The packages a warning must not point into: this one, scikit-learn, whose ``_fit_context``
+#: wraps ``fit``, and mutmut, whose trampoline calls each function that the nightly mutation run
+#: mutates (#1092). A frame is read by its module's name, which stays the same wherever the
+#: file is, so the copy of this package that mutmut mutates is still this package.
+_LIBRARY_PACKAGES = frozenset({"process_improve", "sklearn", "mutmut"})
 
 
 def user_stacklevel() -> int:
-    """Return the ``stacklevel`` that points a warning at the first frame outside this package and scikit-learn.
+    """Return the ``stacklevel`` that points a warning at the first frame outside the library: the caller's line.
 
     Pass it as ``warnings.warn(..., stacklevel=user_stacklevel())``. A fixed count is wrong as
     soon as a frame comes between the caller and the warning: a private helper, sklearn's
     ``_fit_context`` wrapper, a subclass's ``fit``, an inner fit, or mutmut's trampoline. The
     warning then names a line in the library, which the caller cannot act on (#1079).
-    Python 3.12's ``skip_file_prefixes`` does the same, and this serves 3.11 too.
     """
     frame = inspect.currentframe()
     frame = frame.f_back if frame is not None else None  # the function that warns: stacklevel 1
     level = 1
-    while frame is not None and frame.f_code.co_filename.startswith(_LIBRARY_DIRECTORIES):
+    while frame is not None and str(frame.f_globals.get("__name__", "")).partition(".")[0] in _LIBRARY_PACKAGES:
         frame = frame.f_back
         level += 1
     return level
@@ -903,7 +900,7 @@ def y_is_exhausted(
         f"is uncorrelated with what is left of X (R²Y stays at {r2y:.4g}). The data support {a} component(s); "
         "each later one takes the largest direction left in X and leaves the predictions unchanged.",
         SpecificationWarning,
-        stacklevel=4,
+        stacklevel=user_stacklevel(),
     )
     return True
 
@@ -942,7 +939,7 @@ def _rows_with_data(values: np.ndarray) -> np.ndarray:
     return np.any(~np.isnan(values), axis=1)
 
 
-def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> np.ndarray:
+def unobserved_columns(block: pd.DataFrame, label: str) -> np.ndarray:
     """Return which columns of a training block have no observed value, and warn, naming them, if any do.
 
     Such a column carries no information, so every estimator of the family leaves it out of
@@ -956,9 +953,6 @@ def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> 
         The training block, NaN where missing.
     label : str
         Where the block sits, as ``'X'``, ``'Y'``, ``'X["name"]'`` or ``'F["group"]'``.
-    stacklevel : int, default=4
-        Passed to :func:`warnings.warn`: 4 reaches the caller of a ``fit`` wrapped in sklearn's
-        ``_fit_context``, which calls this directly.
 
     Returns
     -------
@@ -971,7 +965,7 @@ def unobserved_columns(block: pd.DataFrame, label: str, stacklevel: int = 4) -> 
         warnings.warn(  # a UserWarning, warn's default category
             f"Block {label} has columns with no observed values, which carry no information and are "
             f"excluded from the model: {named}. Drop them, or check the data for a sensor that was never logged.",
-            stacklevel=stacklevel,
+            stacklevel=user_stacklevel(),
         )
     return unobserved
 
