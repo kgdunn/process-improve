@@ -79,7 +79,7 @@ from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_
 from process_improve.experiments.true_process import TrueProcess
 from process_improve.experiments.variance_dispersion import variance_dispersion
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
-from process_improve.experiments.yates import reverse_yates, yates_table
+from process_improve.experiments.yates import reverse_yates, yates_table, yates_table_3k
 
 __all__ = [
     "BlockedFit",
@@ -180,4 +180,5 @@ __all__ = [
     "variance_dispersion",
     "visualize_doe",
     "yates_table",
+    "yates_table_3k",
 ]
