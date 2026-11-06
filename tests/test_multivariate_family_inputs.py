@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.batch._batch_pca import BatchPCA
+from process_improve.batch._batch_pls import BatchPLS
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._limits import spe_calculation
 from process_improve.multivariate.methods import (
@@ -200,6 +202,145 @@ def test_columns_that_vary_get_no_such_warning(estimator: str) -> None:
     with warnings.catch_warnings():
         warnings.filterwarnings("error", message=r".*columns with no variance")
         CONSTANT_C[estimator][0](X, y)
+
+
+# --- An X, or a block of it, with no variance (#1144) ------------------------------------------------
+
+
+def _batches(X: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Thirty batches of one tag over five time steps: X's rows."""
+    return {f"b{i}": pd.DataFrame({"u": row}) for i, row in enumerate(X.to_numpy())}
+
+
+def _tpls_with_f_from(X: pd.DataFrame) -> object:
+    """Fit TPLS with X as its Z block and X's first four columns as its F, so that F is constant when X is."""
+    d_matrix, blocks = _tpls_inputs(X)
+    blocks["F"]["G"] = blocks["F"]["G"] * 0.0 + X.to_numpy()[:, :4]
+    return TPLS(n_components=1, d_matrix=d_matrix).fit(blocks)
+
+
+_EVERY_COLUMN = "There is no variance in X: every column is constant or has no observed value, so there is"
+
+#: Each fits an estimator of the family on X, and gives how its refusal of an X with no variance reads.
+NO_VARIANCE: dict[str, tuple[Callable[[pd.DataFrame, pd.DataFrame], object], str]] = {
+    "PCA": (lambda X, _: PCA(n_components=1).fit(X), f"{_EVERY_COLUMN} nothing for a component to"),
+    "PLS": (lambda X, Y: PLS(n_components=1).fit(X, Y), f"{_EVERY_COLUMN} nothing to explain Y by"),
+    "PLSDA": (lambda X, Y: PLSDA(n_components=1).fit(X, _labels(Y)), f"{_EVERY_COLUMN} nothing to"),
+    "PRM": (lambda X, Y: PRM(n_components=1).fit(X, Y), f"{_EVERY_COLUMN} nothing to explain Y by"),
+    "OPLS": (lambda X, Y: OPLS(n_orthogonal_components=0).fit(X, Y), f"{_EVERY_COLUMN} nothing to"),
+    "MBPCA": (
+        lambda X, _: MBPCA(n_components=1).fit(_blocks(X)),
+        (
+            "There is no variance in X: every column of every block is constant or has no observed value, so there "
+            "is nothing for a component to describe"
+        ),
+    ),
+    "MBPLS": (
+        lambda X, Y: MBPLS(n_components=1).fit(_blocks(X), Y),
+        (
+            "There is no variance in X: every column of every block is constant or has no observed value, so there "
+            "is nothing to explain Y by"
+        ),
+    ),
+    "BatchPCA": (lambda X, _: BatchPCA(n_components=1).fit(_batches(X)), f"{_EVERY_COLUMN} nothing for"),
+    "BatchPLS": (
+        lambda X, Y: BatchPLS(n_components=1).fit(_batches(X), Y.set_axis([f"b{i}" for i in range(N_ROWS)])),
+        f"{_EVERY_COLUMN} nothing to explain Y by",
+    ),
+    "TPLS": (lambda X, _: _tpls_with_f_from(X), "There is no variance in F and D: no group has a column of F"),
+}
+
+
+@pytest.mark.parametrize("estimator", list(NO_VARIANCE))
+def test_an_x_in_which_nothing_varies_is_refused_across_the_family(estimator: str) -> None:
+    """PCA and MBPCA fitted it, with scores that told no row apart; the others refused it in their own words (#1144).
+
+    The values are not 0, so a PCA, which does not centre, would find a component in them: there is
+    still nothing that tells one row from another. The error comes alone, before any warning names
+    the columns, as MBPLS's did.
+    """
+    X, y = _data()
+    fit, message = NO_VARIANCE[estimator]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message)}"):
+            fit(X * 0.0 + 3.0, y)
+        fit(X, y)  # the same data that vary are fitted without a word
+
+
+@pytest.mark.parametrize("estimator", ["PCA", "PLS", "MBPCA", "MBPLS"])
+def test_a_column_with_no_observed_value_has_no_variance_either(estimator: str) -> None:
+    """Beside constant columns, it leaves an X with nothing that varies: named, as across the family, then refused."""
+    X, y = _data()
+    X = X * 0.0 + 3.0
+    X["e"] = np.nan
+    fit, message = NO_VARIANCE[estimator]
+    with (
+        pytest.warns(UserWarning, match=r"has columns with no observed values.*'e'"),
+        pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message)}"),
+    ):
+        fit(X, y)
+
+
+def test_rows_of_weight_0_are_left_out_of_the_judgement() -> None:
+    """PLS judges X over the rows its weights keep, as it scales them: X varies only on rows the fit leaves out."""
+    X, y = _data()
+    X.iloc[5:] = 3.0
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X"):
+        PLS(n_components=1).fit(X, y, sample_weight=np.r_[np.zeros(5), np.ones(N_ROWS - 5)])
+
+
+def _fit_blocks(estimator: str, algorithm: str, blocks: dict[str, pd.DataFrame], y: pd.DataFrame) -> MBPCA | MBPLS:
+    """Fit MBPCA, or MBPLS on ``y``, with two components."""
+    if estimator == "MBPCA":
+        return MBPCA(n_components=2, algorithm=algorithm).fit(blocks)
+    return MBPLS(n_components=2, algorithm=algorithm).fit(blocks, y)
+
+
+@pytest.mark.parametrize("algorithm", ["dense", "nipals"])
+@pytest.mark.parametrize("estimator", ["MBPCA", "MBPLS"])
+def test_a_block_with_no_variance_gets_zero_weight(estimator: str, algorithm: str) -> None:
+    """One block with no variance beside one that varies is fitted with zero weight, and named once, as a block.
+
+    Its block scores, weights and contributions are 0, not NaN, and no numpy warning escapes. The
+    super scores are those of the model without it, whatever a new row holds in it. Divided by the
+    square root of its count of varying columns, which is floored at 1, it stays a block of zeros.
+    """
+    X, y = _data()
+    blocks = _blocks(X)
+    blocks["b2"] = blocks["b2"] * 0.0 + [1.0, 2.0, 3.0]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model = _fit_blocks(estimator, algorithm, blocks, y)
+    assert [(w.category, str(w.message), w.filename) for w in caught] == [
+        (
+            UserWarning,
+            (
+                'Block X["b2"] has no variance: every column is constant or has no observed value, so it gets zero '
+                "weight in the model. Drop the block, or check the data for a stuck sensor."
+            ),
+            __file__,
+        )
+    ]
+    reference = _fit_blocks(estimator, algorithm, {"b1": blocks["b1"]}, y)
+    assert model.block_informative_widths_["b2"] == 1
+    np.testing.assert_array_equal(model.block_scores_["b2"].to_numpy(), 0.0)
+    weights = model.block_loadings_ if estimator == "MBPCA" else model.block_weights_
+    np.testing.assert_array_equal(weights["b2"].to_numpy(), 0.0)
+    np.testing.assert_array_equal(model.block_vip_["b2"].to_numpy(), 0.0)
+    np.testing.assert_allclose(model.super_scores_.abs(), reference.super_scores_.abs(), atol=1e-10)
+
+    new = {"b1": blocks["b1"].iloc[:4], "b2": blocks["b2"].iloc[:4] + np.arange(4.0)[:, np.newaxis]}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scores = model.transform(new)
+        diagnosed = model.diagnose(new)
+        contributions = model.score_contributions(new)
+        groups = model.group_contributions(new, group=[0, 1])
+    np.testing.assert_allclose(scores.abs(), reference.transform({"b1": new["b1"]}).abs(), atol=1e-10)
+    np.testing.assert_array_equal(diagnosed.block_scores["b2"].to_numpy(), 0.0)
+    np.testing.assert_array_equal(contributions["b2"].to_numpy(), 0.0)
+    np.testing.assert_array_equal(groups["b2"].to_numpy(), 0.0)
 
 
 # --- A training row with nothing observed ------------------------------------------------------------

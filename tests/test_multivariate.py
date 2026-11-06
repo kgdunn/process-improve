@@ -6613,24 +6613,57 @@ class TestTPLSWrittenOut:
         with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
             model.fit(DataFrameDict(blocks))
 
-    @pytest.mark.parametrize("constant", [["A", "B"], ["B"]], ids=["every-group", "one-group"])
-    def test_an_f_group_with_no_variation_used_as_given_is_refused_on_every_numpy(self, constant: list[str]) -> None:
-        """#1144: an F group whose every blend has the same row, used as given, is refused, as the error says.
+    @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+    @pytest.mark.parametrize("constant", ["F", "D"])
+    def test_a_group_with_no_variation_gets_zero_weight_on_every_numpy(self, constant: str, skip_f: bool) -> None:
+        """#1144: a group whose F, or whose D, has no variation, beside one that varies, gets zero weight.
 
-        Against a centred u, such a group's F'u is rounding error: exactly 0 with numpy 2.2, which
-        refused the fit after an overflow warning, and about 1e-17 with numpy 2.5, which fitted.
-        Regressing D on that remainder gave F weights near 1e15 and an F super weight of 0, so one
-        such group took the varying one out of the model without a word.
+        Used as given, such an F group meets a centred u with an F'u of rounding error: exactly 0
+        with numpy 2.2, which refused the fit after an overflow warning, and about 1e-17 with numpy
+        2.5, which took the varying group out of the model without a word. Then it was refused on
+        every build (#1167). It now takes no part in the model: its weights and loadings are 0, so
+        the fit, its predictions and the scores of new rows are those of the model without it,
+        whatever a new row holds in it, and one warning, at the caller's line, names it.
         """
         d_matrix, blocks = _t_shaped(gaps=False)
-        for group in constant:
-            frame = blocks["F"][group]
-            frame.loc[:, :] = np.arange(1, frame.shape[1] + 1) / 10.0
-        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        stuck = blocks["F"]["B"] if constant == "F" else d_matrix["B"]
+        stuck.loc[:, :] = np.arange(1, stuck.shape[1] + 1) / 10.0
+        without = {"F": {"A": blocks["F"]["A"]}, "Z": blocks["Z"], "Y": blocks["Y"]}
+        reference = TPLS(n_components=2, d_matrix={"A": d_matrix["A"]}, skip_f_matrix_preprocessing=skip_f)
+        reference.fit(DataFrameDict(copy.deepcopy(without)))
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=skip_f)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        assert [(w.category, str(w.message), w.filename) for w in caught] == [
+            (
+                UserWarning,
+                (
+                    f'Block {constant}["B"] has no variance: every column is constant or has no observed value, so '
+                    "it gets zero weight in the model. Drop the block, or check the data for a stuck sensor."
+                ),
+                __file__,
+            )
+        ]
+
+        for loadings in (model.r_loadings_f, model.p_loadings_f, model.s_loadings_d, model.v_loadings_d):
+            assert (loadings["B"].to_numpy() == 0.0).all()
+        _tpls_near(model.t_scores_super, reference.t_scores_super, 1e-10)
+        _tpls_near(model.hat["Q"], reference.hat["Q"], 1e-10)
+        _tpls_near(model.r_loadings_f["A"], reference.r_loadings_f["A"], 1e-10)
+
+        new = copy.deepcopy(blocks)
+        new["F"]["B"] += np.arange(new["F"]["B"].shape[0])[:, np.newaxis]  # what a new row holds in B adds nothing
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: .* each D and F group, varies"):
-                model.fit(DataFrameDict(blocks))
+            result = model.diagnose(DataFrameDict(new))
+            vip = model.vip()
+        expected = reference.diagnose(DataFrameDict(without))
+        _tpls_near(result.t_scores_super, expected.t_scores_super, 1e-10)
+        _tpls_near(result.hat["Q"], expected.hat["Q"], 1e-10)
+        for block in ("D", "F"):
+            assert (vip[block]["B"] == 0.0).all()
+            assert (vip[block]["A"] > 0.0).all()
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])

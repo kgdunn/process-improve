@@ -34,6 +34,7 @@ from ._common import (
     DiagnoseResult,
     NotEnoughVarianceError,
     SpecificationWarning,
+    _equal_values,
     _model_method,
     _nz,
     _own_axes,
@@ -563,8 +564,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         TypeError
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
         NotEnoughVarianceError
-            If the first Y block, or F, D and Z together, have no variance, as MBPLS raises, or if a
-            component's scores are not finite because a block has no variation for the iteration to follow.
+            If the first Y block has no variance, or no group has a column of F and a column of D that
+            vary, as MBPLS raises for an X with no variance, or if a component's scores are not finite
+            because a block has no variation for the iteration to follow. A group whose F or D has no
+            variation, beside one whose F and D vary, is fitted with zero weight (#1144): its weights and
+            loadings are 0, and a warning names it.
 
         Warns
         -----
@@ -641,9 +645,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             # scale are learned only for optimal inversion, which starts and steps from them.
             self.preproc_["F"][key] = {}
             self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(
-                    X["F"][key], f'F["{key}"]', used_as_given=self.skip_f_matrix_preprocessing_
-                )
+                self._learn_center_and_scaling_parameters(X["F"][key], f'F["{key}"]')
             )
 
         # Then implement the preprocessing on the raw data
@@ -691,6 +693,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.z_mats = {key: nan_to_zeros(self.z_mats[key]) for key in X["Z"]}
         self.y_mats = {key: nan_to_zeros(self.y_mats[key]) for key in X["Y"]}
         self._refuse_blocks_with_no_variance()
+        self._name_blocks_with_no_variance(X)
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         # A copy, so that a name the caller gives this axis later does not rename the model's frames
@@ -1106,9 +1109,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(self.d_matrix[key], f'd_matrix["{key}"]')
             self._validate_df(X["F"][key], f'F["{key}"]')
 
-    def _learn_center_and_scaling_parameters(
-        self, y: pd.DataFrame, label: str, *, used_as_given: bool = False
-    ) -> tuple[pd.Series, pd.Series]:
+    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str) -> tuple[pd.Series, pd.Series]:
         """
         Learn the centering and scaling parameters for one block.
 
@@ -1119,10 +1120,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         label : str
             Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
             warnings for excluded columns.
-        used_as_given : bool, default=False
-            Whether the fit uses the block without this centring and scaling, as it uses F
-            with ``skip_f_matrix_preprocessing``. A column with no variance then stays in the
-            fit, so it is not named as excluded (#1084). Its scale is ``NaN`` all the same.
 
         Returns
         -------
@@ -1135,35 +1132,45 @@ class TPLS(RegressorMixin, BaseEstimator):
         Warns
         -----
         UserWarning
-            If a column of a block of two or more rows, not used as given, has no variance: its observed
-            values are all equal, or there is only one. Its scale is set to ``NaN``,
-            which makes the whole column ``NaN`` and then zero, so the column is
-            silently excluded from the fit. That is the right thing to do with a constant column, but it used to
-            happen without a word (#513): the only sign was a message-less
-            ``AssertionError`` further down, or, under ``python -O``, nothing at all.
-            A column with no observed value is excluded the same way and gets the same
-            warning, worded for its own cause (#982).
+            If a column has no observed value. Its scale is set to ``NaN``, which makes the whole
+            column ``NaN`` and then zero, so the column is excluded from the fit (#982). A column
+            with no variance, whose observed values are all equal or which has one, is excluded the
+            same way, and is named once the fit has not refused the data
+            (:meth:`_name_blocks_with_no_variance`). It used to be excluded without a word (#513).
         """
         # pandas 2 hands a reduction the caller's own column labels, so a name given to them after
         # the fit renamed the centre and scale too; pandas 3 does not, and both keep a copy now.
         y = _own_axes(y)
         centering = y.mean()
         # ddof=1, as pandas' std, and in any units: pandas' std was inf near 1e160 and 0 near 1e-160 (#1070)
-        scaling = pd.Series(column_sd(y), index=y.columns) if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
+        scaling = pd.Series(column_sd(y), index=y.columns)
         # An all-NaN column has a NaN mean, so it ends up excluded exactly as a constant one does;
         # it is named separately, in the warning the whole family gives (#1098), because "no
         # variance" would send the caller to the wrong cause.
         unobserved = unobserved_columns(y, label)
         # No variance: its observed values are all equal, in any units, as MCUVScaler reads a
         # column. An sd below a floor (it was sqrt(eps)) also took a column in small units for a
-        # constant one. One row has no spread to judge, and is scaled by 1. An all-NaN column has
-        # a NaN maximum and minimum, which are not equal, so it is not counted here. It is named
-        # in the warning the whole family gives (#1114).
-        with warnings.catch_warnings():
-            if used_as_given:  # a column used as given stays in the fit, so it is not named (#1084)
-                warnings.simplefilter("ignore", UserWarning)
-            degenerate = constant_columns(y, label, self)
-        return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
+        # constant one. A block of one row, such as a group of D with one material, has no column
+        # that varies (#1144). An all-NaN column has a NaN maximum and minimum, which are not
+        # equal, so it is not counted here.
+        return centering, scaling.mask(_equal_values(y) | unobserved)  # a column with no information has a NaN scale
+
+    def _name_blocks_with_no_variance(self, X: DataFrameDict) -> None:
+        """Warn about each block that has columns with no variance, in the family's words (#1114).
+
+        Called once the fit has not refused the data, so data with no variance at all gets that
+        error alone, as in MBPLS. A group of D, F or Z with no variance gets zero weight (#1144),
+        and is named as a group. F used as given keeps a constant column in the fit, so the column
+        is not named (#1084); a group of it with no variation at all gets zero weight, and is.
+        """
+        for key, block in X["Y"].items():
+            constant_columns(block, f'Y["{key}"]', self)
+        for key, block in X["Z"].items():
+            constant_columns(block, f'Z["{key}"]', self)
+        for key, block in X["F"].items():
+            constant_columns(self.d_matrix[key], f'D["{key}"]', self)
+            if not self.skip_f_matrix_preprocessing_ or self.preproc_["F"][key]["scale"].isna().all():
+                constant_columns(block, f'F["{key}"]', self)
 
     def _validate_df(self, df: pd.DataFrame, label: str) -> None:
         """
@@ -1208,8 +1215,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         A group with no variation over the blends, used as given, meets a centred ``u`` with an
         ``F'u`` of about 1e-17 times ``||F|| ||u||``: exactly 0 with some numpy builds, not with
         others. Regressing D on that remainder gave F weights near 1e15 and took F out of the model
-        without a word, or refused the fit, by build. Judged against ``||F|| ||u||``, it is no
-        direction on every build, and the fit refuses it as it refuses any group with no variation.
+        without a word, or refused the fit, by build. Such a group now gets zero weight in place of
+        this (:meth:`_zero_weight`). Judged against ``||F|| ||u||``, a group that varies, but whose
+        ``F'u`` is as small, gives no direction on every build, and the fit refuses it.
         """
         h = regress_a_space_on_b_row(f_group.T, u.T, present.T)
         if np.linalg.norm(h) * np.linalg.norm(u) < epsqrt * np.linalg.norm(f_group):
@@ -1221,7 +1229,11 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         Scaling leaves a constant column absent, and an absent cell is 0 here, so a block with
         no variance is all zeros, in any units. The iteration explains the first Y block. A group
-        of F carries something only with its D, as its blend scores weigh F by the properties.
+        of F carries something only with its D, as its blend scores weigh F by the properties: a
+        group whose F, or whose D, has no column that varies gets zero weight, as a block with no
+        variance does in MBPLS. Its F is judged by the scale learned from it, so that F used as
+        given, which is not scaled, is judged as scaled F is. With no group left, the blends have
+        no F score, which the model needs whether or not Z varies.
         """
         y_key, y_block = next(iter(self.y_mats.items()))
         if not np.any(y_block):
@@ -1229,13 +1241,28 @@ class TPLS(RegressorMixin, BaseEstimator):
                 f'There is no variance in Y["{y_key}"]: every response is constant or has no observed value, '
                 "so there is nothing for F, D and Z to explain."
             )
-        if not any(np.any(self.f_mats[key]) and np.any(self.d_mats[key]) for key in self.d_mats) and not any(
-            np.any(z_block) for z_block in self.z_mats.values()
-        ):
+        self._groups_without_variation = {
+            key
+            for key in self.d_mats
+            if self.preproc_["F"][key]["scale"].isna().all() or self.preproc_["D"][key]["scale"].isna().all()
+        }
+        if self._groups_without_variation == set(self.d_mats):
             raise NotEnoughVarianceError(
-                "There is no variance in F, D and Z: no group has a column of F and a column of D that vary, "
-                "and no column of Z varies, so there is nothing to explain Y by."
+                "There is no variance in F and D: no group has a column of F and a column of D that vary, so the "
+                "blends have no F score to explain Y by. A TPLS model needs one, even when Z varies."
             )
+
+    def _zero_weight(self, per_group: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        """Give each group with no variation a zero vector in place of its regression: zero weight (#1144).
+
+        Regressed as the others are, such a group gave 0 / 0 (its F or D all absent, so all 0) or
+        rounding noise (F used as given, whose ``F'u`` is about 1e-17 times its size), and either
+        one stopped the fit, or took the other groups out of the model, by numpy build.
+        """
+        return {
+            key: np.zeros_like(vector) if key in self._groups_without_variation else vector
+            for key, vector in per_group.items()
+        }
 
     def _refuse_scores_that_are_not_finite(self, component: int, t_super_i: np.ndarray) -> None:
         """Raise ``NotEnoughVarianceError`` when a component's scores are not finite.
@@ -1243,17 +1270,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         A NaN never leaves the iteration once it is in it, and the convergence test can never
         pass on it, so the fit would run to ``max_iter`` and return NaN everywhere (#709). A
         row or a material with nothing observed no longer causes one: it gets a zero score or
-        loading and no weight (#513). What is left is a direction the iteration cannot take,
-        because the vector it regresses on is zero: every column of a D or F group has no
-        variation, or a block has none left. It was a ``ValueError``; it is the family's error
+        loading and no weight (#513), and nor does a group whose F or D has no variation: it gets
+        zero weight (#1144). What is left is a direction the iteration cannot take, because the
+        vector it regresses on is zero: a group of F that does not covary with Y, or a block that
+        the earlier components have used up. It was a ``ValueError``; it is the family's error
         for data without the variance to fit, as the checks before the iteration are (#1144).
         """
         if np.isfinite(t_super_i).all():
             return
         msg = (
             f"TPLS cannot fit component {component}: its scores are not finite, because a block has "
-            "no variation for the iteration to follow. Check that at least one column of the first Y "
-            "block, and at least one column of each D and F group, varies and is observed."
+            "no variation for the iteration to follow. Check that each group of F covaries with the "
+            "first Y block, or fit fewer components."
         )
         raise NotEnoughVarianceError(msg)
 
@@ -1335,18 +1363,24 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
         # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
         # It is the score column from the super score matrix regression onto Y.
-        pf_i = {
-            key: regress_a_space_on_b_row(df_f.T, t_super_i.T, self.not_na_f[key].T)
-            for key, df_f in self.f_mats.items()
-        }
+        # A group with no variation takes no part in the model: its F and D are not deflated (#1144)
+        pf_i = self._zero_weight(
+            {
+                key: regress_a_space_on_b_row(df_f.T, t_super_i.T, self.not_na_f[key].T)
+                for key, df_f in self.f_mats.items()
+            }
+        )
         self.p_loadings_f = {
             key: self.p_loadings_f[key].join(pd.DataFrame(pf_i[key], index=self.material_names[key], columns=[pc_a]))
             for key in pf_i
         }
         # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
-        v_i = {
-            key: regress_a_space_on_b_row(df_d.T, r_i[key].T, self.not_na_d[key].T) for key, df_d in self.d_mats.items()
-        }
+        v_i = self._zero_weight(
+            {
+                key: regress_a_space_on_b_row(df_d.T, r_i[key].T, self.not_na_d[key].T)
+                for key, df_d in self.d_mats.items()
+            }
+        )
         self.v_loadings_d = {
             key: self.v_loadings_d[key].join(pd.DataFrame(v_i[key], index=self.property_names[key], columns=[pc_a]))
             for key in v_i
@@ -1426,12 +1460,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         per-group :class:`pandas.Series`, indexed by feature name. Shared by the default VIP (raw block
         loadings) and the opt-in deflated direct-weights variant.
         """
-        r2_d_a: list[float] = [
-            float(np.mean([np.nanmean(r2val) for r2val in r2_frac["D"].values()])) for r2_frac in self.r2_frac
-        ]
-        r2_f_a: list[float] = [
-            float(np.mean([np.nanmean(r2val) for r2val in r2_frac["F"].values()])) for r2_frac in self.r2_frac
-        ]
+        r2_d_a = [_mean_over_groups(r2_frac["D"]) for r2_frac in self.r2_frac]
+        r2_f_a = [_mean_over_groups(r2_frac["F"]) for r2_frac in self.r2_frac]
         vip_d = self._calculate_vip(loadings_d, np.array(r2_d_a[1:]))
         vip_f = self._calculate_vip(loadings_f, np.array(r2_f_a[1:]))
         # Split each flat VIP vector back into the original groups it was concatenated from.
@@ -1719,27 +1749,33 @@ class TPLS(RegressorMixin, BaseEstimator):
             for n_iter in range(1, self.max_iter_ + 1):  # noqa: B007 - the statistics after the loop read it
                 u_prior = u_super_i  # rebound below, never changed in place
                 # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
-                h_i = {
-                    key: self._regress_f_group_on_u(df_f, u_super_i, self.not_na_f[key])
-                    for key, df_f in self.f_mats.items()
-                }
+                h_i = self._zero_weight(
+                    {
+                        key: self._regress_f_group_on_u(df_f, u_super_i, self.not_na_f[key])
+                        for key, df_f in self.f_mats.items()
+                    }
+                )
                 # A NaN here makes every later step and the scores NaN, through numpy's warnings: refuse it now.
                 self._refuse_scores_that_are_not_finite(pc_a + 1, np.concatenate(list(h_i.values())))
 
                 # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
-                s_i = {
-                    key: regress_a_space_on_b_row(df_d.T, h_i[key].T, self.not_na_d[key].T)
-                    for key, df_d in self.d_mats.items()
-                }
+                s_i = self._zero_weight(
+                    {
+                        key: regress_a_space_on_b_row(df_d.T, h_i[key].T, self.not_na_d[key].T)
+                        for key, df_d in self.d_mats.items()
+                    }
+                )
                 # Step 4: combine the entries in s_i to form a joint `s` and normalize it to unit length.
                 joint_s_normalized = np.linalg.norm(np.concatenate(list(s_i.values())))
                 s_i = {key: s / joint_s_normalized for key, s in s_i.items()}
 
                 # Step 5: r_i = D_i s_i / s_i's_i. Regress columns of D_i on s_i, and store slope coefficients in r_i.
-                r_i = {
-                    key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
-                    for key, df_d in self.d_mats.items()
-                }
+                r_i = self._zero_weight(
+                    {
+                        key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
+                        for key, df_d in self.d_mats.items()
+                    }
+                )
 
                 # Step 6: Combine the entries in r_i to form a joint r (which is the name of the method in the paper).
                 #         Horizontally concatenate all matrices in F_i to form a joint F matrix.
@@ -1854,6 +1890,16 @@ _TPLS_METRICS: dict[str, tuple[Callable[..., float], int]] = {
     "neg_mean_squared_error": (mean_squared_error, -1),
     "neg_root_mean_squared_error": (root_mean_squared_error, -1),
 }
+
+
+def _mean_over_groups(r2_per_column: dict[str, np.ndarray]) -> float:
+    """Return a block's R² for one component: the mean over its groups of each group's mean over its columns.
+
+    A group with no column that varies has no R² (0 / 0, NaN) and is left out. It made the
+    block's R², and so the VIP of every group of the block, NaN (#1169). Its own VIP is 0, as
+    in MBPCA and MBPLS: its loadings are 0, as it has zero weight (#1144).
+    """
+    return float(np.mean([np.nanmean(r2) for r2 in r2_per_column.values() if not np.isnan(r2).all()]))
 
 
 def _reject_separate_y(y: object, where: str) -> None:
