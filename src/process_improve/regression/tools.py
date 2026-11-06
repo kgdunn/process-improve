@@ -14,7 +14,7 @@ from collections.abc import Sized
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -72,7 +72,8 @@ class RobustRegressionInput(BaseModel):
             "Bootstrap resamples behind the intervals. By default 999 up to 197 points, then fewer as the "
             "points grow (156 at 500 points), down to 39 from 1,000 points up; fewer resamples give rougher "
             "intervals. Above 1,000 points each resample still costs time in proportion to the square of the "
-            "number of points. The output reports the number drawn."
+            "number of points. More resamples than fit in the tool's time limit are refused: at most 999 up to "
+            "300 points, 89 at 1,000 and 39 at 1,500. The output reports the number drawn."
         ),
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the intervals.")
@@ -90,6 +91,27 @@ class RobustRegressionInput(BaseModel):
             )
             raise ValueError(msg)
         return values
+
+    @model_validator(mode="after")
+    def _resamples_fit_in_time(self) -> RobustRegressionInput:
+        """Refuse an explicit ``n_boot`` whose work exceeds that of the default at the most points (#1169).
+
+        The fit and each resample are a repeated median of ``N ** 2`` slopes, so the work is
+        ``(n_boot + 1) * N ** 2``. The default's at ``_MAX_POINTS``, 40 fits of 1,500 points, took
+        1.3 s here, as did 1,000 fits of 300 points; 201 fits of 1,500 points took 6.7 s.
+        """
+        n_points = len(self.x)
+        most = (_MIN_DEFAULT_N_BOOT + 1) * _MAX_POINTS**2 // n_points**2 - 1
+        if self.n_boot is not None and self.n_boot > most:
+            msg = (
+                f"robust_regression draws at most {most:,} bootstrap resamples of {n_points:,} points as a tool; "
+                f"got n_boot={self.n_boot:,}. Each resample refits the repeated median, whose cost grows as the "
+                f"square of the number of points, so more would run past the tool's time limit. Pass n_boot={most:,} "
+                "or fewer, fit a random sample of fewer points, or call process_improve.regression.robust_regression "
+                "in Python."
+            )
+            raise ValueError(msg)
+        return self
 
 
 #: The fewest resamples the tool draws by default: 0.025 * (39 + 1) = 1, so each limit of a 95%
