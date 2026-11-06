@@ -253,6 +253,15 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     numbers = how.text_content()
     assert f"{len(GRAPH['edges'])} links" in numbers
     assert how.locator(".map-kind svg").count() == 5, "each kind of term drawn in its legend shape"
+    guide = how.locator("details.map-guide")
+    assert guide.locator("summary").text_content() == "Build one on your own texts: a step-by-step guide"
+    assert guide.locator("ol > li").count() == 7
+    folder = guide.locator("a", has_text="knowledge-graph folder").get_attribute("href")
+    assert folder.startswith("https://github.com/kgdunn/pid-book/tree/")
+    assert folder.endswith("/knowledge-graph")
+    assert (
+        guide.locator("a", has_text="README").get_attribute("href") == f"{folder.replace('/tree/', '/blob/')}/README.md"
+    )
     assert f"{GRAPH['method']['single_median']:.2f}" in numbers
     for topic in (c for c in GRAPH["clusters"] if c.get("moved")):
         assert f"{topic['agreement']:.2f}" in numbers

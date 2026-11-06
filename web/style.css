@@ -1565,7 +1565,8 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .map-how h2 { margin: 0; }
 .map-how h3 { margin: 10px 0 0; }
 .map-how p, .map-how li { margin: 0; max-width: 68ch; }
-.map-how ul { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
+.map-how ul, .map-how ol { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
+.map-guide code { overflow-wrap: anywhere; }
 .map-kind { white-space: nowrap; }
 .map-kind svg { width: 0.95em; height: 0.95em; margin-right: 0.25em; vertical-align: -0.12em; }
 .map-how ul li { color: var(--muted); }

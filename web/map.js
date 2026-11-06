@@ -425,6 +425,9 @@ document.addEventListener("click", ev => { if (!ev.target.closest(".map-search")
 // other pages, the words say what happens and the exact numbers wait behind "Show the numbers".
 function renderHow() {
   const m = DATA.method, E = DATA.edges.length;
+  // The folder of the code that made the map, and its README, at the commit the map was built from.
+  const folder = m.code.replace("/blob/", "/tree/").replace(/\/[^/]*$/, "");
+  const readme = m.code.replace(/[^/]*$/, "README.md");
   const verbs = new Set(DATA.edges.map(e => e.type)).size;
   // A kind of term in the words, drawn with its shape and colour on the map and in the legend.
   const kind = (f, words) => `<span class="map-kind"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}"
@@ -509,6 +512,41 @@ function renderHow() {
         terms, and the pairs these ${c.moved.length} terms form with their old and new group-mates bring it down to
         ${c.agreement.toFixed(2)}. A split that changes with chance would change the map for no reason in the book, so
         this topic is shown whole.</p>`).join("")}
+    </details>
+
+    <details class="map-guide"><summary>Build one on your own texts: a step-by-step guide</summary>
+      <p>The code that made this map is in <a href="${folder}" target="_blank" rel="noopener">pid-book's knowledge-graph folder</a>. It
+        was written for this book, so a few of its parts are rewritten for yours (step 5). You need
+        <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a>, which brings Python, and a browser.</p>
+      <ol>
+        <li><b>Gather your texts</b> as plain-text files in one folder: Markdown, reStructuredText, LaTeX or
+          <code>.txt</code>, ideally under git. Every term cites a file and a line, so the build checks the lines again
+          whenever the texts change.</li>
+        <li><b>Copy the folder</b> <code>knowledge-graph/</code> beside your texts. <code>graph.yaml</code> is the one
+          file you write; the scripts make the rest from it.</li>
+        <li><b>Write the terms</b> under <code>nodes:</code> in <code>graph.yaml</code>: for each, an <code>id</code>,
+          a <code>name</code>, a <code>type</code>, a <code>definition</code> of at most 32 words, the file that explains
+          it (<code>book_label: file:notes/topic.md</code>), and the line it comes from
+          (<code>evidence: notes/topic.md:40</code>), with the exact words on that line as its <code>quote</code>.</li>
+        <li><b>Write the links</b> under <code>edges:</code>, one per line, each read as a sentence:
+          <code>[source, VERB, target, "notes/topic.md:52"]</code>.</li>
+        <li><b>Make the vocabulary yours.</b> In <code>build_kg.py</code>: your folders in order
+          (<code>CHAPTERS</code>), your types of term (<code>TYPES</code>) and your verbs (<code>VERBS</code>). In
+          <code>template.html</code>: how each verb reads from both ends (<code>READ</code>), which type takes which of
+          the five shapes (<code>FAMILY</code>), the address of a file once published (<code>bookUrl</code>), and this
+          explanation. In <code>layout_kg.py</code>: one term from each topic with the name to draw for it
+          (<code>NAMES</code>); the build stops until every topic has exactly one.</li>
+        <li><b>Build it</b> in the folder:
+          <code>uv run --no-project --with pyyaml==6.0.1 python -I build_kg.py path/to/your/texts</code> checks every
+          quote against its line and lists each one that does not match; then
+          <code>uv run --no-project --with networkx==3.4.2 --with numpy==2.5.3 python -I layout_kg.py</code> finds the
+          topics and writes <code>experimental-design-graph.html</code>. Open that in a browser.</li>
+        <li><b>Have it reviewed</b> before others rely on it: every term and link checked against the texts, by
+          colleagues or by AI reviewers whose quotes the build then verifies. That is most of the work: here the first
+          draft took one pass, and getting it right took seven reviews.</li>
+      </ol>
+      <p>The folder's <a href="${readme}" target="_blank" rel="noopener">README</a> has the details. The build also writes the graph
+        for Neo4j, as <code>doe_kg.cypher</code>.</p>
     </details>`;
 }
 renderHow();
