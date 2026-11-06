@@ -24,10 +24,17 @@ from process_improve.sensory.analysis import product_means
 from process_improve.tool_safety import ToolInputInvalidError
 from process_improve.tool_spec import execute_tool_call
 from process_improve.univariate.classical import ttest_one_sample, variance_interval
-from process_improve.univariate.metrics import confidence_interval, ttest_independent, ttest_paired
+from process_improve.univariate.metrics import (
+    confidence_interval,
+    ttest_independent,
+    ttest_independent_from_df,
+    ttest_paired,
+    ttest_paired_from_df,
+)
 
 X = np.array([1.0, 2, 3, 4, 5, 6, 7, 8])
 Y = np.array([2.1, 3.9, 6.2, 7.8, 10.1, 12.2, 13.8, 16.1])
+ONE_GROUP = pd.DataFrame({"g": ["a"] * 8, "y": Y})
 
 
 def _pls() -> tuple[PLS, pd.DataFrame]:
@@ -71,6 +78,9 @@ CALLS: dict[str, tuple[str, Callable[[float], Any]]] = {
     "ttest_one_sample": ("conflevel", lambda c: ttest_one_sample(Y, mu=8.0, conflevel=c)),
     "ttest_independent": ("conflevel", lambda c: ttest_independent(pd.Series(X), pd.Series(Y), conflevel=c)),
     "ttest_paired": ("conflevel", lambda c: ttest_paired(pd.Series(Y - X), conflevel=c)),
+    # One group: there is no pair to compare, and the level was checked only inside the loop over the pairs.
+    "ttest_independent_from_df": ("conflevel", lambda c: ttest_independent_from_df(ONE_GROUP, "g", "y", conflevel=c)),
+    "ttest_paired_from_df": ("conflevel", lambda c: ttest_paired_from_df(ONE_GROUP, "g", "y", conflevel=c)),
     "confidence_interval": ("conflevel", lambda c: confidence_interval(pd.DataFrame({"y": Y}), "y", conflevel=c)),
     "variance_interval": ("conflevel", lambda c: variance_interval(2.0, 7, conflevel=c)),
     "product_means": (
@@ -127,3 +137,10 @@ def test_a_tool_refuses_a_confidence_level_outside_0_1_at_its_schema(tool: str, 
     """A hosted caller is refused by the input contract, before any worker starts."""
     with pytest.raises(ToolInputInvalidError, match="confidence_level"):
         execute_tool_call(tool, arguments)
+
+
+@pytest.mark.parametrize("function", [ttest_independent_from_df, ttest_paired_from_df])
+def test_a_pairwise_test_on_one_group_refuses_an_unknown_correction(function: Callable[..., pd.DataFrame]) -> None:
+    """The correction was checked only once there were comparisons to correct (#1169)."""
+    with pytest.raises(ValueError, match=r"^correction must be one of 'holm', 'bh', or None; got 'bonferroni'\.$"):
+        function(ONE_GROUP, "g", "y", correction="bonferroni")
