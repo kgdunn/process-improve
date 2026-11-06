@@ -6808,13 +6808,15 @@ class TestTPLSWrittenOut:
         assert np.isfinite(others).all()
 
     def test_each_component_logs_its_passes(self, caplog: pytest.LogCaptureFixture) -> None:
-        """One debug line per component, numbered from 1, with the passes its loop took."""
+        """One debug line per component, numbered from 1, with whether it converged and the passes it took (#1079)."""
         d_matrix, blocks = _t_shaped(gaps=False)
         with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._tpls"):
             TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+            TPLS(n_components=1, d_matrix=d_matrix, max_iter=1).fit(DataFrameDict(copy.deepcopy(blocks)))
         passes = _tpls_written_out(d_matrix, blocks, 3)["iterations"]
         assert [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._tpls"] == [
-            f"TPLS: super-component {a} converged in {n} iterations" for a, n in enumerate(passes, start=1)
+            *(f"TPLS: super-component {a} converged in {n} iterations" for a, n in enumerate(passes, start=1)),
+            "TPLS: super-component 1 did not converge in 1 iterations",
         ]
 
     def test_a_change_of_exactly_tol_has_not_converged(self) -> None:
@@ -9432,13 +9434,16 @@ def test_pca_nipals_refines_a_large_seed_at_least_once() -> None:
 
 
 def test_pca_nipals_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
-    """Each component's iteration count and the tolerance are logged at DEBUG level."""
+    """Each component logs at DEBUG level whether it converged, its iteration count and the tolerance (#1079)."""
     X = _named_block()
     with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._pca"):
         pca = PCA(n_components=2, algorithm="nipals").fit(X)
+        with pytest.warns(SpecificationWarning, match="without converging"):
+            PCA(n_components=2, algorithm="nipals", max_iter=1).fit(X)
     iterations = pca.fitting_info_["iterations"].astype(int)
-    assert [record.getMessage() for record in caplog.records] == [
-        f"PCA NIPALS: component {a + 1} converged in {iterations[a]} iterations (tol=1.49012e-08)" for a in range(2)
+    assert [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._pca"] == [
+        *(f"PCA NIPALS: component {a + 1} converged in {iterations[a]} iterations (tol=1.49012e-08)" for a in range(2)),
+        *(f"PCA NIPALS: component {a} did not converge in 1 iterations (tol=1.49012e-08)" for a in (1, 2)),
     ]
 
 
@@ -11915,7 +11920,7 @@ def test_pls_fit_says_in_full_when_x_runs_out_part_way() -> None:
 
 
 def test_pls_nipals_says_when_it_stops_at_max_iter_and_logs_each_component(caplog: pytest.LogCaptureFixture) -> None:
-    """A component that reaches ``max_iter`` warns in full; each one logs its iterations and tolerance."""
+    """A component that reaches ``max_iter`` warns in full; each one logs whether it converged (#1079)."""
     X, Y = _pls_block()
     with caplog.at_level(logging.DEBUG, logger="process_improve.multivariate._pls"):
         with pytest.warns(SpecificationWarning) as record:
@@ -11929,8 +11934,10 @@ def test_pls_nipals_says_when_it_stops_at_max_iter_and_logs_each_component(caplo
     count = int(settled.fitting_info_["iterations"][0])
     assert count > 2
     logged = [r.getMessage() for r in caplog.records if r.name == "process_improve.multivariate._pls"]
-    assert f"PLS NIPALS: component 1 converged in {count} iterations (tol=1.49012e-08)" in logged
-    assert "PLS NIPALS: component 2 converged in 2 iterations (tol=1.49012e-08)" in logged
+    assert logged == [
+        *(f"PLS NIPALS: component {a} did not converge in 2 iterations (tol=1.49012e-08)" for a in (1, 2)),
+        f"PLS NIPALS: component 1 converged in {count} iterations (tol=1.49012e-08)",
+    ]
 
 
 @pytest.mark.parametrize("gapped_training", [False, True])

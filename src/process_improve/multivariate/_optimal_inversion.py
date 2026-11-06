@@ -31,9 +31,7 @@ changes.
 from __future__ import annotations
 
 import dataclasses
-import inspect
 import numbers
-import pathlib
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -43,6 +41,8 @@ import pandas as pd
 from scipy import optimize
 from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
+
+from ._common import user_stacklevel
 
 _ROW_TOLERANCE = 1e-6  # a linear rule met to within this, relative to its scale, is met
 _LIMIT_TOLERANCE = 1e-4  # T² or an SPE within this fraction above its limit is within it
@@ -1251,15 +1251,6 @@ def _read(model: BaseEstimator | AffineModel, conf_level: float) -> AffineModel:
     return model
 
 
-def _outside_stacklevel() -> int:
-    """Count the frames up to the first one outside the package, so that a warning names the caller's own line."""
-    package = pathlib.Path(__file__).resolve().parents[1]
-    frame, level = inspect.currentframe(), 0
-    while frame is not None and pathlib.Path(frame.f_code.co_filename).resolve().is_relative_to(package):
-        frame, level = frame.f_back, level + 1
-    return level
-
-
 def _warn_unbounded(problem: _Problem) -> None:
     """Name, until 3.0, each input without a lower or an upper bound: only T² and SPE then hold it."""
     free = [
@@ -1274,7 +1265,7 @@ def _warn_unbounded(problem: _Problem) -> None:
         "take, such as a negative amount. Searching an input without both bounds is deprecated since 2.4.0 and an "
         "error from 3.0: give each one its extreme limits in InversionRules(bounds=...).",
         FutureWarning,
-        stacklevel=_outside_stacklevel(),  # the model's method and inversion_sensitivity both call through here
+        stacklevel=user_stacklevel(),  # the model's method and inversion_sensitivity both call through here
     )
 
 
