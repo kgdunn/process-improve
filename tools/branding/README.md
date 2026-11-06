@@ -11,6 +11,7 @@ changes. Run the commands from the repository root with the development environm
 | `social-preview.png` | `social_card.py` | `python tools/branding/social_card.py tools/branding/social-card-base.png docs/_static/readme/social-preview.png` |
 | `app-demo.gif` | `app_demo.js`, `make_demo_gif.py` | `node tools/branding/app_demo.js FRAMES_DIR`, then `python tools/branding/make_demo_gif.py FRAMES_DIR docs/_static/readme/app-demo.gif` |
 | The browser app's mark, icons and link card, in `web/` | `app_mark.py` | `python tools/branding/app_mark.py web` |
+| The concept map's link card, `web/map/og-card.png` | `map_card.py` | `uv run --with playwright==1.64.1 python tools/branding/map_card.py web` |
 
 Notes:
 
