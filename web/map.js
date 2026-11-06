@@ -425,9 +425,9 @@ document.addEventListener("click", ev => { if (!ev.target.closest(".map-search")
 // other pages, the words say what happens and the exact numbers wait behind "Show the numbers".
 function renderHow() {
   const m = DATA.method, E = DATA.edges.length;
-  // The folder of the code that made the map, and its README, at the commit the map was built from.
-  const folder = m.code.replace("/blob/", "/tree/").replace(/\/[^/]*$/, "");
-  const readme = m.code.replace(/[^/]*$/, "README.md");
+  // The folder to copy, and its README, as they are now on the book's main branch: the newest code to start from.
+  const folder = "https://github.com/kgdunn/pid-book/tree/main/knowledge-graph";
+  const readme = "https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/README.md";
   const verbs = new Set(DATA.edges.map(e => e.type)).size;
   // A kind of term in the words, drawn with its shape and colour on the map and in the legend.
   const kind = (f, words) => `<span class="map-kind"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}"
