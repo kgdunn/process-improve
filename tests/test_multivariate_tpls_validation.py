@@ -710,3 +710,50 @@ def test_the_order_of_the_z_groups_does_not_change_the_fit() -> None:
     np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-10)
     np.testing.assert_allclose(other.hat["Y1"], model.hat["Y1"], atol=1e-10)
     np.testing.assert_allclose(other.w_loadings_super.loc[model.w_loadings_super.index], model.w_loadings_super)
+
+
+def test_the_fitted_frames_keep_the_names_of_the_axes_they_label() -> None:
+    """#1083: each frame keeps the name of the axis its labels came from, such as a D index named "material".
+
+    The labels were kept as lists, which carry no name, so every loading, VIP, SPE and prediction frame
+    built from them came back with an unnamed axis. The ``*_names`` attributes stay lists.
+    """
+    d_matrix, blocks = _synthetic()
+    d_matrix["G"] = d_matrix["G"].rename_axis(index="material", columns="property")
+    blocks["Z"]["Z1"] = blocks["Z"]["Z1"].rename_axis(columns="condition")
+    blocks["Y"]["Y1"] = blocks["Y"]["Y1"].rename_axis(columns="quality")
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    result = model.diagnose(DataFrameDict(blocks))
+    deflated = model.vip(method="deflated")
+
+    labels = {
+        "material": [
+            model.r_loadings_f["G"].index,
+            model.p_loadings_f["G"].index,
+            model.spe["D"]["G"].index,
+            model.feature_importance["F"]["G"].index,
+            deflated["F"]["G"].index,
+            result.residuals["F"]["G"].columns,
+        ],
+        "property": [
+            model.s_loadings_d["G"].index,
+            model.v_loadings_d["G"].index,
+            model.feature_importance["D"]["G"].index,
+            deflated["D"]["G"].index,
+        ],
+        "condition": [
+            model.w_loadings_z["Z1"].index,
+            model.p_loadings_z["Z1"].index,
+            result.residuals["Z"]["Z1"].columns,
+        ],
+        "quality": [
+            model.q_loadings_y["Y1"].index,
+            model.hat_["Y1"].columns,
+            model.hat["Y1"].columns,
+            result.hat["Y1"].columns,
+        ],
+    }
+    for name, axes in labels.items():
+        assert [axis.name for axis in axes] == [name] * len(axes), name
+    assert model.material_names["G"] == ["mat0", "mat1", "mat2", "mat3"]
+    assert model.property_names["G"] == ["p", "q", "r"]

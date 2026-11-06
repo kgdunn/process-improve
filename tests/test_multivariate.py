@@ -6339,8 +6339,8 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
     # One row per Z group, then F; a single Z group keeps the plain label "Z" (#981).
     super_rows = ["Z"] if len(z_names) == 1 else [f'Z["{name}"]' for name in z_names]
     near(model.w_loadings_super, expected["w_super"], [*super_rows, "F"])
-    # The loadings' labels are lists of names, so they keep no index name.
-    qualities = blocks["Y"][y_name].columns.to_list()
+    # Each loading keeps the name of the axis its labels came from (#1083).
+    qualities = blocks["Y"][y_name].columns
     near(model.q_loadings_y[y_name], expected["q"], qualities)
     near(model.hat_[y_name], expected["hat_"], blends, columns=qualities)
     near(model.hat[y_name], expected["hat"], blends, columns=qualities)
@@ -6351,7 +6351,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         for key in names:
             near(model.spe[block][key], expected["spe"][block][key][:, np.newaxis], blends, columns=spe_column)
     for group in groups:
-        materials, properties = d_matrix[group].index.to_list(), d_matrix[group].columns.to_list()
+        materials, properties = d_matrix[group].index, d_matrix[group].columns
         near(model.r_loadings_f[group], expected["r"][group], materials)
         near(model.p_loadings_f[group], expected["p_f"][group], materials)
         near(model.s_loadings_d[group], expected["s"][group], properties)
@@ -6360,7 +6360,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         near(model.feature_importance["D"][group], expected["vip", "D"][group], properties)
         near(model.feature_importance["F"][group], expected["vip", "F"][group], materials)
     for name in z_names:
-        conditions = blocks["Z"][name].columns.to_list()
+        conditions = blocks["Z"][name].columns
         near(model.w_loadings_z[name], expected["w_z"][name], conditions)
         near(model.p_loadings_z[name], expected["p_z"][name], conditions)
     assert model.feature_importance["Z"] == model.feature_importance["Y"] == {}
@@ -6455,7 +6455,7 @@ def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative
         rule,
     ]
     for a, passes in enumerate(iterations):
-        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "        -"
+        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "         -"  # as wide as a number (#1083)
         line = f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}|"
         line += f"{ms:>5.0f} [{passes:>4d}]".rjust(13)
         lines.append(line + ("** (max iter reached)" if passes == settings[0] else ""))
