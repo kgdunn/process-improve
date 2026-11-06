@@ -504,7 +504,7 @@ function renderHow() {
         <thead><tr><th>Topic</th><th>Terms</th><th>Second level</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
-      ${whole.map(c => `<p>In "${esc(c.short)}" (${c.size} terms), another seed batch moved ${quoted(c.moved)} from one
+      ${whole.map((c, i) => `<p>${i ? "In" : "For example, in"} "${esc(c.short)}" (${c.size} terms), another seed batch moved ${quoted(c.moved)} from one
         sub-group to another; every other term kept its group. Agreement is counted over all ${pairs(c.size)} pairs of
         terms, and the pairs these ${c.moved.length} terms form with their old and new group-mates bring it down to
         ${c.agreement.toFixed(2)}. A split that changes with chance would change the map for no reason in the book, so
