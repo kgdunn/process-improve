@@ -69,7 +69,7 @@ up with PLS on the mixture properties.
 
 The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
 checks, with D deflated, the iteration for the third component does not converge: it alternates
-between two states, and TPLS stops at its iteration limit without a warning. The model, and
+between two states, and TPLS stops at its iteration limit. The model, and
 every prediction from it, is then whichever state the last iteration lands on, which differs
 between platforms. Without the deflation every component of that data set converges. The
 invariance checks therefore use 2 components, and refuse a fit that did not converge.

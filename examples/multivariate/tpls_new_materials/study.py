@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import time
-import warnings
 from pathlib import Path
 
 import methods as mt
@@ -105,7 +104,7 @@ def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "m
 def require_convergence(model: TPLS, fit: str) -> None:
     """Refuse a fit with a component that stopped at ``max_iter``.
 
-    TPLS stops there without a warning. On the simulated data of :func:`invariance_checks`,
+    TPLS keeps such a fit. On the simulated data of :func:`invariance_checks`,
     with D deflated, the iteration for the third component alternates between two states for
     ever, and the model is whichever state the last iteration lands on: that differs between
     platforms (0.042 on Linux, 0.032 on macOS for the autoscaled split-a-lot check at 6 components).
@@ -194,9 +193,7 @@ def leave_one_material_out(
         if len(rows) == 0 or len(rows) == len(data["F"][group]):
             continue
         for name, method in which.items():
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                pred = method(train, test_f, test_z, d_new, n_components)
+            pred = method(train, test_f, test_z, d_new, n_components)
             sq = (pred - data["Y"][key].loc[rows].to_numpy()) ** 2
             errors.append(
                 sq.rename_axis("blend")
@@ -217,9 +214,7 @@ def leave_one_blend_out(data: dict, n_components: int, blends: pd.Index) -> pd.D
         train = {"D": data["D"], **{b: {k: v.loc[keep] for k, v in data[b].items()} for b in "FZY"}}
         test_f = {g: f.loc[[blend]] for g, f in data["F"].items()}
         test_z = {k: z.loc[[blend]] for k, z in data["Z"].items()}
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            out.append(mt.projection_centred_no_d_deflation(train, test_f, test_z, {}, n_components))
+        out.append(mt.projection_centred_no_d_deflation(train, test_f, test_z, {}, n_components))
     return pd.concat(out)
 
 
@@ -289,9 +284,7 @@ def few_shot(
         train, test_f, test_z, d_new, blends = split(data, material, group)
         if len(blends) < max(shots) + 2:
             continue
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            zero, sigma2, tau2 = mt.hierarchical(train, test_f, test_z, d_new, n_components, return_parts=True)
+        zero, sigma2, tau2 = mt.hierarchical(train, test_f, test_z, d_new, n_components, return_parts=True)
         y = data["Y"][key].loc[blends]
         for n in shots:
             for _ in range(n_draws):
@@ -312,13 +305,11 @@ def few_shot(
                 rest_f = {g: f.loc[rest] for g, f in test_f.items()}
                 rest_z = {k: z.loc[rest] for k, z in test_z.items()}
                 mt.FIT_CACHE.clear()
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    model, _ = mt.fit_tpls(aug, n_components, centred=False)
-                    preds["refit default TPLS with the shots"] = mt.predict(
-                        model, DataFrameDict({"F": rest_f, "Z": rest_z, "Y": {}})
-                    )
-                    preds["refit 4. with the shots"] = mt.hierarchical(aug, rest_f, rest_z, {}, n_components)
+                model, _ = mt.fit_tpls(aug, n_components, centred=False)
+                preds["refit default TPLS with the shots"] = mt.predict(
+                    model, DataFrameDict({"F": rest_f, "Z": rest_z, "Y": {}})
+                )
+                preds["refit 4. with the shots"] = mt.hierarchical(aug, rest_f, rest_z, {}, n_components)
                 for name, p in preds.items():
                     rows.append(
                         {
