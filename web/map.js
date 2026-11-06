@@ -424,9 +424,11 @@ document.addEventListener("click", ev => { if (!ev.target.closest(".map-search")
 // ---------- how the map was made. Every number comes from DATA, so it cannot drift from the map; as on the app's
 // other pages, the words say what happens and the exact numbers wait behind "Show the numbers".
 function renderHow() {
-  const m = DATA.method, N = DATA.nodes.length, E = DATA.edges.length;
+  const m = DATA.method, E = DATA.edges.length;
   const verbs = new Set(DATA.edges.map(e => e.type)).size;
-  const inChapter = k => DATA.nodes.filter(n => n.chapter === k).length;
+  // A kind of term in the words, drawn with its shape and colour on the map and in the legend.
+  const kind = (f, words) => `<span class="map-kind"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}"
+    style="fill: var(--map-${f})"/></svg>${words}</span>`;
   const name = id => esc(terms.get(id).name);
   const pairs = n => (n * (n - 1)) / 2;
   const examples = [["box_behnken", "IS_A", "omars_design"], ["center_point", "KEEPS", "orthogonality"],
@@ -450,17 +452,18 @@ function renderHow() {
     <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" target="_blank" rel="noopener">learnche.org/pid</a>, mostly
       from its chapter on designing and analysing experiments. Each term, and each link between two terms, quotes the
       line of the book it rests on, and the map is checked against the book each time it is built.</p>
-    <details><summary>Show the numbers</summary>
-      <p>${N} terms: ${inChapter(5)} from chapter 5 and ${inChapter(7)} from the design side of a case study in chapter 7,
-        whose multivariate sections are left out. A first list was written by hand from the chapter's text; reviewers
-        then checked every term and link against the chapter as it is now, and added what its newer sections cover,
-        such as OMARS designs, Lenth's method and desirability.</p>
+    <details><summary>How it was checked</summary>
+      <p>A first list was written by hand from the chapter's text. Reviewers then checked every term and link against
+        the chapter as it is now, and added what its newer sections cover, such as OMARS designs, Lenth's method and
+        desirability.</p>
     </details>
 
     <h3>2. What the points and lines mean</h3>
-    <p>Each point is one idea the book explains, and its shape says what kind: a design or a property of one, a method,
-      a concept, a guideline or warning sign, or an example. Tap one to read its definition and the book's own words.</p>
-    <p>Each line is a short sentence that joins two ideas, for example:</p>
+    <p>Each point is one idea the book explains, and its shape says what kind:
+      ${kind("design", "a design or a property of one")}, ${kind("method", "a method")}, ${kind("concept", "a concept")},
+      ${kind("guide", "a guideline or warning sign")}, or ${kind("context", "an example")}. Tap one to read its
+      definition and the book's own words.</p>
+    <p>Each line joining the points above is a short sentence that joins two ideas, for example:</p>
     <ul>${examples.map(e => `<li><b>${name(e.source)}</b> ${read(e.type, 0)} <b>${name(e.target)}</b></li>`).join("")}</ul>
     <details><summary>Show the numbers</summary>
       <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>

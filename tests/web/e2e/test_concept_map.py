@@ -251,7 +251,8 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     for details in how.locator("details").all():
         details.locator("summary").click()
     numbers = how.text_content()
-    assert f"{len(GRAPH['nodes'])} terms" in numbers
+    assert f"{len(GRAPH['edges'])} links" in numbers
+    assert how.locator(".map-kind svg").count() == 5, "each kind of term drawn in its legend shape"
     assert f"{GRAPH['method']['single_median']:.2f}" in numbers
     for topic in (c for c in GRAPH["clusters"] if c.get("moved")):
         assert f"{topic['agreement']:.2f}" in numbers
