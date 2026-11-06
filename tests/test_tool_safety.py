@@ -464,6 +464,7 @@ class TestSafeExecuteToolCall:
             safe_execute_tool_call("_safety_test_sleep", {"seconds": 5}, timeout=0.2)
         assert exc_info.value.code == "timeout"
         assert exc_info.value.details["tool_name"] == "_safety_test_sleep"
+        assert exc_info.value.details["stage"] == "tool"
 
     @_skip_if_not_linux
     def test_timeout_force_terminates_runaway_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -508,6 +509,46 @@ class TestSafeExecuteToolCall:
         assert payload["error"] == "timeout"
         assert payload["message"] == "boom"
         assert payload["details"]["timeout"] == 1
+
+    @pytest.mark.slow
+    def test_a_spawned_worker_start_up_is_not_counted_in_the_tool_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A call that does no work passes a 1 s tool timeout, although its worker takes longer to start (#1130).
+
+        ``spawn`` is the start method on macOS and Windows: each call's worker starts an interpreter
+        and imports the package and its tools, which took 2 to 5 s on fast machines. The tool, the
+        repeated median of three points, takes milliseconds once the worker has started, so 1 s, a
+        tenth of the default timeout, is a generous bound on it. The test uses a tool of the
+        package because a spawned worker does not see the tools this file registers.
+        """
+        from process_improve import tool_safety as ts
+
+        monkeypatch.setattr(ts, "_DEFAULT_MP_CONTEXT", multiprocessing.get_context("spawn"))
+        result = safe_execute_tool_call("repeated_median", {"x": [1.0, 2.0, 3.0], "y": [2.0, 4.1, 5.9]}, timeout=1.0)
+        assert result["n"] == 3
+
+    def test_a_worker_that_does_not_start_in_time_is_ended(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A spawned worker still importing when its start-up time runs out is terminated, as a runaway tool is."""
+        from process_improve import tool_safety as ts
+
+        workers: list[multiprocessing.Process] = []
+
+        def capture_and_terminate(pool) -> None:
+            workers.extend((getattr(pool, "_processes", None) or {}).values())
+            _terminate_workers(pool)
+
+        monkeypatch.setattr(ts, "_DEFAULT_MP_CONTEXT", multiprocessing.get_context("spawn"))
+        monkeypatch.setattr(ts, "_WORKER_STARTUP_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(ts, "_terminate_workers", capture_and_terminate)
+        with pytest.raises(ToolTimeoutError, match="did not run") as exc_info:
+            safe_execute_tool_call("repeated_median", {"x": [1.0, 2.0, 3.0], "y": [2.0, 4.1, 5.9]}, timeout=10)
+
+        assert exc_info.value.details["stage"] == "startup"
+        assert workers, "expected the worker process that was starting"
+        for worker in workers:
+            worker.join(timeout=5)
+            assert not worker.is_alive(), "a worker that did not start in time is still alive"
 
     @_skip_if_not_linux
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
@@ -826,21 +867,24 @@ _NEVER = object()
 class _StubExecutor:
     """An executor whose futures resolve as the test says, without running anything.
 
-    ``outcome`` is the value the future returns, an exception it raises, or ``_NEVER``.
+    ``outcome`` is the value the tool call's future returns, an exception it raises, or ``_NEVER``.
+    ``ready`` is the same for any other task: the no-op that waits for a fresh worker to start.
     """
 
-    def __init__(self, outcome: object) -> None:
+    def __init__(self, outcome: object, ready: object = None) -> None:
         self.outcome = outcome
+        self.ready = ready
         self.submitted: list[tuple] = []
         self.shutdowns: list[dict[str, bool]] = []
 
     def submit(self, fn: object, *args: object) -> Future:
         self.submitted.append((fn, *args))
+        outcome = self.outcome if fn is _worker_run else self.ready
         future: Future = Future()
-        if isinstance(self.outcome, BaseException):
-            future.set_exception(self.outcome)
-        elif self.outcome is not _NEVER:
-            future.set_result(self.outcome)
+        if isinstance(outcome, BaseException):
+            future.set_exception(outcome)
+        elif outcome is not _NEVER:
+            future.set_result(outcome)
         return future
 
     def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
@@ -919,5 +963,44 @@ class TestSafeExecuteWithAnInProcessExecutor:
 
         monkeypatch.setattr(settings, "tool_timeout", 0.01)
         monkeypatch.setattr(ts, "_create_pool", lambda _memory_mb: _StubExecutor(_NEVER))
-        with pytest.raises(ToolTimeoutError, match=r"exceeded 0\.01s timeout"):
+        with pytest.raises(ToolTimeoutError, match=r"exceeded 0\.01s timeout") as exc_info:
             safe_execute_tool_call("_safety_test_echo", {"value": 1})
+        assert exc_info.value.details == {"tool_name": "_safety_test_echo", "timeout": 0.01, "stage": "tool"}
+
+    def test_a_slow_worker_start_is_not_counted_in_the_tool_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A worker that takes longer to start than the tool may run still runs the tool (#1130).
+
+        The thread pool's initializer stands in for a spawned worker's start-up and imports: the
+        tool's 0.2 s starts only once the worker is ready, so the 0.5 s start-up does not use it.
+        """
+        from process_improve import tool_safety as ts
+
+        def slow_starting_pool(_memory_mb: int) -> ThreadPoolExecutor:
+            return ThreadPoolExecutor(max_workers=1, initializer=time.sleep, initargs=(0.5,))
+
+        monkeypatch.setattr(ts, "_create_pool", slow_starting_pool)
+        assert safe_execute_tool_call("_safety_test_echo", {"value": 5}, timeout=0.2) == {"value": 5}
+
+    def test_a_worker_that_does_not_start_in_time_is_refused_before_the_tool_runs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The start-up has its own time limit, and its error says the tool never started; the worker is ended."""
+        from process_improve import tool_safety as ts
+
+        pool = _StubExecutor({"value": 1}, ready=_NEVER)
+        terminated: list[object] = []
+        monkeypatch.setattr(ts, "_WORKER_STARTUP_TIMEOUT_S", 0.01)
+        monkeypatch.setattr(ts, "_create_pool", lambda _memory_mb: pool)
+        monkeypatch.setattr(ts, "_terminate_workers", terminated.append)
+
+        message = (
+            r"^Tool '_safety_test_echo' did not run: its worker process took more than 0\.01s to start\. "
+            r"Start-up is timed apart from the tool's 10s timeout, which had not begun\.$"
+        )
+        with pytest.raises(ToolTimeoutError, match=message) as exc_info:
+            safe_execute_tool_call("_safety_test_echo", {"value": 1}, timeout=10)
+        assert exc_info.value.code == "timeout"
+        assert exc_info.value.details == {"tool_name": "_safety_test_echo", "timeout": 0.01, "stage": "startup"}
+        assert [task[0] for task in pool.submitted] == [ts._worker_ready]
+        assert terminated == [pool]
+        assert pool.shutdowns == [{"wait": False, "cancel_futures": True}]
