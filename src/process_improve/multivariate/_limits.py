@@ -354,7 +354,7 @@ def ellipse_coordinates(  # noqa: PLR0913 - judged_rows, the rows the ellipse ju
         T^2 limit for the ellipse itself is computed with 2 degrees of freedom
         regardless of `A`, since the ellipse is the joint confidence region for
         the two plotted scores (see Background below).
-    scaling_factor_for_scores : pd.Series
+    scaling_factor_for_scores : pd.Series or None
         Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
         Required, although the signature defaults to ``None``; omitting it raises
         :class:`TypeError`.
