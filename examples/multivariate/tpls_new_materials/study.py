@@ -7,8 +7,8 @@ of ``j`` are known at prediction time. This is exactly the situation of a new ma
 
 Run ``python study.py`` from this folder (about 40 minutes on 4 cores); it prints the tables
 quoted in README.md and writes them to ``results/``. ``python study.py --quick`` runs every step
-small, in under a minute, and writes nothing: the invariance checks alone run in full, and it fails
-unless they reproduce the tables saved in ``results/``.
+small, in under a minute, and writes nothing: the invariance checks and the PLS equivalence alone run
+in full, and it fails unless they reproduce the tables saved in ``results/``.
 """
 
 from __future__ import annotations
@@ -93,6 +93,48 @@ def fit_ceiling(n_components: int = 8, n_repeats: int = 6) -> pd.DataFrame:
             rows.append(row)
     table = pd.DataFrame(rows).groupby("data", sort=False).mean()
     return table[[c for c in table.columns if c != "truth"] + ["truth"]]
+
+
+def pls_equivalence(components: tuple = (2, 4, 6, 8), n_repeats: int = 6) -> pd.DataFrame:
+    """Largest change of any in-sample prediction from TPLS, with centred F and no D deflation, to PLS on F D.
+
+    With one group of materials and no Z, that TPLS is a PLS on the mean properties ``F D`` that centres
+    them without scaling them and autoscales Y, as TPLS does. Approach 3a's PLS, which :func:`fit_ceiling`
+    fits too, autoscales each mean property as well. The data sets are those of the "group A only" row of
+    :func:`fit_ceiling`; with 8 components, as many as there are properties, both PLS models are least
+    squares. Changes are in Y standard deviations: the largest over the data sets for the PLS that does
+    not scale, and the smallest and largest for approach 3a's.
+    """
+    rows = []
+    for n_components in components:
+        for rep in range(n_repeats):
+            sim = simulate(seed=1000 * rep + 7, z_effect=0.0, b_effect=0.0)
+            data = {"D": {"A": sim.D["A"]}, "F": {"A": sim.F["A"]}, "Z": {}, "Y": sim.Y}
+            y = sim.Y["Y"]
+            mt.FIT_CACHE.clear()
+            model, means = mt.fit_tpls(data, n_components, centred=True, deflate_d=False)
+            tpls = predict(model, DataFrameDict({"F": centre_f(data["F"], means), "Z": {}, "Y": {}})).to_numpy()
+            d = data["D"]["A"]
+            x = mt.mixture_descriptors(data["F"], {"A": (d - d.mean()) / d.std()})
+            centred = PLS(n_components=n_components, scale=False).fit(x - x.mean(), (y - y.mean()) / y.std())
+            not_scaled = centred.predict(x - x.mean()).to_numpy() * y.std().to_numpy() + y.mean().to_numpy()
+            autoscaled = PLS(n_components=n_components).fit(x, y).predict(x).to_numpy()
+            sd = y.std().to_numpy()
+            rows.append(
+                {
+                    "components": n_components,
+                    "not scaled": np.max(np.abs(not_scaled - tpls) / sd),
+                    "3a. autoscaled": np.max(np.abs(autoscaled - tpls) / sd),
+                }
+            )
+    by_components = pd.DataFrame(rows).groupby("components")
+    return pd.DataFrame(
+        {
+            "not scaled, largest": by_components["not scaled"].max(),
+            "3a. autoscaled, smallest": by_components["3a. autoscaled"].min(),
+            "3a. autoscaled, largest": by_components["3a. autoscaled"].max(),
+        }
+    )
 
 
 def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "mean") -> pd.DataFrame:
@@ -402,8 +444,8 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 20)
     t0 = time.time()
     if quick:
-        print("--quick: every table but the invariance checks comes from 1 data set, 1 or 2 left-out materials")
-        print("and 1 or 2 components, so it is not the README's. The invariance checks run in full.")
+        print("--quick: every table but the invariance checks and the PLS equivalence comes from 1 data set,")
+        print("1 or 2 left-out materials and 1 or 2 components, so it is not the README's. Those two run in full.")
 
     sim = simulate(seed=7)
     checks = invariance_checks({"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}, "A")
@@ -412,8 +454,18 @@ if __name__ == "__main__":
     pyphi_checks = invariance_checks(load_pyphi(), "Group 2")
     print("\nThe same on the pyphi data, splitting the Group 2 lot whose usage varied least")
     print(pyphi_checks.round(4))
-    for table, name in ((checks, "invariance_checks.csv"), (pyphi_checks, "pyphi_invariance_checks.csv")):
-        if quick:  # the one step that runs in full: a number that no longer reproduces fails the quick run
+    usage = load_pyphi()["F"]["Group 2"].std()
+    print(f"The usage SD of the {usage.size} Group 2 lots spans a factor of {usage.max() / usage.min():.1f}")
+    equivalence = pls_equivalence()
+    print("\nOne group, no Z: largest change of a prediction from TPLS (centred F, no D deflation) to PLS on F D,")
+    print("in Y standard deviations, over 6 simulated data sets")
+    print(equivalence.to_string(float_format="{:.2g}".format))
+    for table, name in (
+        (checks, "invariance_checks.csv"),
+        (pyphi_checks, "pyphi_invariance_checks.csv"),
+        (equivalence, "pls_equivalence.csv"),
+    ):
+        if quick:  # the steps that run in full: a number that no longer reproduces fails the quick run
             check_saved(table, name)
         else:
             table.round(4).to_csv(RESULTS / name)
