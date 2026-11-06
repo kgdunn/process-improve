@@ -515,8 +515,14 @@ const restyle = () => { drawLegend(); refresh(true); render(); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
 new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 window.addEventListener("hashchange", () => go(fromHash(), { hash: false }));
-let resizing;
-window.addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => { cy.resize(); setLimits(); move(selected, false); }, 150); });
+// A phone's toolbar that hides or shows as the page scrolls fires "resize" but leaves the map's width alone: the
+// reader's view stays then. Only a new width (a turned phone, a resized window) centres the map again.
+let resizing, mapWidth = cy.width();
+window.addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => {
+  const zoom = cy.zoom(), pan = { ...cy.pan() };
+  cy.resize(); setLimits();
+  if (cy.width() !== mapWidth) { mapWidth = cy.width(); move(selected, false); } else cy.viewport({ zoom, pan });
+}, 150); });
 if (document.fonts) document.fonts.ready.then(() => { widths.clear(); refresh(true); });
 
 drawLegend();

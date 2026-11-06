@@ -290,21 +290,39 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
 
 
 @pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
-def test_a_finger_that_drags_the_map_to_its_edge_goes_on_to_scroll_the_page(context, site):
-    """On a phone the map fills the screen: a drag that only moved the map would leave the reader stuck in it."""
-    page = _open(context, site)
+def _drag(page: Any, finger: Any, rise: float) -> None:  # noqa: ANN401 - Playwright objects
+    """Drag one finger up the map by ``rise`` pixels, from low in the map, as a reader scrolls on a phone."""
     box = page.locator("#cy").bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + 0.8 * box["height"]
-    scrolled = page.evaluate("() => scrollY")
-    finger = context.new_cdp_session(page)
     finger.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
-    for step in range(1, 41):
+    for step in range(1, int(rise / 15) + 1):
         finger.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y - 15 * step}]})
     finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     _settled(page)
-    after = page.evaluate(
-        "() => ({ scrolled: scrollY, bottom: window.conceptMap.cy.elements(':visible').renderedBoundingBox().y2 })"
+
+
+@pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def test_a_finger_that_drags_the_map_to_its_edge_goes_on_to_scroll_the_page(context, site):
+    """On a phone the map fills the screen: a drag that only moved the map would leave the reader stuck in it."""
+    page = _open(context, site)
+    finger = context.new_cdp_session(page)
+    view = (
+        "() => ({ scrolled: scrollY, pan: window.conceptMap.cy.pan(), zoom: window.conceptMap.cy.zoom(), "
+        "bottom: window.conceptMap.cy.elements(':visible').renderedBoundingBox().y2 })"
     )
-    assert after["scrolled"] > scrolled + 100, "once the map's content reached the top, the drag scrolled the page"
+    before = page.evaluate(view)
+    _drag(page, finger, 600)
+    after = page.evaluate(view)
+    assert after["scrolled"] > before["scrolled"] + 100, (
+        "once the map's content reached the top, the drag scrolled the page"
+    )
     assert after["bottom"] >= 39, "and the content stayed in the map"
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics", "with no tap where the finger lifted"
+
+    page.set_viewport_size({"width": 390, "height": 900})  # the browser's toolbar hides as the page scrolls
+    page.wait_for_timeout(400)
+    _settled(page)
+    kept = page.evaluate(view)
+    assert (kept["pan"], kept["zoom"]) == (after["pan"], after["zoom"]), "a taller window keeps the reader's view"
+    _drag(page, finger, 300)
+    assert page.evaluate(view)["scrolled"] > kept["scrolled"] + 200, "so the next drag scrolls the page straight away"
