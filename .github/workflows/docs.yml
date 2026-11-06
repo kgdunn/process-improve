@@ -46,9 +46,9 @@ jobs:
         run: uv run python scripts/build_web_app.py -o docs/_build/html/app
       # The deploy needs this job, so a built app that does not work is never published:
       # the smoke tests start Python in the built page under Pyodide, in Chromium, and run
-      # the worked example there. Downloads are not cached, as a reader's are not.
+      # the worked example there. The page's downloads are not cached, as a reader's are not.
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+        uses: ./.github/actions/install-chromium
       - name: Check the app works before it is published
         run: >-
           uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
@@ -116,7 +116,7 @@ jobs:
       - name: Wait until the published app is this commit's
         run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA"
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+        uses: ./.github/actions/install-chromium
       - name: Check the published app works
         run: >-
           uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live
@@ -181,7 +181,7 @@ jobs:
       - name: Wait until factori.al serves this commit's build
         run: uv run python tools/wait_for_web_app.py "$APP" "$GITHUB_SHA" --timeout 120
       - name: Install Chromium for Playwright
-        run: uv run --with playwright==1.64.1 playwright install --with-deps chromium
+        uses: ./.github/actions/install-chromium
       - name: Check the app works on factori.al
         run: >-
           uv run --with playwright==1.64.1 pytest tests/web/live -m smoke --live

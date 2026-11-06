@@ -11,9 +11,11 @@ one back into the factors' own names and units, whichever units and labels it wa
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import re
 import warnings
+import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -33,6 +35,8 @@ RUN = "Run"
 #: A setting this close to the end of a range, in coded units, counts as on it.
 _TOLERANCE = 1e-9
 _X_LABEL = re.compile(r"x0*(\d+)")
+#: The one date a written workbook holds, in place of the time it was written: the earliest a zip archive can hold.
+_WORKBOOK_DATE = dt.datetime(1980, 1, 1, tzinfo=dt.UTC)
 
 
 def run_sheet(
@@ -181,6 +185,37 @@ def read_run_sheet(
 
 
 # --------------------------------------------------------------------------- writing
+def _without_the_clock(workbook: bytes) -> bytes:
+    """Return ``workbook`` with ``_WORKBOOK_DATE`` in place of the time openpyxl wrote into it.
+
+    Parameters
+    ----------
+    workbook : bytes
+        An .xlsx workbook as openpyxl writes it: the time of the call is the date of every zip member
+        and the created and modified dates in ``docProps/core.xml``.
+
+    Returns
+    -------
+    bytes
+        The same workbook, its members in the same order and compression, with ``_WORKBOOK_DATE`` for each
+        of those dates, so the same sheet gives the same bytes.
+    """
+    from openpyxl.packaging.core import DocumentProperties  # noqa: PLC0415
+    from openpyxl.xml.functions import fromstring, tostring  # noqa: PLC0415
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(workbook)) as source, zipfile.ZipFile(out, "w") as target:
+        for member in source.infolist():
+            content = source.read(member)
+            if member.filename == "docProps/core.xml":
+                properties = DocumentProperties.from_tree(fromstring(content))
+                properties.created = properties.modified = _WORKBOOK_DATE
+                content = tostring(properties.to_tree())
+            member.date_time = _WORKBOOK_DATE.timetuple()[:6]
+            target.writestr(member, content)
+    return out.getvalue()
+
+
 def _runs_frame(runs: DesignResult | pd.DataFrame | Sequence[Mapping[str, Any]]) -> pd.DataFrame:
     if isinstance(runs, DesignResult):
         return pd.DataFrame(runs.design_actual).reset_index(drop=True)

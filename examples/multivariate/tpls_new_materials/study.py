@@ -6,11 +6,14 @@ the model is trained on all other blends, with ``j`` removed from D and F. Only 
 of ``j`` are known at prediction time. This is exactly the situation of a new material.
 
 Run ``python study.py`` from this folder (about 40 minutes on 4 cores); it prints the tables
-quoted in README.md and writes them to ``results/``.
+quoted in README.md and writes them to ``results/``. ``python study.py --quick`` runs every step
+small, in under a minute, and writes nothing: the invariance checks alone run in full, and it fails
+unless they reproduce the tables saved in ``results/``.
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 import warnings
 from pathlib import Path
@@ -22,7 +25,7 @@ from joblib import Parallel, delayed
 from new_materials import centre_f, predict
 from simulate import simulate
 
-from process_improve.multivariate.methods import PLS, DataFrameDict
+from process_improve.multivariate.methods import PLS, TPLS, DataFrameDict
 
 ZERO_SHOT = {
     "ignore the material": mt.ignore_material,
@@ -99,22 +102,37 @@ def _pivot(values: pd.Series, index: str | list, columns: str, aggfunc: str = "m
     return long.pivot_table(index=index, columns=columns, values="value", aggfunc=aggfunc)
 
 
-def invariance_checks(n_components: int = 6) -> pd.DataFrame:
+def require_convergence(model: TPLS, fit: str) -> None:
+    """Refuse a fit with a component that stopped at ``max_iter``.
+
+    TPLS stops there without a warning. On the simulated data of :func:`invariance_checks`,
+    with D deflated, the iteration for the third component alternates between two states for
+    ever, and the model is whichever state the last iteration lands on: that differs between
+    platforms (0.042 on Linux, 0.032 on macOS for the autoscaled split-a-lot check at 6 components).
+    """
+    iterations = model.fitting_statistics["iterations"]
+    if max(iterations) >= model.max_iter_:
+        msg = f"{fit}: a component stopped at max_iter={model.max_iter_} without converging ({iterations})"
+        raise RuntimeError(msg)
+
+
+def invariance_checks(data: dict, group: str, n_components: int = 2) -> pd.DataFrame:
     """Run the two tests a model must pass to take new materials; changes are in Y standard deviations.
 
-    1. Split one lot into two identical half-lots (the twin entered as a new material).
-    2. Add to D a material that no blend uses, and predict the training blends again.
+    1. Split one lot of ``group`` into two identical half-lots (the twin entered as a new material).
+    2. Add to D a material of ``group`` that no blend uses, and predict the training blends again.
 
-    Each entry is the largest change of any prediction; a model that passes shows 0.
+    Each entry is the largest change of any prediction; a model that passes shows 0. Every fit
+    must converge (:func:`require_convergence`); 2 components is the most at which the D-deflated
+    fits of the simulated data set do.
     """
-    sim = simulate(seed=7)
-    data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
-    sd = sim.Y["Y"].std().to_numpy()
-    lot = sim.F["A"].std().idxmin()  # the lot whose usage varied least, so autoscaling matters most
-    twin = sim.D["A"].loc[[lot]].rename(index={lot: "twin"})
-    unused = sim.D["A"].iloc[[0]].rename(index={sim.D["A"].index[0]: "unused"}) * 1.05
-    split_f = {**sim.F, "A": sim.F["A"].assign(**{lot: sim.F["A"][lot] / 2, "twin": sim.F["A"][lot] / 2})}
-    padded_f = {**sim.F, "A": sim.F["A"].assign(unused=0.0)}
+    d, f_group = data["D"][group], data["F"][group]
+    sd = next(iter(data["Y"].values())).std().to_numpy()
+    lot = f_group.std().idxmin()  # the lot whose usage varied least, so autoscaling matters most
+    twin = d.loc[[lot]].rename(index={lot: "twin"})
+    unused = d.iloc[[0]].rename(index={d.index[0]: "unused"}) * 1.05
+    split_f = {**data["F"], group: f_group.assign(**{lot: f_group[lot] / 2, "twin": f_group[lot] / 2})}
+    padded_f = {**data["F"], group: f_group.assign(unused=0.0)}
     rows = {}
     variants = (
         ("TPLS, autoscaled F", False, True),
@@ -124,21 +142,23 @@ def invariance_checks(n_components: int = 6) -> pd.DataFrame:
     for name, centred, deflate_d in variants:
         mt.FIT_CACHE.clear()
         model, means = mt.fit_tpls(data, n_components, centred=centred, deflate_d=deflate_d)
+        require_convergence(model, name)
 
         def run(f: dict, d_new: dict | None = None, model=model, means=means, centred=centred) -> np.ndarray:
             f = centre_f(f, means) if centred else f
-            return predict(model, DataFrameDict({"F": f, "Z": sim.Z, "Y": {}}), d_new).to_numpy()
+            return predict(model, DataFrameDict({"F": f, "Z": data["Z"], "Y": {}}), d_new).to_numpy()
 
-        base = run(sim.F)
+        base = run(data["F"])
         rows[name] = {
-            "split a lot in two": np.max(np.abs(run(split_f, {"A": twin}) - base) / sd),
-            "add an unused material, projected": np.max(np.abs(run(padded_f, {"A": unused}) - base) / sd),
+            "split a lot in two": np.max(np.abs(run(split_f, {group: twin}) - base) / sd),
+            "add an unused material, projected": np.max(np.abs(run(padded_f, {group: unused}) - base) / sd),
         }
-        padded = {**data, "D": {**sim.D, "A": pd.concat([sim.D["A"], unused])}, "F": padded_f}
+        padded = {**data, "D": {**data["D"], group: pd.concat([d, unused])}, "F": padded_f}
         mt.FIT_CACHE.clear()
         refit, refit_means = mt.fit_tpls(padded, n_components, centred=centred, deflate_d=deflate_d)
+        require_convergence(refit, f"{name}, refit")
         f = centre_f(padded_f, refit_means) if centred else padded_f
-        new = predict(refit, DataFrameDict({"F": f, "Z": sim.Z, "Y": {}})).to_numpy()
+        new = predict(refit, DataFrameDict({"F": f, "Z": data["Z"], "Y": {}})).to_numpy()
         rows[name]["add an unused material, refit"] = np.max(np.abs(new - base) / sd)
     return pd.DataFrame(rows).T
 
@@ -158,14 +178,17 @@ def split(data: dict, material: str, group: str) -> tuple[dict, dict, dict, dict
     return train, test_f, test_z, d_new, uses[uses].index
 
 
-def leave_one_material_out(data: dict, group: str, n_components: int, which: dict = ZERO_SHOT) -> pd.DataFrame:
+def leave_one_material_out(
+    data: dict, group: str, n_components: int, which: dict = ZERO_SHOT, n_materials: int | None = None
+) -> pd.DataFrame:
     """Squared errors of every method for every (left-out material, blend that uses it) pair.
 
+    Only the first ``n_materials`` materials of ``group`` are left out in turn (all, when None).
     Returns a long frame: method, material, blend, Y column and squared error.
     """
     key = next(iter(data["Y"]))
     errors = []
-    for material in data["F"][group].columns:
+    for material in data["F"][group].columns[:n_materials]:
         mt.FIT_CACHE.clear()
         train, test_f, test_z, d_new, rows = split(data, material, group)
         if len(rows) == 0 or len(rows) == len(data["F"][group]):
@@ -184,11 +207,11 @@ def leave_one_material_out(data: dict, group: str, n_components: int, which: dic
     return pd.concat(errors, ignore_index=True)
 
 
-def leave_one_blend_out(data: dict, n_components: int) -> pd.DataFrame:
-    """Predict each blend with approach 1 from all other blends, so every material has been seen (reference)."""
+def leave_one_blend_out(data: dict, n_components: int, blends: pd.Index) -> pd.DataFrame:
+    """Predict each of ``blends`` with approach 1 from all other blends, so every material has been seen (reference)."""
     names = next(iter(data["F"].values())).index
     out = []
-    for blend in names:
+    for blend in blends:
         mt.FIT_CACHE.clear()
         keep = names != blend
         train = {"D": data["D"], **{b: {k: v.loc[keep] for k, v in data[b].items()} for b in "FZY"}}
@@ -203,25 +226,31 @@ def leave_one_blend_out(data: dict, n_components: int) -> pd.DataFrame:
 REFERENCE = "reference: material seen in training"
 
 
-def _one_dataset(scenario: str, rep: int, components: tuple) -> pd.DataFrame:
+def _one_dataset(scenario: str, rep: int, components: tuple, n_materials: int | None) -> pd.DataFrame:
     sim = simulate(seed=1000 * rep + 7, **SCENARIOS[scenario])
     data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
     errs = []
     for n_comp in components:
-        err = leave_one_material_out(data, "A", n_comp)
+        err = leave_one_material_out(data, "A", n_comp, n_materials=n_materials)
         # The reference, scored on the same (material, blend) pairs as the methods.
-        sq = ((leave_one_blend_out(data, n_comp) - sim.Y["Y"]) ** 2).rename_axis("blend").reset_index()
         pairs = err.loc[err["method"] == next(iter(ZERO_SHOT)), ["blend", "y", "material"]]
+        lobo = leave_one_blend_out(data, n_comp, pd.Index(pairs["blend"].unique()))
+        sq = ((lobo - sim.Y["Y"].loc[lobo.index]) ** 2).rename_axis("blend").reset_index()
         ref = pairs.merge(sq.melt("blend", var_name="y", value_name="sq"), on=["blend", "y"]).assign(method=REFERENCE)
         err = pd.concat([err, ref], ignore_index=True)
         errs.append(err.assign(A=n_comp, scenario=scenario, rep=rep, noise=sim.noise))
     return pd.concat(errs)
 
 
-def simulation_zero_shot(n_repeats: int = 6, components: tuple = (4, 6, 8)) -> tuple[pd.DataFrame, ...]:
+def simulation_zero_shot(
+    n_repeats: int = 6, components: tuple = (4, 6, 8), n_materials: int | None = None, n_jobs: int = -1
+) -> tuple[pd.DataFrame, ...]:
     """RMSEP / noise SD (1.0 is the best possible) per scenario and method, at each method's best A."""
     jobs = [(s, r) for s in SCENARIOS for r in range(n_repeats)]
-    errors = pd.concat(Parallel(n_jobs=-1)(delayed(_one_dataset)(s, r, components) for s, r in jobs), ignore_index=True)
+    errors = pd.concat(
+        Parallel(n_jobs=n_jobs)(delayed(_one_dataset)(s, r, components, n_materials) for s, r in jobs),
+        ignore_index=True,
+    )
     # RMSEP per data set (pooled over materials, blends and Y columns), divided by the noise SD.
     per_rep = errors.groupby(["scenario", "rep", "A", "method"]).apply(
         lambda d: np.sqrt(d["sq"].mean()) / d["noise"].iloc[0], include_groups=False
@@ -233,12 +262,29 @@ def simulation_zero_shot(n_repeats: int = 6, components: tuple = (4, 6, 8)) -> t
     return best, best_a, errors
 
 
-def few_shot(data: dict, group: str, n_components: int, shots: tuple = (1, 2, 3), n_draws: int = 3) -> pd.DataFrame:
-    """Prediction after measuring ``n`` blends that use the new material (approach 5 and refits)."""
+def per_material_errors(errors: pd.DataFrame) -> pd.DataFrame:
+    """Mean squared error per left-out material, from the long frame of :func:`simulation_zero_shot`."""
+    return errors.groupby(["scenario", "rep", "A", "method", "material"])["sq"].mean().rename("mse").reset_index()
+
+
+def few_shot(
+    data: dict,
+    group: str,
+    n_components: int,
+    shots: tuple = (1, 2, 3),
+    n_draws: int = 3,
+    n_materials: int | None = None,
+    random_state: int | np.random.Generator | None = 0,
+) -> pd.DataFrame:
+    """Prediction after measuring ``n`` blends that use the new material (approach 5 and refits).
+
+    The first ``n_materials`` materials of ``group`` (all, when None) are each the new material in
+    turn; ``random_state`` draws which of its blends are measured.
+    """
     key = next(iter(data["Y"]))
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(random_state)
     rows = []
-    for material in data["F"][group].columns:
+    for material in data["F"][group].columns[:n_materials]:
         mt.FIT_CACHE.clear()
         train, test_f, test_z, d_new, blends = split(data, material, group)
         if len(blends) < max(shots) + 2:
@@ -286,15 +332,22 @@ def few_shot(data: dict, group: str, n_components: int, shots: tuple = (1, 2, 3)
     return pd.DataFrame(rows)
 
 
-def _few_shot_dataset(rep: int, n_components: int) -> pd.DataFrame:
+def _few_shot_dataset(rep: int, n_components: int, n_draws: int, n_materials: int | None) -> pd.DataFrame:
     sim = simulate(seed=1000 * rep + 7, hidden=1.0)
     data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
-    return few_shot(data, "A", n_components).assign(rep=rep, noise=sim.noise)
+    out = few_shot(data, "A", n_components, n_draws=n_draws, n_materials=n_materials)
+    return out.assign(rep=rep, noise=sim.noise)
 
 
-def simulation_few_shot(n_repeats: int = 6, n_components: int = 8) -> pd.DataFrame:
+def simulation_few_shot(
+    n_repeats: int = 6, n_components: int = 8, n_draws: int = 3, n_materials: int | None = None, n_jobs: int = -1
+) -> pd.DataFrame:
     """RMSEP / noise SD on the blends not used as shots, in the hidden-trait scenario."""
-    out = pd.concat(Parallel(n_jobs=-1)(delayed(_few_shot_dataset)(r, n_components) for r in range(n_repeats)))
+    out = pd.concat(
+        Parallel(n_jobs=n_jobs)(
+            delayed(_few_shot_dataset)(r, n_components, n_draws, n_materials) for r in range(n_repeats)
+        )
+    )
     per_rep = out.groupby(["rep", "shots", "method"]).apply(
         lambda d: np.sqrt(d["sse"].sum() / d["count"].sum()) / d["noise"].iloc[0], include_groups=False
     )
@@ -313,18 +366,22 @@ def load_pyphi() -> dict:
     }
 
 
-def _real_one(group: str, n_comp: int) -> pd.DataFrame:
+def _real_one(group: str, n_comp: int, n_materials: int | None) -> pd.DataFrame:
     data = load_pyphi()
-    err = leave_one_material_out(data, group, n_comp)
+    err = leave_one_material_out(data, group, n_comp, n_materials=n_materials)
     return err.assign(group=group, A=n_comp)
 
 
-def real_data(components: tuple = (1, 2, 3, 4)) -> tuple[pd.DataFrame, pd.DataFrame]:
+def real_data(
+    components: tuple = (1, 2, 3, 4), n_materials: int | None = None, n_jobs: int = -1
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Leave-one-lot-out on the pyphi data: Q2 = 1 - PRESS / SS, Y columns standardised, per group."""
     data = load_pyphi()
     y = data["Y"]["Quality"]
     jobs = [(g, a) for g in data["F"] for a in components]
-    errors = pd.concat(Parallel(n_jobs=-1)(delayed(_real_one)(g, a) for g, a in jobs), ignore_index=True)
+    errors = pd.concat(
+        Parallel(n_jobs=n_jobs)(delayed(_real_one)(g, a, n_materials) for g, a in jobs), ignore_index=True
+    )
     errors["sq_std"] = errors["sq"] / errors["y"].map(y.var())
     # One A per method, the one with the best Q2 over all lots; then Q2 per group at that A.
     pooled = _pivot(1 - errors.groupby(["A", "method"])["sq_std"].mean(), "method", "A")
@@ -336,40 +393,70 @@ def real_data(components: tuple = (1, 2, 3, 4)) -> tuple[pd.DataFrame, pd.DataFr
     return table, best_a.loc[list(ZERO_SHOT)]
 
 
+def check_saved(table: pd.DataFrame, name: str) -> None:
+    """Fail unless ``table`` reproduces ``results/<name>``, to the 4 decimals it was saved with."""
+    saved = pd.read_csv(RESULTS / name, index_col=0)
+    pd.testing.assert_frame_equal(table, saved, check_exact=False, rtol=0, atol=1e-4, check_names=False, obj=name)
+
+
+#: ``--quick``: the zero-shot study on one data set per scenario, two left-out materials, two components and
+#: one process. ``domain.py --quick`` uses it too.
+QUICK_ZERO_SHOT = {"n_repeats": 1, "components": (2,), "n_materials": 2, "n_jobs": 1}
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Leave-one-material-out study of TPLS with a new material.")
+    parser.add_argument("--quick", action="store_true", help="run every step small, write nothing")
+    quick = parser.parse_args().quick
     pd.set_option("display.width", 200)
     pd.set_option("display.max_columns", 20)
-    RESULTS.mkdir(exist_ok=True)
     t0 = time.time()
+    if quick:
+        print("--quick: every table but the invariance checks comes from 1 data set, 1 or 2 left-out materials")
+        print("and 1 or 2 components, so it is not the README's. The invariance checks run in full.")
 
-    checks = invariance_checks()
+    sim = simulate(seed=7)
+    checks = invariance_checks({"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}, "A")
     print("\nLargest change of any prediction, in Y standard deviations (0 = the test is passed)")
     print(checks.round(4))
-    checks.round(4).to_csv(RESULTS / "invariance_checks.csv")
+    pyphi_checks = invariance_checks(load_pyphi(), "Group 2")
+    print("\nThe same on the pyphi data, splitting the Group 2 lot whose usage varied least")
+    print(pyphi_checks.round(4))
+    for table, name in ((checks, "invariance_checks.csv"), (pyphi_checks, "pyphi_invariance_checks.csv")):
+        if quick:  # the one step that runs in full: a number that no longer reproduces fails the quick run
+            check_saved(table, name)
+        else:
+            table.round(4).to_csv(RESULTS / name)
 
-    ceiling = fit_ceiling()
+    ceiling = fit_ceiling(n_components=2, n_repeats=1) if quick else fit_ceiling()
     print("\nIn-sample R2 with 8 components, mean of 6 simulated data sets")
     print(ceiling.round(3))
-    ceiling.round(3).to_csv(RESULTS / "fit_ceiling.csv")
+    if not quick:
+        ceiling.round(3).to_csv(RESULTS / "fit_ceiling.csv")
 
-    best, best_a, errors = simulation_zero_shot()
+    best, best_a, errors = simulation_zero_shot(**QUICK_ZERO_SHOT) if quick else simulation_zero_shot()
     print("\nSimulation, zero-shot: RMSEP / noise SD (1.0 = the noise floor), best A in {4, 6, 8}")
     print(best.round(2))
     print(best_a)
-    best.round(3).to_csv(RESULTS / "simulation_zero_shot.csv")
-    per_mat = errors.groupby(["scenario", "rep", "A", "method", "material"])["sq"].mean().rename("mse").reset_index()
-    per_mat.to_csv(RESULTS / "per_material_errors.csv", index=False)
+    if not quick:
+        best.round(3).to_csv(RESULTS / "simulation_zero_shot.csv")
+        per_material_errors(errors).to_csv(RESULTS / "per_material_errors.csv", index=False)
     print(f"[{time.time() - t0:.0f} s]")
 
-    fs = simulation_few_shot()
+    fs = (
+        simulation_few_shot(n_repeats=1, n_components=2, n_draws=1, n_materials=1, n_jobs=1)
+        if quick
+        else simulation_few_shot()
+    )
     print("\nSimulation, hidden-trait scenario, after n measured blends: RMSEP / noise SD")
     print(fs.round(2))
-    fs.round(3).to_csv(RESULTS / "simulation_few_shot.csv")
+    if not quick:
+        fs.round(3).to_csv(RESULTS / "simulation_few_shot.csv")
     print(f"[{time.time() - t0:.0f} s]")
 
-    real, real_a = real_data()
+    real, real_a = real_data(components=(1,), n_materials=1, n_jobs=1) if quick else real_data()
     print("\npyphi data, leave-one-lot-out: Q2 (1 is perfect, 0 is predicting the mean), A in 1..4 best overall")
     print(real.round(3))
     print(real_a)
-    real.round(4).to_csv(RESULTS / "pyphi_leave_one_lot_out.csv")
+    if not quick:
+        real.round(4).to_csv(RESULTS / "pyphi_leave_one_lot_out.csv")
     print(f"[{time.time() - t0:.0f} s]")

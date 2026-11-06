@@ -28,6 +28,7 @@ from process_improve.experiments.analysis import (
     analyze_experiment,
     build_formula,
 )
+from process_improve.experiments.reference_catalogue import reference_experiments
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -2089,7 +2090,7 @@ class TestMixtureConstant:
         keyword = self._fit(df, "scheffe_quadratic", analysis_type=analysis)
         formula = self._fit(df, self.SCHEFFE_QUADRATIC, analysis_type=analysis)
         shown, expected = (r["split_plot"] if analysis == "split_plot" else r for r in (formula, keyword))
-        assert shown["coding"] == expected["coding"]
+        assert shown["coding"] == expected["coding"] == "actual"  # #1129: split_plot said "coded"
         assert "factor_coding" not in shown  # proportions are not to be recoded by optimize_responses
         if analysis == "coefficients":
             coefficients = {row["term"]: row["coefficient"] for row in formula["coefficients"]}
@@ -2328,6 +2329,37 @@ class TestModelSelectionCriterion:
         assert chosen["candidate_model"] == "scheffe_quadratic"
         assert "note" not in chosen
         assert chosen["n_terms"] == len(chosen["selected_terms"])
+
+    @pytest.mark.dataset
+    @pytest.mark.parametrize("lhs", ["y ~ ", ""])
+    def test_a_mixture_formula_is_searched_over_its_own_blending_terms(self, lhs: str) -> None:
+        """Kurotori's propellant (Box and Draper, Table 17.1) needs its special cubic term (#1129).
+
+        The book's quadratic leaves a residual sum of squares of 0.037, its special cubic 0.0003, and
+        the special cubic's z1z2 coefficient is -0.0063. The formula was searched as 'interactions',
+        with an intercept the blends already make up and without the special cubic term: it selected
+        ``y ~ 1``, with an R-squared of 0.
+        """
+        name = "box-draper-17-kurotori-propellant"
+        (case,) = [e for e in reference_experiments("box-draper-2007") if e["name"] == name]
+        runs = pd.DataFrame(case["runs"]["rows"], columns=case["runs"]["columns"])[["z1", "z2", "z3", "y"]]
+        formula = lhs + "z1 + z2 + z3 + z1:z2 + z1:z3 + z2:z3 + z1:z2:z3 - 1"
+        chosen = {}
+        for model in ("scheffe_special_cubic", formula):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                warnings.filterwarnings("ignore", "The blends sum to", UserWarning)  # thirds printed to 5 decimals
+                result = analyze_experiment(runs, response_column="y", model=model, analysis_type="model_selection")
+            chosen[model] = result["model_selection"]
+        explicit, keyword = chosen[formula], chosen["scheffe_special_cubic"]
+        assert explicit["selected_terms"] == ["z1", "z2", "z3", "z1:z3", "z2:z3", "z1:z2:z3"]  # not z1:z2
+        assert explicit["selected_formula"] == keyword["selected_formula"]
+        assert explicit["selected_formula"] == "y ~ -1 + z1 + z2 + z3 + z1:z3 + z2:z3 + z1:z2:z3"
+        assert explicit["candidate_model"] == formula
+        assert "note" not in explicit
+        assert explicit["n_terms"] == 6
+        assert explicit["r_squared"] == pytest.approx(keyword["r_squared"])
+        assert explicit["criterion_value"] == pytest.approx(keyword["criterion_value"])
 
     def test_n_terms_counts_the_intercept_like_model_summary(self) -> None:
         result = analyze_experiment(

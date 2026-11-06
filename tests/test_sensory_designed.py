@@ -159,6 +159,12 @@ def test_compare_products_simple_effects_capture_interaction(panel: pd.DataFrame
     assert letter("REF", "T2") == letter("REF", "Control")
 
 
+def test_compare_products_refuses_a_confidence_level_outside_0_1(panel: pd.DataFrame) -> None:
+    """The level is checked before the ANOVA, under the name the caller used (#1132)."""
+    with pytest.raises(ValueError, match=r"^conf_level must lie in \(0, 1\); got -0\.5\.$"):
+        compare_products(panel, factors=["formulation", "condition"], conf_level=-0.5)
+
+
 def test_compare_products_without_control_has_empty_dunnett(panel: pd.DataFrame) -> None:
     result = compare_products(panel, factors=["formulation", "condition"], within="condition")
     assert result.dunnett.empty

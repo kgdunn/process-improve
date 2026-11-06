@@ -24,6 +24,7 @@ import patsy
 from scipy import stats
 
 from process_improve.experiments._lm import validate_formula_is_safe
+from process_improve.univariate.metrics import _check_probability
 
 
 @dataclass(frozen=True)
@@ -172,6 +173,7 @@ class BlockedFit:
         With neither ``block`` nor ``anchors``, the prediction is for the average block, and the interval adds the
         spread of the fitted block shifts: what a block not yet tested may do.
         """
+        _check_probability("conf_level", conf_level)
         if block is not None and anchors is not None:
             msg = "Give a block of the fit or the anchors of a coming block, not both."
             raise ValueError(msg)

@@ -1326,12 +1326,23 @@ def _swap_eigenvalues(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray
     return np.concatenate(out)
 
 
+#: Swaps whose K-criterion is within this fraction of the best swap's tie with it (:func:`_best_k_swap`).
+_K_TIE = 1e-9
+
+
 def _best_k_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> tuple[int, int, float]:
     """Best swap for K-optimality (smallest condition number of ``X'X``).
 
     Every swap is ranked by the first-order change in ``log(lambda_min) - log(lambda_max)``,
     ``((v' b)^2 - (v' a)^2) / lambda`` along the extreme eigenvectors ``v``, and the most
     promising ones are scored exactly with batched eigenvalue solves, as for E-optimality.
+
+    Of the swaps that tie for the best score, to within ``_K_TIE``, the one with the first design
+    row, then the first candidate, is made. On a grid many swaps tie exactly, and an extreme
+    eigenvalue is usually repeated, so its eigenvector is any vector of its eigenspace, chosen by
+    the BLAS kernel's rounding. Taking the first maximum in the order that vector ranks the swaps
+    in gave a different search path, and designs of different quality, on different processors
+    (#1129).
     """
     eigenvalues, eigenvectors = np.linalg.eigh(info)
     lam_min, lam_max = max(float(eigenvalues[0]), 1e-12), float(eigenvalues[-1])
@@ -1347,7 +1358,9 @@ def _best_k_swap(info: np.ndarray, f_design: np.ndarray, f_cand: np.ndarray) -> 
     eig = _swap_eigenvalues(info, f_design, f_cand, pairs)
     with np.errstate(divide="ignore", invalid="ignore"):
         score = np.where(eig[:, 0] > 1e-12 * eig[:, -1], -np.log(eig[:, -1] / eig[:, 0]), -np.inf)
-    best = int(np.argmax(score))
+    top = float(np.max(score))
+    tied = np.flatnonzero(score >= top - _K_TIE * max(1.0, abs(top)))  # every swap when all are singular
+    best = int(tied[np.argmin(order[tied])])  # order holds each swap's (design row, candidate) as a flat index
     gain = float(score[best] - current)
     return (int(pairs[0][best]), int(pairs[1][best]), gain) if gain > 1e-12 else (0, 0, 0.0)
 

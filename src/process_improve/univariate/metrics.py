@@ -15,6 +15,28 @@ if TYPE_CHECKING:
 __eps = np.finfo(np.float32).eps
 
 
+def _check_probability(name: str, value: float) -> None:
+    """Refuse a confidence or significance level outside (0, 1), NaN included.
+
+    The quantile functions accept such a level without complaint: a confidence level between -1 and
+    0 gave a reversed interval, 0 one of zero width, and 1 or more an infinite or NaN one (#1132).
+
+    Parameters
+    ----------
+    name : str
+        The caller's name for the level, as the message gives it.
+    value : float
+        The level the caller passed.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not strictly between 0 and 1.
+    """
+    if not 0.0 < value < 1.0:
+        raise ValueError(f"{name} must lie in (0, 1); got {value}.")
+
+
 def t_value(p: float, v: float) -> float:
     r"""
     Return the value on the x-axis if you plot the cumulative t-distribution with a fractional
@@ -264,6 +286,7 @@ def ttest_independent(
     clean size. Pick ``equal_var`` from what is known about the measurement, not from the
     data in hand.
     """
+    _check_probability("conflevel", conflevel)
     axis: Literal[0] = 0
     v1, v2 = sample_A.var(axis=axis, ddof=1), sample_B.var(axis=axis, ddof=1)
     n_A, n_B = sample_A.shape[axis], sample_B.shape[axis]
@@ -484,6 +507,7 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
         ``"Standard deviation"``, the standard error of the mean difference, under names that
         say otherwise. Reading either by name gives a ``DeprecationWarning``.
     """
+    _check_probability("conflevel", conflevel)
     # A paired t-test needs at least 2 differences (so dof >= 1 and the
     # 1/n term inside sqrt is finite). SEC-24 (#273).
     if differences.shape[0] < 2:
@@ -628,6 +652,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
     known_styles = ("robust", "regular")
     if style.lower() not in known_styles:
         raise ValueError(f"style must be one of {known_styles}; got {style!r}.")
+    _check_probability("conflevel", conflevel)
 
     data = df[column_name]
     n = data.count()

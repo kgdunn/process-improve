@@ -27,6 +27,7 @@ from tests.web.e2e._page import (
     set_factors,
     settled,
 )
+from tests.web.e2e.test_responses import three_responses
 
 #: The worked example's run sheet: a Box-Behnken design in T, P and F, whose results are its Yield column.
 EXAMPLE = ["Std order", "Run order", "T", "P", "F", "Yield"]
@@ -218,6 +219,46 @@ def test_the_what_if_fits_asked_for_before_a_rename_are_dropped(page):
     assert named == ["Temperature", "P", "F"]
     assert "Temperature" in words(page.text_content("#py-what-if code"))
     assert "T" not in words(page.text_content("#py-what-if code"))
+
+
+def test_the_balance_asked_for_before_a_rename_is_dropped(fresh_page):
+    """A race: the balance of the responses, asked for under the old names, comes back after the rename is taken.
+
+    The balance shows no factor by its old name, and comes back with its settings under the new names.
+    """
+    page = fresh_page
+    three_responses(page)
+    practise(page)
+    reveal(page, "#balance")
+    page.wait_for_selector("#balance-chart .js-plotly-plot")
+    asked = len(calls(page, "api_balance"))
+    page.evaluate("window.__pi.hold('api_balance')")
+    page.select_option('#balance-goals [aria-label="Cost: importance"]', "5")  # a balance under the old names, held
+    page.wait_for_function(f"window.__pi.count('api_balance') > {asked}")
+
+    analysed = len(calls(page, "api_analyze_runs"))
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    box = factor_box(page, 0)
+    box.fill("Temperature")
+    box.press("Tab")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {analysed}")  # the rename is taken
+    replied = "window.__pi.replies.filter((r) => r.fn === 'api_balance').length"
+    before = page.evaluate(replied)
+    page.evaluate("window.__pi.release('api_balance')")
+    page.wait_for_function(f"{replied} > {before}")
+    assert "T" not in balanced_factors(page), "no factor by its old name"
+
+    page.evaluate("window.__pi.release('api_analyze_runs')")
+    settled(page)
+    assert balanced_factors(page) == ["Temperature", "P", "F"]
+
+
+def balanced_factors(page: Any) -> list[str]:  # noqa: ANN401 - a Playwright Page
+    """Read the factors of the balanced settings, as the balance in Learn lists them, or none while it is hidden."""
+    return page.evaluate(
+        "() => document.querySelector('#balance').hidden ? [] : [...document.querySelectorAll("
+        "'#balance-out table:not(.balance-table) tbody tr')].map((tr) => tr.cells[0].textContent)"
+    )
 
 
 def test_a_changed_level_is_a_new_design_and_waits_for_its_run_sheet(page):

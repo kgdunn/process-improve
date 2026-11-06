@@ -11,6 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+from process_improve.univariate.metrics import _check_probability
 from process_improve.visualization.adapters.echarts_adapter import EChartsAdapter
 from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
 from process_improve.visualization.spec import ChartSpec
@@ -147,7 +148,7 @@ class BasePlot(ABC):
     highlight_significant : bool
         Whether to highlight significant effects.
     confidence_level : float
-        Confidence level for reference lines.
+        Confidence level for reference lines, strictly between 0 and 1.
     factor_labels : dict or None
         Mapping ``{factor_symbol: full_name}`` used for axis labels and
         legend entries.  If a factor symbol is not present in this map
@@ -187,6 +188,7 @@ class BasePlot(ABC):
         region: DesignRegion | dict[str, Any] | None = None,
         extent: float | dict[str, float] | None = None,
     ) -> None:
+        _check_probability("confidence_level", confidence_level)
         self.analysis_results = analysis_results or {}
         self.design_data = design_data or []
         self.response_column = response_column
