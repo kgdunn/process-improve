@@ -6,6 +6,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.exceptions import NotFittedError
 
 from process_improve import tool_safety
 from process_improve.regression.methods import (
@@ -659,6 +660,14 @@ def test_ols_predict_wrong_shape_raises(
     good = model.predict(np.array([[0.05], [0.10]]))
     assert good.shape == (2,)
     assert np.all(np.isfinite(good))
+
+
+@pytest.mark.parametrize("data", [None, ([1.0], [2.0])], ids=["never fitted", "fitted on one row"])
+def test_ols_prediction_interval_refuses_a_model_that_is_not_fitted(data: tuple[list, list] | None) -> None:
+    """It raises NotFittedError, as predict() does; an assert stood here, which python -O removes (#1169)."""
+    model = OLS() if data is None else OLS().fit(np.array(data[0]), np.array(data[1]))
+    with pytest.raises(NotFittedError, match=r"^OLS must be fitted before calling prediction_interval\(\)\.$"):
+        model.prediction_interval(1.0)
 
 
 def test_ols_prediction_interval_matches_pi_range_grid(
