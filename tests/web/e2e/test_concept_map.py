@@ -257,7 +257,7 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     assert guide.locator("summary").text_content() == "Build one on your own texts: a step-by-step guide"
     assert guide.locator("ol > li").count() == 7
     folder = guide.locator("a", has_text="knowledge-graph folder").get_attribute("href")
-    assert folder.startswith("https://github.com/kgdunn/pid-book/tree/")
+    assert folder == "https://github.com/kgdunn/pid-book/tree/main/knowledge-graph", "the newest code to copy"
     assert folder.endswith("/knowledge-graph")
     assert (
         guide.locator("a", has_text="README").get_attribute("href") == f"{folder.replace('/tree/', '/blob/')}/README.md"
