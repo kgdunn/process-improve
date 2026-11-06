@@ -492,7 +492,8 @@ function renderHow() {
     </details>
 
     <h3>4. How the sub-topics are found</h3>
-    <p>The larger topics are split the same way, but only where the tries agree on the split; the others are shown
+    <p>The larger topics are split into sub-topics in the same way, but only where the tries agree on the split; the
+      others are shown
       whole. Zoom past the topics to see the sub-topics as dashed circles, each named after its most connected term.</p>
     <details><summary>Show the numbers</summary>
       <p>A topic gets sub-topics when it has at least ${m.sub_min_size} terms and two other seed batches reproduce its
