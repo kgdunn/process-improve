@@ -5166,11 +5166,15 @@ def test_equal_weight_r2_total_needs_one_row_per_component() -> None:
 
 
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
-    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
+    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError and as ValueError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad
     # ``except RuntimeError`` handlers keep working while callers can catch the
     # narrower type (e.g. to trim the component count during cross-validation).
+    # It is a ValueError too: it replaced the ValueError TPLS raised for data with no
+    # variance, and the LinAlgError (a ValueError) PLS and OPLS raised for a Y with no
+    # covariance with X, so a caller's ``except ValueError`` still catches it.
     assert issubclass(NotEnoughVarianceError, RuntimeError)
+    assert issubclass(NotEnoughVarianceError, ValueError)
 
     # PLS: rank-1 X (two identical columns) cannot support a 2nd component.
     X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0, 5.0], "b": [1.0, 2.0, 3.0, 4.0, 5.0]})
@@ -6340,8 +6344,8 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
     # One row per Z group, then F; a single Z group keeps the plain label "Z" (#981).
     super_rows = ["Z"] if len(z_names) == 1 else [f'Z["{name}"]' for name in z_names]
     near(model.w_loadings_super, expected["w_super"], [*super_rows, "F"])
-    # The loadings' labels are lists of names, so they keep no index name.
-    qualities = blocks["Y"][y_name].columns.to_list()
+    # Each loading keeps the name of the axis its labels came from (#1083).
+    qualities = blocks["Y"][y_name].columns
     near(model.q_loadings_y[y_name], expected["q"], qualities)
     near(model.hat_[y_name], expected["hat_"], blends, columns=qualities)
     near(model.hat[y_name], expected["hat"], blends, columns=qualities)
@@ -6352,7 +6356,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         for key in names:
             near(model.spe[block][key], expected["spe"][block][key][:, np.newaxis], blends, columns=spe_column)
     for group in groups:
-        materials, properties = d_matrix[group].index.to_list(), d_matrix[group].columns.to_list()
+        materials, properties = d_matrix[group].index, d_matrix[group].columns
         near(model.r_loadings_f[group], expected["r"][group], materials)
         near(model.p_loadings_f[group], expected["p_f"][group], materials)
         near(model.s_loadings_d[group], expected["s"][group], properties)
@@ -6361,7 +6365,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         near(model.feature_importance["D"][group], expected["vip", "D"][group], properties)
         near(model.feature_importance["F"][group], expected["vip", "F"][group], materials)
     for name in z_names:
-        conditions = blocks["Z"][name].columns.to_list()
+        conditions = blocks["Z"][name].columns
         near(model.w_loadings_z[name], expected["w_z"][name], conditions)
         near(model.p_loadings_z[name], expected["p_z"][name], conditions)
     assert model.feature_importance["Z"] == model.feature_importance["Y"] == {}
@@ -6456,7 +6460,7 @@ def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative
         rule,
     ]
     for a, passes in enumerate(iterations):
-        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "        -"
+        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "         -"  # as wide as a number (#1083)
         line = f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}|"
         line += f"{ms:>5.0f} [{passes:>4d}]".rjust(13)
         lines.append(line + ("** (max iter reached)" if passes == settings[0] else ""))
@@ -11127,7 +11131,7 @@ def test_pls_invert_refuses_a_target_or_a_move_it_cannot_use_in_full() -> None:
         ValueError, match=r"^y_desired has 3 value\(s\); expected 2 to match the fitted target\(s\): \['y0', 'y1'\]\.$"
     ):
         pls.invert([1.0, 2.0, 3.0])
-    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y0', 'y1'\]\.$"):
+    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y1'\]\.$"):
         pls.invert({"y0": 1.0})
     message = r"^null_space_coordinates has 2 value\(s\); expected 1 to match the null-space dimension \(A - r\)\.$"
     with pytest.raises(ValueError, match=message):

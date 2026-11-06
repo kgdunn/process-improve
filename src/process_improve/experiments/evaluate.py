@@ -37,6 +37,8 @@ from scipy import stats
 from process_improve._random import check_random_state
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._lm import (
+    block_levels,
+    named_levels,
     real_names,
     stand_ins_for,
     validate_contrast_levels,
@@ -2142,13 +2144,38 @@ def _random_effect_groups(
     return design_df.drop(columns=list(groups)), kept, groups, note
 
 
+def _blocks_as_factor(blocks: pd.Series, model: str) -> pd.Categorical:
+    """Return the blocks as a categorical factor, numbered blocks in numeric order: block 10 follows block 9 (#1129).
+
+    A contrast names a numbered block by its number, ``C(Block, Treatment(1))``. Until 2.5.0 the
+    blocks were text, and the number was read as a position; naming the block as text,
+    ``C(Block, Treatment('1'))``, still reads it, with a ``DeprecationWarning``, until 3.0.
+    """
+    factor = pd.Categorical(blocks.to_numpy(), categories=block_levels(blocks))
+    numbers = {str(level): level for level in factor.categories if not isinstance(level, str)}
+    as_text = [(contrast, level) for contrast, level in named_levels(model, "Block") if level in numbers]
+    if not as_text:
+        return factor
+    from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
+
+    contrast, level = as_text[0]
+    new = ", ".join(f"C(Block, {contrast}({numbers[str(level)]}))" for contrast, level in as_text)
+    warnings.warn(
+        f"process_improve.experiments.evaluate_design(model=...C(Block,{contrast}({level!r}))...) is deprecated "
+        f"since 2.5.0 and will be removed in 3.0; use {new} instead: the blocks are read as numbers.",
+        category=DeprecationWarning,
+        stacklevel=user_stacklevel(),
+    )
+    return factor.rename_categories(str)
+
+
 def _separate_run_columns(
     design_df: pd.DataFrame, factor_names: list[str], model: str | None
 ) -> tuple[pd.DataFrame, list[str], str | None]:
     """Drop ``RunOrder`` and ``WholePlot``, and keep ``Block`` only when the model formula uses it.
 
     A formula that names ``Block`` (``"A + B + Block"``) gets it as a categorical
-    factor (its values become labels). Otherwise the block column is dropped, and when the design has more than
+    factor (see :func:`_blocks_as_factor`). Otherwise the block column is dropped, and when the design has more than
     one block a note says that the metrics ignore the blocks, which overstates the
     residual degrees of freedom by ``n_blocks - 1``.
     """
@@ -2157,7 +2184,7 @@ def _separate_run_columns(
     if "Block" not in design_df.columns:
         return design_df, factor_names, None
     if model is not None and re.search(r"\bBlock\b", model):
-        return design_df.assign(Block=design_df["Block"].astype(str)), [*factor_names, "Block"], None
+        return design_df.assign(Block=_blocks_as_factor(design_df["Block"], model)), [*factor_names, "Block"], None
     n_blocks = int(design_df["Block"].nunique())
     design_df = design_df.drop(columns=["Block"])
     if n_blocks < 2:
@@ -2266,8 +2293,10 @@ def evaluate_design(  # noqa: PLR0913
         else ``"interactions"``. Otherwise ``None`` means
         ``"interactions"``.  A formula may name a ``Block`` column (``"A + B +
         Block"``) to include the blocks as a categorical factor; otherwise the
-        blocks are left out and a note says so. The blocks are then labels, so a
-        contrast names one as text: ``C(Block, Treatment('1'))`` for block 1.
+        blocks are left out and a note says so. Numbered blocks are then in numeric
+        order, block 10 after block 9, and a contrast names one by its number:
+        ``C(Block, Treatment(1))`` for block 1. Naming it as text,
+        ``C(Block, Treatment('1'))``, is deprecated since 2.5.0 and will be removed in 3.0.
     metric : str or list[str]
         One or more metric names to compute, or the special value ``"all"`` to
         compute every metric.  Valid names: ``"d_efficiency"``,

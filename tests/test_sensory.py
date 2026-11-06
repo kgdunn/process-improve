@@ -466,6 +466,13 @@ def test_dropping_panelist_changes_means():
     assert not np.allclose(merged["mean_keep"], merged["mean_drop"])
 
 
+def test_analyze_descriptive_refuses_a_confidence_level_outside_0_1_before_the_analysis():
+    """The level is checked first, not after the panel check and the relate step have run (#1132)."""
+    validated = validate_descriptive(_panel(), _obs(), mode="observational")
+    with pytest.raises(ValueError, match=r"^conf_level must lie in \(0, 1\); got 95\.$"):
+        analyze_descriptive(validated, conf_level=95, find_predictive=False)
+
+
 # ---------------------------------------------------------------------------
 # Relate: designed (stub)
 # ---------------------------------------------------------------------------

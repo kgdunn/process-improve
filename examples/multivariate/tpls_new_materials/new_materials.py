@@ -31,6 +31,10 @@ class TPLSWithoutDDeflation(TPLS):
     gone: the fit stops improving. Deflating F by the super score already removes from the
     mixture properties ``F D`` exactly what the component explained, so the D deflation is not
     needed for prediction. Without it, a one-group model is a PLS on ``[Z, F D]``.
+
+    TPLS has no public option to skip the D deflation, so this overrides a private method. If a
+    change to TPLS stops the override from taking effect, the D block is deflated again without a
+    word; ``python study.py --quick`` then fails, as its invariance checks no longer reproduce.
     """
 
     deflate_d = False

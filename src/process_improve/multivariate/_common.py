@@ -35,6 +35,7 @@ __all__ = [
     "components_with_spread",
     "epsqrt",
     "informative_widths",
+    "text_table",
     "unobserved_columns",
     "y_is_exhausted",
     "y_reach",
@@ -122,6 +123,19 @@ def _nz(denominator: float) -> float:
     return max(_DENOM_FLOOR, denominator)
 
 
+def _own_axes(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return ``frame`` with copies of its row and column labels, and its values unchanged and not copied.
+
+    pandas passes an index on by reference: a frame built on the caller's ``X.index`` holds
+    that very object, so a name given to the caller's axis after the fit renamed the
+    model's frames too. A model takes its labels from here, or from ``Index.copy``, instead.
+    """
+    owned = frame.copy(deep=False)
+    owned.index = frame.index.copy()
+    owned.columns = frame.columns.copy()
+    return owned
+
+
 #: The ``missing_data_settings`` keys removed in 2.0, and the constructor parameter that
 #: replaced each one. ``md_method`` is not here: it names the imputation algorithm, which
 #: is the one axis ``missing_data_settings`` still owns.
@@ -155,6 +169,28 @@ def check_at_least_one(name: str, value: float | None) -> None:
     """
     if value is not None and not value >= 1:
         raise ValueError(f"{name} must be >= 1; got {value}.")
+
+
+def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
+    """Refuse a block with no columns, naming it (#1077).
+
+    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
+    array or dtype is required", which names neither the block nor the cause.
+
+    Parameters
+    ----------
+    block : pd.DataFrame
+        The block to check.
+    label : str
+        Where the block sits, as ``'y'``, ``'X["name"]'`` or ``'Z["group"]'``.
+
+    Raises
+    ------
+    ValueError
+        If ``block`` has no columns.
+    """
+    if block.shape[1] == 0:
+        raise ValueError(f"Block {label} has no columns; a block needs at least one.")
 
 
 def resolve_loop_settings(
@@ -365,7 +401,7 @@ class UncentredDataWarning(SpecificationWarning):
     """
 
 
-class NotEnoughVarianceError(RuntimeError):
+class NotEnoughVarianceError(RuntimeError, ValueError):
     """Raised when more components are requested than the data's variance supports.
 
     During NIPALS extraction (PCA / PLS) the deflated data array can run out of
@@ -375,7 +411,11 @@ class NotEnoughVarianceError(RuntimeError):
 
     Subclasses :class:`RuntimeError` so existing ``except RuntimeError`` handlers
     keep working, while callers that want to react specifically (e.g. trimming the
-    component count during cross-validation) can catch this narrower type.
+    component count during cross-validation) can catch this narrower type. It is a
+    :class:`ValueError` as well, because it replaced the ``ValueError`` TPLS raised for
+    data with no variance and the ``LinAlgError`` (a ``ValueError``) PLS and OPLS
+    raised for a Y with no covariance with X: an ``except ValueError`` written for
+    those still catches it.
     """
 
 
@@ -922,6 +962,29 @@ def informative_widths(blocks: dict[str, np.ndarray]) -> dict[str, int]:
             spread = np.nanstd(values, axis=0)
         out[name] = max(1, int(np.count_nonzero(spread > epsqrt)))
     return out
+
+
+def text_table(header: list[str], rows: list[list[str]]) -> list[str]:
+    """Lay out a table as lines of text: each column right-aligned to its widest cell, header included (#1083).
+
+    Parameters
+    ----------
+    header : list[str]
+        The column headers.
+    rows : list[list[str]]
+        The formatted cells of each row, one per column.
+
+    Returns
+    -------
+    list[str]
+        The header, a rule of dashes as long as it, then one line per row, each indented by two
+        spaces, with the cells separated by ``" | "``.
+    """
+    widths = [max(len(cell) for cell in column) for column in zip(header, *rows, strict=True)]
+    lines = [
+        " | ".join(cell.rjust(width) for cell, width in zip(line, widths, strict=True)) for line in (header, *rows)
+    ]
+    return [f"  {line}" for line in [lines[0], "-" * len(lines[0]), *lines[1:]]]
 
 
 def _rows_with_data(values: np.ndarray) -> np.ndarray:

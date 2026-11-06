@@ -22,6 +22,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from .._linalg import safe_inverse
+from ..univariate.metrics import _check_probability
 from ._common import DataMatrix, _align_to_fit_features, components_with_spread, epsqrt
 from ._nipals import quick_regress, ssq
 from ._preprocessing import center
@@ -414,6 +415,7 @@ def selectivity_ratio(
     target_projection : The target-projected component the ratio is built on.
     vip : Variable Importance in Projection, an alternative importance measure.
     """
+    _check_probability("conf_level", conf_level)
     beta = getattr(model, "beta_coefficients_", None)
     if response is None and beta is not None and beta.shape[1] > 1:
         return pd.DataFrame({col: _selectivity_ratio_one(model, X, col, conf_level) for col in beta.columns})

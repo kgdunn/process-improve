@@ -25,6 +25,7 @@ from process_improve.experiments._lm import (
     validate_identifiers_are_safe,
     with_stand_ins,
 )
+from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.layouts import tukey_nonadditivity
@@ -434,8 +435,6 @@ class TestContrastLevels:
         )
         with pytest.raises(ValueError, match=re.escape(message)):
             validate_contrast_levels("y ~ C(Block, Treatment(1))", _BLOCKED.astype({"Block": str}))
-        with pytest.raises(ValueError, match=re.escape(message)):
-            evaluate_design(_BLOCKED[["A", "Block"]], "A + C(Block, Treatment(1))")
 
     @pytest.mark.parametrize(
         ("formula", "message"),
@@ -472,9 +471,8 @@ class TestContrastLevels:
                 lambda: tukey_nonadditivity(_TWO_WAY, "y ~ C(block, Treatment('1')) + C(treatment)"),
                 id="tukey_nonadditivity",
             ),
-            # evaluate_design reads the blocks as labels, '1' and '2', so an integer is a position there.
             pytest.param(
-                lambda: evaluate_design(_BLOCKED[["A", "Block"]], "A + C(Block, Treatment(2))"), id="evaluate_design"
+                lambda: evaluate_design(_BLOCKED[["A", "Block"]], "A + C(Block, Treatment(3))"), id="evaluate_design"
             ),
             pytest.param(
                 lambda: augment_design(
@@ -497,6 +495,71 @@ class TestContrastLevels:
     def test_every_entry_point_names_the_levels(self, fit: Callable[[], object]) -> None:
         with pytest.raises(ValueError, match=r"which column '[Bb]lock' does not have: its levels are"):
             fit()
+
+
+_TWELVE_BLOCKS = pd.DataFrame(
+    np.tile([[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]], (12, 1)), columns=["A", "B"]
+)
+_TWELVE_BLOCKS["Block"] = np.repeat(np.arange(1, 13), 4)
+
+
+class TestBlocksInNumericOrder:
+    """Numbered blocks are coded in numeric order, block 10 after block 9, not after block 1 (#1129)."""
+
+    def test_evaluate_design_codes_the_blocks_in_numeric_order(self) -> None:
+        vif = evaluate_design(_TWELVE_BLOCKS, "A + B + Block", metric="vif")["vif"]
+        assert [name for name in vif if name.startswith("Block")] == [f"Block[S.{k}]" for k in range(1, 12)]
+
+    def test_evaluate_design_reads_a_block_number_in_a_contrast_as_that_block(self) -> None:
+        vif = evaluate_design(_TWELVE_BLOCKS, "A + B + C(Block, Treatment(1))", metric="vif")["vif"]
+        assert [name for name in vif if name.startswith("C(")] == [
+            f"C(Block, Treatment(1))[T.{k}]" for k in range(2, 13)
+        ]
+
+    def test_a_block_named_as_text_still_reads_with_a_deprecation_warning(self) -> None:
+        metrics = ["d_efficiency", "a_optimality", "vif"]
+        with pytest.warns(DeprecationWarning, match="deprecated since 2.5.0") as caught:
+            old = evaluate_design(_TWELVE_BLOCKS, "A + B + C(Block, Treatment('1'))", metric=metrics)
+        (warning,) = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert str(warning.message) == (
+            "process_improve.experiments.evaluate_design(model=...C(Block,Treatment('1'))...) is deprecated since "
+            "2.5.0 and will be removed in 3.0; use C(Block, Treatment(1)) instead: the blocks are read as numbers."
+        )
+        assert warning.filename == __file__
+        new = evaluate_design(_TWELVE_BLOCKS, "A + B + C(Block, Treatment(1))", metric=metrics)
+        assert old["d_efficiency"] == new["d_efficiency"]
+        assert old["a_optimality"] == new["a_optimality"]
+        assert old["vif"] == {name.replace("(1)", "('1')"): value for name, value in new["vif"].items()}
+
+    def test_a_block_named_as_text_on_up_to_nine_blocks_gives_the_numbers_it_gave(self) -> None:
+        """Text and numeric order agree up to block 9, so the old spelling's results do not change there."""
+        four = _TWELVE_BLOCKS[_TWELVE_BLOCKS.Block <= 4]
+        with pytest.warns(DeprecationWarning, match="deprecated since 2.5.0"):
+            old = evaluate_design(
+                four, "A + B + C(Block, Treatment('1'))", metric=["vif", "a_optimality", "d_efficiency"]
+            )
+        block = "C(Block, Treatment('1'))"
+        assert old["vif"] == pytest.approx(
+            {f"{block}[T.2]": 1.5, f"{block}[T.3]": 1.5, f"{block}[T.4]": 1.5, "A": 1, "B": 1}
+        )
+        assert old["a_optimality"] == pytest.approx(1.875, rel=1e-12)  # as 2.4.0 gave them
+        assert old["d_efficiency"] == pytest.approx(39.685026299204985, rel=1e-12)
+
+    def test_analyze_experiment_codes_the_blocks_in_numeric_order(self) -> None:
+        # Block k adds k to the response; the A:B pattern is noise that none of the terms can take up.
+        runs = _TWELVE_BLOCKS.assign(
+            y=_TWELVE_BLOCKS.A + _TWELVE_BLOCKS.Block + np.tile([0.01, -0.01, -0.01, 0.01], 12)
+        )
+        result = analyze_experiment(
+            runs,
+            response_column="y",
+            model="main_effects",
+            analysis_type=["coefficients", "prediction"],
+            new_points=pd.DataFrame({"A": [1.0], "B": [0.0], "Block": [10]}),
+        )
+        blocks = {row["term"]: row["coefficient"] for row in result["coefficients"] if row["term"].startswith("Block")}
+        assert blocks == pytest.approx({f"Block{k}": k - 6.5 for k in range(1, 12)})  # Block10 was block 6
+        assert result["predictions"][0]["predicted"] == pytest.approx(11.0)
 
 
 class TestValidateFormulaRejectionMessages:

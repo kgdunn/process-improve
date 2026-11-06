@@ -508,7 +508,7 @@ class TestPRMRejectsWhatItCannotHandle:
         [
             ({"cutoff": 0.0}, "cutoff must be a positive finite number"),
             ({"cutoff": np.inf}, "cutoff must be a positive finite number"),
-            ({"max_weight_iter": 0}, "max_weight_iter must be at least 1"),
+            ({"max_weight_iter": 0}, "max_weight_iter must be >= 1"),
             ({"coefficient_tol": -1.0}, "coefficient_tol must be a positive finite number"),
         ],
     )

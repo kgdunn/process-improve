@@ -266,7 +266,7 @@ class TestConsensusTest:
         np.testing.assert_array_equal(first.null_shares, again.null_shares)
 
     def test_n_permutations_must_be_positive(self, panel: pd.DataFrame) -> None:
-        with pytest.raises(ValueError, match="at least 1"):
+        with pytest.raises(ValueError, match=r"^n_permutations must be >= 1; got 0\.$"):
             GPA().fit(GPA.configurations_from_long(panel)).consensus_test(0)
 
 

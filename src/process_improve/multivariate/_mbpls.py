@@ -35,6 +35,7 @@ from ._common import (
     SpecificationWarning,
     _equal_weight_r2_total,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
@@ -43,7 +44,9 @@ from ._common import (
     epsqrt,
     informative_widths,
     largest_ssq_column,
+    refuse_empty_block,
     resolve_loop_settings,
+    text_table,
     unobserved_columns,
     user_stacklevel,
     y_is_exhausted,
@@ -51,6 +54,7 @@ from ._common import (
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
+from ._mbpca import _validate_blocks
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
 
@@ -119,21 +123,11 @@ def _pooled_divisor(
 
 def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.DataFrame:
     """Check the shapes and types ``fit`` was handed, and return ``y`` as a DataFrame."""
-    if not isinstance(X, dict) or len(X) == 0:
-        raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
+    _validate_blocks(X)
     if not isinstance(y, pd.DataFrame):
         y = pd.DataFrame(y)
-    for name, block in X.items():
-        if not isinstance(block, pd.DataFrame):
-            raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
-
+    refuse_empty_block(y, "y")
     n_samples = X[next(iter(X))].shape[0]
-    for name in X:
-        if X[name].shape[0] != n_samples:
-            raise ValueError(
-                f"All X-blocks must have the same row count. Block '{name}' has "
-                f"{X[name].shape[0]} rows; expected {n_samples}."
-            )
     if y.shape[0] != n_samples:
         raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
     return y
@@ -689,7 +683,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             :meth:`PLS.fit` raises.
         """
         check_at_least_one("n_components", self.n_components)
-        y = _validate_fit_arguments(X, y)
+        y = _own_axes(_validate_fit_arguments(X, y))
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X, y)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
@@ -1226,17 +1221,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
         rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
-        rows.append(header)
-        rows.append("-" * len(header))
-        for a in range(self.n_components_):
-            cells = [f"{i:>3d}" for i in [a + 1]]
-            for name in self.block_names_:
-                src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-                cells.append(f"{src.loc[name].iloc[a]:>9.4f}")
-            r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
-            cells.append(f"{r2y_src.iloc[a]:>9.4f}")
-            rows.append(" | ".join(cells))
+        src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
+        r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
+        header = ["PC", *(f"R²X[{name}]" for name in self.block_names_), "R²Y"]
+        body = [
+            [str(a + 1), *(f"{src.loc[name].iloc[a]:.4f}" for name in self.block_names_), f"{r2y_src.iloc[a]:.4f}"]
+            for a in range(self.n_components_)
+        ]
+        rows.extend(text_table(header, body))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
@@ -1434,8 +1426,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)
 
-        if max_components is not None and int(max_components) < 1:
-            raise ValueError(f"max_components must be at least 1; got {max_components}.")
+        check_at_least_one("max_components", max_components)
 
         splits = list(splitter.split(y))
         smallest_train = min(len(train) for train, _ in splits)

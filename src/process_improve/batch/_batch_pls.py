@@ -164,8 +164,8 @@ class BatchPLS(RegressorMixin, BaseEstimator):
 
     _parameter_constraints: typing.ClassVar = {
         "n_components": [numbers.Integral, None],
-        "scale": [bool],
-        "group_by_batch": [bool],
+        "scale": ["boolean"],
+        "group_by_batch": ["boolean"],
     }
 
     def __init__(self, n_components: int, *, scale: bool = True, group_by_batch: bool = False) -> None:
@@ -232,6 +232,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         -------
         self : BatchPLS
         """
+        self._validate_params()
         wide = self._unfold(X, initial_conditions)
         if not isinstance(Y, pd.DataFrame):
             raise TypeError(f"Y must be a pandas DataFrame indexed by batch id; got {type(Y).__name__}.")

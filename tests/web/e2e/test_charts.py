@@ -11,7 +11,7 @@ import re
 import pytest
 
 from tests.web._support import factors_named
-from tests.web.e2e._page import first_paint_done, generate, reveal, set_factors, type_results
+from tests.web.e2e._page import enter_results, first_paint_done, generate, reveal, set_factors, status, type_results
 
 TITLES = ["Coefficients", "Fitted response surface", "True response surface", "Residuals against fitted values"]
 
@@ -23,6 +23,24 @@ def plots(page, box: str = "#charts") -> list[list[dict]]:
              type: t.type, name: t.name, zmin: t.zmin, zmax: t.zmax, size: t.contours?.size })))""",
         box,
     )
+
+
+def test_the_charts_say_the_analysis_is_complete_after_python_s_note_on_them(blank_page):
+    """Python says it is installing plotly while the first charts are on their way.
+
+    The charts' end replaces that note.
+    """
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=0)
+    plotted = page.evaluate("window.__pi.count('api_plots')")
+    page.evaluate("window.__pi.hold('api_plots')")
+    enter_results(page, {i: 50 + i for i in range(8)})
+    page.wait_for_function(f"window.__pi.count('api_plots') > {plotted}")
+    page.evaluate("window.__pi.note('Installing plotly for the charts...')")
+    assert status(page) == ("Installing plotly for the charts...", "busy")
+    page.evaluate("window.__pi.release('api_plots')")
+    page.wait_for_function("window.__pi.idle() && document.querySelectorAll('#charts .js-plotly-plot').length > 1")
+    assert status(page) == ("Analysis complete.", "ok")
 
 
 def test_each_chart_has_its_title_and_caption(page):

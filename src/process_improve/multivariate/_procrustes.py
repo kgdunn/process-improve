@@ -11,6 +11,8 @@ residuals), object by object and configuration by configuration.
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 from collections.abc import Mapping
 
@@ -24,7 +26,7 @@ from sklearn.utils.validation import check_is_fitted
 from process_improve._random import check_random_state
 from process_improve.visualization.themes import DEFAULT_THEME
 
-from ._common import SpecificationWarning, user_stacklevel
+from ._common import SpecificationWarning, check_at_least_one, user_stacklevel
 
 try:
     import plotly.graph_objects as go
@@ -206,6 +208,8 @@ class GPA(BaseEstimator):
     >>> gpa.consensus_test(random_state=0).p_value               # doctest: +SKIP
     """
 
+    _parameter_constraints: typing.ClassVar = {"tol": [numbers.Real], "max_iter": [numbers.Integral]}
+
     def __init__(self, scale: bool = True, tol: float = 1e-10, max_iter: int = 100):
         self.scale = scale
         self.tol = tol
@@ -284,6 +288,7 @@ class GPA(BaseEstimator):
         SpecificationWarning
             If ``max_iter`` rounds end before the residual settles.
         """
+        self._validate_params()
         frames = _check_configurations(X)
         if len(next(iter(frames.values()))) < 3:
             raise ValueError(
@@ -419,8 +424,7 @@ class GPA(BaseEstimator):
             If ``n_permutations`` is below 1.
         """
         check_is_fitted(self)
-        if int(n_permutations) < 1:
-            raise ValueError(f"n_permutations must be at least 1; got {n_permutations}.")
+        check_at_least_one("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         null = np.empty(int(n_permutations))
         for index in range(len(null)):

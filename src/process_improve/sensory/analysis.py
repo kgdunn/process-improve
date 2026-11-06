@@ -43,7 +43,7 @@ from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, selectivi
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import ValidationResult
-from process_improve.univariate.metrics import benjamini_hochberg, confidence_interval
+from process_improve.univariate.metrics import _check_probability, benjamini_hochberg, confidence_interval
 
 
 @dataclass
@@ -777,6 +777,7 @@ def permutation_column_null(  # noqa: PLR0913
 
 def product_means(panel: pd.DataFrame, conf_level: float = 0.95) -> pd.DataFrame:
     """Return per product-by-attribute mean with a confidence interval."""
+    _check_probability("conf_level", conf_level)
     rows: list[dict[str, Any]] = []
     for (prod, attr), grp in panel.groupby(["product", "attribute"], observed=True):
         scores = grp[["score"]].dropna()
@@ -874,6 +875,7 @@ def analyze_descriptive(  # noqa: PLR0913
             "validate_descriptive reported errors: "
             f"{validated.errors}"
         )
+    _check_probability("conf_level", conf_level)
 
     panel = validated.normalized_df
     card = panel_scorecard(panel)

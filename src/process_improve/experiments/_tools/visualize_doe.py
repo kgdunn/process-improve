@@ -75,6 +75,8 @@ class VisualizeDoeInput(BaseModel):
     )
     confidence_level: float = Field(
         0.95,
+        gt=0,
+        lt=1,
         description="Confidence level for thresholds (default 0.95).",
     )
     backend: Literal["both", "plotly", "echarts"] = Field(

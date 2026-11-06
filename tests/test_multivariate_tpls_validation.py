@@ -16,7 +16,15 @@ import pandas as pd
 import pytest
 from sklearn.exceptions import NotFittedError
 
-from process_improve.multivariate.methods import TPLS, DataFrameDict, MCUVScaler, epsqrt, make_tpls_scorer
+from process_improve.multivariate.methods import (
+    MBPLS,
+    TPLS,
+    DataFrameDict,
+    MCUVScaler,
+    NotEnoughVarianceError,
+    epsqrt,
+    make_tpls_scorer,
+)
 
 
 def _synthetic(seed: int = 0) -> tuple[dict[str, pd.DataFrame], dict[str, dict[str, pd.DataFrame]]]:
@@ -332,26 +340,63 @@ def test_a_blend_with_nothing_observed_in_z_fits_and_diagnoses_alike() -> None:
     np.testing.assert_allclose(model.diagnose(DataFrameDict(blocks)).t_scores_super, model.t_scores_super, atol=1e-10)
 
 
-def test_a_block_with_no_variation_still_stops_the_fit_at_once() -> None:
-    """#709: a NaN in the iteration never leaves it, so the fit stops instead of running on.
+def test_a_constant_y_is_refused_as_mbpls_refuses_it() -> None:
+    """A Y block with no variation leaves nothing to explain: refused before the iteration, in the family's words.
 
-    An empty row no longer causes one (#513), but a Y block with no variation leaves the
-    iteration nothing to follow, and that is still refused, with a message that says where to look.
+    It was refused with a ``ValueError`` from inside the iteration, where MBPLS and PLS raise
+    ``NotEnoughVarianceError`` (#1144).
     """
     d_matrix, blocks = _synthetic()
     blocks["Y"]["Y1"]["y"] = 3.0
-    with (
-        pytest.warns(UserWarning, match="no variance"),
-        pytest.raises(
-            ValueError,
-            match=(
-                r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation for "
-                r"the iteration to follow\. Check that at least one column of the first Y block, and at least one "
-                r"column of each D and F group, varies and is observed\.$"
-            ),
-        ),
-    ):
+    message = (
+        r'^There is no variance in Y\["Y1"\]: every response is constant or has no observed value, so there is '
+        r"nothing for F, D and Z to explain\.$"
+    )
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match=message):
         TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    # Code written for the ValueError TPLS raised before still catches the refusal.
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(ValueError, match=message):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    flat = {"x": pd.concat([blocks["Z"]["Z1"], blocks["F"]["G"]], axis=1)}
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y: every response is constant"):
+        MBPLS(n_components=1).fit(flat, blocks["Y"]["Y1"])
+
+
+def test_f_d_and_z_with_no_variation_are_refused_as_mbpls_refuses_them() -> None:
+    """Nothing varies in F, D or Z, so there is nothing to explain Y by: refused before the iteration (#1144)."""
+    d_matrix, blocks = _synthetic()
+    blocks["F"]["G"] = blocks["F"]["G"] * 0.0 + 0.25
+    blocks["Z"]["Z1"] = blocks["Z"]["Z1"] * 0.0 + 1.0
+    message = (
+        r"^There is no variance in F, D and Z: no group has a column of F and a column of D that vary, and no "
+        r"column of Z varies, so there is nothing to explain Y by\.$"
+    )
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match=message):
+        TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    # D with no variation leaves F nothing to carry either
+    d_constant = {"G": d_matrix["G"] * 0.0 + 1.0}
+    d_matrix, blocks = _synthetic()
+    blocks["Z"]["Z1"] = blocks["Z"]["Z1"] * 0.0 + 1.0
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match=message):
+        TPLS(n_components=1, d_matrix=d_constant).fit(DataFrameDict(blocks))
+
+
+def test_a_direction_the_iteration_cannot_take_is_refused_as_not_enough_variance() -> None:
+    """A group whose F has no variation, beside one that has, still stops the iteration (#709), as variance (#1144).
+
+    Its D cannot be regressed on a zero F weight, so the scores are not finite. That was a
+    ``ValueError``; it is now the family's ``NotEnoughVarianceError``, with the same message.
+    """
+    d_matrix, blocks = _synthetic()
+    d_matrix["H"] = d_matrix["G"].rename(index=lambda name: f"{name}h")
+    blocks["F"]["H"] = blocks["F"]["G"].rename(columns=lambda name: f"{name}h") * 0.0 + 0.25
+    message = (
+        r"^TPLS cannot fit component 1: its scores are not finite, because a block has no variation for "
+        r"the iteration to follow\. Check that at least one column of the first Y block, and at least one "
+        r"column of each D and F group, varies and is observed\.$"
+    )
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match=message):
+        TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
 def test_a_constant_f_column_fits_as_an_unobserved_one() -> None:
@@ -507,7 +552,7 @@ def test_a_fit_that_fails_leaves_the_model_unfitted() -> None:
     d_matrix, blocks = _synthetic()
     model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
     blocks["Y"]["Y1"]["y"] = 3.0
-    with pytest.warns(UserWarning, match="no variance"), pytest.raises(ValueError, match="cannot fit component 1"):
+    with pytest.warns(UserWarning, match="no variance"), pytest.raises(NotEnoughVarianceError, match="no variance"):
         model.fit(DataFrameDict(blocks))
     for call in (model.diagnose, model.score, lambda _: model.vip(), lambda _: model.d_block_scaling_):
         with pytest.raises(NotFittedError):
@@ -650,10 +695,10 @@ def test_a_separate_y_is_refused_in_full(action: Callable, where: str) -> None:
 
 
 def test_one_blend_is_refused() -> None:
-    """Its Y column centres to 0, so the first regression on it is 0 / 0: no component can be fitted."""
+    """Its Y column centres to 0, so there is nothing to explain: no component can be fitted."""
     d_matrix, blocks = _synthetic()
     one = {name: {key: frame.iloc[:1] for key, frame in block.items()} for name, block in blocks.items()}
-    with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: its scores are not finite"):
+    with pytest.raises(NotEnoughVarianceError, match=r'^There is no variance in Y\["Y1"\]'):
         TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(one))
 
 
@@ -710,3 +755,50 @@ def test_the_order_of_the_z_groups_does_not_change_the_fit() -> None:
     np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-10)
     np.testing.assert_allclose(other.hat["Y1"], model.hat["Y1"], atol=1e-10)
     np.testing.assert_allclose(other.w_loadings_super.loc[model.w_loadings_super.index], model.w_loadings_super)
+
+
+def test_the_fitted_frames_keep_the_names_of_the_axes_they_label() -> None:
+    """#1083: each frame keeps the name of the axis its labels came from, such as a D index named "material".
+
+    The labels were kept as lists, which carry no name, so every loading, VIP, SPE and prediction frame
+    built from them came back with an unnamed axis. The ``*_names`` attributes stay lists.
+    """
+    d_matrix, blocks = _synthetic()
+    d_matrix["G"] = d_matrix["G"].rename_axis(index="material", columns="property")
+    blocks["Z"]["Z1"] = blocks["Z"]["Z1"].rename_axis(columns="condition")
+    blocks["Y"]["Y1"] = blocks["Y"]["Y1"].rename_axis(columns="quality")
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
+    result = model.diagnose(DataFrameDict(blocks))
+    deflated = model.vip(method="deflated")
+
+    labels = {
+        "material": [
+            model.r_loadings_f["G"].index,
+            model.p_loadings_f["G"].index,
+            model.spe["D"]["G"].index,
+            model.feature_importance["F"]["G"].index,
+            deflated["F"]["G"].index,
+            result.residuals["F"]["G"].columns,
+        ],
+        "property": [
+            model.s_loadings_d["G"].index,
+            model.v_loadings_d["G"].index,
+            model.feature_importance["D"]["G"].index,
+            deflated["D"]["G"].index,
+        ],
+        "condition": [
+            model.w_loadings_z["Z1"].index,
+            model.p_loadings_z["Z1"].index,
+            result.residuals["Z"]["Z1"].columns,
+        ],
+        "quality": [
+            model.q_loadings_y["Y1"].index,
+            model.hat_["Y1"].columns,
+            model.hat["Y1"].columns,
+            result.hat["Y1"].columns,
+        ],
+    }
+    for name, axes in labels.items():
+        assert [axis.name for axis in axes] == [name] * len(axes), name
+    assert model.material_names["G"] == ["mat0", "mat1", "mat2", "mat3"]
+    assert model.property_names["G"] == ["p", "q", "r"]

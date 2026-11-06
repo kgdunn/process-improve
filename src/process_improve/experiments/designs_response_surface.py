@@ -779,6 +779,13 @@ def dispatch_dsd(
     * Jones, B. and Nachtsheim, C. J. (2017).  "Effective design-based model
       selection for definitive screening designs."  *Technometrics*, 59(3):319-329.
     """
+    return _conference_foldover(factors, budget, categorical_method, "definitive screening design")
+
+
+def _conference_foldover(
+    factors: list[Factor], budget: int | None, categorical_method: str, design_name: str
+) -> tuple[np.ndarray, dict]:
+    """Return :func:`dispatch_dsd`'s design, called ``design_name`` in its note, as the minimal OMARS design is."""
     k = len(factors)
     categorical = [j for j, f in enumerate(factors) if f.type.value == "categorical"]
     for j in categorical:
@@ -798,12 +805,13 @@ def dispatch_dsd(
     usual = k + k % 2
     if budget is None and m > usual:
         meta["note"] = (
-            f"No conference matrix of order {usual} can be built here, so the definitive screening design for {k} "
+            f"No conference matrix of order {usual} can be built here, so the {design_name} for {k} "
             f"factors uses the next order that can, {m}: {2 * m + extra} runs rather than {2 * usual + extra}, with "
             f"{m - k} fake factors (columns left out of the design)."
         )
-        # stacklevel 4: past _dispatch_dsd and generate_design, to the line that asked for the design.
-        warnings.warn(meta["note"], category=UserWarning, stacklevel=4)
+        from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
+
+        warnings.warn(meta["note"], category=UserWarning, stacklevel=user_stacklevel())
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta
     meta["n_categorical"], meta["categorical_method"] = len(categorical), categorical_method

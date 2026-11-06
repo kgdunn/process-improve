@@ -58,6 +58,7 @@ from patsy import build_design_matrices, dmatrices
 from scipy import optimize, stats
 
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+from process_improve.univariate.metrics import _check_probability
 
 COMPARISONS = ("tukey", "dunnett", "none")
 #: How the scale of the reference distribution is worked out (see the module's text).
@@ -281,6 +282,7 @@ def least_squares_means(
         raise ValueError(f"comparisons must be one of {COMPARISONS}; got {spec.method!r}.")
     if spec.reference_rule not in REFERENCE_RULES:
         raise ValueError(f"reference_rule must be one of {REFERENCE_RULES}; got {spec.reference_rule!r}.")
+    _check_probability("conflevel", spec.conflevel)
     table, model, used, at = _prepared(design_matrix, formula, factor, at)
     if spec.control is not None:
         spec = dataclasses.replace(spec, control=_label(design_matrix[factor], spec.control))

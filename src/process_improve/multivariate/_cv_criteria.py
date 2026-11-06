@@ -81,6 +81,7 @@ from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
+from ..univariate.metrics import _check_probability
 from ._common import (
     NotEnoughVarianceError,
     SpecificationWarning,
@@ -713,11 +714,6 @@ def _check_scale(pls_kwargs: dict) -> None:
             "fitted to all rows must live in the same space for the angles and the Procrustes step to compare "
             "them. Pass X and Y on their raw scale."
         )
-
-
-def _check_probability(name: str, value: float) -> None:
-    if not 0.0 < value < 1.0:
-        raise ValueError(f"{name} must lie in (0, 1); got {value}.")
 
 
 @dataclass(frozen=True)
