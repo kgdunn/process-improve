@@ -19993,7 +19993,7 @@
      "lines": [292, 325]
     }
    },
-   "notes": "Single simulated case study; every analysis uses the same 60 runs. Models, in order: (1) design scoring of the quadratic model (I-optimal 60 recorded here; I-optimal 48 and D-optimal 60/48 are design_only entries); (2) PLS main-effects model with reference coding (A dropped), 5 components; (3) ANOVA/OLS on the peak with sum coding C(compound, Sum) (F is the omitted level because levels are A..F); (4) PLS(3) on the peak vs OLS coefficients; (5) PLS interaction model on the full curve (5 and 3 components, LOO Q2); (6) T2/SPE diagnostics; (7) the same model under four codings; (8) score-match inversion, curve-match inversion, ground-truth check, constrained inversion. The coefficient table (lines 613-689) uses short term labels (cmpE, cmpA:pH, ...) for patsy columns like 'C(compound, Sum)[S.E]' and 'C(compound, Sum)[S.A]:pH'; under sum coding with levels A..F, F is the omitted level so A..E have their own contrasts; 14 middle terms are omitted from the table. process_improve's spe_ reports the SQUARE ROOT of SPE (lines 971-973), so the SPE values and the 6.6 limit are off-plane distances in scaled model-matrix units. Rounding: the ANOVA p-values are printed with format '.0e', F with '.0f'; R2 values to two decimals. Possible inconsistencies: (a) table row D (line 1349) gives concentration 3.8 umol/L while the echoed coded value is -0.38 (line 1290); whether this rounds to 3.8 or 3.9 depends on the unrounded coded value, so it may be fine. (b) Prose at lines 1377-1378 says the coding-invariant curve match 'closes most of that gap' between the score-match validated RMSE and the best match; for E the curve-match ground-truth RMSE (0.105, line 1719) is higher than the score-match validated RMSE (0.099, line 1361), while for B, C, D, F it is lower. (c) Echo at line 1015 prints the largest T2 as '22.0' while prose says '22'. (d) The 'Validated RMSE' column of the table at lines 1302-1368 and the 'Best match/Best emulation RMSE' values (tables at 1302 and 1727) are not printed by any code block: no block runs true_curve on compensate() output, and best_emulation() (line 1787) is only plotted, not scored. The reachable-set statements per coding (line 1417) come from figure colour-coding-inversion.png; no code block on the page computes the treatment/cell-means score-match inversions.",
+   "notes": "Single simulated case study; every analysis uses the same 60 runs. Models, in order: (1) design scoring of the quadratic model (I-optimal 60 recorded here; I-optimal 48 and D-optimal 60/48 are design_only entries); (2) PLS main-effects model with reference coding (A dropped), 5 components; (3) ANOVA/OLS on the peak with sum coding C(compound, Sum) (F is the omitted level because levels are A..F); (4) PLS(3) on the peak vs OLS coefficients; (5) PLS interaction model on the full curve (5 and 3 components, LOO Q2); (6) T2/SPE diagnostics; (7) the same model under four codings; (8) score-match inversion, curve-match inversion, ground-truth check, constrained inversion. The coefficient table (lines 613-689) uses short term labels (cmpE, cmpA:pH, ...) for patsy columns like 'C(compound, Sum)[S.E]' and 'C(compound, Sum)[S.A]:pH'; under sum coding with levels A..F, F is the omitted level so A..E have their own contrasts; 14 middle terms are omitted from the table. process_improve's spe_ reports the SQUARE ROOT of SPE (lines 971-973), so the SPE values and the 6.2 limit are off-plane distances in scaled model-matrix units. Rounding: the ANOVA p-values are printed with format '.0e', F with '.0f'; R2 values to two decimals. Possible inconsistencies: (a) table row D (line 1349) gives concentration 3.8 umol/L while the echoed coded value is -0.38 (line 1290); whether this rounds to 3.8 or 3.9 depends on the unrounded coded value, so it may be fine. (b) Prose at lines 1377-1378 says the coding-invariant curve match 'closes most of that gap' between the score-match validated RMSE and the best match; for E the curve-match ground-truth RMSE (0.105, line 1719) is higher than the score-match validated RMSE (0.099, line 1361), while for B, C, D, F it is lower. (c) Echo at line 1023 prints the largest T2 as '20.2' while prose says '20'. (d) The 'Validated RMSE' column of the table at lines 1302-1368 and the 'Best match/Best emulation RMSE' values (tables at 1302 and 1727) are not printed by any code block: no block runs true_curve on compensate() output, and best_emulation() (line 1787) is only plotted, not scored. The reachable-set statements per coding (line 1417) come from figure colour-coding-inversion.png; no code block on the page computes the treatment/cell-means score-match inversions. The T2 and SPE diagnostics (the goal's projection, the limits, the runs over them and the four codings, lines 1011 to 1224) are read from the book as pid-book #409 leaves it, where the runs' T2 limit is the one for the rows the model was fitted to (judged_rows=\"fitted\"); the rest of the case is from commit 28e5b88.",
    "expected": [
     {
      "what": "design_metric",
@@ -22395,12 +22395,12 @@
      "what": "other",
      "term": "goal (compound A at centre point) SPE",
      "value": "1.6",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1005,
+      "line": 1011,
       "source_kind": "code-echo",
-      "quote": "# SPE 1.6, T2 0.09"
+      "quote": "# SPE 1.6, T2 0.06"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22410,13 +22410,13 @@
     {
      "what": "other",
      "term": "goal (compound A at centre point) Hotelling's T2",
-     "value": "0.09",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "0.06",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1005,
+      "line": 1011,
       "source_kind": "code-echo",
-      "quote": "# SPE 1.6, T2 0.09"
+      "quote": "# SPE 1.6, T2 0.06"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22425,14 +22425,14 @@
     },
     {
      "what": "other",
-     "term": "95% Hotelling's T2 limit (three components)",
-     "value": "8.7",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "term": "95% Hotelling's T2 limit (three components), for the runs the model was fitted to",
+     "value": "7.5",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1011,
+      "line": 1019,
       "source_kind": "code-echo",
-      "quote": "# limits: T2 8.7, SPE 6.6"
+      "quote": "# limits: T2 7.5, SPE 6.2"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22442,13 +22442,13 @@
     {
      "what": "other",
      "term": "95% SPE limit (three components)",
-     "value": "6.6",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "6.2",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1011,
+      "line": 1019,
       "source_kind": "code-echo",
-      "quote": "# limits: T2 8.7, SPE 6.6"
+      "quote": "# limits: T2 7.5, SPE 6.2"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22459,17 +22459,17 @@
      "what": "other",
      "term": "runs over T2 limit, runs over SPE limit, their compounds, largest T2",
      "value": {
-      "runs over T2 limit": "5",
-      "runs over SPE limit": "5",
+      "runs over T2 limit": "6",
+      "runs over SPE limit": "3",
       "compounds of flagged runs": "['F']",
-      "largest T2": "22.0"
+      "largest T2": "20.2"
      },
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1015,
+      "line": 1023,
       "source_kind": "code-echo",
-      "quote": "# 5 5 ['F'] 22.0"
+      "quote": "# 6 3 ['F'] 20.2"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22478,19 +22478,19 @@
     },
     {
      "what": "other",
-     "term": "goal SPE and T2 vs 95% limits",
+     "term": "goal SPE and T2 vs the 95% limits drawn for the runs",
      "value": {
       "goal SPE": "1.6",
-      "goal T2": "0.09",
-      "SPE limit": "6.6",
-      "T2 limit": "8.7"
+      "goal T2": "0.06",
+      "SPE limit": "6.2",
+      "T2 limit": "7.5"
      },
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1034,
+      "line": 1042,
       "source_kind": "prose",
-      "quote": "The goal's SPE is 1.6 and its :math:`T^2` is 0.09, both well inside the 95% limits of 6.6 and 8.7."
+      "quote": "The goal's SPE is 1.6 and its :math:`T^2` is 0.06, both well inside the 95% limits of 6.2 and 7.5"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22500,13 +22500,13 @@
     {
      "what": "other",
      "term": "flagged runs",
-     "value": "five beyond the T2 limit (the largest at 22) and five beyond the SPE limit, are all compound F",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "six beyond the T2 limit (the largest at 20) and three beyond the SPE limit, are all compound F",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1036,
+      "line": 1045,
       "source_kind": "prose",
-      "quote": "five beyond the\n:math:`T^2` limit (the largest at 22) and five beyond the SPE limit, are all compound F"
+      "quote": "six beyond the\n:math:`T^2` limit (the largest at 20) and three beyond the SPE limit, are all compound F"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22516,13 +22516,13 @@
     {
      "what": "other",
      "term": "goal (A at centre) T2 and SPE across codings",
-     "value": "T2 stays near or below 0.1 and SPE between 1.0 and 2.4",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "T2 stays below 0.6 and SPE between 1.0 and 2.3",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1042,
+      "line": 1051,
       "source_kind": "prose",
-      "quote": "its :math:`T^2` stays near or below 0.1 and its SPE between\n1.0 and 2.4"
+      "quote": "its :math:`T^2` stays below 0.6 and\nits SPE between 1.0 and 2.3"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22532,13 +22532,13 @@
     {
      "what": "other",
      "term": "goal (A at centre) T2 and SPE across codings",
-     "value": "T2 near or below 0.1 and SPE between 1.0 and 2.4",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "T2 below 0.6 and SPE between 1.0 and 2.3",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1211,
+      "line": 1224,
       "source_kind": "prose",
-      "quote": "keeps its :math:`T^2` near or below 0.1 and its SPE between 1.0 and 2.4"
+      "quote": "keeps its :math:`T^2` below 0.6 and its SPE between 1.0 and 2.3"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22548,13 +22548,13 @@
     {
      "what": "other",
      "term": "T2 limit (coding figure caption)",
-     "value": "8.7",
-     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(), spe_limit() at 95%",
+     "value": "7.5",
+     "analysis": "pls_full (3-component sum-coded interaction model) diagnostics: hotellings_t2_, spe_ (reported as the square root of SPE), hotellings_t2_limit(judged_rows=\"fitted\"), the limit for the runs the model was fitted to, and spe_limit() at 95%",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1203,
+      "line": 1215,
       "source_kind": "caption",
-      "quote": "The dashed line is the 95% limit (8.7)."
+      "quote": "The dashed line is the 95% limit for the runs the model was fitted to (7.5)."
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22565,16 +22565,16 @@
      "what": "r_squared",
      "term": "cumulative R2Y at three components by coding",
      "value": {
-      "sum": "0.87",
+      "sum": "0.88",
       "treatment": "0.90",
       "cell-means": "0.90"
      },
      "analysis": "PLS(n_components=3, scale=True) interaction model on t0..t9 under sum, treatment and cell-means coding",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1140,
+      "line": 1149,
       "source_kind": "prose",
-      "quote": "is 0.87 under sum coding\nand 0.90 under both treatment and cell-means coding"
+      "quote": "is 0.88 under sum coding\nand 0.90 under both treatment and cell-means coding"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22585,16 +22585,16 @@
      "what": "other",
      "term": "sum, F omitted",
      "value": {
-      "R2Y": "0.87",
-      "runs over T2 limit": "5",
-      "max T2": "22.0"
+      "R2Y": "0.88",
+      "runs over T2 limit": "6",
+      "max T2": "20.2"
      },
-     "analysis": "fit_coding(rhs_sum, order A..F): PLS(n_components=3, scale=True), sum coding with F omitted",
+     "analysis": "fit_coding(rhs_sum, order A..F): PLS(n_components=3, scale=True), sum coding with F omitted, T2 limit for the runs the model was fitted to (judged_rows=\"fitted\")",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1180,
+      "line": 1191,
       "source_kind": "code-echo",
-      "quote": "# sum, F omitted: R2Y 0.87, 5 over, max 22.0"
+      "quote": "# sum, F omitted: R2Y 0.88, 6 over, max 20.2"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22605,16 +22605,16 @@
      "what": "other",
      "term": "sum, A omitted",
      "value": {
-      "R2Y": "0.87",
-      "runs over T2 limit": "3",
-      "max T2": "22.0"
+      "R2Y": "0.88",
+      "runs over T2 limit": "6",
+      "max T2": "17.8"
      },
-     "analysis": "fit_coding(rhs_sum, order F..A): PLS(n_components=3, scale=True), sum coding with A omitted",
+     "analysis": "fit_coding(rhs_sum, order F..A): PLS(n_components=3, scale=True), sum coding with A omitted, T2 limit for the runs the model was fitted to (judged_rows=\"fitted\")",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1181,
+      "line": 1192,
       "source_kind": "code-echo",
-      "quote": "# sum, A omitted: R2Y 0.87, 3 over, max 22.0"
+      "quote": "# sum, A omitted: R2Y 0.88, 6 over, max 17.8"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22626,15 +22626,15 @@
      "term": "treatment, A reference",
      "value": {
       "R2Y": "0.90",
-      "runs over T2 limit": "2",
-      "max T2": "11.0"
+      "runs over T2 limit": "3",
+      "max T2": "8.6"
      },
-     "analysis": "fit_coding(rhs_trt): PLS(n_components=3, scale=True), treatment coding, A reference",
+     "analysis": "fit_coding(rhs_trt): PLS(n_components=3, scale=True), treatment coding, A reference, T2 limit for the runs the model was fitted to (judged_rows=\"fitted\")",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1182,
+      "line": 1193,
       "source_kind": "code-echo",
-      "quote": "# treatment, A reference: R2Y 0.90, 2 over, max 11.0"
+      "quote": "# treatment, A reference: R2Y 0.90, 3 over, max 8.6"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22647,14 +22647,14 @@
      "value": {
       "R2Y": "0.90",
       "runs over T2 limit": "2",
-      "max T2": "10.7"
+      "max T2": "8.5"
      },
-     "analysis": "fit_coding(rhs_cell = 0 + C(compound)*...): PLS(n_components=3, scale=True), cell-means coding",
+     "analysis": "fit_coding(rhs_cell = 0 + C(compound)*...): PLS(n_components=3, scale=True), cell-means coding, T2 limit for the runs the model was fitted to (judged_rows=\"fitted\")",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1183,
+      "line": 1194,
       "source_kind": "code-echo",
-      "quote": "# cell-means: R2Y 0.90, 2 over, max 10.7"
+      "quote": "# cell-means: R2Y 0.90, 2 over, max 8.5"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation), and the book's CI (tools/check_code_blocks.py, --strict-output) checks this echoed value against each release of process-improve",
@@ -22664,13 +22664,13 @@
     {
      "what": "other",
      "term": "sum, F omitted: flagged runs",
-     "value": "the five runs past the 95% T2 limit of 8.7 are all compound F, and the largest reaches 22",
+     "value": "the six runs past the 95% T2 limit of 7.5 are all compound F, and the largest reaches 20",
      "analysis": "sum coding, F omitted",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1186,
+      "line": 1197,
       "source_kind": "prose",
-      "quote": "the five runs past the 95% :math:`T^2` limit of 8.7 are all compound\nF, and the largest reaches 22"
+      "quote": "the six runs past the 95% :math:`T^2` limit of 7.5 are all compound\nF, and the largest reaches 20"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22680,13 +22680,13 @@
     {
      "what": "other",
      "term": "sum, A omitted: flagged runs",
-     "value": "the flagged runs become compound A, at a T2 up to 22, while F now sits inside",
+     "value": "the six flagged runs become compound A, at a T2 up to 18, while F now sits inside",
      "analysis": "sum coding, A omitted",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1187,
+      "line": 1198,
       "source_kind": "prose",
-      "quote": "the flagged runs\nbecome compound A, at a :math:`T^2` up to 22, while F now sits inside"
+      "quote": "the six flagged runs\nbecome compound A, at a :math:`T^2` up to 18, while F now sits inside"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",
@@ -22696,13 +22696,13 @@
     {
      "what": "other",
      "term": "treatment / cell-means: flagged runs",
-     "value": "two compound-F runs remain past the limit, at a T2 of at most 11",
+     "value": "three runs and two runs respectively pass the limit, none by much: the largest T2 is 8.6",
      "analysis": "treatment and cell-means coding",
      "where": {
       "file": "product-development-product-improvement/mixed-level-profile-case-study.rst",
-      "line": 1189,
+      "line": 1200,
       "source_kind": "prose",
-      "quote": "two compound-F runs remain\npast the limit, at a :math:`T^2` of at most 11"
+      "quote": "three runs and two runs\nrespectively pass the limit, none by much: the largest :math:`T^2` is 8.6"
      },
      "check": {
       "manual": "the book does not print these runs: its own code makes them (generate_design and a seeded simulation); this number is stated in the text from that code's output",

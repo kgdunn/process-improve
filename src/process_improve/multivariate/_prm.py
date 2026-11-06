@@ -31,7 +31,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
-from ._common import DataMatrix, check_at_least_one, epsqrt
+from ._common import DataMatrix, check_at_least_one, epsqrt, user_stacklevel
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 from ._robust import fair_weights, l1_median
@@ -276,14 +276,14 @@ class PRM(PLS):
                 "et al. (2005) do, when the norm of its regression on the unit-length scores changes by less "
                 "than coefficient_tol.",
                 DeprecationWarning,
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
         if self.copy is not None:
             warnings.warn(
                 "process_improve.multivariate.methods.PRM.copy is deprecated since 2.4.0 and will be removed in "
                 "3.0; no replacement. copy has no effect: PRM never modifies the X or Y it is given, so leave it out.",
                 DeprecationWarning,
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
 
     def _centres_and_scales(self) -> bool:

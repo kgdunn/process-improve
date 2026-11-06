@@ -155,7 +155,7 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
             f"un-centred on purpose? Pass warn_on_uncentred=False to silence this for "
             f"this model alone.",
             UncentredDataWarning,
-            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            stacklevel=user_stacklevel(),
         )
 
 
@@ -712,8 +712,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             timing[a] = time.time() - start_time
             iterations[a] = itern
             logger.debug(
-                "PLS NIPALS: component %d converged in %d iterations (tol=%g)",
+                "PLS NIPALS: component %d %s in %d iterations (tol=%g)",
                 a + 1,
+                "converged" if converged else "did not converge",
                 itern,
                 settings["md_tol"],
             )
@@ -954,7 +955,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 "process_improve.multivariate.methods.PLS.copy is deprecated since 2.4.0 and will be removed in "
                 "3.0; no replacement. copy has no effect: PLS never modifies the X or Y it is given, so leave it out.",
                 DeprecationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
         # Accept a Series for Y by promoting it to one column with its own labels; a 1-D array
         # becomes one column below, labelled like X's rows as a 2-D array is (#1027).
@@ -1005,9 +1006,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             )
         # A column of X or Y with nothing observed gets a zero weight and loading, on every md_method.
         # It is named, as across the family; a value a new row has in it adds nothing, and a response
-        # with nothing observed has no prediction (#1098). PLS.fit has no _fit_context wrapper: 3 levels.
-        self._unobserved_columns = unobserved_columns(X, "X", stacklevel=3)  # pragma: no mutate - see above
-        self._unobserved_targets = unobserved_columns(Y, "Y", stacklevel=3)  # pragma: no mutate - see above
+        # with nothing observed has no prediction (#1098).
+        self._unobserved_columns = unobserved_columns(X, "X")
+        self._unobserved_targets = unobserved_columns(Y, "Y")
 
         N = self.n_samples_
         K = self.n_features_in_
@@ -1053,7 +1054,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             warnings.warn(
                 warn,
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
             A = min_dim
         # The resolved (possibly clamped) component count is a fitted attribute;

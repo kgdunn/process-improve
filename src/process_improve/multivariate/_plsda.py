@@ -27,7 +27,14 @@ from sklearn.utils.validation import check_is_fitted
 
 from process_improve._random import check_random_state
 
-from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _model_method, epsqrt
+from ._common import (
+    DataMatrix,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    _model_method,
+    epsqrt,
+    user_stacklevel,
+)
 from ._pls import PLS
 from .plots import confusion_matrix_plot as _confusion_matrix_plot
 
@@ -292,7 +299,7 @@ class PLSDA(ClassifierMixin, PLS):
                 "3.0; no replacement. copy has no effect: PLSDA never modifies the X or y it is given, so leave it "
                 "out.",
                 DeprecationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
         if self.decision_rule not in self._DECISION_RULES:
             msg = f"decision_rule must be one of {self._DECISION_RULES}; got {self.decision_rule!r}."
@@ -723,7 +730,7 @@ class PLSDA(ClassifierMixin, PLS):
                 f"n_components={self.n_components} and were dropped; the p-value is over the "
                 f"remaining {len(draws)}. Fewer components would make the null complete.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
         null = np.asarray(draws)
         p_value = float((1 + int(np.sum(null >= observed))) / (1 + null.size))
