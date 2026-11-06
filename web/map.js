@@ -470,13 +470,13 @@ function renderHow() {
     </details>
 
     <h3>3. How the topics are found</h3>
-    <p>A topic is a group of ideas linked more to each other than to the rest. A computer finds the groups, but one try
-      depends on chance, so it makes hundreds of tries and keeps the grouping they agree on. Chance then has little say
-      in the topics.</p>
+    <p>A topic is a group of ideas that are more related to each other than to the rest. A computer finds the groups,
+      but each attempt depends on probabilities, so it makes hundreds of tries and keeps the grouping that is most stable
+      and consistent.</p>
     <details><summary>Show the numbers</summary>
       <p>The method is <a href="https://en.wikipedia.org/wiki/Louvain_method" target="_blank" rel="noopener">Louvain clustering</a>: it moves one term at a time into a neighbour's group whenever that makes the
-        groups tighter, and stops when no move helps. It visits the terms in a random order, so a term linked about
-        equally to two groups lands wherever its turn falls. Consensus clustering (<a href="https://doi.org/10.1038/srep00336" target="_blank" rel="noopener">Lancichinetti and Fortunato, 2012</a>)
+        groups tighter, and stops when no move helps. It visits the terms in a random order.
+        Consensus clustering (<a href="https://doi.org/10.1038/srep00336" target="_blank" rel="noopener">Lancichinetti and Fortunato, 2012</a>)
         makes it repeatable: ${m.runs} runs a round, each with its own random seed; a pair of terms together in at least
         ${Math.round(m.threshold * 100)}% of runs is kept, as strongly as that share, and the rest dropped; rounds repeat
         until all ${m.runs} runs agree. A term left on its own joins the group it was most often in. Link weights:
