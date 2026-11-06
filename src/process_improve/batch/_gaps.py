@@ -54,6 +54,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 
+from ..multivariate._common import user_stacklevel
+
 logger = logging.getLogger(__name__)
 
 #: Savitzky-Golay needs a window strictly longer than its polynomial order, and
@@ -297,7 +299,7 @@ def _warn_about_smoothing(shortened: list[str], collapsed: list[str], window: in
             f"instead, which smooths but does not reject outliers. Pass method='savgol', or check whether "
             f"those columns are flat-lined or heavily quantised.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     if shortened:
         warnings.warn(
@@ -305,7 +307,7 @@ def _warn_about_smoothing(shortened: list[str], collapsed: list[str], window: in
             f"{sorted(shortened)[:5]}{' ...' if len(shortened) > 5 else ''}. They are smoothed less than the "
             f"rest, which matters if the smoothed trajectories are compared across batches.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
 
 

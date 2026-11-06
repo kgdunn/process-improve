@@ -24,7 +24,7 @@ from sklearn.utils.validation import check_is_fitted
 from process_improve._random import check_random_state
 from process_improve.visualization.themes import DEFAULT_THEME
 
-from ._common import SpecificationWarning
+from ._common import SpecificationWarning, user_stacklevel
 
 try:
     import plotly.graph_objects as go
@@ -309,7 +309,7 @@ class GPA(BaseEstimator):
             warnings.warn(
                 f"GPA stopped after max_iter={self.max_iter} rounds before the residual settled; raise max_iter.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+                stacklevel=user_stacklevel(),
             )
         self.n_iter_ = fitted.n_iter
         # Back to the data's own size: the aligned configurations keep the centred total sum of squares.
