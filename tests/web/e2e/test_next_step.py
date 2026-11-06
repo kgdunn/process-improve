@@ -15,6 +15,7 @@ from tests.web._support import FACTORS
 from tests.web.e2e._page import (
     calls,
     choose,
+    enter_results,
     factor_table,
     generate,
     headers,
@@ -172,13 +173,25 @@ def test_runs_added_to_a_real_study_wait_in_run_for_their_results(blank_page):
 
 
 def test_a_refusal_to_add_runs_says_why(blank_page):
+    """The refusal stays on the status line when the charts of the analysis before it are drawn after it.
+
+    The analysis says it is complete before its charts are drawn, and the next step is on the page by
+    then, so a reader can ask for runs while the charts are on their way; the race is staged here.
+    """
     page = blank_page
     generate(page, design_type="full_factorial", n_center_points=0)
-    type_results(page, {i: 50 + i for i in range(8)})
-    reveal(page, "#next")
+    plotted = page.evaluate("window.__pi.count('api_plots')")
+    page.evaluate("window.__pi.hold('api_plots')")
+    enter_results(page, {i: 50 + i for i in range(8)})
+    page.wait_for_function(f"window.__pi.count('api_plots') > {plotted}")  # the charts are asked for, and held
     refused = {"ok": False, "error": "Center runs would fall outside your limits on the settings.", "warnings": []}
     page.evaluate("(reply) => window.__pi.fake('api_add_runs', reply)", refused)
-    add(page, "center")
+    reveal(page, "#next")
+    page.click('#next-out .offer[data-kind="center"] button.button')
+    page.wait_for_function("document.querySelector('#status').dataset.state === 'error'")
+    page.evaluate("window.__pi.release('api_plots')")
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length > 1")  # the charts are drawn
+    settled(page)
     assert status(page) == ("Center runs would fall outside your limits on the settings.", "error")
     assert len(run_sheet(page)) == 8, "the run sheet is as it was"
 

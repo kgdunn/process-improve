@@ -79,6 +79,7 @@ from process_improve.experiments._analyses.split_plot import (
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
 from process_improve.experiments._lm import (
+    block_levels,
     real_names,
     stand_ins_for,
     suggest_identifier,
@@ -591,7 +592,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
     Block-to-block differences left out of the model go into the residual and mask real
     effects (Montgomery, *Design and Analysis of Experiments*, chapter 7). The blocks
     enter as sum-coded contrast columns, ``Block1`` to ``Block{b-1}`` for ``b`` blocks
-    (in sorted order, the last block coded -1 in every column). An explicit formula gets
+    (numbered blocks in numeric order, the last block coded -1 in every column). An explicit formula gets
     them only where it names ``Block`` as a term of its own, in that term's place, so the
     blocks are a categorical factor there as in a named model, not a number. A Scheffe
     mixture model, and an explicit formula that does not name ``Block``, are not changed;
@@ -619,7 +620,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
             return df, formula, ()
         rhs = " + ".join(term for term in terms if term != BLOCK_COL)
 
-    levels = sorted(df[BLOCK_COL].unique(), key=str)
+    levels = block_levels(df[BLOCK_COL])
     df = df.copy()
     names: list[str] = []
     for k, level in enumerate(levels[:-1], start=1):
@@ -1031,7 +1032,7 @@ def _split_plot(fit: _Fit, points: pd.DataFrame | None) -> dict[str, Any]:
     result["split_plot"] = {
         "response_name": fit.response_name or fit.response_col,
         "factor_names": list(fit.factor_cols),
-        "coding": "actual" if coding else "coded",
+        "coding": "actual" if coding or fit.mixture else "coded",  # a mixture's proportions have no coded scale
         **({"factor_coding": coding} if coding else {}),
         **result["split_plot"],
     }
@@ -1048,6 +1049,18 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
+def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
+    """Return the terms of a formula analysed as a mixture model, less the blocks; None for any other model.
+
+    model_selection searches them as it does a Scheffe model's: not as the interactions model,
+    whose intercept the blends already make up (#1129). It leaves the blocks out of every model.
+    """
+    if not fit.mixture or fit.model in SCHEFFE_MODELS:
+        return None
+    terms = ModelDesc.from_formula(fit.model).rhs_termlist
+    return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
+
+
 def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
     """Give each new point the block contrasts of the block its ``Block`` column names.
 
@@ -1056,7 +1069,7 @@ def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
     """
     if not fit.blocks or BLOCK_COL not in points:
         return points.assign(**{b: 0.0 for b in fit.blocks if b not in points})
-    levels = sorted(fit.df[BLOCK_COL].unique(), key=str)  # in the order _add_block_term coded them
+    levels = block_levels(fit.df[BLOCK_COL])  # in the order _add_block_term coded them
     named = points[BLOCK_COL]
     unknown = sorted({str(v) for v in named.dropna() if v not in set(levels)})
     if unknown:
@@ -1108,7 +1121,11 @@ def _handlers(
             fit.df, fit.response_col, fit.factor_cols, fit.alpha, group_cols=fit.group_cols
         ),
         "model_selection": lambda: _run_model_selection(
-            fit.df, fit.response_col, fit.factor_cols, model=fit.searched_model or fit.model
+            fit.df,
+            fit.response_col,
+            fit.factor_cols,
+            model=fit.searched_model or fit.model,
+            mixture_terms=_mixture_formula_terms(fit),
         ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),
@@ -1618,9 +1635,8 @@ def analyze_experiment(  # noqa: PLR0913
         results.update(handlers[t]())
     if "model_selection" in results:
         chosen = results["model_selection"]
-        chosen["selected_formula"] = chosen["selected_formula"].replace(
-            f"{response_col} ~", f"{reported_response} ~", 1
-        )
+        for key in ("selected_formula", "candidate_model"):  # a mixture formula is searched as itself
+            chosen[key] = chosen[key].replace(f"{response_col} ~", f"{reported_response} ~", 1)
     return real_names(results, stand_ins)
 
 

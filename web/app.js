@@ -302,7 +302,9 @@ let pythonErrors = [];
 
 worker.onmessage = ({ data }) => {
   if (data.status) {
-    if (!pythonFailure) setStatus(data.status, data.state);
+    if (pythonFailure) return;
+    setStatus(data.status, data.state);
+    pythonSaid = statusTicket;
     return;
   }
   const { fn, resolve } = pending.get(data.id);
@@ -350,6 +352,10 @@ const STATUS_FADE = 600;
 /** How long a busy spell lasts before the faded status line comes back for it. */
 const STATUS_WAIT = 400;
 let statusTimer = null;
+/** One more each time the status line is set, so a reply can tell whether the page said something after it was asked. */
+let statusTicket = 0;
+/** The status ticket of Python's last note on how far it has got, such as installing plotly: the call's end replaces it. */
+let pythonSaid = 0;
 
 /**
  * Say what Python is doing on the status line; state is "busy" (the mark's runs light up), "ok"
@@ -358,6 +364,7 @@ let statusTimer = null;
  * so a quick analysis does not make the page jump.
  */
 function setStatus(text, state = "ok") {
+  statusTicket += 1;
   const box = $("#status");
   box.querySelector(".status__text").textContent = text;
   box.dataset.state = state;
@@ -1255,8 +1262,9 @@ function showRenamed({ spec, simulation, ...design }, names) {
   const others = spec.analysis_models ? { analysis_models: spec.analysis_models } : {};
   const limits = spec.constraints ? { constraints: spec.constraints } : {};
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
-  // The what-if fits, and any still on their way, name the old factors: the analysis below fits them again.
+  // The what-if fits and the balance, and any still on their way, name the old factors: the analysis below finds them again.
   clearWhatIf();
+  clearBalance();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
   if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
@@ -3155,6 +3163,11 @@ async function readUpload(file) {
 // ---------------------------------------------------------------- analyse step
 let analysisTimer = null;
 let ticket = 0;
+/**
+ * The status ticket once the analysis said it is complete: its charts say so again, or why they could not be drawn, only
+ * while nothing has been said since but a note from Python on how far it has got. A refused add, say, stays.
+ */
+let analysisSaid = 0;
 
 /** Analyse a moment after the last keystroke, rather than on every one. */
 function scheduleAnalysis() {
@@ -3297,6 +3310,7 @@ function renderAnalysis(reply) {
   const simulated = r.coefficients.some((c) => c.true_value !== undefined && c.true_value !== null);
   const vif = showsVif(r.coefficients); // a column only when some term is correlated enough for the note
   setStatus("Analysis complete.");
+  analysisSaid = statusTicket;
   // The terms fitted, which the design can estimate, from the runs that have a result.
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
@@ -4034,7 +4048,9 @@ async function drawCharts(request, mine, given = null) {
 
 async function libraryPlots(request, mine) {
   const reply = await call("api_plots", request);
-  if (mine === ticket) setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
+  if (mine === ticket && [analysisSaid, pythonSaid].includes(statusTicket)) {
+    setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
+  }
   return reply.ok ? reply.result : null;
 }
 

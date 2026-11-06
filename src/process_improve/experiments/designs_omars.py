@@ -262,12 +262,12 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     ValueError
         If fewer than three factors are supplied.
     """
-    from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
+    from process_improve.experiments.designs_response_surface import _conference_foldover  # noqa: PLC0415
 
     if len(factors) < 3:
         raise ValueError("OMARS designs require at least 3 factors.")
 
-    coded_matrix, dsd_meta = dispatch_dsd(factors)
+    coded_matrix, dsd_meta = _conference_foldover(factors, None, "dsd", "OMARS design")
     meta = {**dsd_meta, "family": "conference_foldover"}
     if verify:
         meta["omars_verified"] = is_omars(coded_matrix)
