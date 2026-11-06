@@ -128,6 +128,8 @@ def test_the_other_refusals(pilot):
         yates_table(pilot, "yield")
     with pytest.raises(ValueError, match="at least one factor"):
         yates_table(pilot[["y"]], "y")
+    with pytest.raises(ValueError, match="'y' cannot also be a factor"):
+        yates_table(pilot, "y", factors=["T", "y"])
     with pytest.raises(ValueError, match="has no effect \\['TK'\\]"):
         reverse_yates(yates_table(pilot, "y"), keep=["T", "TK"])
     with pytest.raises(ValueError, match="Pass a table from yates_table"):

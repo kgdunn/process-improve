@@ -43,6 +43,8 @@ from process_improve.experiments._tools.recommend_next_step import recommend_nex
 from process_improve.experiments._tools.run_sheet import read_run_sheet_tool, write_run_sheet_tool
 from process_improve.experiments._tools.simulate_design_performance import simulate_design_performance_tool
 from process_improve.experiments._tools.compare_designs import compare_designs_tool
+from process_improve.experiments._tools.yates_table import yates_table_tool
+from process_improve.experiments._tools.interaction_components import interaction_components_tool
 
 __all__ = [
     "analyze_experiment_tool",
@@ -55,6 +57,7 @@ __all__ = [
     "fit_linear_model",
     "generate_design_tool",
     "get_experiments_tool_specs",
+    "interaction_components_tool",
     "optimize_responses_tool",
     "read_run_sheet_tool",
     "recommend_next_step_tool",
@@ -64,6 +67,7 @@ __all__ = [
     "trade_off_table_tool",
     "visualize_doe_tool",
     "write_run_sheet_tool",
+    "yates_table_tool",
 ]
 
 
