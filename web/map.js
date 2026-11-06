@@ -332,31 +332,57 @@ function go(id, { animate = true, hash = true } = {}) {
 }
 const fromHash = () => location.hash.slice(1).replaceAll("-", "_");
 
-// On a phone the map fills the screen, and a drag that only ever moved the map would trap the reader in it. So one
-// finger moves the map until its content would leave through the top or bottom edge, and from there, until the finger
-// lifts, the drag scrolls the page. Cytoscape listens for moves on the window: this listens there first, and keeps
-// those moves from it.
-const EDGE = 40;   // px of content kept inside the map by a one-finger drag
-let fingerY = null, paging = false;
+// On a touch screen one finger scrolls the page, as it does everywhere else on it, and two fingers move and zoom the
+// map, as on an embedded map: a one-finger drag that moved the map trapped a phone's reader inside it. Cytoscape
+// listens for moves on the window and cancels the browser's scrolling, so one finger's moves are kept from it; and it
+// moves the map with two fingers only once they spread far apart, so two fingers are followed here: the map moves with
+// the point between them and zooms with their spread. A tap still opens what is under the finger; a drag that
+// scrolled is not a tap, and the first such drag in a while says how to move the map.
+const hint = document.createElement("p");
+hint.className = "map-hint";
+hint.textContent = "Two fingers move the map";
+hint.setAttribute("aria-hidden", "true");
+cy.container().parentElement.append(hint);
+const between = ([a, b]) => {
+  const box = cy.container().getBoundingClientRect();
+  return { x: (a.clientX + b.clientX) / 2 - box.left, y: (a.clientY + b.clientY) / 2 - box.top,
+    spread: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) };
+};
+let finger = null, pinch = null, scrolled = false, hinted = 0;
 cy.container().addEventListener("touchstart", ev => {
-  fingerY = ev.touches.length === 1 ? ev.touches[0].clientY : null;
-  paging = false;
+  finger = ev.touches.length === 1 ? [ev.touches[0].clientX, ev.touches[0].clientY] : null;
+  pinch = ev.touches.length === 2 ? between(ev.touches) : null;
+  if (ev.touches.length === 1) scrolled = false;
 }, { passive: true });
 window.addEventListener("touchmove", ev => {
-  if (fingerY === null || ev.touches.length !== 1) { fingerY = null; return; }
-  const y = ev.touches[0].clientY, dy = y - fingerY;
-  fingerY = y;
-  if (!paging) {
-    const bb = cy.elements(":visible").renderedBoundingBox();
-    paging = (dy < 0 && bb.y2 + dy < EDGE) || (dy > 0 && bb.y1 + dy > cy.height() - EDGE);
+  if (pinch && ev.touches.length === 2) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const now = between(ev.touches);
+    cy.zoom({ level: cy.zoom() * now.spread / pinch.spread, renderedPosition: { x: pinch.x, y: pinch.y } });
+    cy.panBy({ x: now.x - pinch.x, y: now.y - pinch.y });
+    pinch = now;
+    return;
   }
-  if (paging) { ev.preventDefault(); ev.stopPropagation(); window.scrollBy(0, -dy); }
+  if (finger === null || ev.touches.length !== 1) return;
+  ev.stopPropagation();
+  if (scrolled || Math.hypot(ev.touches[0].clientX - finger[0], ev.touches[0].clientY - finger[1]) < 10) return;
+  scrolled = true;
+  if (Date.now() - hinted < 20000) return;
+  hinted = Date.now();
+  hint.classList.add("on");
+  setTimeout(() => hint.classList.remove("on"), 1600);
 }, { capture: true, passive: false });
+window.addEventListener("touchend", ev => {
+  if (ev.touches.length < 2) pinch = null;
+  // The browser is scrolling and the touch's end cannot be cancelled: Cytoscape's attempt to is then a no-op, not a
+  // console error.
+  if (!ev.cancelable) ev.preventDefault = () => {};
+}, { capture: true });
 
-// A drag that went on to scroll the page ends without a tap, wherever the finger lifts.
-cy.on("tap", "node.term", ev => { if (!paging) go(ev.target.id()); });
+cy.on("tap", "node.term", ev => { if (!scrolled) go(ev.target.id()); });
 cy.on("tap", ev => {
-  if (paging || (ev.target !== cy && !ev.target.isEdge())) return;   // a tap on a link counts as one on what lies under it
+  if (scrolled || (ev.target !== cy && !ev.target.isEdge())) return;   // a tap on a link counts as one on what lies under it
   const { x, y } = ev.position;
   const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
