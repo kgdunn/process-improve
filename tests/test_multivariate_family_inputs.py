@@ -247,6 +247,8 @@ NO_VARIANCE: dict[str, tuple[Callable[[pd.DataFrame, pd.DataFrame], object], str
         lambda X, Y: BatchPLS(n_components=1).fit(_batches(X), Y.set_axis([f"b{i}" for i in range(N_ROWS)])),
         f"{_EVERY_COLUMN} nothing to explain Y by",
     ),
+    "AdaptivePCA": (lambda X, _: AdaptivePCA(n_components=1).fit(X), f"{_EVERY_COLUMN} nothing for a component"),
+    "AdaptivePLS": (lambda X, Y: AdaptivePLS(n_components=1).fit(X, Y), f"{_EVERY_COLUMN} nothing to explain Y by"),
     "TPLS": (lambda X, _: _tpls_with_f_from(X), "There is no variance in F and D: no group has a column of F"),
 }
 

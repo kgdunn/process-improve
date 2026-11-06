@@ -80,6 +80,7 @@ from ._common import (
     _align_to_fit_features,
     check_at_least_one,
     check_response_block,
+    check_x_varies,
     epsqrt,
     refuse_empty_block,
 )
@@ -764,6 +765,11 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Returns
         -------
         self : AdaptivePCA
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as across the family (#1144).
         """
         self._validate_params()
         check_at_least_one("n_components", self.n_components)
@@ -790,7 +796,8 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         # incoming observation) lives in the same space. Initialising the loadings from
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
-        self._scaler = MCUVScaler().fit(X_df)
+        self._scaler = MCUVScaler().fit(X_df)  # refuses fewer than two rows
+        check_x_varies([X_df], explains_y=False)  # as PCA refuses it (#1144): no row is told from another
         self.mx_ = self._scaler.center_.to_numpy().copy()
         self.sx_ = self._scaler.scale_.to_numpy().copy()
         self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
@@ -1019,6 +1026,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         Returns
         -------
         self : AdaptivePLS
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as :meth:`PLS.fit` raises (#1144).
         """
         self._validate_params()
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
