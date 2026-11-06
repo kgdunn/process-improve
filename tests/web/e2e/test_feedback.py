@@ -403,3 +403,26 @@ def test_on_a_phone_the_button_is_its_icon_and_nothing_scrolls_sideways(page, re
     box = page.locator(DIALOG).bounding_box()
     assert box["x"] >= 0
     assert box["x"] + box["width"] <= context_options["viewport"]["width"]
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 600}, "is_mobile": True}])
+def test_on_a_phone_the_close_button_stays_in_reach_however_far_the_dialog_is_scrolled(page, relay, context_options):
+    """A sheet taller than the window scrolls within itself, and its head, with the close button, stays on screen."""
+    open_feedback(page)
+    reach = page.evaluate(
+        """() => {
+          const dialog = document.querySelector('#feedback-dialog');
+          dialog.scrollTop = dialog.scrollHeight;
+          const close = dialog.querySelector('.sheet__head [data-close]').getBoundingClientRect();
+          const box = dialog.getBoundingClientRect();
+          const x = close.left + close.width / 2, y = close.top + close.height / 2;
+          return { scrolled: dialog.scrollTop, top: box.top, bottom: box.bottom, height: innerHeight,
+                   hit: Boolean(document.elementFromPoint(x, y)?.closest('[data-close]')) };
+        }"""
+    )
+    assert reach["scrolled"] > 0, "the form is taller than this window"
+    assert reach["top"] >= 0
+    assert reach["bottom"] <= reach["height"], "the dialog fits the window"
+    assert reach["hit"], "the close button is on screen, above the form, with the form scrolled to its end"
+    page.click("#feedback-dialog .sheet__head [data-close]")
+    assert not page.evaluate("document.querySelector('#feedback-dialog').open")

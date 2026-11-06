@@ -714,17 +714,26 @@ table.trade-off-table { border-collapse: separate; border-spacing: 3px; font-siz
 }
 @media (pointer: coarse) { .trade-off-table button { min-height: 44px; } }
 
-/* The detailed comparison, over the page: as wide as its table needs, and scrolled within. */
+/* The detailed comparison, over the page: as wide as its table needs, and scrolled within. Its height is the window's
+   as it is now (dvh): a phone's 100vh counts the address bar and toolbar as gone, so a sheet that tall ran under them,
+   its close button with it, and the page behind a modal dialog cannot scroll to bring it back. */
 dialog.sheet {
-  width: min(1200px, 100vw - 32px); max-height: calc(100vh - 48px); padding: 18px 20px; overflow: auto;
+  width: min(1200px, 100vw - 32px); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); padding: 18px 20px;
+  overflow: auto;
   background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
 }
 dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
-.sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The head stays at the top of the sheet however far it is scrolled, so its close button is always in reach. */
+.sheet__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  position: sticky; top: 0; z-index: 1; background: var(--panel);
+}
 .sheet__head h2 { margin: 0; }
 .sheet__head .link { font-size: 1.2rem; line-height: 1; }
-@media (max-width: 480px) { dialog.sheet { width: 100vw; max-width: 100vw; max-height: 100vh; border-radius: 0; padding: 14px 12px; } }
+@media (max-width: 480px) {
+  dialog.sheet { width: 100vw; max-width: 100vw; max-height: 100vh; max-height: 100dvh; border-radius: 0; padding: 14px 12px; }
+}
 
 /* The Feedback dialog (feedback.js): a narrower sheet, each box as wide as it is, the lists in the page's small type. */
 dialog.feedback { width: min(640px, 100vw - 32px); }
