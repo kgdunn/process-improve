@@ -9,8 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import struct
 
-from tests.web._support import WEB, source
+from tests.web._support import APP_SOURCES, WEB, source
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
 
@@ -93,3 +94,17 @@ def test_the_page_never_says_the_book_teaches():
     assert GRAPH["method"]["code"].startswith("https://github.com/kgdunn/pid-book/blob/"), (
         "the clustering code it links"
     )
+
+
+def test_a_link_to_the_map_shows_the_map():
+    """A chat or a blog shows og:image beside a link: for the map, the map's own card, drawn by map_card.py."""
+    page = source("map/index.html")
+    assert '<meta property="og:image" content="https://factori.al/map/og-card.png">' in page
+    assert '<meta name="twitter:card" content="summary_large_image">' in page
+    card = (WEB / "map" / "og-card.png").read_bytes()
+    assert card.startswith(b"\x89PNG\r\n\x1a\n")
+    width, height = struct.unpack(">II", card[16:24])
+    assert (width, height) == (1200, 630)
+    assert f'<meta property="og:image:width" content="{width}">' in page
+    assert f'<meta property="og:image:height" content="{height}">' in page
+    assert "map/og-card.png" in APP_SOURCES, "the build publishes it"

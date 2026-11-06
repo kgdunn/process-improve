@@ -72,6 +72,7 @@ APP_SOURCES = (
     "map.js",
     "map/graph.json",
     "vendor/cytoscape.mjs",
+    "map/og-card.png",
     "worker.js",
     "bootstrap.py",
     "runtime.json",
