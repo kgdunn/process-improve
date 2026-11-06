@@ -124,6 +124,8 @@ BUDGET: dict[str, int] = {
     # `**kwargs`, and the implementation takes a settings dataclass, so the
     # signature is written once.
     "PLR0913": 51,
+    # 25: #1105 moved batch_dtw's resampling onto the common time axis into a helper
+    # DTWAligner shares, taking batch_dtw under PLR0915.
     # 26: TPLS.diagnose went under PLR0915, in #1028 (scores and deflation written over
     # arrays) and in #981 (each Z group scored on its own) alike.
     # 27: #1027 scored PLS.nested_cv's outer folds through the helper
@@ -134,7 +136,7 @@ BUDGET: dict[str, int] = {
     # PLR0915; the per-batch loop of `evaluate_control_policies` went into
     # `_run_decision_points` at the same time, which kept that function under
     # PLR0912 after it gained the no-change record.
-    "PLR0915": 26,
+    "PLR0915": 25,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.
