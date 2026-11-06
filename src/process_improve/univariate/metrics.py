@@ -345,13 +345,15 @@ def _apply_multiplicity_correction(output: pd.DataFrame, correction: str | None)
     percent. The raw ``p value`` column is always kept as-is; the corrected
     values are added alongside so both are visible.
     """
-    if correction is None or output.empty:
+    if correction is None:
         return output
 
     known = {"holm": holm_bonferroni, "bh": benjamini_hochberg, "benjamini-hochberg": benjamini_hochberg}
     key = correction.strip().lower()
     if key not in known:
         raise ValueError(f"correction must be one of 'holm', 'bh', or None; got {correction!r}.")
+    if output.empty:  # fewer than two groups: no comparison to correct, but the name was still checked
+        return output
 
     adjusted = known[key](output["p value"].to_numpy())
     output = output.copy()
@@ -416,7 +418,7 @@ def ttest_independent_from_df(
     Marco         Sam
     Pete          Sam
     """
-
+    _check_probability("conflevel", conflevel)  # here, not only per pair: one group has no pair
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
@@ -594,6 +596,7 @@ def ttest_paired_from_df(
     of the mean difference. They are deprecated since 2.1.0 and will be removed in 3.0; a
     column read cannot warn, so this note is the notice.
     """
+    _check_probability("conflevel", conflevel)  # here, not only per pair: one group has no pair
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
