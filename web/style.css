@@ -1532,6 +1532,14 @@ main.map .lede { margin: 0; }
 .map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   height: clamp(340px, 62vh, 640px); max-width: 100%; overflow: hidden; }
 #cy { position: absolute; inset: 0; }
+/* Said over the map for a moment when one finger drags across it on a touch screen: that finger scrolls the page. */
+.map-hint {
+  position: absolute; inset: auto 0 45% 0; margin: 0 auto; width: max-content; max-width: 90%; padding: 8px 14px;
+  border-radius: 8px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 0.95rem; pointer-events: none;
+  opacity: 0; transition: opacity 0.2s;
+}
+.map-hint.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .map-hint { transition: none; } }
 .map-bar { display: flex; gap: 8px; align-items: stretch; margin-top: -6px; }
 .map-strip { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; background: var(--panel);
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 10px; font-size: 0.88rem; }
