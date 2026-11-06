@@ -35,7 +35,7 @@ from pydantic import BaseModel
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ._common import DataMatrix, SpecificationWarning, check_at_least_one, user_stacklevel
+from ._common import DataMatrix, SpecificationWarning, check_at_least_one, refuse_empty_block, user_stacklevel
 from ._pca import _opposes_convention
 
 try:
@@ -749,6 +749,7 @@ class FAMD(TransformerMixin, BaseEstimator):
         self._validate_params()
         check_at_least_one("n_components", self.n_components)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        refuse_empty_block(frame, "X")
         frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
         if frame.isna().any().any():
             raise ValueError(

@@ -6216,8 +6216,13 @@ def _tpls_written_out(
     found["t2"] = np.cumsum(np.where(usable, t**2 / np.where(usable, sd, 1.0) ** 2, 0.0), axis=1)
     found["hat_"] = t @ found["q"].T
     found["hat"] = found["hat_"] * scaling["Y", y_name][1] + scaling["Y", y_name][0]
+    # A row with nothing seen in a block has no SPE there (#1114).
     found["spe"] = {
-        block: {key: np.sqrt(np.sum(v**2, axis=1)) for key, v in by_key.items()} for block, by_key in left.items()
+        block: {
+            key: np.where(seen[block][key].any(axis=1), np.sqrt(np.sum(v**2, axis=1)), np.nan)
+            for key, v in by_key.items()
+        }
+        for block, by_key in left.items()
     }
     for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
         weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
@@ -6372,6 +6377,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
     for block in ("D", "F", "Y", "Z"):
         assert sorted(model.spe_limit[block]) == sorted(expected["spe"][block])
         for key, spe in expected["spe"][block].items():
+            spe = spe[~np.isnan(spe)]  # noqa: PLW2901 - the limit is over the rows that have an SPE
             assert model.spe_limit[block][key](0.9) == pytest.approx(spe_calculation(spe, 0.9), rel=rtol, abs=rtol)
             assert model.spe_limit[block][key]() == pytest.approx(spe_calculation(spe, 0.95), rel=rtol, abs=rtol)
     _check_tpls_bookkeeping(model, d_matrix, blocks, expected, rtol)
@@ -9318,6 +9324,7 @@ def test_pca_fit_paths_by_hand_on_complete_data(algorithm: str) -> None:
     P, T = _svd_reference(X.to_numpy(), A)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
         pca = PCA(n_components=A, algorithm=algorithm).fit(X)
     tol = 1e-12 if algorithm != "nipals" else 1e-6
     np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=tol)
@@ -9357,6 +9364,7 @@ def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
     assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
         pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
     assert pca.r2_cumulative_.isna().all()
     assert pca.r2_per_component_.isna().all()
@@ -9587,6 +9595,7 @@ def test_pca_tsr_on_complete_data_runs_no_imputation_and_does_not_warn() -> None
     X = _block_with_a_flat_and_a_small_column()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
         pca = PCA(n_components=2, algorithm="tsr").fit(X)
     assert pca.fitting_info_["iterations"] == 0
     np.testing.assert_allclose(pca.loadings_.to_numpy(), _svd_reference(X.to_numpy(), 2)[0], atol=1e-12)
@@ -11701,7 +11710,7 @@ def test_pls_fit_by_hand(scale: bool) -> None:
         X["small"] = np.r_[0.5, -0.5, np.zeros(13)]
         Y["tiny"] = 0.05 * X["x0"]
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        warnings.filterwarnings("error", message=r"(?!Block .* has columns with no variance)")  # but that (#1114)
         pls = PLS(n_components=3, scale=scale).fit(X, Y)
     with np.errstate(invalid="ignore"):  # the constant columns are 0 / 0 here, set to 0 below
         Z, Zy = (_autoscaled(X.to_numpy()), _autoscaled(Y.to_numpy())) if scale else (X.to_numpy(), Y.to_numpy())

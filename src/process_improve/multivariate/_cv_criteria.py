@@ -86,8 +86,11 @@ from ._common import (
     NotEnoughVarianceError,
     SpecificationWarning,
     _equal_weight_r2_total,
+    _rows_with_data,
     _select_n_components,
     _vandervoet_randomization,
+    check_at_least_one,
+    check_whole,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit, spe_calculation
@@ -131,10 +134,12 @@ class _Fold:
 def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Coerce X and Y to float DataFrames with one row per observation.
 
-    Missing cells (NaN) are allowed, with two exceptions that leave nothing to work
-    with: a row whose X is entirely missing cannot be scored, and a column that is
-    entirely missing cannot be scaled. A row whose Y is entirely missing is kept; it
-    helps fit the X side and is left out of every Y-based criterion.
+    Missing cells (NaN) are allowed, as ``fit`` allows them (#1114). A row whose Y is
+    entirely missing is kept; it helps fit the X side and is left out of every Y-based
+    criterion. A row whose X is entirely missing is fitted as ``fit`` fits it, at the
+    centre with no weight; held out, it has no prediction and no SPE, as ``predict`` and
+    ``diagnose`` give it none, and is left out of every held-out criterion. A column that
+    is entirely missing is left out of every model, with the warning ``fit`` gives.
     """
     X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
     if isinstance(Y, pd.Series):
@@ -147,22 +152,28 @@ def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, 
         raise ValueError(f"X and Y must have the same number of rows; got {X_df.shape[0]} and {Y_df.shape[0]}.")
     X_df = X_df.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
     Y_df = Y_df.astype(float)  # pragma: no mutate - pandas reads astype(None) as float64 too
-    empty_rows = X_df.index[X_df.isna().all(axis=1)]
-    if len(empty_rows):
-        raise ValueError(f"Rows with every X value missing cannot be scored; remove them: {list(empty_rows)[:5]}.")
-    for name, frame in (("X", X_df), ("Y", Y_df)):
-        empty_columns = frame.columns[frame.isna().all(axis=0)]
-        if len(empty_columns):
-            raise ValueError(f"Columns of {name} with every value missing: {list(empty_columns)[:5]}.")
     return X_df, Y_df
 
 
+def _observed_width(X: pd.DataFrame) -> int:
+    """Return the count of columns with an observed value: every model leaves the others out (#1114)."""
+    return int(X.notna().any().sum())
+
+
+def _held_out_responses(X: pd.DataFrame, Y: pd.DataFrame) -> np.ndarray:
+    """Return Y with a row whose X is entirely missing read as missing: it has no prediction to judge."""
+    return np.where(X.isna().all(axis=1).to_numpy()[:, np.newaxis], np.nan, Y.to_numpy())
+
+
 def _check_fold_coverage(X: pd.DataFrame, Y: pd.DataFrame, splits: list[tuple[np.ndarray, np.ndarray]]) -> None:
-    """Every training fold needs two observed values per column to centre and scale it."""
+    """Every training fold needs two observed values per column to centre and scale it.
+
+    A column with no observed value at all is not counted: every model leaves it out.
+    """
     for k, (train, _) in enumerate(splits, start=1):
         for name, frame in (("X", X), ("Y", Y)):
             counts = frame.iloc[train].notna().sum(axis=0)
-            sparse = counts.index[counts < 2]
+            sparse = counts.index[(counts < 2) & frame.notna().any(axis=0)]
             if len(sparse):
                 raise ValueError(
                     f"Training fold {k} has fewer than two observed values in {name} column(s) "
@@ -213,8 +224,7 @@ def _component_cap(splits: list[tuple[np.ndarray, np.ndarray]], K: int, requeste
     """
     min_train = min(len(train) for train, _ in splits)
     upper = min(min_train - 1, K)
-    if requested is not None and int(requested) < 1:
-        raise ValueError(f"max_components must be >= 1; got {requested}.")
+    check_at_least_one("max_components", requested)
     A = upper if requested is None else min(int(requested), upper)
     if A < 1:
         raise ValueError("No components can be evaluated; the data or the folds are too small.")
@@ -643,10 +653,12 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
         with np.errstate(invalid="ignore"):  # a zero full-data Y loading has no ratio: 0 / 0
             d = np.sum(y_loadings * global_y_loadings, axis=0) / cc
         d_ratios[k] = d
-        pv_scores[fold.test] = local_scores * d
+        # A row with nothing observed has no score and no SPE, as diagnose gives it none (#1114)
+        scored = np.where(_rows_with_data(fold.x_test), 1.0, np.nan)[:, np.newaxis]
+        pv_scores[fold.test] = local_scores * d * scored
         for a in range(A):
             residual = fold.x_test - local_scores[:, : a + 1] @ x_loadings[:, : a + 1].T
-            squared_spe[fold.test, a] = np.nansum(residual**2, axis=1)  # observed cells only
+            squared_spe[fold.test, a] = np.nansum(residual**2, axis=1) * scored[:, 0]  # observed cells only
     return pv_scores, squared_spe, d_ratios
 
 
@@ -731,9 +743,9 @@ class _CompareSettings:
 
     def validate(self) -> None:
         """Raise ``ValueError`` for an out-of-range setting."""
-        if int(self.n_permutations) < 1:
-            raise ValueError(f"n_permutations must be >= 1; got {self.n_permutations}.")
-        if int(self.n_cv_permutations) < 0:
+        check_at_least_one("n_permutations", self.n_permutations)
+        check_whole("n_cv_permutations", self.n_cv_permutations)
+        if self.n_cv_permutations < 0:
             raise ValueError(f"n_cv_permutations must be >= 0; got {self.n_cv_permutations}.")
         _check_probability("alpha", self.alpha)
         _check_probability("conf_level", self.conf_level)
@@ -761,7 +773,9 @@ def _predictive_criteria(
     observed = ~np.isnan(y_values)
     M = y_values.shape[1]
     n_folds = held.per_fold_press.shape[1]
-    tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
+    with warnings.catch_warnings():  # a response with no observed value, left out of every model, has no mean
+        warnings.simplefilter("ignore", RuntimeWarning)  # pragma: no mutate - nanmean warns no other kind
+        tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
     # A target without spread has no Q2. Some target has spread: a fold model refuses a constant Y.
     q2_per_target = 1.0 - held.press_y / np.where(tss_y > 0, tss_y, np.nan)
     q2_total = 1.0 - held.press_y.sum(axis=1) / tss_y.sum()
@@ -801,11 +815,17 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     expected value had the row been complete; the SPE of a new row with gaps is scaled
     the same way before it is compared with the limit.
     """
-    N = sum(len(fold.test) for fold in folds)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
-    to_complete = np.empty(N)
-    for fold in folds:  # a row with no X is refused, so every row has an observed cell
-        to_complete[fold.test] = fold.x_test.shape[1] / (~np.isnan(fold.x_test)).sum(axis=1)
+    # A row with nothing observed has no score or SPE to judge, and is left out of every rate and limit (#1114).
+    judged = ~np.isnan(squared_spe[:, 0])
+    pv_scores, squared_spe = pv_scores[judged], squared_spe[judged]
+    N = int(judged.sum())
+    # A column every model leaves out, having no observed value, is not one a complete row would have.
+    n_used = int(np.sum(~np.broadcast_to(getattr(model, "_unobserved_columns", False), (model.n_features_in_,))))
+    n_observed = np.empty(judged.size)
+    for fold in folds:
+        n_observed[fold.test] = (~np.isnan(fold.x_test)).sum(axis=1)
+    to_complete = n_used / n_observed[judged]
     # A component with no spread adds nothing, as to every other T2 (#1029).
     pv_t2 = np.cumsum((pv_scores / _t2_score_sd(model.scaling_factor_for_scores_.to_numpy())) ** 2, axis=1)
     pv_spe = np.sqrt(squared_spe)
@@ -814,7 +834,7 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     t2_alarm = np.full(A, np.nan)
     spe_limits = np.empty((A, 2))
     for a in range(A):
-        spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
+        spe_lim = float(spe_calculation(model.spe_.iloc[:, a].dropna().to_numpy(), conf_level=conf_level))
         complete_spe = np.sqrt(squared_spe[:, a] * to_complete)
         spe_limits[a] = spe_lim, float(spe_calculation(complete_spe, conf_level=conf_level))
         # A held-out row is new to the fold model that scored it (#978).
@@ -894,11 +914,11 @@ def _compare_cv_criteria(
     rng = check_random_state(settings.random_state)
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     rng_vdv, rng_perm, rng_null = rng.spawn(3)
-    A = _component_cap(splits, X_df.shape[1], settings.max_components)
+    A = _component_cap(splits, _observed_width(X_df), settings.max_components)
     make_model = partial(estimator, n_components=A, **pls_kwargs)
     folds = _fit_folds(make_model, X_df, Y_df, splits)
     model = make_model().fit(X_df, Y_df)
-    y_values = Y_df.to_numpy()
+    y_values = _held_out_responses(X_df, Y_df)
     held = _heldout_pass(folds, y_values, A)
     predictive = _predictive_criteria(held, y_values, settings, rng_vdv)
 
@@ -991,7 +1011,8 @@ def _pseudo_validation_set(
     rng = check_random_state(settings.random_state)
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     (rng_pcv,) = rng.spawn(1)
-    cap = _component_cap(splits, K, None)
+    cap = _component_cap(splits, _observed_width(X_df), None)
+    check_whole("n_components", settings.n_components)
     A = int(settings.n_components)
     if not 1 <= A <= cap:
         raise ValueError(f"n_components must lie in [1, {cap}] for these folds; got {settings.n_components}.")

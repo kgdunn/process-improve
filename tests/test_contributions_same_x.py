@@ -230,15 +230,17 @@ def test_a_training_row_with_nothing_observed_is_decomposed_as_fit_scored_it(
 ) -> None:
     """``fit`` places a row with no observed value at the centre; so do the contributions and ``project``.
 
-    Its scores, T2 and SPE are 0, and so are the sums of its contributions, which are NaN at
-    every cell, as at any missing cell. Before #1125 the contributions and ``project`` refused it.
+    Its scores and T2 are 0, and so are the sums of its contributions, which are NaN at every
+    cell, as at any missing cell. Before #1125 the contributions and ``project`` refused it. It
+    has no residual to measure, so its SPE is NaN, as ``diagnose`` gives it (#1114).
     """
     X, y = raw
     gappy = X.copy()
     gappy.loc["r4"] = np.nan
     model = PLS(n_components=N_COMPONENTS).fit(gappy, y)
     assert (model.scores_.loc["r4"] == 0.0).all()
-    assert model.hotellings_t2_.loc["r4"].iloc[-1] == model.spe_.loc["r4"].iloc[-1] == 0.0
+    assert model.hotellings_t2_.loc["r4"].iloc[-1] == 0.0
+    assert model.spe_.loc["r4"].isna().all()
     for frame in (
         t2_contributions(model, gappy),
         spe_contributions(model, gappy),

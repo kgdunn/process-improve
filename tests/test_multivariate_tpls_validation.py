@@ -591,8 +591,8 @@ def test_a_column_is_left_out_only_when_its_values_are_all_equal() -> None:
     )
     assert block["d"].std() > 0
     message = (
-        r'^Block Z\["Z1"\] has columns with no variance, which carry no information and are excluded from the '
-        r"model: 'a', 'd', 'e'\. Drop them, or check the data for a stuck sensor\.$"
+        r'^Block Z\["Z1"\] has columns with no variance, which carry no information: '
+        r"'a', 'd', 'e'\. Drop them, or check the data for a stuck sensor\.$"
     )
     with pytest.warns(UserWarning, match=message):
         centre, scale = model._learn_center_and_scaling_parameters(block, 'Z["Z1"]')
@@ -649,8 +649,8 @@ def test_a_column_with_nothing_observed_is_named_on_its_own() -> None:
         "'never'. Drop them, or check the data for a sensor that was never logged."
     )
     no_variance = (
-        "has columns with no variance, which carry no information and are excluded from the model: "
-        "'once', 'a'. Drop them, or check the data for a stuck sensor."
+        "has columns with no variance, which carry no information: 'once', 'a'. Drop them, or check the data for "
+        "a stuck sensor."
     )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
