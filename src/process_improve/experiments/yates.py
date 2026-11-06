@@ -111,13 +111,16 @@ def _factor_names(design: pd.DataFrame, response: str, factors: Sequence[str] | 
     Raises
     ------
     ValueError
-        If the response is not a column, there is no factor, or a name would collide with a column of the table.
+        If the response is not a column, there is no factor, the response is named as a factor, or a name would
+        collide with a column of the table.
     """
     if response not in design.columns:
         raise ValueError(f"The response {response!r} is not a column of the design.")
     names = [str(c) for c in design.columns if c != response] if factors is None else [str(f) for f in factors]
     if not names:
         raise ValueError("Yates's algorithm needs at least one factor.")
+    if response in names:
+        raise ValueError(f"The response {response!r} cannot also be a factor.")
     clashes = sorted((added | {f"({j})" for j in range(1, len(names) + 1)}) & {*names, response})
     if clashes:
         raise ValueError(f"The names {clashes} are columns the table adds; rename them first.")
@@ -159,7 +162,8 @@ def yates_table(design: pd.DataFrame, response: str, factors: Sequence[str] | No
     ------
     ValueError
         If the response is not a column, a factor is not coded -1 and +1, the runs are not each run of the full
-        factorial once, a response is missing, or a name would collide with a column of the table.
+        factorial once, a response is missing or named as a factor, or a name would collide with a column of the
+        table.
 
     Examples
     --------
@@ -299,7 +303,8 @@ def yates_table_3k(design: pd.DataFrame, response: str, factors: Sequence[str] |
     ------
     ValueError
         If the response is not a column, a factor is not coded -1, 0 and +1, the runs are not each run of the full
-        factorial once, a response is missing, or a name would collide with a column of the table.
+        factorial once, a response is missing or named as a factor, or a name would collide with a column of the
+        table.
 
     Examples
     --------
