@@ -6658,12 +6658,17 @@ class TestTPLSWrittenOut:
             warnings.simplefilter("error")
             result = model.diagnose(DataFrameDict(new))
             vip = model.vip()
+            limits = {block: model.spe_limit[block]["B"](0.95) for block in ("D", "F")}
         expected = reference.diagnose(DataFrameDict(without))
         _tpls_near(result.t_scores_super, expected.t_scores_super, 1e-10)
         _tpls_near(result.hat["Q"], expected.hat["Q"], 1e-10)
         for block in ("D", "F"):
             assert (vip[block]["B"] == 0.0).all()
             assert (vip[block]["A"] > 0.0).all()
+        # Scaling leaves a constant group absent, so it has no SPE, and no SPE limit; F used as given keeps its values
+        absent = constant == "D" or not skip_f
+        assert np.isnan(limits[constant]) == absent
+        assert np.isfinite(limits["F" if constant == "D" else "D"])
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
