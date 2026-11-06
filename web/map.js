@@ -332,9 +332,31 @@ function go(id, { animate = true, hash = true } = {}) {
 }
 const fromHash = () => location.hash.slice(1).replaceAll("-", "_");
 
-cy.on("tap", "node.term", ev => go(ev.target.id()));
+// On a phone the map fills the screen, and a drag that only ever moved the map would trap the reader in it. So one
+// finger moves the map until its content would leave through the top or bottom edge, and from there, until the finger
+// lifts, the drag scrolls the page. Cytoscape listens for moves on the window: this listens there first, and keeps
+// those moves from it.
+const EDGE = 40;   // px of content kept inside the map by a one-finger drag
+let fingerY = null, paging = false;
+cy.container().addEventListener("touchstart", ev => {
+  fingerY = ev.touches.length === 1 ? ev.touches[0].clientY : null;
+  paging = false;
+}, { passive: true });
+window.addEventListener("touchmove", ev => {
+  if (fingerY === null || ev.touches.length !== 1) { fingerY = null; return; }
+  const y = ev.touches[0].clientY, dy = y - fingerY;
+  fingerY = y;
+  if (!paging) {
+    const bb = cy.elements(":visible").renderedBoundingBox();
+    paging = (dy < 0 && bb.y2 + dy < EDGE) || (dy > 0 && bb.y1 + dy > cy.height() - EDGE);
+  }
+  if (paging) { ev.preventDefault(); ev.stopPropagation(); window.scrollBy(0, -dy); }
+}, { capture: true, passive: false });
+
+// A drag that went on to scroll the page ends without a tap, wherever the finger lifts.
+cy.on("tap", "node.term", ev => { if (!paging) go(ev.target.id()); });
 cy.on("tap", ev => {
-  if (ev.target !== cy && !ev.target.isEdge()) return;   // a tap on a link line counts as a tap on what lies under it
+  if (paging || (ev.target !== cy && !ev.target.isEdge())) return;   // a tap on a link counts as one on what lies under it
   const { x, y } = ev.position;
   const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
