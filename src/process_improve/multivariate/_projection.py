@@ -119,7 +119,7 @@ def _residual_inner(x_residuals: np.ndarray | None, observed: np.ndarray, g_obs:
             "trimmed score regression. Pass the fitted model's residual block, or ask for method='pmp' "
             "explicitly.",
             SpecificationWarning,
-            stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin it there
+            stacklevel=user_stacklevel(),
         )
         return np.zeros((A, A))
     residuals = np.asarray(x_residuals)

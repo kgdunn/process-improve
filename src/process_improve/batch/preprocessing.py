@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._common import user_stacklevel
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
@@ -181,7 +182,7 @@ def _warn_about_collapsed_ranges(collapsed: dict[str, int], n_batches: int) -> N
         f"unscaled: {listed}. A tag that holds one value across a batch carries no information "
         f"for alignment; exclude it with `columns_to_align`.",
         category=UserWarning,
-        stacklevel=3,
+        stacklevel=user_stacklevel(),
     )
 
 

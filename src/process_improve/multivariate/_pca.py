@@ -783,7 +783,7 @@ def _eastment_krzanowski_press(
             "model is fitted on fewer rows or columns than the whole. Component counts "
             "above that are reported as NaN. Use fewer folds to evaluate more.",
             SpecificationWarning,
-            stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+            stacklevel=user_stacklevel(),
         )
 
     press = np.full(max_components, np.nan)
@@ -1037,7 +1037,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 f"the minimum of either the number of rows ({N}) or "
                 f"the number of columns ({K}).",
                 SpecificationWarning,
-                stacklevel=2,
+                stacklevel=user_stacklevel(),
             )
             A = min_dim
         # The resolved (possibly clamped) component count is a fitted attribute;
@@ -1237,7 +1237,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             iterations[a] = itern
             # Whether the last pass met the tolerance, not whether it was the last one allowed: a
             # component can converge on that pass (#1080).
-            if not scores_converged(t_a_guess, t_a, settings["md_tol"]):
+            converged = scores_converged(t_a_guess, t_a, settings["md_tol"])
+            if not converged:
                 warnings.warn(
                     f"PCA NIPALS: component {a + 1} reached the maximum number of "
                     f"iterations ({settings['md_max_iter']}) without converging.",
@@ -1245,8 +1246,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     stacklevel=user_stacklevel(),
                 )
             logger.debug(
-                "PCA NIPALS: component %d converged in %d iterations (tol=%g)",
+                "PCA NIPALS: component %d %s in %d iterations (tol=%g)",
                 a + 1,
+                "converged" if converged else "did not converge",
                 itern,
                 settings["md_tol"],
             )
@@ -2175,7 +2177,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 f"largest count tried rather than an optimum. Evaluate more components, or use "
                 f"a scheme that holds data out ({alternatives}), before reading this as an answer.",
                 SpecificationWarning,
-                stacklevel=2,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
 
         consensus_fields: dict[str, object] = {}

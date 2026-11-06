@@ -39,6 +39,7 @@ from ._common import (
     largest_ssq_column,
     resolve_loop_settings,
     unobserved_columns,
+    user_stacklevel,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import JudgedRows, spe_calculation
@@ -1134,7 +1135,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             warnings.warn(  # a UserWarning, warn's default category
                 f"Block {label} has columns with no variance, which carry no information and are "
                 f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
-                stacklevel=3,  # pragma: no mutate - mutmut's trampoline adds frames, so no test can pin the caller
+                stacklevel=user_stacklevel(),
             )
         return centering, scaling.mask(degenerate | unobserved)  # a column with no information has a NaN scale
 
@@ -1724,10 +1725,16 @@ class TPLS(RegressorMixin, BaseEstimator):
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
                 self._refuse_scores_that_are_not_finite(pc_a + 1, t_super_i)
-                if self._has_converged(starting_vector=u_prior, revised_vector=u_super_i):
+                converged = self._has_converged(starting_vector=u_prior, revised_vector=u_super_i)
+                if converged:
                     break
 
-            logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
+            logger.debug(
+                "TPLS: super-component %d %s in %d iterations",
+                pc_a + 1,
+                "converged" if converged else "did not converge",
+                n_iter,
+            )
 
             # After convergance. Step 12: Now store information.
             # =================
