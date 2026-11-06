@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -721,6 +722,21 @@ class TestCategoricalAnalysis:
         assert table.loc["x3:catalyst[S.A]", "coefficient"] == pytest.approx(
             -0.5, abs=5 * table.loc["x3:catalyst[S.A]", "std_error"]
         )
+
+    @pytest.mark.parametrize("model", ["formula", "interactions"])
+    def test_model_selection_codes_the_catalyst_in_two_columns(
+        self, catalyst_runs: tuple[pd.DataFrame, str], model: str
+    ) -> None:
+        """Without an intercept, patsy would give T:catalyst a column per level, which add up to T (#1169)."""
+        data, formula = catalyst_runs
+        data = data.assign(y=data["y"] + data["T"] * (data["catalyst"] == "C"))  # T matters with catalyst C
+        model = formula if model == "formula" else model
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the standard model fitted for model_summary is rank deficient
+            chosen = analyze_experiment(data, response_column="y", model=model, analysis_type="model_selection")
+        chosen = chosen["model_selection"]
+        assert chosen["selected_terms"][-2:] == ["x3:catalyst", "T:catalyst"]
+        assert chosen["n_terms"] == len(chosen["selected_terms"]) + 2  # each catalyst term is two columns, not three
 
     @pytest.mark.parametrize("analysis_type", ["effects", "lenth_method"])
     def test_effects_are_refused_beside_components(
