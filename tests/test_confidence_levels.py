@@ -144,3 +144,4 @@ def test_a_pairwise_test_on_one_group_refuses_an_unknown_correction(function: Ca
     """The correction was checked only once there were comparisons to correct (#1169)."""
     with pytest.raises(ValueError, match=r"^correction must be one of 'holm', 'bh', or None; got 'bonferroni'\.$"):
         function(ONE_GROUP, "g", "y", correction="bonferroni")
+    assert function(ONE_GROUP, "g", "y", correction="holm").empty  # a known name: nothing to compare, no error
