@@ -97,8 +97,9 @@ class RobustRegressionInput(BaseModel):
         """Refuse an explicit ``n_boot`` whose work exceeds that of the default at the most points (#1169).
 
         The fit and each resample are a repeated median of ``N ** 2`` slopes, so the work is
-        ``(n_boot + 1) * N ** 2``. The default's at ``_MAX_POINTS``, 40 fits of 1,500 points, took
-        1.3 s here, as did 1,000 fits of 300 points; 201 fits of 1,500 points took 6.7 s.
+        ``(n_boot + 1) * N ** 2``. Measured in-process on the machine of ``_MAX_POINTS``, the
+        default's at 1,500 points (40 fits) took 1.3 s, the same work as 1,000 fits of 300 points
+        took 0.8 s, and 201 fits of 1,500 points took 6.7 s.
         """
         n_points = len(self.x)
         most = (_MIN_DEFAULT_N_BOOT + 1) * _MAX_POINTS**2 // n_points**2 - 1
