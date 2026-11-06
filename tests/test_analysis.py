@@ -2361,6 +2361,57 @@ class TestModelSelectionCriterion:
         assert explicit["r_squared"] == pytest.approx(keyword["r_squared"])
         assert explicit["criterion_value"] == pytest.approx(keyword["criterion_value"])
 
+    @staticmethod
+    def _blends_at_two_temperatures() -> pd.DataFrame:
+        """Return the 7 blends of the simplex-centroid design at T = -1 and +1, with x1 and x3 moving with T."""
+        blends = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)]
+        df = pd.DataFrame([(*b, T) for T in (-1.0, 1.0) for b in blends], columns=["x1", "x2", "x3", "T"])
+        x1, x2, x3, temperature = (df[c] for c in ("x1", "x2", "x3", "T"))
+        y = 10 * x1 + 20 * x2 + 15 * x3 + 8 * x1 * x2 + 3 * x1 * temperature - 2 * x3 * temperature
+        return df.assign(y=y + 0.3 * np.random.default_rng(0).standard_normal(len(df)))
+
+    @staticmethod
+    def _selected(df: pd.DataFrame, model: str | None) -> dict:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # the standard models fitted for model_summary are rank deficient here
+            return analyze_experiment(df, response_column="y", model=model, analysis_type="model_selection")[
+                "model_selection"
+            ]
+
+    @pytest.mark.parametrize(
+        ("model", "selected"),
+        [
+            (None, "y ~ -1 + x1 + x2 + x3 + x1:x2 + x1:T + x3:T"),
+            ("interactions", "y ~ -1 + x1 + x2 + x3 + x1:x2 + x1:T + x3:T"),
+            (
+                "y ~ -1 + x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + x1:T + x2:T + x3:T",
+                "y ~ -1 + x1 + x2 + x3 + x1:x2 + x1:T + x3:T",
+            ),
+            ("main_effects", "y ~ -1 + x1 + x2 + x3"),
+        ],
+    )
+    def test_mixture_process_data_are_searched_without_an_intercept(self, model: str | None, selected: str) -> None:
+        """Components beside a process factor make up the intercept, as in a Scheffe model (#1169).
+
+        The standard models are the mixture-process models of their order, whose process main
+        effects enter through x1:T, x2:T and x3:T. The formula was searched as 'interactions',
+        with an intercept beside x1 + x2 + x3, and with a note.
+        """
+        chosen = self._selected(self._blends_at_two_temperatures(), model)
+        assert chosen["selected_formula"] == selected
+        assert chosen["n_terms"] == len(chosen["selected_terms"])  # no intercept
+        assert chosen["candidate_model"] == (model or "interactions")
+        assert "note" not in chosen
+
+    def test_quadratic_on_mixture_process_data_finds_the_blending_and_the_temperature_terms(self) -> None:
+        """It selected y ~ x1 + x2, with an R-squared of 0.725, searched forward from an intercept (#1155, #1169)."""
+        df = self._blends_at_two_temperatures()
+        chosen, interactions = self._selected(df, "quadratic"), self._selected(df, "interactions")
+        assert chosen["selected_formula"].startswith("y ~ -1 + x1 + x2 + x3 + x1:x2 + x1:T + x3:T")
+        assert chosen["direction"] == "backward"
+        assert chosen["r_squared"] == pytest.approx(0.9971, abs=1e-4)
+        assert chosen["criterion_value"] == pytest.approx(interactions["criterion_value"])
+
     def test_n_terms_counts_the_intercept_like_model_summary(self) -> None:
         result = analyze_experiment(
             _three_factor_data(), response_column="y", model="main_effects", analysis_type="model_selection"
