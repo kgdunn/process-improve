@@ -35,6 +35,8 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, stats
 
+from ..univariate.metrics import _check_probability
+
 
 def nonlinear_regression(
     model: Callable[..., Any],
@@ -141,9 +143,7 @@ def _prepare(
     if len(response) <= len(names):
         msg = f"{len(response)} rows leave no residual degree of freedom for {len(names)} parameters."
         raise ValueError(msg)
-    if not 0 < conf_level < 1:
-        msg = f"conf_level must be between 0 and 1; got {conf_level!r}."
-        raise ValueError(msg)
+    _check_probability("conf_level", conf_level)
     return names, theta0, response
 
 
