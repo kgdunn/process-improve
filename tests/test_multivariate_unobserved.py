@@ -79,7 +79,7 @@ def test_pca_names_a_column_with_nothing_observed_and_leaves_it_out(value: float
     result, expected = model.diagnose(new), without.diagnose(new.drop(columns="c"))
     _close(result.scores, expected.scores)
     _close(result.spe, expected.spe)
-    _close(result.hotellings_t2, expected.hotellings_t2)
+    _close(result.cumulative_hotellings_t2, expected.cumulative_hotellings_t2)
     _close(model.transform(new), expected.scores)
     _close(model.project(new).spe, without.project(new.drop(columns="c")).spe)
 
@@ -108,7 +108,7 @@ def test_pls_names_a_column_of_x_with_nothing_observed_and_leaves_it_out(md_meth
 
     new = x.iloc[2:6].assign(c=value)
     result, expected = model.diagnose(new), without.diagnose(new.drop(columns="c"))
-    for key in ("scores", "spe", "hotellings_t2", "y_hat"):
+    for key in ("scores", "spe", "cumulative_hotellings_t2", "y_hat"):
         _close(result[key], expected[key])
     _close(model.predict(new), expected.y_hat)
     _close(model.transform(new), expected.scores)
@@ -159,7 +159,7 @@ def test_mbpca_names_a_column_with_nothing_observed_and_leaves_it_out(value: flo
     result = model.diagnose(new)
     expected = without.diagnose({"p": new["p"], "q": new["q"].drop(columns="c")})
     _close(result.super_scores, expected.super_scores)
-    _close(result.hotellings_t2, expected.hotellings_t2)
+    _close(result.cumulative_hotellings_t2, expected.cumulative_hotellings_t2)
     for name in ("p", "q"):
         _close(result.block_spe[name], expected.block_spe[name])
     _close(model.transform(new), expected.super_scores)
@@ -197,7 +197,7 @@ def test_mbpls_names_a_column_of_x_with_nothing_observed_and_leaves_it_out(value
     new = {name: frame.iloc[2:6] for name, frame in _blocks(x.assign(c=value)).items()}
     result = model.diagnose(new)
     expected = without.diagnose({"p": new["p"], "q": new["q"].drop(columns="c")})
-    for key in ("super_scores", "predictions", "hotellings_t2"):
+    for key in ("super_scores", "predictions", "cumulative_hotellings_t2"):
         _close(result[key], expected[key])
     for name in ("p", "q"):
         _close(result.block_spe[name], expected.block_spe[name])
@@ -262,7 +262,13 @@ def test_mbpca_fits_a_row_with_nothing_observed_as_pca_does() -> None:
 
     result = model.diagnose({name: frame.loc[["r4"]] for name, frame in blocks.items()})
     single = pca.diagnose(MCUVScaler().fit(x).transform(gap.loc[["r4"]]))
-    for values in (result.super_scores, result.hotellings_t2, *result.block_spe.values(), single.scores, single.spe):
+    for values in (
+        result.super_scores,
+        result.cumulative_hotellings_t2,
+        *result.block_spe.values(),
+        single.scores,
+        single.spe,
+    ):
         assert values.isna().all(axis=None)
 
 
@@ -301,7 +307,12 @@ def test_mbpls_fits_a_row_with_nothing_observed_in_x_as_pls_does() -> None:
 
     result = model.diagnose({name: frame.loc[["r4"]] for name, frame in blocks.items()})
     single = pls.diagnose(gap.loc[["r4"]])
-    for values in (result.super_scores, result.predictions, result.hotellings_t2, *result.block_spe.values()):
+    for values in (
+        result.super_scores,
+        result.predictions,
+        result.cumulative_hotellings_t2,
+        *result.block_spe.values(),
+    ):
         assert values.isna().all(axis=None)
     for values in (single.scores, single.spe, single.y_hat):
         assert values.isna().all(axis=None)

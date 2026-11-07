@@ -509,7 +509,7 @@ def test_a_fitted_model_works_from_its_fitted_components_whatever_n_components_s
     assert model.n_components_ == 2
     again = model.diagnose(data)
     pd.testing.assert_frame_equal(again.t_scores_super, result.t_scores_super)
-    pd.testing.assert_frame_equal(again.hotellings_t2, result.hotellings_t2)
+    pd.testing.assert_frame_equal(again.cumulative_hotellings_t2, result.cumulative_hotellings_t2)
     pd.testing.assert_frame_equal(again.hat["Y1"], result.hat["Y1"])
     for block, group in (("F", "G"), ("Z", "Z1")):
         pd.testing.assert_frame_equal(again.spe[block][group], result.spe[block][group])

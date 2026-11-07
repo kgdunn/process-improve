@@ -130,15 +130,18 @@ def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
     Returns
     -------
     np.ndarray of shape (n_features,)
-        The standard deviations, NaN for a column with fewer than two observed values.
+        The standard deviations, NaN for a column with fewer than two observed values. One beyond
+        the largest float is inf, with numpy's overflow warning, as ``numpy.nanstd`` gives it.
     """
     values = np.asarray(values, dtype=float)
     largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
     _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
-    unit = np.ldexp(1.0, exponent)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
-        return np.nanstd(values / unit, axis=0, ddof=1) * unit
+        spread = np.nanstd(np.ldexp(values, -exponent), axis=0, ddof=1)
+    # ldexp scales by the power of two without forming it: at 2**1023 and above that power is 2**1024, which
+    # overflowed to inf and gave the column a standard deviation of inf * 0, NaN (#1149).
+    return np.ldexp(spread, exponent)
 
 
 #: Smallest positive float; used to floor NIPALS denominators away from zero.

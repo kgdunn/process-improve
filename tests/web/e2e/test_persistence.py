@@ -457,3 +457,20 @@ def test_a_new_study_keeps_the_last_one_and_starts_at_its_response(page):
     assert page.text_content("#study-title") == "A new study"
     page.click("#library summary")
     assert page.locator("#library-list li").count() == 1, "the study before is kept"
+
+
+def test_a_run_sheet_made_for_the_brief_before_stays_out_of_a_new_study(blank_page):
+    """A new study, started while the run sheet is made, drops it: it stays in Design, with no busy note."""
+    page = blank_page
+    page.evaluate("window.__pi.hold('api_make_design')")
+    choose(page, design_type="full_factorial")
+    reveal(page, "#generate")
+    page.click("#generate")
+    assert status(page) == ("Generating design...", "busy")
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_make_design')")
+    settled(page)
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.is_hidden("#run-out")
+    assert page.is_hidden("#status")
+    assert page.text_content("#study-title") == "A new study"

@@ -419,7 +419,7 @@ class TestTPLSDiagnoseMissing:
         f_new.iloc[1, 2] = np.nan  # a single missing formula entry
         result = model.diagnose(DataFrameDict({"F": {"G": f_new}, "Z": {"Cond": z_new}}))
         assert np.isfinite(result.t_scores_super.values).all()
-        assert np.isfinite(result.hotellings_t2.values).all()
+        assert np.isfinite(result.cumulative_hotellings_t2.values).all()
         for frame in result.hat.values():
             assert np.isfinite(frame.values).all()
 
@@ -543,7 +543,7 @@ class TestStatisticalCorrectnessTriage:
 
         df = n_samples - n_components - 1
         rmse_n = float(np.asarray(model.rmse_.iloc[:, -1]).ravel()[0])
-        t2_new = float(np.asarray(model.diagnose(X_new).hotellings_t2).ravel()[-1])
+        t2_new = float(model.diagnose(X_new).cumulative_hotellings_t2.iloc[0, -1])
         leverage = 1.0 / n_samples + t2_new / (n_samples - 1)
         expected = t_dist.ppf(0.975, df) * np.sqrt(1.0 + leverage) * rmse_n * np.sqrt(n_samples / df)
         assert half_width == pytest.approx(expected, rel=1e-9)

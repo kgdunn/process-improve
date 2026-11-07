@@ -165,7 +165,7 @@ def test_specification_region_box_and_its_corners(fitted: PLS) -> None:
         columns=region.columns,
     )
     taste = fitted.predict(corners).to_numpy().ravel()
-    t2 = fitted.diagnose(corners).hotellings_t2.to_numpy()
+    t2 = fitted.diagnose(corners).cumulative_hotellings_t2.iloc[:, -1].to_numpy()
 
     in_window = (taste >= taste_low) & (taste <= taste_high)
     assert in_window.sum() == 2, "two corners predict an acceptable taste"
