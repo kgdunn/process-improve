@@ -462,6 +462,25 @@ class TestFindReferenceBatchForAnyNumberOfBatches:
         with pytest.raises(ValueError, match=r"number_of_reference_batches=3 exceeds the number of candidate batches"):
             find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 3})
 
+    def test_a_batch_left_out_by_the_t2_screen_is_not_the_reference(self) -> None:
+        """Of three batches, one far from the others is above the 90% T2 limit: the other two are ranked.
+
+        A model of the one or two batches the screen keeps has no SPE limit, so they are ranked by
+        their T2 alone. Ranked with the batch left out, by the SPE of a one-component model, that
+        batch was the reference: the model's one direction runs through it.
+        """
+        batches = _noisy_batches(3)
+        batches["b2"] += 5.0
+        settings = {"judged_rows": "fitted"}
+
+        assert find_reference_batch(batches, ["a", "b"], settings) in ("b0", "b1")
+        assert find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 2}) in (
+            ["b0", "b1"],
+            ["b1", "b0"],
+        )
+        with pytest.raises(ValueError, match=r"number_of_reference_batches=3 exceeds the number of candidate batches"):
+            find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 3})
+
     @pytest.mark.parametrize("n_batches", [3, 4, 5, 6, 8])
     @pytest.mark.parametrize("judged_rows", ["fitted", "new"])
     def test_a_reference_is_found_without_a_warning(self, n_batches: int, judged_rows: str) -> None:

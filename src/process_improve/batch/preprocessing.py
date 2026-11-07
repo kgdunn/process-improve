@@ -1263,7 +1263,7 @@ def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None 
         return cast("str", batch_lengths.index[closest])
 
 
-def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | None) -> PCA:
+def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | None) -> tuple[PCA, pd.Index]:
     """
     Fit the PCA that ranks the batches, after leaving out those above the 90% T2 limit.
 
@@ -1271,7 +1271,7 @@ def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | N
     through every batch, so each has the same T2 and no SPE, and rounding decided the ranking.
     The 90% limit for the fitted batches then equals that T2, so the screen left one batch or
     none, and the refit raised "Found array with 1 sample(s)" (#1184). When the screen leaves
-    fewer than 3 batches there is no model to refit, and the first one ranks them all.
+    fewer than 3 batches there is no model to refit: the first model ranks the batches kept.
 
     Parameters
     ----------
@@ -1285,16 +1285,19 @@ def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | N
     Returns
     -------
     PCA
-        The model fitted to the batches the screen kept.
+        The model fitted to the batches the screen kept, or the first model when it kept fewer
+        than 3.
+    pd.Index
+        The batches the screen kept.
     """
     first = PCA(n_components=min(n_components, basewide.shape[0] - 2)).fit(MCUVScaler().fit_transform(basewide))
     # These are the batches the model was fitted to; judged_rows says which limit to use (#978).
     limit = first.hotellings_t2_limit(0.90, judged_rows=judged_rows)
     kept = basewide.loc[first.hotellings_t2_.iloc[:, -1] < limit, :]
     if kept.shape[0] < 3:
-        return first
+        return first, kept.index
     # Refitted to the batches kept, so the ones left out do not bias the model.
-    return PCA(n_components=min(n_components, kept.shape[0] - 2)).fit(MCUVScaler().fit_transform(kept))
+    return PCA(n_components=min(n_components, kept.shape[0] - 2)).fit(MCUVScaler().fit_transform(kept)), kept.index
 
 
 def _refuse_more_than_the_candidates(requested: int, n_candidates: int) -> None:
@@ -1402,7 +1405,7 @@ def find_reference_batch(
     )
 
     # Unfolds that resampled data, and fits the PCA that ranks the batches.
-    pca_second = _ranking_pca(
+    pca_second, kept = _ranking_pca(
         dict_to_wide(resampled),
         int(np.floor(settings["n_components"])),
         cast("str | None", settings.get("judged_rows")),
@@ -1414,13 +1417,14 @@ def find_reference_batch(
             "HT2": pca_second.hotellings_t2_.iloc[:, -1],
             "SPE": pca_second.spe_.iloc[:, -1],
         }
-    )
+    ).loc[kept]
     metrics = metrics.sort_values(by=["HT2", "SPE"])
     _refuse_more_than_the_candidates(requested, len(metrics))
 
     # Boolean-mask indexing instead of a DataFrame.query() expression string
-    # built by f-string (no expression is assembled or evaluated).
-    spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
+    # built by f-string (no expression is assembled or evaluated). One or two batches kept by
+    # the screen have no model of their own to give an SPE limit, so they are not judged by one.
+    spe_metrics = metrics if len(metrics) < 3 else metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
     # SEC-13 (#261): bound the cutoff strictly below 1.0. If the loop runs out
     # of headroom before enough batches pass, give up with a clear error
     # rather than tripping the inner ``assert conf_level < 1.0`` (which is
