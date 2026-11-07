@@ -83,7 +83,9 @@ DataFrames, optionally grouped:
 
 - Column names in each F group must match the row index of the corresponding
   D group - this is how TPLS knows which material properties correspond to
-  which formulation amounts.
+  which formulation amounts. They are paired by name, in any order. A material
+  that no batch uses has a column of zeros in F; a name that only one of the two
+  has is refused.
 - All F, Z, and Y DataFrames must have the same number of rows.
 - Y holds one DataFrame; D, F and Z may hold several groups, and Z may be left
   out.

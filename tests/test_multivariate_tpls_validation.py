@@ -149,6 +149,68 @@ def test_malformed_data_is_refused(
         action(model, data)
 
 
+@pytest.mark.parametrize(
+    ("f_materials", "d_materials", "message"),
+    [
+        (
+            ["mat0", "matZ", "mat2", "matX"],
+            ["mat0", "mat1", "mat2", "mat3"],
+            (
+                """F["G"] has materials that d_matrix["G"] does not have: ['matZ', 'matX']. """
+                "Each column of F is paired with the row of d_matrix of the same name."
+            ),
+        ),
+        (
+            ["mat1", "mat0"],
+            ["mat3", "mat1", "mat0", "mat2"],
+            (
+                """d_matrix["G"] has materials that F["G"] has no column for: ['mat3', 'mat2']. """
+                "Give a material that no blend uses a column of zeros in F."
+            ),
+        ),
+        (
+            ["mat0", "mat1", "mat2"],
+            ["mat0", "mat1", "mat2", "mat1"],
+            """d_matrix["G"] names a material more than once: ['mat1'].""",
+        ),
+    ],
+    ids=["materials-of-f-that-d-lacks", "materials-of-d-that-f-lacks", "a-material-d-names-twice"],
+)
+def test_materials_of_f_and_d_that_do_not_pair_by_name_are_refused(
+    f_materials: list[str], d_materials: list[str], message: str
+) -> None:
+    """#1197: each column of F is paired with the row of D of the same name, and a material with no pair is named.
+
+    They were paired by position, so a material of F that D lacks was fitted with another material's
+    properties, and a material of D that F lacks failed on mismatched shapes. The materials are named
+    in the order F or D gives them.
+    """
+    d_matrix, blocks = _synthetic()
+    d_matrix["G"].index = d_materials
+    blocks["F"]["G"] = blocks["F"]["G"].iloc[:, : len(f_materials)].set_axis(f_materials, axis=1)
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+
+def test_a_material_of_d_no_blend_uses_fits_with_a_column_of_zeros_in_f() -> None:
+    """#1197: a material of D that no training blend uses still fits, with a column of zeros in F, in any order.
+
+    Its F column has no variation, so the fit leaves it out of F with a warning that names it.
+    """
+    d_matrix, blocks = _synthetic()
+    d_matrix["G"].loc["unused"] = [0.1, 0.2, 0.3]
+    blocks["F"]["G"]["unused"] = 0.0
+    shuffled = copy.deepcopy(blocks)
+    shuffled["F"]["G"] = shuffled["F"]["G"][["unused", "mat3", "mat1", "mat0", "mat2"]]
+    with pytest.warns(UserWarning, match=r"unused"):
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    with pytest.warns(UserWarning, match=r"unused"):
+        other = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(shuffled))
+
+    np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-10)
+    np.testing.assert_allclose(other.diagnose(DataFrameDict(shuffled)).t_scores_super, model.t_scores_super, atol=1e-10)
+
+
 def test_skipping_f_preprocessing_uses_the_f_block_as_given() -> None:
     """A pre-scaled F with ``skip_f_matrix_preprocessing`` fits and diagnoses like raw F without it."""
     d_matrix, blocks = _synthetic()
