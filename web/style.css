@@ -1549,6 +1549,7 @@ main.map .lede { margin: 0; }
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 10px; font-size: 0.88rem; }
 .map-strip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .map-strip b { color: var(--fg); }
+.map-strip i { color: var(--accent); }   /* a link's verb, as on the map */
 .map-strip button { flex: none; min-height: 0; padding: 4px 10px; font-size: 0.85rem; }
 .map-controls { display: flex; gap: 6px; flex: none; }
 .map-controls button { width: 42px; height: 42px; min-height: 0; padding: 0; display: grid; place-items: center; font-size: 1.15rem; }

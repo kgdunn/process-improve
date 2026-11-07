@@ -105,7 +105,7 @@ const elements = [
     data: { id: `${s.id}-name`, label: `${s.name}\n[${s.size}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n) } })),
-  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0) },
+  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0 },
     classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between", data: { id: `b${i}`, source: e.a, target: e.b, n: e.n } })),
 ];
@@ -117,6 +117,7 @@ window.conceptMap = { cy, data: DATA };
 let selected = null;   // a term id, a topic id, or null for the overview
 let labelsOn = true;   // term names on the map; with them off, only the selected term is named
 try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch {}
+let stripWas = null;   // the strip's own text, while it reads out a link
 let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
 try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
 const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
@@ -184,8 +185,8 @@ function sheet(z) {
       "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
     // in italic and the accent colour, so a verb is not read as a term.
-    ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.85),
-      color: css("--accent"), "font-style": "italic", "text-rotation": "autorotate", "text-background-color": css("--panel"),
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * 0.85),
+      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", "text-background-color": css("--panel"),
       "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
@@ -194,8 +195,8 @@ function sheet(z) {
     { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
-    { selector: ".link.dim", style: { opacity: 0.08, label: "" } },
-    { selector: ".link.mute", style: { label: "" } },   // its label would land on a term or another label (settleLinkLabels)
+    { selector: ".link.dim", style: { opacity: 0.08, "source-label": "" } },
+    { selector: ".link.mute", style: { "source-label": "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
 }
@@ -260,8 +261,10 @@ function settleOverlaps() {
   if (verbsOn) settleLinkLabels(kept);
 }
 
-// A link's label sits mid-line, under any term name or dot it meets: it is drawn only where it lands on none of them,
-// nor on another link's label, and fits between the two terms it joins; zooming in makes room for the rest.
+// A link's label sits on its line, clear of the terms, their names and the other labels: in the middle where that is
+// clear, else at the first clear spot further along either way, else held back until zooming in makes room for it.
+// The label is drawn `at` drawing units along the line from where it leaves its source term.
+const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way from the source term to the target
 function settleLinkLabels(kept) {
   const z = cy.zoom(), { font, dot } = sizes(z), f = font * 0.85, pad = f * 0.5;   // pad: half the text's height
   if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
@@ -272,12 +275,16 @@ function settleLinkLabels(kept) {
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
     const s = e.source().renderedPosition(), t = e.target().renderedPosition();
     const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f) + 4;
-    const mid = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 }, dx = (t.x - s.x) / len, dy = (t.y - s.y) / len;
-    const along = [-0.45, -0.2, 0, 0.2, 0.45].map(k => ({ x: mid.x + dx * w * k, y: mid.y + dy * w * k }));
-    const off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
-    const mute = !off && (w > len - 2 * dot || along.some(p => hit(p.x, p.y)));
-    e.toggleClass("mute", mute);
-    if (!mute && !off) taken.push(...along.map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
+    const dx = (t.x - s.x) / len, dy = (t.y - s.y) / len;
+    const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
+    const points = k => [-0.45, -0.2, 0, 0.2, 0.45].map(j => ({ x: s.x + dx * (k * len + w * j), y: s.y + dy * (k * len + w * j) }));
+    const mid = points(0.5)[2], off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
+    const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !points(k).some(p => hit(p.x, p.y)));
+    e.toggleClass("mute", k === undefined);
+    if (k === undefined) return;
+    const at = (k * len - from) / z;
+    if (Math.abs(e.data("at") - at) > 0.01) e.data("at", at);
+    if (!off) taken.push(...points(k).map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
   });
 }
 
@@ -352,6 +359,7 @@ const group = (title, ids) => ids.length ? `<div class="map-rel"><h3>${title}</h
 
 function render() {
   const card = document.getElementById("card"), links = document.getElementById("links"), strip = document.getElementById("striptext");
+  stripWas = null;
   if (selected && terms.has(selected)) {
     const n = terms.get(selected), color = css(`--map-${fam(n)}`);
     card.style.setProperty("--fam", color);
@@ -490,9 +498,21 @@ window.addEventListener("touchend", ev => {
   if (!ev.cancelable) ev.preventDefault = () => {};
 }, { capture: true });
 
+// A link read as a sentence in the strip under the map: while the mouse is on its line, or after a tap on one of the
+// selected term's links. A tap on any other link counts as one on what lies under it.
+function sayLink(e) {
+  const strip = document.getElementById("striptext"), name = id => esc(terms.get(id).name);
+  if (stripWas === null) stripWas = strip.innerHTML;
+  strip.innerHTML = `<b>${name(e.data("source"))}</b> <i>${esc(e.data("verb"))}</i> <b>${name(e.data("target"))}</b>`;
+}
+cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(ev.target); });
+cy.on("mouseout", "edge.link", () => {
+  if (stripWas !== null) { document.getElementById("striptext").innerHTML = stripWas; stripWas = null; }
+});
 cy.on("tap", "node.term", ev => { if (!scrolled) go(ev.target.id()); });
+cy.on("tap", "edge.link.hl", ev => { if (!scrolled) sayLink(ev.target); });
 cy.on("tap", ev => {
-  if (scrolled || (ev.target !== cy && !ev.target.isEdge())) return;   // a tap on a link counts as one on what lies under it
+  if (scrolled || (ev.target !== cy && !ev.target.isEdge()) || (ev.target !== cy && ev.target.hasClass("hl"))) return;
   const { x, y } = ev.position;
   const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
