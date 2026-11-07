@@ -1424,7 +1424,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
         # A column the fit left out (#1098) is read at 0, so it adds nothing to a score or an SPE, and
         # a NaN there does not make every score NaN. A model pickled before then left none out.
-        X_arr = np.where(getattr(self, "_unobserved_columns", False), 0.0, X_arr)
+        X_arr = np.where(
+            getattr(
+                self,
+                "_unobserved_columns",
+                False,  # pragma: no mutate - np.where reads a condition of None as False
+            ),
+            0.0,
+            X_arr,
+        )
         # pandas numbers the rows of an array from 0 when given no index.
         return X_arr, X.index if isinstance(X, pd.DataFrame) else None
 
