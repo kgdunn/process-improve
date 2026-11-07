@@ -22,6 +22,7 @@ import pytest
 
 from process_improve import tool_safety
 from process_improve.batch import BatchScaler, determine_scaling, smooth_trajectories
+from process_improve.batch.preprocessing import batch_dtw
 from process_improve.experiments import (
     DesignRegion,
     Factor,
@@ -445,6 +446,10 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         r"method='tsr' was asked for without the training residuals",
     ),
     # Batch data
+    "Batch: a tag with no variance gets zero weight in batch_dtw": (
+        lambda: batch_dtw(_batches(flat=True), ["temp", "setpoint"], "B0", {"show_progress": False}),
+        r"zero weight: 'setpoint'",
+    ),
     "Batch: a batch shorter than the smoothing window": (
         lambda: smooth_trajectories(_batches(lengths=(40, 7)), window=21),
         r"shorter than window=21",

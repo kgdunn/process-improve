@@ -55,6 +55,13 @@ class TestFairWeights:
     def test_shape_is_preserved(self) -> None:
         assert fair_weights(np.zeros((3, 2)), cutoff=4.0).shape == (3, 2)
 
+    def test_a_distance_whose_square_overflows_weighs_0_without_a_warning(self) -> None:
+        """Beyond about 1e154 the square is inf, and 0 is the weight to rounding: nothing to warn about (#1114)."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            weights = fair_weights(np.array([1e200, -1e300]), cutoff=4.0)
+        np.testing.assert_array_equal(weights, [0.0, 0.0])
+
     @pytest.mark.parametrize("cutoff", [0.0, -1.0, np.nan, np.inf])
     def test_bad_cutoff_rejected(self, cutoff: float) -> None:
         with pytest.raises(ValueError, match="cutoff must be a positive finite number"):

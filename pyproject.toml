@@ -490,6 +490,7 @@ only_mutate = [
 pytest_add_cli_args = ["-o", "addopts=", "-p", "no:cacheprovider"]
 pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_limits.py",
+    "tests/test_t2_limit_judged_rows.py",
     "tests/test_multivariate.py",
     "tests/test_audit_regressions_multivariate.py",
     "tests/test_multiblock_validation.py",

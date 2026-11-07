@@ -4876,7 +4876,7 @@ def relabel(request: dict) -> dict:
     elif design.get("facts"):
         runs = _design_runs(_runs_frame({**design, "columns": reply["columns"]}, spec))
         coded = _coded(runs, after).to_numpy(dtype=float)
-        reply["facts"] = _relabelled_facts(design["facts"], coded, names)
+        reply["facts"] = _relabelled_facts(design["facts"], coded, names, spec)
     if simulation := request.get("simulation"):
         words = {r["name"]: r.get("label") or r["name"] for r in _responses(spec)}
         reply["simulation"] = _relabelled_process(simulation, words[spec["response"]], names)
@@ -4937,13 +4937,14 @@ def _renamed_word(word: str, names: dict[str, str]) -> str:
     return sign + "·".join(names.get(part, part) for part in body.split("·"))
 
 
-def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> dict[str, Any]:
-    """Write a design's facts again under new factor names, from the same runs.
+def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str], spec: dict) -> dict[str, Any]:
+    """Write a design's facts again under new factor names and units, from the same runs.
 
     The alias groups are found again in the renamed runs, so they come out as the design would
     have found them; the generators and the defining relation, written with their factors
     apart, are renamed word by word. Each note that names factors is written again from its
-    parts; the others name none, and stay as they are.
+    parts, and a one-factor design's, which gives its settings in their units, from ``spec``'s
+    factor; the others name none, and stay as they are.
     """
 
     def spaced(word: str, *, identity: bool = False) -> str:
@@ -4961,6 +4962,8 @@ def _relabelled_facts(facts: dict, coded: np.ndarray, names: dict[str, str]) -> 
             notes.append(_aliasing_sentence(groups))
         elif note.startswith("The runs are made in "):
             notes.append(_relabelled_blocking(note, names))
+        elif note.startswith(("The runs compare ", "The runs set ")) and len(spec["factors"]) == 1:
+            notes.append(_levels_sentence(spec["factors"][0], coded[:, 0], given=spec["design_type"] == GIVEN))
         else:
             notes.append(note)
     return {
