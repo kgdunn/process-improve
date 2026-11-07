@@ -244,9 +244,35 @@ jobs:
     - name: Test building the distributions
       if: matrix.shard == 1
       run: uv build
-    - name: Check if the built package can be installed and imported
+    # The package as `pip install process-improve` installs it, with no extra, and every one
+    # of its modules imported: every other step installs all the extras, so a module that
+    # imports an optional dependency at its top would pass them and fail for a user (#1100).
+    # The MCP server is the one module that needs an extra to import, and it must refuse with
+    # the ImportError of process_improve._extras, which names the extra to install.
+    - name: Check that the built package imports every module without its extras
       if: matrix.shard == 1
-      run: uv run --isolated --with . --no-project -- python -c "import process_improve"
+      run: |
+        uv run --isolated --with . --no-project -- python - <<'EOF'
+        import importlib, pkgutil, sys
+
+        import process_improve
+
+        needs_an_extra = {"process_improve.mcp_server": "mcp"}
+        problems, count = [], 0
+        for module in pkgutil.walk_packages(process_improve.__path__, "process_improve."):
+            count += 1
+            extra = needs_an_extra.get(module.name)
+            try:
+                importlib.import_module(module.name)
+            except Exception as error:
+                if extra is None or f"process-improve[{extra}]" not in str(error):
+                    problems.append(f"{module.name}: {type(error).__name__}: {error}")
+            else:
+                if extra is not None:
+                    problems.append(f"{module.name} imports, so this environment has the {extra!r} extra")
+        print(f"{count} modules of {process_improve.__path__[0]}")
+        sys.exit("\n".join(problems) or None)
+        EOF
     # This is where the actual unit and integration tests start. Coverage is
     # measured once, by the `coverage` job; tracing every line costs these cells
     # about twice the time for a number nothing reads.

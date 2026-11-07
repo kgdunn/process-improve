@@ -355,7 +355,7 @@ const STATUS_WAIT = 400;
 let statusTimer = null;
 /** One more each time the status line is set, so a reply can tell whether the page said something after it was asked. */
 let statusTicket = 0;
-/** The status ticket of Python's last note on how far it has got, such as installing plotly: the call's end replaces it. */
+/** The status ticket of Python's last note on how far it has got, such as having installed plotly: the charts may replace it. */
 let pythonSaid = 0;
 
 /**
@@ -386,6 +386,16 @@ function setStatus(text, state = "ok") {
   } else {
     statusTimer = setTimeout(show, STATUS_WAIT);
   }
+}
+
+/** Take the status line away at once: what it said no longer holds, and nothing takes its place. */
+function clearStatus() {
+  statusTicket += 1;
+  clearTimeout(statusTimer);
+  const box = $("#status");
+  box.querySelector(".status__text").textContent = "";
+  box.dataset.state = "ok";
+  box.hidden = true;
 }
 
 let toastTimer = null;
@@ -3266,9 +3276,13 @@ async function analyseRuns() {
   }
   const mine = ++ticket;
   setStatus("Analysing...", "busy");
+  const analysing = statusTicket;
   const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
-  if (mine !== ticket) return;
+  if (mine !== ticket) {
+    if (statusTicket === analysing) clearStatus(); // taken away (a new study, say), and nothing said since
+    return;
+  }
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
   $("#printed").hidden = true;
@@ -4581,13 +4595,16 @@ function showWhatIf(result) {
   checkKeptLimits();
 }
 
-/** Build a control for each factor, once a study: a slider and a number box over a numeric factor's range, a list of a categorical one's levels. */
+/**
+ * Build a control for each factor, once a study and again when a factor's label or range changes: a slider and a
+ * number box over a numeric factor's range, a list of a categorical one's levels.
+ */
 function renderWhatIfControls() {
   const box = $("#what-if-settings");
-  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels]));
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]]));
   if (box.dataset.key === key) return;
   box.dataset.key = key;
-  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
   box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
 }
 

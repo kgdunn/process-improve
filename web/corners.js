@@ -322,7 +322,7 @@ function fillCard(card, proposal, result) {
 /**
  * The questions that adjust a proposal from its corner: with the others held at the corner, how far
  * each factor can go before the setting cannot be run, or that it does not limit this at all. They are
- * asked again only when the proposal's corner or cuts change, and never under the reader's keyboard.
+ * asked again only when the proposal's corner, its cuts or the factors change, and never under the reader's keyboard.
  */
 function fillCuts(card, proposal, answers) {
   const box = card.querySelector(".cuts");
@@ -334,7 +334,7 @@ function fillCuts(card, proposal, answers) {
     adjust.setAttribute("aria-expanded", "false");
     return;
   }
-  const source = JSON.stringify([proposal.corner, proposal.cuts]);
+  const source = JSON.stringify([proposal.corner, proposal.cuts, factorsDrawn]);
   if (box.dataset.source === source || box.contains(document.activeElement)) return;
   box.dataset.source = source;
   const values = answers ? answers.values : proposal.cuts.map((cut) => cut.cut);
