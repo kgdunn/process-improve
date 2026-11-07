@@ -479,20 +479,60 @@ class TPLS(RegressorMixin, BaseEstimator):
             raise ValueError(msg)
         edges = np.cumsum([0] + [len(group) for _, _, group in columns])
 
+        # The pragmas below mark the changes no result can show: the rows' names, which diagnose's arrays are read
+        # without, the zip's strict, as there is one edge more than there are groups, and the float casts of
+        # frames that hold float64 already.
         def diagnose(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray, np.ndarray]:
-            index = [f"p{i}" for i in range(len(rows))]
+            index = [f"p{i}" for i in range(len(rows))]  # pragma: no mutate - the arrays are read by position
             blocks: dict[str, dict[str, pd.DataFrame]] = {}
-            for (block, group, cols), lo, hi in zip(columns, edges[:-1], edges[1:], strict=True):
-                blocks.setdefault(block, {})[group] = pd.DataFrame(rows[:, lo:hi], index=index, columns=cols)
+            for (block, group, cols), lo, hi in zip(
+                columns,
+                edges[:-1],
+                edges[1:],
+                strict=True,  # pragma: no mutate - one edge more than there are groups
+            ):
+                blocks.setdefault(block, {})[group] = pd.DataFrame(
+                    rows[:, lo:hi],
+                    index=index,  # pragma: no mutate - the arrays are read by position
+                    columns=cols,
+                )
             out = self.diagnose(DataFrameDict(blocks))
-            y = np.hstack([out.hat[g].to_numpy(dtype=float) for g in self.quality_names])
-            residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g in residual_blocks]
-            spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g in residual_blocks])
-            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
-            return out.t_scores_super.to_numpy(dtype=float), y, residual, t2, spe
+            y = np.hstack(
+                [out.hat[g].to_numpy(dtype=float) for g in self.quality_names]  # pragma: no mutate - float64 already
+            )
+            residual = [
+                out.residuals[b][g].to_numpy(dtype=float)  # pragma: no mutate - float64 already
+                for b, g in residual_blocks
+            ]
+            spe = np.column_stack(
+                [
+                    out.spe[b][g]
+                    .iloc[:, -1]
+                    .to_numpy(
+                        dtype=float  # pragma: no mutate - float64 already
+                    )
+                    for b, g in residual_blocks
+                ]
+            )
+            t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(
+                dtype=float  # pragma: no mutate - float64 already
+            )
+            return (
+                out.t_scores_super.to_numpy(dtype=float),  # pragma: no mutate - float64 already
+                y,
+                residual,
+                t2,
+                spe,
+            )
 
         def preproc(key: str, block: str, group: str, cols: list[str]) -> np.ndarray:
-            return self.preproc_[block][group][key].reindex(cols).to_numpy(dtype=float)
+            return (
+                self.preproc_[block][group][key]
+                .reindex(cols)
+                .to_numpy(
+                    dtype=float  # pragma: no mutate - float64 already
+                )
+            )
 
         return Probe(
             names=names, y_names=tuple(n for g in self.quality_names for n in self.quality_names[g]),
@@ -1226,8 +1266,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         ``F'u`` is as small, gives no direction on every build, and the fit refuses it.
         """
         h = regress_a_space_on_b_row(f_group.T, u.T, present.T)
-        if np.linalg.norm(h) * np.linalg.norm(u) < epsqrt * np.linalg.norm(f_group):
-            return np.full_like(h, np.nan)
+        # The two sides are equal only where F is all 0, and then h is 0 and D cannot be regressed on it: the fit
+        # refuses the component either way, so < and <= give one result.
+        if (
+            np.linalg.norm(h) * np.linalg.norm(u)
+            < epsqrt * np.linalg.norm(f_group)  # pragma: no mutate - <= differs only where F is all 0
+        ):
+            return np.full_like(h, np.nan)  # pragma: no mutate - a fill of None is NaN in a float array
         return h
 
     def _refuse_blocks_with_no_variance(self) -> None:
