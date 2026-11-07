@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ..multivariate._common import user_stacklevel
+from ..multivariate._common import NotEnoughVarianceError, user_stacklevel
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
@@ -786,6 +786,53 @@ def _validate_dtw_settings(settings: dict) -> None:
         )
 
 
+def _tags_that_vary(batches: dict[str, pd.DataFrame], columns_to_align: list) -> np.ndarray:
+    """
+    Report which of ``columns_to_align`` vary within at least one batch, and warn, naming the rest.
+
+    Kassidas et al. weight each tag by the reciprocal of its summed squared deviation from the
+    average trajectory. A tag that holds one value through every batch has no deviation, so its
+    weight was unbounded: after normalising it took all of the weight (``[0, 0, 3]`` for three
+    tags), and the convergence test, which measures the change in the weights, followed only that
+    tag. A tag that holds one value within each batch, but a different one between batches, adds
+    the same amount to every cell of the distance matrix, which only favours a shorter warping
+    path. Neither says anything about timing, so it gets zero weight, as a block with no variance
+    does in the multivariate estimators (#1184). It is still aligned and returned.
+
+    Parameters
+    ----------
+    batches : dict[str, pd.DataFrame]
+        Batch data, in the standard format.
+    columns_to_align : list
+        The tags named for the alignment.
+
+    Returns
+    -------
+    np.ndarray of bool, shape (len(columns_to_align),)
+        True for a tag that varies within at least one batch.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no tag varies within any batch: there is nothing to align on.
+    """
+    varies = np.array([_varies_within_any_batch(batches, column) for column in columns_to_align])
+    if varies.all():
+        return varies
+    named = ", ".join(repr(column) for column, moves in zip(columns_to_align, varies, strict=True) if not moves)
+    if not varies.any():
+        raise NotEnoughVarianceError(
+            f"There is no variance in columns_to_align: {named} does not vary within any batch, so there is "
+            "nothing to align on. Name a tag that changes during the batch."
+        )
+    warnings.warn(
+        f"batch_dtw: columns_to_align has tags with no variance within any batch, which carry no information for "
+        f"the alignment, so they get zero weight: {named}. Drop them, or check the data for a stuck sensor.",
+        stacklevel=user_stacklevel(),  # a UserWarning, warn's default category, as the multivariate family's
+    )
+    return varies
+
+
 def batch_dtw(  # noqa: PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -803,7 +850,9 @@ def batch_dtw(  # noqa: PLR0915
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use during the alignment process. The others are aligned, but
-        get no weight, and therefore do not influence the objective function.
+        get no weight, and therefore do not influence the objective function. A named
+        column that does not vary within any batch gets no weight either, with a warning
+        naming it: it carries no information about timing.
     reference_batch : str
         Which key in the `batches` is the reference batch to use.
     settings : dict
@@ -813,7 +862,7 @@ def batch_dtw(  # noqa: PLR0915
                 "maximum_iterations": 25,  # stops here, even if not converged
                 "tolerance": 0.1,          # convergence tolerance
                 "robust": True,            # use robust scaling
-                "show_progress": True,     # show progress
+                "show_progress": True,     # show a progress bar on stderr
                 "subsample": 1,            # use every sample
                 "weighting": "quadratic",  # "quadratic" or "absolute"; see below
                 "batch_weighting": "equal",  # "equal" or "huber"; see below
@@ -822,6 +871,10 @@ def batch_dtw(  # noqa: PLR0915
                 "interpolate_time_axis_delta": 1,      # resolution of the resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
             }
+
+        Each iteration logs its change in the weights at DEBUG level, on the
+        ``process_improve.batch.preprocessing`` logger; nothing is printed to stdout. See
+        ``docs/development/logging.rst`` to show it.
 
         Every batch is aligned to ``reference_batch`` in the first three iterations. From
         the fourth iteration on, the reference is the average trajectory of the iteration
@@ -932,11 +985,12 @@ def batch_dtw(  # noqa: PLR0915
 
     # Raises, naming the batch, when one fails a check.
     check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
+    varies = _tags_that_vary(batches, columns_to_align)
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
     refbatch_sc = batches_scaled[reference_batch].iloc[:: int(settings["subsample"]), :]
-    weight_vector = np.ones(refbatch_sc.shape[1])
+    weight_vector = varies.astype(float)
     weight_matrix = np.diag(weight_vector)
     weight_history = np.zeros_like(weight_vector) * np.nan
     average_batch = None
@@ -948,9 +1002,6 @@ def batch_dtw(  # noqa: PLR0915
     while iter_step == 0 or (
         (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"])
     ):
-        if settings["show_progress"]:
-            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
-
         iter_step += 1
         logger.debug(
             "batch_dtw: iteration %d, weight-delta norm=%g (tolerance=%g)",
@@ -987,10 +1038,11 @@ def batch_dtw(  # noqa: PLR0915
         # exact opposite - and the constant was scale-dependent. Floor the
         # SSQ (relative to the largest observed SSQ) instead, so the weight
         # stays large but finite. The floor is relative to the largest observed value,
-        # so it holds for either `weighting` choice despite the SSQ-era name.
-        ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights)))
-        next_weights = 1.0 / np.maximum(next_weights, ssq_floor)
-        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
+        # so it holds for either `weighting` choice despite the SSQ-era name. A tag that does not
+        # vary gets zero weight, and the others sum to their number, so naming it changes nothing.
+        ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights * varies)))
+        next_weights = varies / np.maximum(next_weights, ssq_floor)
+        weight_vector = (next_weights / np.sum(next_weights) * np.sum(varies)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -1049,7 +1101,12 @@ def batch_dtw(  # noqa: PLR0915
     # the keys were of mixed types, so the caller could no longer look its batch up.
     aligned_df = pd.concat(aligned_df_collection)
 
-    last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
+    # Named, so a tag with no variance is kept: resolving the columns again drops one (#1184).
+    last_average_batch = reverse_scaling(
+        dict(avg=cast("pd.DataFrame", average_batch)),
+        scale_df,
+        columns_to_align,
+    )["avg"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
 
     # Each DTWresult already carries its distance to the reference, so the per-batch

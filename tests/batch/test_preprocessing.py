@@ -1,3 +1,4 @@
+import logging
 import warnings
 
 import numpy as np
@@ -505,11 +506,19 @@ def test_one_iteration_dtw_without_settings_aligns_every_sample() -> None:
     assert sorted(aligned) == ["p", "q"]
 
 
-def test_batch_dtw_without_settings_uses_the_documented_defaults(capsys: pytest.CaptureFixture[str]) -> None:
-    """With no settings, progress is printed and every batch is resampled onto the 100-point default axis."""
+def test_batch_dtw_without_settings_uses_the_documented_defaults(
+    capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """With no settings, every batch is resampled onto the 100-point default axis.
+
+    Each iteration is logged at DEBUG level, as ``docs/development/logging.rst`` says; nothing
+    is printed to stdout (#1184).
+    """
     batches = {"x": _warped_batch(30), "y": _warped_batch(36), "z": _warped_batch(42)}
-    outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y")
-    assert "Iter = 0 and norm = " in capsys.readouterr().out
+    with caplog.at_level(logging.DEBUG, logger="process_improve.batch.preprocessing"):
+        outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y")
+    assert capsys.readouterr().out == ""
+    assert "batch_dtw: iteration 1, weight-delta norm=1.41421 (tolerance=0.1)" in caplog.messages
     assert {batch_id: len(frame) for batch_id, frame in outputs["aligned_batch_dfdict"].items()} == {
         "x": 100,
         "y": 100,
@@ -1551,3 +1560,56 @@ class TestColumnResolution:
         # comes from that batch's columns. The point is that checking spread across every
         # batch does not raise on the batch where the column is missing.
         assert list(determine_scaling(batches).index) == ["temp"]
+
+
+#: The value of a flat tag in each of three batches: the same in all of them, or one per batch.
+_FLAT_TAG_LEVELS = {"one-value-in-every-batch": (5.0, 5.0, 5.0), "one-value-per-batch": (5.0, 6.0, 7.0)}
+
+
+class TestBatchDtwTagWithNoVariance:
+    """A tag that does not vary within any batch gets zero weight in the alignment (#1184).
+
+    Its deviation from the average trajectory is zero, or the same at every sample, so it says
+    nothing about timing. Kassidas' reciprocal weight gave the flat tag all the weight instead.
+    """
+
+    @staticmethod
+    def _batches(levels: tuple) -> dict:
+        """Three warped batches of unequal length, with a flat tag ``c`` at ``levels[i]`` in batch ``i``."""
+        return {
+            name: _warped_batch(n_samples).assign(c=level)
+            for (name, n_samples), level in zip([("x", 30), ("y", 36), ("z", 42)], levels, strict=True)
+        }
+
+    @pytest.mark.parametrize("levels", list(_FLAT_TAG_LEVELS.values()), ids=list(_FLAT_TAG_LEVELS))
+    def test_it_gets_zero_weight_and_changes_nothing_else(self, levels: tuple) -> None:
+        batches = self._batches(levels)
+        settings = {"show_progress": False}
+        without = batch_dtw({key: batch[["a", "b"]] for key, batch in batches.items()}, ["a", "b"], "y", settings)
+
+        with pytest.warns(UserWarning, match=r"batch_dtw: .* no variance within any batch.* zero weight: 'c'\."):
+            named = batch_dtw(batches, ["a", "b", "c"], "y", settings)
+
+        assert (named["weight_history"]["c"] == 0).all()
+        pd.testing.assert_frame_equal(named["weight_history"][["a", "b"]], without["weight_history"])
+        pd.testing.assert_frame_equal(named["distances"], without["distances"])
+
+    @pytest.mark.parametrize("levels", list(_FLAT_TAG_LEVELS.values()), ids=list(_FLAT_TAG_LEVELS))
+    def test_the_last_average_batch_keeps_it(self, levels: tuple) -> None:
+        """The tag is aligned and returned with the others, so the average trajectory holds it too."""
+        batches = self._batches(levels)
+        settings = {"show_progress": False}
+        without = batch_dtw({key: batch[["a", "b"]] for key, batch in batches.items()}, ["a", "b"], "y", settings)
+        with pytest.warns(UserWarning, match="zero weight"):
+            average = batch_dtw(batches, ["a", "b", "c"], "y", settings)["last_average_batch"]
+
+        assert list(average.columns) == ["a", "b", "c"]
+        pd.testing.assert_frame_equal(average[["a", "b"]], without["last_average_batch"])
+        assert average["c"].to_numpy() == pytest.approx(np.mean(levels))
+
+    def test_no_tag_that_varies_is_refused(self) -> None:
+        """With nothing to weight there is nothing to align on, so it is refused rather than aligned at random."""
+        batches = {key: batch[["c"]] for key, batch in self._batches((5.0, 6.0, 7.0)).items()}
+
+        with pytest.raises(ValueError, match=r"There is no variance in columns_to_align: 'c' does not vary"):
+            batch_dtw(batches, ["c"], "y", {"show_progress": False})
