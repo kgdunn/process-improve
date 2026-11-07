@@ -117,7 +117,7 @@ def test_cumulative_hotellings_t2_is_the_fitted_frame_for_the_fitted_rows(case: 
 
 
 def test_the_old_field_warns_once_on_read_and_returns_what_it_did(case: tuple) -> None:
-    """``hotellings_t2`` still holds its old shape; reading it, by name, warns once at the reader's line."""
+    """``hotellings_t2`` still holds its old shape and name; reading it, by name, warns once at the reader's line."""
     name, model, rows, _ = case
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -141,6 +141,7 @@ def test_the_old_field_warns_once_on_read_and_returns_what_it_did(case: tuple) -
         assert isinstance(old, pd.Series)
         np.testing.assert_allclose(old.to_numpy(), cumulative.iloc[:, -1].to_numpy(), rtol=1e-12)
         assert list(old.index) == list(cumulative.index)
+        assert old.name == "Hotelling's T²"
     with pytest.warns(DeprecationWarning, match="cumulative_hotellings_t2"):
         by_key = result["hotellings_t2"]
     with pytest.warns(DeprecationWarning, match="cumulative_hotellings_t2"):
