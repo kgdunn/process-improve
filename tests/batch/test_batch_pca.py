@@ -162,11 +162,30 @@ def test_group_by_batch_with_initial_conditions() -> None:
 
 
 def test_fit_transform_returns_training_scores() -> None:
-    """fit_transform returns the same scores as fit followed by the attribute."""
+    """fit_transform returns the fitted scores, in the order of the batches given, as transform does."""
     good = _synthetic_good_batches()
     scores = BatchPCA(n_components=2).fit_transform(good)
-    reference = BatchPCA(n_components=2).fit(good).scores_
-    np.testing.assert_allclose(scores.to_numpy(), reference.to_numpy(), atol=1e-8)
+    model = BatchPCA(n_components=2).fit(good)
+    assert list(scores.index) == list(good)
+    np.testing.assert_allclose(scores.to_numpy(), model.scores_.loc[list(good)].to_numpy(), atol=1e-8)
+    np.testing.assert_allclose(scores.to_numpy(), model.transform(good).to_numpy(), atol=1e-8)
+
+
+def test_new_batches_keep_the_order_they_were_given_in() -> None:
+    """BatchPCA sorted the rows of transform and diagnose by batch id, g10 before g2, unlike BatchPLS (#1184)."""
+    good = _synthetic_good_batches()
+    model = BatchPCA(n_components=2).fit(good)
+    new = {key: good[key] for key in ["g9", "g10", "g2", "g0"]}
+    one_at_a_time = pd.concat([model.transform({key: batch}) for key, batch in new.items()])
+
+    scores = model.transform(new)
+    result = model.diagnose(new)
+
+    assert list(scores.index) == list(new)
+    pd.testing.assert_frame_equal(scores, one_at_a_time)
+    for name in ("scores", "cumulative_hotellings_t2", "spe"):
+        assert list(result[name].index) == list(new), name
+    pd.testing.assert_frame_equal(result.scores, one_at_a_time)
 
 
 def test_diagnose_with_initial_conditions() -> None:
