@@ -510,6 +510,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_prm.py",
     "tests/test_multivariate_units.py",
     "tests/test_contributions_missing_cells.py",
+    "tests/test_multivariate_missing_cells_family.py",
     "tests/test_multivariate_contribution_plots.py",
     "tests/test_multivariate_meda.py",
     "tests/test_multivariate_resampler.py",
@@ -545,4 +546,8 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_plsda.py",
     "tests/test_multivariate_asca.py",
     "tests/test_multivariate_input_errors.py",
+    "tests/test_diagnose_cumulative_t2.py",
+    "tests/test_multivariate_unobserved.py",
+    "tests/test_contributions_same_x.py",
+    "tests/test_confidence_levels.py",
 ]
