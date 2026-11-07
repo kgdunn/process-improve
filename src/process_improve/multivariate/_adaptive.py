@@ -380,7 +380,8 @@ class _AdaptiveModel(_LatentVariableModel):
         update_xx = mu * np.outer(x_scaled, x_scaled)
         # Nuclear norm (= trace for the PSD X'X) throughout, for consistency with the
         # re-scale below; the rank-1 update's trace equals its Frobenius norm.
-        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
+        # The training trace is not 0: fit refuses an X with no variance (#1144)
+        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0
         new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
         norm_xx = float(np.trace(new_xx))
         if norm_xx > epsqrt:  # pragma: no mutate - >= differs only at a trace of exactly epsqrt
