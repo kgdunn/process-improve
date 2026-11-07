@@ -191,6 +191,18 @@ def test_a_brief_changed_while_its_designs_are_made_is_listed_again(blank_page):
     assert page.get_attribute("#candidates", "data-stale") == "false"
 
 
+def test_a_new_study_takes_no_design_from_the_brief_before(fresh_page):
+    """A new study, started while the designs of the brief before are made, keeps its own: none of theirs is picked."""
+    page = fresh_page
+    page.evaluate("window.__pi.hold('api_candidates')")
+    set_factors(page, FACTORS)
+    page.wait_for_function("window.__pi.count('api_candidates') === 1")
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_candidates')")
+    page.wait_for_function("window.__pi.idle()")
+    assert page.input_value("#design-type") == "box_behnken", "a new study's design, as it starts"
+
+
 def test_when_the_designs_cannot_be_made_the_page_says_why(blank_page):
     page = blank_page
     page.evaluate("window.__pi.fake('api_candidates', {ok: false, error: 'the solver gave up', warnings: []})")

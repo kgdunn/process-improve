@@ -398,6 +398,15 @@ function clearStatus() {
   box.hidden = true;
 }
 
+/**
+ * Whether a reply is dropped, ``left`` saying that what asked for it has left the page meanwhile (a new study, say):
+ * the busy note put up as it was asked, at status ticket ``said``, then goes too, unless something was said since.
+ */
+function dropped(left, said) {
+  if (left && statusTicket === said) clearStatus();
+  return left;
+}
+
 let toastTimer = null;
 
 /** Say briefly, at the foot of the screen, that something was done: a link or code copied to the clipboard. */
@@ -447,6 +456,8 @@ const state = {
   version: null, // the process-improve release Python runs, once it has started
   runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
+/** One more each time another study takes the page: a run sheet asked for by the one before is dropped. */
+let studyTicket = 0;
 let seed = 1;
 let catalogue = null;
 let pythonReady = false;
@@ -1732,12 +1743,14 @@ function studySeed() {
  */
 async function generate({ randomState } = {}) {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
+  const study = studyTicket;
   let key = planKey();
   const factors = readFactors();
   const responses = readResponses({ fresh: true });
   const seeded = randomState ?? studySeed();
   const picked = state.picked?.key === key && state.picked.design.spec.options?.random_state === seeded ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
+  if (study !== studyTicket) return false; // another study took the page meanwhile
   if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
     // column for each response where the design had its one response's, last.
@@ -1754,6 +1767,7 @@ async function generate({ randomState } = {}) {
   const button = $("#generate");
   button.disabled = true;
   setStatus("Generating design...", "busy");
+  const generating = statusTicket;
   const spec = {
     design_type: $("#design-type").value,
     factors,
@@ -1777,6 +1791,7 @@ async function generate({ randomState } = {}) {
   const reply = await call("api_make_design", spec);
   button.disabled = false;
   refreshDesign();
+  if (dropped(study !== studyTicket, generating)) return false; // another study took the page meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return false;
@@ -1856,6 +1871,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
   state.curves = null;
+  state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
@@ -1970,7 +1986,8 @@ async function findCandidates({ search = false } = {}) {
   $("#candidates").removeAttribute("aria-busy");
   if (mine !== candidateTicket) return;
   state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
-  if (reply.ok && reply.result.result && !designChosen) {
+  // A design is picked from the designs of the brief on the page only: a new study takes none of the brief before's.
+  if (reply.ok && reply.result.result && !designChosen && key === candidateKey()) {
     const picked = pickCandidate(candidateRows(reply.result.result, reply.result.made));
     if (picked) pickDesign(picked, { byReader: false });
   }
@@ -2763,14 +2780,17 @@ function scheduleSimulation() {
 
 async function simulateResults() {
   clearTimeout(simulationTimer);
-  if (!state.design) return;
+  const asked = state.design;
+  if (!asked) return;
   setStatus("Simulating the results...", "busy");
+  const simulating = statusTicket;
   const reply = await call("api_simulate", {
     ...held(),
     scenario: $("#scenario").value,
     sigma: Number($("#sigma").value),
     seed,
   });
+  if (dropped(state.design !== asked, simulating)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return;
@@ -3148,6 +3168,7 @@ async function readUpload(file) {
   $("#demo-banner").hidden = true;
   $("#campaign-banner").hidden = true;
   flushSave();
+  studyTicket += 1;
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.planKey = planKey();
@@ -3279,10 +3300,7 @@ async function analyseRuns() {
   const analysing = statusTicket;
   const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
-  if (mine !== ticket) {
-    if (statusTicket === analysing) clearStatus(); // taken away (a new study, say), and nothing said since
-    return;
-  }
+  if (dropped(mine !== ticket, analysing)) return; // taken away: a new study, say
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
   $("#printed").hidden = true;
@@ -4282,10 +4300,13 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   renderRuns();
   renderStudyBar();
   const practice = Boolean(state.simulation) && someSimulated();
+  const design = state.design;
   if (practice) await simulateFrom(before);
+  if (state.design !== design) return; // another run sheet took its place meanwhile
   showResultsCode();
   scheduleSave();
   await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
+  if (state.design !== design) return;
   setStatus(
     practice
       ? `${added} confirmation runs added at ${where}, their results simulated.`
@@ -4695,9 +4716,10 @@ let curveTicket = 0;
 async function findCurve() {
   const mine = ++curveTicket;
   state.curve = { ...state.curve, fit: null, problem: null };
-  if (!state.design || !curvesRead()) return;
+  const asked = state.design;
+  if (!asked || !curvesRead()) return;
   const reply = await call("api_functional", curveRequest());
-  if (mine !== curveTicket) return;
+  if (mine !== curveTicket || state.design !== asked) return; // a later fit, or another run sheet, has the page now
   if (!reply.ok) {
     state.curve.problem = reply.error;
     return;
@@ -5040,9 +5062,12 @@ function addedRuns(next, others = false) {
  * reader makes them, in Run.
  */
 async function addRuns(kind) {
-  if (!state.design) return;
+  const asked = state.design;
+  if (!asked) return;
   setStatus("Adding the runs...", "busy");
+  const adding = statusTicket;
   const reply = await call("api_add_runs", { ...analysisRequest(), kind }); // the runs the results call for need them
+  if (dropped(state.design !== asked, adding)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return;
@@ -5050,6 +5075,7 @@ async function addRuns(kind) {
   const { added, ...grown } = reply.result;
   const before = state.design.rows.length;
   state.design = { ...state.design, ...grown };
+  const design = state.design;
   for (const name of resultNames()) {
     state.results[name] = [...state.results[name], ...Array(added).fill(null)];
     state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
@@ -5065,9 +5091,11 @@ async function addRuns(kind) {
   renderStudyBar();
   showPython("design", designCode(grown.spec));
   const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
+  if (dropped(state.design !== design, adding)) return;
   showResultsCode();
   scheduleSave();
   await analyseRuns();
+  if (state.design !== design) return; // nor is a study that took the page during the analysis told of these runs
   if (practice) {
     setStatus(`${added} runs added at the end of the run sheet, their results simulated.`);
     return;
@@ -5081,9 +5109,10 @@ async function addRuns(kind) {
  * result before them as it was. Resolves to whether they were simulated.
  */
 async function simulateFrom(before) {
+  const asked = state.design;
   const { scenario, sigma, seed: drawn } = state.simulation;
   const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
-  if (!reply.ok) return false;
+  if (!reply.ok || state.design !== asked) return false; // refused, or another run sheet took its place meanwhile
   const [first] = resultNames();
   for (const name of resultNames()) {
     const simulated = name === first ? reply.result : reply.result.more?.[name];
@@ -5139,6 +5168,7 @@ async function showBuiltExample() {
     return true;
   }
   flushSave();
+  studyTicket += 1;
   $("#campaign-banner").hidden = true;
   setForm(example.inputs.design);
   $("#scenario").value = example.inputs.scenario;
@@ -5197,6 +5227,7 @@ async function runExample() {
   }
   const example = catalogue.demo;
   flushSave();
+  studyTicket += 1;
   setForm(example.design);
   $("#scenario").value = example.scenario;
   $("#sigma").value = example.sigma;
@@ -5224,6 +5255,7 @@ function showScenarioHint() {
 /** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Design, at the response. */
 function newStudy() {
   flushSave();
+  studyTicket += 1;
   cancelCandidates();
   Object.assign(state, {
     design: null,
@@ -5648,6 +5680,7 @@ function showBanner(message, error = false) {
  */
 async function openCampaign(c, record, message) {
   flushSave();
+  studyTicket += 1;
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };

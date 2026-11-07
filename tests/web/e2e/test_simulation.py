@@ -19,6 +19,7 @@ from tests.web.e2e._page import (
     run_sheet,
     set_factors,
     settled,
+    status,
     type_results,
 )
 
@@ -42,6 +43,23 @@ def test_simulating_fills_every_run_and_keeps_the_true_process_to_hand(blank_pag
         "type over any to enter your own."
     )
     assert "TrueProcess(" in page.text_content("#py-run code")
+
+
+def test_results_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(blank_page):
+    """A new study, started while the results are simulated, drops them: it has no run sheet, and no busy note."""
+    page = blank_page
+    generate(page, design_type="full_factorial")
+    page.evaluate("window.__pi.hold('api_simulate')")
+    reveal(page, "#panel-simulate")
+    page.click("#tab-simulate")
+    page.click("#simulate")
+    assert status(page) == ("Simulating the results...", "busy")
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_simulate')")
+    settled(page)
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.is_hidden("#run-out")
+    assert page.is_hidden("#status")
 
 
 def test_new_noise_draws_the_same_process_with_the_next_seed(page, first_paint):

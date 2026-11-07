@@ -154,12 +154,15 @@ export async function redrawAll() {
 
 /**
  * Fit the charts inside ``root`` to the room they have now: a chart drawn while its phase was hidden
- * took Plotly's default width, and a phase shown again gives it its own.
+ * took Plotly's default width, and a phase shown again gives it its own. A chart hidden itself, such
+ * as a curve its study no longer has, is left as it is: Plotly refuses to resize it.
  */
 export function resizeWithin(root) {
   const Plotly = window.Plotly;
   if (!Plotly) return;
-  for (const div of root.querySelectorAll(".js-plotly-plot")) Plotly.Plots.resize(div);
+  for (const div of root.querySelectorAll(".js-plotly-plot")) {
+    if (getComputedStyle(div).display !== "none") Plotly.Plots.resize(div);
+  }
 }
 
 async function react(div, figure, version, height) {
