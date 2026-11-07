@@ -36,9 +36,14 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.tools import Tool
-from mcp.server.mcpserver.utilities.func_metadata import ArgModelBase, FuncMetadata
+from process_improve._extras import require_extra
+
+try:
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.tools import Tool
+    from mcp.server.mcpserver.utilities.func_metadata import ArgModelBase, FuncMetadata
+except ImportError as exc:
+    raise require_extra("mcp", "mcp") from exc
 
 from process_improve.config import settings
 from process_improve.tool_safety import ToolSafetyError, safe_execute_tool_call

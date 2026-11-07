@@ -451,6 +451,21 @@ class TestPRMApi:
         assert model.scores_.shape == (N_SAMPLES, 2)
         assert np.isfinite(model.hotellings_t2_limit(0.95))
 
+    @pytest.mark.parametrize(("seed", "kind"), [(0, "vertical"), (3, "leverage"), (4, "leverage")])
+    def test_vip_of_a_contaminated_fit_is_finite_and_quiet(self, seed: int, kind: str) -> None:
+        """Its R² was measured on every row, outliers too, so a component could lower it; VIP took sqrt of < 0 (#1114).
+
+        Measured in the weights of its own fit, each component explains a share of Y that is not negative.
+        """
+        X, y = _dataset(seed=seed, n_bad=N_BAD, kind=kind)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            model = PRM(n_components=2).fit(X, y)
+            vip = model.vip()
+        assert (model.r2_per_component_ >= 0).all()
+        assert vip.notna().all()
+        assert float((vip**2).sum()) == pytest.approx(N_FEATURES)
+
     def test_composes_in_a_pipeline_and_cross_validates(self) -> None:
         X, y = _dataset(seed=0)
         pipeline = Pipeline([("scale", MCUVScaler()), ("model", PRM(n_components=2))])
@@ -596,7 +611,9 @@ class TestPRMScaling:
         """Each column of X and of Y over 1.4826 times its median absolute deviation (1 where that is 0).
 
         Two targets of different spreads, and an X column whose median absolute deviation is 0. One
-        reweighting each, so the comparison is of one weighted fit, not of where two loops stop.
+        reweighting each, so the comparison is of one weighted fit, not of where two loops stop. The
+        two agree to the L1 median's tolerance, 1e-8 in units of X's largest spread (#1114): 1 for the
+        scaled fit, and 5 for the unscaled one, the largest deviation of the column whose MAD is 0.
         """
         X, y = _dataset(seed=4)
         X["steps"] = np.r_[np.zeros(N_SAMPLES - 5), np.arange(1.0, 6.0)]
@@ -611,8 +628,8 @@ class TestPRMScaling:
         assert sx[-1] == 1.0
         scaled = PRM(n_components=2, max_weight_iter=1).fit(X, Y)
         by_hand = PRM(n_components=2, max_weight_iter=1, scale=False).fit(X / sx, Y / sy)
-        np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-9)
-        np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-9)
+        np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-7)
+        np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-7, atol=1e-6)
 
     def test_a_change_to_small_units_changes_nothing(self) -> None:
         """An X column, and Y, in units 1e9 times smaller give the same predictions and weights (#1070).

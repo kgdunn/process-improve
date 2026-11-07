@@ -1082,6 +1082,7 @@ class TestMBPCAWrittenOut:
         assert np.sum(MCUVScaler().fit_transform(blocks["a"]).to_numpy() ** 2) < 1.0
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r"Block .* no variance")  # #1114, #1144
             model = MBPCA(n_components=1).fit(blocks)
         assert model.block_informative_widths_ == {"a": 1, "b": 1, "c": 1}
         _frames_near(
@@ -2716,6 +2717,7 @@ class TestMBPLSWrittenOut:
         assert np.sum(MCUVScaler().fit_transform(y[["y0"]]).to_numpy() ** 2) < 1.0
         with warnings.catch_warnings():
             warnings.simplefilter("error")
+            warnings.filterwarnings("ignore", message=r"Block .* no variance")  # #1114, #1144
             model = MBPLS(n_components=1).fit(blocks, y)
         with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y"):
             MBPLS(n_components=1).fit(blocks, y[["y1"]])
@@ -2739,23 +2741,20 @@ class TestMBPLSWrittenOut:
 
         ``b`` is orthogonal to ``a`` and to Y, which is ``a``: its weight, loading and R2X are 0
         exactly, and so its VIP is 0 rather than 0 / 0. A Y orthogonal to the only block leaves
-        the fit nothing at all: R2X and R2Y 0, and both VIPs 0.
+        the fit nothing at all, and is refused, as PLS refuses it (#1144).
         """
         a, b = [-1.0, -1.0, 0.0, 1.0, 1.0], [1.0, -1.0, 0.0, -1.0, 1.0]
         both = {"a": pd.DataFrame({"a0": a}), "b": pd.DataFrame({"b0": b})}
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             model = MBPLS(n_components=1).fit(both, pd.DataFrame({"y": a}))
-            nothing = MBPLS(n_components=1).fit({"a": pd.DataFrame({"a0": a})}, pd.DataFrame({"y": b}))
+            with pytest.raises(NotEnoughVarianceError, match=r"^There is nothing in X to explain Y by"):
+                MBPLS(n_components=1).fit({"a": pd.DataFrame({"a0": a})}, pd.DataFrame({"y": b}))
         np.testing.assert_array_equal(model.super_weights_[1], [1.0, 0.0])
         np.testing.assert_array_equal(model.block_loadings_["b"][1], [0.0])
         np.testing.assert_array_equal(model.r2_x_per_block_cumulative_[1], [1.0, 0.0])
         np.testing.assert_array_equal(model.block_vip_["a"], [1.0])
         np.testing.assert_array_equal(model.block_vip_["b"], [0.0])
-        np.testing.assert_array_equal(nothing.r2_y_cumulative_, [0.0])
-        np.testing.assert_array_equal(nothing.r2_x_per_block_cumulative_[1], [0.0])
-        np.testing.assert_array_equal(nothing.super_vip_, [0.0])
-        np.testing.assert_array_equal(nothing.block_vip_["a"], [0.0])
 
 
 def test_rows_with_nothing_observed_in_x_or_in_y_follow_the_algorithm_written_out() -> None:

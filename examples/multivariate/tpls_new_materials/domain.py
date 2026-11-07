@@ -11,7 +11,6 @@ material placed far from all the others. ``python domain.py --quick`` runs both 
 from __future__ import annotations
 
 import argparse
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -88,9 +87,7 @@ def ordinary_materials(errors: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
 def _far_one(rep: int, methods: dict, n_components: int) -> pd.DataFrame:
     sim = simulate(seed=1000 * rep + 7, outlier_shift=4.0)
     data = {"D": sim.D, "F": sim.F, "Z": sim.Z, "Y": sim.Y}
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        err = leave_one_material_out(data, "A", n_components, methods)
+    err = leave_one_material_out(data, "A", n_components, methods)
     per = err.groupby(["method", "material"])["sq"].mean().pow(0.5).div(sim.noise).rename("rmse").reset_index()
     dom = {m: material_domain(sim.D["A"], m) for m in sim.D["A"].index}
     per["T2/limit"] = per["material"].map(lambda m: dom[m][0] / dom[m][1])

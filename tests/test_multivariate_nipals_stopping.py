@@ -185,8 +185,10 @@ def test_a_block_with_nothing_left_is_refused_in_any_units(units: float) -> None
         with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message + "component 1.") + "$"):
             model.fit(*data)  # type: ignore[attr-defined]
     zeros = X * 0.0
-    with pytest.raises(NotEnoughVarianceError, match=r"beyond component 0\.$"):
+    # An X with no variance at all is refused before the first component, in the family's words (#1144)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
         PCA(n_components=1, algorithm="nipals").fit(zeros)
-    for x_block, y_block, label in ((zeros, Y * units, "X"), (X * units, Y * 0.0, "Y")):
-        with pytest.raises(NotEnoughVarianceError, match=rf"for {label}: .* beyond component 0\.$"):
-            PLS(n_components=1, scale=False).fit(x_block, y_block)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+        PLS(n_components=1, scale=False).fit(zeros, Y * units)
+    with pytest.raises(NotEnoughVarianceError, match=r"for Y: .* beyond component 0\.$"):
+        PLS(n_components=1, scale=False).fit(X * units, Y * 0.0)

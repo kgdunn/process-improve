@@ -41,7 +41,16 @@ from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt, user_stacklevel
+from ._common import (
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    check_x_explains_y,
+    check_x_varies,
+    constant_columns,
+    epsqrt,
+    refuse_empty_block,
+    user_stacklevel,
+)
 from ._preprocessing import MCUVScaler
 
 if typing.TYPE_CHECKING:
@@ -187,9 +196,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             If Y has more than one column, has a different number of rows from X,
             or holds a missing or infinite value.
         NotEnoughVarianceError
-            If X has no variance left for a component, as when there are more
-            components than the rank of the centred X; or if Y is constant (with
-            ``scale=False``, if Y is 0 throughout).
+            If every column of X is constant, as across the family (#1144); if X has
+            no variance left for a component, as when there are more components than
+            the rank of the centred X; if Y is constant (with
+            ``scale=False``, if Y is 0 throughout); or if X has no covariance with Y.
         """
         self._validate_params()
         if self.copy is not None:
@@ -199,11 +209,13 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 DeprecationWarning,
                 stacklevel=user_stacklevel(),
             )
+        refuse_empty_block(X, "X")
         # Copies, so that a name the caller gives these axes later does not rename the model's frames
         sample_index: pd.Index | None = X.index.copy() if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns.copy() if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2)
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)  # an array's labels are positions
+        given_x = X
         # Y is read by position, so its own row labels need not match X's; a Series keeps its name.
         Y = pd.DataFrame(Y)
         if Y.shape[1] != 1:
@@ -252,17 +264,22 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             raise NotEnoughVarianceError(
                 "There is no variance in Y: the response is constant, so there is nothing for X to explain."
             )
+        # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114), in the
+        # family's words (#1144).
+        check_x_varies([given_x], explains_y=True)
+        check_x_explains_y([Xmat], y)  # nor does a response uncorrelated with every column of X (#1144)
+        size = float(np.linalg.norm(Xmat))
+        constant_columns(given_x, "X", self)
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
         w_p = Xmat.T @ y
-        w_p = w_p / np.linalg.norm(w_p)  # (K, 1)
+        w_p = w_p / np.linalg.norm(w_p)  # (K, 1); X'y = 0 was refused by check_x_explains_y
 
         W_o = np.zeros((n_features, n_ortho))
         P_o = np.zeros((n_features, n_ortho))
         T_o = np.zeros((self.n_samples_, n_ortho))
         Xd = Xmat.copy()
-        size = float(np.linalg.norm(Xmat))
         for i in range(n_ortho):
             _check_variance_left(Xd, size, i)
             t = Xd @ w_p  # (N, 1)
@@ -464,6 +481,23 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         )
 
     # ------------------------------------------------------------------ #
+    def _scaled_rows(self, X: DataMatrix) -> pd.DataFrame:
+        """Return the rows :meth:`transform` reads, scaled as the fit scaled its own: what the contributions read."""
+        X_scaled, index = self._prepare(X)
+        return pd.DataFrame(X_scaled, index=index, columns=self._feature_names)
+
+    def _contribution_matrices(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return ``(R, P)``, with the scores ``[t_p | T_o] = X R`` and X rebuilt as ``[t_p | T_o] P'`` (#1144).
+
+        The contribution functions split a score, T2 or SPE with these, as they use PLS's direct
+        weights and loadings. The orthogonal scores are ``X W_o (P_o' W_o)^-1``, as PLS's are
+        ``X W (P'W)^-1``, and the predictive score is ``X F w_p``, ``F`` the orthogonal filter.
+        """
+        weights, loadings = self.orthogonal_weights_.to_numpy(), self.orthogonal_loadings_.to_numpy()
+        if weights.shape[1]:
+            weights = weights @ safe_inverse(loadings.T @ weights, what="(P_o' @ W_o)")
+        return np.hstack([self._osc_filter @ self._w_p, weights]), np.hstack([self._p_p, loadings])
+
     def _prepare(self, X: DataMatrix) -> tuple[np.ndarray, pd.Index | None]:
         """Validate new X, capture its index, and move it to the scaled space."""
         check_is_fitted(self)

@@ -23,7 +23,13 @@ from sklearn.utils import Bunch
 
 from .._linalg import safe_inverse
 from ..univariate.metrics import _check_probability
-from ._common import DataMatrix, _align_to_fit_features, components_with_spread, epsqrt
+from ._common import (
+    DataMatrix,
+    _align_to_fit_features,
+    _scale_block_contributions,
+    components_with_spread,
+    epsqrt,
+)
 from ._nipals import quick_regress, ssq
 from ._preprocessing import center
 from ._projection import project_rows
@@ -313,8 +319,11 @@ def _selectivity_ratio_one(
     # "significant" at conf_level, with N-2 and N-3 degrees of freedom. The
     # sensory layer prefers a permutation test, so this is advisory metadata.
     # With N <= 3 a degree of freedom is below 1, and scipy returns NaN.
-    n_samples = X_values.shape[0]
-    series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
+    # N is the feature's own count of observed rows, over which its ratio is formed (#1144), so the
+    # value is one per feature, a Series whatever the counts: one type for the code that reads it.
+    n_observed = (~np.isnan(X_values)).sum(axis=0)
+    critical = f_dist.ppf(conf_level, dfn=n_observed - 2, dfd=n_observed - 3)
+    series.attrs["f_critical"] = pd.Series(critical, index=X_df.columns, name="f_critical")
     series.attrs["conf_level"] = float(conf_level)
     series.attrs["response"] = label
     return series
@@ -358,7 +367,8 @@ def selectivity_ratio(
     A missing cell (NaN) is skipped, as in :func:`target_projection`, and both
     sums of squares of a feature run over its observed cells, where they add
     up to the feature's sum of squares. A feature with nothing observed has
-    none, and its SR is 0.
+    none, and its SR is 0. The F critical value of a feature counts its
+    observed rows too.
 
     Parameters
     ----------
@@ -375,7 +385,10 @@ def selectivity_ratio(
         single-response model.
     conf_level : float, default=0.95
         Confidence level for the advisory F-based critical value, attached to
-        the result's ``.attrs["f_critical"]``.
+        the result's ``.attrs["f_critical"]``: a Series indexed by feature,
+        with :math:`N - 2` and :math:`N - 3` degrees of freedom, :math:`N`
+        being the number of rows the feature is observed in. So
+        ``ratio > ratio.attrs["f_critical"]`` compares each feature with its own.
 
     Returns
     -------
@@ -572,15 +585,19 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
     (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
     direct (rotated) weights ``direct_weights_`` and ``P`` is ``x_loadings_``.
-    PLS is recognised by the presence of ``direct_weights_``.
+    PLS is recognised by the presence of ``direct_weights_``. OPLS, which has
+    neither, gives its own through ``_contribution_matrices`` (#1144).
     """
     if not hasattr(model, "scores_"):
         msg = "Model is not fitted. Call fit() before computing contributions."
         raise ValueError(msg)
 
-    is_pls = hasattr(model, "direct_weights_")
-    P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
-    R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
+    if hasattr(model, "_contribution_matrices"):
+        R, P = model._contribution_matrices()
+    else:
+        is_pls = hasattr(model, "direct_weights_")
+        P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
+        R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
     # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
     # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names.
     return model._scaled_rows(X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)), R, P
@@ -1096,18 +1113,10 @@ def score_contributions(
     _scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     contributions = X_values * (r_a if guides is None else guides[:, :, int(component) - 1])
 
-    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do).
-    if scaling == "maximum":
-        largest = float(np.nanmax(np.abs(contributions)))
-        contributions = contributions / (largest if largest > epsqrt else 1.0)
-    elif scaling == "within":
-        row_total = np.nansum(np.abs(contributions), axis=1, keepdims=True)
-        contributions = contributions / np.where(row_total > epsqrt, row_total, 1.0)
-    elif scaling != "none":
-        msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
-        raise ValueError(msg)
-
-    return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
+    # A missing cell's contribution is NaN, so both scalings skip NaN (as the row sums do). One block is the
+    # multi-block case with a single block, so the floors are the same in both (#1070).
+    scaled = _scale_block_contributions({"X": contributions}, scaling)["X"]
+    return pd.DataFrame(scaled, index=X_df.index, columns=X_df.columns)
 
 
 def group_contributions(

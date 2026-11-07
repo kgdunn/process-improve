@@ -762,6 +762,34 @@ def test_a_tpls_model_without_conditions_blends_its_lots(recwarn: pytest.Warning
     assert result.y_hat["q"] == pytest.approx(3.5, abs=1e-3)
 
 
+@pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+def test_a_group_with_no_variation_is_blended_as_an_input_of_zero_weight(skip_f: bool) -> None:
+    """A material blended at the same fractions in every training blend has zero weight (#1144); the inversion runs.
+
+    Scaled, the model uses none of its lots, so its residual is 0 whatever the fractions: no SPE rule, where
+    a limit of 0 would divide the search by 0. Used as given, its residual is its fractions, with a limit.
+    Its fractions still sum to 1, and the target is met through the other material. Such a fit was refused.
+    """
+    rng = np.random.default_rng(3)
+    lots = {"A": ["A1", "A2", "A3"], "B": ["B1", "B2", "B3"]}
+    d = {g: pd.DataFrame(rng.normal(size=(3, 2)), index=names, columns=["p1", "p2"]) for g, names in lots.items()}
+    f = {g: pd.DataFrame(rng.dirichlet([1, 1, 1], 30), columns=names) for g, names in lots.items()}
+    f["B"].loc[:, :] = [0.2, 0.3, 0.5]
+    y = pd.DataFrame({"q": f["A"].to_numpy() @ [3.0, 1.0, 2.0] + 0.1 * rng.normal(size=30)})
+    model = TPLS(n_components=2, d_matrix=d, skip_f_matrix_preprocessing=skip_f)
+    with pytest.warns(UserWarning, match=r'^Block F\["B"\] has no variance'):
+        model.fit(DataFrameDict({"F": f, "Y": {"Quality": y}}))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = model.optimal_inversion(InversionRules(targets={"q": 2.0}))
+
+    assert result.feasible
+    assert list(result.spe.index) == (["F/A", "F/B"] if skip_f else ["F/A"])
+    assert result.x_new[lots["B"]].sum() == pytest.approx(1.0)
+    assert result.y_hat["q"] == pytest.approx(2.0, abs=1e-3)
+
+
 def test_without_closure_a_materials_fractions_are_free_to_total_anything() -> None:
     """``closure=False`` drops the 'sums to 1' rule: the constraint table has none."""
     model = _small_tpls(["B1", "B2", "B3"])

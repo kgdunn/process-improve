@@ -35,11 +35,17 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _fit_asked_for_by_the_caller,
+    _float_frame,
     _nz,
     _reject_sparse,
+    _rows_with_data,
     _select_n_components,
     check_at_least_one,
+    check_x_varies,
+    constant_columns,
     epsqrt,
+    refuse_empty_block,
     resolve_loop_settings,
     unobserved_columns,
     user_stacklevel,
@@ -348,7 +354,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
                     Xa[impute] = recon[impute]
                     held = Xa[impute] / held_scale
                     delta = np.linalg.norm(held - prev_held)
-                    threshold = ekf_tol * max(1.0, float(np.linalg.norm(prev_held)))
+                    # Relative to the held-out cells' own size, in any units. A floor of 1 stopped EM
+                    # after one pass on data in small units, which changed the PRESS curve (#1070).
+                    threshold = ekf_tol * float(np.linalg.norm(prev_held))
                     if delta < threshold:  # pragma: no mutate - < and <= differ only at a delta of exactly threshold
                         break
                     prev_held = held
@@ -866,7 +874,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         single number per observation with ``model.spe_.iloc[:, -1]``, not with
         ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
         answer at one component and silently gives ``n_samples * n_components``
-        values above it.
+        values above it. A row with nothing observed has no residual, and an
+        SPE of NaN, as in ``diagnose``.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
         Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
         above: column ``a`` uses the first ``a`` components and the last column
@@ -983,6 +992,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         -------
         self : PCA
 
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as across the
+            family (#1144): such an X tells no row from another. A fit that another
+            routine of this package runs on a matrix it derived, such as ASCA's effect
+            matrix of a term with no effect, is not refused.
+
         Warns
         -----
         UserWarning
@@ -998,6 +1015,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # Reject sparse before validate_data does, so the message names the
         # ColumnTransformer knob rather than `.toarray()` (#399).
         _reject_sparse(X, "PCA")
+        refuse_empty_block(X, "X")
         # Copies, so that a name the caller gives these axes later does not rename the model's frames
         sample_index = X.index.copy() if isinstance(X, pd.DataFrame) else None
         feature_columns = X.columns.copy() if isinstance(X, pd.DataFrame) else None
@@ -1026,6 +1044,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # A column with nothing observed gets a zero loading from NIPALS and TSR; it is named, as
         # across the family, and a value a new row has in it is ignored (#1098).
         self._unobserved_columns = unobserved_columns(X, "X")
+        # An X in which nothing varies tells no row apart (#1144). A matrix another routine of this
+        # package derived and fits, as ASCA's effect matrix of a term with no effect, is fitted as it was:
+        # that routine reads its zero scores as the answer.
+        if _fit_asked_for_by_the_caller(self):
+            check_x_varies([X], explains_y=False)
+        constant_columns(X, "X", self)
 
         # Clamp n_components
         min_dim = int(min(N, K))
@@ -1093,7 +1117,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         component_names = self._component_names
         self._loadings = self._loadings_np
         self._scores = self._scores_np
-        self._spe = self._spe_np
+        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
+        self._spe = np.where(_rows_with_data(X.to_numpy())[:, np.newaxis], self._spe_np, np.nan)
         # The training residual block, kept for the trimmed-score-regression
         # estimator in ``project`` / ``projection_matrix``: TSR regresses on
         # the covariance of the observed columns, which is the model plane
@@ -1809,7 +1834,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915, C901
+    def select_n_components(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
         *,
@@ -2023,8 +2048,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         principal component analysis using cross-validation approximations.
         *Computational Statistics & Data Analysis*, 56(6), 1869-1879.
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        X = _float_frame(X)  # an array is numbered from 0; a nullable column's pd.NA is a missing cell, as in fit
+        check_at_least_one("max_components", max_components)
 
         N, K = X.shape
         max_components = min(N - 1, K) if max_components is None else min(int(max_components), N - 1, K)
@@ -2043,8 +2068,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         press_scale_multiplier = 1
         if cv_scheme == "ekf":
             press_scale_multiplier = n_folds
-            if n_repeats < 1:
-                raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
+            check_at_least_one("n_repeats", n_repeats)
             # Same two traps as PLS.select_n_components, checked only here
             # because the other schemes ignore the flag.
             _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="element-fold", metric="PRESS")
@@ -2108,10 +2132,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         press_input_units = pd.Series(raw_press_input_units, index=component_index, name="PRESS (input units)")
         # Q2 = 1 - PRESS / null_model_ss. A block with nothing to predict has an
         # undefined Q2 rather than a perfect one, and so does a column with no
-        # spread across the held-out cells.
-        null_ss = null_model_ss if null_model_ss > epsqrt else np.nan  # pragma: no mutate - > and >= tie only at epsqrt
+        # spread across the held-out cells. A column has nothing to predict when its
+        # observed values are all equal, in any units, as MCUVScaler reads one: its
+        # null sum of squares is then 0, or rounding where it was centred at a mean.
+        # A floor of epsqrt on that sum took every column in small units for one (#1070).
+        varies = np.fmax.reduce(X_arr, axis=0) > np.fmin.reduce(X_arr, axis=0)  # fmax and fmin skip NaN
+        null_ss = null_model_ss if varies.any() else np.nan
         q2 = (1.0 - press / null_ss).rename("Q2")
-        column_null_ss = np.where(per_column_null > epsqrt, per_column_null, np.nan)  # pragma: no mutate - as above
+        column_null_ss = np.where(varies, per_column_null, np.nan)
         q2_per_variable = pd.DataFrame(
             1.0 - raw_per_column / column_null_ss, index=component_index, columns=list(X.columns)
         )
