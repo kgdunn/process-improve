@@ -557,7 +557,11 @@ def _age_at(prepared: DataFrameGroupBy, extreme: str) -> pd.DataFrame:
     pandas refuses such a group in ``idxmin`` and ``idxmax``, with a ValueError from 3.0 (#1184).
     A missing value among observed ones is skipped.
     """
-    return prepared.agg(lambda values: getattr(values, extreme)() if values.notna().any() else np.nan)
+
+    def label_at_extreme(values: pd.Series) -> object:
+        return getattr(values, extreme)() if values.notna().any() else np.nan
+
+    return prepared.agg(label_at_extreme)
 
 
 def f_agemin(

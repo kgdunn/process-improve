@@ -1403,7 +1403,9 @@ def find_reference_batch(
 
     # Unfolds that resampled data, and fits the PCA that ranks the batches.
     pca_second = _ranking_pca(
-        dict_to_wide(resampled), int(np.floor(settings["n_components"])), settings.get("judged_rows")
+        dict_to_wide(resampled),
+        int(np.floor(settings["n_components"])),
+        cast("str | None", settings.get("judged_rows")),
     )
 
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
