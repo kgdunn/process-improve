@@ -529,6 +529,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_feature_names.py",
     "tests/test_sklearn_compat.py",
     "tests/test_multivariate_robustness.py",
+    "tests/test_multivariate_family_inputs.py",
     "tests/test_tool_spec.py",
     "tests/test_multiblock_reference.py",
     # Its FMC case study reads a script from docs/, which mutmut does not copy, and its data from the web.
