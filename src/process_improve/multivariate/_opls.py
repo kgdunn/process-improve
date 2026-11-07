@@ -273,7 +273,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
-        w_p = _predictive_direction(Xmat, y, size)  # (K, 1)
+        w_p = Xmat.T @ y
+        w_p = w_p / np.linalg.norm(w_p)  # (K, 1); X'y = 0 was refused by check_x_explains_y
 
         W_o = np.zeros((n_features, n_ortho))
         P_o = np.zeros((n_features, n_ortho))
@@ -506,22 +507,6 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         if self._x_scaler is not None:
             X_df = self._x_scaler.transform(X_df)
         return X_df.to_numpy(), index
-
-
-def _predictive_direction(x: np.ndarray, y: np.ndarray, size: float) -> np.ndarray:
-    """Return ``X'y`` at unit length, refusing an X that has no covariance with y (#1114).
-
-    Such an X varies, so it passes :func:`_check_variance_left`, but gives no direction: dividing
-    by the zero length made the whole model NaN, after a ``RuntimeWarning``. Judged relative to the
-    sizes of X and y, as that check is.
-    """
-    direction = x.T @ y
-    length = float(np.linalg.norm(direction))
-    if length <= epsqrt * size * float(np.linalg.norm(y)):  # pragma: no mutate - < differs only at equality
-        raise NotEnoughVarianceError(
-            "X has no covariance with Y: no direction in X predicts the response, so there is no predictive component."
-        )
-    return direction / length
 
 
 def _check_variance_left(remaining: np.ndarray, size: float, extracted: int) -> None:

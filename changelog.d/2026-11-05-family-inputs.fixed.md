@@ -6,8 +6,9 @@
   `MBPLS` says the same, where it said "y has 20 rows; expected 30 to match X-blocks." (#1114)
 - **`OPLS` refuses an X with no variance before it divides by zero**: an X of zeros raised
   `NotEnoughVarianceError` after a `RuntimeWarning` ("invalid value encountered in divide"); now the
-  error comes alone. An X that varies but has no covariance with y gave a model of NaN after the same
-  warning; it is refused too: "X has no covariance with Y: ...". (#1114)
+  error comes alone. An X that varies but has no covariance with y, which gave a model of NaN after the
+  same warning, is refused as the rest of the PLS family refuses it (see the entry on a Y uncorrelated
+  with every column of X). (#1114)
 - **`PLS.select_n_components`, `compare_cv_criteria` and `pseudo_validation_set` take a row and a column
   with nothing observed, as `fit` does.** `select_n_components` raised `RuntimeError` for such a row, and
   warned of a "Mean of empty slice" for such a column; the other two refused both. A held-out row with
