@@ -32,7 +32,12 @@ def fit_tpls(
         return FIT_CACHE[key]
     cls = TPLS if deflate_d else TPLSWithoutDDeflation
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  # zero-variance columns are expected: unused materials
+        # A material that no training blend uses is a column of F with no variance: TPLS leaves it out and says so.
+        warnings.filterwarnings("ignore", r"Block F\[.*\] has columns with no variance", UserWarning)
+        # Without the D deflation, D's R2 is zero in every component, so D's VIP is 0/0. Nothing here reads VIP.
+        warnings.filterwarnings(
+            "ignore", "invalid value encountered in divide", RuntimeWarning, r"process_improve\.multivariate\._tpls"
+        )
         if not centred:
             fitted = cls(n_components, train["D"]).fit(DataFrameDict({k: train[k] for k in "FZY"})), None
         else:

@@ -4,7 +4,7 @@
 //
 // Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
 // where reply is the JSON string the Python function returned, or
-// {status, state} while it is still starting up, where state is "busy",
+// {status, state} while it starts up or installs plotly, where state is "busy",
 // "ok" or "error" so the page can show a spinner, a tick or an error. If Python
 // cannot start, every call is answered with the reason, so nothing waits for it.
 
@@ -38,15 +38,25 @@ async function wheelSource() {
 }
 
 // plotly is installed on the first chart rather than at start-up: designing and
-// analysing do not need it, and it would add its download to every visit.
+// analysing do not need it, and it would add its download to every visit. The
+// install ends its own note, as start-up does: the first chart may be the curves'
+// fit, after which the page says nothing more.
 let plotly = null;
 function installPlotly(pyodide) {
+  const say = (status, state) => self.postMessage({ status, state });
   plotly ??= (async () => {
-    self.postMessage({ status: "Installing plotly for the charts...", state: "busy" });
+    say("Installing plotly for the charts...", "busy");
     const { plotly: version } = await manifest;
     pyodide.globals.set("_plotly", version ? `plotly==${version}` : "plotly");
-    await pyodide.runPythonAsync("import micropip\nawait micropip.install(_plotly)");
-    pyodide.globals.delete("_plotly");
+    try {
+      await pyodide.runPythonAsync("import micropip\nawait micropip.install(_plotly)");
+    } catch (err) {
+      say(`Could not install plotly: ${oneLine(err)}`, "error");
+      throw err;
+    } finally {
+      pyodide.globals.delete("_plotly");
+    }
+    say("Installed plotly for the charts.", "ok");
   })();
   return plotly;
 }

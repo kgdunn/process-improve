@@ -105,9 +105,11 @@ from process_improve.regression._variance_components import fit_variance_compone
 from process_improve.sensory.designed import tukey_hsd
 from process_improve.univariate.classical import (
     autocorrelation,
+    bartlett_test,
     chi2_value,
     dunnett_value,
     f_value,
+    kruskal_wallis_test,
     randomization_test,
     rank_sum_test,
     studentized_range_value,
@@ -2508,6 +2510,8 @@ def _t_test(experiment: dict, check: dict) -> float:
 
 _CLASSICAL: dict[str, Callable[..., dict[str, Any]]] = {
     "autocorrelation": autocorrelation,
+    "bartlett_test": bartlett_test,
+    "kruskal_wallis_test": kruskal_wallis_test,
     "rank_sum_test": rank_sum_test,
     "randomization_test": randomization_test,
     "ttest_one_sample": ttest_one_sample,
@@ -2534,13 +2538,20 @@ def _classical_test(experiment: dict, check: dict) -> float:
     """Return a number of one of the library's classical tests on the runs' responses.
 
     ``check["function"]`` is ``"ttest_one_sample"``, ``"ztest"``, ``"rank_sum_test"``,
-    ``"randomization_test"`` or ``"autocorrelation"`` (from :mod:`process_improve.univariate.classical`).
+    ``"randomization_test"``, ``"autocorrelation"``, ``"bartlett_test"`` or ``"kruskal_wallis_test"``
+    (from :mod:`process_improve.univariate.classical`).
     ``check["x"]`` and ``check["y"]`` pick each group's runs, as a list of 1-based positions or a
     ``{column: value}`` that the runs must match; ``check["x"]`` left out takes every run, in order.
+    ``check["by"]`` instead names a column, and the runs at each of its values are one group, for a
+    test of several groups.
     ``check["subtract"]``, a stated difference, is taken from each response of the second group, or
     of the only one, so that the test of no difference tests that difference. ``check["kwargs"]``
     go to the function as they are, and ``check["key"]`` reads its result.
     """
+    if "by" in check:
+        levels = pd.DataFrame(experiment["runs"]["rows"], columns=experiment["runs"]["columns"])[check["by"]].unique()
+        groups = [_group(experiment, {**check, "x": {check["by"]: level}}, "x") for level in levels]
+        return _read(_CLASSICAL[check["function"]](*groups), check["key"])
     first = _group(experiment, check, "x")
     if first is None:
         _, responses = _coded_runs(experiment, None)

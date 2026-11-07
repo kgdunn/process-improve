@@ -74,6 +74,16 @@ CASES = {
         FACTORS,
         WORDS,
     ),
+    "one factor, with center runs": (
+        {"design_type": "full_factorial", "n_replicates": 2, "n_center_points": 3},
+        FACTORS[:1],
+        WORDS,
+    ),
+    "one factor's runs as given, at several settings": (
+        {"design_type": "given", "runs": [[150], [160], [175], [190], [200]]},
+        FACTORS[:1],
+        WORDS,
+    ),
 }
 
 
@@ -108,6 +118,8 @@ NAMING = {
     "Main effects are clear of two-factor interactions, which are aliased": "a resolution IV fraction",
     " is confounded with the blocks": "a blocked full factorial",
     " are confounded with the blocks": "a blocked fraction, two of its factors swapped",
+    "The runs compare ": "one factor, with center runs",
+    "The runs set ": "one factor's runs as given, at several settings",
 }
 
 
@@ -179,6 +191,18 @@ def test_units_change_as_names_do(api, design):
     assert [f["units"] for f in renamed["spec"]["factors"]] == ["K", "kPa", "L/min"]
     assert renamed["columns"] == design["columns"]
     assert renamed["facts"] == design["facts"]
+
+
+@pytest.mark.parametrize("case", CASES.values(), ids=CASES)
+def test_changing_only_the_units_gives_what_making_the_design_with_them_gives(api, case):
+    """A note that gives a setting gives its units, as a one-factor design's does: they change with the units."""
+    request, factors, _ = case
+    units = [{**f, "units": "kg/h"} if isinstance(f["low"], int | float) else f for f in factors]
+    before = api.ok("api_make_design", {**request, "factors": factors})
+    after = api.ok("api_make_design", {**request, "factors": units})
+    renamed = api.ok("api_relabel", {"design": sent(before), "factors": after["spec"]["factors"]})
+    assert renamed["facts"] == after["facts"]
+    assert renamed["spec"] == after["spec"]
 
 
 def test_a_rename_that_changes_nothing_gives_the_design_back(api, design):
