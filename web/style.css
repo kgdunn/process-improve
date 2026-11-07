@@ -1535,7 +1535,7 @@ main.map .lede { margin: 0; }
 .map-results small { color: var(--muted); white-space: nowrap; }
 .map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   height: clamp(340px, 62vh, 640px); max-width: 100%; overflow: hidden; }
-#cy { position: absolute; inset: 0; }
+#cy { position: absolute; inset: 0; -webkit-touch-callout: none; user-select: none; }   /* a held term, not a text callout */
 /* Said over the map for a moment when one finger drags across it on a touch screen: that finger scrolls the page. */
 .map-hint {
   position: absolute; inset: auto 0 45% 0; margin: 0 auto; width: max-content; max-width: 90%; padding: 8px 14px;

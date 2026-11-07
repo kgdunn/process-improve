@@ -442,6 +442,74 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     assert page.evaluate(view)["zoom"] > moved["zoom"] * 1.5, "and spreading them zooms in"
 
 
+# Where a term sits in the drawing, and the map's view; and a neighbour of the selected term well inside the map.
+WHERE = """(i) => { const cy = window.conceptMap.cy;
+  return { at: { ...cy.getElementById(i).position() }, pan: { ...cy.pan() }, zoom: cy.zoom(), scrolled: scrollY }; }"""
+NEIGHBOUR = """() => { const cy = window.conceptMap.cy;
+  const inside = (p) => p.x > 60 && p.x < cy.width() - 60 && p.y > 60 && p.y < cy.height() - 60;
+  return cy.nodes('.term.nb').filter((n) => n.visible() && inside(n.renderedPosition()))[0].id(); }"""
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_a_term_dragged_with_the_mouse_moves_and_the_map_stays(context, site):
+    """To uncover a link's label that a term sits on, the reader moves the term."""
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    term = page.evaluate(NEIGHBOUR)
+    before = page.evaluate(WHERE, term)
+    x, y = _on_map(page, _rendered(page, term))
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 60, y + 40, steps=8)
+    page.mouse.up()
+    _settled(page)
+    after = page.evaluate(WHERE, term)
+    assert after["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.1)
+    assert after["at"]["y"] - before["at"]["y"] == pytest.approx(40 / before["zoom"], rel=0.1)
+    assert (after["pan"], after["zoom"]) == (before["pan"], before["zoom"]), "the map itself stays where it was"
+    assert page.text_content("#card h2") == "Full factorial", "a drag is not a tap"
+
+
+@pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_still_scrolls(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    finger = context.new_cdp_session(page)
+    term = page.evaluate(NEIGHBOUR)
+
+    def touch(kind: str, dx: float, dy: float) -> None:
+        x, y = start
+        finger.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": [{"x": x + dx, "y": y + dy, "id": 0}]})
+
+    def lift() -> None:
+        finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        page.wait_for_timeout(600)  # a scroll the browser makes from a drag goes on a moment after the finger lifts
+        _settled(page)
+
+    before = page.evaluate(WHERE, term)
+    start = _on_map(page, _rendered(page, term))
+    touch("touchStart", 0, 0)
+    for k in range(1, 11):
+        touch("touchMove", 0, -15 * k)
+    lift()
+    swiped = page.evaluate(WHERE, term)
+    assert swiped["scrolled"] > before["scrolled"] + 50, "a finger that moves at once scrolls the page"
+    assert swiped["at"] == before["at"], "and leaves the term where it was"
+
+    page.evaluate("() => window.scrollTo(0, 0)")
+    start = _on_map(page, _rendered(page, term))
+    touch("touchStart", 0, 0)
+    page.wait_for_timeout(700)
+    for k in range(1, 7):
+        touch("touchMove", 10 * k, 0)
+    assert page.locator(".map-hint").text_content() == "Drag to move this term"
+    lift()
+    held = page.evaluate(WHERE, term)
+    assert held["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.15), "held, it follows"
+    assert held["scrolled"] == 0, "and the page stays where it is"
+    assert page.text_content("#card h2") == "Full factorial", "a move is not a tap"
+
+
 def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site):
     """The map has the start page's switch: light, dark or the system's, in turn, kept for every page of the app."""
     page = _open(context, site)

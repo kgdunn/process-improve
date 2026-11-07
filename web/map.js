@@ -179,6 +179,7 @@ function sheet(z) {
     { selector: ".term.sel", style: { width: size * 1.9, height: size * 1.9, "border-width": px(2.5), "border-color": css("--fg"),
       "font-weight": 600, "font-size": px(font * 1.12), "z-index": 30 } },
     { selector: ".term.nb", style: { "z-index": 20 } },
+    { selector: ".term.held", style: { "border-width": px(3), "border-color": css("--accent"), "z-index": 35 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
       "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
@@ -290,7 +291,9 @@ function refresh(force = false) {
   cy.batch(settleOverlaps);   // after the first batch, so the labels have real sizes
 }
 let queued = false;
-cy.on("viewport", () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); } });
+const later = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); } };
+cy.on("viewport", later);
+cy.on("position", "node.term", later);   // labels follow a term the reader moves
 
 function highlight(id) {
   cy.batch(() => {
@@ -402,9 +405,35 @@ const fromHash = () => location.hash.slice(1).replaceAll("-", "_");
 // scrolled is not a tap, and the first such drag in a while says how to move the map.
 const hint = document.createElement("p");
 hint.className = "map-hint";
-hint.textContent = "Two fingers move the map";
 hint.setAttribute("aria-hidden", "true");
 cy.container().parentElement.append(hint);
+const say = text => {
+  hint.textContent = text;
+  hint.classList.add("on");
+  clearTimeout(say.off);
+  say.off = setTimeout(() => hint.classList.remove("on"), 1600);
+};
+
+// A term can be moved, to uncover a link's label under it: dragged with the mouse, as Cytoscape does for a grabbable
+// node; on a touch screen, held still for a moment and then dragged, as one finger that moves at once scrolls the page.
+// Nothing is kept: a reload restores the drawing.
+cy.nodes().not(".term").ungrabify();
+cy.container().addEventListener("pointerdown", ev => cy.autoungrabify(ev.pointerType !== "mouse"), { capture: true });
+cy.on("grab", "node.term", ev => ev.target.addClass("held"));
+cy.on("free", "node.term", ev => ev.target.removeClass("held"));
+cy.on("mouseover", "node.term", () => { if (!cy.autoungrabify()) cy.container().style.cursor = "grab"; });
+cy.on("mouseout", "node.term", () => { cy.container().style.cursor = ""; });
+const HOLD_MS = 450;
+let held = null, holding = 0;
+function termAt(x, y) {   // the visible term nearest a point of the map, within a fingertip's reach
+  const reach = Math.max(sizes(cy.zoom()).dot, 24) / 2 + 6;
+  let best = null, gap = reach;
+  cy.nodes(".term").filter(n => n.visible()).forEach(n => {
+    const p = n.renderedPosition(), d = Math.hypot(p.x - x, p.y - y);
+    if (d <= gap) { best = n; gap = d; }
+  });
+  return best;
+}
 const between = ([a, b]) => {
   const box = cy.container().getBoundingClientRect();
   return { x: (a.clientX + b.clientX) / 2 - box.left, y: (a.clientY + b.clientY) / 2 - box.top,
@@ -415,6 +444,17 @@ cy.container().addEventListener("touchstart", ev => {
   finger = ev.touches.length === 1 ? [ev.touches[0].clientX, ev.touches[0].clientY] : null;
   pinch = ev.touches.length === 2 ? between(ev.touches) : null;
   if (ev.touches.length === 1) scrolled = false;
+  clearTimeout(holding);
+  if (ev.touches.length !== 1) return;
+  const box = cy.container().getBoundingClientRect();
+  const term = termAt(ev.touches[0].clientX - box.left, ev.touches[0].clientY - box.top);
+  if (term) holding = setTimeout(() => {
+    if (scrolled || finger === null) return;
+    held = term.addClass("held");
+    scrolled = true;   // what follows is a move, not a tap
+    navigator.vibrate?.(15);
+    say("Drag to move this term");
+  }, HOLD_MS);
 }, { passive: true });
 window.addEventListener("touchmove", ev => {
   if (pinch && ev.touches.length === 2) {
@@ -428,15 +468,23 @@ window.addEventListener("touchmove", ev => {
   }
   if (finger === null || ev.touches.length !== 1) return;
   ev.stopPropagation();
+  if (held) {   // the term follows the finger, and the page stays where it is
+    ev.preventDefault();
+    const box = cy.container().getBoundingClientRect(), z = cy.zoom(), pan = cy.pan();
+    held.position({ x: (ev.touches[0].clientX - box.left - pan.x) / z, y: (ev.touches[0].clientY - box.top - pan.y) / z });
+    return;
+  }
   if (scrolled || Math.hypot(ev.touches[0].clientX - finger[0], ev.touches[0].clientY - finger[1]) < 10) return;
   scrolled = true;
+  clearTimeout(holding);
   if (Date.now() - hinted < 20000) return;
   hinted = Date.now();
-  hint.classList.add("on");
-  setTimeout(() => hint.classList.remove("on"), 1600);
+  say("Two fingers move the map");
 }, { capture: true, passive: false });
 window.addEventListener("touchend", ev => {
   if (ev.touches.length < 2) pinch = null;
+  clearTimeout(holding);
+  if (held) { held.removeClass("held"); held = null; }
   // The browser is scrolling and the touch's end cannot be cancelled: Cytoscape's attempt to is then a no-op, not a
   // console error.
   if (!ev.cancelable) ev.preventDefault = () => {};
