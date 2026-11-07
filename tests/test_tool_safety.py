@@ -11,7 +11,8 @@ Covers:
 The subprocess-based tests rely on ``fork`` so that the worker inherits
 the parent's in-test ``@tool_spec`` registrations. Fork is preferred
 only on Linux (see ``tool_safety._DEFAULT_MP_CONTEXT``); on macOS and
-Windows these tests are skipped.
+Windows these tests are skipped. The tests of a worker's start-up force
+``spawn`` and call a tool of the package instead, so they run everywhere.
 """
 
 from __future__ import annotations
