@@ -273,17 +273,17 @@ def test_a_tolerance_above_1_still_runs_one_pass(cls: type[MultiblockModel]) -> 
 
 @pytest.mark.parametrize("cls", [MBPCA, MBPLS])
 def test_the_masked_path_fits_as_many_rows_as_blocks_as_the_dense_path_does(cls: type[MultiblockModel]) -> None:
-    """Three rows and three blocks make the block-score summary square, three by three.
+    """Three rows, three blocks, a block three wide and three responses: every regression is on a square matrix.
 
     A square matrix fits both cases of ``quick_regress``, a regression per column and one per
-    row, so every regression on the summary names its case: read from the shape, it is refused.
+    row, so each regression of the masked path names its case: read from the shape, it is refused.
     """
     rng = np.random.default_rng(1)
     blocks = {
         name: pd.DataFrame(rng.standard_normal((3, width)), columns=[f"{name}{i}" for i in range(width)])
-        for name, width in zip("pqr", (2, 4, 5), strict=True)
+        for name, width in zip("pqr", (2, 3, 5), strict=True)
     }
-    y = pd.DataFrame(rng.standard_normal((3, 2)), columns=["y1", "y2"])
+    y = pd.DataFrame(rng.standard_normal((3, 3)), columns=["y1", "y2", "y3"])
     masked, dense = _fit(cls, blocks, y, algorithm="nipals"), _fit(cls, blocks, y, algorithm="dense")
     np.testing.assert_allclose(masked.super_scores_, dense.super_scores_, rtol=1e-10, atol=1e-12)
 
