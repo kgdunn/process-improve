@@ -125,8 +125,10 @@ class TestConvergenceFlag:
         rng = np.random.default_rng(5)
         y = pd.DataFrame(rng.normal(size=(20, 1)), columns=["y"])
         model = MBPLS(n_components=2).fit(_clean_blocks(), y)
-        assert "converged" in model.fitting_info_
-        assert np.all(model.fitting_info_["converged"])
+        converged = model.fitting_info_["converged"]
+        assert converged.dtype == bool
+        assert len(converged) == 2
+        assert np.all(converged)
 
     def test_mbpls_flags_non_convergence_and_warns(self) -> None:
         rng = np.random.default_rng(6)
