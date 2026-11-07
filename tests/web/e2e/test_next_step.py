@@ -196,6 +196,47 @@ def test_a_refusal_to_add_runs_says_why(blank_page):
     assert len(run_sheet(page)) == 8, "the run sheet is as it was"
 
 
+def test_runs_added_to_a_study_left_meanwhile_stay_out_of_the_study_opened(blank_page):
+    """A study opened from Your studies while another's runs are added keeps its own run sheet: the reply is dropped."""
+    page = blank_page
+    generate(page, design_type="ccd", n_center_points=2)
+    opened = len(run_sheet(page))
+    page.click("#new-study")
+    set_factors(page, FACTORS)
+    generate(page, design_type="full_factorial", n_center_points=0)
+    type_results(page, {i: 50 + i for i in range(8)})
+    page.evaluate("window.__pi.hold('api_add_runs')")
+    reveal(page, "#next")
+    page.click('#next-out .offer[data-kind="center"] button.button')
+    assert status(page) == ("Adding the runs...", "busy")
+    page.click("#library summary")
+    page.click("#library-list >> text=Central composite (CCD) in T, P and F")
+    page.evaluate("window.__pi.release('api_add_runs')")
+    settled(page)
+    assert len(run_sheet(page)) == opened, "the runs added to the other study are not this one's"
+    assert page.is_hidden("#status"), "nothing is being added any more"
+    saved = saved_studies(page, lambda studies: len(studies) == 2)
+    assert sorted(len(s["design"]["rows"]) for s in saved) == [8, opened], "each study is kept as it was"
+
+
+def test_runs_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(blank_page):
+    """A new study, started while the runs added are simulated, drops the simulation: it has no run sheet."""
+    page = blank_page
+    generate(page, design_type="fractional_factorial", resolution=3, n_center_points=3)
+    practise(page)
+    page.evaluate("window.__pi.hold('api_simulate')")
+    simulated = page.evaluate("window.__pi.count('api_simulate')")
+    reveal(page, "#next")
+    page.click('#next-out .offer[data-kind="foldover"] button.button')
+    page.wait_for_function(f"window.__pi.count('api_simulate') > {simulated}")  # the runs are added, and simulated
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_simulate')")
+    settled(page)
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.is_hidden("#run-out")
+    assert page.is_hidden("#status")
+
+
 def test_a_mixture_shows_no_next_step(fresh_page):
     """A mixture's blends take none of the ways of adding runs, and its best settings are not searched."""
     page = fresh_page

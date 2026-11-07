@@ -398,6 +398,15 @@ function clearStatus() {
   box.hidden = true;
 }
 
+/**
+ * Whether a reply is dropped, ``left`` saying that what asked for it has left the page meanwhile (a new study, say):
+ * the busy note put up as it was asked, at status ticket ``said``, then goes too, unless something was said since.
+ */
+function dropped(left, said) {
+  if (left && statusTicket === said) clearStatus();
+  return left;
+}
+
 let toastTimer = null;
 
 /** Say briefly, at the foot of the screen, that something was done: a link or code copied to the clipboard. */
@@ -2763,14 +2772,17 @@ function scheduleSimulation() {
 
 async function simulateResults() {
   clearTimeout(simulationTimer);
-  if (!state.design) return;
+  const asked = state.design;
+  if (!asked) return;
   setStatus("Simulating the results...", "busy");
+  const simulating = statusTicket;
   const reply = await call("api_simulate", {
     ...held(),
     scenario: $("#scenario").value,
     sigma: Number($("#sigma").value),
     seed,
   });
+  if (dropped(state.design !== asked, simulating)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return;
@@ -3279,10 +3291,7 @@ async function analyseRuns() {
   const analysing = statusTicket;
   const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
-  if (mine !== ticket) {
-    if (statusTicket === analysing) clearStatus(); // taken away (a new study, say), and nothing said since
-    return;
-  }
+  if (dropped(mine !== ticket, analysing)) return; // taken away: a new study, say
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
   $("#printed").hidden = true;
@@ -4282,10 +4291,13 @@ async function addConfirmationRuns(at = state.best?.confirm_at, where = "the bes
   renderRuns();
   renderStudyBar();
   const practice = Boolean(state.simulation) && someSimulated();
+  const design = state.design;
   if (practice) await simulateFrom(before);
+  if (state.design !== design) return; // another run sheet took its place meanwhile
   showResultsCode();
   scheduleSave();
   await analyseRuns(); // the fit is the same; what is said of the confirmation runs follows them
+  if (state.design !== design) return;
   setStatus(
     practice
       ? `${added} confirmation runs added at ${where}, their results simulated.`
@@ -5040,9 +5052,12 @@ function addedRuns(next, others = false) {
  * reader makes them, in Run.
  */
 async function addRuns(kind) {
-  if (!state.design) return;
+  const asked = state.design;
+  if (!asked) return;
   setStatus("Adding the runs...", "busy");
+  const adding = statusTicket;
   const reply = await call("api_add_runs", { ...analysisRequest(), kind }); // the runs the results call for need them
+  if (dropped(state.design !== asked, adding)) return; // another run sheet took its place meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return;
@@ -5050,6 +5065,7 @@ async function addRuns(kind) {
   const { added, ...grown } = reply.result;
   const before = state.design.rows.length;
   state.design = { ...state.design, ...grown };
+  const design = state.design;
   for (const name of resultNames()) {
     state.results[name] = [...state.results[name], ...Array(added).fill(null)];
     state.marks[name] = [...state.marks[name], ...Array(added).fill(null)];
@@ -5065,9 +5081,11 @@ async function addRuns(kind) {
   renderStudyBar();
   showPython("design", designCode(grown.spec));
   const practice = Boolean(state.simulation) && someSimulated() && (await simulateFrom(before));
+  if (dropped(state.design !== design, adding)) return;
   showResultsCode();
   scheduleSave();
   await analyseRuns();
+  if (state.design !== design) return; // nor is a study that took the page during the analysis told of these runs
   if (practice) {
     setStatus(`${added} runs added at the end of the run sheet, their results simulated.`);
     return;
@@ -5081,9 +5099,10 @@ async function addRuns(kind) {
  * result before them as it was. Resolves to whether they were simulated.
  */
 async function simulateFrom(before) {
+  const asked = state.design;
   const { scenario, sigma, seed: drawn } = state.simulation;
   const reply = await call("api_simulate", { ...held(), scenario, sigma, seed: drawn });
-  if (!reply.ok) return false;
+  if (!reply.ok || state.design !== asked) return false; // refused, or another run sheet took its place meanwhile
   const [first] = resultNames();
   for (const name of resultNames()) {
     const simulated = name === first ? reply.result : reply.result.more?.[name];

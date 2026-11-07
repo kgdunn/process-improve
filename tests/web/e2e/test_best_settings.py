@@ -205,6 +205,19 @@ def test_confirmation_runs_added_while_practising_are_simulated_and_judged(page,
     assert page.is_visible("#add-confirmation")
 
 
+def test_confirmation_runs_simulated_for_a_study_left_meanwhile_stay_out_of_the_new_one(page):
+    """A new study, started while the confirmation runs are simulated, drops them, and says nothing of them."""
+    page.evaluate("window.__pi.hold('api_simulate')")
+    reveal(page, "#best")
+    page.click("#add-confirmation")
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_simulate')")
+    settled(page)
+    assert page.get_attribute("#workspace", "data-phase") == "plan"
+    assert page.is_hidden("#run-out")
+    assert "confirmation runs" not in status(page)[0]
+
+
 def test_confirmation_runs_made_by_hand_say_whether_the_model_holds_there(blank_page):
     page = blank_page
     name_response(page, "Yield", "%", goal="maximize")
