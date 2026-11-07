@@ -10,6 +10,8 @@ Hotelling's T², contribution bars and component counts equal. A floor in data u
 
 from __future__ import annotations
 
+import math
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -17,8 +19,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.multivariate._common import column_sd
 from process_improve.multivariate._prm import _spreads
-from process_improve.multivariate._robust import row_norms
+from process_improve.multivariate._robust import l1_median, row_norms
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -202,6 +205,61 @@ def test_prm_spreads_by_hand() -> None:
     rows = np.array([[0.0, 0.0, 2.0], [1.0, 0.0, 2.0], [2.0, 0.0, 2.0], [3.0, 0.0, 2.0], [10.0, 4.0, 2.0]])
     np.testing.assert_array_equal(_spreads(rows), [1.4826, 4.0, 0.0])
     np.testing.assert_array_equal(_spreads(rows * 2.0**-500), np.array([1.4826, 4.0, 0.0]) * 2.0**-500)
+
+
+#: The largest and the smallest positive float.
+LARGEST, SMALLEST = float(np.finfo(float).max), float(np.nextafter(0.0, 1.0))
+
+
+def test_row_lengths_reach_the_largest_float_and_the_l1_median_with_them() -> None:
+    """A row at 2**1023 or above, up to the largest float, has its length, and the L1 median takes it as any other.
+
+    Each row was divided by the power of two above its largest value, 2**1024 there, which overflowed: the
+    length was ``inf * 0``, NaN, with RuntimeWarnings, and the L1 median of rows with one so far out was NaN.
+    A length beyond the largest float is inf, without the warning that numpy's norm gives; below the
+    smallest normal float the length is the subnormal nearest to it, where numpy's norm gives 0.
+    """
+    rows = np.array(
+        [
+            [1e308, 0.0],
+            [0.0, -LARGEST],
+            [2.0**1023, 0.0],
+            [3 * 2.0**1021, -4 * 2.0**1021],
+            [1e308, 1e308],
+            [LARGEST, LARGEST],
+            [3 * SMALLEST, 4 * SMALLEST],
+            [SMALLEST, -SMALLEST],
+        ]
+    )
+    square = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        lengths = row_norms(rows)
+        medians = [l1_median(np.vstack([square, [[far, 0.0]]])) for far in (1e300, 1e308, LARGEST)]
+    np.testing.assert_array_equal(
+        lengths[[0, 1, 2, 3, 5, 6, 7]], [1e308, LARGEST, 2.0**1023, 5 * 2.0**1021, np.inf, 5 * SMALLEST, SMALLEST]
+    )
+    np.testing.assert_allclose(lengths[4], math.hypot(1e308, 1e308), rtol=1e-15)
+    np.testing.assert_array_equal(medians[1], medians[0])
+    np.testing.assert_array_equal(medians[2], medians[0])
+
+
+def test_column_spreads_reach_the_largest_float() -> None:
+    """A column at 2**1023 or above has its standard deviation, and MCUVScaler scales it as in any other units.
+
+    The power of two above it overflowed here too: the standard deviation was NaN, and MCUVScaler took the
+    column for one with no spread and left it unscaled, with no warning. One beyond the largest float is inf.
+    """
+    pairs = np.array([[1e308, 2.0**1023, LARGEST, 3 * SMALLEST], [0.0, -(2.0**1023), -LARGEST, 0.0]])
+    frame = pd.DataFrame({"a": [1.0, -1.0, 0.5, -0.25], "b": [0.5, -0.25, 0.75, 0.125]})  # sums do not overflow
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        spreads = column_sd(pairs)
+        near, far = MCUVScaler().fit(frame), MCUVScaler().fit(frame * 2.0**1023)
+    np.testing.assert_allclose(spreads[[0, 1]], [1e308 / math.sqrt(2.0), math.sqrt(2.0) * 2.0**1023], rtol=1e-15)
+    np.testing.assert_array_equal(spreads[[2, 3]], [np.inf, 2 * SMALLEST])
+    np.testing.assert_array_equal(far.scale_, near.scale_ * 2.0**1023)
+    np.testing.assert_array_equal(far.transform(frame * 2.0**1023), near.transform(frame))
 
 
 def test_row_lengths_are_exact_and_finite_where_squares_overflow() -> None:
