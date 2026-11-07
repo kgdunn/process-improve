@@ -181,9 +181,10 @@ function sheet(z) {
     { selector: ".term.nb", style: { "z-index": 20 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
       "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
-    // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points.
+    // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
+    // in italic and the accent colour, so a verb is not read as a term.
     ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.85),
-      color: css("--fg"), "text-rotation": "autorotate", "text-background-color": css("--panel"),
+      color: css("--accent"), "font-style": "italic", "text-rotation": "autorotate", "text-background-color": css("--panel"),
       "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
