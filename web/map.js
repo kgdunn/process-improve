@@ -177,19 +177,20 @@ function sheet(z) {
       "font-weight": 600, "font-size": px(font * 1.12), "z-index": 30 } },
     { selector: ".term.nb", style: { "z-index": 20 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
-      "curve-style": "straight", "z-index": 5, opacity: middle ? 0.3 : 0.55 } },
+      "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points.
-    ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.8),
-      color: css("--muted"), "text-rotation": "autorotate", "text-background-color": css("--panel"),
-      "text-background-opacity": 0.85, "text-background-padding": px(1), "target-arrow-shape": "triangle",
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.85),
+      color: css("--fg"), "text-rotation": "autorotate", "text-background-color": css("--panel"),
+      "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": 0.7 } }] : []),
-    { selector: ".link.cross", style: { opacity: middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
+    { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 2), "line-color": css("--accent"), "target-arrow-shape": "triangle",
-      "target-arrow-color": css("--accent"), "arrow-scale": 0.9, opacity: 1, "z-index": 15 } },
+      "target-arrow-color": css("--accent"), "arrow-scale": 0.9, "line-opacity": 1, "z-index": 15 } },
     { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
     { selector: ".link.dim", style: { opacity: 0.08, label: "" } },
+    { selector: ".link.mute", style: { label: "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
 }
@@ -251,6 +252,28 @@ function settleOverlaps() {
     if (!c.forced && kept.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)) c.n.removeClass("lab");
     else kept.push(b);
   }
+  if (verbsOn) settleLinkLabels(kept);
+}
+
+// A link's label sits mid-line, under any term name or dot it meets: it is drawn only where it lands on none of them,
+// nor on another link's label, and fits between the two terms it joins; zooming in makes room for the rest.
+function settleLinkLabels(kept) {
+  const z = cy.zoom(), { font, dot } = sizes(z), f = font * 0.85, pad = f * 0.5;   // pad: half the text's height
+  if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
+  const W = cy.width(), H = cy.height();
+  const taken = [...kept, ...cy.nodes(".term").filter(n => n.visible()).map(n => n.renderedBoundingBox({ includeLabels: false }))];
+  const hit = (x, y) => taken.some(b => x > b.x1 - pad && x < b.x2 + pad && y > b.y1 - pad && y < b.y2 + pad);
+  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
+  links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
+    const s = e.source().renderedPosition(), t = e.target().renderedPosition();
+    const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f) + 4;
+    const mid = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 }, dx = (t.x - s.x) / len, dy = (t.y - s.y) / len;
+    const along = [-0.45, -0.2, 0, 0.2, 0.45].map(k => ({ x: mid.x + dx * w * k, y: mid.y + dy * w * k }));
+    const off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
+    const mute = !off && (w > len - 2 * dot || along.some(p => hit(p.x, p.y)));
+    e.toggleClass("mute", mute);
+    if (!mute && !off) taken.push(...along.map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
+  });
 }
 
 let styledZoom = null;

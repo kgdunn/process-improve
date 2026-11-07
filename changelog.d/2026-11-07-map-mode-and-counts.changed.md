@@ -3,4 +3,5 @@
   sub-topic shows its number of terms in square brackets on a second line, and the sub-topics appear a little sooner as
   you zoom in. What the map shows is now set beside the search, and the zoom buttons stay below the map: "Term names"
   (the former Aa button) and a new "Link labels" switch, off by default, which writes each link's verb along its line
-  with an arrow to show which way it reads. The map zooms in 2.5 to 3 times deeper than before.
+  with an arrow to show which way it reads; a label that would land on a term waits until zooming in makes room for
+  it. The map zooms in 2.5 to 3 times deeper than before.

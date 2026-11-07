@@ -304,16 +304,27 @@ def test_the_appearance_switches_sit_by_the_search_and_zoom_stays_below_the_map(
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site):
     page = _open(context, site)
-    labelled = """() => window.conceptMap.cy.edges('.link').filter((e) => e.visible() && e.style('label'))
-                    .map((e) => [e.hasClass('hl'), e.style('label'), e.data('verb'), e.style('target-arrow-shape')])"""
+    # Each label also as solid, and in the colour of the term names, as the faded lines it sits on.
+    labelled = """() => { const cy = window.conceptMap.cy, ink = cy.nodes('.term.lab')[0].style('color');
+      return cy.edges('.link').filter((e) => e.visible() && e.style('label'))
+        .map((e) => [e.hasClass('hl'), e.style('label'), e.data('verb'), e.style('target-arrow-shape'),
+                     e.style('opacity') === '1' && e.style('color') === ink]); }"""
     _go(page, "full_factorial")
     assert page.evaluate(labelled) == []
     page.click(".map-verbs")
     _settled(page)
     shown = page.evaluate(labelled)
-    lit = page.evaluate("() => window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()).length")
-    assert len(shown) == lit > 0, "the selected term's drawn links are labelled, the dimmed ones are not"
-    assert all(hl and label == verb and verb and arrow == "triangle" for hl, label, verb, arrow in shown)
+    lit, held = page.evaluate(
+        "() => { const lit = window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()); "
+        "return [lit.length, lit.filter((e) => e.hasClass('mute')).length]; }"
+    )
+    assert shown, "the selected term's links are labelled"
+    assert len(shown) + held == lit, "each drawn link is labelled, or held back where its label would land on a term"
+    assert all(hl and label == verb and verb and arrow == "triangle" for hl, label, verb, arrow, _ in shown)
+    assert all(solid for *_, solid in shown), "the labels are not faded with their lines"
+    page.click("#zin")
+    _settled(page)
+    assert len(page.evaluate(labelled)) >= len(shown), "zooming in makes room for more of them"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     assert page.is_checked("#verbs"), "the choice is remembered"
