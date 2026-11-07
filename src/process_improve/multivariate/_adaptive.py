@@ -81,6 +81,7 @@ from ._common import (
     check_at_least_one,
     check_response_block,
     check_x_varies,
+    components_to_fit,
     epsqrt,
     refuse_empty_block,
 )
@@ -778,7 +779,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         refuse_empty_block(X_df, "X")
         self._feature_names = X_df.columns
         N, K = X_df.shape
-        A = int(self.n_components)
+        A = components_to_fit(self.n_components, N, K)  # the kernel has K eigenvectors, and the scores rank N
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_samples_ = N
@@ -1043,7 +1044,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         check_response_block(Y_df, X_df.shape[0])
         N, K = X_df.shape
         M = Y_df.shape[1]
-        A = int(self.n_components)
+        A = components_to_fit(self.n_components, N, K)  # once: the PLS fitted below is asked for this many
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_targets_ = M

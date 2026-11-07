@@ -142,16 +142,18 @@ class TestNothingLeftInY:
         assert not any("maximum number of iterations" in str(w.message) for w in caught)
 
     def test_mbpls_components_past_the_rank_of_x_leave_the_predictions_as_they_were(self) -> None:
-        """Their Y-loadings are 0, so six components predict as four do on four columns of X (#1074).
+        """Their Y-loadings are 0, so six components predict as four do on six columns of X of rank four (#1074).
 
-        Once the four columns are spent, what is left of X is round-off, and so is the super score
+        Once the four directions are spent, what is left of X is round-off, and so is the super score
         of each later component. Y's regression on that score, its Y-loading until then, was the
-        ratio of two round-off errors (about 1e13 here), and it moved the predictions by 0.016.
+        ratio of two round-off errors, and it moved the predictions. Six columns, not four: more
+        components than columns are cut to the number of columns, with a warning (#1149).
         """
         rng = np.random.default_rng(0)
         x = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
         y = pd.DataFrame({"y": x.to_numpy() @ [1.0, -0.5, 0.3, 0.0] + rng.normal(0, 0.1, 30)})
-        blocks = {"b1": x[["a", "b"]], "b2": x[["c", "d"]]}
+        x = x.assign(e=x["a"] + x["b"], f=x["c"] - x["d"])
+        blocks = {"b1": x[["a", "b", "e"]], "b2": x[["c", "d", "f"]]}
         four = MBPLS(n_components=4).fit(blocks, y)
         with pytest.warns(SpecificationWarning, match="from component 5 on there is nothing left in Y"):
             six = MBPLS(n_components=6).fit(blocks, y)

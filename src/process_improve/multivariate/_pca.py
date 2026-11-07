@@ -43,6 +43,7 @@ from ._common import (
     _select_n_components,
     check_at_least_one,
     check_x_varies,
+    components_to_fit,
     constant_columns,
     epsqrt,
     refuse_empty_block,
@@ -1051,20 +1052,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             check_x_varies([X], explains_y=False)
         constant_columns(X, "X", self)
 
-        # Clamp n_components
-        min_dim = int(min(N, K))
-        check_at_least_one("n_components", self.n_components)
-        A = min_dim if self.n_components is None else int(self.n_components)
-        if min_dim < A:
-            warnings.warn(
-                "The requested number of components is more than can be "
-                "computed from data. The maximum number of components is "
-                f"the minimum of either the number of rows ({N}) or "
-                f"the number of columns ({K}).",
-                SpecificationWarning,
-                stacklevel=user_stacklevel(),
-            )
-            A = min_dim
+        A = components_to_fit(self.n_components, N, K)
         # The resolved (possibly clamped) component count is a fitted attribute;
         # the constructor parameter n_components is left exactly as the user set
         # it, per the sklearn clone/get_params contract (#505).

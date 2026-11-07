@@ -52,6 +52,7 @@ from ._common import (
     check_whole,
     check_x_varies,
     check_y_varies,
+    components_to_fit,
     constant_columns,
     epsqrt,
     largest_ssq_column,
@@ -915,7 +916,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         y_fit_rows = Y if sample_weight is None else Y[sample_weight > 0]
         return MCUVScaler().fit(x_fit_rows), MCUVScaler().fit(y_fit_rows)
 
-    def fit(  # noqa: PLR0912, PLR0915, C901
+    def fit(  # noqa: PLR0915, C901
         self,
         X: DataMatrix,
         Y: DataMatrix,
@@ -1061,23 +1062,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Nothing to explain, as centred, over the rows the fit uses: refused in the family's words (#1149)
         check_y_varies((Y if sample_weight is None else Y[sample_weight > 0]).to_numpy())
 
-        # Check if number of components is supported against maximum requested
-        min_dim = min(N, K)
-        check_at_least_one("n_components", self.n_components)
-        A = min_dim if self.n_components is None else int(self.n_components)
-        if min_dim < A:
-            warn = (
-                "The requested number of components is more than can be "
-                "computed from data. The maximum number of components is "
-                f"the minimum of either the number of rows ({N}) or "
-                f"the number of columns ({K})."
-            )
-            warnings.warn(
-                warn,
-                SpecificationWarning,
-                stacklevel=user_stacklevel(),
-            )
-            A = min_dim
+        A = components_to_fit(self.n_components, N, K)
         # The resolved (possibly clamped) component count is a fitted attribute;
         # the constructor parameter n_components is left exactly as the user set
         # it, per the sklearn clone/get_params contract (#505).

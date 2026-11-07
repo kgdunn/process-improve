@@ -22,6 +22,7 @@ from process_improve.multivariate.methods import (
     DataFrameDict,
     MCUVScaler,
     NotEnoughVarianceError,
+    SpecificationWarning,
     epsqrt,
     make_tpls_scorer,
 )
@@ -708,6 +709,26 @@ def test_a_separate_y_is_refused_in_full(action: Callable, where: str) -> None:
     )
     with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
         action(model, data, blocks["Y"]["Y1"])
+
+
+def test_more_components_than_d_can_give_are_cut_to_its_rank_with_a_warning() -> None:
+    """Every component's weights on the materials come through D, so a D of three properties gives three (#1149).
+
+    A fourth component was fitted to what was left of D, which was rounding error, and its super
+    scores were near 1e15. The count is cut, with the warning PCA and PLS give for more components
+    than the data can give, and the model is the one fitted with three.
+    """
+    d_matrix, blocks = _synthetic()  # four materials, of three properties
+    message = (
+        r"^The requested number of components is more than can be computed from data\. The maximum number of "
+        r"components is the minimum of either the number of rows \(20\) or the largest rank a group of D can have, "
+        r"the fewer of its materials and its properties \(3\)\.$"
+    )
+    with pytest.warns(SpecificationWarning, match=message):
+        model = TPLS(n_components=5, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    assert (model.n_components, model.n_components_) == (5, 3)
+    three = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    pd.testing.assert_frame_equal(model.t_scores_super, three.t_scores_super)
 
 
 def test_one_blend_is_refused() -> None:

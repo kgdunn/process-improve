@@ -231,6 +231,56 @@ def check_whole(name: str, value: float | None) -> None:
         raise ValueError(f"{name} must be a whole number; got {value}.")
 
 
+def components_to_fit(
+    n_components: int | None, n_rows: int, n_columns: int, *, columns: str = "the number of columns"
+) -> int:
+    """Return how many components a fit computes: ``n_components``, cut to what the data can give (#505).
+
+    No more components than the smaller of ``n_rows`` and ``n_columns`` can be computed. PCA, PLS
+    and OPLS cut a larger count to it with this warning; the other members of the family went on
+    into a raw numpy error, a ``RuntimeWarning``, or components fitted to rounding noise (#1149).
+    ``None`` asks for that many. The constructor parameter stays as the caller set it, as sklearn's
+    ``clone`` needs: the count is the fitted ``n_components_``.
+
+    Parameters
+    ----------
+    n_components : int or None
+        The count asked for.
+    n_rows, n_columns : int
+        The two sizes the count cannot exceed.
+    columns : str
+        What ``n_columns`` is, as the warning names it.
+
+    Returns
+    -------
+    int
+        The count to fit.
+
+    Raises
+    ------
+    ValueError
+        If ``n_components`` is not a whole number of at least 1.
+
+    Warns
+    -----
+    SpecificationWarning
+        If ``n_components`` is more than the data can give.
+    """
+    check_at_least_one("n_components", n_components)
+    most = int(min(n_rows, n_columns))
+    if n_components is None:
+        return most
+    if most < n_components:
+        warnings.warn(
+            "The requested number of components is more than can be computed from data. The maximum number of "
+            f"components is the minimum of either the number of rows ({n_rows}) or {columns} ({n_columns}).",
+            SpecificationWarning,
+            stacklevel=user_stacklevel(),
+        )
+        return most
+    return int(n_components)
+
+
 def refuse_empty_block(block: DataMatrix, label: str) -> None:
     """Refuse a block with no columns, naming it (#1077).
 

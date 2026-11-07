@@ -41,6 +41,7 @@ from ._common import (
     check_at_least_one,
     check_y_varies,
     column_sd,
+    components_to_fit,
     constant_columns,
     epsqrt,
     largest_ssq_column,
@@ -755,7 +756,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.spe: dict[str, dict[str, pd.DataFrame | pd.Series]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
 
-        self.n_components_ = int(self.n_components)
+        # Every component's weights on the materials come through D, which runs out of directions after as
+        # many components as its rank: later ones were fitted to rounding noise, with scores near 1e15 (#1149).
+        self.n_components_ = components_to_fit(
+            self.n_components,
+            self.n_samples,
+            max(min(d.shape) for d in self.d_matrix.values()),
+            columns="the largest rank a group of D can have, the fewer of its materials and its properties",
+        )
         self._fit_iterative_regressions()
         self.is_fitted_ = True
         return self
