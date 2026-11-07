@@ -826,11 +826,6 @@ EDGE_EXEMPT: dict[tuple[str, str], tuple[Answer, str]] = {
 
 #: A cell that gives another answer today, with its issue. A cell here that gives the family's answer fails.
 EDGE_GAPS: dict[tuple[str, str], str] = {
-    **{
-        ("constant Y", name): "#1149 aspect 9: refused as 'no variance left in the data array for Y', not in the "
-        "words MBPLS, OPLS and TPLS use"
-        for name in ("PLS", "PRM", "AdaptivePLS", "BatchPLS")
-    },
     ("Y fitted exactly", "TPLS"): "#1149 aspect 12: TPLS fits a second component, where PLS and MBPLS refuse (#1128)",
     ("Y orthogonal to X", "TPLS"): "#1169: TPLS says its scores are not finite, not that Y is uncorrelated with X",
     **{

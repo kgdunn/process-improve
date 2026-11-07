@@ -46,6 +46,7 @@ from ._common import (
     SpecificationWarning,
     check_x_explains_y,
     check_x_varies,
+    check_y_varies,
     constant_columns,
     epsqrt,
     refuse_empty_block,
@@ -260,10 +261,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         y = Y.to_numpy()  # (N, 1)
         target_name = Y.columns
         # A constant response, all 0 once centred, gives no predictive direction: refused, as PLS refuses it (#1128)
-        if not np.any(y):
-            raise NotEnoughVarianceError(
-                "There is no variance in Y: the response is constant, so there is nothing for X to explain."
-            )
+        check_y_varies(y)
         # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114), in the
         # family's words (#1144).
         check_x_varies([given_x], explains_y=True)

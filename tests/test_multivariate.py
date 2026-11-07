@@ -2639,8 +2639,8 @@ _PLS_QUICK_NESTED = {"inner_cv": 3, "n_inner_repeats": 1, "max_components": 2, "
             lambda X, _: PLS(n_components=2).fit(X, pd.DataFrame({"y": np.ones(len(X))})),
             NotEnoughVarianceError,
             (
-                r"^There is no variance left in the data array for Y: cannot compute any more components "
-                r"beyond component 0\.$"
+                r"^There is no variance in Y: every response is constant or has no observed value, so there is "
+                r"nothing for X to explain\.$"
             ),
         ),
         (

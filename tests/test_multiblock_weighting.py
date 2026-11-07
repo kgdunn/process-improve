@@ -195,7 +195,7 @@ class TestNothingLeftInY:
         )
         with pytest.raises(NotEnoughVarianceError, match=message):
             MBPLS(n_components=1, algorithm=algorithm).fit(plain, constant)
-        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for Y"):
+        with pytest.raises(NotEnoughVarianceError, match=message):
             PLS(n_components=1).fit(pd.concat(plain.values(), axis=1), constant)
 
     def test_mbpls_refuses_a_response_with_no_observed_value_as_pls_does(self, blocks: tuple) -> None:

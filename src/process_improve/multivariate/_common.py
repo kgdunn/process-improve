@@ -1123,6 +1123,36 @@ def check_x_varies(blocks: list[pd.DataFrame], *, explains_y: bool) -> None:
     raise NotEnoughVarianceError(f"There is no variance in X: {where} is constant or has no observed value, so {so}.")
 
 
+def check_y_varies(y: np.ndarray, *, label: str = "Y", explained_by: str = "X") -> None:
+    """Refuse a response with nothing to explain: every column is constant or has no observed value (#1149).
+
+    Every weight of such a fit is 0, so a new row would have no score. PLS refused it at its
+    first component, as a Y with no variance *left*; MBPLS, OPLS and TPLS refused it in these
+    words, which are now the family's. ``y`` is the response as the fit centres it, where such
+    a column is 0 throughout, and a missing cell counts as 0. A model that does not centre
+    refuses a Y of zeros the same way.
+
+    Parameters
+    ----------
+    y : np.ndarray of shape (n_samples, n_targets)
+        The response block over the rows the fit uses, as the fit centres and scales it.
+    label : str
+        Where the block sits, as ``'Y'`` or ``'Y["name"]'``.
+    explained_by : str
+        The blocks that explain it, as ``'X'`` or ``'F, D and Z'``.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no column of ``y`` varies.
+    """
+    if not np.any(np.nan_to_num(y)):
+        raise NotEnoughVarianceError(
+            f"There is no variance in {label}: every response is constant or has no observed value, so there is "
+            f"nothing for {explained_by} to explain."
+        )
+
+
 def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.ndarray:
     """Return which columns of a training block have no variance, and warn, naming them, if any do (#1114).
 

@@ -51,6 +51,7 @@ from ._common import (
     check_variance_left,
     check_whole,
     check_x_varies,
+    check_y_varies,
     constant_columns,
     epsqrt,
     largest_ssq_column,
@@ -950,7 +951,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ------
         NotEnoughVarianceError
             If every column of X is constant or has no observed value over the rows
-            the fit uses, as across the family (#1144).
+            the fit uses, as across the family (#1144); or if every column of Y is, as
+            the fit centres it (with ``scale=False``, if Y is 0 throughout).
 
         Warns
         -----
@@ -1056,6 +1058,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Y = self._y_scaler.transform(Y)
         elif self.warn_on_uncentred:
             _warn_if_uncentred(X, Y)
+        # Nothing to explain, as centred, over the rows the fit uses: refused in the family's words (#1149)
+        check_y_varies((Y if sample_weight is None else Y[sample_weight > 0]).to_numpy())
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)

@@ -39,6 +39,7 @@ from ._common import (
     _nz,
     _own_axes,
     check_at_least_one,
+    check_y_varies,
     column_sd,
     constant_columns,
     epsqrt,
@@ -1242,11 +1243,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         no F score, which the model needs whether or not Z varies.
         """
         y_key, y_block = next(iter(self.y_mats.items()))
-        if not np.any(y_block):
-            raise NotEnoughVarianceError(
-                f'There is no variance in Y["{y_key}"]: every response is constant or has no observed value, '
-                "so there is nothing for F, D and Z to explain."
-            )
+        check_y_varies(y_block, label=f'Y["{y_key}"]', explained_by="F, D and Z")
         self._groups_without_variation = {
             key
             for key in self.d_mats
