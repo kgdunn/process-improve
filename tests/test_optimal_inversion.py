@@ -122,7 +122,9 @@ def test_the_affine_maps_reproduce_pls_at_new_rows(cheese: PLS) -> None:
     out = cheese.diagnose(pd.DataFrame(rows, columns=affine.names))
 
     np.testing.assert_allclose([affine.predict(r) for r in rows], out.y_hat, rtol=1e-9)
-    np.testing.assert_allclose([affine.hotellings_t2(r) for r in rows], out.hotellings_t2, rtol=1e-9)
+    np.testing.assert_allclose(
+        [affine.hotellings_t2(r) for r in rows], out.cumulative_hotellings_t2.iloc[:, -1], rtol=1e-9
+    )
     np.testing.assert_allclose([affine.spe(r)[0] for r in rows], out.spe, rtol=1e-9)
 
 
@@ -174,7 +176,7 @@ def test_the_cheapest_inputs_beat_every_point_the_window_and_limits_allow(cheese
     points = cheese._x_scaler.inverse_transform(np.vstack(scaled))
     points.columns = ["Acetic", "H2S", "Lactic"]
     check = cheese.diagnose(points)
-    inside = (check.hotellings_t2 <= t2_limit).to_numpy() & (check.spe <= spe_limit).to_numpy()
+    inside = (check.cumulative_hotellings_t2.iloc[:, -1] <= t2_limit).to_numpy() & (check.spe <= spe_limit).to_numpy()
     swept = points[inside] @ pd.Series(CHEESE_COSTS)[points.columns]
 
     result = optimal_inversion(cheese, rules)
@@ -184,7 +186,7 @@ def test_the_cheapest_inputs_beat_every_point_the_window_and_limits_allow(cheese
     assert result.objective <= min(swept) + 1e-6
     check = cheese.diagnose(result.x_new.to_frame().T)
     assert float(check.y_hat.iloc[0, 0]) == pytest.approx(result.y_hat["Taste"])
-    assert float(check.hotellings_t2.iloc[0]) <= t2_limit * (1 + 1e-4)
+    assert float(check.cumulative_hotellings_t2.iloc[0, -1]) <= t2_limit * (1 + 1e-4)
     assert float(check.spe.iloc[0]) <= spe_limit * (1 + 1e-4)
     assert set(result.constraints.loc[result.constraints.binding != "", "constraint"]) == {"Taste", "T²", "SPE X"}
 
@@ -661,7 +663,7 @@ def test_tpls_closest_blend_with_two_lots_per_material_is_what_tpls_predicts(pyp
     })  # fmt: skip
     check = model.diagnose(rows)
     np.testing.assert_allclose(check.hat["Quality"].iloc[0], result.y_hat, rtol=1e-8)
-    assert float(check.hotellings_t2.iloc[0, -1]) <= result.t2_limit * (1 + 1e-4)
+    assert float(check.cumulative_hotellings_t2.iloc[0, -1]) <= result.t2_limit * (1 + 1e-4)
 
 
 @pytest.mark.dataset

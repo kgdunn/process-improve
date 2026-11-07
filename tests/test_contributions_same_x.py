@@ -64,9 +64,8 @@ SINGLE_BLOCK = ["PCA", "PLS, scale=True", "PLS, scale=False", "PLSDA", "PRM"]
 
 
 def _t2(diagnosed: object) -> pd.Series:
-    """Return the full model's T2 from ``diagnose``, where PCA gives it cumulative, one column per component."""
-    t2 = diagnosed.hotellings_t2  # type: ignore[attr-defined]
-    return t2.iloc[:, -1] if isinstance(t2, pd.DataFrame) else t2
+    """Return the full model's T2 from ``diagnose``: the last column of its cumulative T2."""
+    return diagnosed.cumulative_hotellings_t2.iloc[:, -1]  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize("name", SINGLE_BLOCK)

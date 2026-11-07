@@ -684,7 +684,7 @@ class TestMBPCAMissingData:
         x_new["B"].iloc[2, 1] = np.nan
         result = m.diagnose(x_new)
         assert not result.super_scores.isna().any().any()
-        assert not result.hotellings_t2.isna().any()
+        assert not result.cumulative_hotellings_t2.iloc[:, -1].isna().any()
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +934,11 @@ class TestMBPCAWrittenOut:
         ]
         _frames_near(result.super_scores, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
         _frames_near(model.transform(new), pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
-        _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
+        _frames_near(
+            result.cumulative_hotellings_t2.iloc[:, -1],
+            pd.Series(by_hand["t2"], index=index, name=components[-1]),
+            1e-10,
+        )
         for name in blocks:
             t_b = pd.DataFrame(by_hand["t_b"][name], index=index, columns=components)
             _frames_near(result.block_scores[name], t_b, 1e-10)
@@ -966,7 +970,11 @@ class TestMBPCAWrittenOut:
         result = model.diagnose(new)
         _frames_near(result.super_scores, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
         _frames_near(model.transform(new), pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
-        _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
+        _frames_near(
+            result.cumulative_hotellings_t2.iloc[:, -1],
+            pd.Series(by_hand["t2"], index=index, name=components[-1]),
+            1e-10,
+        )
         for name in blocks:
             t_b = pd.DataFrame(by_hand["t_b"][name], index=index, columns=components)
             _frames_near(result.block_scores[name], t_b, 1e-10)
@@ -974,12 +982,12 @@ class TestMBPCAWrittenOut:
             spe = np.where(np.isnan(residuals).all(axis=1), np.nan, np.sqrt(np.nansum(residuals**2, axis=1)))
             _frames_near(result.block_spe[name], pd.Series(spe, index=index, name=f"SPE[{name}]"), 1e-10)
         assert np.isfinite(result.super_scores.loc[["n0", "n1"]]).all(axis=None)
-        assert np.isfinite(result.hotellings_t2.loc[["n0", "n1"]]).all()
+        assert np.isfinite(result.cumulative_hotellings_t2.iloc[:, -1].loc[["n0", "n1"]]).all()
         assert all(result.block_spe[name].loc["n0"] > 0 for name in blocks)
         assert np.isnan(result.block_spe["x"].loc["n1"])
         assert np.isnan(result.block_scores["x"].loc["n1"]).all()
         assert result.super_scores.loc["n2"].isna().all()
-        assert np.isnan(result.hotellings_t2.loc["n2"])
+        assert np.isnan(result.cumulative_hotellings_t2.iloc[:, -1].loc["n2"])
         assert all(np.isnan(result.block_spe[name].loc["n2"]) for name in blocks)
 
     @pytest.mark.parametrize("empty_rows", [False, True])
@@ -996,9 +1004,9 @@ class TestMBPCAWrittenOut:
         fitted_scores = model.super_scores_.copy()
         fitted_scores.loc[empty] = np.nan
         _frames_near(result.super_scores, fitted_scores, 1e-10)
-        t2 = model.super_hotellings_t2_.iloc[:, -1].rename("Hotelling's T²")
+        t2 = model.super_hotellings_t2_.iloc[:, -1].copy()
         t2.loc[empty] = np.nan
-        _frames_near(result.hotellings_t2, t2, 1e-10)
+        _frames_near(result.cumulative_hotellings_t2.iloc[:, -1], t2, 1e-10)
         for name in blocks:
             _frames_near(result.block_scores[name], model.block_scores_[name], 1e-10)
             _frames_near(result.block_spe[name], model.block_spe_[name].iloc[:, -1].rename(f"SPE[{name}]"), 1e-10)
@@ -1964,10 +1972,12 @@ class TestMBPLSOnLDPE:
         result = model.diagnose(x_blocks)
         for name in model.block_names_:
             assert result.block_spe[name].shape == (54,)
-        assert result.hotellings_t2.shape == (54,)
+        assert result.cumulative_hotellings_t2.shape == (54, 3)
         # On training data the predict()-time T² must equal the in-sample super T² at the final PC
         np.testing.assert_array_almost_equal(
-            result.hotellings_t2.values, model.super_hotellings_t2_.iloc[:, -1].values, decimal=10
+            result.cumulative_hotellings_t2.iloc[:, -1].values,
+            model.super_hotellings_t2_.iloc[:, -1].values,
+            decimal=10,
         )
 
     def test_spe_and_t2_limits_are_positive_finite(self, ldpe) -> None:
@@ -2931,7 +2941,11 @@ class TestMBPLSNewRowsByHand:
         predictions = pd.DataFrame(by_hand["predictions"], index=index, columns=y.columns)
         _frames_near(result.predictions, predictions, 1e-10)
         _frames_near(predicted, predictions, 1e-10)
-        _frames_near(result.hotellings_t2, pd.Series(by_hand["t2"], index=index, name="Hotelling's T²"), 1e-10)
+        _frames_near(
+            result.cumulative_hotellings_t2.iloc[:, -1],
+            pd.Series(by_hand["t2"], index=index, name=components[-1]),
+            1e-10,
+        )
         for name in blocks:
             t_b = pd.DataFrame(by_hand["t_b"][name], index=index, columns=components)
             _frames_near(result.block_scores[name], t_b, 1e-10)

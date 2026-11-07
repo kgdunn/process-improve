@@ -60,7 +60,7 @@ def test_diagnose_matches_internal_pca(aligned_nylon: dict) -> None:
     model = BatchPCA(n_components=3).fit(aligned_nylon)
     result = model.diagnose(aligned_nylon)
     np.testing.assert_allclose(result.scores.to_numpy(), model.scores_.to_numpy(), atol=1e-8)
-    np.testing.assert_allclose(result.hotellings_t2.to_numpy(), model.hotellings_t2_.to_numpy(), atol=1e-8)
+    np.testing.assert_allclose(result.cumulative_hotellings_t2.to_numpy(), model.hotellings_t2_.to_numpy(), atol=1e-8)
 
 
 def test_fit_returns_self_and_limits(aligned_nylon: dict) -> None:
@@ -82,7 +82,7 @@ def test_injected_fault_is_flagged() -> None:
     result = model.diagnose({"bad": only})
 
     assert float(result.spe.iloc[-1]) > model.spe_limit(0.95)
-    assert float(result.hotellings_t2.iloc[-1, -1]) > model.hotellings_t2_limit(0.95)
+    assert float(result.cumulative_hotellings_t2.iloc[-1, -1]) > model.hotellings_t2_limit(0.95)
 
 
 def test_initial_conditions_join() -> None:

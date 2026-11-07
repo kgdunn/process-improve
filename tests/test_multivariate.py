@@ -2201,12 +2201,14 @@ def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out()
     t = new.to_numpy() @ pca.loadings_.to_numpy()
     assert abs(t[0, 2]) > 1.0  # the new row is well off the plane
     by_hand = np.cumsum(t[0, :2] ** 2 / s[:2] ** 2)
-    np.testing.assert_allclose(pca.diagnose(new).hotellings_t2.to_numpy(), [[*by_hand, by_hand[1]]], rtol=1e-12)
+    np.testing.assert_allclose(
+        pca.diagnose(new).cumulative_hotellings_t2.to_numpy(), [[*by_hand, by_hand[1]]], rtol=1e-12
+    )
     np.testing.assert_allclose(pca.project(new).hotellings_t2.to_numpy(), [by_hand[1]], rtol=1e-12)
 
     training = np.sum((pca.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
     np.testing.assert_allclose(pca.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
-    np.testing.assert_allclose(pca.diagnose(flat).hotellings_t2.iloc[:, -1], training, rtol=1e-10)
+    np.testing.assert_allclose(pca.diagnose(flat).cumulative_hotellings_t2.iloc[:, -1], training, rtol=1e-10)
     np.testing.assert_allclose(pca.project(flat).hotellings_t2, training, rtol=1e-10)
 
 
@@ -2227,7 +2229,7 @@ def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None
     held_out = scaler.transform(ldpe.iloc[[10]])
     t = held_out.to_numpy() @ pca.loadings_.to_numpy()
     by_hand = np.sum(t[0, :9] ** 2 / s[:9] ** 2)
-    np.testing.assert_allclose(pca.diagnose(held_out).hotellings_t2.iloc[0, -1], by_hand, rtol=1e-10)
+    np.testing.assert_allclose(pca.diagnose(held_out).cumulative_hotellings_t2.iloc[0, -1], by_hand, rtol=1e-10)
     np.testing.assert_allclose(pca.project(held_out).hotellings_t2.iloc[0], by_hand, rtol=1e-10)
 
 
@@ -2256,12 +2258,12 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     t = new.to_numpy() @ pls.direct_weights_.to_numpy()
     assert abs(t[0, 2]) > 1e6 * s[2]  # the new row is well off the plane
     by_hand = np.sum(t[0, :2] ** 2 / s[:2] ** 2)
-    np.testing.assert_allclose(pls.diagnose(new).hotellings_t2, [by_hand], rtol=1e-10)
+    np.testing.assert_allclose(pls.diagnose(new).cumulative_hotellings_t2.iloc[:, -1], [by_hand], rtol=1e-10)
     np.testing.assert_allclose(pls.project(new).hotellings_t2, [by_hand], rtol=1e-10)
 
     training = np.sum((pls.scores_.to_numpy()[:, :2] / s[:2]) ** 2, axis=1)
     np.testing.assert_allclose(pls.hotellings_t2_.iloc[:, -1], training, rtol=1e-12)
-    np.testing.assert_allclose(pls.diagnose(flat).hotellings_t2, training, rtol=1e-8)
+    np.testing.assert_allclose(pls.diagnose(flat).cumulative_hotellings_t2.iloc[:, -1], training, rtol=1e-8)
     np.testing.assert_allclose(pls.project(flat).hotellings_t2, training, rtol=1e-8)
 
     along_third = 1e4 * pls.invert(y_desired=1.0).null_space_basis.to_numpy()[2]
@@ -2270,7 +2272,10 @@ def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leave
     assert (tau[2] / s[2]) ** 2 > 100.0  # what the third component added
     assert inverted.hotellings_t2 == pytest.approx(np.sum(tau[:2] ** 2 / s[:2] ** 2), rel=1e-12, abs=1e-30)
     np.testing.assert_allclose(
-        pls.diagnose(inverted.x_new.to_frame().T).hotellings_t2, [inverted.hotellings_t2], rtol=1e-6, atol=1e-20
+        pls.diagnose(inverted.x_new.to_frame().T).cumulative_hotellings_t2.iloc[:, -1],
+        [inverted.hotellings_t2],
+        rtol=1e-6,
+        atol=1e-20,
     )
 
 
@@ -2311,7 +2316,9 @@ def test_multiblock_super_t2_leaves_out_a_super_score_with_no_spread(estimator: 
     result = model.diagnose({"A": new[["a", "b"]], "B": new[["c", "d"]]})
     scores = result.super_scores.to_numpy()
     assert scores[0, 2] ** 2 / variance[2] > 1e20  # the new row is well off the plane
-    np.testing.assert_allclose(result.hotellings_t2, [np.sum(scores[0, :2] ** 2 / variance[:2])], rtol=1e-10)
+    np.testing.assert_allclose(
+        result.cumulative_hotellings_t2.iloc[:, -1], [np.sum(scores[0, :2] ** 2 / variance[:2])], rtol=1e-10
+    )
 
 
 @pytest.mark.parametrize("estimator", [MBPCA, MBPLS])
@@ -3094,7 +3101,7 @@ def test_pls_compare_model_api(
     result = plsmodel.diagnose(X_mcuv.transform(data["X"]))
     assert plsmodel.spe_.values.ravel() == pytest.approx(result.spe.values, abs=1e-9)
     assert data["t1"] == pytest.approx(result.scores.values.ravel(), abs=1e-5)
-    assert data["Tsq"] == pytest.approx(result.hotellings_t2.values.ravel(), abs=1e-5)
+    assert data["Tsq"] == pytest.approx(result.cumulative_hotellings_t2.iloc[:, -1].values.ravel(), abs=1e-5)
     assert data["expected_y_predicted"] == pytest.approx(
         Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
     )
@@ -3358,7 +3365,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
     n_features, n_components = data["X"].shape[1], int(data["A"])
     pooled_residual_sd = np.sqrt((spe_model**2).sum() / (n_samples * (n_features - n_components)))
     assert spe_model / pooled_residual_sd == pytest.approx(data["DModX"], abs=1e-5)
-    assert data["Tsq"] == pytest.approx(result.hotellings_t2, abs=1e-5)
+    assert data["Tsq"] == pytest.approx(result.cumulative_hotellings_t2.iloc[:, -1], abs=1e-5)
     assert data["expected_y_predicted"] == pytest.approx(
         Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
     )
@@ -5645,7 +5652,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # full (n_obs, n_components) frames agree, not just the last column.
     assert (
         pytest.approx(tpls_test.hotellings_t2.loc[testing_samples].to_numpy())
-        == predictions["hotellings_t2"].to_numpy()
+        == predictions["cumulative_hotellings_t2"].to_numpy()
     )
 
     # from sklearn.model_selection import cross_val_score
@@ -5754,8 +5761,8 @@ def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
     result = model.diagnose(DataFrameDict({"Z": fixture_tpls_example["Z"], "F": fixture_tpls_example["F"]}))
     n_obs = model.t_scores_super.shape[0]
     assert model.hotellings_t2.shape == (n_obs, 3)
-    assert result.hotellings_t2.shape == model.hotellings_t2.shape
-    np.testing.assert_allclose(result.hotellings_t2.to_numpy(), model.hotellings_t2.to_numpy(), atol=1e-10)
+    assert result.cumulative_hotellings_t2.shape == model.hotellings_t2.shape
+    np.testing.assert_allclose(result.cumulative_hotellings_t2.to_numpy(), model.hotellings_t2.to_numpy(), atol=1e-10)
 
     # The score standard deviations feed ellipse_coordinates; pin the unbiased
     # (N - 1) computation against a direct calculation on the super-scores.
@@ -6555,7 +6562,9 @@ class TestTPLSWrittenOut:
             result = model.diagnose(DataFrameDict(copy.deepcopy(data)))
             assert np.isfinite(by_hand["t"][:4]).all()
             _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
-            _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+            _tpls_near(
+                result.cumulative_hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10
+            )
             _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
             assert list(result.spe["Z"]) == list(z_groups)
             for block in ("F", "Z"):
@@ -6640,7 +6649,7 @@ class TestTPLSWrittenOut:
         assert np.isnan(by_hand["t"][4]).all()
         assert np.isfinite(by_hand["t"][:4]).all()
         _tpls_near(result.t_scores_super, pd.DataFrame(by_hand["t"], index=index, columns=components), 1e-10)
-        _tpls_near(result.hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
+        _tpls_near(result.cumulative_hotellings_t2, pd.DataFrame(by_hand["t2"], index=index, columns=components), 1e-10)
         assert list(result.hat) == ["Q"]
         _tpls_near(result.hat["Q"], pd.DataFrame(by_hand["hat"], index=index, columns=["y1", "y2", "y3"]), 1e-10)
         assert list(result.spe) == ["Z", "F"]
@@ -6689,7 +6698,7 @@ class TestTPLSWrittenOut:
         model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(copy.deepcopy(blocks)))
         result = model.diagnose(DataFrameDict(blocks))
         _tpls_near(result.t_scores_super, model.t_scores_super, 1e-12)
-        _tpls_near(result.hotellings_t2, model.hotellings_t2, 1e-12)
+        _tpls_near(result.cumulative_hotellings_t2, model.hotellings_t2, 1e-12)
         _tpls_near(result.hat["Q"], model.hat["Q"], 1e-12)
         for block, key in (("F", "A"), ("F", "B"), ("Z", "C")):
             assert set(result.spe[block][key].dtypes) == {np.dtype(float)}
@@ -6864,7 +6873,7 @@ def test_pca_diagnose_new_data() -> None:
 
     assert isinstance(result, Bunch)
     assert result.scores.shape == (10, 2)
-    assert result.hotellings_t2.shape == (10, 2)
+    assert result.cumulative_hotellings_t2.shape == (10, 2)
     assert len(result.spe) == 10
     assert (result.spe >= 0).all()
 
@@ -7131,7 +7140,7 @@ def test_pls_predict_new_data() -> None:
     # diagnose() returns the rich Bunch (scores / T² / SPE / y_hat).
     result = model.diagnose(X_scaled.iloc[:10])
     assert isinstance(result, Bunch)
-    assert {"scores", "hotellings_t2", "spe", "y_hat"} <= set(result.keys())
+    assert {"scores", "cumulative_hotellings_t2", "spe", "y_hat"} <= set(result.keys())
     assert result.y_hat.shape[0] == 10
     # predict's output matches diagnose().y_hat.
     np.testing.assert_allclose(y_pred.to_numpy(), result.y_hat.to_numpy())
@@ -9132,7 +9141,7 @@ def test_pca_reads_new_rows_by_column_name_and_labels_every_result() -> None:
     diagnosed = pca.diagnose(reordered)
     pd.testing.assert_frame_equal(diagnosed.scores, expected_scores, rtol=1e-12)
     pd.testing.assert_frame_equal(
-        diagnosed.hotellings_t2, pd.DataFrame(t2, index=["x", "y"], columns=[1, 2]), rtol=1e-12
+        diagnosed.cumulative_hotellings_t2, pd.DataFrame(t2, index=["x", "y"], columns=[1, 2]), rtol=1e-12
     )
     pd.testing.assert_series_equal(diagnosed.spe, pd.Series(spe, index=["x", "y"], name="SPE"), rtol=1e-12)
     projected = pca.project(reordered)
@@ -9154,7 +9163,7 @@ def test_pca_reads_new_rows_by_column_name_and_labels_every_result() -> None:
         pca.project(new.to_numpy()).scores,
     ):
         pd.testing.assert_frame_equal(result, pd.DataFrame(t, columns=[1, 2]), rtol=1e-12)
-    assert pca.diagnose(new.to_numpy()).hotellings_t2.index.equals(pd.RangeIndex(2))
+    assert pca.diagnose(new.to_numpy()).cumulative_hotellings_t2.index.equals(pd.RangeIndex(2))
     assert pca.diagnose(new.to_numpy()).spe.index.equals(pd.RangeIndex(2))
     for series in ("hotellings_t2", "spe", "condition_number", "n_observed"):
         assert pca.project(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
@@ -9193,7 +9202,7 @@ def test_pca_diagnose_and_score_read_a_pandas_missing_value_as_nan() -> None:
     spe = np.linalg.norm(X.to_numpy() - X.to_numpy() @ P @ P.T, axis=1)
     projected = pca.project(nullable.iloc[[1]])
     assert diagnosed.spe.iloc[1] == pytest.approx(projected.spe.iloc[0], rel=1e-12)
-    assert diagnosed.hotellings_t2.iloc[1, -1] == pytest.approx(projected.hotellings_t2.iloc[0], rel=1e-12)
+    assert diagnosed.cumulative_hotellings_t2.iloc[1, -1] == pytest.approx(projected.hotellings_t2.iloc[0], rel=1e-12)
     spe_complete = np.delete(spe, 1)
     np.testing.assert_allclose(diagnosed.spe.drop("r1"), spe_complete, rtol=1e-12)
     assert np.isnan(pca.score(nullable))
@@ -10737,7 +10746,7 @@ def test_pls_reads_new_rows_by_column_name_and_labels_every_result() -> None:
     diagnosed = pls.diagnose(reordered)
     pd.testing.assert_frame_equal(diagnosed.scores, expected_scores, rtol=1e-10)
     pd.testing.assert_series_equal(
-        diagnosed.hotellings_t2, pd.Series(by_hand["t2"], index=["p", "q"], name="Hotelling's T²"), rtol=1e-10
+        diagnosed.cumulative_hotellings_t2.iloc[:, -1], pd.Series(by_hand["t2"], index=["p", "q"], name=2), rtol=1e-10
     )
     pd.testing.assert_series_equal(diagnosed.spe, pd.Series(by_hand["spe"], index=["p", "q"], name="SPE"), rtol=1e-10)
     pd.testing.assert_frame_equal(diagnosed.y_hat, expected_y, rtol=1e-10)
@@ -10769,7 +10778,7 @@ def test_pls_reads_new_rows_by_column_name_and_labels_every_result() -> None:
     pd.testing.assert_frame_equal(
         pls.predict(new.to_numpy()), pd.DataFrame(by_hand["y_hat"], columns=["y0", "y1"]), rtol=1e-10
     )
-    for series in ("hotellings_t2", "spe"):
+    for series in ("cumulative_hotellings_t2", "spe"):
         assert pls.diagnose(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
     for series in ("hotellings_t2", "spe", "condition_number", "n_observed"):
         assert pls.project(new.to_numpy())[series].index.equals(pd.RangeIndex(2))
@@ -11149,7 +11158,7 @@ def test_pls_prediction_interval_keeps_at_least_one_degree_of_freedom(components
     interval = pls.prediction_interval(X, conf_level=0.9)
     rmse = pls.rmse_.iloc[:, -1].to_numpy()
     assert rmse > 1e-3
-    t2 = pls.diagnose(X).hotellings_t2.to_numpy()
+    t2 = pls.diagnose(X).cumulative_hotellings_t2.iloc[:, -1].to_numpy()
     half = t_dist.ppf(0.95, 1) * np.sqrt(1 + 1 / 4 + t2 / 3) * rmse * np.sqrt(4 / 1)
     np.testing.assert_allclose((interval.upper - interval.y_hat).to_numpy().ravel(), half, rtol=1e-10)
 
