@@ -42,8 +42,6 @@ import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedKFold
 
-import process_improve.batch
-import process_improve.multivariate
 from process_improve.batch import BatchPCA, BatchPLS
 from process_improve.batch.control import evaluate_control_policies
 from process_improve.multivariate.methods import (
@@ -256,7 +254,7 @@ PACKAGES = ("process_improve.multivariate", "process_improve.batch")
 
 def _public_modules() -> Iterator[Any]:
     """``process_improve.multivariate`` and ``process_improve.batch``, and every module in them."""
-    for package in (process_improve.multivariate, process_improve.batch):
+    for package in map(importlib.import_module, PACKAGES):
         yield package
         for info in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
             yield importlib.import_module(info.name)
@@ -885,6 +883,7 @@ def test_a_bad_input_gets_the_familys_answer_from_every_member(case_name: str, n
     X, y, n_components = case.build()
     complete = X.fillna(raw_data()[0])  # the cells a case leaves out, back as new rows have them
     outcome: BaseException | None = None
+    applied = np.full(1, np.nan)  # set by the fit below; read only when it raised nothing
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         warnings.simplefilter("error", RuntimeWarning)
