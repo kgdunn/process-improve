@@ -506,3 +506,72 @@ def test_project_rows_places_rows_with_nothing_observed_at_the_centre() -> None:
     np.testing.assert_array_equal(
         result.scores[[0, 2]], project_rows(_LOADINGS, _LOADINGS, _VARIANCES, x[[0, 2]], method="scp").scores
     )
+
+
+def _unestimated_message(rows: str, method: str) -> str:
+    """Return the warning project_rows gives for rows whose estimator's matrix is singular, for two scores."""
+    return (
+        f"{rows} too few observed values to estimate 2 scores by method={method!r}: the matrix the estimator "
+        "inverts is singular, as it is when fewer values are observed than there are components. Such a row is "
+        "given NaN scores, as a row with nothing observed is. The model's project() estimates it with a ridge above 0."
+    )
+
+
+# A complete row, two rows that observe only the third feature, one that observes only the first (both too few
+# to estimate two scores), and one that observes the first two.
+_SPARSE_ROWS = np.array(
+    [
+        [0.5, -1.0, 2.0],
+        [np.nan, np.nan, 1.5],
+        [np.nan, np.nan, -0.5],
+        [3.0, np.nan, np.nan],
+        [1.0, 2.0, np.nan],
+    ]
+)
+
+
+@pytest.mark.parametrize("given", [{}, {"singular": "raise"}])
+def test_project_rows_raises_on_a_singular_pattern_unless_asked_for_nan(given: dict) -> None:
+    """By default, and with ``singular="raise"``, a pattern too sparse to invert raises, as ``project`` does."""
+    with pytest.raises(np.linalg.LinAlgError, match=r"^\(P_observed' @ P_observed\) is singular"):
+        project_rows(_LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS, method="pmp", **given)
+
+
+def test_project_rows_gives_nan_for_singular_patterns_and_counts_their_rows() -> None:
+    """``singular="nan"``: NaN scores and SPE and an inf condition for those rows, and one warning for all three.
+
+    The guide of such a row is NaN on its observed features, as its operator is, and 0 on the missing ones, as
+    for every incomplete row; the other rows are scored as on their own.
+    """
+    with pytest.warns(SpecificationWarning) as caught:
+        result = project_rows(
+            _LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS, method="pmp", singular="nan", with_guides=True
+        )
+    assert [str(warning.message) for warning in caught] == [
+        _unestimated_message("3 rows with missing cells have", "pmp")
+    ]
+    assert np.isnan(result.scores[1:4]).all()
+    assert np.isnan(result.spe[1:4]).all()
+    np.testing.assert_array_equal(result.condition_number[1:4], [np.inf] * 3)
+    np.testing.assert_array_equal(result.n_observed, [3, 1, 1, 1, 2])
+    np.testing.assert_array_equal(result.guides[1:3, :2], np.zeros((2, 2, 2)))
+    assert np.isnan(result.guides[1:3, 2]).all()
+    np.testing.assert_array_equal(result.guides[3, 1:], np.zeros((2, 2)))
+    assert np.isnan(result.guides[3, 0]).all()
+    estimable = project_rows(_LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS[[0, 4]], method="pmp", with_guides=True)
+    for name in ("scores", "spe", "condition_number", "guides"):
+        np.testing.assert_array_equal(result[name][[0, 4]], estimable[name])
+    np.testing.assert_array_equal(estimable.guides[0], _LOADINGS)
+    np.testing.assert_array_equal(estimable.guides[1, 2], [0.0, 0.0])
+
+
+def test_project_rows_says_1_row_in_the_singular_and_names_the_method() -> None:
+    with pytest.warns(SpecificationWarning) as caught:
+        project_rows(
+            _LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS[[0, 3]], singular="nan", x_residuals=np.zeros((4, 3))
+        )
+    assert [str(warning.message) for warning in caught] == [_unestimated_message("1 row with missing cells has", "tsr")]
+
+
+def test_project_rows_returns_no_guides_unless_asked() -> None:
+    assert project_rows(_LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS[[0, 4]], method="pmp").guides is None
