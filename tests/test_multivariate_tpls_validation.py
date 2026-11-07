@@ -7,6 +7,7 @@ the guards are pinned without loading the pyphi example data.
 from __future__ import annotations
 
 import copy
+import itertools
 import re
 import warnings
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from sklearn.exceptions import NotFittedError
 
 from process_improve.multivariate.methods import (
     MBPLS,
+    PLS,
     TPLS,
     DataFrameDict,
     MCUVScaler,
@@ -729,6 +731,36 @@ def test_more_components_than_d_can_give_are_cut_to_its_rank_with_a_warning() ->
     assert (model.n_components, model.n_components_) == (5, 3)
     three = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
     pd.testing.assert_frame_equal(model.t_scores_super, three.t_scores_super)
+
+
+def test_a_y_fitted_exactly_is_refused_at_the_next_component_as_pls_refuses_it() -> None:
+    """In the words of PLS and MBPLS, judged against Y's size before the first component (#1128, #1149).
+
+    D's two properties are orthogonal, and so are the columns of F, a 2^4 design, so one component
+    fits ``y = F p`` exactly. A second was refused only because its scores were not finite, in words
+    that sent the caller to look at the groups of F.
+    """
+    runs = np.array(list(itertools.product([-1.0, 1.0], repeat=4)))
+    materials = [f"m{j}" for j in range(6)]
+    f_block = pd.DataFrame(
+        np.column_stack(
+            [runs[:, 0], runs[:, 1], runs[:, 2], *(runs[:, i] * runs[:, j] for i, j in ((0, 1), (0, 2), (1, 2)))]
+        ),
+        columns=materials,
+    )
+    d_matrix = {"G": pd.DataFrame({"p": [1.0, -1, 1, -1, 1, -1], "q": [1.0, 1, -1, -1, 0, 0]}, index=materials)}
+    y = pd.DataFrame({"y": f_block.to_numpy() @ d_matrix["G"]["p"].to_numpy() + 3.0})
+    data = DataFrameDict({"F": {"G": f_block}, "Y": {"Y1": y}})
+    one = TPLS(n_components=1, d_matrix=d_matrix).fit(data)
+    np.testing.assert_allclose(one.hat["Y1"].to_numpy(), y.to_numpy(), atol=1e-12)
+    message = (
+        r"^There is no variance left in the data array for Y: cannot compute any more components beyond "
+        r"component 1\.$"
+    )
+    with pytest.raises(NotEnoughVarianceError, match=message):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(data)
+    with pytest.raises(NotEnoughVarianceError, match=message):
+        PLS(n_components=2).fit(f_block, y)
 
 
 def test_one_blend_is_refused_as_too_few_rows_as_across_the_family() -> None:

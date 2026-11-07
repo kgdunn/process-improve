@@ -39,6 +39,7 @@ from ._common import (
     _nz,
     _own_axes,
     check_at_least_one,
+    check_variance_left,
     check_y_varies,
     column_sd,
     components_to_fit,
@@ -573,8 +574,10 @@ class TPLS(RegressorMixin, BaseEstimator):
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
         NotEnoughVarianceError
             If the first Y block has no variance, or no group has a column of F and a column of D that
-            vary, as MBPLS raises for an X with no variance, or if a component's scores are not finite
-            because a block has no variation for the iteration to follow. A group whose F or D has no
+            vary, as MBPLS raises for an X with no variance; if the first Y block has no variance left
+            for a component, as when the components before it fit Y exactly, in the words of PLS and
+            MBPLS; or if a component's scores are not finite because a block has no variation for the
+            iteration to follow. A group whose F or D has no
             variation, beside one whose F and D vary, is fitted with zero weight (#1144): its weights and
             loadings are 0, and a warning names it.
 
@@ -1771,8 +1774,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Formula matrix: assemble all not-na maps from blocks in F: make a single matrix.
         pmap_f = np.concatenate(list(self.not_na_f.values()), axis=1)
 
+        # No variance left in the Y block the iteration explains is judged against its size before the first
+        # component, as PLS and MBPLS judge it: a Y fitted exactly is refused in their words (#1128, #1149).
+        y_size = float(np.sqrt(np.sum(next(iter(self.y_mats.values())) ** 2)))
+
         # Follow the steps in the paper on page 54
         for pc_a in range(self.n_components_):
+            check_variance_left("Y", next(iter(self.y_mats.values())), pc_a, y_size)
             milliseconds_start = time.time()
 
             # Step 1: Start from the Y column with the largest sum of squares, as PLS does (#195). The first

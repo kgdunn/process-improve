@@ -813,6 +813,14 @@ EDGE_EXEMPT: dict[tuple[str, str], tuple[Answer, str]] = {
         Fitted(),
         "OPLS fits one predictive component, which fits Y exactly here; the orthogonal ones describe X, not Y.",
     ),
+    ("Y fitted exactly", "TPLS"): (
+        Fitted(),
+        (
+            "TPLS reaches the columns of F only through the properties in D, so one component does not fit "
+            "y = A + B here, and a second explains more of it. A Y that TPLS fits exactly is refused at the next "
+            "component in the family's words (test_multivariate_tpls_validation)."
+        ),
+    ),
     ("all-missing row", "PRM"): (
         Refused(ValueError, r"^PRM does not support missing data"),
         "PRM weights each row by its residual and leverage distances, which a row with gaps does not have.",
@@ -825,7 +833,6 @@ EDGE_EXEMPT: dict[tuple[str, str], tuple[Answer, str]] = {
 
 #: A cell that gives another answer today, with its issue. A cell here that gives the family's answer fails.
 EDGE_GAPS: dict[tuple[str, str], str] = {
-    ("Y fitted exactly", "TPLS"): "#1149 aspect 12: TPLS fits a second component, where PLS and MBPLS refuse (#1128)",
     ("Y orthogonal to X", "TPLS"): "#1169: TPLS says its scores are not finite, not that Y is uncorrelated with X",
     **{
         (case, name): "#1149 aspect 2: refuses missing values"
