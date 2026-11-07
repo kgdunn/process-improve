@@ -1871,6 +1871,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
   state.curves = null;
+  state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
@@ -4715,9 +4716,10 @@ let curveTicket = 0;
 async function findCurve() {
   const mine = ++curveTicket;
   state.curve = { ...state.curve, fit: null, problem: null };
-  if (!state.design || !curvesRead()) return;
+  const asked = state.design;
+  if (!asked || !curvesRead()) return;
   const reply = await call("api_functional", curveRequest());
-  if (mine !== curveTicket) return;
+  if (mine !== curveTicket || state.design !== asked) return; // a later fit, or another run sheet, has the page now
   if (!reply.ok) {
     state.curve.problem = reply.error;
     return;

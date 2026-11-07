@@ -11,6 +11,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import pytest
+
 from tests.web.e2e._page import generate, headers, reveal, run_sheet, saved_studies, settled
 from tests.web.e2e.test_what_if import set_number
 
@@ -86,6 +88,28 @@ def test_the_curves_can_be_pasted_again_in_the_box_left_open(page):
     paste_curves(page)
     assert page.locator("#curves").get_attribute("open") is not None
     assert paste_curves(page) == "Curves for 15 of 15 runs, each read at 6 points along Time."
+
+
+@pytest.mark.parametrize("on_its_way", [False, True], ids=["fitted", "on-its-way"])
+def test_the_worked_example_shown_after_a_study_of_curves_draws_none_of_its_curve(blank_page, on_its_way):
+    """The curves' fit belongs to the run sheet it was made for: the worked example, shown next, has no curve."""
+    page = blank_page
+    generate(page)
+    if on_its_way:
+        page.evaluate("window.__pi.hold('api_functional')")
+        paste_curves(page)
+        page.wait_for_function("window.__pi.count('api_functional') === 1")
+    else:
+        paste_curves(page)
+        show_curve(page)
+    reveal(page, "#show-example")
+    page.click("#show-example")
+    page.wait_for_selector("#demo-banner", state="visible")
+    page.evaluate("window.__pi.release('api_functional')")
+    settled(page)
+    reveal(page, "#what-if")
+    assert page.is_visible("#what-if-settings"), "the worked example's own fit is in the panel"
+    assert page.is_hidden("#what-if-curve")
 
 
 def test_a_target_curve_moves_the_panel_to_the_settings_that_come_closest(page):
