@@ -34,7 +34,7 @@ def test_predict_online_matches_diagnose_when_complete(aligned_nylon: dict) -> N
     online = model.predict_online(batch, upto_k=model.n_timesteps_)
     offline = model.diagnose({48: batch})
     np.testing.assert_allclose(online.scores.to_numpy(), offline.scores.iloc[0].to_numpy(), atol=1e-6)
-    assert np.isclose(online.hotellings_t2, offline.hotellings_t2.iloc[0, -1], atol=1e-6)
+    assert np.isclose(online.hotellings_t2, offline.cumulative_hotellings_t2.iloc[0, -1], atol=1e-6)
     assert np.isclose(online.spe, offline.spe.iloc[0], atol=1e-6)
 
 
