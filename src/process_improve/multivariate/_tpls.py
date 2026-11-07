@@ -234,7 +234,8 @@ class TPLS(RegressorMixin, BaseEstimator):
     Notes on the blocks:
 
     1. Matrices in F, Z and Y must all have the same number of rows.
-    2. Columns in F must be the same as the **rows** in D.
+    2. Columns in F must be the same as the **rows** in D. They are paired by name, in any order; a
+       material that no blend uses has a column of zeros in F.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
     4. A blend with nothing observed in F, Z or Y, or a material with nothing observed in D, is fitted
        with a zero score or loading in that block and no weight in that block's regressions, as PCA
@@ -566,7 +567,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         Raises
         ------
         ValueError
-            If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range.
+            If ``y`` is not ``None``, or if ``n_components``, ``max_iter`` or ``tol`` is out of range, or
+            if a material of a group of F is not a row of that group of ``d_matrix``, or the reverse.
         TypeError
             If ``X`` is not a :class:`DataFrameDict`, or ``d_matrix`` is not a dict of DataFrames.
         NotEnoughVarianceError
@@ -588,6 +590,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # No missing_data_settings, so the resolver's message naming the estimator is never reached.
         settings = resolve_loop_settings(tol=self.tol, max_iter=self.max_iter, missing_data_settings=None)
         self._input_data_checks(X)
+        # F in D's order from here on, so the centre and scale learned for F are in the order diagnose reads it.
+        X = DataFrameDict(
+            {**X.datadict, "F": {k: _f_in_the_order_of_d(f, self.d_matrix[k], k) for k, f in X["F"].items()}}
+        )
         # A fit that fails part way leaves the model unfitted, not the previous fit with some parts replaced.
         self.is_fitted_ = False
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
@@ -1927,6 +1933,52 @@ def _mean_over_groups(r2_per_column: dict[str, np.ndarray]) -> float:
     in MBPCA and MBPLS: its loadings are 0, as it has zero weight (#1144).
     """
     return float(np.mean([np.nanmean(r2) for r2 in r2_per_column.values() if not np.isnan(r2).all()]))
+
+
+def _f_in_the_order_of_d(f_group: pd.DataFrame, d_group: pd.DataFrame, group: object) -> pd.DataFrame:
+    """Return F's columns in the order of D's rows, each material paired with its properties by name (#1197).
+
+    They were paired by position, so F with the materials of a group in another order than D fitted
+    each material with another one's properties, without a word. A material that only one of them
+    has, or that D names twice, has no pair, and is refused by name.
+
+    Parameters
+    ----------
+    f_group : pd.DataFrame
+        One group of F: blends as rows, materials as columns.
+    d_group : pd.DataFrame
+        The same group of D: materials as rows, properties as columns.
+    group : object
+        The group's name, used in the messages.
+
+    Returns
+    -------
+    pd.DataFrame
+        ``f_group`` with its columns in the order of ``d_group``'s rows.
+
+    Raises
+    ------
+    ValueError
+        If D names a material twice, or a material of F or of D is not in the other.
+    """
+    materials = d_group.index
+    if materials.has_duplicates:
+        twice = materials[materials.duplicated()].unique().to_list()
+        msg = f'd_matrix["{group}"] names a material more than once: {twice}.'
+        raise ValueError(msg)
+    if unknown := f_group.columns.difference(materials, sort=False).to_list():
+        msg = (
+            f'F["{group}"] has materials that d_matrix["{group}"] does not have: {unknown}. '
+            "Each column of F is paired with the row of d_matrix of the same name."
+        )
+        raise ValueError(msg)
+    if unused := materials.difference(f_group.columns, sort=False).to_list():
+        msg = (
+            f'd_matrix["{group}"] has materials that F["{group}"] has no column for: {unused}. '
+            "Give a material that no blend uses a column of zeros in F."
+        )
+        raise ValueError(msg)
+    return f_group[materials]
 
 
 def _reject_separate_y(y: object, where: str) -> None:
