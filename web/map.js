@@ -5,6 +5,7 @@
 // map/graph.json is built and checked against the book in pid-book's knowledge-graph/ (build_kg.py, layout_kg.py),
 // where every term quotes the line of the book it comes from: to update the map, copy doe_kg_map.json from there.
 import cytoscape from "./vendor/cytoscape.mjs";
+import { MODES, nextMode } from "./logic.js";
 
 const DATA = await fetch(new URL("map/graph.json", import.meta.url)).then((r) => {
   if (!r.ok) throw new Error(`map/graph.json: ${r.status}`);
@@ -66,18 +67,45 @@ const drawLegend = () => {
       title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}${label}</button>`).join("");
 };
 
+// ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's
+const MODE_KEY = "factorial-mode";
+const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
+const systemDark = matchMedia("(prefers-color-scheme: dark)");
+function applyMode(mode) {
+  const root = document.documentElement;
+  root.dataset.mode = mode;
+  if (mode === "auto") delete root.dataset.theme;
+  else root.dataset.theme = mode;   // the map redraws in its colours (the observer below)
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+    const { scheme } = meta.dataset;
+    meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
+  }
+  document.getElementById("mode").setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+}
+document.getElementById("mode").addEventListener("click", () => {
+  const mode = nextMode(document.documentElement.dataset.mode, systemDark.matches);
+  try {
+    if (mode === "auto") localStorage.removeItem(MODE_KEY);
+    else localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    /* storage refused: the mode holds for this visit */
+  }
+  applyMode(mode);
+});
+applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
+
 // ---------- the map
 const elements = [
   ...DATA.clusters.map(c => ({ group: "nodes", classes: "topic", position: { x: c.x, y: c.y },
-    data: { id: c.id, label: c.short, olabel: `${c.short}\n${c.size} terms`, d: 2 * c.r } })),
+    data: { id: c.id, label: c.short, olabel: `${c.short}\n[${c.size}]`, d: 2 * c.r } })),
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subtopic", position: { x: s.x, y: s.y },
     data: { id: s.id, label: s.name, d: 2 * s.r } })),
   // The same names as markers of their own, drawn above terms and links while the names sit mid-circle.
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subname", position: { x: s.x, y: s.y },
-    data: { id: `${s.id}-name`, label: s.name, w: 1.6 * s.r } })),
+    data: { id: `${s.id}-name`, label: `${s.name}\n[${s.size}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n) } })),
-  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target },
+  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0 },
     classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between", data: { id: `b${i}`, source: e.a, target: e.b, n: e.n } })),
 ];
@@ -89,7 +117,10 @@ window.conceptMap = { cy, data: DATA };
 let selected = null;   // a term id, a topic id, or null for the overview
 let labelsOn = true;   // term names on the map; with them off, only the selected term is named
 try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch {}
-const DETAIL_GAP = 22;   // on-screen distance between terms at which they appear
+let stripWas = null;   // the strip's own text, while it reads out a link
+let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
+try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
+const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
 // An on-screen size: `base` where the terms appear, then growing more slowly than the map as you zoom in.
@@ -105,6 +136,9 @@ function sheet(z) {
   const middle = !overview && TERM_GAP * z < SUB_LABEL_GAP;   // sub-topics named, their terms not yet
   const { font, dot, line } = sizes(z);
   const size = px(dot);
+  // An arrowhead `length` px long on a line `width` px wide. Cytoscape draws it 0.3 x max((13.37 x width)^0.9, 29) drawing
+  // units long, a floor that grows on screen with the zoom, so the scale is solved for the length wanted.
+  const arrow = (width, length) => length / (0.3 * Math.max(Math.pow(13.37 * px(width), 0.9), 29) * z);
   const famRules = Object.entries(FAMILIES).map(([k, [, shape]]) =>
     ({ selector: `.fam-${k}`, style: { shape, "background-color": css(`--map-${k}`) } }));
   return [
@@ -146,15 +180,23 @@ function sheet(z) {
     { selector: ".term.sel", style: { width: size * 1.9, height: size * 1.9, "border-width": px(2.5), "border-color": css("--fg"),
       "font-weight": 600, "font-size": px(font * 1.12), "z-index": 30 } },
     { selector: ".term.nb", style: { "z-index": 20 } },
+    { selector: ".term.held", style: { "border-width": px(3), "border-color": css("--accent"), "z-index": 35 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
-      "curve-style": "straight", "z-index": 5, opacity: middle ? 0.3 : 0.55 } },
-    { selector: ".link.cross", style: { opacity: middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
-    { selector: ".link.hl", style: { display: "element", width: px(line * 2), "line-color": css("--accent"), "target-arrow-shape": "triangle",
-      "target-arrow-color": css("--accent"), "arrow-scale": 0.9, opacity: 1, "z-index": 15 } },
+      "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
+    // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
+    // in italic and the accent colour, so a verb is not read as a term.
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * 0.85),
+      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", "text-background-color": css("--panel"),
+      "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
+      "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
+    { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
+    { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
+      "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
     { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
-    { selector: ".link.dim", style: { opacity: 0.08 } },
+    { selector: ".link.dim", style: { opacity: 0.08, "source-label": "" } },
+    { selector: ".link.mute", style: { "source-label": "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
 }
@@ -216,6 +258,34 @@ function settleOverlaps() {
     if (!c.forced && kept.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)) c.n.removeClass("lab");
     else kept.push(b);
   }
+  if (verbsOn) settleLinkLabels(kept);
+}
+
+// A link's label sits on its line, clear of the terms, their names and the other labels: in the middle where that is
+// clear, else at the first clear spot further along either way, else held back until zooming in makes room for it.
+// The label is drawn `at` drawing units along the line from where it leaves its source term.
+const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way from the source term to the target
+function settleLinkLabels(kept) {
+  const z = cy.zoom(), { font, dot } = sizes(z), f = font * 0.85, pad = f * 0.5;   // pad: half the text's height
+  if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
+  const W = cy.width(), H = cy.height();
+  const taken = [...kept, ...cy.nodes(".term").filter(n => n.visible()).map(n => n.renderedBoundingBox({ includeLabels: false }))];
+  const hit = (x, y) => taken.some(b => x > b.x1 - pad && x < b.x2 + pad && y > b.y1 - pad && y < b.y2 + pad);
+  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
+  links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
+    const s = e.source().renderedPosition(), t = e.target().renderedPosition();
+    const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f) + 4;
+    const dx = (t.x - s.x) / len, dy = (t.y - s.y) / len;
+    const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
+    const points = k => [-0.45, -0.2, 0, 0.2, 0.45].map(j => ({ x: s.x + dx * (k * len + w * j), y: s.y + dy * (k * len + w * j) }));
+    const mid = points(0.5)[2], off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
+    const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !points(k).some(p => hit(p.x, p.y)));
+    e.toggleClass("mute", k === undefined);
+    if (k === undefined) return;
+    const at = (k * len - from) / z;
+    if (Math.abs(e.data("at") - at) > 0.01) e.data("at", at);
+    if (!off) taken.push(...points(k).map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
+  });
 }
 
 let styledZoom = null;
@@ -228,7 +298,9 @@ function refresh(force = false) {
   cy.batch(settleOverlaps);   // after the first batch, so the labels have real sizes
 }
 let queued = false;
-cy.on("viewport", () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); } });
+const later = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); } };
+cy.on("viewport", later);
+cy.on("position", "node.term", later);   // labels follow a term the reader moves
 
 function highlight(id) {
   cy.batch(() => {
@@ -272,7 +344,7 @@ function setLimits() {
   cy.fit(cy.nodes(".topic"), 14);
   const fitZoom = cy.zoom();
   cy.minZoom(fitZoom * 0.6);
-  cy.maxZoom(Math.max(fitZoom * 14, 2.4));
+  cy.maxZoom(Math.max(fitZoom * 30, 6));   // deep enough to set the closest terms at least 370 px apart, on any screen
   return { fitZoom, z0 };
 }
 
@@ -287,6 +359,7 @@ const group = (title, ids) => ids.length ? `<div class="map-rel"><h3>${title}</h
 
 function render() {
   const card = document.getElementById("card"), links = document.getElementById("links"), strip = document.getElementById("striptext");
+  stripWas = null;
   if (selected && terms.has(selected)) {
     const n = terms.get(selected), color = css(`--map-${fam(n)}`);
     card.style.setProperty("--fam", color);
@@ -340,9 +413,35 @@ const fromHash = () => location.hash.slice(1).replaceAll("-", "_");
 // scrolled is not a tap, and the first such drag in a while says how to move the map.
 const hint = document.createElement("p");
 hint.className = "map-hint";
-hint.textContent = "Two fingers move the map";
 hint.setAttribute("aria-hidden", "true");
 cy.container().parentElement.append(hint);
+const say = text => {
+  hint.textContent = text;
+  hint.classList.add("on");
+  clearTimeout(say.off);
+  say.off = setTimeout(() => hint.classList.remove("on"), 1600);
+};
+
+// A term can be moved, to uncover a link's label under it: dragged with the mouse, as Cytoscape does for a grabbable
+// node; on a touch screen, held still for a moment and then dragged, as one finger that moves at once scrolls the page.
+// Nothing is kept: a reload restores the drawing.
+cy.nodes().not(".term").ungrabify();
+cy.container().addEventListener("pointerdown", ev => cy.autoungrabify(ev.pointerType !== "mouse"), { capture: true });
+cy.on("grab", "node.term", ev => ev.target.addClass("held"));
+cy.on("free", "node.term", ev => ev.target.removeClass("held"));
+cy.on("mouseover", "node.term", () => { if (!cy.autoungrabify()) cy.container().style.cursor = "grab"; });
+cy.on("mouseout", "node.term", () => { cy.container().style.cursor = ""; });
+const HOLD_MS = 450;
+let held = null, holding = 0;
+function termAt(x, y) {   // the visible term nearest a point of the map, within a fingertip's reach
+  const reach = Math.max(sizes(cy.zoom()).dot, 24) / 2 + 6;
+  let best = null, gap = reach;
+  cy.nodes(".term").filter(n => n.visible()).forEach(n => {
+    const p = n.renderedPosition(), d = Math.hypot(p.x - x, p.y - y);
+    if (d <= gap) { best = n; gap = d; }
+  });
+  return best;
+}
 const between = ([a, b]) => {
   const box = cy.container().getBoundingClientRect();
   return { x: (a.clientX + b.clientX) / 2 - box.left, y: (a.clientY + b.clientY) / 2 - box.top,
@@ -353,6 +452,17 @@ cy.container().addEventListener("touchstart", ev => {
   finger = ev.touches.length === 1 ? [ev.touches[0].clientX, ev.touches[0].clientY] : null;
   pinch = ev.touches.length === 2 ? between(ev.touches) : null;
   if (ev.touches.length === 1) scrolled = false;
+  clearTimeout(holding);
+  if (ev.touches.length !== 1) return;
+  const box = cy.container().getBoundingClientRect();
+  const term = termAt(ev.touches[0].clientX - box.left, ev.touches[0].clientY - box.top);
+  if (term) holding = setTimeout(() => {
+    if (scrolled || finger === null) return;
+    held = term.addClass("held");
+    scrolled = true;   // what follows is a move, not a tap
+    navigator.vibrate?.(15);
+    say("Drag to move this term");
+  }, HOLD_MS);
 }, { passive: true });
 window.addEventListener("touchmove", ev => {
   if (pinch && ev.touches.length === 2) {
@@ -366,23 +476,43 @@ window.addEventListener("touchmove", ev => {
   }
   if (finger === null || ev.touches.length !== 1) return;
   ev.stopPropagation();
+  if (held) {   // the term follows the finger, and the page stays where it is
+    ev.preventDefault();
+    const box = cy.container().getBoundingClientRect(), z = cy.zoom(), pan = cy.pan();
+    held.position({ x: (ev.touches[0].clientX - box.left - pan.x) / z, y: (ev.touches[0].clientY - box.top - pan.y) / z });
+    return;
+  }
   if (scrolled || Math.hypot(ev.touches[0].clientX - finger[0], ev.touches[0].clientY - finger[1]) < 10) return;
   scrolled = true;
+  clearTimeout(holding);
   if (Date.now() - hinted < 20000) return;
   hinted = Date.now();
-  hint.classList.add("on");
-  setTimeout(() => hint.classList.remove("on"), 1600);
+  say("Two fingers move the map");
 }, { capture: true, passive: false });
 window.addEventListener("touchend", ev => {
   if (ev.touches.length < 2) pinch = null;
+  clearTimeout(holding);
+  if (held) { held.removeClass("held"); held = null; }
   // The browser is scrolling and the touch's end cannot be cancelled: Cytoscape's attempt to is then a no-op, not a
   // console error.
   if (!ev.cancelable) ev.preventDefault = () => {};
 }, { capture: true });
 
+// A link read as a sentence in the strip under the map: while the mouse is on its line, or after a tap on one of the
+// selected term's links. A tap on any other link counts as one on what lies under it.
+function sayLink(e) {
+  const strip = document.getElementById("striptext"), name = id => esc(terms.get(id).name);
+  if (stripWas === null) stripWas = strip.innerHTML;
+  strip.innerHTML = `<b>${name(e.data("source"))}</b> <i>${esc(e.data("verb"))}</i> <b>${name(e.data("target"))}</b>`;
+}
+cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(ev.target); });
+cy.on("mouseout", "edge.link", () => {
+  if (stripWas !== null) { document.getElementById("striptext").innerHTML = stripWas; stripWas = null; }
+});
 cy.on("tap", "node.term", ev => { if (!scrolled) go(ev.target.id()); });
+cy.on("tap", "edge.link.hl", ev => { if (!scrolled) sayLink(ev.target); });
 cy.on("tap", ev => {
-  if (scrolled || (ev.target !== cy && !ev.target.isEdge())) return;   // a tap on a link counts as one on what lies under it
+  if (scrolled || (ev.target !== cy && !ev.target.isEdge()) || (ev.target !== cy && ev.target.hasClass("hl"))) return;
   const { x, y } = ev.position;
   const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
@@ -406,14 +536,20 @@ document.getElementById("legend").addEventListener("click", ev => {
   document.querySelector(`#legend button[data-fam="${k}"]`).focus();   // keep the keyboard where it was
   cy.batch(applyHidden); refresh(true);
 });
-const labelsButton = document.getElementById("labels");
-const showLabelState = () => labelsButton.setAttribute("aria-pressed", String(labelsOn));
-labelsButton.addEventListener("click", () => {
-  labelsOn = !labelsOn;
+const labelsSwitch = document.getElementById("labels");
+labelsSwitch.checked = labelsOn;
+labelsSwitch.addEventListener("change", () => {
+  labelsOn = labelsSwitch.checked;
   try { localStorage.setItem("factorial-map-labels", labelsOn ? "on" : "off"); } catch {}
-  showLabelState(); refresh(true);
+  refresh(true);
 });
-showLabelState();
+const verbsSwitch = document.getElementById("verbs");
+verbsSwitch.checked = verbsOn;
+verbsSwitch.addEventListener("change", () => {
+  verbsOn = verbsSwitch.checked;
+  try { localStorage.setItem("factorial-map-verbs", verbsOn ? "on" : "off"); } catch {}
+  refresh(true);
+});
 document.getElementById("zin").addEventListener("click", () => zoomBy(1.6));
 document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.6));
 document.getElementById("home").addEventListener("click", () => go(null));

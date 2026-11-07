@@ -18,7 +18,7 @@ from tests.web._support import WEB
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True}
-DETAIL_GAP, LABEL_GAP, TERM_GAP = 22, 45, 62  # as map.js: terms appear, then sub-topic terms are named
+DETAIL_GAP, LABEL_GAP, TERM_GAP = 19, 45, 62  # as map.js: terms appear, then sub-topic terms are named
 
 # Every term's name drawn on the map, and every topic's and sub-topic's, as rendered boxes; and how many overlap.
 STATE = """() => {
@@ -89,8 +89,14 @@ def _open_topic(page: Any, topic: dict[str, Any]) -> None:  # noqa: ANN401 - a P
 BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
 
 
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     page = _open(context, site)
+    biggest = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
+    assert biggest == f"{BIGGEST['short']}\n[{BIGGEST['size']}]", "a topic's name, and its number of terms below it"
+    sub = BIGGEST["subs"][0]
+    named = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('label')", f"{sub['id']}-name")
+    assert named == f"{sub['name']}\n[{sub['size']}]", "and a sub-topic's"
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
@@ -210,12 +216,12 @@ def test_a_drag_that_starts_on_a_topic_pans_the_map(context, site):
 def test_term_names_can_be_switched_off_and_the_choice_is_remembered(context, site):
     page = _open(context, site)
     _go(page, "resolution")
-    page.click("#labels")
+    page.click(".map-names")
     _settled(page)
     assert page.evaluate(STATE)["labels"] == 1, "only the selected term keeps its name"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
-    assert page.get_attribute("#labels", "aria-pressed") == "false"
+    assert not page.is_checked("#labels")
 
 
 def test_a_kind_of_term_can_be_hidden_and_the_choice_is_remembered(context, site):
@@ -277,6 +283,85 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_selector("footer a[href='map/']")
     page.click("footer a[href='map/']")
     page.wait_for_url("**/map/")
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_the_appearance_switches_sit_by_the_search_and_zoom_stays_below_the_map(context, site):
+    page = _open(context, site)
+    search, names, verbs = (page.locator(s).bounding_box() for s in (".map-search input", ".map-names", ".map-verbs"))
+    assert names["y"] == pytest.approx(verbs["y"], abs=2), "the two switches share a row"
+    assert names["x"] + names["width"] <= verbs["x"], "term names, then link labels"
+    if page.viewport_size["width"] > 600:
+        assert names["x"] >= search["x"] + search["width"], "in the space to the right of the search"
+        assert names["y"] < search["y"] + search["height"], "on the search's row"
+    else:
+        assert names["y"] >= search["y"] + search["height"], "on a phone, on the row below the search"
+    assert page.is_checked("#labels"), "term names start on"
+    assert not page.is_checked("#verbs"), "link labels start off"
+    assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site):
+    page = _open(context, site)
+    # Each label also as solid as the faded lines it sits on are not, and set apart from the term names: italic, accent.
+    labelled = """() => { const cy = window.conceptMap.cy, ink = cy.edges('.link.hl')[0].style('line-color');
+      return cy.edges('.link').filter((e) => e.visible() && e.style('source-label'))
+        .map((e) => [e.hasClass('hl'), e.style('source-label'), e.data('verb'), e.style('target-arrow-shape'),
+                     e.style('opacity') === '1' && e.style('color') === ink
+                       && e.style('font-style') === 'italic']); }"""
+    _go(page, "full_factorial")
+    assert page.evaluate(labelled) == []
+    page.click(".map-verbs")
+    _settled(page)
+    shown = page.evaluate(labelled)
+    lit, held = page.evaluate(
+        "() => { const lit = window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()); "
+        "return [lit.length, lit.filter((e) => e.hasClass('mute')).length]; }"
+    )
+    assert shown, "the selected term's links are labelled"
+    assert len(shown) + held == lit, "each drawn link is labelled, or held back where its label would land on a term"
+    assert all(hl and label == verb and verb and arrow == "triangle" for hl, label, verb, arrow, _ in shown)
+    assert all(solid for *_, solid in shown), "the labels are solid, italic and in the accent colour"
+    page.click("#zin")
+    _settled(page)
+    assert len(page.evaluate(labelled)) >= len(shown), "zooming in makes room for more of them"
+    page.reload()
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    assert page.is_checked("#verbs"), "the choice is remembered"
+
+
+# A lit link's line width and arrowhead length on screen, beside a term's dot and an ordinary link: Cytoscape draws
+# the triangle 0.3 x max((13.37 x width)^0.9, 29) x arrow-scale drawing units long.
+ARROW = """() => { const cy = window.conceptMap.cy, z = cy.zoom();
+  const lit = cy.edges('.link.hl')[0], plain = cy.edges('.link').not('.hl')[0], dot = cy.nodes('.term.nb')[0];
+  const width = parseFloat(lit.style('width'));
+  const head = 0.3 * Math.max(Math.pow(13.37 * width, 0.9), 29) * parseFloat(lit.style('arrow-scale')) * z;
+  return { head, dot: dot.renderedWidth(), line: width * z, plain: parseFloat(plain.style('width')) * z }; }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_lit_link_s_arrowhead_matches_a_term_and_its_line_is_not_bold(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    for deepest in (False, True):
+        if deepest:
+            page.evaluate("() => { const cy = window.conceptMap.cy; cy.zoom(cy.maxZoom()); }")
+            _settled(page)
+        drawn = page.evaluate(ARROW)
+        assert drawn["head"] == pytest.approx(drawn["dot"], rel=0.05), f"arrowhead against a term's dot: {drawn}"
+        assert drawn["line"] <= 1.3 * drawn["plain"], f"a lit line against an ordinary one: {drawn}"
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_the_deepest_zoom_sets_the_closest_terms_far_apart(context, site):
+    page = _open(context, site)
+    for _ in range(12):
+        page.click("#zin")
+        _settled(page)
+    zoom, deepest = page.evaluate("() => [window.conceptMap.cy.zoom(), window.conceptMap.cy.maxZoom()]")
+    assert zoom == pytest.approx(deepest), "the + button reaches the limit"
+    assert TERM_GAP * deepest >= 360, f"the closest terms are {TERM_GAP * deepest:.0f} px apart at the deepest zoom"
 
 
 @pytest.mark.parametrize("context_options", [PHONE])
@@ -355,3 +440,148 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     _settled(page)
     assert page.evaluate(view)["zoom"] > moved["zoom"] * 1.5, "and spreading them zooms in"
+
+
+# Each drawn link's label: where along its line it sits (0 at the source term, 1 at the target), or None if held back.
+SPOTS = """() => { const cy = window.conceptMap.cy, z = cy.zoom();
+  return cy.edges('.link').filter((e) => e.visible() && !e.hasClass('dim')).map((e) => {
+    if (e.hasClass('mute')) return null;
+    const s = e.source().renderedPosition(), t = e.target().renderedPosition();
+    return (e.data('at') * z + e.source().renderedWidth() / 2) / Math.hypot(t.x - s.x, t.y - s.y); }); }"""
+# The longest of the selected term's drawn links with its middle in view: its sentence, and that middle on the page.
+LONGEST = """() => { const cy = window.conceptMap.cy, box = cy.container().getBoundingClientRect();
+  const name = (n) => n.data('label');
+  const mid = (x) => { const s = x.source().renderedPosition(), t = x.target().renderedPosition();
+    return { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2, len: Math.hypot(t.x - s.x, t.y - s.y) }; };
+  const inView = (m) => m.x > 20 && m.x < cy.width() - 20 && m.y > 20 && m.y < cy.height() - 20;
+  const e = cy.edges('.link.hl').filter((x) => x.visible() && inView(mid(x))).max((x) => mid(x).len).ele;
+  const s = e.source().renderedPosition(), t = e.target().renderedPosition();
+  return { said: `${name(e.source())} ${e.data('verb')} ${name(e.target())}`,
+    x: box.left + (s.x + t.x) / 2, y: box.top + (s.y + t.y) / 2 }; }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    page.click(".map-verbs")
+    page.evaluate(
+        "() => { const cy = window.conceptMap.cy; "
+        "cy.zoom({ level: cy.zoom() * 0.7, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }); }"
+    )
+    _settled(page)
+    spots = [k for k in page.evaluate(SPOTS) if k is not None]
+    assert spots, "some links are labelled"
+    assert all(0.15 < k < 0.85 for k in spots), f"each label sits on its line, clear of both terms: {spots}"
+    assert any(abs(k - 0.5) > 0.05 for k in spots), "a label whose middle is taken moves along its line"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_the_mouse_on_a_link_reads_it_as_a_sentence_below_the_map(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    told = page.text_content("#striptext")
+    link = page.evaluate(LONGEST)
+    page.mouse.move(link["x"], link["y"])
+    page.wait_for_function("(said) => document.querySelector('#striptext').textContent === said", arg=link["said"])
+    assert page.locator("#striptext i").text_content() in link["said"], "the verb set apart, as on the map"
+    box = page.locator("#cy").bounding_box()
+    page.mouse.move(box["x"] + 4, box["y"] + 4)
+    page.wait_for_function("(told) => document.querySelector('#striptext').textContent === told", arg=told)
+
+
+@pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def test_a_tap_on_a_link_of_the_selected_term_reads_it_and_keeps_the_term(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    link = page.evaluate(LONGEST)
+    finger = context.new_cdp_session(page)
+    point = [{"x": link["x"], "y": link["y"], "id": 0}]
+    finger.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": point})
+    finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    page.wait_for_function("(said) => document.querySelector('#striptext').textContent === said", arg=link["said"])
+    assert page.text_content("#card h2") == "Full factorial", "the selected term stays selected"
+
+
+# Where a term sits in the drawing, and the map's view; and a neighbour of the selected term well inside the map.
+WHERE = """(i) => { const cy = window.conceptMap.cy;
+  return { at: { ...cy.getElementById(i).position() }, pan: { ...cy.pan() }, zoom: cy.zoom(), scrolled: scrollY }; }"""
+NEIGHBOUR = """() => { const cy = window.conceptMap.cy;
+  const inside = (p) => p.x > 60 && p.x < cy.width() - 60 && p.y > 60 && p.y < cy.height() - 60;
+  return cy.nodes('.term.nb').filter((n) => n.visible() && inside(n.renderedPosition()))[0].id(); }"""
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
+def test_a_term_dragged_with_the_mouse_moves_and_the_map_stays(context, site):
+    """To uncover a link's label that a term sits on, the reader moves the term."""
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    term = page.evaluate(NEIGHBOUR)
+    before = page.evaluate(WHERE, term)
+    x, y = _on_map(page, _rendered(page, term))
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 60, y + 40, steps=8)
+    page.mouse.up()
+    _settled(page)
+    after = page.evaluate(WHERE, term)
+    assert after["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.1)
+    assert after["at"]["y"] - before["at"]["y"] == pytest.approx(40 / before["zoom"], rel=0.1)
+    assert (after["pan"], after["zoom"]) == (before["pan"], before["zoom"]), "the map itself stays where it was"
+    assert page.text_content("#card h2") == "Full factorial", "a drag is not a tap"
+
+
+@pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def test_on_a_touch_screen_a_term_held_then_dragged_moves_and_a_quick_swipe_still_scrolls(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    finger = context.new_cdp_session(page)
+    term = page.evaluate(NEIGHBOUR)
+
+    def touch(kind: str, dx: float, dy: float) -> None:
+        x, y = start
+        finger.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": [{"x": x + dx, "y": y + dy, "id": 0}]})
+
+    def lift() -> None:
+        finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+        page.wait_for_timeout(600)  # a scroll the browser makes from a drag goes on a moment after the finger lifts
+        _settled(page)
+
+    before = page.evaluate(WHERE, term)
+    start = _on_map(page, _rendered(page, term))
+    touch("touchStart", 0, 0)
+    for k in range(1, 11):
+        touch("touchMove", 0, -15 * k)
+    lift()
+    swiped = page.evaluate(WHERE, term)
+    assert swiped["scrolled"] > before["scrolled"] + 50, "a finger that moves at once scrolls the page"
+    assert swiped["at"] == before["at"], "and leaves the term where it was"
+
+    page.evaluate("() => window.scrollTo(0, 0)")
+    start = _on_map(page, _rendered(page, term))
+    touch("touchStart", 0, 0)
+    page.wait_for_timeout(700)
+    for k in range(1, 7):
+        touch("touchMove", 10 * k, 0)
+    assert page.locator(".map-hint").text_content() == "Drag to move this term"
+    lift()
+    held = page.evaluate(WHERE, term)
+    assert held["at"]["x"] - before["at"]["x"] == pytest.approx(60 / before["zoom"], rel=0.15), "held, it follows"
+    assert held["scrolled"] == 0, "and the page stays where it is"
+    assert page.text_content("#card h2") == "Full factorial", "a move is not a tap"
+
+
+def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site):
+    """The map has the start page's switch: light, dark or the system's, in turn, kept for every page of the app."""
+    page = _open(context, site)
+    theme = "() => document.documentElement.dataset.theme ?? 'system'"
+    seen = []
+    for _ in range(3):
+        page.click("#mode")
+        seen.append(page.evaluate(theme))
+    assert sorted(seen) == ["dark", "light", "system"], "each press moves to the next mode"
+    page.click("#mode")
+    chosen = page.evaluate(theme)
+    page.goto(site)
+    page.wait_for_function("() => document.documentElement.dataset.mode")
+    assert page.evaluate(theme) == chosen, "the start page opens in the mode chosen on the map"

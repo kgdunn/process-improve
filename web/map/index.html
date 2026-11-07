@@ -7,13 +7,15 @@
   <meta name="description" content="The ideas of designed experiments in the book Process Improvement using Data, and how they link: zoom from topics to the terms in them, and tap a term to read it with the line of the book it comes from.">
   <link rel="canonical" href="https://factori.al/map/">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" data-scheme="light">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)" data-scheme="dark">
   <script>
-    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    /* The colour mode chosen with the switch (here or in the app), put on the page before it is drawn. */
     try {
       const mode = localStorage.getItem("factorial-mode");
-      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+      const chosen = mode === "light" || mode === "dark";
+      if (chosen) document.documentElement.dataset.theme = mode;
+      document.documentElement.dataset.mode = chosen ? mode : "auto";
     } catch {
       /* storage refused: the system's mode */
     }
@@ -32,16 +34,32 @@
 </head>
 <body>
 <main class="map">
-  <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <div class="map-top">
+    <p class="about__back"><a href="../"><img src="../favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+    <!-- Light, dark, or the system's, in turn, as the start page's switch does: its icon shows the mode now. -->
+    <button type="button" id="mode" class="mode-switch" title="light/dark" aria-label="Colour mode: the system's">
+      <svg data-for="auto" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></svg>
+      <svg data-for="light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+      <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
+    </button>
+  </div>
   <h1>Experimental design concept graph</h1>
   <p class="lede">How the ideas of designed experiments link, in <em>Process Improvement using Data</em>.</p>
   <p class="map-meta"><button type="button" class="map-howlink" id="howlink">How this map was made</button></p>
 
-  <div class="map-search">
-    <label for="q">Find a term</label>
-    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="aliasing, CCD, foldover, randomization..."
-      aria-controls="results">
-    <div class="map-results" id="results" role="listbox" hidden></div>
+  <div class="map-find">
+    <div class="map-search">
+      <label for="q">Find a term</label>
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="aliasing, CCD, foldover..."
+        aria-controls="results">
+      <div class="map-results" id="results" role="listbox" hidden></div>
+    </div>
+    <div class="map-view" role="group" aria-label="What the map shows">
+      <label class="switch map-names"><input type="checkbox" id="labels" checked>
+        <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Term names</span></label>
+      <label class="switch map-verbs"><input type="checkbox" id="verbs">
+        <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Link labels</span></label>
+    </div>
   </div>
 
   <div class="map-box">
@@ -51,7 +69,6 @@
     <div class="map-strip" id="strip"><span id="striptext"></span>
       <button type="button" class="button" id="details">Details</button></div>
     <div class="map-controls">
-      <button type="button" class="button" id="labels" aria-pressed="true" aria-label="Show term names" title="Show term names">Aa</button>
       <button type="button" class="button" id="zin" aria-label="Zoom in">+</button>
       <button type="button" class="button" id="zout" aria-label="Zoom out">&minus;</button>
       <button type="button" class="button" id="home" aria-label="Show all topics">
