@@ -45,6 +45,7 @@ from ._common import (
     NotEnoughVarianceError,
     SpecificationWarning,
     check_x_explains_y,
+    check_x_varies,
     constant_columns,
     epsqrt,
     refuse_empty_block,
@@ -195,8 +196,9 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             If Y has more than one column, has a different number of rows from X,
             or holds a missing or infinite value.
         NotEnoughVarianceError
-            If X has no variance left for a component, as when there are more
-            components than the rank of the centred X; if Y is constant (with
+            If every column of X is constant, as across the family (#1144); if X has
+            no variance left for a component, as when there are more components than
+            the rank of the centred X; if Y is constant (with
             ``scale=False``, if Y is 0 throughout); or if X has no covariance with Y.
         """
         self._validate_params()
@@ -262,11 +264,11 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             raise NotEnoughVarianceError(
                 "There is no variance in Y: the response is constant, so there is nothing for X to explain."
             )
+        # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114), in the
+        # family's words (#1144).
+        check_x_varies([given_x], explains_y=True)
         check_x_explains_y([Xmat], y)  # nor does a response uncorrelated with every column of X (#1144)
-
-        # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114).
         size = float(np.linalg.norm(Xmat))
-        _check_variance_left(Xmat, size, 0)
         constant_columns(given_x, "X", self)
 
         # --- Trygg-Wold O-PLS NIPALS (single response) ---

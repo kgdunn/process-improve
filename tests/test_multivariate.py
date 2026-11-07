@@ -50,6 +50,7 @@ from process_improve.multivariate._pca import _leverage_corrected_press, _low_ra
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
+    ASCA,
     MBPCA,
     MBPLS,
     OPLS,
@@ -951,15 +952,11 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
 
 
 def test_pca_errors_no_variance_to_start() -> None:
-    """Arrays with no variance should seem to work, but should have no variability explained."""
+    """An array with no variance is refused, as across the family (#1144); it was fitted, with zero scores."""
     K, N, A = 17, 12, 5
-    data = pd.DataFrame(np.zeros((N, K)))
-    model = PCA(n_components=A)
-    # with pytest.raises(RuntimeError):
-    model.fit(data)
-    assert np.sum(model.scores_.values) == pytest.approx(0, abs=epsqrt)
-    assert model.r2_cumulative_.sum() == pytest.approx(0, abs=epsqrt)
-    assert np.isnan(model.r2_cumulative_[A - 1])
+    for value in (0.0, 4.0):  # a constant that is not 0 too, though PCA does not centre it
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+            PCA(n_components=A).fit(pd.DataFrame(np.full((N, K), value)))
 
 
 def test_pca_invalid_calls() -> None:
@@ -6187,7 +6184,8 @@ def _tpls_written_out(
 
     ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
     block before the first component. The VIP of a block weights each component by the mean,
-    over the groups, of the mean R2 of each group's columns.
+    over the groups, of the mean R2 of each group's columns, and its width counts the columns
+    that vary (#913, #1144).
     """
     scaling, seen, left = _tpls_prepared(d_matrix, blocks, skip_f)
 
@@ -6230,10 +6228,15 @@ def _tpls_written_out(
     for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
         weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
         stacked = np.vstack(list(loadings.values()))
-        vip = np.sqrt(len(stacked) * (stacked**2 @ weights) / weights.sum())
+        vip = np.sqrt(_tpls_vip_width(scaling, block) * (stacked**2 @ weights) / weights.sum())
         ends = np.cumsum([len(values) for values in loadings.values()])
         found["vip", block] = dict(zip(loadings, np.split(vip, ends[:-1]), strict=True))
     return found
+
+
+def _tpls_vip_width(scaling: dict, block: str) -> int:
+    """Count the columns of D or F, over every group, whose scale is learned: those that vary, a VIP's width."""
+    return sum(int(np.isfinite(spread).sum()) for (name, _), (_, spread) in scaling.items() if name == block)
 
 
 def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
@@ -6613,24 +6616,66 @@ class TestTPLSWrittenOut:
         with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
             model.fit(DataFrameDict(blocks))
 
-    @pytest.mark.parametrize("constant", [["A", "B"], ["B"]], ids=["every-group", "one-group"])
-    def test_an_f_group_with_no_variation_used_as_given_is_refused_on_every_numpy(self, constant: list[str]) -> None:
-        """#1144: an F group whose every blend has the same row, used as given, is refused, as the error says.
+    @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+    @pytest.mark.parametrize("constant", ["F", "D"])
+    def test_a_group_with_no_variation_gets_zero_weight_on_every_numpy(self, constant: str, skip_f: bool) -> None:
+        """#1144: a group whose F, or whose D, has no variation, beside one that varies, gets zero weight.
 
-        Against a centred u, such a group's F'u is rounding error: exactly 0 with numpy 2.2, which
-        refused the fit after an overflow warning, and about 1e-17 with numpy 2.5, which fitted.
-        Regressing D on that remainder gave F weights near 1e15 and an F super weight of 0, so one
-        such group took the varying one out of the model without a word.
+        Used as given, such an F group meets a centred u with an F'u of rounding error: exactly 0
+        with numpy 2.2, which refused the fit after an overflow warning, and about 1e-17 with numpy
+        2.5, which took the varying group out of the model without a word. Then it was refused on
+        every build (#1167). It now takes no part in the model: its weights and loadings are 0, so
+        the fit, its predictions and the scores of new rows are those of the model without it,
+        whatever a new row holds in it, and one warning, at the caller's line, names it.
         """
         d_matrix, blocks = _t_shaped(gaps=False)
-        for group in constant:
-            frame = blocks["F"][group]
-            frame.loc[:, :] = np.arange(1, frame.shape[1] + 1) / 10.0
-        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        stuck = blocks["F"]["B"] if constant == "F" else d_matrix["B"]
+        stuck.loc[:, :] = np.arange(1, stuck.shape[1] + 1) / 10.0
+        without = {"F": {"A": blocks["F"]["A"]}, "Z": blocks["Z"], "Y": blocks["Y"]}
+        reference = TPLS(n_components=2, d_matrix={"A": d_matrix["A"]}, skip_f_matrix_preprocessing=skip_f)
+        reference.fit(DataFrameDict(copy.deepcopy(without)))
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=skip_f)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        assert [(w.category, str(w.message), w.filename) for w in caught] == [
+            (
+                UserWarning,
+                (
+                    f'Block {constant}["B"] has no variance: every column is constant or has no observed value, so '
+                    "it gets zero weight in the model. Drop the block, or check the data for a stuck sensor."
+                ),
+                __file__,
+            )
+        ]
+
+        for loadings in (model.r_loadings_f, model.p_loadings_f, model.s_loadings_d, model.v_loadings_d):
+            assert (loadings["B"].to_numpy() == 0.0).all()
+        _tpls_near(model.t_scores_super, reference.t_scores_super, 1e-10)
+        _tpls_near(model.hat["Q"], reference.hat["Q"], 1e-10)
+        _tpls_near(model.r_loadings_f["A"], reference.r_loadings_f["A"], 1e-10)
+
+        new = copy.deepcopy(blocks)
+        new["F"]["B"] += np.arange(new["F"]["B"].shape[0])[:, np.newaxis]  # what a new row holds in B adds nothing
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: .* each D and F group, varies"):
-                model.fit(DataFrameDict(blocks))
+            result = model.diagnose(DataFrameDict(new))
+            vip = model.vip()
+            limits = {block: model.spe_limit[block]["B"](0.95) for block in ("D", "F")}
+        expected = reference.diagnose(DataFrameDict(without))
+        _tpls_near(result.t_scores_super, expected.t_scores_super, 1e-10)
+        _tpls_near(result.hat["Q"], expected.hat["Q"], 1e-10)
+        for block in ("D", "F"):
+            assert (vip[block]["B"] == 0.0).all()
+            assert (vip[block]["A"] > 0.0).all()
+        # A group the model uses no column of has nothing left: an SPE of 0 in every row and a limit of 0, as MBPLS
+        # gives a block with no variance, and as diagnose gives it. F used as given keeps its values, and its length.
+        if constant == "D" or not skip_f:
+            assert (np.asarray(model.spe[constant]["B"]) == 0.0).all()
+            assert limits[constant] == 0.0
+        assert np.isfinite(limits["F" if constant == "D" else "D"])
+        again = model.diagnose(DataFrameDict(blocks)).spe["F"]["B"].iloc[:, -1].to_numpy()
+        np.testing.assert_allclose(again, model.spe["F"]["B"].iloc[:, 0].to_numpy(), rtol=1e-10)
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
@@ -6757,6 +6802,24 @@ class TestTPLSWrittenOut:
             assert model.display_results() == summary
         assert ("** (max iter reached)" in summary) == (max_iter < 500)
 
+    def test_a_model_fitted_before_zero_weight_keeps_the_vip_width_it_had(self) -> None:
+        """A VIP's width counts the columns that vary (#1144); a model fitted before then counts every column.
+
+        Such a model has no record of which groups have zero weight. One constant column of F among
+        nine raised every F VIP by the square root of 9 / 8; D, whose columns all vary, is the same.
+        """
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["A"]["a4"] = 0.25
+        model = TPLS(n_components=2, d_matrix=d_matrix)
+        with pytest.warns(UserWarning, match=r"'a4'"):
+            model.fit(DataFrameDict(blocks))
+        now = model.vip(method="deflated")
+        del model._groups_without_variation
+        before = model.vip(method="deflated")
+        for group in d_matrix:
+            _tpls_near(before["F"][group], now["F"][group] * np.sqrt(9 / 8), 1e-12)
+            _tpls_near(before["D"][group], now["D"][group], 1e-12)
+
     def test_the_deflated_vip_follows_the_direct_weights(self) -> None:
         """VIP on S (V'S)^-1 for D and P (P'P)^-1 for F, each component weighted by the block's R2."""
         d_matrix, blocks = _t_shaped()
@@ -6769,7 +6832,7 @@ class TestTPLSWrittenOut:
         assert found["Z"] == found["Y"] == {}
         for block, names in (("D", "columns"), ("F", "index")):
             weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in expected["r2"]])
-            vip = np.sqrt(len(direct[block]) * (direct[block] ** 2 @ weights) / weights.sum())
+            vip = np.sqrt(_tpls_vip_width(expected["scaling"], block) * (direct[block] ** 2 @ weights) / weights.sum())
             ends = np.cumsum([d.shape[1 if block == "D" else 0] for d in d_matrix.values()])
             assert list(found[block]) == list(d_matrix)
             for group, values in zip(d_matrix, np.split(vip, ends[:-1]), strict=True):
@@ -9371,10 +9434,13 @@ def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
     P, T = _svd_reference(small, 1)
     expected = 1 - np.sum((small - T @ P.T) ** 2) / np.sum(small**2)
     assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X"):
+        PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))  # the caller's fit is refused (#1144)
+    # ASCA's effect matrix of a term with no effect is a block of zeros, which ASCA's own PCA fits
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
-        pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
+        pca = ASCA(n_components=2).fit(np.zeros((4, 3)), pd.DataFrame({"f": ["a", "b"] * 2})).models_["f"]
+    assert pca.algorithm_ == "svd"
     assert pca.r2_cumulative_.isna().all()
     assert pca.r2_per_component_.isna().all()
     assert pca.r2_per_variable_.isna().all().all()
@@ -9526,8 +9592,8 @@ def test_pca_nipals_judges_the_variance_left_against_the_block() -> None:
         np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
         np.testing.assert_allclose(pca.scores_.to_numpy(), [[units * 2.0**-13], [0.0]], atol=1e-20)
     message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
-    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
-        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)  # in the family's words (#1144)
     with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
         PCA(n_components=2, algorithm="nipals").fit(X)
     PCA(n_components=2, algorithm="nipals").fit(np.diag([1e3, 2e3 * epsqrt]))
@@ -11968,6 +12034,11 @@ def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None
             f"There is no variance left in the data array for {block}: cannot compute any more components beyond "
             "component 0."
         )
+        if block == "X":  # in the family's words (#1144)
+            message = (
+                "There is no variance in X: every column is constant or has no observed value, so there is nothing "
+                "to explain Y by."
+            )
         with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
             model.fit(X, Y)
 

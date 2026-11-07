@@ -32,6 +32,7 @@ from process_improve.multivariate._adaptive import (
     _kernel_pls,
     _subspace_distance,
 )
+from process_improve.multivariate._common import NotEnoughVarianceError
 from process_improve.multivariate._nipals import _sign_align
 
 DATASETS = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
@@ -1331,15 +1332,14 @@ def test_the_default_window_holds_the_last_200_training_spes(synthetic_pca_data:
     assert limit == pytest.approx(_spe_limit_by_hand(spe[-200:], 0.95), rel=1e-9)
 
 
-def test_a_model_of_constant_tags_stays_at_a_kernel_of_zeros() -> None:
-    """Every tag constant: X'X is 0, and an update leaves it there, with an injection and a kernel change of 0."""
+def test_a_model_of_constant_tags_is_refused() -> None:
+    """Every tag constant tells no row apart: refused, as across the family (#1144).
+
+    The model was fitted with a kernel X'X of zeros, which every update left at zeros.
+    """
     X = pd.DataFrame({"a": [2.0] * 5, "b": [-1.0] * 5})
-    model = AdaptivePCA(n_components=2, update_when_out_of_control=True).fit(X)
-    out = model.update(np.array([2.5, -1.0]))
-    assert out.updated
-    np.testing.assert_array_equal(model.XtX_, np.zeros((2, 2)))
-    np.testing.assert_array_equal(model.injection_ratio_, [0.0])
-    np.testing.assert_array_equal(model.kernel_update_norm_, [0.0])
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+        AdaptivePCA(n_components=2, update_when_out_of_control=True).fit(X)
 
 
 def test_one_update_of_a_kernel_of_trace_1() -> None:

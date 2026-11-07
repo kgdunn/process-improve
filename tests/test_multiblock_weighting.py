@@ -213,17 +213,17 @@ class TestNothingLeftInY:
         """Blocks with nothing to explain Y by leave every weight 0, and a new row with no score (#1128).
 
         MBPLS fitted them, and predicted NaN for every new row. PLS refuses the same columns, and
-        so does MBPLS now. The constant columns of the padded block count as constant here too.
+        so does MBPLS now, in the same words (#1144). The constant columns of the padded block count
+        as constant here too.
         """
         _plain, padded, y = blocks
         constant = {name: block * 0.0 + 2.0 for name, block in padded.items()}
-        message = (
-            "^There is no variance in X: every column of every block is constant or has no observed value, "
-            "so there is nothing to explain Y by.$"
-        )
-        with pytest.raises(NotEnoughVarianceError, match=message):
+        message = r"is constant or has no observed value, so there is nothing to explain Y by\.$"
+        with pytest.raises(
+            NotEnoughVarianceError, match=rf"^There is no variance in X: every column of every block {message}"
+        ):
             MBPLS(n_components=1, algorithm=algorithm).fit(constant, y)
-        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for X"):
+        with pytest.raises(NotEnoughVarianceError, match=rf"^There is no variance in X: every column {message}"):
             PLS(n_components=1).fit(pd.concat(constant.values(), axis=1), y)
 
     def test_mbpls_refuses_blocks_with_no_observed_value_as_pls_does(self, blocks: tuple) -> None:

@@ -50,6 +50,7 @@ from ._common import (
     check_response_block,
     check_variance_left,
     check_whole,
+    check_x_varies,
     constant_columns,
     epsqrt,
     largest_ssq_column,
@@ -945,6 +946,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         PLS
             Model object.
 
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value over the rows
+            the fit uses, as across the family (#1144).
+
         Warns
         -----
         UserWarning
@@ -1041,6 +1048,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # An imputed fit (md_method "tsr" / "pmp") re-estimates the scaling from the
         # completed data every round, so it needs the blocks before this first scaling.
         unscaled_x, unscaled_y = X, Y
+        # Over the rows the fit uses, as the scaling is: a row of weight 0 is left out of both (#1144)
+        check_x_varies([X if sample_weight is None else X[sample_weight > 0]], explains_y=True)
         if self._centres_and_scales():
             self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)

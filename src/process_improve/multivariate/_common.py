@@ -1086,13 +1086,56 @@ def unobserved_columns(block: pd.DataFrame, label: str) -> np.ndarray:
     return unobserved
 
 
+def _equal_values(block: pd.DataFrame) -> np.ndarray:
+    """Return, per column, whether its observed values are all equal, as :class:`MCUVScaler` reads a column.
+
+    True also for a column with one observed value, and so for every column of a block of one row.
+    False for a column with no observed value: its NaN maximum and minimum are not equal.
+    """
+    return (block.max() == block.min()).to_numpy()
+
+
+def check_x_varies(blocks: list[pd.DataFrame], *, explains_y: bool) -> None:
+    """Refuse an X in which nothing varies: every column of every block is constant or has no observed value (#1144).
+
+    Such an X tells no row from another, so there is no direction for a component to take. MBPLS
+    refused it; PLS and OPLS refused it at their first component, with another message; PCA and
+    MBPCA fitted it, with scores that told no row apart. The family now refuses it in MBPLS's
+    words, before any warning names its columns. A block with no variance beside one that varies
+    is fitted, with zero weight, and :func:`constant_columns` names it.
+
+    Parameters
+    ----------
+    blocks : list[pd.DataFrame]
+        The blocks of X as the caller gave them, NaN where missing.
+    explains_y : bool
+        Whether X explains a Y, as in PLS, or is described by its components, as in PCA.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no column of any block varies.
+    """
+    if any((~_equal_values(block) & block.notna().to_numpy().any(axis=0)).any() for block in blocks):
+        return
+    where = "every column of every block" if len(blocks) > 1 else "every column"
+    so = "there is nothing to explain Y by" if explains_y else "there is nothing for a component to describe"
+    raise NotEnoughVarianceError(f"There is no variance in X: {where} is constant or has no observed value, so {so}.")
+
+
 def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.ndarray:
     """Return which columns of a training block have no variance, and warn, naming them, if any do (#1114).
 
     A column whose observed values are all equal, or which has one, carries no information about
     how the rows differ. TPLS named it; PCA, PLS, MBPCA and MBPLS fitted it without a word. Its
     wording is now the family's. A column with no observed value is not counted here:
-    :func:`unobserved_columns` names it, for its own cause. One row has no spread to judge.
+    :func:`unobserved_columns` names it, for its own cause. A block of one row has no column that
+    varies.
+
+    A block in which no column varies, beside blocks that do, gets zero weight in the model: its
+    scores, weights and contributions are 0. It is named as a block, in one sentence, rather than
+    column by column (#1144). An X in which nothing varies at all is refused before this is called
+    (:func:`check_x_varies`), and so is a Y.
 
     Only a fit the caller asked for warns. A fit that another routine of this package runs, on a
     cross-validation fold or on a matrix it derived (ASCA's effect matrices, FPCA's basis
@@ -1113,15 +1156,20 @@ def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.n
     np.ndarray of bool, shape (n_features,)
         True for a column with no variance.
     """
-    # An all-NaN column has a NaN maximum and minimum, which are not equal.
-    constant = ((block.max() == block.min()) & (block.shape[0] > 1)).to_numpy()
+    constant = _equal_values(block)
     if constant.any() and _fit_asked_for_by_the_caller(estimator):
-        named = ", ".join(repr(col) for col in block.columns[constant])
-        warnings.warn(  # a UserWarning, warn's default category
-            f"Block {label} has columns with no variance, which carry no information: {named}. Drop them, "
-            "or check the data for a stuck sensor.",
-            stacklevel=user_stacklevel(),
-        )
+        if (constant | block.isna().to_numpy().all(axis=0)).all():
+            message = (
+                f"Block {label} has no variance: every column is constant or has no observed value, so it gets "
+                "zero weight in the model. Drop the block, or check the data for a stuck sensor."
+            )
+        else:
+            named = ", ".join(repr(col) for col in block.columns[constant])
+            message = (
+                f"Block {label} has columns with no variance, which carry no information: {named}. Drop them, "
+                "or check the data for a stuck sensor."
+            )
+        warnings.warn(message, stacklevel=user_stacklevel())  # a UserWarning, warn's default category
     return constant
 
 

@@ -43,6 +43,7 @@ from ._common import (
     check_response_block,
     check_variance_left,
     check_whole,
+    check_x_varies,
     constant_columns,
     epsqrt,
     informative_widths,
@@ -681,7 +682,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         NotEnoughVarianceError
             If every column of Y, or every column of every X-block, is constant or has no observed
             value, or if Y has no variance left for a component, as when it is fitted exactly: as
-            :meth:`PLS.fit` raises.
+            :meth:`PLS.fit` raises. A block with no variance beside one that varies is fitted with
+            zero weight: its block scores, weights and contributions are 0, and a warning names it.
         """
         check_at_least_one("n_components", self.n_components)
         y = _own_axes(_validate_fit_arguments(X, y))
@@ -707,12 +709,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 "There is no variance in Y: every response is constant or has no observed value, "
                 "so there is nothing for X to explain."
             )
-        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128)
-        if sum(ssq(values) for values in x_blocks_pp.values()) < epsqrt:  # pragma: no mutate - <= as for Y above
-            raise NotEnoughVarianceError(
-                "There is no variance in X: every column of every block is constant or has no observed value, "
-                "so there is nothing to explain Y by."
-            )
+        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128), in the family's words
+        check_x_varies([X[name] for name in self.block_names_], explains_y=True)
         # Named once the blocks are not refused, so an X or a Y with no variance at all gets that error alone
         for name in self.block_names_:
             constant_columns(X[name], f'X["{name}"]', self)
