@@ -135,6 +135,9 @@ function sheet(z) {
   const middle = !overview && TERM_GAP * z < SUB_LABEL_GAP;   // sub-topics named, their terms not yet
   const { font, dot, line } = sizes(z);
   const size = px(dot);
+  // An arrowhead `length` px long on a line `width` px wide. Cytoscape draws it 0.3 x max((13.37 x width)^0.9, 29) drawing
+  // units long, a floor that grows on screen with the zoom, so the scale is solved for the length wanted.
+  const arrow = (width, length) => length / (0.3 * Math.max(Math.pow(13.37 * px(width), 0.9), 29) * z);
   const famRules = Object.entries(FAMILIES).map(([k, [, shape]]) =>
     ({ selector: `.fam-${k}`, style: { shape, "background-color": css(`--map-${k}`) } }));
   return [
@@ -182,10 +185,10 @@ function sheet(z) {
     ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.85),
       color: css("--fg"), "text-rotation": "autorotate", "text-background-color": css("--panel"),
       "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
-      "target-arrow-color": css("--muted"), "arrow-scale": 0.7 } }] : []),
+      "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
-    { selector: ".link.hl", style: { display: "element", width: px(line * 2), "line-color": css("--accent"), "target-arrow-shape": "triangle",
-      "target-arrow-color": css("--accent"), "arrow-scale": 0.9, "line-opacity": 1, "z-index": 15 } },
+    { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
+      "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
     { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },

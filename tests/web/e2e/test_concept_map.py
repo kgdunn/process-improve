@@ -330,6 +330,28 @@ def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site)
     assert page.is_checked("#verbs"), "the choice is remembered"
 
 
+# A lit link's line width and arrowhead length on screen, beside a term's dot and an ordinary link: Cytoscape draws
+# the triangle 0.3 x max((13.37 x width)^0.9, 29) x arrow-scale drawing units long.
+ARROW = """() => { const cy = window.conceptMap.cy, z = cy.zoom();
+  const lit = cy.edges('.link.hl')[0], plain = cy.edges('.link').not('.hl')[0], dot = cy.nodes('.term.nb')[0];
+  const width = parseFloat(lit.style('width'));
+  const head = 0.3 * Math.max(Math.pow(13.37 * width, 0.9), 29) * parseFloat(lit.style('arrow-scale')) * z;
+  return { head, dot: dot.renderedWidth(), line: width * z, plain: parseFloat(plain.style('width')) * z }; }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_lit_link_s_arrowhead_matches_a_term_and_its_line_is_not_bold(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    for deepest in (False, True):
+        if deepest:
+            page.evaluate("() => { const cy = window.conceptMap.cy; cy.zoom(cy.maxZoom()); }")
+            _settled(page)
+        drawn = page.evaluate(ARROW)
+        assert drawn["head"] == pytest.approx(drawn["dot"], rel=0.05), f"arrowhead against a term's dot: {drawn}"
+        assert drawn["line"] <= 1.3 * drawn["plain"], f"a lit line against an ordinary one: {drawn}"
+
+
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_the_deepest_zoom_sets_the_closest_terms_far_apart(context, site):
     page = _open(context, site)
