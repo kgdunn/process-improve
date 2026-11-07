@@ -4581,13 +4581,16 @@ function showWhatIf(result) {
   checkKeptLimits();
 }
 
-/** Build a control for each factor, once a study: a slider and a number box over a numeric factor's range, a list of a categorical one's levels. */
+/**
+ * Build a control for each factor, once a study and again when a factor's label or range changes: a slider and a
+ * number box over a numeric factor's range, a list of a categorical one's levels.
+ */
 function renderWhatIfControls() {
   const box = $("#what-if-settings");
-  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels]));
+  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+  const key = JSON.stringify(state.whatIf.factors.map((f) => [f.name, f.low, f.high, f.levels, units[f.name]]));
   if (box.dataset.key === key) return;
   box.dataset.key = key;
-  const units = Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
   box.replaceChildren(...state.whatIf.factors.map((f) => whatIfControl(f, units[f.name])));
 }
 

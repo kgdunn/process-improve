@@ -521,10 +521,11 @@ function closeInside() {
   hooks.changed();
 }
 
-/** A slider and a number box for each factor held, as the reader set them. */
+/** A slider and a number box for each factor held, as the reader set them, made again when a factor held changes. */
 function renderHeld() {
   const holder = $("#slice-held");
-  const wanted = JSON.stringify([inside.x, inside.y, Object.keys(inside.at)]);
+  const held = Object.keys(inside.at);
+  const wanted = JSON.stringify([inside.x, inside.y, held, held.map(endsOf)]);
   $("#h-slice").textContent = `${inside.x} and ${inside.y}, with the other factors held at:`;
   if (holder.dataset.held === wanted) return;
   holder.dataset.held = wanted;
