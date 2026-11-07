@@ -95,6 +95,24 @@ def test_a_blend_made_only_of_a_lot_with_no_observed_property_is_refused_at_the_
             TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
+# --------------------------------------------------------------------------- VIP
+def test_the_vip_of_d_is_spread_over_the_properties_that_vary() -> None:
+    """A constant property has a VIP of 0, and the squared VIPs of D sum to the count of properties that vary.
+
+    The D weights of each component have unit length over all the groups, so the squared VIPs sum to the
+    width they are scaled by: five here, not the six columns of D (#913).
+    """
+    d_matrix, blocks = _blocks()
+    d_matrix["A"]["p3"] = 1.0
+    with pytest.warns(UserWarning, match=r'^Block D\["A"\] has columns with no variance'):
+        model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+    vip = model.vip("D")
+
+    assert vip["A"]["p3"] == 0.0
+    assert sum(float((values**2).sum()) for values in vip.values()) == pytest.approx(5.0, rel=1e-12)
+
+
 # --------------------------------------------------------------------------- the T² ellipse
 @pytest.mark.parametrize("judged_rows", ["fitted", "new"])
 def test_the_ellipse_judges_the_rows_it_is_asked_to(judged_rows: str) -> None:
