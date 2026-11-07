@@ -6,3 +6,6 @@
   study started while runs were added left "Adding the runs..." busy on the status line. Python's
   answer is now dropped when the study that asked for it is no longer on the page, and its busy
   note goes with it. (#1169)
+- **The worked example, shown after a study whose runs give curves, no longer stops with an
+  error.** The fit of the other study's curves stayed on the page, and the example's what-if panel
+  looked for a curve the example does not have. A new run sheet now starts without a fit. (#1169)
