@@ -9,6 +9,9 @@ the proxy directly and asserting its documented exception semantics.
 
 from __future__ import annotations
 
+import importlib
+import sys
+
 import pytest
 
 from process_improve._extras import _extra_message, _MissingExtra, require_extra
@@ -84,3 +87,11 @@ class TestMissingExtraProxy:
         text = str(info.value)
         assert "'process-improve[plotting]'" in text
         assert "'process-improve[all]'" in text
+
+
+def test_the_mcp_server_without_the_mcp_extra_says_which_extra_to_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``process-improve-mcp`` on the bare package names the extra, not only ``No module named 'mcp'``."""
+    monkeypatch.setitem(sys.modules, "mcp.server.mcpserver", None)  # importing it now raises ImportError
+    monkeypatch.delitem(sys.modules, "process_improve.mcp_server", raising=False)
+    with pytest.raises(ImportError, match=r"pip install 'process-improve\[mcp\]'"):
+        importlib.import_module("process_improve.mcp_server")

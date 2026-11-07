@@ -8550,9 +8550,12 @@
       "quote": "q = 16 log10(333.7) − 4[log10 400.7 + log10 280.3 + log10 421.3 + log10 232.5] = 0.21"
      },
      "check": {
-      "manual": "a step of Bartlett's test, which the library does not have (it is 0.2071 from the variances checked here)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "bartlett_test",
+      "by": "power",
+      "key": "q"
+     },
+     "analysis": "the library's bartlett_test of the etch rates at the four powers: q, the pooled variance's base-10 log on 16 degrees of freedom less the four variances' on 4 each"
     },
     {
      "what": "c",
@@ -8564,9 +8567,12 @@
       "quote": "c = 1 + 1/(3(3)) (4/4 − 1/16) = 1.10"
      },
      "check": {
-      "manual": "a step of Bartlett's test, which the library does not have: arithmetic on the group sizes (it is 1.1042)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "bartlett_test",
+      "by": "power",
+      "key": "c"
+     },
+     "analysis": "the library's bartlett_test of the etch rates at the four powers: c, the correction that the group sizes alone set"
     },
     {
      "what": "chi-square",
@@ -8578,9 +8584,12 @@
       "quote": "χ²0 = 2.3026 (0.21)/(1.10) = 0.43"
      },
      "check": {
-      "manual": "Bartlett's test, which the library does not have (scipy.stats.bartlett gives 0.4335)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "bartlett_test",
+      "by": "power",
+      "key": "statistic"
+     },
+     "analysis": "the library's bartlett_test of the etch rates at the four powers: χ²0 = 2.3026 q/c on 3 degrees of freedom"
     },
     {
      "what": "chi-square percentage point",
@@ -8611,9 +8620,14 @@
       "quote": "the P-value is P = 0.934"
      },
      "check": {
-      "manual": "Bartlett's test, which the library does not have (scipy.stats.bartlett gives P = 0.9332, from the unrounded statistic)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "bartlett_test",
+      "by": "power",
+      "key": "p_value",
+      "disagreement": "the book refers χ²0 rounded to 0.43 to χ² on 3 degrees of freedom, which gives 0.9340; the unrounded 0.4335 gives 0.9332",
+      "cause": "source_rounding"
+     },
+     "analysis": "the library's bartlett_test of the etch rates at the four powers: the level of χ²0 on 3 degrees of freedom"
     },
     {
      "what": "variances",
@@ -13820,9 +13834,12 @@
       "quote": "H = (1/34.97)[2796.30 − 2205] = 16.91"
      },
      "check": {
-      "manual": "The Kruskal-Wallis test is not in the library; H is the treatment sum of squares of the ranks, 591.30 by the library's analysis of variance, over their variance, 34.97, which is checked: 16.907 (scipy.stats.kruskal gives 16.907)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "kruskal_wallis_test",
+      "by": "power",
+      "key": "statistic"
+     },
+     "analysis": "the library's kruskal_wallis_test of the etch rates at the four powers: H, the sum of squares of the ranks between the powers, 591.30, over the ranks' variance, 34.97"
     },
     {
      "what": "chi-square percentage point",
@@ -13853,9 +13870,15 @@
       "quote": "the P-value is P = 7.38 × 10⁻⁴"
      },
      "check": {
-      "manual": "The Kruskal-Wallis test is not in the library (scipy.stats.kruskal gives 7.386 × 10⁻⁴)",
-      "cause": "library_gap"
-     }
+      "kind": "classical_test",
+      "function": "kruskal_wallis_test",
+      "by": "power",
+      "key": "p_value",
+      "printed": "7.38e-4",
+      "disagreement": "the book refers H rounded to 16.91 to χ² on 3 degrees of freedom, which gives 7.375 × 10⁻⁴; the unrounded 16.907 gives 7.386 × 10⁻⁴",
+      "cause": "source_rounding"
+     },
+     "analysis": "the library's kruskal_wallis_test of the etch rates at the four powers: the level of H on 3 degrees of freedom"
     }
    ]
   },
