@@ -254,8 +254,8 @@ which variable moved, and how confident a prediction is.
 `fit()` returns `self`, fitted attributes end with an underscore (`scores_`, `loadings_`,
 `spe_`, `hotellings_t2_`, `r2_cumulative_`, ...), `predict()` returns predictions, and
 `diagnose()` returns an `sklearn.utils.Bunch` with named fields such as `spe` and
-`hotellings_t2`. Pipelines that mix scaled numeric and one-hot encoded columns, and the
-current gaps, are in
+`cumulative_hotellings_t2`. Pipelines that mix scaled numeric and one-hot encoded columns,
+and the current gaps, are in
 [SKLEARN_COMPATIBILITY.md](https://github.com/kgdunn/process-improve/blob/main/SKLEARN_COMPATIBILITY.md).
 
 ## Installation

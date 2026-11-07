@@ -86,7 +86,7 @@ def _pca_case() -> Callable[[bool], Diagnosed]:
         result = model.diagnose(_with_gaps(scaled) if gaps else scaled)
         return {
             "scores": result.scores.to_numpy(),
-            "t2": result.hotellings_t2.iloc[:, -1].to_numpy(),
+            "t2": result.cumulative_hotellings_t2.iloc[:, -1].to_numpy(),
             "spe": result.spe.to_numpy(),
         }
 
@@ -101,7 +101,7 @@ def _pls_case() -> Callable[[bool], Diagnosed]:
         result = model.diagnose(_with_gaps(X) if gaps else X)
         return {
             "scores": result.scores.to_numpy(),
-            "t2": result.hotellings_t2.to_numpy(),
+            "t2": result.cumulative_hotellings_t2.iloc[:, -1].to_numpy(),
             "spe": result.spe.to_numpy(),
             "y_hat": result.y_hat.to_numpy(),
         }
@@ -119,7 +119,7 @@ def _multiblock_case(estimator: type) -> Callable[[], Callable[[bool], Diagnosed
             result = model.diagnose(_blocks(_with_gaps(X) if gaps else X))
             out = {
                 "scores": result.super_scores.to_numpy(),
-                "t2": result.hotellings_t2.to_numpy(),
+                "t2": result.cumulative_hotellings_t2.iloc[:, -1].to_numpy(),
                 "spe": np.column_stack([spe.to_numpy() for spe in result.block_spe.values()]),
             }
             if estimator is MBPLS:
@@ -145,7 +145,7 @@ def _tpls_case() -> Callable[[bool], Diagnosed]:
         result = model.diagnose(DataFrameDict(new))
         return {
             "scores": result.t_scores_super.to_numpy(),
-            "t2": result.hotellings_t2.iloc[:, -1].to_numpy(),
+            "t2": result.cumulative_hotellings_t2.iloc[:, -1].to_numpy(),
             "spe": np.column_stack(
                 [frame.iloc[:, -1].to_numpy() for group in result.spe.values() for frame in group.values()]
             ),
@@ -205,7 +205,7 @@ def test_pca_scores_a_row_with_a_missing_cell_as_project_does_by_default(
     projected, result = model.project(rows), model.diagnose(rows)
     pd.testing.assert_frame_equal(result.scores, projected.scores, rtol=1e-12, atol=1e-14)
     pd.testing.assert_frame_equal(model.transform(rows), result.scores)
-    np.testing.assert_allclose(result.hotellings_t2.iloc[:, -1], projected.hotellings_t2, rtol=1e-12)
+    np.testing.assert_allclose(result.cumulative_hotellings_t2.iloc[:, -1], projected.hotellings_t2, rtol=1e-12)
     np.testing.assert_allclose(result.spe, projected.spe, rtol=1e-12)
 
 
@@ -222,7 +222,7 @@ def test_pls_scores_and_predicts_a_row_with_a_missing_cell_as_project_does_by_de
     pd.testing.assert_frame_equal(model.transform(rows), result.scores)
     pd.testing.assert_frame_equal(result.y_hat, projected.y_hat, rtol=1e-12)
     pd.testing.assert_frame_equal(model.predict(rows), result.y_hat)
-    np.testing.assert_allclose(result.hotellings_t2, projected.hotellings_t2, rtol=1e-12)
+    np.testing.assert_allclose(result.cumulative_hotellings_t2.iloc[:, -1], projected.hotellings_t2, rtol=1e-12)
     np.testing.assert_allclose(result.spe, projected.spe, rtol=1e-12)
     assert result.residuals.isna().equals(rows.isna())
     np.testing.assert_allclose(np.sqrt((result.residuals**2).sum(axis=1)), result.spe, rtol=1e-12)
@@ -237,7 +237,7 @@ def test_a_row_with_nothing_observed_is_still_nan(
         empty.loc["r0"] = np.nan
         result = model.diagnose(empty)
         assert result.scores.loc["r0"].isna().all()
-        assert np.isnan(np.asarray(result.hotellings_t2.loc["r0"], dtype=float)).all()
+        assert result.cumulative_hotellings_t2.loc["r0"].isna().all()
         assert np.isnan(result.spe.loc["r0"])
         assert model.transform(empty).loc["r0"].isna().all()
     assert pls_and_rows[0].predict(empty).loc["r0"].isna().all()
@@ -280,9 +280,9 @@ Totals = list[tuple[str, np.ndarray, np.ndarray]]
 def _single_block_totals(model: PCA | PLS, rows: pd.DataFrame) -> Totals:
     """Each contribution's row sum, beside the number it splits, as ``diagnose`` gives it."""
     result = model.diagnose(rows)
-    t2 = np.asarray(result.hotellings_t2, dtype=float)
+    t2 = result.cumulative_hotellings_t2.iloc[:, -1].to_numpy()
     totals = [
-        ("T2", model.t2_contributions(rows).sum(axis=1).to_numpy(), t2[:, -1] if t2.ndim == 2 else t2),
+        ("T2", model.t2_contributions(rows).sum(axis=1).to_numpy(), t2),
         ("SPE", (model.spe_contributions(rows) ** 2).sum(axis=1).to_numpy(), result.spe.to_numpy() ** 2),
     ]
     for a in (1, 2):
