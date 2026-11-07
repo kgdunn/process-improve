@@ -456,6 +456,8 @@ const state = {
   version: null, // the process-improve release Python runs, once it has started
   runtime: null, // the Python, packages and Pyodide it runs on, which a report names
 };
+/** One more each time another study takes the page: a run sheet asked for by the one before is dropped. */
+let studyTicket = 0;
 let seed = 1;
 let catalogue = null;
 let pythonReady = false;
@@ -1741,12 +1743,14 @@ function studySeed() {
  */
 async function generate({ randomState } = {}) {
   cancelCandidates(); // the reader has chosen: the designs can wait until Design is shown again
+  const study = studyTicket;
   let key = planKey();
   const factors = readFactors();
   const responses = readResponses({ fresh: true });
   const seeded = randomState ?? studySeed();
   const picked = state.picked?.key === key && state.picked.design.spec.options?.random_state === seeded ? state.picked : null;
   const design = picked && (await pickedDesign(picked, factors));
+  if (study !== studyTicket) return false; // another study took the page meanwhile
   if (design) {
     // The design the Design tab made for this plan already: the same runs, with the brief's words on them, and a
     // column for each response where the design had its one response's, last.
@@ -1763,6 +1767,7 @@ async function generate({ randomState } = {}) {
   const button = $("#generate");
   button.disabled = true;
   setStatus("Generating design...", "busy");
+  const generating = statusTicket;
   const spec = {
     design_type: $("#design-type").value,
     factors,
@@ -1786,6 +1791,7 @@ async function generate({ randomState } = {}) {
   const reply = await call("api_make_design", spec);
   button.disabled = false;
   refreshDesign();
+  if (dropped(study !== studyTicket, generating)) return false; // another study took the page meanwhile
   if (!reply.ok) {
     setStatus(reply.error, "error");
     return false;
@@ -1979,7 +1985,8 @@ async function findCandidates({ search = false } = {}) {
   $("#candidates").removeAttribute("aria-busy");
   if (mine !== candidateTicket) return;
   state.comparison = reply.ok ? { key, ...reply.result } : { key, error: reply.error };
-  if (reply.ok && reply.result.result && !designChosen) {
+  // A design is picked from the designs of the brief on the page only: a new study takes none of the brief before's.
+  if (reply.ok && reply.result.result && !designChosen && key === candidateKey()) {
     const picked = pickCandidate(candidateRows(reply.result.result, reply.result.made));
     if (picked) pickDesign(picked, { byReader: false });
   }
@@ -3160,6 +3167,7 @@ async function readUpload(file) {
   $("#demo-banner").hidden = true;
   $("#campaign-banner").hidden = true;
   flushSave();
+  studyTicket += 1;
   setForm(r.spec);
   state.design = { spec: r.spec, columns: r.columns, rows: r.rows, model: r.spec.model, facts: null };
   state.planKey = planKey();
@@ -5158,6 +5166,7 @@ async function showBuiltExample() {
     return true;
   }
   flushSave();
+  studyTicket += 1;
   $("#campaign-banner").hidden = true;
   setForm(example.inputs.design);
   $("#scenario").value = example.inputs.scenario;
@@ -5216,6 +5225,7 @@ async function runExample() {
   }
   const example = catalogue.demo;
   flushSave();
+  studyTicket += 1;
   setForm(example.design);
   $("#scenario").value = example.scenario;
   $("#sigma").value = example.sigma;
@@ -5243,6 +5253,7 @@ function showScenarioHint() {
 /** Clear the page for a new study: an empty brief, no run sheet and no analysis, in Design, at the response. */
 function newStudy() {
   flushSave();
+  studyTicket += 1;
   cancelCandidates();
   Object.assign(state, {
     design: null,
@@ -5667,6 +5678,7 @@ function showBanner(message, error = false) {
  */
 async function openCampaign(c, record, message) {
   flushSave();
+  studyTicket += 1;
   $("#demo-banner").hidden = true;
   setForm(c.design.spec);
   state.campaign = { ...record, title: c.title || titleOf(c.design.spec), ...(c.source ? { source: c.source } : {}) };
