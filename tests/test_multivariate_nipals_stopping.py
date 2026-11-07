@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.multivariate._common import resolve_loop_settings
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
@@ -192,3 +193,16 @@ def test_a_block_with_nothing_left_is_refused_in_any_units(units: float) -> None
         PLS(n_components=1, scale=False).fit(zeros, Y * units)
     with pytest.raises(NotEnoughVarianceError, match=r"for Y: .* beyond component 0\.$"):
         PLS(n_components=1, scale=False).fit(X * units, Y * 0.0)
+
+
+def test_pca_nipals_itself_refuses_a_block_of_zeros() -> None:
+    """``fit`` refuses such an X first, but not a refit that another routine makes on the caller's behalf.
+
+    The block's size is then 0, and nothing left is still judged against it at 0 (#1070): NIPALS raises
+    rather than return a component of zeros.
+    """
+    zeros = np.array([[0.0, np.nan], [0.0, 0.0], [np.nan, 0.0]])
+    settings = resolve_loop_settings(tol=1e-8, max_iter=500, missing_data_settings=None)
+    message = "There is no variance left in the data array: cannot compute any more components beyond component 0."
+    with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
+        PCA(n_components=1)._fit_nipals(zeros, 3, 2, 1, settings)
