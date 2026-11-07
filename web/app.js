@@ -355,7 +355,7 @@ const STATUS_WAIT = 400;
 let statusTimer = null;
 /** One more each time the status line is set, so a reply can tell whether the page said something after it was asked. */
 let statusTicket = 0;
-/** The status ticket of Python's last note on how far it has got, such as installing plotly: the call's end replaces it. */
+/** The status ticket of Python's last note on how far it has got, such as having installed plotly: the charts may replace it. */
 let pythonSaid = 0;
 
 /**
