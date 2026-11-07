@@ -4,6 +4,7 @@
 //
 // map/graph.json is built and checked against the book in pid-book's knowledge-graph/ (build_kg.py, layout_kg.py),
 // where every term quotes the line of the book it comes from: to update the map, copy doe_kg_map.json from there.
+// This is the graph's only viewer: pid-book holds the data, and a change to how the map looks is made here alone.
 import cytoscape from "./vendor/cytoscape.mjs";
 import { MODES, nextMode } from "./logic.js";
 
@@ -590,6 +591,7 @@ function renderHow() {
   // The folder to copy, and its README, as they are now on the book's main branch: the newest code to start from.
   const folder = "https://github.com/kgdunn/pid-book/tree/main/knowledge-graph";
   const readme = "https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/README.md";
+  const app = "https://github.com/kgdunn/process-improve/tree/main/web";
   const verbs = new Set(DATA.edges.map(e => e.type)).size;
   // A kind of term in the words, drawn with its shape and colour on the map and in the legend.
   const kind = (f, words) => `<span class="map-kind"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}"
@@ -685,7 +687,10 @@ function renderHow() {
           <code>.txt</code>, ideally under git. Every term cites a file and a line, so the build checks the lines again
           whenever the texts change.</li>
         <li><b>Copy the folder</b> <code>knowledge-graph/</code> beside your texts. <code>graph.yaml</code> is the one
-          file you write; the scripts make the rest from it.</li>
+          file you write; the scripts make the rest from it. The page that draws it is this one: copy, from
+          <a href="${app}" target="_blank" rel="noopener">the app's web folder</a>, <code>map/index.html</code>,
+          <code>map.js</code>, <code>logic.js</code>, <code>style.css</code>, <code>favicon.svg</code> and
+          <code>vendor/cytoscape.mjs</code>, in the same places.</li>
         <li><b>Write the terms</b> under <code>nodes:</code> in <code>graph.yaml</code>: for each, an <code>id</code>,
           a <code>name</code>, a <code>type</code>, a <code>definition</code> of at most 32 words, the file that explains
           it (<code>book_label: file:notes/topic.md</code>), and the line it comes from
@@ -694,7 +699,7 @@ function renderHow() {
           <code>[source, VERB, target, "notes/topic.md:52"]</code>.</li>
         <li><b>Make the vocabulary yours.</b> In <code>build_kg.py</code>: your folders in order
           (<code>CHAPTERS</code>), your types of term (<code>TYPES</code>) and your verbs (<code>VERBS</code>). In
-          <code>template.html</code>: how each verb reads from both ends (<code>READ</code>), which type takes which of
+          <code>map.js</code>: how each verb reads from both ends (<code>READ</code>), which type takes which of
           the five shapes (<code>FAMILY</code>), the address of a file once published (<code>bookUrl</code>), and this
           explanation. In <code>layout_kg.py</code>: one term from each topic with the name to draw for it
           (<code>NAMES</code>); the build stops until every topic has exactly one.</li>
@@ -702,7 +707,8 @@ function renderHow() {
           <code>uv run --no-project --with pyyaml==6.0.1 python -I build_kg.py path/to/your/texts</code> checks every
           quote against its line and lists each one that does not match; then
           <code>uv run --no-project --with networkx==3.4.2 --with numpy==2.5.3 python -I layout_kg.py</code> finds the
-          topics and writes <code>experimental-design-graph.html</code>. Open that in a browser.</li>
+          topics and writes <code>doe_kg_map.json</code>. Copy it to <code>map/graph.json</code>, serve the web folder
+          (<code>python -m http.server</code>) and open <code>map/</code> in a browser.</li>
         <li><b>Have it reviewed</b> before others rely on it: every term and link checked against the texts, by
           colleagues or by AI reviewers whose quotes the build then verifies. That is most of the work: here the first
           draft took one pass, and getting it right took seven reviews.</li>

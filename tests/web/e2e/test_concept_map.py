@@ -268,6 +268,8 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     assert (
         guide.locator("a", has_text="README").get_attribute("href") == f"{folder.replace('/tree/', '/blob/')}/README.md"
     )
+    page_files = guide.locator("a", has_text="the app's web folder").get_attribute("href")
+    assert page_files == "https://github.com/kgdunn/process-improve/tree/main/web", "the one page that draws a graph"
     assert f"{GRAPH['method']['single_median']:.2f}" in numbers
     for topic in (c for c in GRAPH["clusters"] if c.get("moved")):
         assert f"{topic['agreement']:.2f}" in numbers
