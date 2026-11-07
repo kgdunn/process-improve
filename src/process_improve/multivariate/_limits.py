@@ -75,7 +75,12 @@ def judged_rows_note(conf_level: float, n_components: int, n_rows: int, judged_r
     if judged_rows is not None:
         return None
     new = _t2_limit(conf_level, n_components, n_rows, "new")
-    fitted = _t2_limit(conf_level, n_components, n_rows, "fitted")
+    fitted = _t2_limit(
+        conf_level,
+        n_components,
+        n_rows,
+        "fitted",  # pragma: no mutate - _t2_limit reads any value but "new" as the rows fitted to
+    )
     if new == fitted:
         return None
     return (
