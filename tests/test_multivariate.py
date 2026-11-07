@@ -75,8 +75,10 @@ from process_improve.multivariate.methods import (
     hotellings_t2_limit,
     internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
+    meda,
     nan_to_zeros,
     observation_contributions,
+    omeda,
     predictions_vs_observed_plot,
     project_variables,
     pseudo_validation_set,
@@ -8529,6 +8531,23 @@ def test_score_and_group_contributions_by_hand() -> None:
     pd.testing.assert_series_equal(shift, pd.Series([0.0, 2.0], index=["a", "b"], name="group_contributions"))
     weights = pd.Series([0.5, -1.0, 0.5], dtype=object)
     pd.testing.assert_series_equal(group_contributions(model, X.astype(object), weights=weights, component=2), shift)
+
+
+def test_meda_and_omeda_by_hand_read_object_data_as_numbers() -> None:
+    """With the identity as loadings the model reproduces everything, so MEDA is ``S_jk |S_jk| / (S_jj S_kk)``.
+
+    ``S = X'X`` is ``[[10, 14], [14, 21]]``, so the off-diagonal entry is ``196 / 210 = 14/15``. oMEDA of
+    r1 and r3 against r2 has the dummy ``(1, -1, 1)``, so ``X'd = (4, 5)`` and the values are
+    ``(16, 25) / sqrt(3)``. Data held as Python objects, which the model hands on as they are, give
+    the same floats.
+    """
+    model = _identity_model(2)
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    expected = pd.DataFrame([[1.0, 14 / 15], [14 / 15, 1.0]], index=X.columns, columns=X.columns)
+    shift = pd.Series([16.0, 25.0], index=X.columns, name="omeda") / np.sqrt(3.0)
+    for data in (X, X.astype(object)):
+        pd.testing.assert_frame_equal(meda(model, data), expected, rtol=1e-15)
+        pd.testing.assert_series_equal(omeda(model, data, group=["r1", "r3"], reference=["r2"]), shift, rtol=1e-15)
 
 
 @pytest.mark.parametrize(
