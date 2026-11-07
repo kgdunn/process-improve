@@ -2,6 +2,6 @@
   links.** The colour-mode button sits beside the back link and is kept with the rest of the app. Each topic and
   sub-topic shows its number of terms in square brackets on a second line, and the sub-topics appear a little sooner as
   you zoom in. What the map shows is now set beside the search, and the zoom buttons stay below the map: "Term names"
-  (the former Aa button) and a new "Link labels" switch, off by default, which writes each link's verb along its line in
-  italic, with an arrow to show which way it reads; a label that would land on a term waits until zooming in makes room for
-  it. The map zooms in 2.5 to 3 times deeper than before.
+  (the former Aa button) and a new "Link labels" switch, off by default, which writes each link's verb along its line
+  in italic, with an arrow to show which way it reads; a label that would land on a term waits until zooming in makes
+  room for it. The map zooms in 2.5 to 3 times deeper than before.
