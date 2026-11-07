@@ -83,11 +83,14 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     """Return which components hold some of the data's spread: the one rule every Hotelling's T² uses (#1026, #1124).
 
     A component whose training score standard deviation is at most ``epsqrt`` times the largest
-    (or ``epsqrt`` itself while every sd is below 1) holds none of it: the last component of a
-    rank-deficient fit has an sd near 1e-16, for instance. Its standardised score is noise over
-    noise for a training row and enormous for a new row off the model plane, so it adds 0 to T².
-    It is also left out of every matrix that a T² or a trimmed score regression inverts, which it
-    would make singular.
+    holds none of it: the last component of a rank-deficient fit has an sd near 1e-16 times the
+    first, for instance. Its standardised score is noise over noise for a training row and
+    enormous for a new row off the model plane, so it adds 0 to T². It is also left out of every
+    matrix that a T² or a trimmed score regression inverts, which it would make singular.
+
+    The floor is relative to the largest sd in any units. It used to be ``epsqrt`` itself while
+    every sd was below 1, which took every component of data in small units for one with no
+    spread, and gave them a T² of 0 (#1070).
 
     Parameters
     ----------
@@ -101,7 +104,37 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
         True for each component with spread.
     """
     score_sd = np.asarray(score_sd, dtype=float)
-    return score_sd > epsqrt * max(1.0, float(np.max(score_sd)))
+    # fmax skips a NaN sd, as max(1.0, ...) did: that component is left out, the others are not.
+    return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
+
+
+def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
+    """Return the sample standard deviation (``ddof=1``) of each column, missing values skipped, in any units.
+
+    A square overflows beyond about 1e154 and underflows to 0 below about 1e-162, so a standard
+    deviation taken in the data's own units was ``inf`` for data near 1e160 and 0 for data near
+    1e-160 (#1070). Each column is divided first by the power of two just above its largest
+    absolute value, which brings it within (-1, 1), and the result multiplied back. Dividing by a
+    power of two is exact, so a column whose standard deviation did not overflow or underflow
+    gives the same one, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+        The data, with NaN where a value is missing.
+
+    Returns
+    -------
+    np.ndarray of shape (n_features,)
+        The standard deviations, NaN for a column with fewer than two observed values.
+    """
+    values = np.asarray(values, dtype=float)
+    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
+    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    unit = np.ldexp(1.0, exponent)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
+        return np.nanstd(values / unit, axis=0, ddof=1) * unit
 
 
 #: Smallest positive float; used to floor NIPALS denominators away from zero.
@@ -792,15 +825,17 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     """
     if scaling == "none":
         return blocks
-    # A missing cell's contribution is NaN, so both scalings skip NaN, as the single-block
-    # score_contributions does: NaN in the max or a row's sum left the bars unscaled.
+    # A missing cell's contribution is NaN, so both scalings skip NaN: NaN in the max or a
+    # row's sum left the bars unscaled. A largest of 0, or a row whose total is at most epsqrt
+    # times the largest row's, has nothing to scale and is left as it is. Both floors are relative,
+    # so bars in small units are scaled as in units of 1; an absolute epsqrt left them unscaled (#1070).
     if scaling == "maximum":
         largest = max((float(np.nanmax(np.abs(v))) for v in blocks.values() if np.isfinite(v).any()), default=0.0)
-        scalar = largest if largest > epsqrt else 1.0
+        scalar = largest if largest > 0 else 1.0
         return {name: values / scalar for name, values in blocks.items()}
     if scaling == "within":
         totals = sum(np.nansum(np.abs(values), axis=1) for values in blocks.values())
-        per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
+        per_row = np.where(totals > epsqrt * np.max(totals, initial=0.0), totals, 1.0).reshape(-1, 1)
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
