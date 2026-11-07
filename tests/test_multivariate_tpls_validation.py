@@ -731,12 +731,22 @@ def test_more_components_than_d_can_give_are_cut_to_its_rank_with_a_warning() ->
     pd.testing.assert_frame_equal(model.t_scores_super, three.t_scores_super)
 
 
-def test_one_blend_is_refused() -> None:
-    """Its Y column centres to 0, so there is nothing to explain: no component can be fitted."""
+def test_one_blend_is_refused_as_too_few_rows_as_across_the_family() -> None:
+    """One blend is refused as PCA and PLS refuse one row (#1149).
+
+    Its Y column centred to 0, and it was refused as a Y with no variance, which sent the caller to
+    look at the response rather than at the number of blends.
+    """
     d_matrix, blocks = _synthetic()
     one = {name: {key: frame.iloc[:1] for key, frame in block.items()} for name, block in blocks.items()}
-    with pytest.raises(NotEnoughVarianceError, match=r'^There is no variance in Y\["Y1"\]'):
+    message = r"^Found array with 1 sample\(s\) \(shape=\(1, 1\)\) while a minimum of 2 is required by TPLS\.$"
+    with pytest.raises(ValueError, match=message):
         TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(one))
+    # A D of one material is a block of materials, not of blends, and is not counted as rows
+    d_one = {"G": d_matrix["G"].iloc[:1]}
+    f_one = {**blocks, "F": {"G": blocks["F"]["G"].iloc[:, :1]}}
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in F and D"):
+        TPLS(n_components=1, d_matrix=d_one).fit(DataFrameDict(f_one))
 
 
 def test_an_unknown_metric_and_an_empty_y_are_refused_in_full() -> None:

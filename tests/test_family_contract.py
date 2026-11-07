@@ -833,8 +833,6 @@ EDGE_GAPS: dict[tuple[str, str], str] = {
         for name in ("OPLS", "BatchPCA", "BatchPLS")
     },
     ("all-missing column", "AdaptivePCA"): "#1149 aspect 2: leaves the column out without the family's warning",
-    ("one row", "BatchPCA"): "#1149 aspect 7: refused as an X with no variance, not as too few rows",
-    ("one row", "TPLS"): "#1149 aspect 7: refused as a Y with no variance, not as too few rows",
 }
 
 

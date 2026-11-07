@@ -1116,13 +1116,14 @@ class TPLS(RegressorMixin, BaseEstimator):
             msg = f"TPLS fits one Y block; got {list(X['Y'])}."
             raise ValueError(msg)
 
+        # A block of blends needs two of them, as across the family: one would be taken for no variance (#1149)
         for key in X["Y"]:
-            self._validate_df(X["Y"][key], f'Y["{key}"]')
+            self._validate_df(X["Y"][key], f'Y["{key}"]', min_rows=2)
         for key in X["Z"]:
-            self._validate_df(X["Z"][key], f'Z["{key}"]')
+            self._validate_df(X["Z"][key], f'Z["{key}"]', min_rows=2)
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key], f'd_matrix["{key}"]')
-            self._validate_df(X["F"][key], f'F["{key}"]')
+            self._validate_df(X["F"][key], f'F["{key}"]', min_rows=2)
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str) -> tuple[pd.Series, pd.Series]:
         """
@@ -1187,17 +1188,19 @@ class TPLS(RegressorMixin, BaseEstimator):
             if not self.skip_f_matrix_preprocessing_ or self.preproc_["F"][key]["scale"].isna().all():
                 constant_columns(block, f'F["{key}"]', self)
 
-    def _validate_df(self, df: pd.DataFrame, label: str) -> None:
+    def _validate_df(self, df: pd.DataFrame, label: str, min_rows: int = 1) -> None:
         """
         Refuse a block that is not numbers TPLS can use: no columns, a column that is not float64 or
-        int64, an infinite value, or no rows (`check_array` from scikit-learn, whose other defaults hold
-        for a DataFrame). A missing value is allowed.
+        int64, an infinite value, or fewer than ``min_rows`` rows (`check_array` from scikit-learn, whose
+        other defaults hold for a DataFrame). A missing value is allowed.
 
         Parameters
         ----------
         df : {pd.DataFrame}
         label : str
             Where the block sits, as ``'Z["group"]'``, named in the message for a block with no columns.
+        min_rows : int, default=1
+            The fewest rows the block may have.
         """
         refuse_empty_block(df, label)
         # Ensure all columns are dtype "float64" or "int64". (``np.dtypes.IntDType`` is the
@@ -1207,7 +1210,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             raise ValueError(
                 f"All columns in the DataFrame must be of type float64 or int64. Bad columns: {bad_columns}"
             )
-        check_array(df, ensure_all_finite="allow-nan")
+        check_array(df, ensure_all_finite="allow-nan", ensure_min_samples=min_rows, estimator=self)
 
     def _has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray) -> bool:
         """Whether the scores converged: the norm of their change is less than ``tol`` times the norm before it.
