@@ -44,7 +44,7 @@ from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _align_to_fit_features, _nz
 from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
-from process_improve.multivariate._diagnostics import cumulative_block_t2
+from process_improve.multivariate._diagnostics import cumulative_block_t2, t2_precision
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
@@ -2361,6 +2361,24 @@ def test_cumulative_block_t2_by_hand(scores: list, expected: list) -> None:
     t2 = cumulative_block_t2(np.array(scores))
     np.testing.assert_allclose(t2[:, : expected.shape[1]], expected, rtol=1e-14)
     np.testing.assert_array_equal(t2[:, -1], t2[:, expected.shape[1] - 1])
+
+
+def test_t2_precision_by_hand() -> None:
+    """The inverse of the block of the components with spread, and 0 for a component without (#1124).
+
+    The third component, of sd 1e-20 against 2, is left out, so its row and column of ``S`` are not
+    read. The block ``[[4, 1], [1, 2]]`` inverts to ``[[2, -1], [-1, 4]] / 7``, in floats, although
+    ``S`` holds integers.
+    """
+    covariance = np.array([[4, 1, 5], [1, 2, 5], [5, 5, 9]])
+    precision = t2_precision(covariance, np.array([2.0, 1.5, 1e-20]), what="score covariance")
+    np.testing.assert_allclose(precision, [[2 / 7, -1 / 7, 0.0], [-1 / 7, 4 / 7, 0.0], [0.0, 0.0, 0.0]], rtol=1e-15)
+
+
+def test_t2_precision_names_the_matrix_whose_block_is_singular() -> None:
+    """Two components with spread whose block of ``S`` is singular: the error says which matrix it is."""
+    with pytest.raises(np.linalg.LinAlgError, match=r"^reference score scatter is singular or ill-conditioned"):
+        t2_precision(np.ones((2, 2)), np.ones(2), what="reference score scatter")
 
 
 def test_pca_detect_outliers() -> None:
@@ -8216,6 +8234,18 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     )
     assert ratio.attrs["conf_level"] == 0.9
     assert ratio.attrs["response"] == "y"
+
+
+def test_target_projection_of_as_many_rows_as_features_regresses_each_feature_on_the_scores() -> None:
+    """A square X, whose shape cannot say which regression is meant: ``p = X't / t't``, one loading per feature.
+
+    With ``w = (0.6, 0.8)`` the two rows give ``t = (0.6, 0.4)`` and ``t't = 0.52``, so
+    ``p = (1.4, -0.4) / 0.52``.
+    """
+    square = pd.DataFrame([[1.0, 0.0], [2.0, -1.0]], index=["r1", "r2"], columns=["a", "b"])
+    tp = target_projection(_two_feature_tp_model([3.0, 4.0]), square)
+    np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.4], rtol=1e-14)
+    np.testing.assert_allclose(tp.loadings.to_numpy(), [1.4 / 0.52, -0.4 / 0.52], rtol=1e-14)
 
 
 def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
