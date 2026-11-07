@@ -17,6 +17,7 @@ from process_improve.multivariate._nipals import (
     _quick_regress_complete,
     _quick_regress_masked,
     quick_regress,
+    row_regression_divisors,
     ssq,
 )
 from process_improve.multivariate.methods import PCA, PLS
@@ -149,3 +150,26 @@ def test_nipals_pca_is_right_when_the_block_is_square() -> None:
     x = (x - x.mean(axis=0)) / x.std(axis=0, ddof=1)
     p = PCA(n_components=1, algorithm="nipals").fit(x).loadings_.to_numpy()[:, 0]
     assert abs(p @ np.linalg.svd(x)[2][0]) == pytest.approx(1.0, abs=1e-8)
+
+
+@pytest.mark.parametrize("units", [1e-6, 1.0, 1e6])
+def test_the_row_divisors_split_the_per_row_coefficient_in_any_units(units: float) -> None:
+    """Each row's coefficient is its present ``y_k x_k`` over the divisor, whatever the units of ``x`` (#1144).
+
+    The divisor is ``x'x`` over the row's present cells. A row whose present cells meet only the zeros
+    of ``x`` keeps no signal: its divisor is inf and its coefficient 0, as quick_regress gives it.
+    """
+    y = np.array([[1.0, 2.0, np.nan, 4.0], [np.nan, -1.0, 3.0, 0.5], [np.nan, np.nan, np.nan, 2.0]])
+    x = np.array([0.5, -1.0, 2.0, 0.0]) * units
+    by_hand = np.array([0.25 + 1.0, 1.0 + 4.0, np.inf]) * units**2
+    divisors = row_regression_divisors(y, x)
+    np.testing.assert_allclose(divisors, by_hand, rtol=1e-14)
+    terms = np.nansum(y * x, axis=1) / divisors
+    np.testing.assert_allclose(terms, quick_regress(y, x[:, np.newaxis], per="row").ravel(), rtol=1e-14)
+    assert terms[2] == 0.0
+
+
+def test_an_all_zero_x_gives_every_row_an_infinite_divisor() -> None:
+    """With ``x'x`` of 0 no row keeps any signal: every divisor is inf, so every term is 0, not 0/0."""
+    y = np.array([[1.0, np.nan, 3.0], [2.0, 5.0, -1.0]])
+    np.testing.assert_array_equal(row_regression_divisors(y, np.zeros(3)), [np.inf, np.inf])

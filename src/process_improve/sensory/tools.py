@@ -363,7 +363,10 @@ class _PanelCheckInput(BaseModel):
         "'mam' has "
         "'scaling' (rows of attribute, panelist_id, beta, offset, mean) and 'ftests' (rows of attribute, "
         "f_product_mam, p_product_mam, f_product_classical, p_product_classical, df_product, "
-        "df_disagreement). With align=true an 'aligned_panel' (rescaled descriptive_long rows) is added. "
+        "df_disagreement, note). An F-test is null when it cannot be computed, and 'note' says why: for "
+        "an attribute where a panelist did not score every product it names those panelists and "
+        "products; it is empty when both F-tests are computed. "
+        "With align=true an 'aligned_panel' (rescaled descriptive_long rows) is added. "
         "On missing columns it returns {ok: false, errors: [str]}."
     ),
     input_model=_PanelCheckInput,

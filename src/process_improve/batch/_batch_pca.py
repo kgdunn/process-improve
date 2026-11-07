@@ -28,7 +28,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
-from ..multivariate._common import DiagnoseResult
+from ..multivariate._common import DiagnoseResult, check_x_varies
 from ..multivariate._diagnostics import score_contributions as _score_contributions
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
 from ..multivariate._diagnostics import t2_contributions as _t2_contributions
@@ -42,7 +42,7 @@ from ..multivariate.plots import loading_plot as _loading_plot
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
-from ._common import inner_method
+from ._common import contribution_method, inner_method
 from ._online import (
     coerce_single_initial_conditions,
     forecast_frame,
@@ -137,7 +137,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     >>> from process_improve.batch import BatchPCA, load_nylon, resample_to_reference
     >>> batches = load_nylon()
     >>> tags = list(next(iter(batches.values())).columns)
-    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch="1")
+    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
     >>> model = BatchPCA(n_components=3).fit(aligned)
     >>> model.scores_.shape
     (57, 3)
@@ -246,6 +246,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         """
         self._validate_params()
         wide = self._unfold(X, initial_conditions)
+        check_x_varies([wide], explains_y=False)  # as PCA refuses it when the caller fits it (#1144)
 
         scaler = MCUVScaler().fit(wide)
         if not self.scale:
@@ -330,9 +331,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         Returns
         -------
         pd.DataFrame of shape (n_new_batches, n_components)
-            Batch-level scores, indexed by batch identifier.
+            Batch-level scores, indexed by batch identifier, in the order of ``X``.
         """
-        return self._pca.transform(self._scaled_wide(X, initial_conditions))
+        # In the caller's order, as BatchPLS gives it: unfolding sorts the rows by batch id (#1184).
+        return self._pca.transform(self._scaled_wide(X, initial_conditions).reindex(list(X)))
 
     def fit_transform(
         self,
@@ -341,9 +343,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         *,
         initial_conditions: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
-        """Fit the model and return the training batch scores."""
+        """Fit the model and return the training batch scores, in the order of ``X``, as :meth:`transform` does."""
         self.fit(X, y, initial_conditions=initial_conditions)
-        return self.scores_
+        return self.scores_.reindex(list(X))
 
     def diagnose(
         self,
@@ -365,14 +367,14 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         Returns
         -------
         result : sklearn.utils.Bunch
-            With keys ``scores`` (DataFrame, one row per batch),
+            With keys ``scores`` (DataFrame, one row per batch, in the order of ``X``),
             ``cumulative_hotellings_t2`` (DataFrame, cumulative per component,
             as in ``hotellings_t2_``), and ``spe`` (Series). Compare against
             :meth:`hotellings_t2_limit` with ``judged_rows="new"`` and
             :meth:`spe_limit` to flag abnormal batches. ``hotellings_t2``, the
             same DataFrame, is deprecated since 2.4.0 and is removed in 3.0.
         """
-        result = self._pca.diagnose(self._scaled_wide(X, initial_conditions))
+        result = self._pca.diagnose(self._scaled_wide(X, initial_conditions).reindex(list(X)))
         return DiagnoseResult("batch.BatchPCA", **dict(result))
 
     def predict_online(
@@ -567,10 +569,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         pd.DataFrame of shape (n_batches, n_unfolded_features)
             The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
             space, indexed by batch identifier, with the 2-level unfolded
-            column index. This is the ``X`` argument that
-            :meth:`score_contributions`, :meth:`spe_contributions` and
-            :meth:`t2_contributions` expect; passing the training batches
-            reproduces the fitted scores.
+            column index. Passing the training batches reproduces the fitted
+            scores. :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` take this matrix, or the batches
+            themselves, as :meth:`transform` takes them.
         """
         return self._scaled_wide(X, initial_conditions)
 
@@ -613,6 +615,6 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     explained_variance_plot = _pca_method(_explained_variance_plot)
     spe_limit = _pca_method(_spe_limit)
     score_limit = _pca_method(_score_limit)
-    t2_contributions = _pca_method(_t2_contributions)
-    spe_contributions = _pca_method(_spe_contributions)
-    score_contributions = _pca_method(_score_contributions)
+    t2_contributions = contribution_method(_t2_contributions, inner="_pca", fitted="loadings_")
+    spe_contributions = contribution_method(_spe_contributions, inner="_pca", fitted="loadings_")
+    score_contributions = contribution_method(_score_contributions, inner="_pca", fitted="loadings_")

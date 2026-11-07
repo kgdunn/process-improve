@@ -53,6 +53,7 @@ from process_improve.multivariate._cv_criteria import (
 from process_improve.multivariate._limits import hotellings_t2_limit, spe_calculation
 from process_improve.multivariate.methods import PRM, NotEnoughVarianceError
 from process_improve.simulation import LatentStructure
+from tests._no_spread import thin_residual
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
 
@@ -575,13 +576,13 @@ def test_prm_null_passes_on_no_warning_from_its_permuted_fits() -> None:
 def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     """The held-out T2 counts only the components the full-data model's T2 counts (#1029).
 
-    Thirty rows on a plane in units of 1e-3, with noise of sd 1e-10 and one row nudged 1e-8 off
-    it, fitted unscaled: the noise is above PLS's floor, which is relative to the size of X
-    (#1070), so every fit has a third component. Its score sd is below epsqrt, which T2 reads as
-    no spread while every sd is below 1, so the model's own T2 leaves it out. The held-out T2
-    divided by it all the same, and the nudged row, which its fold model never saw, got an alarm
-    at three components. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2`` of the pseudo-validation
-    scores, by hand.
+    Thirty rows on a plane in forty columns, with a residual spread thinly over the directions off
+    it and one row nudged off it along one of them, fitted unscaled: the residual is above PLS's
+    floor, which is relative to the size of X (#1070), so every fit has a third component. Its
+    score sd is below epsqrt times the first's, which T2 reads as no spread, so the model's own T2
+    leaves it out. The held-out T2 divided by it all the same, and the nudged row, which its fold
+    model never saw, got an alarm at three components. Its T2 is ``t_1^2 / s_1^2 + t_2^2 / s_2^2``
+    of the pseudo-validation scores, by hand.
 
     The third component is fitted after Y is exhausted, so it has no Y-loading (#1074), and
     so no D ratio. Its Y-loading is set to 1 in the model and in every fold, which leaves
@@ -589,13 +590,15 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     one that alone would raise an alarm.
     """
     rng = np.random.default_rng(0)
-    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
-    plane = (plane - plane.mean(axis=0)) * 1e-3
-    plane[0] += 1e-8 * np.linalg.svd(plane)[2][2]  # a direction off the plane
-    plane += 1e-10 * np.random.default_rng(3).standard_normal((30, 4))
-    X = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 40))
+    plane -= plane.mean(axis=0)
+    residual = thin_residual(plane, relative_size=1.3)
+    _, lengths, directions = np.linalg.svd(residual)
+    rows = plane + residual
+    rows[0] += 1.5 * lengths[0] * directions[0]  # along one of the directions off the plane
+    X = pd.DataFrame(rows - rows.mean(axis=0), columns=[f"x{k}" for k in range(40)])
     noise = 0.1 * np.random.default_rng(1).standard_normal(30)
-    y = pd.DataFrame({"y": X.to_numpy() @ [1e3, 2e3, 0.0, 0.0] + noise})
+    y = pd.DataFrame({"y": plane[:, 0] + 2.0 * plane[:, 1] + noise})
     y -= y.mean()
 
     def fit(rows: np.ndarray) -> PLS:
@@ -605,7 +608,7 @@ def test_pseudo_validation_t2_leaves_out_a_component_with_no_spread() -> None:
     model = fit(np.arange(30))
     model.y_loadings_.iloc[:, 2] = 1.0
     sd = model.scaling_factor_for_scores_.to_numpy()
-    assert sd[2] < 1.5e-8 * max(1.0, sd[0])  # the rule by which T2 leaves a component out
+    assert sd[2] <= 1.5e-8 * sd[0]  # the rule by which T2 leaves a component out
     folds = []
     for train, test in KFold(5).split(X):
         fold = fit(train)
@@ -731,29 +734,38 @@ def test_pseudo_validation_set_keeps_the_missing_pattern() -> None:
     np.testing.assert_allclose(diagnostics.spe.to_numpy(), pv.local_spe[complete].to_numpy(), atol=1e-10)
 
 
-@pytest.mark.parametrize(
-    ("where", "message"),
-    [
-        ("x_row", "every X value missing"),
-        ("x_column", "Columns of X"),
-        ("y_column", "Columns of Y"),
-        ("sparse", "fold"),
-    ],
-)
-def test_unusable_gaps_raise(where: str, message: str) -> None:
+def test_unusable_gaps_raise() -> None:
+    """A column with two observed values leaves some training fold with fewer than two."""
     X, Y = _two_component_data(n=30)
+    X.iloc[2:, 0] = np.nan
+    with pytest.raises(ValueError, match="fold"):
+        compare_cv_criteria(X, Y, random_state=0)
+    with pytest.raises(ValueError, match="fold"):
+        pseudo_validation_set(X, Y, n_components=2, random_state=0)
+
+
+@pytest.mark.parametrize("where", ["x_row", "x_column", "y_column"])
+def test_gaps_fit_takes_are_taken(where: str) -> None:
+    """A row with no X, and a column of X or Y with no value, are taken as ``fit`` takes them (#1114).
+
+    They were refused. The row is fitted at the centre with no weight, and has no held-out
+    prediction or SPE; the column is left out of every model, with the warning ``fit`` gives.
+    """
+    X, Y = _two_component_data(n=30, m=2)
     if where == "x_row":
         X.iloc[3] = np.nan
     elif where == "x_column":
         X["x2"] = np.nan
-    elif where == "y_column":
-        Y["y0"] = np.nan
     else:
-        X.iloc[2:, 0] = np.nan  # two observed values: some training fold keeps fewer than two
-    with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X, Y, random_state=0)
-    with pytest.raises(ValueError, match=message):
-        pseudo_validation_set(X, Y, n_components=2, random_state=0)
+        Y["y0"] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        warnings.filterwarnings("ignore", message=r"Block [XY] has columns with no observed values")
+        result = compare_cv_criteria(X, Y, random_state=0)
+        pv = pseudo_validation_set(X, Y, n_components=2, random_state=0)
+    assert np.isfinite(result.press).all()
+    assert np.isfinite(result.table["pv_spe_alarm_rate"]).all()
+    assert pv.local_spe.isna().to_numpy().tolist() == [where == "x_row" and i == 3 for i in range(30)]
 
 
 def test_pseudo_validation_set_rejects_bad_arguments() -> None:
@@ -1363,29 +1375,6 @@ def test_inputs_are_read_as_float_frames_labelled_as_x() -> None:
     pd.testing.assert_frame_equal(Y_df, pd.DataFrame({"y": np.arange(6.0)}, index=list("abcdef")))
 
 
-def test_rows_and_columns_with_nothing_observed_are_refused_naming_five() -> None:
-    """A row with no X, or a column of X or Y with no value, leaves nothing to work with; five are named."""
-    X = pd.DataFrame(np.ones((10, 7)), columns=[f"c{i}" for i in range(7)])
-    Y = pd.DataFrame({f"y{i}": np.arange(10.0) for i in range(7)})
-    rows = X.copy()
-    rows.iloc[:6] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Rows with every X value missing cannot be scored; remove them: \[0, 1, 2, 3, 4\]\.$"
-    ):
-        _as_frames(rows, Y)
-    columns = X.copy()
-    columns.iloc[:, :6] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Columns of X with every value missing: \['c0', 'c1', 'c2', 'c3', 'c4'\]\.$"
-    ):
-        _as_frames(columns, Y)
-    Y.iloc[:, 1:] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Columns of Y with every value missing: \['y1', 'y2', 'y3', 'y4', 'y5'\]\.$"
-    ):
-        _as_frames(X, Y)
-
-
 def test_a_training_fold_needs_two_observed_values_in_every_column() -> None:
     """Two observed values in a column of a training fold are enough; one is not, and five columns are named."""
     X = pd.DataFrame(np.arange(28.0).reshape(4, 7), columns=[f"c{i}" for i in range(7)])
@@ -1545,19 +1534,22 @@ def test_autoscale_parameters_by_hand() -> None:
     """Means and ddof=1 sds over observed cells; no spread, one value, or none, scales by 1, and nothing warns."""
     values = np.array(
         [
-            [1.0, 5.0, np.nan, 3.0, 2.0**-510],
+            [1.0, 5.0, np.nan, 3.0, 2.0**-1022],
             [3.0, 5.0, np.nan, np.nan, 0.0],
-            [5.0, 5.0, np.nan, np.nan, 2.0**-511],
+            [5.0, 5.0, np.nan, np.nan, 2.0**-1023],
         ]
     )
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         centre, scale = _autoscale_parameters(values)
-    np.testing.assert_array_equal(centre, [3.0, 5.0, np.nan, 3.0, 2.0**-511])
-    # The last column's sd is exactly 2**-511, the square root of the smallest normal float: no spread.
+    np.testing.assert_array_equal(centre, [3.0, 5.0, np.nan, 3.0, 2.0**-1023])
+    # The last column's sd is exactly 2**-1023, below the smallest normal float, 2**-1022: no spread.
+    # Its square underflows, so the sd is only that because it is taken in units of the column (#1070).
     np.testing.assert_array_equal(scale, [2.0, 1.0, 1.0, 1.0, 1.0])
     _, scale = _autoscale_parameters(values[:, [4]] * 2.0)
-    assert scale[0] == 2.0**-510
+    assert scale[0] == 2.0**-1022
+    _, scale = _autoscale_parameters(values[:, [4]] * 2.0**423)
+    assert scale[0] == 2.0**-600  # 2.4e-181: a floor of 1.5e-154 left the column unscaled, as MCUVScaler's did
 
 
 def test_permutation_summary_counts_every_permutation() -> None:

@@ -1,3 +1,4 @@
+import logging
 import warnings
 
 import numpy as np
@@ -433,6 +434,63 @@ def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
         )
 
 
+def _noisy_batches(n_batches: int) -> dict:
+    """``n_batches`` warped batches of unequal length, ``b0`` the shortest, each with its own noise."""
+    return {
+        f"b{i}": _warped_batch(30 + 2 * i) + 0.1 * np.random.default_rng(i).standard_normal((30 + 2 * i, 2))
+        for i in range(n_batches)
+    }
+
+
+class TestFindReferenceBatchForAnyNumberOfBatches:
+    """Every number of batches gives a reference; 2 to 5 raised "Found array with 1 sample(s)" (#1184).
+
+    With ``n - 1`` components the PCA passed through every batch, so each had the same T2, the
+    90% limit for the fitted batches equalled it, and the screen left one batch or none.
+    """
+
+    def test_one_batch_is_its_own_reference(self) -> None:
+        assert find_reference_batch(_noisy_batches(1), ["a", "b"]) == "b0"
+
+    def test_of_two_batches_the_one_of_average_length_comes_first(self) -> None:
+        """Centred and scaled, two batches are mirror images, so a PCA cannot rank them."""
+        batches = _noisy_batches(2)
+        settings = {"judged_rows": "fitted"}
+        assert find_average_length(batches) == "b0"
+        assert find_reference_batch(batches, ["a", "b"], settings) == "b0"
+        assert find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 2}) == ["b0", "b1"]
+        with pytest.raises(ValueError, match=r"number_of_reference_batches=3 exceeds the number of candidate batches"):
+            find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 3})
+
+    def test_a_batch_left_out_by_the_t2_screen_is_not_the_reference(self) -> None:
+        """Of three batches, one far from the others is above the 90% T2 limit: the other two are ranked.
+
+        A model of the one or two batches the screen keeps has no SPE limit, so they are ranked by
+        their T2 alone. Ranked with the batch left out, by the SPE of a one-component model, that
+        batch was the reference: the model's one direction runs through it.
+        """
+        batches = _noisy_batches(3)
+        batches["b2"] += 5.0
+        settings = {"judged_rows": "fitted"}
+
+        assert find_reference_batch(batches, ["a", "b"], settings) in ("b0", "b1")
+        assert find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 2}) in (
+            ["b0", "b1"],
+            ["b1", "b0"],
+        )
+        with pytest.raises(ValueError, match=r"number_of_reference_batches=3 exceeds the number of candidate batches"):
+            find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 3})
+
+    @pytest.mark.parametrize("n_batches", [3, 4, 5, 6, 8])
+    @pytest.mark.parametrize("judged_rows", ["fitted", "new"])
+    def test_a_reference_is_found_without_a_warning(self, n_batches: int, judged_rows: str) -> None:
+        """A PCA asked for more components than the batches allow warned for 5 batches."""
+        batches = _noisy_batches(n_batches)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert find_reference_batch(batches, ["a", "b"], {"judged_rows": judged_rows}) in batches
+
+
 # ---- Alignment helper tests (batch/alignment_helpers.py) ----
 
 
@@ -505,11 +563,19 @@ def test_one_iteration_dtw_without_settings_aligns_every_sample() -> None:
     assert sorted(aligned) == ["p", "q"]
 
 
-def test_batch_dtw_without_settings_uses_the_documented_defaults(capsys: pytest.CaptureFixture[str]) -> None:
-    """With no settings, progress is printed and every batch is resampled onto the 100-point default axis."""
+def test_batch_dtw_without_settings_uses_the_documented_defaults(
+    capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """With no settings, every batch is resampled onto the 100-point default axis.
+
+    Each iteration is logged at DEBUG level, as ``docs/development/logging.rst`` says; nothing
+    is printed to stdout (#1184).
+    """
     batches = {"x": _warped_batch(30), "y": _warped_batch(36), "z": _warped_batch(42)}
-    outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y")
-    assert "Iter = 0 and norm = " in capsys.readouterr().out
+    with caplog.at_level(logging.DEBUG, logger="process_improve.batch.preprocessing"):
+        outputs = batch_dtw(batches, columns_to_align=["a", "b"], reference_batch="y")
+    assert capsys.readouterr().out == ""
+    assert "batch_dtw: iteration 1, weight-delta norm=1.41421 (tolerance=0.1)" in caplog.messages
     assert {batch_id: len(frame) for batch_id, frame in outputs["aligned_batch_dfdict"].items()} == {
         "x": 100,
         "y": 100,
@@ -592,6 +658,28 @@ def test_resample_to_reference_puts_every_batch_on_the_reference_length() -> Non
         batches, columns_to_align=["a", "b"], reference_batch="long", settings={"interpolate_kind": "linear"}
     )
     assert {batch_id: frame.shape for batch_id, frame in out.items()} == {"long": (30, 2), "two": (30, 2)}
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda batches: resample_to_reference(batches, columns_to_align=["a", "b"], reference_batch="x"),
+        lambda batches: find_reference_batch(batches, ["a", "b"], settings={"judged_rows": "fitted"}),
+    ],
+    ids=["resample-to-reference", "find-reference-batch"],
+)
+def test_a_missing_value_is_refused_by_batch_and_tag(call: object) -> None:
+    """One NaN made the whole resampled tag NaN under the default cubic interpolation (#1184).
+
+    It is refused, naming the batch and the tag, as ``batch_dtw`` refuses one, and the caller is
+    pointed at ``fill_gaps``, which says how long a gap it bridges.
+    """
+    gappy = _warped_batch(36)
+    gappy.loc[5, "a"] = np.nan
+    batches = {"x": _warped_batch(30), "y": gappy, "z": _warped_batch(42)}
+
+    with pytest.raises(ValueError, match=r"cannot resample a tag with missing values; .*\{'y': \['a'\]\}.*fill_gaps"):
+        call(batches)  # type: ignore[operator]
 
 
 @pytest.mark.parametrize(
@@ -1570,3 +1658,56 @@ class TestColumnResolution:
         # comes from that batch's columns. The point is that checking spread across every
         # batch does not raise on the batch where the column is missing.
         assert list(determine_scaling(batches).index) == ["temp"]
+
+
+#: The value of a flat tag in each of three batches: the same in all of them, or one per batch.
+_FLAT_TAG_LEVELS = {"one-value-in-every-batch": (5.0, 5.0, 5.0), "one-value-per-batch": (5.0, 6.0, 7.0)}
+
+
+class TestBatchDtwTagWithNoVariance:
+    """A tag that does not vary within any batch gets zero weight in the alignment (#1184).
+
+    Its deviation from the average trajectory is zero, or the same at every sample, so it says
+    nothing about timing. Kassidas' reciprocal weight gave the flat tag all the weight instead.
+    """
+
+    @staticmethod
+    def _batches(levels: tuple) -> dict:
+        """Three warped batches of unequal length, with a flat tag ``c`` at ``levels[i]`` in batch ``i``."""
+        return {
+            name: _warped_batch(n_samples).assign(c=level)
+            for (name, n_samples), level in zip([("x", 30), ("y", 36), ("z", 42)], levels, strict=True)
+        }
+
+    @pytest.mark.parametrize("levels", list(_FLAT_TAG_LEVELS.values()), ids=list(_FLAT_TAG_LEVELS))
+    def test_it_gets_zero_weight_and_changes_nothing_else(self, levels: tuple) -> None:
+        batches = self._batches(levels)
+        settings = {"show_progress": False}
+        without = batch_dtw({key: batch[["a", "b"]] for key, batch in batches.items()}, ["a", "b"], "y", settings)
+
+        with pytest.warns(UserWarning, match=r"batch_dtw: .* no variance within any batch.* zero weight: 'c'\."):
+            named = batch_dtw(batches, ["a", "b", "c"], "y", settings)
+
+        assert (named["weight_history"]["c"] == 0).all()
+        pd.testing.assert_frame_equal(named["weight_history"][["a", "b"]], without["weight_history"])
+        pd.testing.assert_frame_equal(named["distances"], without["distances"])
+
+    @pytest.mark.parametrize("levels", list(_FLAT_TAG_LEVELS.values()), ids=list(_FLAT_TAG_LEVELS))
+    def test_the_last_average_batch_keeps_it(self, levels: tuple) -> None:
+        """The tag is aligned and returned with the others, so the average trajectory holds it too."""
+        batches = self._batches(levels)
+        settings = {"show_progress": False}
+        without = batch_dtw({key: batch[["a", "b"]] for key, batch in batches.items()}, ["a", "b"], "y", settings)
+        with pytest.warns(UserWarning, match="zero weight"):
+            average = batch_dtw(batches, ["a", "b", "c"], "y", settings)["last_average_batch"]
+
+        assert list(average.columns) == ["a", "b", "c"]
+        pd.testing.assert_frame_equal(average[["a", "b"]], without["last_average_batch"])
+        assert average["c"].to_numpy() == pytest.approx(np.mean(levels))
+
+    def test_no_tag_that_varies_is_refused(self) -> None:
+        """With nothing to weight there is nothing to align on, so it is refused rather than aligned at random."""
+        batches = {key: batch[["c"]] for key, batch in self._batches((5.0, 6.0, 7.0)).items()}
+
+        with pytest.raises(ValueError, match=r"There is no variance in columns_to_align: 'c' does not vary"):
+            batch_dtw(batches, ["c"], "y", {"show_progress": False})

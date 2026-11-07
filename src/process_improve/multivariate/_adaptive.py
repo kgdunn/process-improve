@@ -75,7 +75,15 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
-from ._common import DataMatrix, _align_to_fit_features, check_at_least_one, epsqrt
+from ._common import (
+    DataMatrix,
+    _align_to_fit_features,
+    check_at_least_one,
+    check_response_block,
+    check_x_varies,
+    epsqrt,
+    refuse_empty_block,
+)
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -307,6 +315,7 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_spe: list[float] = []
         self._hist_distance: list[float] = []
         self._hist_index: list[typing.Any] = []
+        self._next_label = 0  # one past the largest integer label recorded so far
         # Adaptation diagnostics (state-drift and kernel-update magnitudes).
         self._hist_center_shift: list[float] = []
         self._hist_scale_shift: list[float] = []
@@ -371,7 +380,8 @@ class _AdaptiveModel(_LatentVariableModel):
         update_xx = mu * np.outer(x_scaled, x_scaled)
         # Nuclear norm (= trace for the PSD X'X) throughout, for consistency with the
         # re-scale below; the rank-1 update's trace equals its Frobenius norm.
-        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
+        # The training trace is not 0: fit refuses an X with no variance (#1144)
+        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0
         new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
         norm_xx = float(np.trace(new_xx))
         if norm_xx > epsqrt:  # pragma: no mutate - >= differs only at a trace of exactly epsqrt
@@ -389,12 +399,18 @@ class _AdaptiveModel(_LatentVariableModel):
         mean fractional change of the scaling vector. ``injection`` is the gamma
         term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
         change to ``X'X``; both are zero on observations that did not update. A row with no
-        ``label`` is numbered one past the last label when that is an integer, and by the
-        number of rows recorded so far when it is not, so the count goes on across calls (#1082).
+        ``label`` is numbered one past the largest integer label recorded so far, or by the
+        number of rows recorded when that is larger, so the count goes on across calls (#1082)
+        and repeats no label, whatever labels came between (#1144).
         """
+        next_label = getattr(self, "_next_label", None)
+        if next_label is None:  # a model pickled before #1144 kept no count: read it off its labels
+            next_label = max((int(old) + 1 for old in self._hist_index if pd.api.types.is_integer(old)), default=0)
         if label is None:
-            last = self._hist_index[-1] if self._hist_index else -1
-            label = last + 1 if pd.api.types.is_integer(last) else len(self._hist_index)
+            label = max(next_label, len(self._hist_index))
+        if pd.api.types.is_integer(label):
+            next_label = max(next_label, int(label) + 1)
+        self._next_label = next_label
         distance = self._distance()
         self._hist_scores.append(scores)
         self._hist_t2.append(t2)
@@ -430,8 +446,10 @@ class _AdaptiveModel(_LatentVariableModel):
         ----------
         X : array-like of shape (n_samples, n_features)
             New observations, processed one row at a time. A DataFrame's row labels
-            are recorded in the history frames; the rows of an array are numbered on
-            from the last label, as :meth:`update` numbers a row given no label.
+            are recorded in the history frames; the rows of an array, and of a
+            DataFrame whose rows pandas numbered 0, 1, ... (its default
+            ``RangeIndex``), are numbered on as :meth:`update` numbers a row given
+            no label.
         Y : array-like of shape (n_samples, n_targets), optional
             Matching responses (PLS only). A row whose response has a missing
             value updates the X-space model but not the regression part, which
@@ -443,7 +461,9 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         check_is_fitted(self, "mx_")
         labels, rows = _as_rows(X)
-        labelled = isinstance(X, pd.DataFrame)
+        # Rows that pandas numbered 0, 1, ..., an array's or a frame's, carry no labels of their own: two
+        # frames of them repeated those numbers (#1144).
+        labelled = not (isinstance(labels, pd.RangeIndex) and labels.start == 0 and labels.step == 1)
         y_rows = None if Y is None else _as_rows(Y)[1]  # by position: Y's labels are not read
         for pos, label in enumerate(labels):
             self.update(rows[pos], y_row=None if y_rows is None else y_rows[pos], label=label if labelled else None)
@@ -746,10 +766,16 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Returns
         -------
         self : AdaptivePCA
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as across the family (#1144).
         """
         self._validate_params()
         check_at_least_one("n_components", self.n_components)
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        refuse_empty_block(X_df, "X")
         self._feature_names = X_df.columns
         N, K = X_df.shape
         A = int(self.n_components)
@@ -771,7 +797,8 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         # incoming observation) lives in the same space. Initialising the loadings from
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
-        self._scaler = MCUVScaler().fit(X_df)
+        self._scaler = MCUVScaler().fit(X_df)  # refuses fewer than two rows
+        check_x_varies([X_df], explains_y=False)  # as PCA refuses it (#1144): no row is told from another
         self.mx_ = self._scaler.center_.to_numpy().copy()
         self.sx_ = self._scaler.scale_.to_numpy().copy()
         self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
@@ -848,8 +875,9 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
             Present for a uniform signature with :class:`AdaptivePLS`.
         label : hashable, optional
             Index label recorded in the history frames for this observation. If
-            omitted, one past the last label when that is an integer, otherwise
-            the number of observations recorded so far.
+            omitted, one past the largest integer label recorded so far, or the
+            number of observations recorded when that is larger, so that no
+            label repeats.
 
         Returns
         -------
@@ -999,12 +1027,20 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         Returns
         -------
         self : AdaptivePLS
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of X is constant or has no observed value, as :meth:`PLS.fit` raises (#1144).
         """
         self._validate_params()
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
         # np.asarray of a 1-D Series / array yields a single-column frame, so Y is
         # always 2-D here.
         Y_df = Y if isinstance(Y, pd.DataFrame) else pd.DataFrame(np.asarray(Y))
+        refuse_empty_block(X_df, "X")
+        refuse_empty_block(Y_df, "Y")
+        check_response_block(Y_df, X_df.shape[0])
         N, K = X_df.shape
         M = Y_df.shape[1]
         A = int(self.n_components)

@@ -51,7 +51,31 @@ def fair_weights(distances: np.ndarray, cutoff: float) -> np.ndarray:
     distances = np.asarray(distances, dtype=float)
     if not np.all(np.isfinite(distances)):
         raise ValueError("distances must be finite (no NaN / inf).")
-    return 1.0 / (1.0 + np.abs(distances) / cutoff) ** 2
+    with np.errstate(over="ignore"):  # beyond about 1e154 the square is inf and the weight 0, which it is to rounding
+        return 1.0 / (1.0 + np.abs(distances) / cutoff) ** 2
+
+
+def row_norms(values: np.ndarray) -> np.ndarray:
+    """Return the Euclidean length of each row of a 2-D array, finite where the row's squares overflow.
+
+    A square overflows beyond about 1e154, so the length of a row that far out was ``inf`` (#1114).
+    Each row is divided first by the power of two just above its largest absolute value, which
+    is exact, and the length multiplied back: a row whose squares neither overflow nor underflow
+    has the same length, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        Finite data of shape (n_samples, n_features).
+
+    Returns
+    -------
+    np.ndarray
+        The length of each row, of shape (n_samples,).
+    """
+    _, exponent = np.frexp(np.max(np.abs(values), axis=1, initial=0.0))
+    unit = np.ldexp(1.0, exponent)
+    return np.linalg.norm(values / unit[:, np.newaxis], axis=1) * unit
 
 
 def l1_median(X: np.ndarray, *, tol: float = 1e-8, max_iter: int = 200) -> np.ndarray:
@@ -113,7 +137,9 @@ def l1_median(X: np.ndarray, *, tol: float = 1e-8, max_iter: int = 200) -> np.nd
 
     for _ in range(max_iter):
         offsets = X - estimate
-        distances = np.linalg.norm(offsets, axis=1)
+        # A row far enough out that its squares overflow still pulls the estimate, as every row does, by a unit
+        # vector towards it: an infinite distance left it no pull at all (#1114).
+        distances = row_norms(offsets)
         on_estimate = distances <= tol
         if on_estimate.all():
             # Every row coincides with the estimate: it is already the median.

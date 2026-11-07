@@ -175,11 +175,14 @@ class TestDTWAligner:
         aligned = DTWAligner(reference_batch="B0", settings=QUIET).fit_transform(batches)
         assert list(aligned["B1"].columns) == ["a", "b"]
 
-    def test_a_named_constant_tag_is_kept_and_warned_about(self) -> None:
+    def test_a_named_constant_tag_is_kept_with_zero_weight_and_warned_about(self) -> None:
+        """batch_dtw gives a tag with no variance zero weight (#1184); the aligner keeps that weight."""
         batches = {batch_id: frame.assign(setpoint=50.0) for batch_id, frame in _campaign(4).items()}
         aligner = DTWAligner(columns_to_align=["a", "b", "setpoint"], reference_batch="B0", settings=QUIET)
-        with pytest.warns(UserWarning, match=r"'setpoint' \(4 of 4 batches\)"):
+        with pytest.warns(UserWarning, match=r"so they get zero weight: 'setpoint'"):
             aligned = aligner.fit_transform(batches)
+        assert aligner.weights_["setpoint"] == 0.0
+        assert aligner.weights_[["a", "b"]].sum() == pytest.approx(2.0)
         assert aligned["B1"]["setpoint"].to_numpy() == pytest.approx(50.0)
 
     @pytest.mark.dataset
@@ -203,12 +206,18 @@ ALIGNERS = [
 @pytest.mark.parametrize("make", ALIGNERS)
 class TestBothAligners:
     def test_a_missing_value_is_refused_by_batch_and_tag(self, make: MakeAligner) -> None:
+        """In fit and in transform, in the words of resample_to_reference (#1184, #1169)."""
         batches = _campaign(4)
         gappy = {**batches, "B1": batches["B1"].assign(b=lambda f: f["b"].where(f.index != 5))}
-        with pytest.raises(ValueError, match=r"fill_gaps\. Missing values in \(batch: tags\): \{'B1': \['b'\]\}"):
+        name = type(make()).__name__
+        with pytest.raises(
+            ValueError, match=rf"^{name}\.fit cannot resample a tag with missing values; .*\{{'B1': \['b'\]\}}\. Fill"
+        ):
             make(reference_batch="B0").fit(gappy)
         aligner = make(reference_batch="B0").fit(batches)
-        with pytest.raises(ValueError, match=r"\.transform cannot align a tag with missing values"):
+        with pytest.raises(
+            ValueError, match=rf"^{name}\.transform cannot resample a tag with missing values; .*\{{'new': \['b'\]\}}"
+        ):
             aligner.transform({"new": gappy["B1"]})
 
     def test_a_new_batch_without_a_fitted_tag_is_refused(self, make: MakeAligner) -> None:

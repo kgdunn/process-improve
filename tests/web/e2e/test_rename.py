@@ -17,15 +17,18 @@ from tests.web.e2e._page import (
     calls,
     candidates_done,
     choose,
+    corners_done,
     enter_results,
     generate,
     headers,
+    mark_corners,
     practise,
     reveal,
     run_sheet,
     saved_studies,
     set_factors,
     settled,
+    type_limit,
 )
 from tests.web.e2e.test_responses import three_responses
 
@@ -116,6 +119,47 @@ def test_units_are_taken_as_names_are(page):
     assert 'units="K"' in page.text_content("#py-design code")
     assert chart(page, 1, "d => d.layout.xaxis.title.text") == "T (K)"
     assert page.is_hidden("#design-stale")
+
+
+def test_units_changed_alone_reach_the_what_if_panel(page):
+    """The panel's controls are made once a study and kept while its factors stay; new units make them again."""
+    asked = len(calls(page, "api_predictors"))
+    rename(page, 0, "K", key="units")
+    page.wait_for_function(f"window.__pi.count('api_predictors') > {asked}")
+    settled(page)
+    reveal(page, "#what-if")
+    row = page.locator('#what-if-settings [data-factor="T"]')
+    assert row.locator(".what-if-name").text_content() == "T (K)"
+    assert row.locator(".what-if-range").text_content() == "150 to 200 K"
+    assert row.locator("[name=slider]").get_attribute("aria-label") == "T, from 150 to 200 K"
+    assert row.locator("[name=number]").get_attribute("aria-label") == "T (K)"
+
+
+#: The corner marked in the test below, once F's units are L/h.
+CORNER = "T 150 degC, P 3 bar, F 20 L/h"
+
+
+def test_units_changed_alone_reach_the_factors_held_and_the_questions_of_a_proposal(blank_page):
+    """Looking inside T and P holds F; a corner marked has its limit proposed, to adjust factor by factor.
+
+    Both are made again only when what they show changes, so new units for F must count as a change.
+    """
+    page = blank_page
+    type_limit(page, "T + 25 * P <= 250")
+    corners_done(page)
+    mark_corners(page, 3)
+    page.get_by_role("button", name="Look inside T and P").click()
+    page.get_by_role("button", name="Adjust it factor by factor").click()
+    settled(page)
+    asked = len(calls(page, "api_limits"))
+    rename(page, 2, "L/h", key="units")
+    page.wait_for_function(f"window.__pi.count('api_limits') > {asked} && window.__pi.idle()")
+    reveal(page, "#limits")
+    assert page.text_content("#slice-held .held__units") == "L/h"
+    assert page.get_attribute("[name=held-box-F]", "aria-label") == "F, held at, in L/h"
+    cuts = page.locator("#limit-proposals .cuts")
+    assert cuts.locator(".hint").text_content() == f"From {CORNER}, with the other factors held there:"
+    assert cuts.locator(".cut__question").last.text_content() == "F can go up to  L/h"
 
 
 def test_a_name_python_would_refuse_is_not_taken(page):

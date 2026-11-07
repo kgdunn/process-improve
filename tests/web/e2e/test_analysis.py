@@ -15,6 +15,7 @@ from tests.web.e2e._page import (
     calls,
     choose,
     definition,
+    enter_results,
     generate,
     headers,
     practise,
@@ -29,6 +30,18 @@ from tests.web.e2e._page import (
 def coefficient_rows(page) -> list[list[str]]:
     table = page.locator("#analysis table").first
     return [row.locator("td").all_text_contents() for row in table.locator("tbody tr").all()]
+
+
+def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy(page):
+    """A new study takes away the analysis on its way, and drops its reply: "Analysing..." goes with it."""
+    page.evaluate("window.__pi.hold('api_analyze_runs')")
+    enter_results(page, {0: 70})
+    assert status(page) == ("Analysing...", "busy")
+    reveal(page, "#new-study")
+    page.click("#new-study")
+    page.evaluate("window.__pi.release('api_analyze_runs')")
+    settled(page)
+    assert page.is_hidden("#status")
 
 
 def test_each_estimate_stands_beside_its_true_value(page, first_paint):

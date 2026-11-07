@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ..multivariate._common import user_stacklevel
+from ..multivariate._common import NotEnoughVarianceError, user_stacklevel
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
@@ -593,7 +593,7 @@ _BATCH_DTW_SETTINGS: dict = dict(
     maximum_iterations=25,  # maximum iterations (stops here, even if not converged)
     tolerance=0.1,  # convergence tolerance
     robust=True,  # use robust scaling
-    show_progress=True,  # show progress
+    show_progress=True,  # show a progress bar on stderr
     subsample=1,  # use every sample
     weighting="quadratic",  # how to accumulate deviations: "quadratic" or "absolute"
     batch_weighting="equal",  # how much each batch contributes: "equal" or "huber"
@@ -802,6 +802,53 @@ def _validate_dtw_settings(settings: dict) -> None:
         )
 
 
+def _tags_that_vary(batches: dict[str, pd.DataFrame], columns_to_align: list) -> np.ndarray:
+    """
+    Report which of ``columns_to_align`` vary within at least one batch, and warn, naming the rest.
+
+    Kassidas et al. weight each tag by the reciprocal of its summed squared deviation from the
+    average trajectory. A tag that holds one value through every batch has no deviation, so its
+    weight was unbounded: after normalising it took all of the weight (``[0, 0, 3]`` for three
+    tags), and the convergence test, which measures the change in the weights, followed only that
+    tag. A tag that holds one value within each batch, but a different one between batches, adds
+    the same amount to every cell of the distance matrix, which only favours a shorter warping
+    path. Neither says anything about timing, so it gets zero weight, as a block with no variance
+    does in the multivariate estimators (#1184). It is still aligned and returned.
+
+    Parameters
+    ----------
+    batches : dict[str, pd.DataFrame]
+        Batch data, in the standard format.
+    columns_to_align : list
+        The tags named for the alignment.
+
+    Returns
+    -------
+    np.ndarray of bool, shape (len(columns_to_align),)
+        True for a tag that varies within at least one batch.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no tag varies within any batch: there is nothing to align on.
+    """
+    varies = np.array([_varies_within_any_batch(batches, column) for column in columns_to_align])
+    if varies.all():
+        return varies
+    named = ", ".join(repr(column) for column, moves in zip(columns_to_align, varies, strict=True) if not moves)
+    if not varies.any():
+        raise NotEnoughVarianceError(
+            f"There is no variance in columns_to_align: {named} does not vary within any batch, so there is "
+            "nothing to align on. Name a tag that changes during the batch."
+        )
+    warnings.warn(
+        f"batch_dtw: columns_to_align has tags with no variance within any batch, which carry no information for "
+        f"the alignment, so they get zero weight: {named}. Drop them, or check the data for a stuck sensor.",
+        stacklevel=user_stacklevel(),  # a UserWarning, warn's default category, as the multivariate family's
+    )
+    return varies
+
+
 def batch_dtw(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -819,7 +866,9 @@ def batch_dtw(
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use during the alignment process. The others are aligned, but
-        get no weight, and therefore do not influence the objective function.
+        get no weight, and therefore do not influence the objective function. A named
+        column that does not vary within any batch gets no weight either, with a warning
+        naming it: it carries no information about timing.
     reference_batch : str
         Which key in the `batches` is the reference batch to use.
     settings : dict
@@ -829,7 +878,7 @@ def batch_dtw(
                 "maximum_iterations": 25,  # stops here, even if not converged
                 "tolerance": 0.1,          # convergence tolerance
                 "robust": True,            # use robust scaling
-                "show_progress": True,     # show progress
+                "show_progress": True,     # show a progress bar on stderr
                 "subsample": 1,            # use every sample
                 "weighting": "quadratic",  # "quadratic" or "absolute"; see below
                 "batch_weighting": "equal",  # "equal" or "huber"; see below
@@ -838,6 +887,10 @@ def batch_dtw(
                 "interpolate_time_axis_delta": 1,      # resolution of the resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
             }
+
+        Each iteration logs its change in the weights at DEBUG level, on the
+        ``process_improve.batch.preprocessing`` logger; nothing is printed to stdout. See
+        ``docs/development/logging.rst`` to show it.
 
         Every batch is aligned to ``reference_batch`` in the first three iterations. From
         the fourth iteration on, the reference is the average trajectory of the iteration
@@ -944,11 +997,12 @@ def batch_dtw(
 
     # Raises, naming the batch, when one fails a check.
     check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
+    varies = _tags_that_vary(batches, columns_to_align)
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
     refbatch_sc = batches_scaled[reference_batch].iloc[:: int(settings["subsample"]), :]
-    weight_vector = np.ones(refbatch_sc.shape[1])
+    weight_vector = varies.astype(float)
     weight_matrix = np.diag(weight_vector)
     weight_history = np.zeros_like(weight_vector) * np.nan
     average_batch = None
@@ -960,9 +1014,6 @@ def batch_dtw(
     while iter_step == 0 or (
         (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"])
     ):
-        if settings["show_progress"]:
-            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
-
         iter_step += 1
         logger.debug(
             "batch_dtw: iteration %d, weight-delta norm=%g (tolerance=%g)",
@@ -999,10 +1050,11 @@ def batch_dtw(
         # exact opposite - and the constant was scale-dependent. Floor the
         # SSQ (relative to the largest observed SSQ) instead, so the weight
         # stays large but finite. The floor is relative to the largest observed value,
-        # so it holds for either `weighting` choice despite the SSQ-era name.
-        ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights)))
-        next_weights = 1.0 / np.maximum(next_weights, ssq_floor)
-        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
+        # so it holds for either `weighting` choice despite the SSQ-era name. A tag that does not
+        # vary gets zero weight, and the others sum to their number, so naming it changes nothing.
+        ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights * varies)))
+        next_weights = varies / np.maximum(next_weights, ssq_floor)
+        weight_vector = (next_weights / np.sum(next_weights) * np.sum(varies)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -1034,7 +1086,12 @@ def batch_dtw(
     # the keys were of mixed types, so the caller could no longer look its batch up.
     aligned_df = pd.concat(aligned_df_collection)
 
-    last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
+    # Named, so a tag with no variance is kept: resolving the columns again drops one (#1184).
+    last_average_batch = reverse_scaling(
+        dict(avg=cast("pd.DataFrame", average_batch)),
+        scale_df,
+        columns_to_align,
+    )["avg"]
     reference_trajectory = reverse_scaling(dict(ref=refbatch_sc), scale_df, columns_to_align)["ref"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
 
@@ -1106,6 +1163,29 @@ _RESAMPLE_SETTINGS: dict = {
 }
 
 
+def _refuse_missing_values(batches: dict, columns_to_align: list, caller: str) -> None:
+    """
+    Raise when a tag to resample has a missing value, naming every such batch and tag (#1184).
+
+    One NaN made the whole tag NaN under the default cubic interpolation, and a linear one
+    spread it to the neighbouring samples. Interpolating over the observed samples instead
+    would bridge a gap of any length without a word. :func:`batch_dtw` refuses a missing
+    value in the same way, and :func:`~process_improve.batch.fill_gaps` fills the short gaps
+    and says which ones it left.
+    """
+    missing = {
+        batch_id: [column for column in columns_to_align if batch[column].isna().any()]
+        for batch_id, batch in batches.items()
+        if batch[columns_to_align].isna().to_numpy().any()
+    }
+    if missing:
+        raise ValueError(
+            f"{caller} cannot resample a tag with missing values; these batches have them (batch: tags): "
+            f"{missing}. Fill the gaps first, for example with `process_improve.batch.fill_gaps`, which caps how "
+            "long a gap it bridges, or leave the tag out of `columns_to_align`."
+        )
+
+
 def resample_to_reference(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -1137,13 +1217,14 @@ def resample_to_reference(
     ------
     ValueError
         If a batch, the reference among them, has fewer than 2 rows: there is nothing to
-        interpolate between.
+        interpolate between; or if a tag in ``columns_to_align`` has a missing value.
     """
     default_settings = dict(_RESAMPLE_SETTINGS)
     if settings:
         default_settings.update(settings)
     settings = default_settings
     _check_long_enough_to_resample(batches, "resample_to_reference")
+    _refuse_missing_values(batches, columns_to_align, "resample_to_reference")
     return _resample_to_length(
         batches, columns_to_align, batches[reference_batch].shape[0], settings["interpolate_kind"]
     )
@@ -1233,13 +1314,65 @@ def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None 
         return cast("str", batch_lengths.index[closest])
 
 
+def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | None) -> tuple[PCA, pd.Index]:
+    """
+    Fit the PCA that ranks the batches, after leaving out those above the 90% T2 limit.
+
+    At most ``n - 2`` components are fitted to ``n`` batches. With ``n - 1`` the model passes
+    through every batch, so each has the same T2 and no SPE, and rounding decided the ranking.
+    The 90% limit for the fitted batches then equals that T2, so the screen left one batch or
+    none, and the refit raised "Found array with 1 sample(s)" (#1184). When the screen leaves
+    fewer than 3 batches there is no model to refit: the first model ranks the batches kept.
+
+    Parameters
+    ----------
+    basewide : pd.DataFrame
+        The resampled batches, unfolded: one row per batch.
+    n_components : int
+        The most components to fit.
+    judged_rows : str or None
+        Passed to :meth:`PCA.hotellings_t2_limit` for the screen.
+
+    Returns
+    -------
+    PCA
+        The model fitted to the batches the screen kept, or the first model when it kept fewer
+        than 3.
+    pd.Index
+        The batches the screen kept.
+    """
+    first = PCA(n_components=min(n_components, basewide.shape[0] - 2)).fit(MCUVScaler().fit_transform(basewide))
+    # These are the batches the model was fitted to; judged_rows says which limit to use (#978).
+    limit = first.hotellings_t2_limit(0.90, judged_rows=judged_rows)
+    kept = basewide.loc[first.hotellings_t2_.iloc[:, -1] < limit, :]
+    if kept.shape[0] < 3:
+        return first, kept.index
+    # Refitted to the batches kept, so the ones left out do not bias the model.
+    return PCA(n_components=min(n_components, kept.shape[0] - 2)).fit(MCUVScaler().fit_transform(kept)), kept.index
+
+
+def _refuse_more_than_the_candidates(requested: int, n_candidates: int) -> None:
+    """
+    Raise when more reference batches are requested than there are candidates.
+
+    SEC-13 (#261): without this guard the cutoff-relaxation loop of
+    :func:`find_reference_batch` walks past ``conf_level=1.0``, which trips an ``assert``
+    inside ``spe_calculation`` and was -O-strippable. Fail fast with a clear message instead.
+    """
+    if requested > n_candidates:
+        raise ValueError(
+            f"number_of_reference_batches={requested} exceeds the number of "
+            f"candidate batches ({n_candidates}); cannot select that many."
+        )
+
+
 def find_reference_batch(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     settings: dict | None = None,
 ) -> str | list[str]:
     """
-    Find a reference batch. Assumes NO missing data.
+    Find a reference batch.
 
     Starts with the average duration batch; resamples (simple interpolation) of all batches to
     that duration. Unfolds that resampled data. Does PCA on the wide, unfolded data. Fits,
@@ -1247,6 +1380,11 @@ def find_reference_batch(
     with 4 components. Finds the batch which has the multivariate combination of scores which are
     the smallest (i.e. closest to the model center) and ensures this batch has SPE < 50% of the
     model limit.
+
+    Each PCA fits at most ``n - 2`` components to ``n`` batches, since with ``n - 1`` it passes
+    through every batch and cannot rank them. One batch is its own reference. Two batches, once
+    centred and scaled, are mirror images, so the one of average length comes first. A missing
+    value in ``columns_to_align`` is refused, as in :func:`resample_to_reference`.
 
     Parameters
     ----------
@@ -1293,12 +1431,21 @@ def find_reference_batch(
 
     if not isinstance(columns_to_align, list):
         raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
+    requested = int(settings["number_of_reference_batches"])
+    if requested < 1:
+        raise ValueError(f"number_of_reference_batches must be >= 1, got {requested}.")
 
     # Raises, naming the batch, when one fails a check.
     check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
+    if len(batches) < 3:
+        # One batch is its own reference. Two batches, once centred and scaled, are mirror images,
+        # so a PCA gives them the same T2 and SPE: the batch the search starts from comes first.
+        ranked = pd.Index([initial_reference_id, *(key for key in batches if key != initial_reference_id)])
+        _refuse_more_than_the_candidates(requested, len(ranked))
+        return ranked[0] if requested == 1 else ranked[:requested].to_list()
 
     # Resamples (simple interpolation) of all batches to that duration.
     resampled = resample_to_reference(
@@ -1308,26 +1455,12 @@ def find_reference_batch(
         settings=settings,
     )
 
-    # Unfolds that resampled data.
-    basewide = dict_to_wide(resampled)
-
-    # Does PCA on the wide, unfolded data. A=4
-    scaler = MCUVScaler().fit(basewide)
-    mcuv = scaler.fit_transform(basewide)
-    # You can't fit more components than rows in the matrix.
-    n_components = min(int(np.floor(settings["n_components"])), basewide.shape[0] - 1)
-    pca_first = PCA(n_components=n_components).fit(mcuv)
-
-    # Excludes all batches with Hotelling's T2 > 90% limit.
-    # These are the batches the model was fitted to; settings['judged_rows'] says which limit to use (#978).
-    hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90, judged_rows=settings.get("judged_rows"))
-    to_keep = pca_first.hotellings_t2_.iloc[:, -1] < hotellings_t2_limit_90
-
-    # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.
-    basewide = basewide.loc[to_keep, :]
-    scaler = MCUVScaler().fit(basewide)
-    mcuv = scaler.fit_transform(basewide)
-    pca_second = PCA(n_components=n_components).fit(mcuv)
+    # Unfolds that resampled data, and fits the PCA that ranks the batches.
+    pca_second, kept = _ranking_pca(
+        dict_to_wide(resampled),
+        int(np.floor(settings["n_components"])),
+        cast("str | None", settings.get("judged_rows")),
+    )
 
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
     metrics = pd.DataFrame(
@@ -1335,24 +1468,14 @@ def find_reference_batch(
             "HT2": pca_second.hotellings_t2_.iloc[:, -1],
             "SPE": pca_second.spe_.iloc[:, -1],
         }
-    )
+    ).loc[kept]
     metrics = metrics.sort_values(by=["HT2", "SPE"])
-    requested = int(settings["number_of_reference_batches"])
-    if requested < 1:
-        raise ValueError(f"number_of_reference_batches must be >= 1, got {requested}.")
-    if requested > len(metrics):
-        # SEC-13 (#261): without this guard the cutoff-relaxation loop below
-        # walks past ``conf_level=1.0``, which trips an ``assert`` inside
-        # ``spe_calculation`` and was -O-strippable. Fail fast with a clear
-        # message instead.
-        raise ValueError(
-            f"number_of_reference_batches={requested} exceeds the number of "
-            f"candidate batches ({len(metrics)}); cannot select that many."
-        )
+    _refuse_more_than_the_candidates(requested, len(metrics))
 
     # Boolean-mask indexing instead of a DataFrame.query() expression string
-    # built by f-string (no expression is assembled or evaluated).
-    spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
+    # built by f-string (no expression is assembled or evaluated). One or two batches kept by
+    # the screen have no model of their own to give an SPE limit, so they are not judged by one.
+    spe_metrics = metrics if len(metrics) < 3 else metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
     # SEC-13 (#261): bound the cutoff strictly below 1.0. If the loop runs out
     # of headroom before enough batches pass, give up with a clear error
     # rather than tripping the inner ``assert conf_level < 1.0`` (which is
