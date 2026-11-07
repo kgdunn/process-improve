@@ -147,14 +147,17 @@ def test_judged_rows_is_refused_by_name_when_it_is_not_one_of_its_values() -> No
 
 # --------------------------------------------------------------------------- the coming default
 def test_the_default_gives_the_new_row_limit_until_3_0_and_warns_at_the_callers_line() -> None:
-    """``None`` gives today's number, with a FutureWarning that names 2.4.0, 3.0 and both values."""
+    """``None`` gives today's number, with a FutureWarning, in full, that names 2.4.0, 3.0 and both values."""
     with pytest.warns(FutureWarning) as caught:
         limit = hotellings_t2_limit(0.95, 2, 20)  # the default call
     assert limit == hotellings_t2_limit(0.95, 2, 20, judged_rows="new")
     (warning,) = caught
-    text = str(warning.message)
-    for words in ("2.4.0", "3.0", 'judged_rows="fitted"', 'judged_rows="new"', "7.879", "5.361", "silences"):
-        assert words in text
+    assert str(warning.message) == (
+        "Hotelling's T² limit: judged_rows=None gives the F limit for new rows (7.879 here) until 3.0, and from 3.0 "
+        "the beta limit for the rows the model was fitted to (5.361 here), as announced in 2.4.0. Pass "
+        'judged_rows="fitted" to judge the rows the model was fitted to (hotellings_t2_, a score plot, outlier '
+        'detection), or judged_rows="new" to judge rows it was not fitted to; either silences this warning.'
+    )
     assert warning.filename == __file__
     assert warning.lineno == _line_of("# the default call")
 
