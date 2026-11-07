@@ -5,6 +5,7 @@
 // map/graph.json is built and checked against the book in pid-book's knowledge-graph/ (build_kg.py, layout_kg.py),
 // where every term quotes the line of the book it comes from: to update the map, copy doe_kg_map.json from there.
 import cytoscape from "./vendor/cytoscape.mjs";
+import { MODES, nextMode } from "./logic.js";
 
 const DATA = await fetch(new URL("map/graph.json", import.meta.url)).then((r) => {
   if (!r.ok) throw new Error(`map/graph.json: ${r.status}`);
@@ -66,15 +67,42 @@ const drawLegend = () => {
       title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}${label}</button>`).join("");
 };
 
+// ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's
+const MODE_KEY = "factorial-mode";
+const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
+const systemDark = matchMedia("(prefers-color-scheme: dark)");
+function applyMode(mode) {
+  const root = document.documentElement;
+  root.dataset.mode = mode;
+  if (mode === "auto") delete root.dataset.theme;
+  else root.dataset.theme = mode;   // the map redraws in its colours (the observer below)
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+    const { scheme } = meta.dataset;
+    meta.media = mode === "auto" ? `(prefers-color-scheme: ${scheme})` : scheme === mode ? "all" : "not all";
+  }
+  document.getElementById("mode").setAttribute("aria-label", `Colour mode: ${MODE_NAMES[mode]}`);
+}
+document.getElementById("mode").addEventListener("click", () => {
+  const mode = nextMode(document.documentElement.dataset.mode, systemDark.matches);
+  try {
+    if (mode === "auto") localStorage.removeItem(MODE_KEY);
+    else localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    /* storage refused: the mode holds for this visit */
+  }
+  applyMode(mode);
+});
+applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
+
 // ---------- the map
 const elements = [
   ...DATA.clusters.map(c => ({ group: "nodes", classes: "topic", position: { x: c.x, y: c.y },
-    data: { id: c.id, label: c.short, olabel: `${c.short}\n${c.size} terms`, d: 2 * c.r } })),
+    data: { id: c.id, label: c.short, olabel: `${c.short}\n[${c.size}]`, d: 2 * c.r } })),
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subtopic", position: { x: s.x, y: s.y },
     data: { id: s.id, label: s.name, d: 2 * s.r } })),
   // The same names as markers of their own, drawn above terms and links while the names sit mid-circle.
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subname", position: { x: s.x, y: s.y },
-    data: { id: `${s.id}-name`, label: s.name, w: 1.6 * s.r } })),
+    data: { id: `${s.id}-name`, label: `${s.name}\n[${s.size}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n) } })),
   ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target },
@@ -89,7 +117,7 @@ window.conceptMap = { cy, data: DATA };
 let selected = null;   // a term id, a topic id, or null for the overview
 let labelsOn = true;   // term names on the map; with them off, only the selected term is named
 try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch {}
-const DETAIL_GAP = 22;   // on-screen distance between terms at which they appear
+const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
 // An on-screen size: `base` where the terms appear, then growing more slowly than the map as you zoom in.

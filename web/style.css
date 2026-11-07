@@ -1517,6 +1517,7 @@ main.reproduced .trust-section { background: none; border: 0; border-radius: 0; 
 main.map { max-width: 980px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 main.map h1 { margin: 8px 0 0; font-size: 2rem; }
 main.map .lede { margin: 0; }
+.map-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .map-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
 .map-howlink { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); cursor: pointer; font: inherit;
   text-decoration: underline; text-underline-offset: 2px; }

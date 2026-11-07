@@ -18,7 +18,7 @@ from tests.web._support import WEB
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True}
-DETAIL_GAP, LABEL_GAP, TERM_GAP = 22, 45, 62  # as map.js: terms appear, then sub-topic terms are named
+DETAIL_GAP, LABEL_GAP, TERM_GAP = 19, 45, 62  # as map.js: terms appear, then sub-topic terms are named
 
 # Every term's name drawn on the map, and every topic's and sub-topic's, as rendered boxes; and how many overlap.
 STATE = """() => {
@@ -89,8 +89,14 @@ def _open_topic(page: Any, topic: dict[str, Any]) -> None:  # noqa: ANN401 - a P
 BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
 
 
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     page = _open(context, site)
+    biggest = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
+    assert biggest == f"{BIGGEST['short']}\n[{BIGGEST['size']}]", "a topic's name, and its number of terms below it"
+    sub = BIGGEST["subs"][0]
+    named = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('label')", f"{sub['id']}-name")
+    assert named == f"{sub['name']}\n[{sub['size']}]", "and a sub-topic's"
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
@@ -355,3 +361,19 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     finger.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     _settled(page)
     assert page.evaluate(view)["zoom"] > moved["zoom"] * 1.5, "and spreading them zooms in"
+
+
+def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site):
+    """The map has the start page's switch: light, dark or the system's, in turn, kept for every page of the app."""
+    page = _open(context, site)
+    theme = "() => document.documentElement.dataset.theme ?? 'system'"
+    seen = []
+    for _ in range(3):
+        page.click("#mode")
+        seen.append(page.evaluate(theme))
+    assert sorted(seen) == ["dark", "light", "system"], "each press moves to the next mode"
+    page.click("#mode")
+    chosen = page.evaluate(theme)
+    page.goto(site)
+    page.wait_for_function("() => document.documentElement.dataset.mode")
+    assert page.evaluate(theme) == chosen, "the start page opens in the mode chosen on the map"
