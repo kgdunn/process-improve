@@ -917,6 +917,21 @@ class TestMBPCAWrittenOut:
             assert model.algorithm_ == algorithm
             _check_fitted(model, blocks, expected, rtol=1e-6)
 
+    def test_square_blocks_tell_each_regression_which_way_it_runs(self) -> None:
+        """Three rows, three blocks and a block of three columns, on the masked path.
+
+        Every masked regression of a square array must be told whether it runs over the columns or
+        the rows: the block loadings and scores of block ``p``, and the super loading and super score
+        over the three block scores. Read from the shape, a square array is refused.
+        """
+        blocks = {
+            "p": pd.DataFrame([[1.0, 4.0, 2.0], [3.0, 1.0, 5.0], [0.0, 2.0, 2.5]], columns=["p0", "p1", "p2"]),
+            "q": pd.DataFrame({"q0": [2.0, -1.0, 0.5]}),
+            "r": pd.DataFrame({"r0": [1.0, 1.5, 4.0], "r1": [0.0, 2.0, -1.0]}),
+        }
+        model = MBPCA(n_components=2, algorithm="nipals").fit(blocks)
+        _check_fitted(model, blocks, _mbpca_written_out(blocks, 2), rtol=1e-9)
+
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self) -> None:
         """New rows are deflated by diagnose and transform as the fit did; arrays read as the fitted columns."""
         blocks = _gappy_three_blocks()
@@ -1072,6 +1087,22 @@ class TestMBPCAWrittenOut:
             model.group_contributions(new, group=["n0"], reference=["zz"])
         with pytest.raises(TypeError, match=r"^X must be a dict\[str, pd\.DataFrame\]\.$"):
             model.score_contributions(new["x"])
+
+    def test_the_contributions_of_a_row_with_nothing_in_a_block_add_up_to_its_super_score(self) -> None:
+        """Its super score divides by ``p_s'p_s`` over the blocks it has, less than 1, and so does each term (#1144).
+
+        Row n1 has nothing in block ``x``, so its terms there are NaN and add nothing to the sum.
+        """
+        blocks = _gappy_three_blocks()
+        model = MBPCA(n_components=2).fit(blocks)
+        new = _new_rows(blocks)
+        new["x"].iloc[1] = np.nan
+        scores = model.diagnose(new).super_scores
+        for component in (1, 2):
+            contributions = model.score_contributions(new, component=component)
+            assert contributions["x"].loc["n1"].isna().all()
+            total = sum(frame.sum(axis=1) for frame in contributions.values())
+            np.testing.assert_allclose(total, scores[component], rtol=1e-10)
 
     def test_two_rows_and_a_constant_column_have_the_r2_they_should_without_a_warning(self) -> None:
         """At two rows a varying column holds a sum of squares of 1; a constant one holds none.
@@ -3162,13 +3193,15 @@ class TestMBPLSPlotsAndSummary:
     def test_the_rmsee_leaves_out_a_missing_y_cell(self) -> None:
         """The RMSEE is over the observed cells, so a gap in Y gives a number, not nan (#1081).
 
-        A nullable column holding pd.NA reads the same.
+        A nullable column holding pd.NA reads the same, and so does a column of Python objects holding None.
         """
         blocks, y = _gappy_mbpls_data()
         model = MBPLS(n_components=2).fit(blocks, y)
         observed = y["q"].drop(index=y.index[1])
         rmsee = np.sqrt(np.mean((observed - model.predictions_["q"].drop(index=y.index[1])) ** 2))
-        for drawn in (y, y.astype("Float64")):
+        as_objects = y.astype(object)
+        as_objects.iloc[1, 0] = None
+        for drawn in (y, y.astype("Float64"), as_objects):
             (note,) = model.predictions_vs_observed_plot(drawn, variable="q").layout.annotations
             assert note.text == f"RMSEE = {rmsee:.4g}"
 

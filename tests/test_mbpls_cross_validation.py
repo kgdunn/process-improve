@@ -374,6 +374,16 @@ def test_an_object_y_cross_validates_as_its_float_copy() -> None:
     pd.testing.assert_frame_equal(as_object.r2y_validated, as_float.r2y_validated)
 
 
+def test_object_blocks_cross_validate_as_their_float_copies() -> None:
+    """X-blocks of object dtype give the curve of their float copies, as a Y of object dtype does."""
+    blocks, y = _small_two_blocks()
+    kwargs = {"max_components": 2, "cv": 3, "n_repeats": 1, "random_state": 0}
+    as_float = MBPLS.select_n_components(blocks, y, **kwargs)
+    as_object = MBPLS.select_n_components({name: frame.astype(object) for name, frame in blocks.items()}, y, **kwargs)
+    pd.testing.assert_series_equal(as_object.rmsecv, as_float.rmsecv)
+    pd.testing.assert_frame_equal(as_object.r2y_validated, as_float.r2y_validated)
+
+
 @pytest.mark.filterwarnings(
     "ignore:invalid value encountered:RuntimeWarning", "ignore:Mean of empty slice:RuntimeWarning"
 )

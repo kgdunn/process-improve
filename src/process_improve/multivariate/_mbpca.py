@@ -752,7 +752,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     def _left_out(self, name: str) -> np.ndarray | bool:
         """Which columns of a block the fit left out (#1098); a model pickled before then left none out."""
-        return getattr(self, "_unobserved_columns", {}).get(name, False)
+        return getattr(self, "_unobserved_columns", {}).get(
+            name,
+            False,  # pragma: no mutate - np.where reads a condition of None as False
+        )
 
     def _project_component(
         self, x_def: dict[str, np.ndarray], a: int
@@ -982,7 +985,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # it divides by: p_b'p_b over the row's cells in the block, and p_s'p_s over the blocks the row
         # has a score in. On a complete row both are the loadings' unit length (#1144).
         has_score = np.column_stack([_rows_with_data(deflated[name]) for name in self.block_names_])
-        super_divisor = row_regression_divisors(np.where(has_score, 0.0, np.nan), p_s)
+        super_divisor = row_regression_divisors(
+            np.where(
+                has_score,
+                0.0,  # pragma: no mutate - row_regression_divisors reads only which cells are NaN
+                np.nan,
+            ),
+            p_s,
+        )
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
             p_b = self.block_loadings_[name].values[:, a]
