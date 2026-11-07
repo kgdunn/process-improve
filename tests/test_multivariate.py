@@ -1830,6 +1830,36 @@ def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> N
         PCA.select_n_components(np.ones((1, 3)))
 
 
+@pytest.mark.parametrize(
+    ("max_components", "message"),
+    [(0, r"^max_components must be >= 1; got 0\.$"), (2.5, r"^max_components must be a whole number; got 2\.5\.$")],
+)
+def test_pca_select_n_components_refuses_a_max_components_that_is_not_a_count(
+    max_components: float, message: str
+) -> None:
+    """A count below 1, or not whole, is refused by name in the family's words, before anything is fitted (#1144)."""
+    with pytest.raises(ValueError, match=message):
+        PCA.select_n_components(np.arange(12.0).reshape(4, 3) ** 2, max_components=max_components)
+
+
+def test_pca_select_n_components_reads_whether_each_column_varies_on_its_own() -> None:
+    """A flat column inside the range of the others has no Q2, without in-fold scaling too (#1070).
+
+    Without in-fold scaling the column mean is recomputed from the filled matrix each pass, so the
+    flat column's held-out cells come back off by rounding: its PRESS is about 1e-31, where its null
+    sum of squares is 0. Its value, 0.1, lies inside the range of the other columns, so only a
+    column-by-column reading of which columns vary leaves its Q2 undefined rather than ``-inf``.
+    """
+    rng = np.random.default_rng(21)
+    scaled = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((40, 2)) @ rng.standard_normal((2, 5))))
+    X = scaled + 0.3 * rng.standard_normal((40, 5))
+    X["flat"] = 0.1
+    with pytest.warns(SpecificationWarning, match="leaks"):
+        result = PCA.select_n_components(X, max_components=3, scale_inside_folds=False, random_state=0)
+    assert result.q2_per_variable["flat"].isna().all()
+    assert np.isfinite(result.q2_per_variable.drop(columns="flat").to_numpy()).all()
+
+
 def test_pca_select_n_components_refuses_an_all_nan_press(monkeypatch: pytest.MonkeyPatch) -> None:
     """A scheme that scores no component count says so rather than recommending one."""
     from process_improve.multivariate import _pca
