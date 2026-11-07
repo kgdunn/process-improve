@@ -30,7 +30,7 @@ print(pca.loadings_.round(2))
 spe = pca.spe_.iloc[:, -1]
 spe_limit = pca.spe_limit(conf_level=0.95)
 t2 = pca.hotellings_t2_.iloc[:, -1]
-t2_limit = pca.hotellings_t2_limit(conf_level=0.95)
+t2_limit = pca.hotellings_t2_limit(conf_level=0.95, judged_rows="fitted")
 print(f"SPE above its 95% limit of {spe_limit:.2f}: batches {list(spe.index[spe > spe_limit])}")
 print(f"T2 above its 95% limit of {t2_limit:.2f}: batches {list(t2.index[t2 > t2_limit])}")
 print("SPE of the last four batches:", spe.tail(4).round(2).tolist())
@@ -42,7 +42,7 @@ print(f"Largest contributions to the SPE of batch {last}:")
 print(contributions.sort_values(key=abs, ascending=False).head(4).round(2))
 
 # %% The plots
-pca.score_plot(pc_horiz=1, pc_vert=2).show()
+pca.score_plot(pc_horiz=1, pc_vert=2, judged_rows="fitted").show()
 pca.loading_plot(pc_horiz=1, pc_vert=2).show()
 pca.spe_plot().show()
-pca.t2_plot().show()
+pca.t2_plot(judged_rows="fitted").show()

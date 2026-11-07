@@ -42,11 +42,11 @@ two blends by 29%.
    new material has no `sigma` at all. Splitting one lot into two identical half-lots is a
    direct test: it changes the predictions of an autoscaled model, and leaves a centred model
    exactly unchanged (checked on the pyphi data). There the usage spread `sigma_j` of the 9
-   Group 2 lots spans a factor of 20, so in the autoscaled model two lots with identical
-   properties would get effects 20 times apart. The lot effects in that data set are small, so
-   the change is small (0.002 Y standard deviations, `results/pyphi_invariance_checks.csv`); in
-   the simulation with uneven usage the autoscaled model's error on new materials is 16% higher
-   than the centred model's.
+   Group 2 lots spans a factor of 20.7 (`study.py` prints it), so in the autoscaled model two
+   lots with identical properties would get effects 20.7 times apart. The lot effects in that
+   data set are small, so the change is small (0.002 Y standard deviations,
+   `results/pyphi_invariance_checks.csv`); in the simulation with uneven usage the autoscaled
+   model's error on new materials is 16% higher than the centred model's.
 4. **The D-block deflation caps the fit.** After each component TPLS deflates D by `r v'`,
    which removes that material direction from D for good. When the super score also carries Z,
    or a second group of materials, Y needs that direction again in a later component, with a
@@ -69,7 +69,7 @@ up with PLS on the mixture properties.
 
 The deflation also makes the TPLS fit fragile. In the simulated data set of the invariance
 checks, with D deflated, the iteration for the third component does not converge: it alternates
-between two states, and TPLS stops at its iteration limit without a warning. The model, and
+between two states, and TPLS stops at its iteration limit. The model, and
 every prediction from it, is then whichever state the last iteration lands on, which differs
 between platforms. Without the deflation every component of that data set converges. The
 invariance checks therefore use 2 components, and refuse a fit that did not converge.
@@ -123,10 +123,15 @@ residual is zero.
 Describe each blend by the fraction-weighted mean of every property of each group (the ideal
 mixing rule), then regress Y on `[Z, means]` with PLS. A new material needs nothing special: its
 properties enter the mean. With one group of materials and no Z, TPLS with centred F and without
-the D-block deflation *is* this PLS (the predictions agree to 1e-8), which makes each a check on
-the other; with Z, TPLS is the multiblock version and reaches the same fit. Non-ideal mixing
-(dissimilar materials that do not blend linearly) adds the second central moments of the
-blend's materials, in the space of the leading principal components of each group's properties.
+the D-block deflation *is* a PLS on the means that centres them without scaling them, and
+autoscales Y as TPLS does: the predictions agree to 1e-8 Y standard deviations, which makes each a
+check on the other. Approach 3a's PLS also scales each mean to unit variance, which weights the
+properties differently: its predictions differ from that TPLS by 0.0085 to 0.3 Y standard
+deviations with 2 to 6 components, and agree with 8, as many as there are properties, where both
+are least squares (`pls_equivalence` in `study.py`). With Z, TPLS is the multiblock version and
+reaches the same fit. Non-ideal mixing (dissimilar materials that do not blend linearly) adds the
+second central moments of the blend's materials, in the space of the leading principal components
+of each group's properties.
 
 ### 4. Hierarchical: one property effect for all, plus an offset per known material
 
@@ -308,6 +313,7 @@ python domain.py    # applicability domain and the far material, after study.py
 
 `python study.py --quick` and `python domain.py --quick` run every step on one data set, with
 one or two left-out materials and one or two components, in under a minute each, and write
-nothing; the test suite runs both. The invariance checks are cheap, so the quick run does them
-in full and fails unless they reproduce `results/invariance_checks.csv` and
-`results/pyphi_invariance_checks.csv`. Every other table needs the full run.
+nothing; the test suite runs both. The invariance checks and the PLS equivalence are cheap, so
+the quick run does them in full and fails unless they reproduce `results/invariance_checks.csv`,
+`results/pyphi_invariance_checks.csv` and `results/pls_equivalence.csv`. Every other table needs
+the full run.

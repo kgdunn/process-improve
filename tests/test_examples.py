@@ -57,6 +57,18 @@ def _has_quick_mode(script: Path) -> bool:
     return QUICK in _source(script)
 
 
+def _silences_every_warning(call: ast.Call) -> bool:
+    """Whether ``call`` ignores every warning: an ``"ignore"`` filter that names no category, message or module."""
+    name = call.func.attr if isinstance(call.func, ast.Attribute) else getattr(call.func, "id", None)
+    if name not in ("simplefilter", "filterwarnings", "catch_warnings"):
+        return False
+    keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+    positional = call.args if name != "catch_warnings" else []  # catch_warnings takes keywords only
+    action = positional[0] if positional else keywords.get("action")
+    names_some = len(positional) > 1 or not keywords.keys().isdisjoint({"category", "message", "module"})
+    return isinstance(action, ast.Constant) and action.value == "ignore" and not names_some
+
+
 def _skip_unless_installed(example: Path) -> None:
     """Skip the test when the example imports a package that is not installed, and name it."""
     absent = sorted({name.split(".")[0] for name, _ in _imports(example)} - set(sys.stdlib_module_names))
@@ -79,13 +91,23 @@ def test_the_package_names_an_example_imports_exist(example: Path) -> None:
         assert not missing, f"{_name(example)} imports {missing} from {module_name}, which has no such names"
 
 
+@pytest.mark.parametrize("example", SCRIPTS + NOTEBOOKS, ids=_name)
+def test_an_example_silences_only_the_warnings_it_names(example: Path) -> None:
+    # A filter that ignores every warning also hides the ones the package adds later, such as a fit that stopped early.
+    calls = [node for node in ast.walk(ast.parse(_source(example))) if isinstance(node, ast.Call)]
+    blanket = [call.lineno for call in calls if _silences_every_warning(call)]
+    assert not blanket, f"{_name(example)} ignores every warning at line(s) {blanket}: name the category or the message"
+
+
 @pytest.mark.dataset
 @pytest.mark.parametrize(
     "script",
     [pytest.param(path, marks=pytest.mark.slow) if _has_quick_mode(path) else path for path in SCRIPTS],
     ids=_name,
 )
-def test_the_example_runs(script: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_the_example_runs(
+    script: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, recwarn: pytest.WarningsRecorder
+) -> None:
     # The modules beside it import as they do for ``python script.py``; and a script may add to sys.path.
     monkeypatch.setattr(sys, "path", [str(script.parent), *sys.path])
     _skip_unless_installed(script)
@@ -98,6 +120,13 @@ def test_the_example_runs(script: Path, monkeypatch: pytest.MonkeyPatch, tmp_pat
         for name, module in list(sys.modules.items()):
             if Path(getattr(module, "__file__", None) or "").parent == script.parent:
                 del sys.modules[name]
+    # The package says that a name or a default will change with a warning that points at the caller's own line.
+    notices = [
+        f"{Path(w.filename).name}:{w.lineno}: {w.message}"
+        for w in recwarn
+        if issubclass(w.category, (DeprecationWarning, FutureWarning)) and EXAMPLES in Path(w.filename).parents
+    ]
+    assert not notices, f"{_name(script)} uses a name or a default that will change:\n" + "\n".join(notices)
 
 
 @pytest.mark.dataset
