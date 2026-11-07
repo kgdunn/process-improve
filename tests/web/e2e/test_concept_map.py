@@ -285,6 +285,40 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_url("**/map/")
 
 
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_link_labels_start_off_beside_the_search_and_read_each_lit_link_s_verb(context, site):
+    page = _open(context, site)
+    search, switch = (page.locator(s).bounding_box() for s in (".map-search input", ".map-verbs"))
+    assert switch["x"] >= search["x"] + search["width"], "the switch sits in the space to the right of the search"
+    assert switch["y"] < search["y"] + search["height"], "on the search's row"
+    assert search["y"] < switch["y"] + switch["height"], "on the search's row"
+    assert not page.is_checked("#verbs"), "off until the reader turns it on"
+    labelled = """() => window.conceptMap.cy.edges('.link').filter((e) => e.visible() && e.style('label'))
+                    .map((e) => [e.hasClass('hl'), e.style('label'), e.data('verb'), e.style('target-arrow-shape')])"""
+    _go(page, "full_factorial")
+    assert page.evaluate(labelled) == []
+    page.click(".map-verbs")
+    _settled(page)
+    shown = page.evaluate(labelled)
+    lit = page.evaluate("() => window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()).length")
+    assert len(shown) == lit > 0, "the selected term's drawn links are labelled, the dimmed ones are not"
+    assert all(hl and label == verb and verb and arrow == "triangle" for hl, label, verb, arrow in shown)
+    page.reload()
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    assert page.is_checked("#verbs"), "the choice is remembered"
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_the_deepest_zoom_sets_the_closest_terms_far_apart(context, site):
+    page = _open(context, site)
+    for _ in range(12):
+        page.click("#zin")
+        _settled(page)
+    zoom, deepest = page.evaluate("() => [window.conceptMap.cy.zoom(), window.conceptMap.cy.maxZoom()]")
+    assert zoom == pytest.approx(deepest), "the + button reaches the limit"
+    assert TERM_GAP * deepest >= 360, f"the closest terms are {TERM_GAP * deepest:.0f} px apart at the deepest zoom"
+
+
 @pytest.mark.parametrize("context_options", [PHONE])
 def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
     page = _open(context, site)

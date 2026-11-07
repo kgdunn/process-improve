@@ -105,7 +105,7 @@ const elements = [
     data: { id: `${s.id}-name`, label: `${s.name}\n[${s.size}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n) } })),
-  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target },
+  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0) },
     classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between", data: { id: `b${i}`, source: e.a, target: e.b, n: e.n } })),
 ];
@@ -117,6 +117,8 @@ window.conceptMap = { cy, data: DATA };
 let selected = null;   // a term id, a topic id, or null for the overview
 let labelsOn = true;   // term names on the map; with them off, only the selected term is named
 try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch {}
+let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
+try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
 const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
@@ -176,13 +178,18 @@ function sheet(z) {
     { selector: ".term.nb", style: { "z-index": 20 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
       "curve-style": "straight", "z-index": 5, opacity: middle ? 0.3 : 0.55 } },
+    // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points.
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { label: "data(verb)", "font-family": FONT, "font-size": px(font * 0.8),
+      color: css("--muted"), "text-rotation": "autorotate", "text-background-color": css("--panel"),
+      "text-background-opacity": 0.85, "text-background-padding": px(1), "target-arrow-shape": "triangle",
+      "target-arrow-color": css("--muted"), "arrow-scale": 0.7 } }] : []),
     { selector: ".link.cross", style: { opacity: middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 2), "line-color": css("--accent"), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--accent"), "arrow-scale": 0.9, opacity: 1, "z-index": 15 } },
     { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
-    { selector: ".link.dim", style: { opacity: 0.08 } },
+    { selector: ".link.dim", style: { opacity: 0.08, label: "" } },
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
 }
@@ -300,7 +307,7 @@ function setLimits() {
   cy.fit(cy.nodes(".topic"), 14);
   const fitZoom = cy.zoom();
   cy.minZoom(fitZoom * 0.6);
-  cy.maxZoom(Math.max(fitZoom * 14, 2.4));
+  cy.maxZoom(Math.max(fitZoom * 30, 6));   // deep enough to set the closest terms at least 370 px apart, on any screen
   return { fitZoom, z0 };
 }
 
@@ -442,6 +449,13 @@ labelsButton.addEventListener("click", () => {
   showLabelState(); refresh(true);
 });
 showLabelState();
+const verbsSwitch = document.getElementById("verbs");
+verbsSwitch.checked = verbsOn;
+verbsSwitch.addEventListener("change", () => {
+  verbsOn = verbsSwitch.checked;
+  try { localStorage.setItem("factorial-map-verbs", verbsOn ? "on" : "off"); } catch {}
+  refresh(true);
+});
 document.getElementById("zin").addEventListener("click", () => zoomBy(1.6));
 document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.6));
 document.getElementById("home").addEventListener("click", () => go(null));

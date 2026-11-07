@@ -1521,7 +1521,9 @@ main.map .lede { margin: 0; }
 .map-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
 .map-howlink { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); cursor: pointer; font: inherit;
   text-decoration: underline; text-underline-offset: 2px; }
-.map-search { position: relative; }
+/* The search, narrower, with the link-label switch in the space beside it. */
+.map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
+.map-search { position: relative; flex: 1 1 200px; max-width: 420px; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
 .map-search input { width: 100%; box-sizing: border-box; font-size: 1rem; }
 .map-results { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel);
