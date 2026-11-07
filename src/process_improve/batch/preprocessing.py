@@ -1263,13 +1263,62 @@ def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None 
         return cast("str", batch_lengths.index[closest])
 
 
+def _ranking_pca(basewide: pd.DataFrame, n_components: int, judged_rows: str | None) -> PCA:
+    """
+    Fit the PCA that ranks the batches, after leaving out those above the 90% T2 limit.
+
+    At most ``n - 2`` components are fitted to ``n`` batches. With ``n - 1`` the model passes
+    through every batch, so each has the same T2 and no SPE, and rounding decided the ranking.
+    The 90% limit for the fitted batches then equals that T2, so the screen left one batch or
+    none, and the refit raised "Found array with 1 sample(s)" (#1184). When the screen leaves
+    fewer than 3 batches there is no model to refit, and the first one ranks them all.
+
+    Parameters
+    ----------
+    basewide : pd.DataFrame
+        The resampled batches, unfolded: one row per batch.
+    n_components : int
+        The most components to fit.
+    judged_rows : str or None
+        Passed to :meth:`PCA.hotellings_t2_limit` for the screen.
+
+    Returns
+    -------
+    PCA
+        The model fitted to the batches the screen kept.
+    """
+    first = PCA(n_components=min(n_components, basewide.shape[0] - 2)).fit(MCUVScaler().fit_transform(basewide))
+    # These are the batches the model was fitted to; judged_rows says which limit to use (#978).
+    limit = first.hotellings_t2_limit(0.90, judged_rows=judged_rows)
+    kept = basewide.loc[first.hotellings_t2_.iloc[:, -1] < limit, :]
+    if kept.shape[0] < 3:
+        return first
+    # Refitted to the batches kept, so the ones left out do not bias the model.
+    return PCA(n_components=min(n_components, kept.shape[0] - 2)).fit(MCUVScaler().fit_transform(kept))
+
+
+def _refuse_more_than_the_candidates(requested: int, n_candidates: int) -> None:
+    """
+    Raise when more reference batches are requested than there are candidates.
+
+    SEC-13 (#261): without this guard the cutoff-relaxation loop of
+    :func:`find_reference_batch` walks past ``conf_level=1.0``, which trips an ``assert``
+    inside ``spe_calculation`` and was -O-strippable. Fail fast with a clear message instead.
+    """
+    if requested > n_candidates:
+        raise ValueError(
+            f"number_of_reference_batches={requested} exceeds the number of "
+            f"candidate batches ({n_candidates}); cannot select that many."
+        )
+
+
 def find_reference_batch(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     settings: dict | None = None,
 ) -> str | list[str]:
     """
-    Find a reference batch. A missing value in ``columns_to_align`` is refused, as in :func:`resample_to_reference`.
+    Find a reference batch.
 
     Starts with the average duration batch; resamples (simple interpolation) of all batches to
     that duration. Unfolds that resampled data. Does PCA on the wide, unfolded data. Fits,
@@ -1277,6 +1326,11 @@ def find_reference_batch(
     with 4 components. Finds the batch which has the multivariate combination of scores which are
     the smallest (i.e. closest to the model center) and ensures this batch has SPE < 50% of the
     model limit.
+
+    Each PCA fits at most ``n - 2`` components to ``n`` batches, since with ``n - 1`` it passes
+    through every batch and cannot rank them. One batch is its own reference. Two batches, once
+    centred and scaled, are mirror images, so the one of average length comes first. A missing
+    value in ``columns_to_align`` is refused, as in :func:`resample_to_reference`.
 
     Parameters
     ----------
@@ -1323,12 +1377,21 @@ def find_reference_batch(
 
     if not isinstance(columns_to_align, list):
         raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
+    requested = int(settings["number_of_reference_batches"])
+    if requested < 1:
+        raise ValueError(f"number_of_reference_batches must be >= 1, got {requested}.")
 
     # Raises, naming the batch, when one fails a check.
     check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
+    if len(batches) < 3:
+        # One batch is its own reference. Two batches, once centred and scaled, are mirror images,
+        # so a PCA gives them the same T2 and SPE: the batch the search starts from comes first.
+        ranked = pd.Index([initial_reference_id, *(key for key in batches if key != initial_reference_id)])
+        _refuse_more_than_the_candidates(requested, len(ranked))
+        return ranked[0] if requested == 1 else ranked[:requested].to_list()
 
     # Resamples (simple interpolation) of all batches to that duration.
     resampled = resample_to_reference(
@@ -1338,26 +1401,10 @@ def find_reference_batch(
         settings=settings,
     )
 
-    # Unfolds that resampled data.
-    basewide = dict_to_wide(resampled)
-
-    # Does PCA on the wide, unfolded data. A=4
-    scaler = MCUVScaler().fit(basewide)
-    mcuv = scaler.fit_transform(basewide)
-    # You can't fit more components than rows in the matrix.
-    n_components = min(int(np.floor(settings["n_components"])), basewide.shape[0] - 1)
-    pca_first = PCA(n_components=n_components).fit(mcuv)
-
-    # Excludes all batches with Hotelling's T2 > 90% limit.
-    # These are the batches the model was fitted to; settings['judged_rows'] says which limit to use (#978).
-    hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90, judged_rows=settings.get("judged_rows"))
-    to_keep = pca_first.hotellings_t2_.iloc[:, -1] < hotellings_t2_limit_90
-
-    # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.
-    basewide = basewide.loc[to_keep, :]
-    scaler = MCUVScaler().fit(basewide)
-    mcuv = scaler.fit_transform(basewide)
-    pca_second = PCA(n_components=n_components).fit(mcuv)
+    # Unfolds that resampled data, and fits the PCA that ranks the batches.
+    pca_second = _ranking_pca(
+        dict_to_wide(resampled), int(np.floor(settings["n_components"])), settings.get("judged_rows")
+    )
 
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
     metrics = pd.DataFrame(
@@ -1367,18 +1414,7 @@ def find_reference_batch(
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
-    requested = int(settings["number_of_reference_batches"])
-    if requested < 1:
-        raise ValueError(f"number_of_reference_batches must be >= 1, got {requested}.")
-    if requested > len(metrics):
-        # SEC-13 (#261): without this guard the cutoff-relaxation loop below
-        # walks past ``conf_level=1.0``, which trips an ``assert`` inside
-        # ``spe_calculation`` and was -O-strippable. Fail fast with a clear
-        # message instead.
-        raise ValueError(
-            f"number_of_reference_batches={requested} exceeds the number of "
-            f"candidate batches ({len(metrics)}); cannot select that many."
-        )
+    _refuse_more_than_the_candidates(requested, len(metrics))
 
     # Boolean-mask indexing instead of a DataFrame.query() expression string
     # built by f-string (no expression is assembled or evaluated).

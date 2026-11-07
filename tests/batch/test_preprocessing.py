@@ -434,6 +434,44 @@ def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
         )
 
 
+def _noisy_batches(n_batches: int) -> dict:
+    """``n_batches`` warped batches of unequal length, ``b0`` the shortest, each with its own noise."""
+    return {
+        f"b{i}": _warped_batch(30 + 2 * i) + 0.1 * np.random.default_rng(i).standard_normal((30 + 2 * i, 2))
+        for i in range(n_batches)
+    }
+
+
+class TestFindReferenceBatchForAnyNumberOfBatches:
+    """Every number of batches gives a reference; 2 to 5 raised "Found array with 1 sample(s)" (#1184).
+
+    With ``n - 1`` components the PCA passed through every batch, so each had the same T2, the
+    90% limit for the fitted batches equalled it, and the screen left one batch or none.
+    """
+
+    def test_one_batch_is_its_own_reference(self) -> None:
+        assert find_reference_batch(_noisy_batches(1), ["a", "b"]) == "b0"
+
+    def test_of_two_batches_the_one_of_average_length_comes_first(self) -> None:
+        """Centred and scaled, two batches are mirror images, so a PCA cannot rank them."""
+        batches = _noisy_batches(2)
+        settings = {"judged_rows": "fitted"}
+        assert find_average_length(batches) == "b0"
+        assert find_reference_batch(batches, ["a", "b"], settings) == "b0"
+        assert find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 2}) == ["b0", "b1"]
+        with pytest.raises(ValueError, match=r"number_of_reference_batches=3 exceeds the number of candidate batches"):
+            find_reference_batch(batches, ["a", "b"], {**settings, "number_of_reference_batches": 3})
+
+    @pytest.mark.parametrize("n_batches", [3, 4, 5, 6, 8])
+    @pytest.mark.parametrize("judged_rows", ["fitted", "new"])
+    def test_a_reference_is_found_without_a_warning(self, n_batches: int, judged_rows: str) -> None:
+        """A PCA asked for more components than the batches allow warned for 5 batches."""
+        batches = _noisy_batches(n_batches)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert find_reference_batch(batches, ["a", "b"], {"judged_rows": judged_rows}) in batches
+
+
 # ---- Alignment helper tests (batch/alignment_helpers.py) ----
 
 
