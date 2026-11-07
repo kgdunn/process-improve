@@ -35,6 +35,7 @@ from patsy.design_info import DesignInfo
 from scipy import stats
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._lm import (
     block_levels,
@@ -2156,8 +2157,6 @@ def _blocks_as_factor(blocks: pd.Series, model: str) -> pd.Categorical:
     as_text = [(contrast, level) for contrast, level in named_levels(model, "Block") if level in numbers]
     if not as_text:
         return factor
-    from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
-
     contrast, level = as_text[0]
     new = ", ".join(f"C(Block, {contrast}({numbers[str(level)]}))" for contrast, level in as_text)
     warnings.warn(
@@ -2238,7 +2237,7 @@ def _validate_inputs(
                 "units the efficiencies and the region-based metrics are on the wrong scale; pass the "
                 "DesignResult, or code the columns first.",
                 category=UserWarning,
-                stacklevel=3,
+                stacklevel=user_stacklevel(),
             )
 
 

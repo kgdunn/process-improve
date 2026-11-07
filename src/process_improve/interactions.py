@@ -48,6 +48,7 @@ from collections.abc import Callable, Iterable, Sequence
 import numpy as np
 import pandas as pd
 
+from process_improve._warnings import user_stacklevel
 from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate._preprocessing import _looks_prescaled
 
@@ -247,7 +248,7 @@ def interaction_terms(
             "product of un-standardised columns is dominated by whichever parent has the larger "
             "units. Transform, centre and scale the parents first.",
             SpecificationWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
 
     values = x_log.astype(float)

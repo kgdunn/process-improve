@@ -28,6 +28,8 @@ import statsmodels.formula.api as smf
 from patsy import ModelDesc, dmatrix
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from process_improve._warnings import user_stacklevel
+
 # ENG-02: the per-analysis implementations now live in ``_analyses``; they are
 # re-exported here so the ``analyze_experiment`` dispatcher (and external
 # importers such as ``tests/test_sec09`` reaching for ``_run_residual_diagnostics``)
@@ -299,7 +301,7 @@ def _as_mixture(
                 "r_squared, df_model and the overall F are about the mean, and df_model is one less than the number "
                 "of terms.",
                 category=UserWarning,
-                stacklevel=3,
+                stacklevel=user_stacklevel(),
             )
         ols_result = smf.ols(ols_result.model.formula, data=df, hasconst=True).fit()
     elif model in SCHEFFE_MODELS and not ols_result.k_constant:
@@ -307,7 +309,7 @@ def _as_mixture(
             f"The components do not sum to 1 to within {BLEND_SUM_TOLERANCE:g} in every run, so the Scheffe model "
             "holds no constant: r_squared, df_model and the overall F are about zero, not about the mean.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return ols_result, model in SCHEFFE_MODELS or (model not in _NAMED_MODELS and pure and holds)
 
@@ -464,7 +466,7 @@ def _estimable_default(
             f"{'that interaction' if len(lost) == 1 else 'those interactions'} in full. Pass model='interactions' "
             "to fit it anyway."
         )
-        warnings.warn(note, category=UserWarning, stacklevel=3)
+        warnings.warn(note, category=UserWarning, stacklevel=user_stacklevel())
         return model, note, lost
     if estimable(full):
         return model, "", []  # exactly aliased in chains, which the analyses test once each
@@ -477,7 +479,7 @@ def _estimable_default(
         "model was fitted instead. Pass model='interactions' to fit it anyway, or analysis_type='model_selection' "
         "to choose the interactions the data support."
     )
-    warnings.warn(note, category=UserWarning, stacklevel=3)
+    warnings.warn(note, category=UserWarning, stacklevel=user_stacklevel())
     return "main_effects", note, []
 
 
@@ -541,7 +543,7 @@ def _drop_incomplete_runs(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
         warnings.warn(
             f"{n_dropped} run(s) with a missing response or factor setting were left out of the analysis.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
         return df.loc[complete].copy()
     return df
@@ -615,7 +617,7 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
                     f"The design has a {BLOCK_COL!r} column, but blocks are not added to {kind}, so block-to-block "
                     "differences stay in the residual. Drop the column to silence this, or name it in the formula.",
                     category=UserWarning,
-                    stacklevel=3,
+                    stacklevel=user_stacklevel(),
                 )
             return df, formula, ()
         rhs = " + ".join(term for term in terms if term != BLOCK_COL)
@@ -676,7 +678,7 @@ def _whole_plot_column(df: pd.DataFrame, whole_plot: str | None, types: list[str
             "then look more significant than they are, and subplot effects less. Add 'split_plot' to "
             "analysis_type for the REML analysis, or drop the column to silence this.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return column
 
@@ -987,7 +989,7 @@ def _warn_if_not_reparametrised(fit: RegressionResultsWrapper, coded: Regression
             "the fit in model_summary. A model with an interaction or a square but not the main effects below it "
             "is not the same model once its factors are centred; add those main effects, or use coding='actual'."
         )
-    warnings.warn(message, category=UserWarning, stacklevel=4)
+    warnings.warn(message, category=UserWarning, stacklevel=user_stacklevel())
 
 
 def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
@@ -1817,7 +1819,7 @@ def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dic
             "rescale them) before analysing."
         )
         logger.warning("analyze_experiment: %s", message)
-        warnings.warn(message, category=RuntimeWarning, stacklevel=3)
+        warnings.warn(message, category=RuntimeWarning, stacklevel=user_stacklevel())
     if rank_deficient:
         message = (
             f"The model matrix has {n_terms} terms but rank {model_rank}, so "
@@ -1828,7 +1830,7 @@ def _estimability(ols_result: RegressionResultsWrapper, design_rank: int) -> dic
             "determined. Fit fewer terms, or add runs."
         )
         logger.warning("analyze_experiment: %s", message)
-        warnings.warn(message, category=RuntimeWarning, stacklevel=3)
+        warnings.warn(message, category=RuntimeWarning, stacklevel=user_stacklevel())
     return {
         "n_terms": n_terms,
         "model_rank": model_rank,

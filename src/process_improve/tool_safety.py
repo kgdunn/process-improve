@@ -43,6 +43,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from process_improve._warnings import user_stacklevel
 from process_improve.config import settings
 
 
@@ -152,7 +153,7 @@ def __getattr__(name: str) -> Any:  # noqa: ANN401
             f"process_improve.tool_safety.{name} is deprecated since 2.0.0 and will be removed in 3.0; "
             f"use process_improve.config.settings.{attr} instead.",
             category=DeprecationWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
         return getattr(settings, attr)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

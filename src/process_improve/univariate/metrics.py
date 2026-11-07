@@ -9,6 +9,8 @@ import pandas as pd
 from scipy.stats import shapiro, t
 from sklearn.utils import Bunch
 
+from process_improve._warnings import user_stacklevel
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -219,7 +221,7 @@ def _contains_nan(a: np.ndarray, nan_policy: str = "propagate") -> tuple[bool, s
             warnings.warn(
                 "The input array could not be properly checked for nan values. nan values will be ignored.",
                 RuntimeWarning,
-                stacklevel=2,
+                stacklevel=user_stacklevel(),
             )
 
     if contains_nan and nan_policy == "raise":
@@ -457,7 +459,7 @@ def _warn_if_renamed(key: object) -> None:
             f"removed in 3.0; use [{_RENAMED_PAIRED_KEYS[key]!r}] instead, which holds the same number under a "
             "name that says what it is.",
             category=DeprecationWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
 
 

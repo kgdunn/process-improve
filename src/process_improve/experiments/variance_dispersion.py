@@ -50,6 +50,7 @@ from patsy import DesignInfo, build_design_matrices
 from scipy import optimize
 
 from process_improve._random import check_random_state
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments.evaluate import _CODED_LIMIT_FLOOR, _build_model_matrix, _separate_run_columns
 from process_improve.experiments.factor import DesignResult
 
@@ -165,7 +166,7 @@ def _numeric_design(design_matrix: pd.DataFrame | DesignResult, model: str | Non
             f"|x| = {settings.max():g}. In actual units the spheres are about the wrong centre; pass the "
             "DesignResult, or code the columns first.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return design_df, names
 

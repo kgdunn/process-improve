@@ -33,6 +33,7 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import ff2n
 from process_improve.experiments._rules import mentions
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
@@ -149,7 +150,7 @@ def _fraction_runs(
             f"budget={budget} leaves {room} run(s) for the fraction after {n_center_points} centre run(s) and "
             f"{n_replicates} replicate(s); {reason}.",
             category=UserWarning,
-            stacklevel=3,
+            stacklevel=user_stacklevel(),
         )
     return n_runs
 
@@ -778,7 +779,7 @@ def _warn_if_no_error_df(
         "fitted, so analyze_omars cannot test any effect. Add centre runs (for example n_center_points=3) or "
         "give a larger budget.",
         category=UserWarning,
-        stacklevel=3,
+        stacklevel=user_stacklevel(),
     )
 
 
@@ -848,7 +849,7 @@ def _note_runs_beyond_ranges(design_type: str, coded_matrix: np.ndarray, factors
     warnings.warn(
         f"This {design_type!r} design sets factors beyond the ranges given: {detail}.{remedy}",
         category=UserWarning,
-        stacklevel=3,
+        stacklevel=user_stacklevel(),
     )
 
 

@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from process_improve._warnings import user_stacklevel
+
 
 def _pairwise_balanced(settings: pd.DataFrame) -> bool:
     """Whether every factor's levels, and every pair of factors' level combinations, occur equally often."""
@@ -117,6 +119,6 @@ def marginal_means_prediction(
             "unequally often, so each marginal mean carries other factors' effects and the prediction is not "
             "the least-squares one.",
             category=UserWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
     return pd.Series(predicted, index=points.index, name="predicted")

@@ -51,6 +51,7 @@ from scipy.stats import chi2
 from scipy.stats import f as f_dist
 from threadpoolctl import threadpool_limits
 
+from process_improve._warnings import user_stacklevel
 from process_improve.regression._robust_regression import repeated_median_slope
 from process_improve.regression._variance_components import (
     VarianceComponentFit,
@@ -273,7 +274,7 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         warnings.warn(
             f"mixed_assessor_model: a panelist did not score every product: {where}. {_INCOMPLETE_TABLE}",
             category=RuntimeWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
     return MAMResult(scaling=pd.DataFrame(scaling_rows), ftests=pd.DataFrame(ftest_rows))
 

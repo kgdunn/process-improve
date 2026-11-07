@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import bbdesign, ccdesign
 from process_improve.experiments._finite_fields import MAX_ORDER, conference_matrix, conference_order_at_least
 
@@ -809,8 +810,6 @@ def _conference_foldover(
             f"factors uses the next order that can, {m}: {2 * m + extra} runs rather than {2 * usual + extra}, with "
             f"{m - k} fake factors (columns left out of the design)."
         )
-        from process_improve.multivariate._common import user_stacklevel  # noqa: PLC0415
-
         warnings.warn(meta["note"], category=UserWarning, stacklevel=user_stacklevel())
     if not categorical:
         return np.vstack([folded, np.zeros((1, k))]), meta

@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import pbdesign
 from process_improve.experiments._finite_fields import hadamard_matrix, paley_conference_matrix, prime_power
 from process_improve.experiments.factor import FactorType
@@ -248,7 +249,7 @@ def dispatch_supersaturated(factors: list[Factor], budget: int | None = None) ->
         warnings.warn(
             f"{n_fully_aliased(design)} pair(s) of factors are fully aliased in {design.shape[0]} runs; {remedy}.",
             UserWarning,
-            stacklevel=2,
+            stacklevel=user_stacklevel(),
         )
     n_runs = design.shape[0]
     s = design.T @ design
