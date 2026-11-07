@@ -17,7 +17,7 @@ import pytest
 import sklearn
 
 from process_improve.multivariate._limits import ellipse_coordinates, hotellings_t2_limit, spe_calculation
-from process_improve.multivariate.methods import TPLS, DataFrameDict
+from process_improve.multivariate.methods import TPLS, DataFrameDict, NotEnoughVarianceError
 
 LOTS = {"A": ["A1", "A2", "A3", "A4"], "B": ["B1", "B2", "B3", "B4"]}
 CONDITIONS = ["temperature", "time"]
@@ -74,6 +74,25 @@ def test_a_d_matrix_that_is_not_a_dict_is_named_by_its_type_when_sklearn_skips_i
         pytest.raises(TypeError, match=r"^d_matrix must be a dict of DataFrames; got list\.$"),
     ):
         TPLS(n_components=1, d_matrix=[]).fit(DataFrameDict(blocks))  # type: ignore[arg-type]
+
+
+def test_a_blend_made_only_of_a_lot_with_no_observed_property_is_refused_at_the_component_it_stops() -> None:
+    """Such a blend has no F score, as its only lot weighs 0: the super scores are not finite, and the fit says where.
+
+    The F weights are finite, so it is the check of the super scores that refuses it, naming component 1.
+    """
+    d_matrix, blocks = _blocks()
+    d_matrix["A"].loc["A4"] = np.nan
+    blocks["F"]["A"].iloc[0] = [np.nan, np.nan, np.nan, 1.0]
+    blocks["F"]["B"].iloc[0] = np.nan
+    message = (
+        "TPLS cannot fit component 1: its scores are not finite, because a block has no variation for the "
+        "iteration to follow. Check that each group of F covaries with the first Y block, or fit fewer components."
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # the inner PLS of a NaN score overflows on its way
+        with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message)}$"):
+            TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
 
 
 # --------------------------------------------------------------------------- the T² ellipse
