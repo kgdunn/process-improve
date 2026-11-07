@@ -41,7 +41,15 @@ from sklearn.utils.validation import check_array, check_is_fitted, validate_data
 
 from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import NotEnoughVarianceError, SpecificationWarning, check_x_explains_y, epsqrt, user_stacklevel
+from ._common import (
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    check_x_explains_y,
+    constant_columns,
+    epsqrt,
+    refuse_empty_block,
+    user_stacklevel,
+)
 from ._preprocessing import MCUVScaler
 
 if typing.TYPE_CHECKING:
@@ -188,8 +196,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             or holds a missing or infinite value.
         NotEnoughVarianceError
             If X has no variance left for a component, as when there are more
-            components than the rank of the centred X; or if Y is constant (with
-            ``scale=False``, if Y is 0 throughout).
+            components than the rank of the centred X; if Y is constant (with
+            ``scale=False``, if Y is 0 throughout); or if X has no covariance with Y.
         """
         self._validate_params()
         if self.copy is not None:
@@ -199,11 +207,13 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
                 DeprecationWarning,
                 stacklevel=user_stacklevel(),
             )
+        refuse_empty_block(X, "X")
         # Copies, so that a name the caller gives these axes later does not rename the model's frames
         sample_index: pd.Index | None = X.index.copy() if isinstance(X, pd.DataFrame) else None
         feature_columns: pd.Index | None = X.columns.copy() if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(self, X, ensure_min_samples=2)
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)  # an array's labels are positions
+        given_x = X
         # Y is read by position, so its own row labels need not match X's; a Series keeps its name.
         Y = pd.DataFrame(Y)
         if Y.shape[1] != 1:
@@ -254,16 +264,20 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
             )
         check_x_explains_y([Xmat], y)  # nor does a response uncorrelated with every column of X (#1144)
 
+        # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114).
+        size = float(np.linalg.norm(Xmat))
+        _check_variance_left(Xmat, size, 0)
+        constant_columns(given_x, "X", self)
+
         # --- Trygg-Wold O-PLS NIPALS (single response) ---
         # Predictive weight direction (unit norm), fixed throughout.
         w_p = Xmat.T @ y
-        w_p = w_p / np.linalg.norm(w_p)  # (K, 1)
+        w_p = w_p / np.linalg.norm(w_p)  # (K, 1); X'y = 0 was refused by check_x_explains_y
 
         W_o = np.zeros((n_features, n_ortho))
         P_o = np.zeros((n_features, n_ortho))
         T_o = np.zeros((self.n_samples_, n_ortho))
         Xd = Xmat.copy()
-        size = float(np.linalg.norm(Xmat))
         for i in range(n_ortho):
             _check_variance_left(Xd, size, i)
             t = Xd @ w_p  # (N, 1)

@@ -1,7 +1,8 @@
 """#1124: a component with no spread adds 0 to Hotelling's T² and blocks neither TSR nor a T² covariance inverse.
 
 A component holds no spread when its training score standard deviation is at most 1.5e-8 times the
-largest (``components_with_spread``), as for the last components of a rank-deficient fit. Each test
+largest (``components_with_spread``), in any units (#1070), as for the last components of a rank-deficient
+fit, or for a PLS component fitted to a residual spread thinly over many directions. Each test
 checks the model with such components against the same model fitted without them: the components
 with spread are the same in both, so their projection and their T² must agree.
 """
@@ -17,6 +18,7 @@ from process_improve.batch._batch_pca import BatchPCA
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.multivariate._common import components_with_spread
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler
+from tests._no_spread import batches_with_a_thin_residual, thin_residual
 
 
 def _rank_three_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -29,25 +31,33 @@ def _rank_three_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
     return scaled, new
 
 
-def _small_units_pls_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Columns that vary by 1e-3 in two patterns and by 1e-10 in a third, as #1120's batch test does.
+def _pls_data_with_a_thin_residual() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Twelve columns in two patterns, and a residual above PLS's floor spread over the ten directions left.
 
-    The third pattern is above PLS's floor, which is relative to the size of X (#1070), so a third
-    component is fitted to it, and its score sd is below 1.5e-8: no spread, while every sd is below 1.
+    The residual is above the floor, which is relative to the size of X (#1070), so a third
+    component is fitted to it, and its score sd is below 1.5e-8 times the first's: no spread.
     """
     rng = np.random.default_rng(0)
-    a, b, c = rng.standard_normal((3, 30))
-    cols = np.arange(6)
-    x = 1e-3 * (np.outer(a, np.sin(cols)) + np.outer(b, np.cos(cols))) + 1e-10 * np.outer(c, cols**2 - 6.0)
+    a, b = rng.standard_normal((2, 30))
+    cols = np.arange(12)
+    signal = np.outer(a, np.sin(cols)) + np.outer(b, np.cos(cols))
+    signal -= signal.mean(axis=0)
     y = 2 * a + b + 0.1 * rng.standard_normal(30)
-    return pd.DataFrame(x - x.mean(axis=0)), pd.DataFrame({"y": y - y.mean()})
+    return pd.DataFrame(signal + thin_residual(signal)), pd.DataFrame({"y": y - y.mean()})
 
 
-def test_the_rule_matches_the_one_t2_has_used_since_1026() -> None:
-    """At most 1.5e-8 times the largest sd, or 1.5e-8 itself while every sd is below 1, is no spread."""
-    assert components_with_spread(np.array([2.0, 1.0, 2.0 * 1.4e-8])).tolist() == [True, True, False]
-    assert components_with_spread(np.array([2.0, 1.0, 2.0 * 1.6e-8])).tolist() == [True, True, True]
-    assert components_with_spread(np.array([1e-3, 1e-9])).tolist() == [True, False]
+def test_the_rule_is_relative_to_the_largest_sd_in_any_units() -> None:
+    """At most 1.5e-8 times the largest sd is no spread, whatever the units (#1070).
+
+    While every sd was below 1 the floor was 1.5e-8 itself, so a model of data in small units
+    had no component with spread, and every T² was 0.
+    """
+    for units in (1e-12, 1.0, 1e12):
+        assert components_with_spread(units * np.array([2.0, 1.0, 2.0 * 1.4e-8])).tolist() == [True, True, False]
+        assert components_with_spread(units * np.array([2.0, 1.0, 2.0 * 1.6e-8])).tolist() == [True, True, True]
+    assert components_with_spread(np.array([1e-3, 1e-9])).tolist() == [True, True]
+    assert components_with_spread(np.array([1e-3, np.nan, 1e-12])).tolist() == [True, False, False]
+    assert components_with_spread(np.zeros(2)).tolist() == [False, False]
 
 
 def test_a_rank_deficient_pca_projects_missing_cells_by_tsr() -> None:
@@ -71,7 +81,7 @@ def test_a_rank_deficient_pca_projects_missing_cells_by_tsr() -> None:
 
 def test_a_rank_deficient_pls_projects_missing_cells_by_tsr() -> None:
     """A PLS whose third component has no spread projects by TSR as the two-component PLS does."""
-    x, y = _small_units_pls_data()
+    x, y = _pls_data_with_a_thin_residual()
     model = PLS(n_components=3, scale=False).fit(x, y)
     assert components_with_spread(model.scaling_factor_for_scores_.to_numpy()).tolist() == [True, True, False]
     smaller = PLS(n_components=2, scale=False).fit(x, y)
@@ -119,17 +129,8 @@ def test_a_rank_deficient_batch_model_projects_and_monitors_by_tsr() -> None:
 
 
 def _rank_deficient_batch_pls(n_components: int) -> tuple[BatchPLS, dict[str, pd.DataFrame]]:
-    """#1120's batch PLS: tags that vary by 1e-3, and a third pattern at 1e-9 that has no spread."""
-    rng = np.random.default_rng(0)
-    time = np.arange(10)
-    batches, quality = {}, []
-    for i in range(40):
-        a, b, c = rng.standard_normal(3)
-        u = 1e-3 * a * np.sin(time / 3.0) + 1e-9 * c * np.cos(time / 2.0)
-        r = 1e-3 * (b * np.cos(time / 4.0) + 0.5 * a * np.sin(time / 3.0))
-        batches[f"b{i}"] = pd.DataFrame({"u": u, "r": r})
-        quality.append(2.0 * a + b + 0.3 * rng.standard_normal())
-    y = pd.DataFrame({"q": quality}, index=list(batches))
+    """#1120's batch PLS, whose third component is fitted to a thin residual and has no spread."""
+    batches, y = batches_with_a_thin_residual()
     return BatchPLS(n_components=n_components, scale=False).fit(batches, y), batches
 
 

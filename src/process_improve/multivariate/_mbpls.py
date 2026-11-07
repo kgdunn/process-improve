@@ -40,7 +40,10 @@ from ._common import (
     _scale_block_contributions,
     _select_n_components,
     check_at_least_one,
+    check_response_block,
     check_variance_left,
+    check_whole,
+    constant_columns,
     epsqrt,
     informative_widths,
     largest_ssq_column,
@@ -127,9 +130,7 @@ def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.D
     if not isinstance(y, pd.DataFrame):
         y = pd.DataFrame(y)
     refuse_empty_block(y, "y")
-    n_samples = X[next(iter(X))].shape[0]
-    if y.shape[0] != n_samples:
-        raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
+    check_response_block(y, X[next(iter(X))].shape[0])
     return y
 
 
@@ -712,6 +713,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 "There is no variance in X: every column of every block is constant or has no observed value, "
                 "so there is nothing to explain Y by."
             )
+        # Named once the blocks are not refused, so an X or a Y with no variance at all gets that error alone
+        for name in self.block_names_:
+            constant_columns(X[name], f'X["{name}"]', self)
+        constant_columns(y, "Y", self)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,
@@ -1414,11 +1419,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             if len(block) != len(y):
                 raise ValueError(f"Block {name!r} has {len(block)} rows; y has {len(y)}.")
         n_samples = len(y)
-        total_width = sum(block.shape[1] for block in X.values())
+        # A column with nothing observed is left out of every fold model, so it adds no component (#1114).
+        total_width = sum(int(block.notna().any().sum()) for block in X.values())
 
         if isinstance(cv, int):
             # One repeat of a RepeatedKFold is the shuffled KFold the docstring names: the same
             # random_state draws the same folds.
+            check_at_least_one("n_repeats", n_repeats)
             repeats = 10 if n_repeats is None else int(n_repeats)
             seed = sklearn_random_state(random_state)  # RepeatedKFold refuses a Generator (#1128)
             splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
@@ -1437,7 +1444,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         component_index = pd.Index(range(1, A + 1), name="n_components")
         targets = list(y.columns)
-        values = y.to_numpy(dtype=float)
+        # A row with nothing observed in any block has no prediction, and is left out of PRESS and its
+        # reference, as PLS.select_n_components leaves it out (#1114).
+        has_x = np.any([_rows_with_data(block.to_numpy(dtype=float)) for block in X.values()], axis=0)
+        values = np.where(has_x[:, np.newaxis], y.to_numpy(dtype=float), np.nan)
         press = np.zeros((A, len(targets)))
         per_fold = np.full((A, len(splits)), np.nan)
         # Held-out predictions are gathered by row position, as rows may share a label.
@@ -1682,6 +1692,7 @@ def randomization_test_mbpls(
     Chemometrics, 21 (2007), 427-439.
     """
     check_is_fitted(model, "super_scores_")
+    check_whole("n_permutations", n_permutations)
     # seed is taken from **deprecated, not named in the signature, so that it adds no sixth argument (#307)
     if "seed" in deprecated:
         warnings.warn(

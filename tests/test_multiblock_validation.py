@@ -380,9 +380,10 @@ def test_mbpls_accepts_y_as_an_array() -> None:
 
 
 def test_mbpls_refuses_a_y_of_another_height() -> None:
-    """Y must have one row per row of the X-blocks."""
+    """Y must have one row per row of the X-blocks, in the words the family uses (#1114)."""
     blocks, y = _blocks()
-    with pytest.raises(ValueError, match=r"^y has 9 rows; expected 10 to match X-blocks\.$"):
+    message = r"^The X and Y arrays must have the same number of rows: X has 10 and Y has 9\.$"
+    with pytest.raises(ValueError, match=message):
         MBPLS(n_components=2).fit(blocks, y.iloc[:9])
 
 

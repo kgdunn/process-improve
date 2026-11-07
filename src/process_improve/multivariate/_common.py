@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from sklearn.utils import Bunch
+from sklearn.utils.validation import check_array
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
@@ -32,7 +33,9 @@ __all__ = [
     "SelectionRule",
     "SpecificationWarning",
     "UncentredDataWarning",
+    "check_response_block",
     "components_with_spread",
+    "constant_columns",
     "epsqrt",
     "informative_widths",
     "text_table",
@@ -83,11 +86,14 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
     """Return which components hold some of the data's spread: the one rule every Hotelling's T² uses (#1026, #1124).
 
     A component whose training score standard deviation is at most ``epsqrt`` times the largest
-    (or ``epsqrt`` itself while every sd is below 1) holds none of it: the last component of a
-    rank-deficient fit has an sd near 1e-16, for instance. Its standardised score is noise over
-    noise for a training row and enormous for a new row off the model plane, so it adds 0 to T².
-    It is also left out of every matrix that a T² or a trimmed score regression inverts, which it
-    would make singular.
+    holds none of it: the last component of a rank-deficient fit has an sd near 1e-16 times the
+    first, for instance. Its standardised score is noise over noise for a training row and
+    enormous for a new row off the model plane, so it adds 0 to T². It is also left out of every
+    matrix that a T² or a trimmed score regression inverts, which it would make singular.
+
+    The floor is relative to the largest sd in any units. It used to be ``epsqrt`` itself while
+    every sd was below 1, which took every component of data in small units for one with no
+    spread, and gave them a T² of 0 (#1070).
 
     Parameters
     ----------
@@ -101,7 +107,37 @@ def components_with_spread(score_sd: np.ndarray) -> np.ndarray:
         True for each component with spread.
     """
     score_sd = np.asarray(score_sd, dtype=float)
-    return score_sd > epsqrt * max(1.0, float(np.max(score_sd)))
+    # fmax skips a NaN sd, as max(1.0, ...) did: that component is left out, the others are not.
+    return score_sd > epsqrt * float(np.fmax.reduce(score_sd))
+
+
+def column_sd(values: np.ndarray | pd.DataFrame) -> np.ndarray:
+    """Return the sample standard deviation (``ddof=1``) of each column, missing values skipped, in any units.
+
+    A square overflows beyond about 1e154 and underflows to 0 below about 1e-162, so a standard
+    deviation taken in the data's own units was ``inf`` for data near 1e160 and 0 for data near
+    1e-160 (#1070). Each column is divided first by the power of two just above its largest
+    absolute value, which brings it within (-1, 1), and the result multiplied back. Dividing by a
+    power of two is exact, so a column whose standard deviation did not overflow or underflow
+    gives the same one, bit for bit.
+
+    Parameters
+    ----------
+    values : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+        The data, with NaN where a value is missing.
+
+    Returns
+    -------
+    np.ndarray of shape (n_features,)
+        The standard deviations, NaN for a column with fewer than two observed values.
+    """
+    values = np.asarray(values, dtype=float)
+    largest = np.fmax.reduce(np.abs(values), axis=0)  # fmax skips NaN, and an all-NaN column, without a warning
+    _, exponent = np.frexp(np.where(np.isfinite(largest) & (largest > 0), largest, 1.0))
+    unit = np.ldexp(1.0, exponent)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # fewer than two observed values: NaN, which is the answer
+        return np.nanstd(values / unit, axis=0, ddof=1) * unit
 
 
 #: Smallest positive float; used to floor NIPALS denominators away from zero.
@@ -148,7 +184,7 @@ _TOL_CEILING = 10.0
 
 
 def check_at_least_one(name: str, value: float | None) -> None:
-    """Refuse a count below 1, from ``fit`` (#1071).
+    """Refuse a count that is not a whole number of at least 1, from ``fit`` (#1071).
 
     ``__init__`` stores its arguments unchanged, as sklearn requires, and ``set_params`` and
     ``clone`` do not pass through any check there, so ``fit`` is the one place every route to
@@ -159,27 +195,52 @@ def check_at_least_one(name: str, value: float | None) -> None:
     ----------
     name : str
         The parameter's name, used in the error message.
-    value : float or None
+    value : int or None
         The value to check.
 
     Raises
     ------
     ValueError
-        If ``value`` is below 1, or NaN.
+        If ``value`` is not a whole number (NaN included), or is below 1.
     """
-    if value is not None and not value >= 1:
+    check_whole(name, value)
+    if value is not None and value < 1:
         raise ValueError(f"{name} must be >= 1; got {value}.")
 
 
-def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
-    """Refuse a block with no columns, naming it (#1077).
+def check_whole(name: str, value: float | None) -> None:
+    """Refuse a count that is not a whole number; ``None`` passes (#1114).
 
-    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
-    array or dtype is required", which names neither the block nor the cause.
+    A count of 2.5 was read as 2, without a word, or failed in a slice with a ``TypeError``.
+    A float with no fractional part is refused too, as scikit-learn's ``Integral`` constraint
+    refuses it in an estimator's settings.
 
     Parameters
     ----------
-    block : pd.DataFrame
+    name : str
+        The parameter's name, used in the error message.
+    value : int or None
+        The value to check.
+
+    Raises
+    ------
+    ValueError
+        If ``value`` is not an integer, NaN included.
+    """
+    if value is not None and not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{name} must be a whole number; got {value}.")
+
+
+def refuse_empty_block(block: DataMatrix, label: str) -> None:
+    """Refuse a block with no columns, naming it (#1077).
+
+    scikit-learn's check of a DataFrame with no columns fails inside numpy, with "at least one
+    array or dtype is required", which names neither the block nor the cause. An array is read
+    the same way, so a single-block estimator can check its input before scikit-learn does (#1114).
+
+    Parameters
+    ----------
+    block : pd.DataFrame or np.ndarray
         The block to check.
     label : str
         Where the block sits, as ``'y'``, ``'X["name"]'`` or ``'Z["group"]'``.
@@ -189,7 +250,7 @@ def refuse_empty_block(block: pd.DataFrame, label: str) -> None:
     ValueError
         If ``block`` has no columns.
     """
-    if block.shape[1] == 0:
+    if np.shape(block)[1:] == (0,):  # 2-D with no columns; anything else is left to the checks that follow
         raise ValueError(f"Block {label} has no columns; a block needs at least one.")
 
 
@@ -803,15 +864,17 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
     """
     if scaling == "none":
         return blocks
-    # A missing cell's contribution is NaN, so both scalings skip NaN, as the single-block
-    # score_contributions does: NaN in the max or a row's sum left the bars unscaled.
+    # A missing cell's contribution is NaN, so both scalings skip NaN: NaN in the max or a
+    # row's sum left the bars unscaled. A largest of 0, or a row whose total is at most epsqrt
+    # times the largest row's, has nothing to scale and is left as it is. Both floors are relative,
+    # so bars in small units are scaled as in units of 1; an absolute epsqrt left them unscaled (#1070).
     if scaling == "maximum":
         largest = max((float(np.nanmax(np.abs(v))) for v in blocks.values() if np.isfinite(v).any()), default=0.0)
-        scalar = largest if largest > epsqrt else 1.0
+        scalar = largest if largest > 0 else 1.0
         return {name: values / scalar for name, values in blocks.items()}
     if scaling == "within":
         totals = sum(np.nansum(np.abs(values), axis=1) for values in blocks.values())
-        per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
+        per_row = np.where(totals > epsqrt * np.max(totals, initial=0.0), totals, 1.0).reshape(-1, 1)
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
@@ -1021,6 +1084,91 @@ def unobserved_columns(block: pd.DataFrame, label: str) -> np.ndarray:
             stacklevel=user_stacklevel(),
         )
     return unobserved
+
+
+def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.ndarray:
+    """Return which columns of a training block have no variance, and warn, naming them, if any do (#1114).
+
+    A column whose observed values are all equal, or which has one, carries no information about
+    how the rows differ. TPLS named it; PCA, PLS, MBPCA and MBPLS fitted it without a word. Its
+    wording is now the family's. A column with no observed value is not counted here:
+    :func:`unobserved_columns` names it, for its own cause. One row has no spread to judge.
+
+    Only a fit the caller asked for warns. A fit that another routine of this package runs, on a
+    cross-validation fold or on a matrix it derived (ASCA's effect matrices, FPCA's basis
+    coefficients), would name a column the caller never gave it, or one that varies in the
+    caller's data.
+
+    Parameters
+    ----------
+    block : pd.DataFrame
+        The training block, NaN where missing.
+    label : str
+        Where the block sits, as ``'X'``, ``'Y'``, ``'X["name"]'`` or ``'Z["group"]'``.
+    estimator : object
+        The estimator being fitted.
+
+    Returns
+    -------
+    np.ndarray of bool, shape (n_features,)
+        True for a column with no variance.
+    """
+    # An all-NaN column has a NaN maximum and minimum, which are not equal.
+    constant = ((block.max() == block.min()) & (block.shape[0] > 1)).to_numpy()
+    if constant.any() and _fit_asked_for_by_the_caller(estimator):
+        named = ", ".join(repr(col) for col in block.columns[constant])
+        warnings.warn(  # a UserWarning, warn's default category
+            f"Block {label} has columns with no variance, which carry no information: {named}. Drop them, "
+            "or check the data for a stuck sensor.",
+            stacklevel=user_stacklevel(),
+        )
+    return constant
+
+
+def _fit_asked_for_by_the_caller(estimator: object) -> bool:
+    """Return whether the caller's code, not another routine of this package, is fitting ``estimator``.
+
+    The outermost frame of this package under the caller's is the routine the caller called. It
+    is a method of ``estimator`` itself (its ``fit``, past an inherited ``fit`` and scikit-learn's
+    wrapper) when the caller fits it; it is a cross-validation, a resampling or another estimator
+    when that routine fits it on the caller's behalf.
+    """
+    frame = inspect.currentframe()
+    outermost = None
+    while frame is not None:
+        package = str(frame.f_globals.get("__name__", "")).partition(".")[0]
+        if package == "process_improve":
+            outermost = frame
+        elif package not in ("sklearn", "mutmut"):  # scikit-learn's wrapper of fit; mutmut's trampoline
+            break
+        frame = frame.f_back
+    return outermost is not None and outermost.f_locals.get("self") is estimator
+
+
+def check_response_block(Y: pd.DataFrame, n_samples: int) -> None:
+    """Refuse a response block X's rows cannot pair with, or one with an infinite value, as X is refused (#1114).
+
+    ``validate_data`` checks X alone. The next to meet Y was a scaler, which reported an infinite
+    response as "Input X contains infinity", and PRM's robust centring, which met a Y of another
+    length as an ``IndexError``.
+
+    Parameters
+    ----------
+    Y : pd.DataFrame
+        The response block, NaN where missing.
+    n_samples : int
+        The number of rows of X.
+
+    Raises
+    ------
+    ValueError
+        If ``Y`` has a row count other than ``n_samples``, or an infinite value.
+    """
+    if Y.shape[0] != n_samples:
+        raise ValueError(
+            f"The X and Y arrays must have the same number of rows: X has {n_samples} and Y has {Y.shape[0]}."
+        )
+    check_array(Y, dtype="numeric", ensure_all_finite="allow-nan", ensure_min_features=0, input_name="Y")
 
 
 class BlockSet(dict):

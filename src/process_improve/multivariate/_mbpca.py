@@ -30,6 +30,7 @@ from ._common import (
     _rows_with_data,
     _scale_block_contributions,
     check_at_least_one,
+    constant_columns,
     epsqrt,
     informative_widths,
     refuse_empty_block,
@@ -525,6 +526,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
+        for name in self.block_names_:
+            constant_columns(X[name], f'X["{name}"]', self)
         algo = self._resolve_algorithm(X)
         # The resolved settings reach the loop. They used to be computed here and dropped,
         # so the caller's loop settings were validated and then ignored (#588).

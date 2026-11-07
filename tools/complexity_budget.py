@@ -39,7 +39,7 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
     # 30: #1144 read PCA.select_n_components' X through the helper PLS's reads it with,
-    # taking it under C901.
+    # and #1114 checked `n_repeats` with the shared count check: each alone took it under C901.
     # 31: #1128 moved PLS NIPALS's two "no variance left" refusals into a helper MBPLS
     # shares, taking `PLS._fit_nipals` under C901.
     # 32: #1029 fitted the in-fold centre and scale of PCA's element-wise
