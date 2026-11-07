@@ -216,8 +216,8 @@ def test_row_lengths_reach_the_largest_float_and_the_l1_median_with_them() -> No
 
     Each row was divided by the power of two above its largest value, 2**1024 there, which overflowed: the
     length was ``inf * 0``, NaN, with RuntimeWarnings, and the L1 median of rows with one so far out was NaN.
-    A length beyond the largest float is inf, without the warning that numpy's norm gives; below the
-    smallest normal float the length is the subnormal nearest to it, where numpy's norm gives 0.
+    Below the smallest normal float a length is the subnormal nearest to it, where numpy's norm gives 0. A
+    length beyond the largest float is inf, with numpy's overflow warning, as numpy's norm gives it.
     """
     rows = np.array(
         [
@@ -225,8 +225,6 @@ def test_row_lengths_reach_the_largest_float_and_the_l1_median_with_them() -> No
             [0.0, -LARGEST],
             [2.0**1023, 0.0],
             [3 * 2.0**1021, -4 * 2.0**1021],
-            [1e308, 1e308],
-            [LARGEST, LARGEST],
             [3 * SMALLEST, 4 * SMALLEST],
             [SMALLEST, -SMALLEST],
         ]
@@ -235,31 +233,35 @@ def test_row_lengths_reach_the_largest_float_and_the_l1_median_with_them() -> No
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         lengths = row_norms(rows)
+        diagonal = row_norms(np.array([[1e308, 1e308]]))  # its squares overflow, its length does not
         medians = [l1_median(np.vstack([square, [[far, 0.0]]])) for far in (1e300, 1e308, LARGEST)]
-    np.testing.assert_array_equal(
-        lengths[[0, 1, 2, 3, 5, 6, 7]], [1e308, LARGEST, 2.0**1023, 5 * 2.0**1021, np.inf, 5 * SMALLEST, SMALLEST]
-    )
-    np.testing.assert_allclose(lengths[4], math.hypot(1e308, 1e308), rtol=1e-15)
+    np.testing.assert_array_equal(lengths, [1e308, LARGEST, 2.0**1023, 5 * 2.0**1021, 5 * SMALLEST, SMALLEST])
+    np.testing.assert_allclose(diagonal, [math.hypot(1e308, 1e308)], rtol=1e-15)
     np.testing.assert_array_equal(medians[1], medians[0])
     np.testing.assert_array_equal(medians[2], medians[0])
+    with pytest.warns(RuntimeWarning, match="overflow"):
+        np.testing.assert_array_equal(row_norms(np.array([[LARGEST, LARGEST]])), [np.inf])
 
 
 def test_column_spreads_reach_the_largest_float() -> None:
     """A column at 2**1023 or above has its standard deviation, and MCUVScaler scales it as in any other units.
 
     The power of two above it overflowed here too: the standard deviation was NaN, and MCUVScaler took the
-    column for one with no spread and left it unscaled, with no warning. One beyond the largest float is inf.
+    column for one with no spread and left it unscaled, with no warning. One beyond the largest float is inf,
+    with numpy's overflow warning, as numpy's standard deviation gives it.
     """
-    pairs = np.array([[1e308, 2.0**1023, LARGEST, 3 * SMALLEST], [0.0, -(2.0**1023), -LARGEST, 0.0]])
+    pairs = np.array([[1e308, 2.0**1023, 3 * SMALLEST], [0.0, -(2.0**1023), 0.0]])
     frame = pd.DataFrame({"a": [1.0, -1.0, 0.5, -0.25], "b": [0.5, -0.25, 0.75, 0.125]})  # sums do not overflow
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         spreads = column_sd(pairs)
         near, far = MCUVScaler().fit(frame), MCUVScaler().fit(frame * 2.0**1023)
-    np.testing.assert_allclose(spreads[[0, 1]], [1e308 / math.sqrt(2.0), math.sqrt(2.0) * 2.0**1023], rtol=1e-15)
-    np.testing.assert_array_equal(spreads[[2, 3]], [np.inf, 2 * SMALLEST])
+    np.testing.assert_allclose(spreads[:2], [1e308 / math.sqrt(2.0), math.sqrt(2.0) * 2.0**1023], rtol=1e-15)
+    assert spreads[2] == 2 * SMALLEST  # 3 / sqrt(2) of the smallest float, to the nearest
     np.testing.assert_array_equal(far.scale_, near.scale_ * 2.0**1023)
     np.testing.assert_array_equal(far.transform(frame * 2.0**1023), near.transform(frame))
+    with pytest.warns(RuntimeWarning, match="overflow"):
+        np.testing.assert_array_equal(column_sd(np.array([[LARGEST], [-LARGEST]])), [np.inf])
 
 
 def test_row_lengths_are_exact_and_finite_where_squares_overflow() -> None:

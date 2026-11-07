@@ -71,13 +71,13 @@ def row_norms(values: np.ndarray) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        The length of each row, of shape (n_samples,): inf for a row whose length is beyond the largest float.
+        The length of each row, of shape (n_samples,). A length beyond the largest float is inf, with
+        numpy's overflow warning, as ``numpy.linalg.norm`` gives it.
     """
     _, exponent = np.frexp(np.max(np.abs(values), axis=1, initial=0.0))
     # ldexp scales by the power of two without forming it: at 2**1023 and above that power is 2**1024, which
     # overflowed to inf and gave the row a length of inf * 0, NaN (#1149).
-    with np.errstate(over="ignore"):
-        return np.ldexp(np.linalg.norm(np.ldexp(values, -exponent[:, np.newaxis]), axis=1), exponent)
+    return np.ldexp(np.linalg.norm(np.ldexp(values, -exponent[:, np.newaxis]), axis=1), exponent)
 
 
 def l1_median(X: np.ndarray, *, tol: float = 1e-8, max_iter: int = 200) -> np.ndarray:
