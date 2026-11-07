@@ -66,6 +66,8 @@ BUDGET: dict[str, int] = {
     # saving is banked here rather than left as headroom for the next change to
     # spend silently.
     "C901": 30,
+    # 16: #1149 cut the component count of every member of the family through one shared
+    # helper, `components_to_fit`, taking `PLS.fit` under PLR0912.
     # 17: #1028 merged with #981 scored every Z group of `TPLS.diagnose`, none or
     # several, in one loop, which needs no branch for a model without Z and takes
     # that function under PLR0912.
@@ -78,7 +80,7 @@ BUDGET: dict[str, int] = {
     # `find_aliases` under PLR0912 (see C901). 24 before that: #604 moved
     # `PCA.fit`'s settings resolution and tolerance checks into the shared
     # `resolve_loop_settings`, taking `fit` under PLR0912.
-    "PLR0912": 17,
+    "PLR0912": 16,
     # 51: #978 gives the standalone `ellipse_coordinates` its `judged_rows`, the rows the
     # ellipse judges, which picks the law of its T2 limit. Every function and method that
     # makes that choice takes the same keyword, so the warning of the coming default can be

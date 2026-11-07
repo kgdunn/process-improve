@@ -40,7 +40,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import StratifiedKFold
 
 from process_improve.batch import BatchPCA, BatchPLS
 from process_improve.batch.control import evaluate_control_policies
@@ -812,6 +811,14 @@ EDGE_EXEMPT: dict[tuple[str, str], tuple[Answer, str]] = {
         Fitted(),
         "OPLS fits one predictive component, which fits Y exactly here; the orthogonal ones describe X, not Y.",
     ),
+    ("Y fitted exactly", "TPLS"): (
+        Fitted(),
+        (
+            "TPLS reaches the columns of F only through the properties in D, so one component does not fit "
+            "y = A + B here, and a second explains more of it. A Y that TPLS fits exactly is refused at the next "
+            "component in the family's words (test_multivariate_tpls_validation)."
+        ),
+    ),
     ("all-missing row", "PRM"): (
         Refused(ValueError, r"^PRM does not support missing data"),
         "PRM weights each row by its residual and leverage distances, which a row with gaps does not have.",
@@ -824,25 +831,11 @@ EDGE_EXEMPT: dict[tuple[str, str], tuple[Answer, str]] = {
 
 #: A cell that gives another answer today, with its issue. A cell here that gives the family's answer fails.
 EDGE_GAPS: dict[tuple[str, str], str] = {
-    **{
-        ("constant Y", name): "#1149 aspect 9: refused as 'no variance left in the data array for Y', not in the "
-        "words MBPLS, OPLS and TPLS use"
-        for name in ("PLS", "PRM", "AdaptivePLS", "BatchPLS")
-    },
-    ("Y fitted exactly", "TPLS"): "#1149 aspect 12: TPLS fits a second component, where PLS and MBPLS refuse (#1128)",
     ("Y orthogonal to X", "TPLS"): "#1169: TPLS says its scores are not finite, not that Y is uncorrelated with X",
     **{
         (case, name): "#1149 aspect 2: refuses missing values"
         for case in ("all-missing row", "all-missing column")
         for name in ("OPLS", "BatchPCA", "BatchPLS")
-    },
-    ("all-missing column", "AdaptivePCA"): "#1149 aspect 2: leaves the column out without the family's warning",
-    ("one row", "BatchPCA"): "#1149 aspect 7: refused as an X with no variance, not as too few rows",
-    ("one row", "TPLS"): "#1149 aspect 7: refused as a Y with no variance, not as too few rows",
-    **{
-        ("more components than rows or columns", name): "#1149 aspect 12: a raw error or a RuntimeWarning, where "
-        "PCA and PLS cut the count with a warning"
-        for name in ("AdaptivePCA", "AdaptivePLS", "MBPCA", "MBPLS", "TPLS")
     },
 }
 
@@ -978,16 +971,12 @@ def _cross_validation_calls(
             X, response, max_components=2, cv=3, n_permutations=9, n_cv_permutations=4, random_state=seed, **settings
         )
 
-    # PLSDA splits an int cv without regard to the classes, so with a seed of None an inner fold of these
-    # twelve rows can hold one class, which it refuses. Folds that keep both classes leave the seed to test.
-    outer_folds = StratifiedKFold(n_splits=3) if estimator is PLSDA else 3
-
     def nested(seed: Seed) -> object:
         return estimator.nested_cv(
             X,
             response,
             max_components=2,
-            outer_cv=outer_folds,
+            outer_cv=3,
             inner_cv=3,
             n_inner_repeats=1,
             n_permutations=9,

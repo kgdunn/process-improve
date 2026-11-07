@@ -77,7 +77,7 @@ import pandas as pd
 from scipy.linalg import subspace_angles
 from scipy.stats import binom, norm
 from scipy.stats import f as f_dist
-from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
+from sklearn.model_selection import BaseCrossValidator, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
@@ -88,6 +88,7 @@ from ._common import (
     _equal_weight_r2_total,
     _rows_with_data,
     _select_n_components,
+    _shuffled_folds,
     _vandervoet_randomization,
     check_at_least_one,
     check_whole,
@@ -194,14 +195,16 @@ def _partition_splits(
 
     An integer ``random_state`` goes to :class:`~sklearn.model_selection.KFold`
     unchanged, so the splits are the ones :meth:`PLS.select_n_components` makes with
-    the same seed. A Generator, or ``None``, supplies a derived integer seed.
+    the same seed. A Generator, or ``None``, supplies a derived integer seed. A
+    :class:`~process_improve.multivariate._common.FoldsByClass` shuffles each class into
+    the folds on its own, with the same seed.
     """
     if isinstance(cv, (int, np.integer)) and not isinstance(cv, bool):
         if cv < 2:
             raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
         # Both callers resolve random_state with check_random_state first, which refuses a bool.
         seed = int(random_state) if isinstance(random_state, (int, np.integer)) else int(rng.integers(2**31))
-        splits = list(KFold(n_splits=int(cv), shuffle=True, random_state=seed).split(X))  # KFold reads no Y
+        splits = _shuffled_folds(cv if isinstance(cv, int) else int(cv), X, Y, random_state=seed)
     else:
         splits = list(check_cv(cv).split(X, Y))
     counts = np.zeros(X.shape[0])

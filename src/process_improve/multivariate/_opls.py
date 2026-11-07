@@ -43,9 +43,10 @@ from .._linalg import safe_inverse
 from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
     NotEnoughVarianceError,
-    SpecificationWarning,
     check_x_explains_y,
     check_x_varies,
+    check_y_varies,
+    components_to_fit,
     constant_columns,
     epsqrt,
     refuse_empty_block,
@@ -231,16 +232,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
             raise ValueError(f"n_orthogonal_components must be >= 0; got {self.n_orthogonal_components}.")
-        most = min(self.n_samples_, n_features)
-        if 1 + n_ortho > most:
-            warnings.warn(
-                "The requested number of components is more than can be computed from data. The maximum number "
-                f"of components is the minimum of either the number of rows ({self.n_samples_}) or the number of "
-                f"columns ({n_features}).",
-                SpecificationWarning,
-                stacklevel=user_stacklevel(),
-            )
-            n_ortho = most - 1
+        n_ortho = components_to_fit(1 + n_ortho, self.n_samples_, n_features) - 1
         # Fitted attribute: 1 predictive plus n_ortho orthogonal components.
         # OPLS has no n_components constructor parameter, so the resolved
         # count lives only on the fitted attribute (#505).
@@ -260,10 +252,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         y = Y.to_numpy()  # (N, 1)
         target_name = Y.columns
         # A constant response, all 0 once centred, gives no predictive direction: refused, as PLS refuses it (#1128)
-        if not np.any(y):
-            raise NotEnoughVarianceError(
-                "There is no variance in Y: the response is constant, so there is nothing for X to explain."
-            )
+        check_y_varies(y)
         # An X with no variance is refused before X'y, which is then 0, is divided by its norm (#1114), in the
         # family's words (#1144).
         check_x_varies([given_x], explains_y=True)

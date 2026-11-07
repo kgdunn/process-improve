@@ -2696,8 +2696,8 @@ _PLS_QUICK_NESTED = {"inner_cv": 3, "n_inner_repeats": 1, "max_components": 2, "
             lambda X, _: PLS(n_components=2).fit(X, pd.DataFrame({"y": np.ones(len(X))})),
             NotEnoughVarianceError,
             (
-                r"^There is no variance left in the data array for Y: cannot compute any more components "
-                r"beyond component 0\.$"
+                r"^There is no variance in Y: every response is constant or has no observed value, so there is "
+                r"nothing for X to explain\.$"
             ),
         ),
         (
@@ -12151,14 +12151,15 @@ def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None
         if size:
             model.fit(X, Y)
             continue
+        # In the family's words (#1144, #1149)
         message = (
-            f"There is no variance left in the data array for {block}: cannot compute any more components beyond "
-            "component 0."
+            "There is no variance in X: every column is constant or has no observed value, so there is nothing "
+            "to explain Y by."
         )
-        if block == "X":  # in the family's words (#1144)
+        if block == "Y":
             message = (
-                "There is no variance in X: every column is constant or has no observed value, so there is nothing "
-                "to explain Y by."
+                "There is no variance in Y: every response is constant or has no observed value, so there is "
+                "nothing for X to explain."
             )
         with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
             model.fit(X, Y)

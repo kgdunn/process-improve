@@ -137,6 +137,16 @@ def test_online_entry_points_reject_a_different_tag_set(entry_point: str) -> Non
         getattr(model, entry_point)(*args)
 
 
+def test_one_batch_is_refused_as_too_few_rows_as_across_the_family() -> None:
+    """One batch is one row of the unfolded matrix: refused as PCA refuses one row (#1149).
+
+    It was refused as an X with no variance, which sent the caller to look for a stuck sensor.
+    """
+    one = dict(list(_synthetic_good_batches().items())[:1])
+    with pytest.raises(ValueError, match=r"^Found array with 1 sample\(s\) .* while a minimum of 2 is required"):
+        BatchPCA(n_components=1).fit(one)
+
+
 def test_initial_conditions_must_be_dataframe() -> None:
     """A non-DataFrame Z block is rejected."""
     good = _synthetic_good_batches(n_batches=4)

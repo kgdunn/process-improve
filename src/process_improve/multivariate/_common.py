@@ -19,6 +19,7 @@ from typing import Any, Literal, TypeAlias, cast
 import numpy as np
 import pandas as pd
 from scipy import sparse
+from sklearn.model_selection import KFold, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array
 
@@ -235,6 +236,107 @@ def check_whole(name: str, value: float | None) -> None:
     """
     if value is not None and not isinstance(value, (int, np.integer)):
         raise ValueError(f"{name} must be a whole number; got {value}.")
+
+
+class FoldsByClass(int):
+    """A number of cross-validation folds, each class shuffled into them on its own: PLS-DA's integer ``cv`` (#1149).
+
+    PLS-DA runs PLS's cross-validation on its class-indicator matrix. A plain integer shuffles
+    the rows into folds whatever their class, so a training fold could hold no row of a class:
+    every column of its indicator matrix was then constant, and the fold's fit refused it, as
+    a ``nested_cv`` on twelve rows of two classes did for 7 seeds in 40. This integer is the
+    number of folds everywhere PLS reads one; where PLS shuffles the rows into folds,
+    :func:`_shuffled_folds` shuffles each class into them on its own, as
+    :class:`~sklearn.model_selection.StratifiedKFold` does, with the same seed.
+    """
+
+    __slots__ = ()
+
+
+def _shuffled_folds(
+    n_splits: int, X: pd.DataFrame, Y: pd.DataFrame, *, n_repeats: int = 1, random_state: int | None = None
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return the folds an integer ``cv`` stands for: the rows shuffled into ``n_splits`` folds, ``n_repeats`` times.
+
+    A :class:`FoldsByClass` shuffles each class into the folds on its own, the class of a row
+    being the column of the indicator matrix ``Y`` that marks it; any other count shuffles the
+    rows whatever their response.
+
+    Parameters
+    ----------
+    n_splits : int
+        The number of folds.
+    X, Y : pd.DataFrame
+        The rows to split, and their response.
+    n_repeats : int, default=1
+        How many times the rows are shuffled into folds afresh.
+    random_state : int or None
+        The seed of the shuffle, as scikit-learn's splitters take it.
+
+    Returns
+    -------
+    list of (np.ndarray, np.ndarray)
+        The training and held-out positions of each fold, repeat by repeat.
+    """
+    if isinstance(n_splits, FoldsByClass):
+        classes = np.argmax(np.asarray(Y), axis=1)
+        if n_repeats == 1:
+            return list(StratifiedKFold(int(n_splits), shuffle=True, random_state=random_state).split(X, classes))
+        repeated = RepeatedStratifiedKFold(n_splits=int(n_splits), n_repeats=n_repeats, random_state=random_state)
+        return list(repeated.split(X, classes))
+    if n_repeats == 1:
+        return list(KFold(int(n_splits), shuffle=True, random_state=random_state).split(X))
+    return list(RepeatedKFold(n_splits=int(n_splits), n_repeats=n_repeats, random_state=random_state).split(X))
+
+
+def components_to_fit(
+    n_components: int | None, n_rows: int, n_columns: int, *, columns: str = "the number of columns"
+) -> int:
+    """Return how many components a fit computes: ``n_components``, cut to what the data can give (#505).
+
+    No more components than the smaller of ``n_rows`` and ``n_columns`` can be computed. PCA, PLS
+    and OPLS cut a larger count to it with this warning; the other members of the family went on
+    into a raw numpy error, a ``RuntimeWarning``, or components fitted to rounding noise (#1149).
+    ``None`` asks for that many. The constructor parameter stays as the caller set it, as sklearn's
+    ``clone`` needs: the count is the fitted ``n_components_``.
+
+    Parameters
+    ----------
+    n_components : int or None
+        The count asked for.
+    n_rows, n_columns : int
+        The two sizes the count cannot exceed.
+    columns : str
+        What ``n_columns`` is, as the warning names it.
+
+    Returns
+    -------
+    int
+        The count to fit.
+
+    Raises
+    ------
+    ValueError
+        If ``n_components`` is not a whole number of at least 1.
+
+    Warns
+    -----
+    SpecificationWarning
+        If ``n_components`` is more than the data can give.
+    """
+    check_at_least_one("n_components", n_components)
+    most = int(min(n_rows, n_columns))
+    if n_components is None:
+        return most
+    if most < n_components:
+        warnings.warn(
+            "The requested number of components is more than can be computed from data. The maximum number of "
+            f"components is the minimum of either the number of rows ({n_rows}) or {columns} ({n_columns}).",
+            SpecificationWarning,
+            stacklevel=user_stacklevel(),
+        )
+        return most
+    return int(n_components)
 
 
 def refuse_empty_block(block: DataMatrix, label: str) -> None:
@@ -1103,6 +1205,36 @@ def check_x_varies(blocks: list[pd.DataFrame], *, explains_y: bool) -> None:
     where = "every column of every block" if len(blocks) > 1 else "every column"
     so = "there is nothing to explain Y by" if explains_y else "there is nothing for a component to describe"
     raise NotEnoughVarianceError(f"There is no variance in X: {where} is constant or has no observed value, so {so}.")
+
+
+def check_y_varies(y: np.ndarray, *, label: str = "Y", explained_by: str = "X") -> None:
+    """Refuse a response with nothing to explain: every column is constant or has no observed value (#1149).
+
+    Every weight of such a fit is 0, so a new row would have no score. PLS refused it at its
+    first component, as a Y with no variance *left*; MBPLS, OPLS and TPLS refused it in these
+    words, which are now the family's. ``y`` is the response as the fit centres it, where such
+    a column is 0 throughout, and a missing cell counts as 0. A model that does not centre
+    refuses a Y of zeros the same way.
+
+    Parameters
+    ----------
+    y : np.ndarray of shape (n_samples, n_targets)
+        The response block over the rows the fit uses, as the fit centres and scales it.
+    label : str
+        Where the block sits, as ``'Y'`` or ``'Y["name"]'``.
+    explained_by : str
+        The blocks that explain it, as ``'X'`` or ``'F, D and Z'``.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If no column of ``y`` varies.
+    """
+    if not np.any(np.nan_to_num(y)):
+        raise NotEnoughVarianceError(
+            f"There is no variance in {label}: every response is constant or has no observed value, so there is "
+            f"nothing for {explained_by} to explain."
+        )
 
 
 def constant_columns(block: pd.DataFrame, label: str, estimator: object) -> np.ndarray:

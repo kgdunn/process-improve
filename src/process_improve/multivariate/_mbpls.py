@@ -30,7 +30,6 @@ from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
 from ._common import (
     DiagnoseResult,
-    NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
     _equal_weight_r2_total,
@@ -44,6 +43,8 @@ from ._common import (
     check_variance_left,
     check_whole,
     check_x_varies,
+    check_y_varies,
+    components_to_fit,
     constant_columns,
     epsqrt,
     informative_widths,
@@ -704,11 +705,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         x_blocks_pp, y_pp = self._preprocess(X, y)
         # Nothing to explain leaves every weight 0, so a new row would have no score: refused, as PLS does (#1075)
-        if ssq(y_pp) < epsqrt:  # pragma: no mutate - <= differs only at a sum of squares of exactly epsqrt
-            raise NotEnoughVarianceError(
-                "There is no variance in Y: every response is constant or has no observed value, "
-                "so there is nothing for X to explain."
-            )
+        check_y_varies(y_pp)
         # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128), in the family's words
         check_x_varies([X[name] for name in self.block_names_], explains_y=True)
         # Named once the blocks are not refused, so an X or a Y with no variance at all gets that error alone
@@ -784,7 +781,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         # Fitted mirror of the constructor parameter, so shared helpers (the
         # T2 limit mixin, spe_limit, the plot pre-checks) read one resolved
         # attribute across PCA / PLS / MBPCA / MBPLS (#505).
-        self.n_components_ = int(self.n_components)
+        self.n_components_ = components_to_fit(self.n_components, self.n_samples_, self.n_features_in_)
 
     def _resolve_algorithm(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> str:
         """Decide which algorithm this fit runs, recording whether the data has gaps."""

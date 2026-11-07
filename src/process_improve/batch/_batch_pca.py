@@ -246,9 +246,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         """
         self._validate_params()
         wide = self._unfold(X, initial_conditions)
-        check_x_varies([wide], explains_y=False)  # as PCA refuses it when the caller fits it (#1144)
-
+        # Refuses fewer than two batches first, in the family's words: one batch would be taken for no variance
         scaler = MCUVScaler().fit(wide)
+        check_x_varies([wide], explains_y=False)  # as PCA refuses it when the caller fits it (#1144)
         if not self.scale:
             scaler.scale_ = pd.Series(1.0, index=scaler.scale_.index)
         mcuv = pd.DataFrame(scaler.transform(wide).to_numpy(), index=wide.index, columns=wide.columns)

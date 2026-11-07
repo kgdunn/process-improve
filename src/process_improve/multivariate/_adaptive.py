@@ -81,8 +81,10 @@ from ._common import (
     check_at_least_one,
     check_response_block,
     check_x_varies,
+    components_to_fit,
     epsqrt,
     refuse_empty_block,
+    unobserved_columns,
 )
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
@@ -352,7 +354,7 @@ class _AdaptiveModel(_LatentVariableModel):
         row's squared SPE joins the rolling window, after its own limit was taken.
         """
         spe_limit = self._current_spe_limit()
-        observed = not np.isnan(x0).all()
+        observed = not np.isnan(self._left_out(x0, np.nan)).all()
         below_t2 = t2 <= self._t2_limit_0  # pragma: no mutate - < differs only at a T2 exactly on its limit
         below_spe = spe <= spe_limit  # pragma: no mutate - < differs only at an SPE exactly on its limit
         in_control = below_t2 and below_spe and observed
@@ -360,12 +362,33 @@ class _AdaptiveModel(_LatentVariableModel):
             self._spe_buffer.append(spe**2)
         return spe_limit, in_control, (in_control or self.update_when_out_of_control) and observed
 
+    def _left_out(self, values: np.ndarray, fill: float) -> np.ndarray:
+        """Return raw or scaled rows with ``fill`` in each column the fit left out, having no observed value (#1098).
+
+        A model pickled before then left none out.
+        """
+        return np.where(getattr(self, "_unobserved_columns", False), fill, values)
+
+    def _scaled(
+        self, rows: np.ndarray, centre: np.ndarray | None = None, scale: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Return raw rows centred and scaled, by the current vectors unless others are given, as the model reads them.
+
+        A column the fit left out is read at 0, so a value a new row has in it adds nothing to the
+        row's scores or SPE, as in PCA and PLS (#1098).
+        """
+        centre = self.mx_ if centre is None else centre
+        scale = self.sx_ if scale is None else scale
+        return self._left_out((rows - centre) / scale, 0.0)
+
     def _ewma_update_x(self, x0: np.ndarray) -> np.ndarray:
         """Advance the X-space EWMA centre and scale by one observation, and return it scaled by them.
 
         The monitoring statistics used the vectors before this step; the kernel takes the
         observation scaled with the moved ones, a missing value at the centre, 0.
         """
+        # A column the fit left out stays out: its centre and scale do not move, and the kernel takes 0 (#1098)
+        x0 = self._left_out(x0, np.nan)
         self.mx_, self.sx_ = _ewma_step(self.mx_, self.sx_, x0, self.lambda_center_, self.alpha_scale_)
         return np.nan_to_num((x0 - self.mx_) / self.sx_)
 
@@ -484,7 +507,7 @@ class _AdaptiveModel(_LatentVariableModel):
         """
         check_is_fitted(self, "mx_")
         labels, rows = _as_rows(_align_to_fit_features(X, self._feature_names))
-        return pd.DataFrame((rows - self.mx_) / self.sx_, index=labels, columns=self._feature_names)
+        return pd.DataFrame(self._scaled(rows), index=labels, columns=self._feature_names)
 
     # ---- history views (built lazily on access, so update() stays O(1)) ------
 
@@ -778,7 +801,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         refuse_empty_block(X_df, "X")
         self._feature_names = X_df.columns
         N, K = X_df.shape
-        A = int(self.n_components)
+        A = components_to_fit(self.n_components, N, K)  # the kernel has K eigenvectors, and the scores rank N
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_samples_ = N
@@ -798,6 +821,8 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)  # refuses fewer than two rows
+        # A column with nothing observed is left out, with a warning, as across the family (#1098)
+        self._unobserved_columns = unobserved_columns(X_df, "X")
         check_x_varies([X_df], explains_y=False)  # as PCA refuses it (#1144): no row is told from another
         self.mx_ = self._scaler.center_.to_numpy().copy()
         self.sx_ = self._scaler.scale_.to_numpy().copy()
@@ -841,7 +866,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Missing entries are handled by single-component projection along the loadings.
         """
         P = self._loadings
-        t, spe = _scores_and_spe((x0 - self.mx_) / self.sx_, P, P, P)
+        t, spe = _scores_and_spe(self._scaled(x0), P, P, P)
         return t, self._hotellings_t2(t), spe
 
     def _distance(self) -> float:
@@ -1043,7 +1068,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         check_response_block(Y_df, X_df.shape[0])
         N, K = X_df.shape
         M = Y_df.shape[1]
-        A = int(self.n_components)
+        A = components_to_fit(self.n_components, N, K)  # once: the PLS fitted below is asked for this many
         self.n_components_ = A
         self.n_features_in_ = K
         self.n_targets_ = M
@@ -1071,6 +1096,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.sy_ = self._y_scaler.scale_.to_numpy().copy()
         # It refuses a block with no X'Y covariance, so _norm_xy0 and _beta0 below are not 0.
         training_model = PLS(n_components=A).fit(X_df, Y_df)
+        self._unobserved_columns = training_model._unobserved_columns  # which that fit names in a warning (#1098)
 
         # A missing cell is 0: at the centre, it adds nothing to X'X or X'Y.
         Xs = np.nan_to_num(self._x_scaler.transform(X_df).to_numpy())
@@ -1132,8 +1158,10 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         the row as :meth:`predict` does, a row with missing values by single-component
         projection over its observed values, so the sum is the prediction.
         """
-        xs_cur = (x0 - self.mx_) / self.sx_
-        y_static = self._my0 + self._sy0 * _scaled_prediction((x0 - self._mx0) / self._sx0, self._training_model)
+        xs_cur = self._scaled(x0)
+        y_static = self._my0 + self._sy0 * _scaled_prediction(
+            self._scaled(x0, self._mx0, self._sx0), self._training_model
+        )
         y_prep = self.my_ + self.sy_ * _scaled_prediction(xs_cur, self._training_model)
         current = (self._direct, self._weights, self._loadings, self._y_loadings)
         y_full = self.my_ + self.sy_ * _scaled_prediction(xs_cur, current)
@@ -1181,7 +1209,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
         Missing entries are handled by single-component projection along the weights.
         """
-        t, spe = _scores_and_spe((x0 - self.mx_) / self.sx_, self._direct, self._weights, self._loadings)
+        t, spe = _scores_and_spe(self._scaled(x0), self._direct, self._weights, self._loadings)
         y_hat = (t @ self._y_loadings.T) * self.sy_ + self.my_
         return t, self._hotellings_t2(t), spe, y_hat
 

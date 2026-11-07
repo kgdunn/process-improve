@@ -25,6 +25,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import KFold, StratifiedKFold, check_cv, cross_val_score
 from sklearn.pipeline import Pipeline
 
+from process_improve.multivariate._common import FoldsByClass
 from process_improve.multivariate._plsda import _bayes_threshold, _gaussian_log_density, _mean_and_sd
 from process_improve.multivariate.methods import (
     PLS,
@@ -1035,13 +1036,16 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
     """PLS's cross-validation methods take PLSDA's labels and run on the one-hot indicators it fits.
 
     They used to read the labels as the numeric response: text labels could not be read as
-    floats, and labels 0 and 1 gave a shape error against the two indicator columns.
+    floats, and labels 0 and 1 gave a shape error against the two indicator columns. An integer
+    ``cv`` reaches PLS as ``FoldsByClass``, which shuffles each class into the folds on its own
+    (#1149).
     """
     X, y = _separable(n_per_class=8, n_features=4, separation=1.0, classes=("a", "b", "c"), seed=51)
     indicators = _indicator_frame(y, X.index)
     settings = {"max_components": 2, "n_permutations": 9, "n_cv_permutations": 0, "random_state": 0}
 
-    got, expected = PLSDA.compare_cv_criteria(X, y, **settings), PLS.compare_cv_criteria(X, indicators, **settings)
+    got = PLSDA.compare_cv_criteria(X, y, **settings)
+    expected = PLS.compare_cv_criteria(X, indicators, cv=FoldsByClass(7), **settings)
     pd.testing.assert_frame_equal(got.table, expected.table)
     pd.testing.assert_frame_equal(got.recommendations, expected.recommendations)
     _assert_same_splits(got.cv_splits, expected.cv_splits)
@@ -1050,32 +1054,77 @@ def test_plsda_cross_validation_runs_pls_on_the_class_indicators() -> None:
     pv = PLSDA.pseudo_validation_set(X, y, n_components=2, random_state=0)
     pd.testing.assert_frame_equal(pv.Y_pv, indicators)
     pd.testing.assert_frame_equal(
-        pv.X_pv, PLS.pseudo_validation_set(X, indicators, n_components=2, random_state=0).X_pv
+        pv.X_pv, PLS.pseudo_validation_set(X, indicators, n_components=2, cv=FoldsByClass(7), random_state=0).X_pv
     )
 
     selection = {"max_components": 3, "n_repeats": 2, "random_state": 0}
     chosen = PLSDA.select_n_components(X, y, **selection)
-    reference = PLS.select_n_components(X, indicators, **selection)
+    reference = PLS.select_n_components(X, indicators, cv=FoldsByClass(5), **selection)
     assert chosen.n_components == reference.n_components
     pd.testing.assert_frame_equal(chosen.rmsecv, reference.rmsecv)
+    pd.testing.assert_series_equal(chosen.selection_distribution, reference.selection_distribution)
 
-    nesting = {"max_components": 2, "inner_cv": 3, "n_inner_repeats": 1, "random_state": 0}
-    pd.testing.assert_series_equal(PLSDA.nested_cv(X, y, **nesting).q2y, PLS.nested_cv(X, indicators, **nesting).q2y)
+    nesting = {"max_components": 2, "n_inner_repeats": 1, "random_state": 0}
+    pd.testing.assert_series_equal(
+        PLSDA.nested_cv(X, y, inner_cv=3, **nesting).q2y,
+        PLS.nested_cv(X, indicators, outer_cv=FoldsByClass(5), inner_cv=FoldsByClass(3), **nesting).q2y,
+    )
 
-    resampling = {"cv": 3, "random_state": 0, "show_progress": False}
+    resampling = {"random_state": 0, "show_progress": False}
     classifier = PLSDA(n_components=2, decision_rule="bayes", priors="uniform", scale=True)
-    resampled = classifier.cross_validate(X, y, **resampling)
-    expected_resampling = PLS(n_components=2).fit(X, indicators).cross_validate(X, indicators, **resampling)
+    resampled = classifier.cross_validate(X, y, cv=3, **resampling)
+    expected_resampling = (
+        PLS(n_components=2).fit(X, indicators).cross_validate(X, indicators, cv=FoldsByClass(3), **resampling)
+    )
     pd.testing.assert_frame_equal(resampled.beta_mean, expected_resampling.beta_mean)
     pd.testing.assert_series_equal(resampled.q_squared, expected_resampling.q_squared)
     # This model's own PLS settings reach the fit: one component, not PLS's two above.
-    one = PLSDA(n_components=1).cross_validate(X, y, **resampling)
+    one = PLSDA(n_components=1).cross_validate(X, y, cv=3, **resampling)
     pd.testing.assert_frame_equal(
-        one.beta_mean, PLS(n_components=1).fit(X, indicators).cross_validate(X, indicators, **resampling).beta_mean
+        one.beta_mean,
+        PLS(n_components=1)
+        .fit(X, indicators)
+        .cross_validate(X, indicators, cv=FoldsByClass(3), **resampling)
+        .beta_mean,
+    )
+    # Leave-one-out has no folds to stratify, and is PLS's.
+    jackknife = PLSDA(n_components=1).cross_validate(X, y, **resampling)
+    pd.testing.assert_frame_equal(
+        jackknife.beta_mean,
+        PLS(n_components=1).fit(X, indicators).cross_validate(X, indicators, **resampling).beta_mean,
     )
 
     with pytest.raises(ValueError, match=r"^X has 24 rows but y has 23 labels\.$"):
         PLSDA.compare_cv_criteria(X, y[:-1], **settings)
+
+
+@pytest.mark.parametrize("seed", [24, 25, np.random.default_rng(5)])
+def test_plsda_shuffles_each_class_into_the_folds_of_an_integer_cv(seed: int | np.random.Generator) -> None:
+    """Every training fold holds every class, as StratifiedKFold shuffles them in, with the same seed (#1149).
+
+    The folds of an integer ``cv`` were PLS's shuffled K-fold, whatever the class of a row. On
+    these twelve rows of two classes, seeds 24 and 25 gave ``nested_cv`` an inner training fold
+    with one class: its indicator matrix was constant, and the fold's fit refused it.
+    """
+    X, y = _separable(n_per_class=6, n_features=4, separation=1.0, seed=7)
+    # The integer the splitter is seeded with: a Generator gives its next draw, as for PLS's folds
+    expected_seed = int(np.random.default_rng(5).integers(2**31)) if isinstance(seed, np.random.Generator) else seed
+    expected = list(StratifiedKFold(3, shuffle=True, random_state=expected_seed).split(X, y))
+
+    def fresh() -> int | np.random.Generator:
+        return np.random.default_rng(5) if isinstance(seed, np.random.Generator) else seed
+
+    compared = PLSDA.compare_cv_criteria(
+        X, y, max_components=1, cv=3, n_permutations=9, n_cv_permutations=0, random_state=fresh()
+    )
+    _assert_same_splits(compared.cv_splits, expected)
+    _assert_same_splits(
+        PLSDA.pseudo_validation_set(X, y, n_components=1, cv=3, random_state=fresh()).cv_splits, expected
+    )
+    nested = PLSDA.nested_cv(
+        X, y, max_components=2, outer_cv=3, inner_cv=3, n_inner_repeats=1, n_permutations=9, random_state=fresh()
+    )
+    assert np.isfinite(nested.q2y).all()
 
 
 def test_plsda_cross_validation_gives_a_splitter_the_labels() -> None:
@@ -1105,5 +1154,8 @@ def test_plsda_cross_validation_gives_a_splitter_the_labels() -> None:
 
     nesting = {"max_components": 2, "inner_cv": 3, "n_inner_repeats": 1, "random_state": 0}
     nested = PLSDA.nested_cv(values, labels, outer_cv=splitter, **nesting)
-    reference_nested = PLS.nested_cv(values, indicators, outer_cv=check_cv(splits), **nesting)
+    # The inner folds, an integer, shuffle each class in on its own (#1149)
+    reference_nested = PLS.nested_cv(
+        values, indicators, outer_cv=check_cv(splits), **nesting | {"inner_cv": FoldsByClass(3)}
+    )
     pd.testing.assert_series_equal(nested.q2y, reference_nested.q2y)

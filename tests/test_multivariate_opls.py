@@ -330,12 +330,15 @@ class TestComponentCount:
         """
         X, _y = synthetic_single_response
         constant = pd.DataFrame({"y": np.full(len(X), 0.1)})
-        message = r"^There is no variance in Y: the response is constant, so there is nothing for X to explain\.$"
+        message = (
+            r"^There is no variance in Y: every response is constant or has no observed value, so there is nothing "
+            r"for X to explain\.$"
+        )
         with pytest.raises(NotEnoughVarianceError, match=message):
             OPLS(n_orthogonal_components=n_orthogonal).fit(X, constant)
         with pytest.raises(NotEnoughVarianceError, match=message):
             OPLS(n_orthogonal_components=n_orthogonal, scale=False).fit(X - X.mean(), constant * 0.0)
-        with pytest.raises(NotEnoughVarianceError, match="no variance left in the data array for Y"):
+        with pytest.raises(NotEnoughVarianceError, match=message):
             PLS(n_components=1 + n_orthogonal).fit(X, constant)
 
     def test_two_samples_are_enough(self, cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:

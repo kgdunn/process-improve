@@ -29,6 +29,7 @@ from process_improve._random import check_random_state
 
 from ._common import (
     DataMatrix,
+    FoldsByClass,
     NotEnoughVarianceError,
     SpecificationWarning,
     _model_method,
@@ -193,7 +194,9 @@ class PLSDA(ClassifierMixin, PLS):
     ``t2_contributions``, ...), because this class is a :class:`PLS`. Its cross-validation
     (:meth:`select_n_components`, :meth:`compare_cv_criteria`, :meth:`pseudo_validation_set`,
     :meth:`nested_cv` and :meth:`cross_validate`) takes the class labels and runs PLS's on
-    their class-indicator matrix.
+    their class-indicator matrix. An integer ``cv`` shuffles each class into the folds on its
+    own, as :class:`~sklearn.model_selection.StratifiedKFold` does, with the seed PLS would
+    shuffle the rows with, so no training fold lacks a class.
 
     Examples
     --------
@@ -750,8 +753,9 @@ class PLSDA(ClassifierMixin, PLS):
 
     # PLS's cross-validation reads Y as a numeric response, so for class labels each of the
     # five below runs PLS's own on the class-indicator matrix: the regression this class
-    # fits. A splitter is given the labels, so StratifiedKFold keeps each class's share in
-    # every fold; an integer gives PLS's shuffled K-fold. The other settings are PLS's.
+    # fits. Every fold keeps each class's share: a splitter is given the labels, and an
+    # integer shuffles each class into PLS's folds on its own, as StratifiedKFold does, so
+    # no training fold lacks a class (#1149). The other settings are PLS's.
 
     @classmethod
     def select_n_components(
@@ -785,11 +789,19 @@ class PLSDA(ClassifierMixin, PLS):
 
     @classmethod
     def nested_cv(
-        cls, X: DataMatrix, Y: DataMatrix | pd.Series, *, outer_cv: int | BaseCrossValidator = 5, **pls_kwargs
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix | pd.Series,
+        *,
+        outer_cv: int | BaseCrossValidator = 5,
+        inner_cv: int = 5,
+        **pls_kwargs,
     ) -> Bunch:
         """Run :meth:`PLS.nested_cv` on the class-indicator matrix of the labels ``Y``."""
         labels, indicators = _indicator_matrix(X, Y)
-        return PLS.nested_cv(X, indicators, outer_cv=_label_splits(outer_cv, X, labels), **pls_kwargs)
+        return PLS.nested_cv(
+            X, indicators, outer_cv=_label_splits(outer_cv, X, labels), inner_cv=_by_class(inner_cv), **pls_kwargs
+        )
 
     def cross_validate(self, X: DataMatrix, Y: DataMatrix | pd.Series, **settings) -> Bunch:
         """Run :meth:`PLS.cross_validate` for a :class:`PLS` with this model's settings and its labels ``Y``.
@@ -801,6 +813,8 @@ class PLSDA(ClassifierMixin, PLS):
         pls_settings = {
             name: value for name, value in self.get_params().items() if name not in ("decision_rule", "priors")
         }
+        if "cv" in settings:
+            settings["cv"] = _by_class(settings["cv"])
         # cross_validate reads from the fitted model only the labels of its coefficients.
         return PLS(**pls_settings).fit(X, indicators).cross_validate(X, indicators, **settings)
 
@@ -836,9 +850,21 @@ def _indicator_matrix(X: DataMatrix, y: DataMatrix | pd.Series) -> tuple[np.ndar
 
 
 def _label_splits(cv: int | BaseCrossValidator, X: DataMatrix, labels: np.ndarray) -> int | BaseCrossValidator:
-    """Return a splitter's folds of ``X``, split by the class labels; any other ``cv`` as given.
+    """Return a splitter's folds of ``X``, split by the class labels; any other ``cv`` as :func:`_by_class` gives it.
 
     A stratified splitter reads its target to keep each class's share in every fold, and
     refuses the indicator matrix as a multilabel target, so it is given the labels.
     """
-    return check_cv(list(cv.split(X, labels))) if hasattr(cv, "split") else cv
+    return check_cv(list(cv.split(X, labels))) if hasattr(cv, "split") else _by_class(cv)
+
+
+_CV = typing.TypeVar("_CV")
+
+
+def _by_class(cv: _CV) -> _CV | FoldsByClass:
+    """Return an integer ``cv`` as :class:`FoldsByClass`, so PLS shuffles each class into its folds; else as given.
+
+    A plain integer shuffled the rows whatever their class, and a training fold with no row of
+    a class had a constant indicator matrix, which its fit refused (#1149).
+    """
+    return FoldsByClass(cv) if isinstance(cv, int) and not isinstance(cv, bool) else cv

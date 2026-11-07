@@ -191,7 +191,8 @@ def test_a_block_with_nothing_left_is_refused_in_any_units(units: float) -> None
         PCA(n_components=1, algorithm="nipals").fit(zeros)
     with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
         PLS(n_components=1, scale=False).fit(zeros, Y * units)
-    with pytest.raises(NotEnoughVarianceError, match=r"for Y: .* beyond component 0\.$"):
+    # So is a Y of zeros, unscaled, in the words of the family's constant Y (#1149)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in Y: every response is constant"):
         PLS(n_components=1, scale=False).fit(X * units, Y * 0.0)
 
 

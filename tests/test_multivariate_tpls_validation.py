@@ -7,6 +7,7 @@ the guards are pinned without loading the pyphi example data.
 from __future__ import annotations
 
 import copy
+import itertools
 import re
 import warnings
 from collections.abc import Callable
@@ -18,10 +19,12 @@ from sklearn.exceptions import NotFittedError
 
 from process_improve.multivariate.methods import (
     MBPLS,
+    PLS,
     TPLS,
     DataFrameDict,
     MCUVScaler,
     NotEnoughVarianceError,
+    SpecificationWarning,
     epsqrt,
     make_tpls_scorer,
 )
@@ -772,12 +775,72 @@ def test_a_separate_y_is_refused_in_full(action: Callable, where: str) -> None:
         action(model, data, blocks["Y"]["Y1"])
 
 
-def test_one_blend_is_refused() -> None:
-    """Its Y column centres to 0, so there is nothing to explain: no component can be fitted."""
+def test_more_components_than_d_can_give_are_cut_to_its_rank_with_a_warning() -> None:
+    """Every component's weights on the materials come through D, so a D of three properties gives three (#1149).
+
+    A fourth component was fitted to what was left of D, which was rounding error, and its super
+    scores were near 1e15. The count is cut, with the warning PCA and PLS give for more components
+    than the data can give, and the model is the one fitted with three.
+    """
+    d_matrix, blocks = _synthetic()  # four materials, of three properties
+    message = (
+        r"^The requested number of components is more than can be computed from data\. The maximum number of "
+        r"components is the minimum of either the number of rows \(20\) or the largest rank a group of D can have, "
+        r"the fewer of its materials and its properties \(3\)\.$"
+    )
+    with pytest.warns(SpecificationWarning, match=message):
+        model = TPLS(n_components=5, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    assert (model.n_components, model.n_components_) == (5, 3)
+    three = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+    pd.testing.assert_frame_equal(model.t_scores_super, three.t_scores_super)
+
+
+def test_a_y_fitted_exactly_is_refused_at_the_next_component_as_pls_refuses_it() -> None:
+    """In the words of PLS and MBPLS, judged against Y's size before the first component (#1128, #1149).
+
+    D's two properties are orthogonal, and so are the columns of F, a 2^4 design, so one component
+    fits ``y = F p`` exactly. A second was refused only because its scores were not finite, in words
+    that sent the caller to look at the groups of F.
+    """
+    runs = np.array(list(itertools.product([-1.0, 1.0], repeat=4)))
+    materials = [f"m{j}" for j in range(6)]
+    f_block = pd.DataFrame(
+        np.column_stack(
+            [runs[:, 0], runs[:, 1], runs[:, 2], *(runs[:, i] * runs[:, j] for i, j in ((0, 1), (0, 2), (1, 2)))]
+        ),
+        columns=materials,
+    )
+    d_matrix = {"G": pd.DataFrame({"p": [1.0, -1, 1, -1, 1, -1], "q": [1.0, 1, -1, -1, 0, 0]}, index=materials)}
+    y = pd.DataFrame({"y": f_block.to_numpy() @ d_matrix["G"]["p"].to_numpy() + 3.0})
+    data = DataFrameDict({"F": {"G": f_block}, "Y": {"Y1": y}})
+    one = TPLS(n_components=1, d_matrix=d_matrix).fit(data)
+    np.testing.assert_allclose(one.hat["Y1"].to_numpy(), y.to_numpy(), atol=1e-12)
+    message = (
+        r"^There is no variance left in the data array for Y: cannot compute any more components beyond "
+        r"component 1\.$"
+    )
+    with pytest.raises(NotEnoughVarianceError, match=message):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(data)
+    with pytest.raises(NotEnoughVarianceError, match=message):
+        PLS(n_components=2).fit(f_block, y)
+
+
+def test_one_blend_is_refused_as_too_few_rows_as_across_the_family() -> None:
+    """One blend is refused as PCA and PLS refuse one row (#1149).
+
+    Its Y column centred to 0, and it was refused as a Y with no variance, which sent the caller to
+    look at the response rather than at the number of blends.
+    """
     d_matrix, blocks = _synthetic()
     one = {name: {key: frame.iloc[:1] for key, frame in block.items()} for name, block in blocks.items()}
-    with pytest.raises(NotEnoughVarianceError, match=r'^There is no variance in Y\["Y1"\]'):
+    message = r"^Found array with 1 sample\(s\) \(shape=\(1, 1\)\) while a minimum of 2 is required by TPLS\.$"
+    with pytest.raises(ValueError, match=message):
         TPLS(n_components=1, d_matrix=d_matrix).fit(DataFrameDict(one))
+    # A D of one material is a block of materials, not of blends, and is not counted as rows
+    d_one = {"G": d_matrix["G"].iloc[:1]}
+    f_one = {**blocks, "F": {"G": blocks["F"]["G"].iloc[:, :1]}}
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in F and D"):
+        TPLS(n_components=1, d_matrix=d_one).fit(DataFrameDict(f_one))
 
 
 def test_an_unknown_metric_and_an_empty_y_are_refused_in_full() -> None:

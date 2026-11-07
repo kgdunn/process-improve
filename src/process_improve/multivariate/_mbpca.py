@@ -31,6 +31,7 @@ from ._common import (
     _scale_block_contributions,
     check_at_least_one,
     check_x_varies,
+    components_to_fit,
     constant_columns,
     epsqrt,
     informative_widths,
@@ -605,7 +606,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # Fitted mirror of the constructor parameter, so shared helpers (the T2 limit
         # mixin, spe_limit, the plot pre-checks) read one resolved attribute across
         # PCA / PLS / MBPCA / MBPLS (#505).
-        self.n_components_ = int(self.n_components)
+        self.n_components_ = components_to_fit(self.n_components, self.n_samples_, self.n_features_in_)
 
     def _resolve_algorithm(self, X: dict[str, pd.DataFrame]) -> str:
         """Pick between the dense and NIPALS paths, and record what was picked."""
