@@ -351,7 +351,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915
                     Xa[impute] = recon[impute]
                     held = Xa[impute] / held_scale
                     delta = np.linalg.norm(held - prev_held)
-                    threshold = ekf_tol * max(1.0, float(np.linalg.norm(prev_held)))
+                    # Relative to the held-out cells' own size, in any units. A floor of 1 stopped EM
+                    # after one pass on data in small units, which changed the PRESS curve (#1070).
+                    threshold = ekf_tol * float(np.linalg.norm(prev_held))
                     if delta < threshold:  # pragma: no mutate - < and <= differ only at a delta of exactly threshold
                         break
                     prev_held = held
@@ -2115,10 +2117,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         press_input_units = pd.Series(raw_press_input_units, index=component_index, name="PRESS (input units)")
         # Q2 = 1 - PRESS / null_model_ss. A block with nothing to predict has an
         # undefined Q2 rather than a perfect one, and so does a column with no
-        # spread across the held-out cells.
-        null_ss = null_model_ss if null_model_ss > epsqrt else np.nan  # pragma: no mutate - > and >= tie only at epsqrt
+        # spread across the held-out cells. A column has nothing to predict when its
+        # observed values are all equal, in any units, as MCUVScaler reads one: its
+        # null sum of squares is then 0, or rounding where it was centred at a mean.
+        # A floor of epsqrt on that sum took every column in small units for one (#1070).
+        varies = np.fmax.reduce(X_arr, axis=0) > np.fmin.reduce(X_arr, axis=0)  # fmax and fmin skip NaN
+        null_ss = null_model_ss if varies.any() else np.nan
         q2 = (1.0 - press / null_ss).rename("Q2")
-        column_null_ss = np.where(per_column_null > epsqrt, per_column_null, np.nan)  # pragma: no mutate - as above
+        column_null_ss = np.where(varies, per_column_null, np.nan)
         q2_per_variable = pd.DataFrame(
             1.0 - raw_per_column / column_null_ss, index=component_index, columns=list(X.columns)
         )

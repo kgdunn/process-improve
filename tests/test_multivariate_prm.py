@@ -611,7 +611,9 @@ class TestPRMScaling:
         """Each column of X and of Y over 1.4826 times its median absolute deviation (1 where that is 0).
 
         Two targets of different spreads, and an X column whose median absolute deviation is 0. One
-        reweighting each, so the comparison is of one weighted fit, not of where two loops stop.
+        reweighting each, so the comparison is of one weighted fit, not of where two loops stop. The
+        two agree to the L1 median's tolerance, 1e-8 in units of X's largest spread (#1114): 1 for the
+        scaled fit, and 5 for the unscaled one, the largest deviation of the column whose MAD is 0.
         """
         X, y = _dataset(seed=4)
         X["steps"] = np.r_[np.zeros(N_SAMPLES - 5), np.arange(1.0, 6.0)]
@@ -626,8 +628,8 @@ class TestPRMScaling:
         assert sx[-1] == 1.0
         scaled = PRM(n_components=2, max_weight_iter=1).fit(X, Y)
         by_hand = PRM(n_components=2, max_weight_iter=1, scale=False).fit(X / sx, Y / sy)
-        np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-9)
-        np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-9)
+        np.testing.assert_allclose(scaled.scores_, by_hand.scores_, atol=1e-7)
+        np.testing.assert_allclose(scaled.predict(X), by_hand.predict(X / sx) * sy, rtol=1e-7, atol=1e-6)
 
     def test_a_change_to_small_units_changes_nothing(self) -> None:
         """An X column, and Y, in units 1e9 times smaller give the same predictions and weights (#1070).
