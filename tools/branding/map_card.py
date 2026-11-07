@@ -23,7 +23,7 @@ from playwright.sync_api import sync_playwright
 WIDTH, HEIGHT = 1200, 630
 # The page as a card: the words on the left, the topics on the right, the rest of the page hidden.
 CARD_CSS = """
-.about__back, .map-meta, .map-search, .map-bar, .map-legend, .map-card, .map-links, .map-how {
+.map-top, .map-meta, .map-search, .map-bar, .map-legend, .map-card, .map-links, .map-how {
   display: none !important;
 }
 main.map { width: 400px; max-width: none; margin: 0; padding: 72px 0 0 56px; }
