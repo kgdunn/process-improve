@@ -1266,8 +1266,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         ``F'u`` is as small, gives no direction on every build, and the fit refuses it.
         """
         h = regress_a_space_on_b_row(f_group.T, u.T, present.T)
-        if np.linalg.norm(h) * np.linalg.norm(u) < epsqrt * np.linalg.norm(f_group):
-            return np.full_like(h, np.nan)
+        # The two sides are equal only where F is all 0, and then h is 0 and D cannot be regressed on it: the fit
+        # refuses the component either way, so < and <= give one result.
+        if (
+            np.linalg.norm(h) * np.linalg.norm(u)
+            < epsqrt * np.linalg.norm(f_group)  # pragma: no mutate - <= differs only where F is all 0
+        ):
+            return np.full_like(h, np.nan)  # pragma: no mutate - a fill of None is NaN in a float array
         return h
 
     def _refuse_blocks_with_no_variance(self) -> None:
