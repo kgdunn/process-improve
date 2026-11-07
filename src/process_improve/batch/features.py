@@ -548,6 +548,22 @@ def f_max(
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
+def _age_at(prepared: DataFrameGroupBy, extreme: str) -> pd.DataFrame:
+    """
+    Return the index label at which each tag reaches its extreme, per batch and phase.
+
+    ``extreme`` is ``"idxmin"`` or ``"idxmax"``. A tag with no observed value in a batch has no
+    such label, so it is NaN there, as :func:`f_min` and :func:`f_max` give for that batch.
+    pandas refuses such a group in ``idxmin`` and ``idxmax``, with a ValueError from 3.0 (#1184).
+    A missing value among observed ones is skipped.
+    """
+
+    def label_at_extreme(values: pd.Series) -> object:
+        return getattr(values, extreme)() if values.notna().any() else np.nan
+
+    return prepared.agg(label_at_extreme)
+
+
 def f_agemin(
     data: pd.DataFrame,
     tags: list[str] | None = None,
@@ -562,12 +578,14 @@ def f_agemin(
     for each unique batch in the ``batch_col`` indicator column, and
     within each unique phase, per batch, of the ``phase_col`` column.
 
+    A batch in which a tag has no observed value gets NaN, as in `f_min` and `f_max`.
+
     See also: f_min, f_agemax
     """
     base_name = "agemin"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
-    output = prepared.idxmin()
+    output = _age_at(prepared, "idxmin")
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
@@ -585,12 +603,14 @@ def f_agemax(
     for each unique batch in the ``batch_col`` indicator column, and
     within each unique phase, per batch, of the ``phase_col`` column.
 
+    A batch in which a tag has no observed value gets NaN, as in `f_min` and `f_max`.
+
     See also: f_max, f_agemin
     """
     base_name = "agemax"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
-    output = prepared.idxmax()
+    output = _age_at(prepared, "idxmax")
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 

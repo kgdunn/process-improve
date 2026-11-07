@@ -171,6 +171,27 @@ def test_f_agemin_agemax(batch_data: pd.DataFrame) -> None:
     assert agemax.iloc[0, 0] == sub["Temp1"].idxmax()
 
 
+@pytest.mark.parametrize("index", [None, pd.date_range("2026-01-01", periods=8, freq="h")], ids=["row", "datetime"])
+def test_f_agemin_agemax_are_nan_for_a_tag_never_measured_in_a_batch(index: pd.DatetimeIndex | None) -> None:
+    """A batch whose tag is all missing has no age at its extreme: NaN, as f_min and f_max give, not an error (#1184).
+
+    A missing value inside a batch is skipped, as f_min skips it.
+    """
+    data = pd.DataFrame(
+        {"Batch": ["B1"] * 4 + ["B2"] * 4, "temp": [3.0, np.nan, 1.0, 5.0, *[np.nan] * 4], "flow": np.arange(8.0)},
+        index=index,
+    )
+    labels = data.index
+    for feature, extreme, at in [(features.f_agemin, features.f_min, 2), (features.f_agemax, features.f_max, 3)]:
+        ages = feature(data, tags=["temp", "flow"], batch_col="Batch").droplevel("__phase_grouper__")
+        values = extreme(data, tags=["temp"], batch_col="Batch").droplevel("__phase_grouper__")
+        name = feature.__name__.removeprefix("f_")
+        assert ages.loc["B1", f"temp_{name}"] == labels[at], feature.__name__
+        assert pd.isna(ages.loc["B2", f"temp_{name}"]), feature.__name__
+        assert pd.isna(values.iloc[1, 0]), extreme.__name__
+        assert list(ages[f"flow_{name}"]) == list(labels[[0, 4]] if name == "agemin" else labels[[3, 7]])
+
+
 # Shape-based features
 # ------------------------------------------
 def test_shape_features(batch_data: pd.DataFrame) -> None:
