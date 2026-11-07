@@ -1132,6 +1132,29 @@ def batch_dtw(  # noqa: PLR0915
     )
 
 
+def _refuse_missing_values(batches: dict, columns_to_align: list, caller: str) -> None:
+    """
+    Raise when a tag to resample has a missing value, naming every such batch and tag (#1184).
+
+    One NaN made the whole tag NaN under the default cubic interpolation, and a linear one
+    spread it to the neighbouring samples. Interpolating over the observed samples instead
+    would bridge a gap of any length without a word. :func:`batch_dtw` refuses a missing
+    value in the same way, and :func:`~process_improve.batch.fill_gaps` fills the short gaps
+    and says which ones it left.
+    """
+    missing = {
+        batch_id: [column for column in columns_to_align if batch[column].isna().any()]
+        for batch_id, batch in batches.items()
+        if batch[columns_to_align].isna().to_numpy().any()
+    }
+    if missing:
+        raise ValueError(
+            f"{caller} cannot resample a tag with missing values; these batches have them (batch: tags): "
+            f"{missing}. Fill the gaps first, for example with `process_improve.batch.fill_gaps`, which caps how "
+            "long a gap it bridges, or leave the tag out of `columns_to_align`."
+        )
+
+
 def resample_to_reference(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -1161,7 +1184,7 @@ def resample_to_reference(
     ------
     ValueError
         If a batch, the reference among them, has fewer than 2 rows: there is nothing to
-        interpolate between.
+        interpolate between; or if a tag in ``columns_to_align`` has a missing value.
     """
     default_settings = {
         "interpolate_kind": "cubic",  # must be a valid "scipy.interpolate.interp1d" `kind`
@@ -1177,6 +1200,7 @@ def resample_to_reference(
             f"resample_to_reference needs at least 2 rows in every batch, to interpolate between; "
             f"these batches have fewer (batch: rows): {too_short}."
         )
+    _refuse_missing_values(batches, columns_to_align, "resample_to_reference")
     out = {}
     target_time = np.arange(0, batches[reference_batch].shape[0])
     target_time = target_time / target_time[-1]
@@ -1245,7 +1269,7 @@ def find_reference_batch(
     settings: dict | None = None,
 ) -> str | list[str]:
     """
-    Find a reference batch. Assumes NO missing data.
+    Find a reference batch. A missing value in ``columns_to_align`` is refused, as in :func:`resample_to_reference`.
 
     Starts with the average duration batch; resamples (simple interpolation) of all batches to
     that duration. Unfolds that resampled data. Does PCA on the wide, unfolded data. Fits,

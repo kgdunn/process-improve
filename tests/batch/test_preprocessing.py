@@ -585,6 +585,28 @@ def test_resample_to_reference_puts_every_batch_on_the_reference_length() -> Non
 
 
 @pytest.mark.parametrize(
+    "call",
+    [
+        lambda batches: resample_to_reference(batches, columns_to_align=["a", "b"], reference_batch="x"),
+        lambda batches: find_reference_batch(batches, ["a", "b"], settings={"judged_rows": "fitted"}),
+    ],
+    ids=["resample-to-reference", "find-reference-batch"],
+)
+def test_a_missing_value_is_refused_by_batch_and_tag(call: object) -> None:
+    """One NaN made the whole resampled tag NaN under the default cubic interpolation (#1184).
+
+    It is refused, naming the batch and the tag, as ``batch_dtw`` refuses one, and the caller is
+    pointed at ``fill_gaps``, which says how long a gap it bridges.
+    """
+    gappy = _warped_batch(36)
+    gappy.loc[5, "a"] = np.nan
+    batches = {"x": _warped_batch(30), "y": gappy, "z": _warped_batch(42)}
+
+    with pytest.raises(ValueError, match=r"cannot resample a tag with missing values; .*\{'y': \['a'\]\}.*fill_gaps"):
+        call(batches)  # type: ignore[operator]
+
+
+@pytest.mark.parametrize(
     ("call", "broken", "match"),
     [
         (
