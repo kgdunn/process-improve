@@ -917,6 +917,21 @@ class TestMBPCAWrittenOut:
             assert model.algorithm_ == algorithm
             _check_fitted(model, blocks, expected, rtol=1e-6)
 
+    def test_square_blocks_tell_each_regression_which_way_it_runs(self) -> None:
+        """Three rows, three blocks and a block of three columns, on the masked path.
+
+        Every masked regression of a square array must be told whether it runs over the columns or
+        the rows: the block loadings and scores of block ``p``, and the super loading and super score
+        over the three block scores. Read from the shape, a square array is refused.
+        """
+        blocks = {
+            "p": pd.DataFrame([[1.0, 4.0, 2.0], [3.0, 1.0, 5.0], [0.0, 2.0, 2.5]], columns=["p0", "p1", "p2"]),
+            "q": pd.DataFrame({"q0": [2.0, -1.0, 0.5]}),
+            "r": pd.DataFrame({"r0": [1.0, 1.5, 4.0], "r1": [0.0, 2.0, -1.0]}),
+        }
+        model = MBPCA(n_components=2, algorithm="nipals").fit(blocks)
+        _check_fitted(model, blocks, _mbpca_written_out(blocks, 2), rtol=1e-9)
+
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self) -> None:
         """New rows are deflated by diagnose and transform as the fit did; arrays read as the fitted columns."""
         blocks = _gappy_three_blocks()
