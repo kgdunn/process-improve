@@ -1201,6 +1201,21 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         return delta_gap < self.tol
 
+    @staticmethod
+    def _regress_f_group_on_u(f_group: np.ndarray, u: np.ndarray, present: np.ndarray) -> np.ndarray:
+        """Step 2 for one F group: ``h = F'u / u'u``, or NaN where ``F'u`` is only rounding error (#1144).
+
+        A group with no variation over the blends, used as given, meets a centred ``u`` with an
+        ``F'u`` of about 1e-17 times ``||F|| ||u||``: exactly 0 with some numpy builds, not with
+        others. Regressing D on that remainder gave F weights near 1e15 and took F out of the model
+        without a word, or refused the fit, by build. Judged against ``||F|| ||u||``, it is no
+        direction on every build, and the fit refuses it as it refuses any group with no variation.
+        """
+        h = regress_a_space_on_b_row(f_group.T, u.T, present.T)
+        if np.linalg.norm(h) * np.linalg.norm(u) < epsqrt * np.linalg.norm(f_group):
+            return np.full_like(h, np.nan)
+        return h
+
     def _refuse_blocks_with_no_variance(self) -> None:
         """Refuse nothing to explain, or nothing to explain it by, before the iteration, as MBPLS does (#1144).
 
@@ -1705,9 +1720,11 @@ class TPLS(RegressorMixin, BaseEstimator):
                 u_prior = u_super_i  # rebound below, never changed in place
                 # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
                 h_i = {
-                    key: regress_a_space_on_b_row(df_f.T, u_super_i.T, self.not_na_f[key].T)
+                    key: self._regress_f_group_on_u(df_f, u_super_i, self.not_na_f[key])
                     for key, df_f in self.f_mats.items()
                 }
+                # A NaN here makes every later step and the scores NaN, through numpy's warnings: refuse it now.
+                self._refuse_scores_that_are_not_finite(pc_a + 1, np.concatenate(list(h_i.values())))
 
                 # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
                 s_i = {

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import re
+import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -17,7 +18,17 @@ import plotly.graph_objects as go
 import pytest
 
 from process_improve.multivariate._limits import spe_calculation
-from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning, randomization_test_mbpls
+from process_improve.multivariate.methods import (
+    MBPCA,
+    MBPLS,
+    OPLS,
+    PLS,
+    PLSDA,
+    PRM,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    randomization_test_mbpls,
+)
 
 MultiblockModel = MBPCA | MBPLS
 
@@ -376,17 +387,34 @@ def test_mbpls_refuses_a_y_of_another_height() -> None:
         MBPLS(n_components=2).fit(blocks, y.iloc[:9])
 
 
-def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
-    """With nothing in X to explain Y by, R2Y is 0 and the super VIP is zero rather than NaN.
+@pytest.mark.parametrize("name", ["PLS", "PLSDA", "PRM", "OPLS", "MBPLS-dense", "MBPLS-nipals"])
+def test_a_y_uncorrelated_with_every_column_of_x_is_refused_across_the_family(name: str) -> None:
+    """Y orthogonal to every column of X leaves no first component, so the fit is refused, as a constant Y is (#1144).
 
-    The columns of a 2^4 design are exactly orthogonal, so blocks of three of them have nothing to
-    explain the fourth by, and every weight is 0. A Y with nothing to explain is refused (#1075), and
-    so are blocks of constants (#1128).
+    The columns of a 2^4 design are exactly orthogonal, so three of them have nothing to explain the
+    fourth by. PLS, PLSDA, PRM and OPLS raised a ``LinAlgError`` that blamed collinear columns, after
+    numpy's warnings of a division by 0; MBPLS fitted every weight 0, and predicted NaN for every new
+    row. Unscaled, the same data are refused in the same words.
     """
     design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("abcy"))
-    model = MBPLS(n_components=2).fit({"ab": design[["a", "b"]], "c": design[["c"]]}, design[["y"]])
-    np.testing.assert_array_equal(model.r2_y_cumulative_.to_numpy(), [0.0, 0.0])
-    np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
+    X, y = design[["a", "b", "c"]], design[["y"]] * 2.0 + 5.0
+    fits: dict[str, Callable[[], object]] = {
+        "PLS": lambda: PLS(n_components=2).fit(X, y),
+        "PLSDA": lambda: PLSDA(n_components=2).fit(X, np.where(y["y"] > 5.0, "high", "low")),
+        "PRM": lambda: PRM(n_components=2).fit(X, y),
+        "OPLS": lambda: OPLS(n_orthogonal_components=1).fit(X, y),
+        "MBPLS-dense": lambda: MBPLS(n_components=2).fit({"ab": X[["a", "b"]], "c": X[["c"]]}, y),
+        "MBPLS-nipals": lambda: MBPLS(n_components=2, algorithm="nipals").fit({"ab": X[["a", "b"]], "c": X[["c"]]}, y),
+    }
+    message = r"^There is nothing in X to explain Y by: Y is uncorrelated with every column of X\.$"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            fits[name]()
+        if name in ("PLS", "OPLS"):
+            unscaled = {"PLS": PLS(n_components=1, scale=False), "OPLS": OPLS(n_orthogonal_components=0, scale=False)}
+            with pytest.raises(NotEnoughVarianceError, match=message):
+                unscaled[name].fit(X, y - 5.0)
 
 
 def test_mbpls_select_n_components_takes_a_generator_as_random_state() -> None:

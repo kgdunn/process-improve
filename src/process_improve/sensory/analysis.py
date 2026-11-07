@@ -242,14 +242,15 @@ def _fit_pls_safe(x: pd.DataFrame, y: pd.DataFrame, n_components: int) -> tuple[
     Near-duplicate descriptor columns (a proxy that is almost an exact function
     of a driver) can make the high-order PLS deflation singular. Retry with one
     fewer component until the fit succeeds, returning ``(model, components_used)``
-    or ``(None, 0)`` if even a single component fails.
+    or ``(None, 0)`` if even a single component fails, as it does for an
+    attribute uncorrelated with every descriptor, which PLS refuses (#1144).
     """
     for k in range(max(1, n_components), 0, -1):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 return PLS(n_components=k).fit(x, y), k
-        except np.linalg.LinAlgError:
+        except (np.linalg.LinAlgError, NotEnoughVarianceError):
             continue
     return None, 0
 

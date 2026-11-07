@@ -35,6 +35,7 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _float_frame,
     _nz,
     _reject_sparse,
     _rows_with_data,
@@ -2032,8 +2033,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         principal component analysis using cross-validation approximations.
         *Computational Statistics & Data Analysis*, 56(6), 1869-1879.
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        X = _float_frame(X)  # an array is numbered from 0; a nullable column's pd.NA is a missing cell, as in fit
         check_at_least_one("max_components", max_components)
 
         N, K = X.shape

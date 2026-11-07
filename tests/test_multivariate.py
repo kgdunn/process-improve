@@ -4022,10 +4022,11 @@ def test_selectivity_ratio_ranks_driver_and_proxy_above_noise() -> None:
     # limitation that the discriminator narrative rests on).
     assert sr_standalone["driver"] == pytest.approx(sr_standalone["proxy"], rel=0.5)
 
-    # The advisory F-based critical value is attached and exceeded by the signal.
+    # The advisory F-based critical value is attached, one per feature, and exceeded by the signal.
     assert sr_standalone.attrs["conf_level"] == pytest.approx(0.95)
-    assert sr_standalone["driver"] > sr_standalone.attrs["f_critical"]
-    assert sr_standalone["noise1"] < sr_standalone.attrs["f_critical"]
+    critical = sr_standalone.attrs["f_critical"]
+    assert sr_standalone["driver"] > critical["driver"]
+    assert sr_standalone["noise1"] < critical["noise1"]
 
 
 def test_target_projection_aligns_with_response() -> None:
@@ -4126,7 +4127,7 @@ def test_selectivity_ratio_multi_response_and_errors(
     tiny = MCUVScaler().fit_transform(X.iloc[:3])
     tiny_y = MCUVScaler().fit_transform(Y.iloc[:3, [0]])
     sr_tiny = PLS(n_components=1).fit(tiny, tiny_y).selectivity_ratio(tiny)
-    assert np.isnan(sr_tiny.attrs["f_critical"])
+    assert sr_tiny.attrs["f_critical"].isna().all()
 
     # Real LDPE dataset (SIMCA reference data): SR is finite and non-negative.
     data = fixture_pls_ldpe_example
@@ -6612,6 +6613,25 @@ class TestTPLSWrittenOut:
         with pytest.warns(UserWarning, match=r"^Block F\[\"A\"\] has columns with no observed values.*'a4'"):
             model.fit(DataFrameDict(blocks))
 
+    @pytest.mark.parametrize("constant", [["A", "B"], ["B"]], ids=["every-group", "one-group"])
+    def test_an_f_group_with_no_variation_used_as_given_is_refused_on_every_numpy(self, constant: list[str]) -> None:
+        """#1144: an F group whose every blend has the same row, used as given, is refused, as the error says.
+
+        Against a centred u, such a group's F'u is rounding error: exactly 0 with numpy 2.2, which
+        refused the fit after an overflow warning, and about 1e-17 with numpy 2.5, which fitted.
+        Regressing D on that remainder gave F weights near 1e15 and an F super weight of 0, so one
+        such group took the varying one out of the model without a word.
+        """
+        d_matrix, blocks = _t_shaped(gaps=False)
+        for group in constant:
+            frame = blocks["F"][group]
+            frame.loc[:, :] = np.arange(1, frame.shape[1] + 1) / 10.0
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(ValueError, match=r"^TPLS cannot fit component 1: .* each D and F group, varies"):
+                model.fit(DataFrameDict(blocks))
+
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:
@@ -8119,7 +8139,9 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     pd.testing.assert_series_equal(
         ratio, pd.Series([49 / 68, 9 / 17], index=["a", "b"], name="selectivity_ratio"), rtol=1e-13
     )
-    assert ratio.attrs["f_critical"] == pytest.approx(49.5, rel=1e-12)
+    pd.testing.assert_series_equal(
+        ratio.attrs["f_critical"], pd.Series([49.5, 49.5], index=["a", "b"], name="f_critical"), rtol=1e-12
+    )
     assert ratio.attrs["conf_level"] == 0.9
     assert ratio.attrs["response"] == "y"
 
@@ -8144,6 +8166,37 @@ def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
     np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.8, -1.4, 10 / 3], rtol=1e-14)
     np.testing.assert_allclose(tp.loadings.to_numpy(), [975 / 1583, 55 / 74], rtol=1e-14)
     np.testing.assert_allclose(ratio.to_numpy(), [4225 / 524, 121 / 27], rtol=1e-13)
+
+
+def test_the_selectivity_ratio_s_f_critical_value_counts_each_feature_s_observed_rows() -> None:
+    """Each feature's ratio is formed over its observed cells, so its F critical value counts those rows (#1144).
+
+    Ten rows with a gap in b and two in c: a's ratio is formed over 10 rows, b's over 9 and c's over
+    8, with N - 2 and N - 3 degrees of freedom each. The value for all 10 rows was given for every
+    feature, so b and c were held to a lower bar than their rows support. A row with nothing
+    observed counts for no feature. The value is a Series by feature whatever the counts (decided
+    5 Nov), so code that reads it has one type to handle.
+    """
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((10, 3)), columns=["a", "b", "c"])
+    gaps = X.copy()
+    gaps.loc[3, "b"] = gaps.loc[[1, 6], "c"] = np.nan
+    model = SimpleNamespace(
+        beta_coefficients_=pd.DataFrame({"y": [0.0, 0.0, 0.0]}, index=["a", "b", "c"]),
+        direct_weights_=pd.DataFrame([[1.0], [2.0], [-1.0]], index=["a", "b", "c"]),
+        y_loadings_=pd.DataFrame([[1.0]], index=["y"]),
+    )
+    critical = selectivity_ratio(model, gaps, conf_level=0.9).attrs["f_critical"]
+    expected = pd.Series([f_dist.ppf(0.9, n - 2, n - 3) for n in (10, 9, 8)], index=["a", "b", "c"], name="f_critical")
+    pd.testing.assert_series_equal(critical, expected, rtol=1e-12)
+    blank_row = X.copy()
+    blank_row.loc[5] = np.nan
+    for data, n in ((X, 10), (blank_row, 9)):
+        pd.testing.assert_series_equal(
+            selectivity_ratio(model, data, conf_level=0.9).attrs["f_critical"],
+            pd.Series(f_dist.ppf(0.9, n - 2, n - 3), index=["a", "b", "c"], name="f_critical"),
+            rtol=1e-12,
+        )
 
 
 def test_selectivity_ratio_of_a_pls_fitted_with_missing_values_is_not_0() -> None:
@@ -8208,7 +8261,7 @@ def test_selectivity_ratio_is_inf_with_no_residual_and_0_with_no_signal() -> Non
         warnings.simplefilter("error")
         ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
     np.testing.assert_array_equal(ratio.to_numpy(), [np.inf, 0.0])
-    assert np.isnan(ratio.attrs["f_critical"])
+    assert ratio.attrs["f_critical"].isna().all()
 
 
 @pytest.mark.parametrize(("half_width", "expected_b"), [(2.0**-26, np.inf), (2.0**-25, 2.0**50)])

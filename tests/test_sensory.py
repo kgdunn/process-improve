@@ -6,6 +6,7 @@ mode is a stub and is covered by the not-implemented tests below.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 
@@ -932,13 +933,24 @@ def test_fit_pls_safe_steps_the_components_down(monkeypatch, max_ok, expected_co
     assert (model is None) == (expected_components == 0)
 
 
+def test_fit_pls_safe_gives_no_model_for_an_attribute_no_descriptor_explains():
+    """An attribute uncorrelated with every descriptor has no component; PLS refuses it, and there is no model (#1144).
+
+    In a 2^3 design the interaction ab is orthogonal to a, b and c. PLS raised a LinAlgError there,
+    which this caught; it now raises NotEnoughVarianceError, which it catches too.
+    """
+    x = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)), columns=["a", "b", "c"])
+    assert _fit_pls_safe(x, (x["a"] * x["b"]).to_frame("y"), 2) == (None, 0)
+
+
 def _predictive_case() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Nine products whose attribute A is driven by descriptor d1 (the predictable case of the gate test)."""
-    products = [f"P{i}" for i in range(9)]
-    rng = np.random.default_rng(3)
-    u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
-    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 9)}, index=products)
-    cov = pd.DataFrame({"d1": u, "d3": rng.normal(0, 1, 9)}, index=products)
+    """Twelve products whose attribute A is driven by descriptor d1; d2 is noise."""
+    rng = np.random.default_rng(0)
+    n = 12
+    lat = rng.normal(size=n)
+    index = [f"p{i}" for i in range(n)]
+    agg = pd.DataFrame({"A": 3 * lat + rng.normal(scale=0.3, size=n)}, index=index)
+    cov = pd.DataFrame({"d1": lat + rng.normal(scale=0.2, size=n), "d2": rng.normal(size=n)}, index=index)
     return agg, cov
 
 
@@ -1654,17 +1666,6 @@ def test_tool_analyze_exposes_correction_and_mam():
     assert out["correction"] == "align"
     ftest = out["mam"]["ftests"][0]
     assert ftest["f_product_mam"] > ftest["f_product_classical"]
-
-
-def _predictive_case():
-    """Build a small predictable case: one real driver, one noise descriptor."""
-    rng = np.random.default_rng(0)
-    n = 12
-    lat = rng.normal(size=n)
-    index = [f"p{i}" for i in range(n)]
-    agg = pd.DataFrame({"A": 3 * lat + rng.normal(scale=0.3, size=n)}, index=index)
-    cov = pd.DataFrame({"d1": lat + rng.normal(scale=0.2, size=n), "d2": rng.normal(size=n)}, index=index)
-    return agg, cov
 
 
 def test_discriminate_observational_is_removed():

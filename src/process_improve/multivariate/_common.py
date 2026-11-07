@@ -571,6 +571,17 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
     return X
 
 
+def _float_frame(data: DataMatrix) -> pd.DataFrame:
+    """Return ``data`` as a DataFrame of floats, a pandas missing value (pd.NA) as NaN, as ``fit`` reads it (#1144).
+
+    An array's rows and columns are numbered from 0, and a Series keeps its name, as
+    ``pd.DataFrame`` gives them. A frame of floats is returned as it is: a copy can change
+    its memory layout, and with it the order sums run in.
+    """
+    frame = pd.DataFrame(data)
+    return frame if (frame.dtypes == np.float64).all() else frame.astype(float)
+
+
 def _component_curve(values: np.ndarray | pd.Series | list[float], name: str) -> np.ndarray:
     """Return a per-component curve as a float array whose entry ``i`` belongs to ``i + 1`` components.
 
@@ -906,6 +917,26 @@ def y_reach(x_blocks: list[np.ndarray], y: np.ndarray) -> tuple[float, float]:
     return _cross_size(x_blocks, y), float(np.nansum(y**2))
 
 
+def check_x_explains_y(x_blocks: list[np.ndarray], y: np.ndarray) -> None:
+    """Refuse a fit in which Y is uncorrelated with every column of X: it has no first component (#1144).
+
+    ``X'Y`` is judged against the largest it can be, ``||X|| ||Y||``, so the data's units do not
+    matter. With ``X'Y`` about zero, no direction of X covaries with Y, and the first weight is 0 / 0:
+    PLS and OPLS raised a ``LinAlgError`` that blamed collinear columns, and MBPLS fitted every weight
+    0 and predicted NaN. A component after the first is fitted along X instead
+    (:func:`y_is_exhausted`), since the ones before it carry the model. A block with no sum of squares
+    at all is left to the variance checks, which name it. Missing cells count as zero.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        If Y is uncorrelated with every column of X.
+    """
+    x_size = np.sqrt(sum(float(np.nansum(x**2)) for x in x_blocks))
+    if _cross_size(x_blocks, y) < epsqrt * x_size * np.sqrt(float(np.nansum(y**2))):
+        raise NotEnoughVarianceError("There is nothing in X to explain Y by: Y is uncorrelated with every column of X.")
+
+
 def y_is_exhausted(
     estimator: str, a: int, x_blocks: list[np.ndarray], y: np.ndarray, initial: tuple[float, float]
 ) -> bool:
@@ -943,9 +974,18 @@ def y_is_exhausted(
     -------
     bool
         True when the fit should stop at ``a`` components.
+
+    Raises
+    ------
+    NotEnoughVarianceError
+        Before the first component, if Y is uncorrelated with every column of X
+        (:func:`check_x_explains_y`): there is then no component for the later ones to follow.
     """
     initial_cross, initial_ssy = initial
-    if a == 0 or _cross_size(x_blocks, y) > epsqrt * initial_cross:
+    if a == 0:
+        check_x_explains_y(x_blocks, y)
+        return False
+    if _cross_size(x_blocks, y) > epsqrt * initial_cross:
         return False
     r2y = 1.0 - float(np.nansum(y**2)) / initial_ssy if initial_ssy > 0 else 0.0
     warnings.warn(

@@ -120,7 +120,7 @@ def test_opls_refuses_an_x_with_no_covariance_with_y() -> None:
     y = pd.DataFrame({"y": [1.0, -1.0, -1.0, 1.0]})
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        with pytest.raises(NotEnoughVarianceError, match=r"^X has no covariance with Y"):
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is nothing in X to explain Y by"):
             OPLS(n_orthogonal_components=0).fit(X, y)
 
 

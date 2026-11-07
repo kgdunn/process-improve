@@ -38,6 +38,7 @@ from ._common import (
     UncentredDataWarning,
     _align_to_fit_features,
     _equal_weight_r2_total,
+    _float_frame,
     _model_method,
     _nz,
     _own_axes,
@@ -1949,8 +1950,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> # Caller-supplied splitter (n_repeats is ignored here):
         >>> PLS.select_n_components(X, Y, cv=KFold(10, shuffle=True, random_state=0))
         """
-        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
-        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        # An array is numbered from 0, a Series keeps its name, and a nullable column's pd.NA is a missing cell.
+        X, Y = _float_frame(X), _float_frame(Y)
         check_at_least_one("max_components", max_components)
         check_at_least_one("n_repeats", n_repeats)
         check_whole("n_permutations", n_permutations)  # 0 is allowed: it draws none
@@ -2597,8 +2598,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result = PLS.nested_cv(X, Y, max_components=8, random_state=0)
         >>> result.rmsep["total"]
         """
-        # A DataFrame stays as it is; an array is numbered from 0, a Series keeps its name.
-        X, Y = pd.DataFrame(X), pd.DataFrame(Y)
+        # An array is numbered from 0, a Series keeps its name, and a nullable column's pd.NA is a missing cell.
+        X, Y = _float_frame(X), _float_frame(Y)
         random_state = sklearn_random_state(random_state)  # offset per outer fold below, so an int (#1128)
         N, M = X.shape[0], Y.shape[1]
 
