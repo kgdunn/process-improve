@@ -20,7 +20,7 @@ import pandas as pd
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.metrics import r2_score
-from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold, check_cv
+from sklearn.model_selection import BaseCrossValidator, check_cv
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted, validate_data
 from tqdm import tqdm
@@ -45,6 +45,7 @@ from ._common import (
     _reject_sparse,
     _rows_with_data,
     _select_n_components,
+    _shuffled_folds,
     _vandervoet_randomization,
     check_at_least_one,
     check_response_block,
@@ -1964,13 +1965,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
             repeats = 10 if n_repeats is None else int(n_repeats)
             seed = sklearn_random_state(random_state)  # the splitters refuse a Generator (#1128)
-            splitter: BaseCrossValidator
-            if repeats == 1:
-                splitter = KFold(n_splits=cv, shuffle=True, random_state=seed)
-            else:
-                splitter = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
-            splits = list(splitter.split(X))  # (Repeated)KFold reads only the number of rows
-            first_repeat_fold_count = cv
+            splits = _shuffled_folds(cv, X, Y, n_repeats=repeats, random_state=seed)
+            first_repeat_fold_count = int(cv)
         else:
             splits = list(check_cv(cv).split(X, Y))
             first_repeat_fold_count = len(splits)
@@ -2604,10 +2600,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if isinstance(outer_cv, int):
             if outer_cv < 2:
                 raise ValueError(f"outer_cv must be >= 2 when given as an int; got {outer_cv}.")
-            outer_splitter: BaseCrossValidator = KFold(n_splits=outer_cv, shuffle=True, random_state=random_state)
+            outer_splits = _shuffled_folds(outer_cv, X, Y, random_state=random_state)
         else:
-            outer_splitter = outer_cv
-        outer_splits = list(outer_splitter.split(X, Y))
+            outer_splits = list(outer_cv.split(X, Y))
         if not outer_splits:
             raise ValueError("The outer cross-validation splitter produced no folds.")
 
@@ -2929,7 +2924,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         else:
             method = "kfold"
             seed = sklearn_random_state(random_state)  # KFold refuses a Generator (#1128)
-            resamples = list(KFold(n_splits=int(cv), shuffle=True, random_state=seed).split(X))
+            resamples = list(_shuffled_folds(cv if isinstance(cv, int) else int(cv), X, Y, random_state=seed))
             desc = f"{int(cv)}-Fold CV"
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---

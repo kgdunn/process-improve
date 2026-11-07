@@ -40,7 +40,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import StratifiedKFold
 
 import process_improve.batch
 import process_improve.multivariate
@@ -969,16 +968,12 @@ def _cross_validation_calls(
             X, response, max_components=2, cv=3, n_permutations=9, n_cv_permutations=4, random_state=seed, **settings
         )
 
-    # PLSDA splits an int cv without regard to the classes, so with a seed of None an inner fold of these
-    # twelve rows can hold one class, which it refuses. Folds that keep both classes leave the seed to test.
-    outer_folds = StratifiedKFold(n_splits=3) if estimator is PLSDA else 3
-
     def nested(seed: Seed) -> object:
         return estimator.nested_cv(
             X,
             response,
             max_components=2,
-            outer_cv=outer_folds,
+            outer_cv=3,
             inner_cv=3,
             n_inner_repeats=1,
             n_permutations=9,

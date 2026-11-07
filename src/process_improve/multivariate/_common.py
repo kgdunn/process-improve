@@ -19,6 +19,7 @@ from typing import Any, Literal, TypeAlias, cast
 import numpy as np
 import pandas as pd
 from scipy import sparse
+from sklearn.model_selection import KFold, RepeatedKFold, RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array
 
@@ -229,6 +230,57 @@ def check_whole(name: str, value: float | None) -> None:
     """
     if value is not None and not isinstance(value, (int, np.integer)):
         raise ValueError(f"{name} must be a whole number; got {value}.")
+
+
+class FoldsByClass(int):
+    """A number of cross-validation folds, each class shuffled into them on its own: PLS-DA's integer ``cv`` (#1149).
+
+    PLS-DA runs PLS's cross-validation on its class-indicator matrix. A plain integer shuffles
+    the rows into folds whatever their class, so a training fold could hold no row of a class:
+    every column of its indicator matrix was then constant, and the fold's fit refused it, as
+    a ``nested_cv`` on twelve rows of two classes did for 7 seeds in 40. This integer is the
+    number of folds everywhere PLS reads one; where PLS shuffles the rows into folds,
+    :func:`_shuffled_folds` shuffles each class into them on its own, as
+    :class:`~sklearn.model_selection.StratifiedKFold` does, with the same seed.
+    """
+
+    __slots__ = ()
+
+
+def _shuffled_folds(
+    n_splits: int, X: pd.DataFrame, Y: pd.DataFrame, *, n_repeats: int = 1, random_state: int | None = None
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return the folds an integer ``cv`` stands for: the rows shuffled into ``n_splits`` folds, ``n_repeats`` times.
+
+    A :class:`FoldsByClass` shuffles each class into the folds on its own, the class of a row
+    being the column of the indicator matrix ``Y`` that marks it; any other count shuffles the
+    rows whatever their response.
+
+    Parameters
+    ----------
+    n_splits : int
+        The number of folds.
+    X, Y : pd.DataFrame
+        The rows to split, and their response.
+    n_repeats : int, default=1
+        How many times the rows are shuffled into folds afresh.
+    random_state : int or None
+        The seed of the shuffle, as scikit-learn's splitters take it.
+
+    Returns
+    -------
+    list of (np.ndarray, np.ndarray)
+        The training and held-out positions of each fold, repeat by repeat.
+    """
+    if isinstance(n_splits, FoldsByClass):
+        classes = np.argmax(np.asarray(Y), axis=1)
+        if n_repeats == 1:
+            return list(StratifiedKFold(int(n_splits), shuffle=True, random_state=random_state).split(X, classes))
+        repeated = RepeatedStratifiedKFold(n_splits=int(n_splits), n_repeats=n_repeats, random_state=random_state)
+        return list(repeated.split(X, classes))
+    if n_repeats == 1:
+        return list(KFold(int(n_splits), shuffle=True, random_state=random_state).split(X))
+    return list(RepeatedKFold(n_splits=int(n_splits), n_repeats=n_repeats, random_state=random_state).split(X))
 
 
 def components_to_fit(
