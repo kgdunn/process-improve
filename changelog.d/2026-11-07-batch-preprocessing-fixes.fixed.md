@@ -13,11 +13,11 @@
   resamples first, gives the same error. (#1184)
 - **`find_reference_batch` works for any number of batches.** With 1 to 4 batches and
   `judged_rows="fitted"` it raised "Found array with 1 sample(s)", as it did with 1 batch under any
-  setting, and with 5 it warned that more components were asked for than the data allow. Its PCA fitted `n - 1` components to `n` batches, which passes through every batch, so
-  every batch had the same T² and rounding chose the reference. It now fits at most `n - 2`, so with
-  3 to 5 batches, or when the T² screen keeps 5 or fewer, the reference can differ from the one
-  given before. One batch is its own reference; of two, the one of average length comes first.
-  (#1184)
+  setting, and with 5 it warned that more components were asked for than the data allow. Its PCA
+  fitted `n - 1` components to `n` batches, which passes through every batch, so every batch had
+  the same T² and rounding chose the reference. It now fits at most `n - 2`, so with 3 to 5
+  batches, or when the T² screen keeps 5 or fewer, the reference can differ from the one given
+  before. One batch is its own reference; of two, the one of average length comes first. (#1184)
 - **`f_agemin` and `f_agemax` give NaN for a batch in which a tag has no observed value**, as
   `f_min` and `f_max` do. Under pandas 3 they raised `ValueError`; pandas 2 gave NaN. (#1184)
 - **The `BatchPCA` example runs.** It passed `reference_batch="1"` to batches keyed by integers,
