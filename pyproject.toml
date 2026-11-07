@@ -540,6 +540,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_multivariate_tpls_validation.py",
     "tests/test_multivariate_tpls_display.py",
     "tests/test_multivariate_tpls_feature_importance.py",
+    "tests/test_multivariate_tpls_mutation.py",
     "tests/test_multivariate_dataframedict.py",
     "tests/test_multivariate_cv_criteria.py",
     "tests/test_multivariate_plsda.py",
