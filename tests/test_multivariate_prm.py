@@ -451,6 +451,21 @@ class TestPRMApi:
         assert model.scores_.shape == (N_SAMPLES, 2)
         assert np.isfinite(model.hotellings_t2_limit(0.95))
 
+    @pytest.mark.parametrize(("seed", "kind"), [(0, "vertical"), (3, "leverage"), (4, "leverage")])
+    def test_vip_of_a_contaminated_fit_is_finite_and_quiet(self, seed: int, kind: str) -> None:
+        """Its R² was measured on every row, outliers too, so a component could lower it; VIP took sqrt of < 0 (#1114).
+
+        Measured in the weights of its own fit, each component explains a share of Y that is not negative.
+        """
+        X, y = _dataset(seed=seed, n_bad=N_BAD, kind=kind)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            model = PRM(n_components=2).fit(X, y)
+            vip = model.vip()
+        assert (model.r2_per_component_ >= 0).all()
+        assert vip.notna().all()
+        assert float((vip**2).sum()) == pytest.approx(N_FEATURES)
+
     def test_composes_in_a_pipeline_and_cross_validates(self) -> None:
         X, y = _dataset(seed=0)
         pipeline = Pipeline([("scale", MCUVScaler()), ("model", PRM(n_components=2))])

@@ -37,9 +37,12 @@ from ._common import (
     _align_to_fit_features,
     _nz,
     _reject_sparse,
+    _rows_with_data,
     _select_n_components,
     check_at_least_one,
+    constant_columns,
     epsqrt,
+    refuse_empty_block,
     resolve_loop_settings,
     unobserved_columns,
     user_stacklevel,
@@ -868,7 +871,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         single number per observation with ``model.spe_.iloc[:, -1]``, not with
         ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
         answer at one component and silently gives ``n_samples * n_components``
-        values above it.
+        values above it. A row with nothing observed has no residual, and an
+        SPE of NaN, as in ``diagnose``.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
         Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
         above: column ``a`` uses the first ``a`` components and the last column
@@ -1000,6 +1004,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # Reject sparse before validate_data does, so the message names the
         # ColumnTransformer knob rather than `.toarray()` (#399).
         _reject_sparse(X, "PCA")
+        refuse_empty_block(X, "X")
         # Copies, so that a name the caller gives these axes later does not rename the model's frames
         sample_index = X.index.copy() if isinstance(X, pd.DataFrame) else None
         feature_columns = X.columns.copy() if isinstance(X, pd.DataFrame) else None
@@ -1028,6 +1033,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # A column with nothing observed gets a zero loading from NIPALS and TSR; it is named, as
         # across the family, and a value a new row has in it is ignored (#1098).
         self._unobserved_columns = unobserved_columns(X, "X")
+        constant_columns(X, "X", self)
 
         # Clamp n_components
         min_dim = int(min(N, K))
@@ -1095,7 +1101,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         component_names = self._component_names
         self._loadings = self._loadings_np
         self._scores = self._scores_np
-        self._spe = self._spe_np
+        # A row with nothing observed has no SPE, as diagnose gives it none (#1148); fit places it at the centre.
+        self._spe = np.where(_rows_with_data(X.to_numpy())[:, np.newaxis], self._spe_np, np.nan)
         # The training residual block, kept for the trimmed-score-regression
         # estimator in ``project`` / ``projection_matrix``: TSR regresses on
         # the covariance of the observed columns, which is the model plane
@@ -1811,7 +1818,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915, C901
+    def select_n_components(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
         *,
@@ -2027,6 +2034,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
+        check_at_least_one("max_components", max_components)
 
         N, K = X.shape
         max_components = min(N - 1, K) if max_components is None else min(int(max_components), N - 1, K)
@@ -2045,8 +2053,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         press_scale_multiplier = 1
         if cv_scheme == "ekf":
             press_scale_multiplier = n_folds
-            if n_repeats < 1:
-                raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
+            check_at_least_one("n_repeats", n_repeats)
             # Same two traps as PLS.select_n_components, checked only here
             # because the other schemes ignore the flag.
             _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="element-fold", metric="PRESS")

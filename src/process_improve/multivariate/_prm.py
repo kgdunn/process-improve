@@ -31,7 +31,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
-from ._common import DataMatrix, check_at_least_one, epsqrt, user_stacklevel
+from ._common import DataMatrix, check_at_least_one, check_response_block, epsqrt, refuse_empty_block, user_stacklevel
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 from ._robust import fair_weights, l1_median, row_norms
@@ -368,7 +368,8 @@ class PRM(PLS):
         ------
         ValueError
             If ``cutoff``, ``max_weight_iter`` or ``coefficient_tol`` is out of
-            range, or if the data contain missing values (see Notes).
+            range, if the data contain missing values (see Notes), if X or Y has
+            no columns, or if Y has an infinite value or a row count other than X's.
 
         Notes
         -----
@@ -381,6 +382,10 @@ class PRM(PLS):
         """
         self._check_settings()
         X_df, Y_df = _as_frame(X), _as_frame(Y)
+        refuse_empty_block(X_df, "X")
+        refuse_empty_block(Y_df, "Y")
+        # Before the robust centring, which met a Y of another length as an IndexError (#1114)
+        check_response_block(Y_df, X_df.shape[0])
         if np.any(np.isnan(X_df.to_numpy())) or np.any(np.isnan(Y_df.to_numpy())):
             raise ValueError(
                 "PRM does not support missing data: a row with missing cells has residual and leverage "

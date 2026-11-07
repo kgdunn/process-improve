@@ -32,6 +32,7 @@ from ._common import (
     NotEnoughVarianceError,
     SpecificationWarning,
     _model_method,
+    check_whole,
     epsqrt,
     user_stacklevel,
 )
@@ -682,6 +683,7 @@ class PLSDA(ClassifierMixin, PLS):
             by the Van der Voet and multiblock randomization tests in this package.
         """
         check_is_fitted(self)
+        check_whole("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         labels = np.asarray(y).ravel()
         rows = pd.DataFrame(X)  # selected by position; PLS reads an array's columns by position too

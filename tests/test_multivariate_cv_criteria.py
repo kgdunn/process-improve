@@ -734,29 +734,38 @@ def test_pseudo_validation_set_keeps_the_missing_pattern() -> None:
     np.testing.assert_allclose(diagnostics.spe.to_numpy(), pv.local_spe[complete].to_numpy(), atol=1e-10)
 
 
-@pytest.mark.parametrize(
-    ("where", "message"),
-    [
-        ("x_row", "every X value missing"),
-        ("x_column", "Columns of X"),
-        ("y_column", "Columns of Y"),
-        ("sparse", "fold"),
-    ],
-)
-def test_unusable_gaps_raise(where: str, message: str) -> None:
+def test_unusable_gaps_raise() -> None:
+    """A column with two observed values leaves some training fold with fewer than two."""
     X, Y = _two_component_data(n=30)
+    X.iloc[2:, 0] = np.nan
+    with pytest.raises(ValueError, match="fold"):
+        compare_cv_criteria(X, Y, random_state=0)
+    with pytest.raises(ValueError, match="fold"):
+        pseudo_validation_set(X, Y, n_components=2, random_state=0)
+
+
+@pytest.mark.parametrize("where", ["x_row", "x_column", "y_column"])
+def test_gaps_fit_takes_are_taken(where: str) -> None:
+    """A row with no X, and a column of X or Y with no value, are taken as ``fit`` takes them (#1114).
+
+    They were refused. The row is fitted at the centre with no weight, and has no held-out
+    prediction or SPE; the column is left out of every model, with the warning ``fit`` gives.
+    """
+    X, Y = _two_component_data(n=30, m=2)
     if where == "x_row":
         X.iloc[3] = np.nan
     elif where == "x_column":
         X["x2"] = np.nan
-    elif where == "y_column":
-        Y["y0"] = np.nan
     else:
-        X.iloc[2:, 0] = np.nan  # two observed values: some training fold keeps fewer than two
-    with pytest.raises(ValueError, match=message):
-        compare_cv_criteria(X, Y, random_state=0)
-    with pytest.raises(ValueError, match=message):
-        pseudo_validation_set(X, Y, n_components=2, random_state=0)
+        Y["y0"] = np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        warnings.filterwarnings("ignore", message=r"Block [XY] has columns with no observed values")
+        result = compare_cv_criteria(X, Y, random_state=0)
+        pv = pseudo_validation_set(X, Y, n_components=2, random_state=0)
+    assert np.isfinite(result.press).all()
+    assert np.isfinite(result.table["pv_spe_alarm_rate"]).all()
+    assert pv.local_spe.isna().to_numpy().tolist() == [where == "x_row" and i == 3 for i in range(30)]
 
 
 def test_pseudo_validation_set_rejects_bad_arguments() -> None:
@@ -1364,29 +1373,6 @@ def test_inputs_are_read_as_float_frames_labelled_as_x() -> None:
     pd.testing.assert_frame_equal(Y_df, pd.DataFrame({"y": np.arange(6.0)}, index=list("abcdef")))
     _, Y_df = _as_frames(X, pd.DataFrame({"y": np.arange(6)}, index=list("abcdef")))
     pd.testing.assert_frame_equal(Y_df, pd.DataFrame({"y": np.arange(6.0)}, index=list("abcdef")))
-
-
-def test_rows_and_columns_with_nothing_observed_are_refused_naming_five() -> None:
-    """A row with no X, or a column of X or Y with no value, leaves nothing to work with; five are named."""
-    X = pd.DataFrame(np.ones((10, 7)), columns=[f"c{i}" for i in range(7)])
-    Y = pd.DataFrame({f"y{i}": np.arange(10.0) for i in range(7)})
-    rows = X.copy()
-    rows.iloc[:6] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Rows with every X value missing cannot be scored; remove them: \[0, 1, 2, 3, 4\]\.$"
-    ):
-        _as_frames(rows, Y)
-    columns = X.copy()
-    columns.iloc[:, :6] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Columns of X with every value missing: \['c0', 'c1', 'c2', 'c3', 'c4'\]\.$"
-    ):
-        _as_frames(columns, Y)
-    Y.iloc[:, 1:] = np.nan
-    with pytest.raises(
-        ValueError, match=r"^Columns of Y with every value missing: \['y1', 'y2', 'y3', 'y4', 'y5'\]\.$"
-    ):
-        _as_frames(X, Y)
 
 
 def test_a_training_fold_needs_two_observed_values_in_every_column() -> None:

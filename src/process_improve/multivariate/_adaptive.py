@@ -75,7 +75,14 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _LatentVariableModel
-from ._common import DataMatrix, _align_to_fit_features, check_at_least_one, epsqrt
+from ._common import (
+    DataMatrix,
+    _align_to_fit_features,
+    check_at_least_one,
+    check_response_block,
+    epsqrt,
+    refuse_empty_block,
+)
 from ._diagnostics import _t2_score_sd
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -750,6 +757,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._validate_params()
         check_at_least_one("n_components", self.n_components)
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        refuse_empty_block(X_df, "X")
         self._feature_names = X_df.columns
         N, K = X_df.shape
         A = int(self.n_components)
@@ -1005,6 +1013,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         # np.asarray of a 1-D Series / array yields a single-column frame, so Y is
         # always 2-D here.
         Y_df = Y if isinstance(Y, pd.DataFrame) else pd.DataFrame(np.asarray(Y))
+        refuse_empty_block(X_df, "X")
+        refuse_empty_block(Y_df, "Y")
+        check_response_block(Y_df, X_df.shape[0])
         N, K = X_df.shape
         M = Y_df.shape[1]
         A = int(self.n_components)
