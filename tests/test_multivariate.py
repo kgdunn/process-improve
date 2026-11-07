@@ -5768,6 +5768,39 @@ def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
     assert model.scaling_factor_for_scores.to_numpy() == pytest.approx(expected_sd, rel=1e-12)
 
 
+@pytest.mark.dataset
+def test_tpls_pairs_the_materials_of_f_and_d_by_name(fixture_tpls_example: dict) -> None:
+    """#1197: F's columns are paired with D's rows by name, so the order of the materials in F changes nothing.
+
+    They were paired by position: F with the materials of a group in another order than D fitted each
+    material with another one's properties, without a word, and ``diagnose`` then scored the training
+    blends up to 3.2 away from the fit, as it subtracted F's centre in F's order from columns in D's.
+    """
+    d_matrix = fixture_tpls_example.pop("D")
+    rng = np.random.default_rng(1197)
+    shuffled = {
+        **fixture_tpls_example,
+        "F": {key: frame[rng.permutation(frame.columns)] for key, frame in fixture_tpls_example["F"].items()},
+    }
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
+    other = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(shuffled))
+
+    np.testing.assert_allclose(other.t_scores_super, model.t_scores_super, atol=1e-8)
+    np.testing.assert_allclose(other.hat["Quality"], model.hat["Quality"], atol=1e-8)
+    for key in d_matrix:
+        np.testing.assert_allclose(other.r_loadings_f[key], model.r_loadings_f[key], atol=1e-8)
+    # The new rows in either order, through either model, as diagnose reads F's columns by name.
+    expected = model.diagnose(DataFrameDict(fixture_tpls_example))
+    for fitted, data in ((model, shuffled), (other, fixture_tpls_example), (other, shuffled)):
+        result = fitted.diagnose(DataFrameDict(data))
+        np.testing.assert_allclose(result.t_scores_super, other.t_scores_super, atol=1e-8)
+        np.testing.assert_allclose(result.hat["Quality"], expected.hat["Quality"], atol=1e-8)
+        np.testing.assert_allclose(result.cumulative_hotellings_t2, expected.cumulative_hotellings_t2, atol=1e-8)
+        for key in d_matrix:
+            np.testing.assert_allclose(result.spe["F"][key], expected.spe["F"][key], atol=1e-8)
+            np.testing.assert_allclose(result.residuals["F"][key], expected.residuals["F"][key], atol=1e-8)
+
+
 @pytest.mark.slow
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
