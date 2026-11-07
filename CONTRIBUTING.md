@@ -380,6 +380,22 @@ Concretely, across a family of siblings (`PCA` / `PLS` / `TPLS` / `MBPLS` /
 When a fix makes one member of a family better, check the others in the same
 change; a divergence introduced quietly is expensive to find later.
 
+For the multivariate family, `tests/test_family_contract.py` makes this rule
+a test (#1149). Its registry, `FAMILY`, says how to fit each estimator. The
+tests compare the members' public methods, attributes and parameters, give
+every member the same bad inputs (`CASES`), and call each public callable that
+takes a `random_state` with each type it accepts. A PR that changes one
+estimator's public surface updates that file in the same change:
+
+- a new estimator goes in `FAMILY`, or in `OUT_OF_SCOPE` with the reason;
+- a method or attribute that only some members have goes in `EXEMPT` with the
+  reason, or in `KNOWN_GAPS` with the issue (`EXEMPT_PARAMETERS` and
+  `SIGNATURE_GAPS` for a parameter);
+- a guard added to one estimator adds its input to `CASES`, so the other
+  members are checked in the same change (`EDGE_EXEMPT` and `EDGE_GAPS` for a
+  member that answers otherwise);
+- a fix removes the gap's entry: a gap that is fixed but still listed fails.
+
 ### Naming conventions
 
 - **`pi_` prefix on attributes** stands for **"process-improve"** and marks

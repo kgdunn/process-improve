@@ -29,7 +29,7 @@ from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to a
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils._param_validation import InvalidParameterError, validate_parameter_constraints
 
-from process_improve.batch import BatchMonitor, BatchPCA, BatchPLS
+from process_improve.batch import BatchMonitor, BatchPCA
 from process_improve.multivariate.methods import (
     ASCA,
     CA,
@@ -43,14 +43,11 @@ from process_improve.multivariate.methods import (
     OPLS,
     PCA,
     PLS,
-    PLSDA,
     PRM,
     TPLS,
-    AdaptivePCA,
-    AdaptivePLS,
-    DataFrameDict,
     MCUVScaler,
 )
+from tests.test_family_contract import FAMILY, family_data
 
 # Concrete sklearn estimators we explicitly refuse to inherit from (their private,
 # version-specific attribute layout is exactly what ENG-07 decouples us from).
@@ -528,41 +525,22 @@ def test_cross_validate_submodels_use_requested_n_components() -> None:
 
 
 def _range_check_data() -> dict[str, typing.Any]:
-    """Small data sets for every estimator of the family: X and y, two X-blocks, and TPLS's blocks."""
+    """Small data sets for the estimators outside the family: X and y, and two X-blocks."""
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.normal(size=(30, 4)), columns=list("abcd"))
     y = pd.DataFrame({"y": X.to_numpy() @ [1.0, -0.5, 0.3, 0.0] + rng.normal(0, 0.1, 30)})
-    blends = [f"blend{i}" for i in range(20)]
-    materials = [f"mat{j}" for j in range(4)]
-    return {
-        "X": X,
-        "y": y,
-        "labels": np.where(y["y"] > 0, "high", "low"),
-        "blocks": {"b1": X[["a", "b"]], "b2": X[["c", "d"]]},
-        "d_matrix": {"G": pd.DataFrame(rng.normal(size=(4, 3)), index=materials, columns=list("pqr"))},
-        "tpls_blocks": {
-            "F": {"G": pd.DataFrame(rng.random((20, 4)), index=blends, columns=materials)},
-            "Z": {"Z1": pd.DataFrame(rng.normal(size=(20, 2)), index=blends, columns=["z1", "z2"])},
-            "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=20)}, index=blends)},
-        },
-    }
+    return {"X": X, "y": y, "blocks": {"b1": X[["a", "b"]], "b2": X[["c", "d"]]}}
 
 
-# Every estimator that takes ``n_components``, ``max_iter`` or ``tol``: how to build a valid one, and how to fit it.
-_FAMILY: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[BaseEstimator, dict], object]]] = {
-    "PCA": (lambda _: PCA(n_components=2), lambda model, data: model.fit(data["X"])),
-    "PLS": (lambda _: PLS(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
-    "PLSDA": (lambda _: PLSDA(n_components=2), lambda model, data: model.fit(data["X"], data["labels"])),
-    "PRM": (lambda _: PRM(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
-    "MBPCA": (lambda _: MBPCA(n_components=2), lambda model, data: model.fit(data["blocks"])),
-    "MBPLS": (lambda _: MBPLS(n_components=2), lambda model, data: model.fit(data["blocks"], data["y"])),
-    "TPLS": (
-        lambda data: TPLS(n_components=2, d_matrix=data["d_matrix"]),
-        lambda model, data: model.fit(DataFrameDict(data["tpls_blocks"])),
-    ),
-    "AdaptivePCA": (lambda _: AdaptivePCA(n_components=2), lambda model, data: model.fit(data["X"])),
-    "AdaptivePLS": (lambda _: AdaptivePLS(n_components=2), lambda model, data: model.fit(data["X"], data["y"])),
-}
+def _from_family(name: str) -> tuple[Callable[[dict], BaseEstimator], Callable[[BaseEstimator, dict], object]]:
+    """Build and fit a member of the family's registry, on the family's own data, as the tests below call it."""
+    member = FAMILY[name]
+    return (lambda _: member.make(2), lambda model, _: member.fit(model, family_data()))
+
+
+# The members of the family that take ``n_components``, ``max_iter`` or ``tol``, and say how many components
+# they fitted (BatchPCA and BatchPLS do not yet: KNOWN_GAPS in test_family_contract.py).
+_FAMILY = {name: _from_family(name) for name in FAMILY if name not in ("OPLS", "BatchPCA", "BatchPLS")}
 
 _OUT_OF_RANGE = [
     ("n_components", 0, r"^n_components must be >= 1; got 0\.$"),
@@ -691,7 +669,7 @@ def test_the_constructor_stores_its_arguments_and_nothing_else(name: str) -> Non
 
 
 def _every_estimator_data() -> dict[str, typing.Any]:
-    """``_range_check_data``, plus what the categorical, functional, ANOVA, Procrustes and batch estimators fit."""
+    """``_range_check_data``, plus what the categorical, functional, ANOVA, Procrustes and batch monitor fit."""
     data = _range_check_data()
     rng = np.random.default_rng(1)
     categories = pd.DataFrame({name: rng.choice(list(levels), 30) for name, levels in [("c1", "abc"), ("c2", "xyz")]})
@@ -705,7 +683,6 @@ def _every_estimator_data() -> dict[str, typing.Any]:
             "design": pd.DataFrame({"f": np.repeat(["lo", "hi"], 15), "g": np.tile(["u", "v", "w"], 10)}),
             "configurations": {"one": data["X"].iloc[:8], "two": data["X"].iloc[:8] * 2 + 1},
             "batches": batches,
-            "batch_quality": pd.DataFrame({"q": rng.normal(size=12)}),
         }
     )
     return data
@@ -713,8 +690,7 @@ def _every_estimator_data() -> dict[str, typing.Any]:
 
 # Every public estimator that takes a count or declares constraints: how to build a valid one, and how to fit it.
 _EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[BaseEstimator, dict], object]]] = {
-    **_FAMILY,
-    "OPLS": (lambda _: OPLS(n_orthogonal_components=1), lambda model, data: model.fit(data["X"], data["y"])),
+    **{name: _from_family(name) for name in FAMILY},
     "CA": (lambda _: CA(n_components=2), lambda model, data: model.fit(data["table"])),
     "MCA": (lambda _: MCA(n_components=2), lambda model, data: model.fit(data["categories"])),
     "FAMD": (lambda _: FAMD(n_components=2), lambda model, data: model.fit(data["mixed"])),
@@ -725,11 +701,6 @@ _EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[Bas
     "FPCA": (lambda _: FPCA(n_components=2, n_basis=10), lambda model, data: model.fit(data["curves"])),
     "ASCA": (lambda _: ASCA(n_components=2), lambda model, data: model.fit(data["X"], data["design"])),
     "GPA": (lambda _: GPA(), lambda model, data: model.fit(data["configurations"])),
-    "BatchPCA": (lambda _: BatchPCA(n_components=2), lambda model, data: model.fit(data["batches"])),
-    "BatchPLS": (
-        lambda _: BatchPLS(n_components=2),
-        lambda model, data: model.fit(data["batches"], data["batch_quality"]),
-    ),
     "BatchMonitor": (
         lambda data: BatchMonitor(BatchPCA(n_components=2).fit(data["batches"])),
         lambda model, data: model.fit(data["batches"]),
