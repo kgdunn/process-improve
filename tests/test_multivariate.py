@@ -6184,7 +6184,8 @@ def _tpls_written_out(
 
     ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
     block before the first component. The VIP of a block weights each component by the mean,
-    over the groups, of the mean R2 of each group's columns.
+    over the groups, of the mean R2 of each group's columns, and its width counts the columns
+    that vary (#913, #1144).
     """
     scaling, seen, left = _tpls_prepared(d_matrix, blocks, skip_f)
 
@@ -6227,10 +6228,15 @@ def _tpls_written_out(
     for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
         weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
         stacked = np.vstack(list(loadings.values()))
-        vip = np.sqrt(len(stacked) * (stacked**2 @ weights) / weights.sum())
+        vip = np.sqrt(_tpls_vip_width(scaling, block) * (stacked**2 @ weights) / weights.sum())
         ends = np.cumsum([len(values) for values in loadings.values()])
         found["vip", block] = dict(zip(loadings, np.split(vip, ends[:-1]), strict=True))
     return found
+
+
+def _tpls_vip_width(scaling: dict, block: str) -> int:
+    """Count the columns of D or F, over every group, whose scale is learned: those that vary, a VIP's width."""
+    return sum(int(np.isfinite(spread).sum()) for (name, _), (_, spread) in scaling.items() if name == block)
 
 
 def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
@@ -6662,10 +6668,14 @@ class TestTPLSWrittenOut:
         for block in ("D", "F"):
             assert (vip[block]["B"] == 0.0).all()
             assert (vip[block]["A"] > 0.0).all()
-        # Scaling leaves a constant group absent, so it has no SPE, and no SPE limit; F used as given keeps its values
-        absent = constant == "D" or not skip_f
-        assert np.isnan(limits[constant]) == absent
+        # A group the model uses no column of has nothing left: an SPE of 0 in every row and a limit of 0, as MBPLS
+        # gives a block with no variance, and as diagnose gives it. F used as given keeps its values, and its length.
+        if constant == "D" or not skip_f:
+            assert (np.asarray(model.spe[constant]["B"]) == 0.0).all()
+            assert limits[constant] == 0.0
         assert np.isfinite(limits["F" if constant == "D" else "D"])
+        again = model.diagnose(DataFrameDict(blocks)).spe["F"]["B"].iloc[:, -1].to_numpy()
+        np.testing.assert_allclose(again, model.spe["F"]["B"].iloc[:, 0].to_numpy(), rtol=1e-10)
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
@@ -6792,6 +6802,24 @@ class TestTPLSWrittenOut:
             assert model.display_results() == summary
         assert ("** (max iter reached)" in summary) == (max_iter < 500)
 
+    def test_a_model_fitted_before_zero_weight_keeps_the_vip_width_it_had(self) -> None:
+        """A VIP's width counts the columns that vary (#1144); a model fitted before then counts every column.
+
+        Such a model has no record of which groups have zero weight. One constant column of F among
+        nine raised every F VIP by the square root of 9 / 8; D, whose columns all vary, is the same.
+        """
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["A"]["a4"] = 0.25
+        model = TPLS(n_components=2, d_matrix=d_matrix)
+        with pytest.warns(UserWarning, match=r"'a4'"):
+            model.fit(DataFrameDict(blocks))
+        now = model.vip(method="deflated")
+        del model._groups_without_variation
+        before = model.vip(method="deflated")
+        for group in d_matrix:
+            _tpls_near(before["F"][group], now["F"][group] * np.sqrt(9 / 8), 1e-12)
+            _tpls_near(before["D"][group], now["D"][group], 1e-12)
+
     def test_the_deflated_vip_follows_the_direct_weights(self) -> None:
         """VIP on S (V'S)^-1 for D and P (P'P)^-1 for F, each component weighted by the block's R2."""
         d_matrix, blocks = _t_shaped()
@@ -6804,7 +6832,7 @@ class TestTPLSWrittenOut:
         assert found["Z"] == found["Y"] == {}
         for block, names in (("D", "columns"), ("F", "index")):
             weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in expected["r2"]])
-            vip = np.sqrt(len(direct[block]) * (direct[block] ** 2 @ weights) / weights.sum())
+            vip = np.sqrt(_tpls_vip_width(expected["scaling"], block) * (direct[block] ** 2 @ weights) / weights.sum())
             ends = np.cumsum([d.shape[1 if block == "D" else 0] for d in d_matrix.values()])
             assert list(found[block]) == list(d_matrix)
             for group, values in zip(d_matrix, np.split(vip, ends[:-1]), strict=True):

@@ -240,9 +240,6 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
     values = spe_values**2
-    if values.size == 0:
-        # No row has an SPE, as in a TPLS group with no variation, which has zero weight (#1144): no limit either
-        return float("nan")
     center_spe = float(values.mean())
     variance_spe = float(values.var(ddof=1))
     # A perfect-fit training set (A == K) or all-equal SPE values produces

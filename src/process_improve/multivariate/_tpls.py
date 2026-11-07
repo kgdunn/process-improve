@@ -464,8 +464,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
         Describe this model for optimal inversion: the inputs are each group's lot fractions, then the process
         conditions; each F and Z group is a residual block; rows are read through diagnose.
+
+        A group the model uses no column of, as a group with no variation, which has zero weight (#1144), is an
+        input but not a residual block: its SPE is 0 whatever the inputs, so it is no rule, and its limit of 0
+        would divide the search by 0.
         """
         columns = self._inversion_columns()
+        present = {"F": self.not_na_f, "Z": self.not_na_z}
+        residual_blocks = [(block, group) for block, group, _ in columns if present[block][group].any()]
         names = tuple(name for _, _, group in columns for name in group)
         if len(set(names)) != len(names):
             # shortcut: inputs are named by their column name alone; qualify them by group if two groups share a name.
@@ -480,8 +486,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 blocks.setdefault(block, {})[group] = pd.DataFrame(rows[:, lo:hi], index=index, columns=cols)
             out = self.diagnose(DataFrameDict(blocks))
             y = np.hstack([out.hat[g].to_numpy(dtype=float) for g in self.quality_names])
-            residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g, _ in columns]
-            spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g, _ in columns])
+            residual = [out.residuals[b][g].to_numpy(dtype=float) for b, g in residual_blocks]
+            spe = np.column_stack([out.spe[b][g].iloc[:, -1].to_numpy(dtype=float) for b, g in residual_blocks])
             t2 = out.cumulative_hotellings_t2.iloc[:, -1].to_numpy(dtype=float)
             return out.t_scores_super.to_numpy(dtype=float), y, residual, t2, spe
 
@@ -491,8 +497,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         return Probe(
             names=names, y_names=tuple(n for g in self.quality_names for n in self.quality_names[g]),
             groups={g: tuple(self.material_names[g]) for g in self.material_names},
-            block_names=tuple(f"{b}/{g}" for b, g, _ in columns),
-            block_limits=tuple(float(self.spe_limit[b][g](conf_level)) for b, g, _ in columns),
+            block_names=tuple(f"{b}/{g}" for b, g in residual_blocks),
+            block_limits=tuple(float(self.spe_limit[b][g](conf_level)) for b, g in residual_blocks),
             score_sd=_t2_score_sd(self.scaling_factor_for_scores.to_numpy()),
             t2_limit=float(self.hotellings_t2_limit(conf_level, judged_rows="new")),  # an input is a new row
             y_scale=np.concatenate([finite_or(self.preproc_["Y"][g]["scale"], 1.0) for g in self.quality_names]),
@@ -1462,8 +1468,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
         r2_d_a = [_mean_over_groups(r2_frac["D"]) for r2_frac in self.r2_frac]
         r2_f_a = [_mean_over_groups(r2_frac["F"]) for r2_frac in self.r2_frac]
-        vip_d = self._calculate_vip(loadings_d, np.array(r2_d_a[1:]))
-        vip_f = self._calculate_vip(loadings_f, np.array(r2_f_a[1:]))
+        vip_d = self._calculate_vip(loadings_d, np.array(r2_d_a[1:]), self._informative_width("D"))
+        vip_f = self._calculate_vip(loadings_f, np.array(r2_f_a[1:]), self._informative_width("F"))
         # Split each flat VIP vector back into the original groups it was concatenated from.
         # For example: with two groups of 17 and 3 columns, `vip_d` has 20 values; the first 17 belong to
         # the first group and the last 3 to the second.
@@ -1592,7 +1598,24 @@ class TPLS(RegressorMixin, BaseEstimator):
         check_is_fitted(self)
         return {key: self.preproc_["D"][key]["block"] for key in self.preproc_["D"]}
 
-    def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
+    def _informative_width(self, block: str) -> int | None:
+        """Return the count of columns of D or F that vary, in the groups with weight: a VIP's width (#913).
+
+        A column with no variance, or one of a group with zero weight (#1144), has a loading of 0, as in
+        MBPCA and MBPLS, so counted in the width it raised the VIP of every other column, and the fit's VIP
+        changed although nothing it used had. ``None`` for a model fitted before groups had zero weight:
+        it keeps the full width it was fitted with.
+        """
+        if not hasattr(self, "_groups_without_variation"):
+            return None
+        return sum(
+            int(self.preproc_[block][key]["scale"].notna().sum())
+            for key in self.d_mats
+            if key not in self._groups_without_variation
+        )
+
+    @staticmethod
+    def _calculate_vip(loadings: np.ndarray, r2_vector: np.ndarray, width: int | None) -> np.ndarray:
         """Calculate the VIP values for the current component.
 
         The `loadings` has as many rows as there are feature varaibles, and A columns, where A = number of components.
@@ -1603,9 +1626,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         The VIP values are calculated as follows:
             VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
 
-        where n is the number of features (rows in the loadings matrix).
+        where n is ``width``, the number of columns that vary (:meth:`_informative_width`), or, when it is
+        ``None``, the number of rows in the loadings matrix.
         """
-        n = loadings.shape[0]
+        n = loadings.shape[0] if width is None else width
         return np.sqrt(n * np.sum(r2_vector * (loadings**2), axis=1) / np.sum(r2_vector))
 
     def _cumulative_hotellings_t2(self, t_scores_super: np.ndarray) -> np.ndarray:
@@ -1668,8 +1692,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         column_name = [f"SPE with A={self.n_components_}"]
 
         def row_spe(residuals: np.ndarray, present: np.ndarray) -> np.ndarray:
-            # A row with nothing observed in the block has no SPE there, as in MBPCA and MBPLS (#1114)
-            return np.where(present.any(axis=1), np.sqrt(np.sum(np.square(residuals), axis=1)), np.nan)
+            # A row with nothing observed in the block has no SPE there, as in MBPCA and MBPLS (#1114). A block
+            # the model uses no column of, as a group with no variation, has none left in any row: 0, as MBPLS
+            # gives a block with no variance, and as diagnose gives it (#1144).
+            return np.where(present.any(axis=1) | ~present.any(), np.sqrt(np.sum(np.square(residuals), axis=1)), np.nan)
 
         self.spe["Y"] = {
             key: pd.DataFrame(
