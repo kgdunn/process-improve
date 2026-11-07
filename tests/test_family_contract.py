@@ -13,7 +13,8 @@ written once is checked on every member, and a member added later is checked too
    result or the family's error; a raw numpy exception, a ``RuntimeWarning`` or a fit that predicts NaN
    fails it.
 6. **``random_state``.** Every public callable that takes one is found by introspection, and must take
-   ``None``, an int and a ``numpy.random.Generator``, and give the same result twice for the same int.
+   ``None``, an int and a ``numpy.random.Generator``, say so in its signature, and give the same result
+   twice for the same int. A seed that goes by another name is a gap.
 
 Kinds 3 (behaviour rules), 4 (shapes and names), 7 (input containers), 8 (plots) and 9 (output schema)
 come with the sweep of #1149.
@@ -67,13 +68,14 @@ from process_improve.multivariate.methods import (
 )
 from process_improve.simulation import BioreactorSimulator
 
-# --- The registry --------------------------------------------------------------------------------------
+# --- The registry, and 1. it is complete ------------------------------------------------------------------
 
 N_ROWS = 12
 COLUMNS = ["a", "b", "c", "d", "e", "f"]
 MATERIALS = [f"m{j}" for j in range(len(COLUMNS))]
 
-#: TPLS's properties of the materials: each column of X is the fraction of one material in a blend.
+#: TPLS's D: three properties of six materials. TPLS reads the six columns of X as its F, the amount of each
+#: material in each blend.
 D_MATRIX = {
     "G": pd.DataFrame(
         np.random.default_rng(1).normal(size=(len(MATERIALS), 3)), index=MATERIALS, columns=["p", "q", "r"]
@@ -234,10 +236,10 @@ OUT_OF_SCOPE: dict[str, str] = {
 
 
 def _is_a_preprocessing_step(cls: type) -> bool:
-    """Tell a transformer with no count of components: its output has the input's variables, not components.
+    """Say whether ``cls`` is a transformer with no count of components, so a preprocessing step.
 
-    So it has no scores, loadings, T² or SPE to compare: ``MCUVScaler``, ``BatchScaler``, and the batch
-    aligners and feature extractor.
+    Its output has the input's variables, not components, so it has no scores, loadings, T² or SPE to
+    compare: ``MCUVScaler``, ``BatchScaler``, and the batch aligners and feature extractor.
     """
     return issubclass(cls, TransformerMixin) and not {"n_components", "n_orthogonal_components"} & set(
         cls._get_param_names()
@@ -290,10 +292,360 @@ def test_every_member_fits_the_shared_data(name: str) -> None:
     model = member.make(2)
     member.fit(model, data)
     assert type(model).__name__ == name
+    assert member.layout in data
     assert np.isfinite(np.asarray(member.apply(model, data), dtype=float)).all()
 
 
-# --- 5. The edge-case matrix (#1149, aspect 12) ----------------------------------------------------------
+# --- 2. Surface parity (#1149, aspect 10) -----------------------------------------------------------------
+
+ADAPTIVE = frozenset({"AdaptivePCA", "AdaptivePLS"})
+BATCH = frozenset({"BatchPCA", "BatchPLS"})
+MULTIBLOCK = frozenset({"MBPCA", "MBPLS"})
+PLS_AND_SUBCLASSES = frozenset({"PLS", "PLSDA", "PRM"})
+
+
+def _all_but(*names: str) -> frozenset[str]:
+    return frozenset(FAMILY) - set(names)
+
+
+def _on(members: frozenset[str] | set[str], why: str, *names: str) -> dict[str, tuple[frozenset[str], str]]:
+    """Say that each of ``names`` is on exactly ``members`` of the family, and why."""
+    return {name: (frozenset(members), why) for name in names}
+
+
+def _merged(*groups: dict[str, Any]) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for group in groups:
+        if twice := merged.keys() & group.keys():
+            raise ValueError(f"Listed twice: {sorted(twice)}")
+        merged.update(group)
+    return merged
+
+
+#: Names only some members of a kind have, on purpose: the reason, and the members that have each name.
+EXEMPT: dict[str, tuple[frozenset[str], str]] = _merged(
+    _on(
+        ADAPTIVE,
+        "The state and methods of the recursive update: only the adaptive models take rows one at a time "
+        "after the fit.",
+        *("partial_fit", "update", "adaptation_plot", "XtX_", "XtX0_", "alpha_scale_", "center_shift_"),
+        *("distance_", "injection_ratio_", "kernel_update_norm_", "lambda_center_", "mx_", "scale_shift_", "sx_"),
+    ),
+    _on({"AdaptivePCA"}, "The adaptive PCA's loadings at the fit, before any update.", "loadings0_"),
+    _on(
+        {"AdaptivePLS"},
+        "The Y side of the recursive update, and the prediction split into what the update changed.",
+        *("XtY_", "XtY0_", "alpha_scale_y_", "beta_shift_", "decompose_prediction", "lambda_center_y_", "my_"),
+        *("prediction_channels_", "sy_", "weights0_"),
+    ),
+    _on(
+        BATCH,
+        "Batch trajectories: each batch is unfolded into one row, and a batch in progress is scored online.",
+        *("batch_ids_", "feature_columns_", "initial_condition_names_", "n_batches_", "n_initial_conditions_"),
+        *("n_tags_", "n_timesteps_", "predict_online", "predict_online_trace", "tag_names_", "time_index_"),
+        "unfold_and_scale",
+    ),
+    _on({"BatchPLS"}, "The error of the online predictions, as a batch goes on.", "online_rmse"),
+    _on(
+        MULTIBLOCK,
+        "Per-block quantities: only the multiblock models have blocks.",
+        *("block_hotellings_t2_", "block_informative_widths_", "block_loadings_", "block_names_", "block_scores_"),
+        *("block_spe_", "block_vip_", "block_widths_", "r2_x_per_block_cumulative_", "r2_x_per_block_per_component_"),
+    ),
+    _on({"MBPCA"}, "The super level's loading of each block.", "super_loadings_"),
+    _on(
+        {"MBPLS"}, "The weight of each block, at the block and the super level.", *("block_weights_", "super_weights_")
+    ),
+    _on({"MBPLS"}, "The importance of each block.", "super_vip_"),
+    _on(
+        {"OPLS"},
+        "The part of X orthogonal to Y, apart from the part that predicts it: only OPLS separates them.",
+        *("correct", "orthogonal_loadings_", "orthogonal_scores_", "orthogonal_weights_", "predictive_loadings_"),
+        *("predictive_scores_", "predictive_weights_", "x_filtered_"),
+    ),
+    _on(
+        {"PLSDA"},
+        "A classifier's outputs: only PLSDA predicts classes.",
+        *("accuracy_", "class_statistics_", "classes_", "confusion", "confusion_matrix_", "confusion_matrix_plot"),
+        *("decision_function", "n_classes_", "permutation_test", "predict_proba", "priors_", "roc_auc"),
+        *("sensitivity_", "specificity_", "thresholds_"),
+    ),
+    _on(
+        {"PRM"},
+        "The robust weight of each row: only PRM weights rows down.",
+        *("n_weight_iter_", "outlier_summary", "robust_weights_", "weight_shift_", "weights_converged_"),
+    ),
+    _on(
+        {"TPLS"},
+        "The blocks of T-shaped data (the properties D of the materials, the fractions F, the conditions Z) "
+        "and their loadings: no other member has them.",
+        *("condition_names", "material_names", "property_names", "n_conditions", "n_substances", "d_mats"),
+        *("f_mats", "y_mats", "z_mats", "not_na_d", "not_na_f", "not_na_y", "not_na_z", "d_block_scaling_"),
+        *("skip_f_matrix_preprocessing_", "required_blocks_", "p_loadings_f", "p_loadings_z", "q_loadings_y"),
+        *("r_loadings_f", "s_loadings_d", "v_loadings_d", "w_loadings_super", "w_loadings_z"),
+    ),
+)
+
+#: Names only some members of a kind have today, to be decided or fixed: the issue, and the members that
+#: have each name. A name that reaches more members, or fewer, fails until its entry is updated.
+KNOWN_GAPS: dict[str, tuple[frozenset[str], str]] = _merged(
+    # Scoring new rows.
+    _on(KINDS["regression"] - {"TPLS"}, "#1149 aspect 10: TPLS predicts through diagnose", "predict"),
+    _on(_all_but("TPLS"), "#1149 aspect 10: TPLS has no transform", "transform"),
+    _on(_all_but("AdaptivePCA", "AdaptivePLS", "OPLS", "BatchPLS"), "#1149 aspect 10: no diagnose", "diagnose"),
+    _on(PLS_AND_SUBCLASSES | {"PCA"}, "#1149 aspect 2: project (TSR, SCP, PMP) on PCA and PLS only", "project"),
+    # Contributions.
+    _on(_all_but("TPLS"), "#1149 aspect 4: TPLS has no contributions", *("score_contributions", "spe_contributions")),
+    _on(
+        _all_but("TPLS", *MULTIBLOCK),
+        "#1149 aspect 4: no T² contributions on the multiblock models or TPLS",
+        "t2_contributions",
+    ),
+    _on(_all_but("TPLS", *BATCH), "#1169: the batch models have no group contributions", "group_contributions"),
+    _on(
+        _all_but("TPLS", *MULTIBLOCK, *BATCH),
+        "#1149 aspect 4 and #1169: MEDA, oMEDA and the other diagnostics on the single-block models only",
+        *("meda", "omeda", "observation_contributions", "project_variables", "squared_cosine"),
+        "eigenvalue_summary",
+    ),
+    _on(_all_but(*MULTIBLOCK, *BATCH), "#1149 aspect 10: vip is a method on these", "vip"),
+    # Limits.
+    _on(_all_but(*MULTIBLOCK), "#1149 aspect 6: the multiblock models have block and super limits", "spe_limit"),
+    _on(_all_but(*MULTIBLOCK), "#1149 aspect 6: one way to get the limits", "ellipse_coordinates"),
+    _on(_all_but("TPLS", *MULTIBLOCK), "#1149 aspect 6: one way to get the limits", "score_limit"),
+    _on(MULTIBLOCK, "#1149 aspect 6: one SPE-limit API", *("block_spe_limit", "super_spe_limit")),
+    # Fitted attributes named their own way (#1149, Order: one naming scheme for fitted attributes).
+    _on(
+        _all_but("TPLS", *MULTIBLOCK),
+        "#1149 aspect 10: the multiblock models have super_*, TPLS its own names",
+        *("scores_", "spe_", "hotellings_t2_", "scaling_factor_for_scores_"),
+    ),
+    _on(
+        MULTIBLOCK,
+        "#1149 aspect 10: scores_ and the like under the super level's name",
+        *("super_scores_", "super_hotellings_t2_", "scaling_factor_for_super_scores_"),
+    ),
+    _on(
+        {"MBPLS"},
+        "#1149 aspect 10: y_scores_, y_loadings_ and the R² of Y under MBPLS's names",
+        *("super_y_scores_", "super_y_loadings_", "r2_y_cumulative_", "r2_y_per_component_", "r2_y_per_variable_"),
+    ),
+    _on(MULTIBLOCK, "#1149 aspect 10: r2_per_variable_ under the multiblock name", "r2_x_per_variable_"),
+    _on(
+        {"TPLS"},
+        "#1149 aspect 10: the family's quantities under TPLS's names",
+        *("t_scores_super", "hat", "hat_", "spe", "hotellings_t2", "scaling_factor_for_scores", "n_samples"),
+        *("n_outputs", "observation_names", "quality_names", "fitting_statistics", "sums_of_squares_", "r2_frac"),
+        *("is_fitted_", "max_iter_", "feature_importance", "help"),
+    ),
+    _on({"PCA", "AdaptivePCA", *BATCH}, "#1149 aspect 10: loadings_ on PCA, x_loadings_ on PLS", "loadings_"),
+    _on(
+        PLS_AND_SUBCLASSES | {"AdaptivePLS", "BatchPLS"},
+        "#1149 aspect 10: the PLS loadings and weights, which OPLS, MBPLS and TPLS name otherwise",
+        *("x_loadings_", "x_weights_", "direct_weights_"),
+    ),
+    _on(PLS_AND_SUBCLASSES | {"OPLS", "BatchPLS"}, "#1149 aspect 10: Y's loadings", "y_loadings_"),
+    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10: Y's scores and weights", *("y_scores_", "y_weights_")),
+    _on(KINDS["regression"] - {"OPLS", "TPLS"}, "#1149 aspect 10: the fitted predictions", "predictions_"),
+    _on(KINDS["regression"] - {"MBPLS", "TPLS"}, "#1149 aspect 10: the regression coefficients", "beta_coefficients_"),
+    _on(PLS_AND_SUBCLASSES | {"BatchPLS"}, "#1149 aspect 10", "rmse_"),
+    _on(PLS_AND_SUBCLASSES | {"PCA", "BatchPCA"}, "#1149 aspect 10: the R² per component", "r2_per_component_"),
+    _on(PLS_AND_SUBCLASSES | {"PCA", *BATCH}, "#1149 aspect 10: the cumulative R²", "r2_cumulative_"),
+    _on(PLS_AND_SUBCLASSES | {"PCA", "BatchPLS"}, "#1149 aspect 10", *("r2_per_variable_", "projection_matrix")),
+    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10: the R² of each Y column", "r2y_per_variable_"),
+    _on(_all_but("TPLS"), "#1149 aspect 10: TPLS names these its own way", *("explained_variance_", "n_samples_")),
+    _on(
+        _all_but("AdaptivePCA", "AdaptivePLS", "OPLS", "TPLS", *BATCH),
+        "#1149 aspect 10",
+        *("fitting_info_", "has_missing_data_"),
+    ),
+    _on({"PCA", *MULTIBLOCK}, "#1149 aspect 10: BatchPCA takes algorithm= and does not say which", "algorithm_"),
+    _on(
+        {"BatchPLS"},
+        "#1149 aspect 10: the names of Y's columns (TPLS: quality_names)",
+        "target_names_",
+    ),
+    _on(
+        BATCH,
+        "#1149 aspect 1: the preprocessing a model learned is public under several names, or not at all",
+        *("center_", "scale_"),
+    ),
+    _on({"BatchPLS"}, "#1149 aspect 1: the preprocessing of Y", *("y_center_", "y_scale_")),
+    _on({"MBPLS"}, "#1149 aspect 1: the preprocessing of Y", "y_preproc_"),
+    _on({*MULTIBLOCK, "TPLS"}, "#1149 aspect 1: the preprocessing of X", "preproc_"),
+    # The sklearn estimator API (#1149, aspect 8).
+    _on(_all_but("TPLS", *BATCH), "#1149 aspect 8: sklearn's count of features", "n_features_in_"),
+    _on(KINDS["regression"] - {"TPLS", "BatchPLS"}, "#1149 aspect 8: the number of responses", "n_targets_"),
+    _on(_all_but("TPLS", *BATCH, *ADAPTIVE), "#1149 aspect 8: sklearn's feature names", "feature_names_in_"),
+    _on(_all_but(*BATCH), "#1149 aspect 8: the number of components fitted", "n_components_"),
+    _on(_all_but("TPLS", "MBPLS", "BatchPLS"), "#1149 aspect 8: sklearn's TransformerMixin", "fit_transform"),
+    _on(
+        PLS_AND_SUBCLASSES | {"PCA", "OPLS"},
+        "#1149 aspect 8: sklearn's TransformerMixin",
+        *("get_feature_names_out", "set_output"),
+    ),
+    # Model selection and inversion.
+    _on(
+        PLS_AND_SUBCLASSES | {"PCA", "MBPLS"},
+        "#1149 aspect 11: select_n_components on MBPCA and TPLS is to decide",
+        "select_n_components",
+    ),
+    _on({"PCA"}, "#1149 aspect 11: ways to choose the number of components", *("minka_mle", "parallel_analysis")),
+    _on(
+        PLS_AND_SUBCLASSES,
+        "#1149 aspect 11: cross-validation on PLS and its subclasses only",
+        *("cross_validate", "nested_cv", "compare_cv_criteria", "pseudo_validation_set"),
+    ),
+    _on(KINDS["regression"] | {"PCA"}, "#1149 aspect 11: score on PCA, not the other decompositions", "score"),
+    _on(PLS_AND_SUBCLASSES | {"PCA"}, "#1149 aspect 10", "detect_outliers"),
+    _on(PLS_AND_SUBCLASSES | {"BatchPLS"}, "#1149 aspect 10", "prediction_interval"),
+    _on(PLS_AND_SUBCLASSES | {"OPLS"}, "#1149 aspect 10: inversion", "invert"),
+    _on(PLS_AND_SUBCLASSES | {"TPLS"}, "#1149 aspect 10: inversion", *("optimal_inversion", "inversion_sensitivity")),
+    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10", *("selectivity_ratio", "target_projection")),
+    # Plots and display (#1149, aspect 15).
+    _on(
+        _all_but("TPLS", *MULTIBLOCK),
+        "#1149 aspect 15: the multiblock models have super_score_plot",
+        *("score_plot", "spe_plot", "t2_plot"),
+    ),
+    _on(MULTIBLOCK, "#1149 aspect 15: score_plot under another name", "super_score_plot"),
+    _on({"MBPCA"}, "#1149 aspect 15", "super_loadings_bar_plot"),
+    _on({"MBPLS"}, "#1149 aspect 15", "super_weights_bar_plot"),
+    _on(
+        _all_but("TPLS", "BatchPLS", *MULTIBLOCK),
+        "#1149 aspect 15",
+        *("loading_plot", "explained_variance_plot"),
+    ),
+    _on(
+        _all_but("TPLS", *MULTIBLOCK, *BATCH),
+        "#1149 aspect 15",
+        *("correlation_loadings_plot", "meda_plot", "omeda_plot"),
+    ),
+    _on(PLS_AND_SUBCLASSES | {"MBPLS", "BatchPLS"}, "#1149 aspect 15", "predictions_vs_observed_plot"),
+    _on(PLS_AND_SUBCLASSES, "#1149 aspect 15", "coefficient_plot"),
+    _on({*MULTIBLOCK, "TPLS"}, "#1149 aspect 15: display_results on these only", "display_results"),
+    _on({"TPLS"}, "#1149 aspect 15: TPLS's plot accessor and the shared theme", "plot"),
+)
+
+#: Sklearn's metadata routing: generated from each method's own signature, so it differs where they do.
+_ROUTING = re.compile(r"^(set_\w+_request|get_metadata_routing)$")
+
+
+@pytest.fixture(scope="module")
+def fitted() -> dict[str, BaseEstimator]:
+    """Every member, fitted on the shared data."""
+    data = family_data()
+    models = {}
+    for name, member in FAMILY.items():
+        models[name] = member.make(2)
+        member.fit(models[name], data)
+    return models
+
+
+def _surface(model: BaseEstimator) -> set[str]:
+    """Return the public methods and attributes of a fitted model, but its settings and sklearn's routing."""
+    settings = set(type(model)._get_param_names())
+    return {
+        name
+        for name in dir(model)
+        if not name.startswith("_") and name not in settings and not _ROUTING.match(name) and hasattr(model, name)
+    }
+
+
+def test_a_name_on_one_member_of_a_kind_is_on_every_member(fitted: dict[str, BaseEstimator]) -> None:
+    """A name some members of a kind lack is exempt, with its reason, or a known gap, with its issue.
+
+    A gap fixed on one more member, or a name that spreads to one, fails until its entry is updated.
+    """
+    surfaces = {name: _surface(model) for name, model in fitted.items()}
+    listed = {**EXEMPT, **KNOWN_GAPS}
+    problems = []
+    for attribute in sorted(set().union(*surfaces.values()) | set(listed)):
+        have = frozenset(name for name, surface in surfaces.items() if attribute in surface)
+        partial = [kind for kind, members in KINDS.items() if have & members and have & members != members]
+        if attribute not in listed:
+            if partial:
+                lack = sorted(set().union(*(KINDS[kind] for kind in partial)) - have)
+                problems.append(
+                    f"{attribute} is on {sorted(have)} but not {lack}: add it to the others, or list it in EXEMPT "
+                    "with its reason or in KNOWN_GAPS with its issue"
+                )
+        elif not partial:
+            problems.append(f"{attribute} is listed, but every member of its kind has it, or none: remove its entry")
+        elif have != listed[attribute][0]:
+            problems.append(f"{attribute} is listed as on {sorted(listed[attribute][0])}, but is on {sorted(have)}")
+    assert not problems, "\n".join(problems)
+
+
+def test_no_name_is_both_exempt_and_a_known_gap() -> None:
+    assert not EXEMPT.keys() & KNOWN_GAPS.keys()
+    assert all(members <= set(FAMILY) for members, _ in [*EXEMPT.values(), *KNOWN_GAPS.values()])
+
+
+#: A parameter only some members' methods take, on purpose, and the reason.
+EXEMPT_PARAMETERS: dict[str, tuple[frozenset[str], str]] = {
+    "initial_conditions": (BATCH, "A batch's initial conditions are a block of their own, beside its trajectories."),
+}
+
+#: Methods whose parameters differ between the members of a kind today, with the issue.
+SIGNATURE_GAPS: dict[str, str] = {
+    **dict.fromkeys(
+        ("score_contributions", "spe_contributions", "group_contributions"),
+        "#1149 aspect 4: the multiblock models take no method= or ridge=, and need group=",
+    ),
+    **dict.fromkeys(
+        ("select_n_components", "cross_validate", "nested_cv", "compare_cv_criteria", "pseudo_validation_set"),
+        "#1149 aspect 11: PLSDA takes the settings as **kwargs; MBPLS takes fewer, and names Y y",
+    ),
+    **dict.fromkeys(
+        ("fit", "fit_transform", "transform", "score"),
+        "#1149 aspect 10: the response is Y in PLS and PRM and y elsewhere; sample_weight on three; Y in transform",
+    ),
+    "display_results": "#1149 aspect 15: show_cumulative on the multiblock models, show_cumulative_stats on TPLS",
+    "invert": "#1149 aspect 10: OPLS takes no null_space_coordinates",
+    "prediction_interval": "#1149 aspect 10: BatchPLS takes no cv_result",
+    "predictions_vs_observed_plot": "#1149 aspect 15: the MBPLS plot is its own, with no settings or fig",
+    "vip": "#1149 aspect 16: TPLS's vip takes block= and method=, the others n_components=",
+}
+
+
+def _parameters(name: str, method: Callable[..., Any]) -> tuple[str, ...]:
+    """Return the names and defaults a bound method takes, but ``*args``, ``**kwargs`` and exempt parameters."""
+    return tuple(
+        parameter.name + ("" if parameter.default is parameter.empty else f"={parameter.default!r}")
+        for parameter in inspect.signature(method).parameters.values()
+        if parameter.kind not in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD)
+        and name not in EXEMPT_PARAMETERS.get(parameter.name, (frozenset(), ""))[0]
+    )
+
+
+def test_the_same_method_takes_the_same_parameters_on_every_member_of_a_kind(
+    fitted: dict[str, BaseEstimator],
+) -> None:
+    """Parameter names and defaults of a method agree across a kind, or ``SIGNATURE_GAPS`` gives the issue."""
+    surfaces = {name: _surface(model) for name, model in fitted.items()}
+    differ: dict[str, list[str]] = {}
+    for kind, members in KINDS.items():
+        for method in sorted(set().union(*(surfaces[name] for name in members))):
+            signatures = {
+                name: _parameters(name, getattr(fitted[name], method))
+                for name in sorted(members)
+                if method in surfaces[name]
+                and callable(getattr(fitted[name], method))
+                and not inspect.isclass(getattr(fitted[name], method))
+            }
+            if len(set(signatures.values())) > 1:
+                detail = "; ".join(f"{name}({', '.join(parameters)})" for name, parameters in signatures.items())
+                differ.setdefault(method, []).append(f"{kind}: {detail}")
+    unlisted = [
+        f"{method}: {' | '.join(details)}" for method, details in differ.items() if method not in SIGNATURE_GAPS
+    ]
+    assert not unlisted, "Make these agree, or list them in SIGNATURE_GAPS with the issue:\n" + "\n".join(unlisted)
+    stale = set(SIGNATURE_GAPS) - set(differ)
+    assert not stale, f"These now agree on every member: remove them from SIGNATURE_GAPS: {sorted(stale)}"
+
+
+# --- 5. The edge-case matrix (#1149, aspect 12) -----------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -530,7 +882,7 @@ def test_a_bad_input_gets_the_familys_answer_from_every_member(case_name: str, n
     case, member = CASES[case_name], FAMILY[name]
     answers = (EDGE_EXEMPT[case_name, name][0],) if (case_name, name) in EDGE_EXEMPT else case.answers
     X, y, n_components = case.build()
-    complete = X.fillna(0.0)
+    complete = X.fillna(raw_data()[0])  # the cells a case leaves out, back as new rows have them
     outcome: BaseException | None = None
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -563,354 +915,7 @@ def test_every_exempt_or_known_cell_is_a_cell_of_the_matrix() -> None:
     assert not set(EDGE_EXEMPT) & set(EDGE_GAPS)
 
 
-# --- 2. Surface parity (#1149, aspect 10) ----------------------------------------------------------------
-
-ADAPTIVE = frozenset({"AdaptivePCA", "AdaptivePLS"})
-BATCH = frozenset({"BatchPCA", "BatchPLS"})
-MULTIBLOCK = frozenset({"MBPCA", "MBPLS"})
-PLS_AND_SUBCLASSES = frozenset({"PLS", "PLSDA", "PRM"})
-
-
-def _all_but(*names: str) -> frozenset[str]:
-    return frozenset(FAMILY) - set(names)
-
-
-def _on(members: frozenset[str] | set[str], why: str, *names: str) -> dict[str, tuple[frozenset[str], str]]:
-    """Say that each of ``names`` is on exactly ``members`` of the family, and why."""
-    return {name: (frozenset(members), why) for name in names}
-
-
-def _merged(*groups: dict[str, Any]) -> dict[str, Any]:
-    merged: dict[str, Any] = {}
-    for group in groups:
-        if twice := merged.keys() & group.keys():
-            raise ValueError(f"Listed twice: {sorted(twice)}")
-        merged.update(group)
-    return merged
-
-
-#: Names only some members of a kind have, on purpose: the reason, and the members that have each name.
-EXEMPT: dict[str, tuple[frozenset[str], str]] = _merged(
-    _on(
-        ADAPTIVE,
-        "The state and methods of the recursive update: only the adaptive models take rows one at a time "
-        "after the fit.",
-        *("partial_fit", "update", "adaptation_plot", "XtX_", "XtX0_", "alpha_scale_", "center_shift_"),
-        *("distance_", "injection_ratio_", "kernel_update_norm_", "lambda_center_", "mx_", "scale_shift_", "sx_"),
-    ),
-    _on({"AdaptivePCA"}, "The adaptive PCA's loadings at the fit, before any update.", "loadings0_"),
-    _on(
-        {"AdaptivePLS"},
-        "The Y side of the recursive update, and the prediction split into what the update changed.",
-        *("XtY_", "XtY0_", "alpha_scale_y_", "beta_shift_", "decompose_prediction", "lambda_center_y_", "my_"),
-        *("prediction_channels_", "sy_", "weights0_"),
-    ),
-    _on(
-        BATCH,
-        "Batch trajectories: each batch is unfolded into one row, and a batch in progress is scored online.",
-        *("batch_ids_", "feature_columns_", "initial_condition_names_", "n_batches_", "n_initial_conditions_"),
-        *("n_tags_", "n_timesteps_", "predict_online", "predict_online_trace", "tag_names_", "time_index_"),
-        "unfold_and_scale",
-    ),
-    _on({"BatchPLS"}, "The error of the online predictions, as a batch goes on.", "online_rmse"),
-    _on(
-        MULTIBLOCK,
-        "Per-block quantities: only the multiblock models have blocks.",
-        *("block_hotellings_t2_", "block_informative_widths_", "block_loadings_", "block_names_", "block_scores_"),
-        *("block_spe_", "block_vip_", "block_widths_", "r2_x_per_block_cumulative_", "r2_x_per_block_per_component_"),
-    ),
-    _on({"MBPCA"}, "The super level's loading of each block.", "super_loadings_"),
-    _on(
-        {"MBPLS"}, "The weight of each block, at the block and the super level.", *("block_weights_", "super_weights_")
-    ),
-    _on({"MBPLS"}, "The importance of each block.", "super_vip_"),
-    _on(
-        {"OPLS"},
-        "The part of X orthogonal to Y, apart from the part that predicts it: only OPLS separates them.",
-        *("correct", "orthogonal_loadings_", "orthogonal_scores_", "orthogonal_weights_", "predictive_loadings_"),
-        *("predictive_scores_", "predictive_weights_", "x_filtered_"),
-    ),
-    _on(
-        {"PLSDA"},
-        "A classifier's outputs: only PLSDA predicts classes.",
-        *("accuracy_", "class_statistics_", "classes_", "confusion", "confusion_matrix_", "confusion_matrix_plot"),
-        *("decision_function", "n_classes_", "permutation_test", "predict_proba", "priors_", "roc_auc"),
-        *("sensitivity_", "specificity_", "thresholds_"),
-    ),
-    _on(
-        {"PRM"},
-        "The robust weight of each row: only PRM weights rows down.",
-        *("n_weight_iter_", "outlier_summary", "robust_weights_", "weight_shift_", "weights_converged_"),
-    ),
-    _on(
-        {"TPLS"},
-        "The blocks of T-shaped data (the properties D of the materials, the fractions F, the conditions Z) "
-        "and their loadings: no other member has them.",
-        *("condition_names", "material_names", "property_names", "n_conditions", "n_substances", "d_mats"),
-        *("f_mats", "y_mats", "z_mats", "not_na_d", "not_na_f", "not_na_y", "not_na_z", "d_block_scaling_"),
-        *("skip_f_matrix_preprocessing_", "required_blocks_", "p_loadings_f", "p_loadings_z", "q_loadings_y"),
-        *("r_loadings_f", "s_loadings_d", "v_loadings_d", "w_loadings_super", "w_loadings_z"),
-    ),
-)
-
-#: Names only some members of a kind have today, to be decided or fixed: the issue, and the members that
-#: have each name. A name that reaches more members, or fewer, fails until its entry is updated.
-KNOWN_GAPS: dict[str, tuple[frozenset[str], str]] = _merged(
-    # Scoring new rows.
-    _on(_all_but("TPLS") - KINDS["decomposition"], "#1149 aspect 10: TPLS predicts through diagnose", "predict"),
-    _on(_all_but("TPLS"), "#1149 aspect 10: TPLS has no transform", "transform"),
-    _on(_all_but("AdaptivePCA", "AdaptivePLS", "OPLS", "BatchPLS"), "#1149 aspect 10: no diagnose", "diagnose"),
-    _on(PLS_AND_SUBCLASSES | {"PCA"}, "#1149 aspect 2: project (TSR, SCP, PMP) on PCA and PLS only", "project"),
-    # Contributions.
-    _on(_all_but("TPLS"), "#1149 aspect 4: TPLS has no contributions", *("score_contributions", "spe_contributions")),
-    _on(
-        _all_but("TPLS", *MULTIBLOCK),
-        "#1149 aspect 4: no T² contributions on the multiblock models or TPLS",
-        "t2_contributions",
-    ),
-    _on(_all_but("TPLS", *BATCH), "#1169: the batch models have no group contributions", "group_contributions"),
-    _on(
-        _all_but("TPLS", *MULTIBLOCK, *BATCH),
-        "#1149 aspect 4 and #1169: MEDA, oMEDA and the other diagnostics on the single-block models only",
-        *("meda", "omeda", "observation_contributions", "project_variables", "squared_cosine"),
-        "eigenvalue_summary",
-    ),
-    _on(_all_but(*MULTIBLOCK, *BATCH), "#1149 aspect 10: vip is a method on these", "vip"),
-    # Limits.
-    _on(_all_but(*MULTIBLOCK), "#1149 aspect 6: the multiblock models have block and super limits", "spe_limit"),
-    _on(_all_but(*MULTIBLOCK), "#1149 aspect 6: one way to get the limits", "ellipse_coordinates"),
-    _on(_all_but("TPLS", *MULTIBLOCK), "#1149 aspect 6: one way to get the limits", "score_limit"),
-    _on(MULTIBLOCK, "#1149 aspect 6: one SPE-limit API", *("block_spe_limit", "super_spe_limit")),
-    # Fitted attributes named their own way (#1149, Order: one naming scheme for fitted attributes).
-    _on(
-        _all_but("TPLS", *MULTIBLOCK),
-        "#1149 aspect 10: the multiblock models have super_*, TPLS its own names",
-        *("scores_", "spe_", "hotellings_t2_", "scaling_factor_for_scores_"),
-    ),
-    _on(
-        MULTIBLOCK,
-        "#1149 aspect 10: scores_ and the like under the super level's name",
-        *("super_scores_", "super_hotellings_t2_", "scaling_factor_for_super_scores_"),
-    ),
-    _on(
-        {"MBPLS"},
-        "#1149 aspect 10: y_scores_, y_loadings_ and the R² of Y under MBPLS's names",
-        *("super_y_scores_", "super_y_loadings_", "r2_y_cumulative_", "r2_y_per_component_", "r2_y_per_variable_"),
-    ),
-    _on(MULTIBLOCK, "#1149 aspect 10: r2_per_variable_ under the multiblock name", "r2_x_per_variable_"),
-    _on(
-        {"TPLS"},
-        "#1149 aspect 10: the family's quantities under TPLS's names",
-        *("t_scores_super", "hat", "hat_", "spe", "hotellings_t2", "scaling_factor_for_scores", "n_samples"),
-        *("n_outputs", "observation_names", "quality_names", "fitting_statistics", "sums_of_squares_", "r2_frac"),
-        *("is_fitted_", "max_iter_", "feature_importance", "help"),
-    ),
-    _on({"PCA", "AdaptivePCA", *BATCH}, "#1149 aspect 10: loadings_ on PCA, x_loadings_ on PLS", "loadings_"),
-    _on(
-        PLS_AND_SUBCLASSES | {"AdaptivePLS", "BatchPLS"},
-        "#1149 aspect 10: the PLS loadings and weights, which OPLS, MBPLS and TPLS name otherwise",
-        *("x_loadings_", "x_weights_", "direct_weights_"),
-    ),
-    _on(PLS_AND_SUBCLASSES | {"OPLS", "BatchPLS"}, "#1149 aspect 10: Y's loadings", "y_loadings_"),
-    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10: Y's scores and weights", *("y_scores_", "y_weights_")),
-    _on(_all_but("OPLS", "TPLS") - KINDS["decomposition"], "#1149 aspect 10: the fitted predictions", "predictions_"),
-    _on(_all_but("MBPLS", "TPLS") - KINDS["decomposition"], "#1149 aspect 10", "beta_coefficients_"),
-    _on(PLS_AND_SUBCLASSES | {"BatchPLS"}, "#1149 aspect 10", "rmse_"),
-    _on(PLS_AND_SUBCLASSES | {"PCA", "BatchPCA"}, "#1149 aspect 10: the R² per component", "r2_per_component_"),
-    _on(PLS_AND_SUBCLASSES | {"PCA", *BATCH}, "#1149 aspect 10: the cumulative R²", "r2_cumulative_"),
-    _on(PLS_AND_SUBCLASSES | {"PCA", "BatchPLS"}, "#1149 aspect 10", *("r2_per_variable_", "projection_matrix")),
-    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10: the R² of each Y column", "r2y_per_variable_"),
-    _on(_all_but("TPLS"), "#1149 aspect 10: TPLS names these its own way", *("explained_variance_", "n_samples_")),
-    _on(
-        _all_but("AdaptivePCA", "AdaptivePLS", "OPLS", "TPLS", *BATCH),
-        "#1149 aspect 10",
-        *("fitting_info_", "has_missing_data_"),
-    ),
-    _on({"PCA", *MULTIBLOCK}, "#1149 aspect 10: BatchPCA takes algorithm= and does not say which", "algorithm_"),
-    _on(
-        {"BatchPLS"},
-        "#1149 aspect 10: the names of Y's columns (TPLS: quality_names)",
-        "target_names_",
-    ),
-    _on(
-        BATCH,
-        "#1149 aspect 1: the preprocessing a model learned is public under several names, or not at all",
-        *("center_", "scale_"),
-    ),
-    _on({"BatchPLS"}, "#1149 aspect 1: the preprocessing of Y", *("y_center_", "y_scale_")),
-    _on({"MBPLS"}, "#1149 aspect 1: the preprocessing of Y", "y_preproc_"),
-    _on({*MULTIBLOCK, "TPLS"}, "#1149 aspect 1: the preprocessing of X", "preproc_"),
-    # The sklearn estimator API (#1149, aspect 8).
-    _on(_all_but("TPLS", *BATCH), "#1149 aspect 8: sklearn's count of features", "n_features_in_"),
-    _on(_all_but("TPLS", "BatchPLS") - KINDS["decomposition"], "#1149 aspect 8", "n_targets_"),
-    _on(_all_but("TPLS", *BATCH, *ADAPTIVE), "#1149 aspect 8: sklearn's feature names", "feature_names_in_"),
-    _on(_all_but(*BATCH), "#1149 aspect 8: the number of components fitted", "n_components_"),
-    _on(_all_but("TPLS", "MBPLS", "BatchPLS"), "#1149 aspect 8: sklearn's TransformerMixin", "fit_transform"),
-    _on(
-        PLS_AND_SUBCLASSES | {"PCA", "OPLS"},
-        "#1149 aspect 8: sklearn's TransformerMixin",
-        *("get_feature_names_out", "set_output"),
-    ),
-    # Model selection and inversion.
-    _on(
-        PLS_AND_SUBCLASSES | {"PCA", "MBPLS"},
-        "#1149 aspect 11: select_n_components on MBPCA and TPLS is to decide",
-        "select_n_components",
-    ),
-    _on({"PCA"}, "#1149 aspect 11: ways to choose the number of components", *("minka_mle", "parallel_analysis")),
-    _on(
-        PLS_AND_SUBCLASSES,
-        "#1149 aspect 11: cross-validation on PLS and its subclasses only",
-        *("cross_validate", "nested_cv", "compare_cv_criteria", "pseudo_validation_set"),
-    ),
-    _on(KINDS["regression"] | {"PCA"}, "#1149 aspect 11: score on PCA, not the other decompositions", "score"),
-    _on(PLS_AND_SUBCLASSES | {"PCA"}, "#1149 aspect 10", "detect_outliers"),
-    _on(PLS_AND_SUBCLASSES | {"BatchPLS"}, "#1149 aspect 10", "prediction_interval"),
-    _on(PLS_AND_SUBCLASSES | {"OPLS"}, "#1149 aspect 10: inversion", "invert"),
-    _on(PLS_AND_SUBCLASSES | {"TPLS"}, "#1149 aspect 10: inversion", *("optimal_inversion", "inversion_sensitivity")),
-    _on(PLS_AND_SUBCLASSES, "#1149 aspect 10", *("selectivity_ratio", "target_projection")),
-    # Plots and display (#1149, aspect 15).
-    _on(
-        _all_but("TPLS", *MULTIBLOCK),
-        "#1149 aspect 15: the multiblock models have super_score_plot",
-        *("score_plot", "spe_plot", "t2_plot"),
-    ),
-    _on(MULTIBLOCK, "#1149 aspect 15: score_plot under another name", "super_score_plot"),
-    _on({"MBPCA"}, "#1149 aspect 15", "super_loadings_bar_plot"),
-    _on({"MBPLS"}, "#1149 aspect 15", "super_weights_bar_plot"),
-    _on(
-        _all_but("TPLS", "BatchPLS", *MULTIBLOCK),
-        "#1149 aspect 15",
-        *("loading_plot", "explained_variance_plot"),
-    ),
-    _on(
-        _all_but("TPLS", *MULTIBLOCK, *BATCH),
-        "#1149 aspect 15",
-        *("correlation_loadings_plot", "meda_plot", "omeda_plot"),
-    ),
-    _on(PLS_AND_SUBCLASSES | {"MBPLS", "BatchPLS"}, "#1149 aspect 15", "predictions_vs_observed_plot"),
-    _on(PLS_AND_SUBCLASSES, "#1149 aspect 15", "coefficient_plot"),
-    _on({*MULTIBLOCK, "TPLS"}, "#1149 aspect 15: display_results on these only", "display_results"),
-    _on({"TPLS"}, "#1149 aspect 15: TPLS's plot accessor and the shared theme", "plot"),
-)
-
-#: Sklearn's metadata routing: generated from each method's own signature, so it differs where they do.
-_ROUTING = re.compile(r"^(set_\w+_request|get_metadata_routing)$")
-
-
-@pytest.fixture(scope="module")
-def fitted() -> dict[str, BaseEstimator]:
-    """Every member, fitted on the shared data."""
-    data = family_data()
-    models = {}
-    for name, member in FAMILY.items():
-        models[name] = member.make(2)
-        member.fit(models[name], data)
-    return models
-
-
-def _surface(model: BaseEstimator) -> set[str]:
-    """Return the public methods and attributes of a fitted model, but its settings and sklearn's routing."""
-    settings = set(type(model)._get_param_names())
-    return {
-        name
-        for name in dir(model)
-        if not name.startswith("_") and name not in settings and not _ROUTING.match(name) and hasattr(model, name)
-    }
-
-
-def test_a_name_on_one_member_of_a_kind_is_on_every_member(fitted: dict[str, BaseEstimator]) -> None:
-    """A name some members of a kind lack is exempt, with its reason, or a known gap, with its issue.
-
-    A gap fixed on one more member, or a name that spreads to one, fails until its entry is updated.
-    """
-    surfaces = {name: _surface(model) for name, model in fitted.items()}
-    listed = {**EXEMPT, **KNOWN_GAPS}
-    problems = []
-    for attribute in sorted(set().union(*surfaces.values()) | set(listed)):
-        have = frozenset(name for name, surface in surfaces.items() if attribute in surface)
-        partial = [kind for kind, members in KINDS.items() if have & members and have & members != members]
-        if attribute not in listed:
-            if partial:
-                lack = sorted(set().union(*(KINDS[kind] for kind in partial)) - have)
-                problems.append(
-                    f"{attribute} is on {sorted(have)} but not {lack}: add it to the others, or list it in EXEMPT "
-                    "with its reason or in KNOWN_GAPS with its issue"
-                )
-        elif not partial:
-            problems.append(f"{attribute} is listed, but every member of its kind has it, or none: remove its entry")
-        elif have != listed[attribute][0]:
-            problems.append(f"{attribute} is listed as on {sorted(listed[attribute][0])}, but is on {sorted(have)}")
-    assert not problems, "\n".join(problems)
-
-
-def test_no_name_is_both_exempt_and_a_known_gap() -> None:
-    assert not EXEMPT.keys() & KNOWN_GAPS.keys()
-    assert all(members <= set(FAMILY) for members, _ in [*EXEMPT.values(), *KNOWN_GAPS.values()])
-
-
-#: A parameter only some members' methods take, on purpose, and the reason.
-EXEMPT_PARAMETERS: dict[str, tuple[frozenset[str], str]] = {
-    "initial_conditions": (BATCH, "A batch's initial conditions are a block of their own, beside its trajectories."),
-}
-
-#: Methods whose parameters differ between the members of a kind today, with the issue.
-SIGNATURE_GAPS: dict[str, str] = {
-    **dict.fromkeys(
-        ("score_contributions", "spe_contributions", "group_contributions"),
-        "#1149 aspect 4: the multiblock models take no method= or ridge=, and need group=",
-    ),
-    **dict.fromkeys(
-        ("select_n_components", "cross_validate", "nested_cv", "compare_cv_criteria", "pseudo_validation_set"),
-        "#1149 aspect 11: PLSDA takes the settings as **kwargs; MBPLS takes fewer, and names Y y",
-    ),
-    **dict.fromkeys(
-        ("fit", "fit_transform", "transform", "score"),
-        "#1149 aspect 10: the response is Y in PLS and PRM and y elsewhere; sample_weight on three; Y in transform",
-    ),
-    "display_results": "#1149 aspect 15: show_cumulative on the multiblock models, show_cumulative_stats on TPLS",
-    "invert": "#1149 aspect 10: OPLS takes no null_space_coordinates",
-    "prediction_interval": "#1149 aspect 10: BatchPLS takes no cv_result",
-    "predictions_vs_observed_plot": "#1149 aspect 15: the MBPLS plot is its own, with no settings or fig",
-    "vip": "#1149 aspect 16: TPLS's vip takes block= and method=, the others n_components=",
-}
-
-
-def _parameters(name: str, method: Callable[..., Any]) -> tuple[str, ...]:
-    """Return the names and defaults a bound method takes, but ``*args``, ``**kwargs`` and exempt parameters."""
-    return tuple(
-        parameter.name + ("" if parameter.default is parameter.empty else f"={parameter.default!r}")
-        for parameter in inspect.signature(method).parameters.values()
-        if parameter.kind not in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD)
-        and name not in EXEMPT_PARAMETERS.get(parameter.name, (frozenset(), ""))[0]
-    )
-
-
-def test_the_same_method_takes_the_same_parameters_on_every_member_of_a_kind(
-    fitted: dict[str, BaseEstimator],
-) -> None:
-    """Parameter names and defaults of a method agree across a kind, or ``SIGNATURE_GAPS`` gives the issue."""
-    differ = {}
-    for kind, members in KINDS.items():
-        for method in sorted(set().union(*(_surface(fitted[name]) for name in members))):
-            signatures = {
-                name: _parameters(name, getattr(fitted[name], method))
-                for name in sorted(members)
-                if method in _surface(fitted[name])
-                and callable(getattr(fitted[name], method))
-                and not inspect.isclass(getattr(fitted[name], method))
-            }
-            if len(set(signatures.values())) > 1:
-                differ[method] = f"{kind}: " + "; ".join(
-                    f"{name}({', '.join(sig)})" for name, sig in signatures.items()
-                )
-    unlisted = [f"{method}:{detail}" for method, detail in differ.items() if method not in SIGNATURE_GAPS]
-    assert not unlisted, "Make these agree, or list them in SIGNATURE_GAPS with the issue:\n" + "\n".join(unlisted)
-    stale = set(SIGNATURE_GAPS) - set(differ)
-    assert not stale, f"These now agree on every member: remove them from SIGNATURE_GAPS: {sorted(stale)}"
-
-
-# --- 6. random_state (#1149, aspect 13) ------------------------------------------------------------------
+# --- 6. random_state (#1149, aspect 13) -------------------------------------------------------------------
 
 
 def _public_callables() -> dict[str, Callable[..., Any]]:
@@ -1128,3 +1133,21 @@ def test_a_seed_is_named_random_state() -> None:
     }
     assert other_names - set(RANDOM_STATE_GAPS) == set(), "Name the seed random_state, or list it in RANDOM_STATE_GAPS"
     assert set(RANDOM_STATE_GAPS) - other_names == set(), "These now take random_state: remove them from the list"
+
+
+#: Callables whose signature, and docstring, say ``random_state`` is an int, though they take a Generator too.
+RANDOM_STATE_ANNOTATION_GAPS: dict[str, str] = dict.fromkeys(
+    ("PCA.parallel_analysis", "PCA.select_n_components"), "#1149 aspect 13: annotated int | None"
+)
+
+
+def test_the_signature_says_random_state_takes_a_generator() -> None:
+    """``help`` and a type checker read the annotation, so a caller who reads it would not pass a Generator."""
+    narrow = {
+        key
+        for key, function in _public_callables().items()
+        if "random_state" in (parameters := _parameters_of(function))
+        and "Generator" not in str(parameters["random_state"].annotation)
+    }
+    assert narrow - set(RANDOM_STATE_ANNOTATION_GAPS) == set(), "Annotate these int | np.random.Generator | None"
+    assert set(RANDOM_STATE_ANNOTATION_GAPS) - narrow == set(), "These are annotated now: remove them from the list"
