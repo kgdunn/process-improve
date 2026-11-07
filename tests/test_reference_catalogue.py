@@ -865,6 +865,29 @@ def test_two_groups_are_compared_with_the_library_t_tests():
     assert _t_test(entry, {**groups, "test": "paired", "key": "half_width", "confidence": 0.90}) == pytest.approx(half)
 
 
+def test_several_groups_are_the_runs_at_each_value_of_a_column_for_bartlett_s_and_the_kruskal_wallis_test():
+    """``by`` names a column, and the runs at each of its values are one group, wherever they sit in the run order."""
+    from process_improve.experiments.reference_catalogue import _classical_test
+
+    groups = {"A": [1.0, 2.0, 4.0], "B": [4.0, 3.0, 9.0, 6.0], "C": [2.0, 2.5, 3.5]}
+    rows = [[name, y] for name, ys in groups.items() for y in ys]
+    entry = {
+        "name": "three",
+        "factors": [{"name": "group", "type": "categorical", "low": "A", "high": "C", "levels": list(groups)}],
+        "responses": [{"name": "y"}],
+        "runs": {"columns": ["group", "y"], "rows": rows[1::2] + rows[::2], "coded": False},
+    }
+    spread, ranks = stats.bartlett(*groups.values()), stats.kruskal(*groups.values())
+    for function, key, expected in (
+        ("bartlett_test", "statistic", spread.statistic),
+        ("bartlett_test", "p_value", spread.pvalue),
+        ("kruskal_wallis_test", "statistic", ranks.statistic),
+        ("kruskal_wallis_test", "p_value", ranks.pvalue),
+    ):
+        check = {"kind": "classical_test", "function": function, "by": "group", "key": key}
+        assert _classical_test(entry, check) == pytest.approx(expected), (function, key)
+
+
 def test_the_pooled_t_test_is_the_regression_on_the_two_groups_coded():
     """Student's t is the t of the group's coefficient, coded -1 and +1, and their intervals are the effect's."""
     entry = _two_groups([1.0, 2.0, 4.0, 5.0], [4.0, 3.0, 7.0, 6.0])

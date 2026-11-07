@@ -69,6 +69,12 @@ _REQUIRED_COLUMNS: tuple[str, ...] = ("panelist_id", "product", "attribute", "sc
 
 AlignMethod = str  # "both" | "location" | "scale"
 
+#: Why an attribute with a missing cell has NaN F-tests: said in its ``note`` and in the warning.
+_INCOMPLETE_TABLE = (
+    "The closed-form F-tests need a complete panelist-by-product table, so they are NaN for an attribute "
+    "with a missing cell. Use mixed_assessor_model_reml, which handles missing cells."
+)
+
 
 @dataclass
 class MAMResult:
@@ -85,7 +91,10 @@ class MAMResult:
         F-tests: ``f_product_mam`` / ``p_product_mam`` (disagreement as error)
         and ``f_product_classical`` / ``p_product_classical`` (raw interaction
         as error), plus the degrees of freedom. The four F-test columns are NaN
-        for an attribute where a panelist did not score every product.
+        for an attribute where a panelist did not score every product. The
+        ``note`` column says why an F-test is NaN (the panelists and products
+        of the missing cells, or a panel too small to test), and is empty when
+        both F-tests are computed.
     """
 
     scaling: pd.DataFrame
@@ -114,6 +123,31 @@ def _assessor_scaling(matrix: pd.DataFrame) -> tuple[pd.Series, pd.Series, np.nd
         slopes = np.ones(matrix.shape[0])
     beta = pd.Series(slopes, index=matrix.index)
     return beta, means, tau, ssq_tau
+
+
+#: What each F-test's error term needs to have any degrees of freedom.
+_ERROR_NEEDS = {"disagreement": "at least 2 panelists and 3 products", "interaction": "at least 2 panelists"}
+
+
+def _ftest(ss_product: float, df_product: int, error_ss: float, error_df: int, error: str) -> tuple[float, float, str]:
+    """Return the product-effect F, its p-value, and why they are NaN (empty when they are not)."""
+    if df_product <= 0:
+        return float("nan"), float("nan"), "there is only one product, so no product effect to test"
+    if error_df <= 0:
+        return float("nan"), float("nan"), f"the {error} has no degrees of freedom (it needs {_ERROR_NEEDS[error]})"
+    if error_ss <= 0:
+        return float("nan"), float("nan"), f"the {error} sum of squares is zero, so the F ratio is undefined"
+    f_value = (ss_product / df_product) / (error_ss / error_df)
+    return float(f_value), float(f_dist.sf(f_value, df_product, error_df)), ""
+
+
+def _missing_cells(matrix: pd.DataFrame) -> str:
+    """Name each panelist of ``matrix`` with no score for some products, and those products."""
+    absent = matrix.isna()
+    return "; ".join(
+        f"panelist {str(pid)!r} did not score product(s) {[str(p) for p in matrix.columns[absent.loc[pid]]]}"
+        for pid in matrix.index[absent.any(axis=1)]
+    )
 
 
 def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
@@ -145,8 +179,10 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         If, for some attribute, a panelist did not score every product. The
         sums of squares behind the F-tests add up only on a complete
         panelist-by-product table, so that attribute's F-tests are NaN; the
-        scaling coefficients are still estimated from the cells present.
-        :func:`mixed_assessor_model_reml` handles missing cells.
+        scaling coefficients are still estimated from the cells present. The
+        warning, and the attribute's ``note``, name the panelists and products
+        of the missing cells. :func:`mixed_assessor_model_reml` handles missing
+        cells.
 
     Examples
     --------
@@ -169,7 +205,7 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
 
     scaling_rows: list[dict[str, object]] = []
     ftest_rows: list[dict[str, object]] = []
-    incomplete: list[str] = []
+    incomplete: dict[str, list[str]] = {}  # the missing cells, and the attributes that miss them
 
     for attribute in sorted(panel["attribute"].unique()):
         matrix = _cell_means(panel, attribute)
@@ -204,20 +240,22 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         df_interaction = (n_assessors - 1) * (n_products - 1)
         df_disagreement = (n_assessors - 1) * (n_products - 2)
 
-        def _ftest(error_ss: float, error_df: int, *, ss_p: float = ss_product, df_p: int = df_product) -> tuple:
-            if df_p <= 0 or error_df <= 0 or error_ss <= 0:
-                return (float("nan"), float("nan"))
-            f_value = (ss_p / df_p) / (error_ss / error_df)
-            return (float(f_value), float(f_dist.sf(f_value, df_p, error_df)))
-
-        f_mam, p_mam = _ftest(ss_disagreement, df_disagreement)
-        f_classical, p_classical = _ftest(ss_interaction, df_interaction)
+        f_mam, p_mam, why_mam = _ftest(ss_product, df_product, ss_disagreement, df_disagreement, "disagreement")
+        f_classical, p_classical, why_classical = _ftest(
+            ss_product, df_product, ss_interaction, df_interaction, "interaction"
+        )
+        why = {"MAM": why_mam, "classical": why_classical}
+        note = "; ".join(f"{test} F-test: {reason}" for test, reason in why.items() if reason)
+        if why_mam and why_mam == why_classical:
+            note = f"Both F-tests: {why_mam}"
         if matrix.isna().to_numpy().any():
             # ss_interaction is the remainder of ss_total after the product and assessor sums,
             # which holds only for a complete table: with a missing cell the F-tests were
             # sometimes NaN and sometimes a finite number on the wrong degrees of freedom.
-            incomplete.append(str(attribute))
+            cells = _missing_cells(matrix)
+            incomplete.setdefault(cells, []).append(str(attribute))
             f_mam = p_mam = f_classical = p_classical = float("nan")
+            note = f"{cells}. {_INCOMPLETE_TABLE}"
         ftest_rows.append(
             {
                 "attribute": str(attribute),
@@ -227,14 +265,14 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
                 "p_product_classical": p_classical,
                 "df_product": int(df_product),
                 "df_disagreement": int(df_disagreement),
+                "note": note,
             }
         )
 
     if incomplete:
+        where = "; ".join(f"in attribute(s) {attributes}, {cells}" for cells, attributes in incomplete.items())
         warnings.warn(
-            f"mixed_assessor_model: in attribute(s) {incomplete} a panelist did not score every product. The "
-            "closed-form F-tests need a complete panelist-by-product table, so they are NaN for these "
-            "attributes. Use mixed_assessor_model_reml, which handles missing cells.",
+            f"mixed_assessor_model: a panelist did not score every product: {where}. {_INCOMPLETE_TABLE}",
             category=RuntimeWarning,
             stacklevel=user_stacklevel(),
         )

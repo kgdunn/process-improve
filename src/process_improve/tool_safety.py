@@ -34,7 +34,8 @@ import os
 import sys
 import threading
 import warnings
-from concurrent.futures import ProcessPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -211,7 +212,10 @@ class ToolInputInvalidError(ToolSafetyError):
 
 
 class ToolTimeoutError(ToolSafetyError):
-    """Tool call exceeded the wall-clock timeout."""
+    """Tool call exceeded the wall-clock timeout, or its worker took too long to start.
+
+    ``details["stage"]`` says which: ``"tool"`` or ``"startup"``.
+    """
 
     code = "timeout"
 
@@ -402,11 +406,49 @@ def _pool_initializer(memory_mb: int) -> None:
     _apply_memory_limit(memory_mb)
 
 
+def _worker_ready() -> None:
+    """Do nothing in a worker: the parent waits for this task to know the worker has started."""
+
+
 def _worker_run(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN401
     """Target function executed inside a worker process."""
     from process_improve.tool_spec import execute_tool_call  # noqa: PLC0415
 
     return execute_tool_call(tool_name, tool_input)
+
+
+#: Seconds a call's fresh worker may take to start, before the call is refused; not part of the
+#: tool's own timeout. A worker started with ``spawn`` (macOS, Windows) imports the package and
+#: its tools again, which took 2.1 to 3.5 s on Linux and up to 4.6 s cold on a fast machine
+#: (#1130): about 14 s on a machine three times slower. 60 s leaves room for a cold, loaded host
+#: and still ends a worker that hangs while it starts.
+_WORKER_STARTUP_TIMEOUT_S = 60.0
+
+
+def _submit(pool: Executor, fn: Callable[..., Any], *args: object) -> Future:
+    """Submit ``fn(*args)`` to ``pool``, flagging this thread while a ``fork`` pool forks its worker."""
+    _forking_a_worker.active = True
+    try:
+        return pool.submit(fn, *args)
+    finally:
+        _forking_a_worker.active = False
+
+
+def _start_worker(pool: Executor, tool_name: str, timeout: float) -> None:
+    """Start ``pool``'s worker and wait, up to :data:`_WORKER_STARTUP_TIMEOUT_S`, until it is ready.
+
+    A pool starts its worker on the first task, and the worker runs ``_pool_initializer``, which
+    imports the tool registry, before it takes the task. Waiting for a task that does nothing
+    keeps that start-up out of the tool's ``timeout``, which then measures the tool's own work.
+    """
+    try:
+        _submit(pool, _worker_ready).result(timeout=_WORKER_STARTUP_TIMEOUT_S)
+    except FuturesTimeoutError as exc:
+        raise ToolTimeoutError(
+            f"Tool {tool_name!r} did not run: its worker process took more than {_WORKER_STARTUP_TIMEOUT_S:g}s "
+            f"to start. Start-up is timed apart from the tool's {timeout:g}s timeout, which had not begun.",
+            details={"tool_name": tool_name, "timeout": _WORKER_STARTUP_TIMEOUT_S, "stage": "startup"},
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -524,9 +566,11 @@ def safe_execute_tool_call(  # noqa: PLR0913
     tool_name, tool_input:
         Same meaning as :func:`process_improve.tool_spec.execute_tool_call`.
     timeout:
-        Wall-clock seconds. On overrun the runaway worker is force-terminated
+        Wall-clock seconds the tool may run, counted once its worker has
+        started. On overrun the runaway worker is force-terminated
         (``terminate()`` then ``kill()``) so it cannot keep holding a CPU, and
-        :class:`ToolTimeoutError` is raised.
+        :class:`ToolTimeoutError` is raised. The worker's start-up has a
+        separate limit of 60 s.
     max_cells, max_string, max_depth:
         Input-size limits. See :func:`validate_input`.
     memory_mb:
@@ -540,7 +584,8 @@ def safe_execute_tool_call(  # noqa: PLR0913
         memory, and concurrent calls (e.g. from the threaded MCP server)
         never share or tear down each other's workers. A caller-provided
         executor is never recycled or terminated by this function - the
-        caller owns its lifecycle.
+        caller owns its lifecycle, and the start-up of a worker it has not
+        yet started counts against ``timeout``.
 
     Raises
     ------
@@ -549,7 +594,7 @@ def safe_execute_tool_call(  # noqa: PLR0913
         also covers JSON-schema violations (wrong type, out-of-bounds value,
         bad enum, missing required key, or an unknown parameter).
     ToolTimeoutError:
-        Wall-clock overrun.
+        Wall-clock overrun of the tool, or of its worker's start-up.
     ToolMemoryExceededError:
         Worker subprocess died unexpectedly (likely OOM).
     ValueError:
@@ -591,18 +636,16 @@ def safe_execute_tool_call(  # noqa: PLR0913
     # process-global state, reclaimed memory) with no cross-thread coupling,
     # at the same cost as the old create-per-call recycling.
     pool = executor if executor is not None else _create_pool(memory_mb)
-    _forking_a_worker.active = True
     try:
-        future = pool.submit(_worker_run, tool_name, tool_input)
-    finally:
-        _forking_a_worker.active = False
-
-    try:
-        return future.result(timeout=timeout)
+        # Only the private pool: a caller's executor may be started already, and may have
+        # several workers, of which a task that does nothing would start one.
+        if executor is None:
+            _start_worker(pool, tool_name, timeout)
+        return _submit(pool, _worker_run, tool_name, tool_input).result(timeout=timeout)
     except FuturesTimeoutError as exc:
         raise ToolTimeoutError(
             f"Tool {tool_name!r} exceeded {timeout}s timeout",
-            details={"tool_name": tool_name, "timeout": timeout},
+            details={"tool_name": tool_name, "timeout": timeout, "stage": "tool"},
         ) from exc
     except BrokenProcessPool as exc:
         raise ToolMemoryExceededError(

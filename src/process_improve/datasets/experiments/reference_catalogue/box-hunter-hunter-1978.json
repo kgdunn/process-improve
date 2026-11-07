@@ -22727,7 +22727,7 @@
        "key": "reference_scale",
        "printed": "0.123",
        "disagreement": "the scale is 0.1225, the root of 0.240/16; the book's 0.123 takes the rates' residual mean square as 0.242, which the runs do not give (0.240 on 36 degrees of freedom)",
-       "cause": "unexplained"
+       "cause": "source_error"
       }
      ]
     }
