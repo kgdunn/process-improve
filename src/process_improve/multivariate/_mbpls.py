@@ -970,10 +970,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             x_pp = self._scaled_block(name, block)
             x_hat = super_scores @ self.block_loadings_[name].values.T
-            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114).
-            # A model pickled before #1098 left none out.
-            left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
-            residuals_sq = np.where(left_out, 0.0, (x_pp - x_hat) ** 2)
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114)
+            residuals_sq = np.where(self._left_out(name), 0.0, (x_pp - x_hat) ** 2)
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
@@ -1090,11 +1088,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
             w_s = float(self.super_weights_.values[b_idx, a])
-            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114).
-            # A model pickled before #1098 left none out.
-            left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
+            # A column the fit left out is read as missing, NaN, but contributes 0, as in MBPCA, PCA and PLS (#1114)
             terms = deflated[name] * (weights[name] * w_s / sqrt_kb[name]) * row_scale[:, np.newaxis]
-            raw[name] = np.where(left_out, 0.0, terms)
+            raw[name] = np.where(self._left_out(name), 0.0, terms)
 
         raw = _scale_block_contributions(raw, scaling)
         return {
@@ -1523,12 +1519,17 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         nothing observed in the block unless it has a value in one of the block's other columns.
         """
         values = self.preproc_[name].transform(block).to_numpy()
-        # A model pickled before #1098 left no column out
-        left_out = getattr(self, "_unobserved_columns", {}).get(name, False)
         # One memory layout, whatever pandas hands over. A row-major and a column-major block take
         # different BLAS kernels, which round differently, so a row's scores would depend on how
         # its DataFrame was built (pandas 2.3 with numpy 2.2, #1148).
-        return np.ascontiguousarray(np.where(left_out, np.nan, values))
+        return np.ascontiguousarray(np.where(self._left_out(name), np.nan, values))
+
+    def _left_out(self, name: str) -> np.ndarray | bool:
+        """Which columns of a block the fit left out (#1098); a model pickled before then left none out."""
+        return getattr(self, "_unobserved_columns", {}).get(
+            name,
+            False,  # pragma: no mutate - np.where reads a condition of None as False
+        )
 
     def _in_y_units(self, scaled: np.ndarray, index: pd.Index) -> pd.DataFrame:
         """Return predictions in the scaled space on Y's original scale, labelled with its columns.
