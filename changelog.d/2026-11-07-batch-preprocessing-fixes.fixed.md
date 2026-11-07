@@ -17,7 +17,10 @@
   fitted `n - 1` components to `n` batches, which passes through every batch, so every batch had
   the same T² and rounding chose the reference. It now fits at most `n - 2`, so with 3 to 5
   batches, or when the T² screen keeps 5 or fewer, the reference can differ from the one given
-  before. One batch is its own reference; of two, the one of average length comes first. (#1184)
+  before. One batch is its own reference; of two, the one of average length comes first. When the
+  T² screen keeps fewer than 3 batches, only those are candidates, ranked by T²: the batch the
+  screen left out could be returned before, as the one direction of the model ran through it.
+  (#1184)
 - **`f_agemin` and `f_agemax` give NaN for a batch in which a tag has no observed value**, as
   `f_min` and `f_max` do. Under pandas 3 they raised `ValueError`; pandas 2 gave NaN. (#1184)
 - **The `BatchPCA` example runs.** It passed `reference_batch="1"` to batches keyed by integers,
