@@ -1821,3 +1821,29 @@ def test_the_channel_axes_span_the_rows_shown(synthetic_pls_data: tuple[pd.DataF
     span = float(model.prediction_channels_[["preprocessing", "kernel"]].abs().to_numpy()[valid].max())
     layout = model.adaptation_plot(valid=valid).layout
     np.testing.assert_allclose(layout.yaxis.range, [-1.05 * span, 1.05 * span], rtol=1e-15)
+
+
+@pytest.mark.parametrize("estimator", [AdaptivePCA, AdaptivePLS])
+def test_a_column_with_no_observed_value_is_named_and_left_out(
+    estimator: type, synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]
+) -> None:
+    """Named in the family's warning, and a value a new row has in it adds nothing, as in PCA and PLS (#1098, #1149).
+
+    AdaptivePCA left the column out without a word. Both models put the scaled value of a new row
+    in that column into its SPE, and an update moved the column's centre toward it.
+    """
+    X, y = synthetic_pls_data
+    X = X.assign(**{X.columns[2]: np.nan})
+    args = (X,) if estimator is AdaptivePCA else (X, y)
+    with pytest.warns(UserWarning, match=rf"^Block X has columns with no observed values, .*: '{X.columns[2]}'\."):
+        model = estimator(n_components=2).fit(*args)
+    rows = X.iloc[:5].to_numpy()
+    filled = rows.copy()
+    filled[:, 2] = 1e3
+    np.testing.assert_array_equal(model.transform(filled).to_numpy(), model.transform(rows).to_numpy())
+    centre = model.mx_.copy()
+    with_value, without = clone(model).fit(*args), model
+    for row, other in zip(filled, rows, strict=True):
+        got, expected = with_value.update(row), without.update(other)
+        assert (got.spe, got.hotellings_t2) == (expected.spe, expected.hotellings_t2)
+    assert with_value.mx_[2] == centre[2]

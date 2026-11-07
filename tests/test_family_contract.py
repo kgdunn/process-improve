@@ -832,7 +832,6 @@ EDGE_GAPS: dict[tuple[str, str], str] = {
         for case in ("all-missing row", "all-missing column")
         for name in ("OPLS", "BatchPCA", "BatchPLS")
     },
-    ("all-missing column", "AdaptivePCA"): "#1149 aspect 2: leaves the column out without the family's warning",
 }
 
 
