@@ -137,7 +137,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     >>> from process_improve.batch import BatchPCA, load_nylon, resample_to_reference
     >>> batches = load_nylon()
     >>> tags = list(next(iter(batches.values())).columns)
-    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch="1")
+    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
     >>> model = BatchPCA(n_components=3).fit(aligned)
     >>> model.scores_.shape
     (57, 3)

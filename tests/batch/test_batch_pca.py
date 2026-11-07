@@ -1,5 +1,7 @@
 """Tests for BatchPCA: batchwise-unfolded (multiway) PCA on batch data."""
 
+import doctest
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -31,6 +33,14 @@ def _synthetic_good_batches(n_batches: int = 12, n_timesteps: int = 40, *, seed_
             }
         )
     return out
+
+
+@pytest.mark.dataset
+def test_the_class_example_runs() -> None:
+    """The example passed reference_batch="1" where the nylon batches are keyed by integers (#1184)."""
+    [test] = doctest.DocTestFinder(recurse=False).find(BatchPCA, "BatchPCA", globs={})
+    result = doctest.DocTestRunner().run(test)
+    assert (result.failed, result.attempted) == (0, 6)
 
 
 def test_fit_on_real_nylon(aligned_nylon: dict) -> None:
