@@ -388,6 +388,16 @@ function setStatus(text, state = "ok") {
   }
 }
 
+/** Take the status line away at once: what it said no longer holds, and nothing takes its place. */
+function clearStatus() {
+  statusTicket += 1;
+  clearTimeout(statusTimer);
+  const box = $("#status");
+  box.querySelector(".status__text").textContent = "";
+  box.dataset.state = "ok";
+  box.hidden = true;
+}
+
 let toastTimer = null;
 
 /** Say briefly, at the foot of the screen, that something was done: a link or code copied to the clipboard. */
@@ -3266,9 +3276,13 @@ async function analyseRuns() {
   }
   const mine = ++ticket;
   setStatus("Analysing...", "busy");
+  const analysing = statusTicket;
   const request = analysisRequest();
   const reply = await call("api_analyze_runs", request);
-  if (mine !== ticket) return;
+  if (mine !== ticket) {
+    if (statusTicket === analysing) clearStatus(); // taken away (a new study, say), and nothing said since
+    return;
+  }
   state.analysis = reply.ok ? reply.result : null;
   renderAnalysis(reply);
   $("#printed").hidden = true;
