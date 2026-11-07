@@ -237,7 +237,9 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         # near zero too, so the inner matrix is singular in its direction. It adds 0 to T² (#1124):
         # its score is estimated at 0, and the regression runs over the components with spread.
         keep = np.flatnonzero(components_with_spread(np.sqrt(score_variances)))
-        theta = np.diag(np.asarray(score_variances, dtype=float)[keep])
+        theta = np.diag(
+            np.asarray(score_variances, dtype=float)[keep]  # pragma: no mutate - theta only multiplies float arrays
+        )
         p_kept, g_kept = p_obs[:, keep], g_obs[:, keep]
         # Arteaga and Ferrer (2002): t_hat = Theta P*' G* [G*' S** G*]^-1 G*' z*,
         # with S** the covariance of the observed columns in the training data.
