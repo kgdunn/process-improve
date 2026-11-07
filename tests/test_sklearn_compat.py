@@ -29,7 +29,14 @@ from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to a
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils._param_validation import InvalidParameterError, validate_parameter_constraints
 
-from process_improve.batch import BatchMonitor, BatchPCA, BatchPLS
+from process_improve.batch import (
+    BatchFeatureExtractor,
+    BatchMonitor,
+    BatchPCA,
+    BatchPLS,
+    DTWAligner,
+    ResampleAligner,
+)
 from process_improve.multivariate.methods import (
     ASCA,
     CA,
@@ -734,6 +741,12 @@ _EVERY_ESTIMATOR: dict[str, tuple[Callable[[dict], BaseEstimator], Callable[[Bas
         lambda data: BatchMonitor(BatchPCA(n_components=2).fit(data["batches"])),
         lambda model, data: model.fit(data["batches"]),
     ),
+    "ResampleAligner": (lambda _: ResampleAligner(reference_batch=0), lambda model, data: model.fit(data["batches"])),
+    "DTWAligner": (
+        lambda _: DTWAligner(reference_batch=0, settings={"show_progress": False}),
+        lambda model, data: model.fit(data["batches"]),
+    ),
+    "BatchFeatureExtractor": (lambda _: BatchFeatureExtractor(), lambda model, data: model.fit(data["batches"])),
 }
 
 # The settings that count something: components, rounds of an iteration, rows of a window, or B-splines.
@@ -793,12 +806,18 @@ def test_a_count_that_is_a_numpy_integer_is_taken(name: str, param: str) -> None
 
 
 def _declared_settings() -> list:
-    """One case per estimator and setting it declares a constraint for."""
+    """
+    One case per estimator and setting it declares a constraint for.
+
+    A setting declared ``"no_validation"``, as sklearn spells "any value", has no constraint to
+    break: the aligners' ``reference_batch`` may be any key, and fit refuses one that names no batch.
+    """
     data = _every_estimator_data()
     return [
         pytest.param(name, param, id=f"{name}-{param}")
         for name, (make, _) in _EVERY_ESTIMATOR.items()
-        for param in getattr(make(data), "_parameter_constraints", {})
+        for param, constraint in getattr(make(data), "_parameter_constraints", {}).items()
+        if constraint != "no_validation"
     ]
 
 
