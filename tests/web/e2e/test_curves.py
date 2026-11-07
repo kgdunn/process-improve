@@ -36,7 +36,7 @@ def pasted(rows: list[list[float]], runs: list[int] | None = None) -> str:
 def paste_curves(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
     """Describe the curve and paste one for each run of the run sheet, under its run order; return what Run says."""
     reveal(page, "#curves")
-    if not page.locator("#curves").get_attribute("open"):
+    if page.locator("#curves").get_attribute("open") is None:  # an open <details> has the attribute, and it is empty
         page.click("#curves summary")
     columns = headers(page)
     runs = [dict(zip(columns, row, strict=True)) for row in run_sheet(page)]
@@ -79,6 +79,13 @@ def test_the_curves_pasted_in_run_are_drawn_in_learn_and_follow_each_setting_wit
         ends.append(curve_drawn(page)[-1])
     assert ends[1] > ends[0] + 1, "a hotter run rises higher"
     assert page.evaluate("window.__pi.count('api_functional')") == fits, "the page predicts in its own JavaScript"
+
+
+def test_the_curves_can_be_pasted_again_in_the_box_left_open(page):
+    """Once the curves are in, their box stays open, so the reader can paste them again, corrected, in their place."""
+    paste_curves(page)
+    assert page.locator("#curves").get_attribute("open") is not None
+    assert paste_curves(page) == "Curves for 15 of 15 runs, each read at 6 points along Time."
 
 
 def test_a_target_curve_moves_the_panel_to_the_settings_that_come_closest(page):
