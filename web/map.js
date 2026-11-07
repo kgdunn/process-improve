@@ -441,14 +441,13 @@ document.getElementById("legend").addEventListener("click", ev => {
   document.querySelector(`#legend button[data-fam="${k}"]`).focus();   // keep the keyboard where it was
   cy.batch(applyHidden); refresh(true);
 });
-const labelsButton = document.getElementById("labels");
-const showLabelState = () => labelsButton.setAttribute("aria-pressed", String(labelsOn));
-labelsButton.addEventListener("click", () => {
-  labelsOn = !labelsOn;
+const labelsSwitch = document.getElementById("labels");
+labelsSwitch.checked = labelsOn;
+labelsSwitch.addEventListener("change", () => {
+  labelsOn = labelsSwitch.checked;
   try { localStorage.setItem("factorial-map-labels", labelsOn ? "on" : "off"); } catch {}
-  showLabelState(); refresh(true);
+  refresh(true);
 });
-showLabelState();
 const verbsSwitch = document.getElementById("verbs");
 verbsSwitch.checked = verbsOn;
 verbsSwitch.addEventListener("change", () => {

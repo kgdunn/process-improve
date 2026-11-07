@@ -216,12 +216,12 @@ def test_a_drag_that_starts_on_a_topic_pans_the_map(context, site):
 def test_term_names_can_be_switched_off_and_the_choice_is_remembered(context, site):
     page = _open(context, site)
     _go(page, "resolution")
-    page.click("#labels")
+    page.click(".map-names")
     _settled(page)
     assert page.evaluate(STATE)["labels"] == 1, "only the selected term keeps its name"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
-    assert page.get_attribute("#labels", "aria-pressed") == "false"
+    assert not page.is_checked("#labels")
 
 
 def test_a_kind_of_term_can_be_hidden_and_the_choice_is_remembered(context, site):
@@ -286,13 +286,24 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
-def test_link_labels_start_off_beside_the_search_and_read_each_lit_link_s_verb(context, site):
+def test_the_appearance_switches_sit_by_the_search_and_zoom_stays_below_the_map(context, site):
     page = _open(context, site)
-    search, switch = (page.locator(s).bounding_box() for s in (".map-search input", ".map-verbs"))
-    assert switch["x"] >= search["x"] + search["width"], "the switch sits in the space to the right of the search"
-    assert switch["y"] < search["y"] + search["height"], "on the search's row"
-    assert search["y"] < switch["y"] + switch["height"], "on the search's row"
-    assert not page.is_checked("#verbs"), "off until the reader turns it on"
+    search, names, verbs = (page.locator(s).bounding_box() for s in (".map-search input", ".map-names", ".map-verbs"))
+    assert names["y"] == pytest.approx(verbs["y"], abs=2), "the two switches share a row"
+    assert names["x"] + names["width"] <= verbs["x"], "term names, then link labels"
+    if page.viewport_size["width"] > 600:
+        assert names["x"] >= search["x"] + search["width"], "in the space to the right of the search"
+        assert names["y"] < search["y"] + search["height"], "on the search's row"
+    else:
+        assert names["y"] >= search["y"] + search["height"], "on a phone, on the row below the search"
+    assert page.is_checked("#labels"), "term names start on"
+    assert not page.is_checked("#verbs"), "link labels start off"
+    assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site):
+    page = _open(context, site)
     labelled = """() => window.conceptMap.cy.edges('.link').filter((e) => e.visible() && e.style('label'))
                     .map((e) => [e.hasClass('hl'), e.style('label'), e.data('verb'), e.style('target-arrow-shape')])"""
     _go(page, "full_factorial")
