@@ -11,6 +11,7 @@ sibling submodules, so it sits at the base of the dependency graph.
 from __future__ import annotations
 
 import functools
+import inspect
 import warnings
 from collections.abc import Callable
 from typing import Any, Literal, TypeAlias, cast
