@@ -211,3 +211,9 @@ def test_row_lengths_are_exact_and_finite_where_squares_overflow() -> None:
     np.testing.assert_array_equal(row_norms(ordinary), np.linalg.norm(ordinary, axis=1))
     far = np.array([[3e160, -4e160], [3e300, 4e300], [0.0, 0.0], [3e-170, -4e-170]])
     np.testing.assert_allclose(row_norms(far), [5e160, 5e300, 0.0, 5e-170], rtol=1e-15)
+
+
+def test_row_lengths_near_the_largest_float_and_of_rows_with_no_columns() -> None:
+    """A row of 5e307, above 2**1022, keeps its length; a block with no columns gives every row a length of 0."""
+    np.testing.assert_array_equal(row_norms(np.array([[5e307, 0.0], [0.0, -5e307]])), [5e307, 5e307])
+    np.testing.assert_array_equal(row_norms(np.zeros((3, 0))), np.linalg.norm(np.zeros((3, 0)), axis=1))

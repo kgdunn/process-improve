@@ -69,7 +69,8 @@ def _fitted(name: str) -> tuple[object, object, pd.DataFrame]:
         for i, (a, b, c) in enumerate(RNG.standard_normal((15, 3)))
     }
     model = BatchPCA(n_components=2).fit(batches)
-    return model, batches, model.hotellings_t2_
+    # diagnose gives the rows in the order of the batches; the fitted rows are sorted by batch id (#1184).
+    return model, batches, model.hotellings_t2_.loc[list(batches)]
 
 
 #: Every estimator with a ``diagnose``, and what its ``hotellings_t2`` held before #983.

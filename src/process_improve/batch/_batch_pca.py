@@ -137,7 +137,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     >>> from process_improve.batch import BatchPCA, load_nylon, resample_to_reference
     >>> batches = load_nylon()
     >>> tags = list(next(iter(batches.values())).columns)
-    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch="1")
+    >>> aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
     >>> model = BatchPCA(n_components=3).fit(aligned)
     >>> model.scores_.shape
     (57, 3)
@@ -331,9 +331,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         Returns
         -------
         pd.DataFrame of shape (n_new_batches, n_components)
-            Batch-level scores, indexed by batch identifier.
+            Batch-level scores, indexed by batch identifier, in the order of ``X``.
         """
-        return self._pca.transform(self._scaled_wide(X, initial_conditions))
+        # In the caller's order, as BatchPLS gives it: unfolding sorts the rows by batch id (#1184).
+        return self._pca.transform(self._scaled_wide(X, initial_conditions).reindex(list(X)))
 
     def fit_transform(
         self,
@@ -342,9 +343,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         *,
         initial_conditions: pd.DataFrame | None = None,
     ) -> pd.DataFrame:
-        """Fit the model and return the training batch scores."""
+        """Fit the model and return the training batch scores, in the order of ``X``, as :meth:`transform` does."""
         self.fit(X, y, initial_conditions=initial_conditions)
-        return self.scores_
+        return self.scores_.reindex(list(X))
 
     def diagnose(
         self,
@@ -366,14 +367,14 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         Returns
         -------
         result : sklearn.utils.Bunch
-            With keys ``scores`` (DataFrame, one row per batch),
+            With keys ``scores`` (DataFrame, one row per batch, in the order of ``X``),
             ``cumulative_hotellings_t2`` (DataFrame, cumulative per component,
             as in ``hotellings_t2_``), and ``spe`` (Series). Compare against
             :meth:`hotellings_t2_limit` with ``judged_rows="new"`` and
             :meth:`spe_limit` to flag abnormal batches. ``hotellings_t2``, the
             same DataFrame, is deprecated since 2.4.0 and is removed in 3.0.
         """
-        result = self._pca.diagnose(self._scaled_wide(X, initial_conditions))
+        result = self._pca.diagnose(self._scaled_wide(X, initial_conditions).reindex(list(X)))
         return DiagnoseResult("batch.BatchPCA", **dict(result))
 
     def predict_online(
