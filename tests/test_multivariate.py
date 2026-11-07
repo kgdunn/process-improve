@@ -44,7 +44,7 @@ from sklearn.utils import Bunch
 
 from process_improve.multivariate._common import _align_to_fit_features, _nz
 from process_improve.multivariate._cv_criteria import _CompareSettings, _PseudoValidationSettings
-from process_improve.multivariate._diagnostics import cumulative_block_t2
+from process_improve.multivariate._diagnostics import cumulative_block_t2, t2_precision
 from process_improve.multivariate._impute import impute_low_rank
 from process_improve.multivariate._pca import _leverage_corrected_press, _low_rank_reconstruction, _pca_ekf_press
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
@@ -75,8 +75,10 @@ from process_improve.multivariate.methods import (
     hotellings_t2_limit,
     internal_pls_nipals_fit_one_pc,
     make_tpls_scorer,
+    meda,
     nan_to_zeros,
     observation_contributions,
+    omeda,
     predictions_vs_observed_plot,
     project_variables,
     pseudo_validation_set,
@@ -1828,6 +1830,36 @@ def test_pca_select_n_components_refuses_data_too_small_for_any_component() -> N
         PCA.select_n_components(np.ones((1, 3)))
 
 
+@pytest.mark.parametrize(
+    ("max_components", "message"),
+    [(0, r"^max_components must be >= 1; got 0\.$"), (2.5, r"^max_components must be a whole number; got 2\.5\.$")],
+)
+def test_pca_select_n_components_refuses_a_max_components_that_is_not_a_count(
+    max_components: float, message: str
+) -> None:
+    """A count below 1, or not whole, is refused by name in the family's words, before anything is fitted (#1144)."""
+    with pytest.raises(ValueError, match=message):
+        PCA.select_n_components(np.arange(12.0).reshape(4, 3) ** 2, max_components=max_components)
+
+
+def test_pca_select_n_components_reads_whether_each_column_varies_on_its_own() -> None:
+    """A flat column inside the range of the others has no Q2, without in-fold scaling too (#1070).
+
+    Without in-fold scaling the column mean is recomputed from the filled matrix each pass, so the
+    flat column's held-out cells come back off by rounding: its PRESS is about 1e-31, where its null
+    sum of squares is 0. Its value, 0.1, lies inside the range of the other columns, so only a
+    column-by-column reading of which columns vary leaves its Q2 undefined rather than ``-inf``.
+    """
+    rng = np.random.default_rng(21)
+    scaled = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((40, 2)) @ rng.standard_normal((2, 5))))
+    X = scaled + 0.3 * rng.standard_normal((40, 5))
+    X["flat"] = 0.1
+    with pytest.warns(SpecificationWarning, match="leaks"):
+        result = PCA.select_n_components(X, max_components=3, scale_inside_folds=False, random_state=0)
+    assert result.q2_per_variable["flat"].isna().all()
+    assert np.isfinite(result.q2_per_variable.drop(columns="flat").to_numpy()).all()
+
+
 def test_pca_select_n_components_refuses_an_all_nan_press(monkeypatch: pytest.MonkeyPatch) -> None:
     """A scheme that scores no component count says so rather than recommending one."""
     from process_improve.multivariate import _pca
@@ -2361,6 +2393,24 @@ def test_cumulative_block_t2_by_hand(scores: list, expected: list) -> None:
     t2 = cumulative_block_t2(np.array(scores))
     np.testing.assert_allclose(t2[:, : expected.shape[1]], expected, rtol=1e-14)
     np.testing.assert_array_equal(t2[:, -1], t2[:, expected.shape[1] - 1])
+
+
+def test_t2_precision_by_hand() -> None:
+    """The inverse of the block of the components with spread, and 0 for a component without (#1124).
+
+    The third component, of sd 1e-20 against 2, is left out, so its row and column of ``S`` are not
+    read. The block ``[[4, 1], [1, 2]]`` inverts to ``[[2, -1], [-1, 4]] / 7``, in floats, although
+    ``S`` holds integers.
+    """
+    covariance = np.array([[4, 1, 5], [1, 2, 5], [5, 5, 9]])
+    precision = t2_precision(covariance, np.array([2.0, 1.5, 1e-20]), what="score covariance")
+    np.testing.assert_allclose(precision, [[2 / 7, -1 / 7, 0.0], [-1 / 7, 4 / 7, 0.0], [0.0, 0.0, 0.0]], rtol=1e-15)
+
+
+def test_t2_precision_names_the_matrix_whose_block_is_singular() -> None:
+    """Two components with spread whose block of ``S`` is singular: the error says which matrix it is."""
+    with pytest.raises(np.linalg.LinAlgError, match=r"^reference score scatter is singular or ill-conditioned"):
+        t2_precision(np.ones((2, 2)), np.ones(2), what="reference score scatter")
 
 
 def test_pca_detect_outliers() -> None:
@@ -8218,6 +8268,18 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     assert ratio.attrs["response"] == "y"
 
 
+def test_target_projection_of_as_many_rows_as_features_regresses_each_feature_on_the_scores() -> None:
+    """A square X, whose shape cannot say which regression is meant: ``p = X't / t't``, one loading per feature.
+
+    With ``w = (0.6, 0.8)`` the two rows give ``t = (0.6, 0.4)`` and ``t't = 0.52``, so
+    ``p = (1.4, -0.4) / 0.52``.
+    """
+    square = pd.DataFrame([[1.0, 0.0], [2.0, -1.0]], index=["r1", "r2"], columns=["a", "b"])
+    tp = target_projection(_two_feature_tp_model([3.0, 4.0]), square)
+    np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.4], rtol=1e-14)
+    np.testing.assert_allclose(tp.loadings.to_numpy(), [1.4 / 0.52, -0.4 / 0.52], rtol=1e-14)
+
+
 def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
     """A missing cell is skipped, as NIPALS skips it, rather than making every ratio NaN and then 0 (#1114).
 
@@ -8499,6 +8561,23 @@ def test_score_and_group_contributions_by_hand() -> None:
     pd.testing.assert_series_equal(shift, pd.Series([0.0, 2.0], index=["a", "b"], name="group_contributions"))
     weights = pd.Series([0.5, -1.0, 0.5], dtype=object)
     pd.testing.assert_series_equal(group_contributions(model, X.astype(object), weights=weights, component=2), shift)
+
+
+def test_meda_and_omeda_by_hand_read_object_data_as_numbers() -> None:
+    """With the identity as loadings the model reproduces everything, so MEDA is ``S_jk |S_jk| / (S_jj S_kk)``.
+
+    ``S = X'X`` is ``[[10, 14], [14, 21]]``, so the off-diagonal entry is ``196 / 210 = 14/15``. oMEDA of
+    r1 and r3 against r2 has the dummy ``(1, -1, 1)``, so ``X'd = (4, 5)`` and the values are
+    ``(16, 25) / sqrt(3)``. Data held as Python objects, which the model hands on as they are, give
+    the same floats.
+    """
+    model = _identity_model(2)
+    X = pd.DataFrame([[1.0, 2.0], [0.0, 1.0], [3.0, 4.0]], index=["r1", "r2", "r3"], columns=["a", "b"])
+    expected = pd.DataFrame([[1.0, 14 / 15], [14 / 15, 1.0]], index=X.columns, columns=X.columns)
+    shift = pd.Series([16.0, 25.0], index=X.columns, name="omeda") / np.sqrt(3.0)
+    for data in (X, X.astype(object)):
+        pd.testing.assert_frame_equal(meda(model, data), expected, rtol=1e-15)
+        pd.testing.assert_series_equal(omeda(model, data, group=["r1", "r3"], reference=["r2"]), shift, rtol=1e-15)
 
 
 @pytest.mark.parametrize(

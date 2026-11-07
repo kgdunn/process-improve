@@ -211,6 +211,14 @@ def test_the_entry_points_use_the_limit_they_are_asked_for(pca: PCA) -> None:
         assert "hotellings_t2_limit_note" not in record
 
 
+def test_outlier_records_carry_the_limit_at_the_confidence_level_asked_for(pca: PCA) -> None:
+    """``conf_level`` reaches the T² limit outlier detection flags with, as ``judged_rows`` does."""
+    records = pca.detect_outliers(conf_level=0.9, judged_rows="fitted")
+    assert records
+    limit = beta_limit_by_hand(0.9, 3, 25)
+    assert [record["hotellings_t2_limit"] for record in records] == pytest.approx([limit] * len(records))
+
+
 def test_outlier_records_carry_the_warning_text_under_the_default(pca: PCA) -> None:
     """A caller that reads the records rather than the warnings finds the same text in each of them."""
     with pytest.warns(FutureWarning) as caught:

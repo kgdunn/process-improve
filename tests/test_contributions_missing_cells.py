@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.multivariate import PCA, PLS, MCUVScaler
+from process_improve.multivariate import PCA, PLS, MCUVScaler, SpecificationWarning
 from process_improve.multivariate._diagnostics import (
     _complete_rows_apart,
     group_contributions,
@@ -179,6 +181,34 @@ def test_a_model_without_training_residuals_still_gets_contributions_for_missing
     loadings = model.loadings_.to_numpy()
     expected = complete - complete @ loadings @ loadings.T
     np.testing.assert_allclose(residuals.dropna().to_numpy(), expected, rtol=1e-9, atol=1e-12)
+
+
+def test_an_adaptive_model_s_contributions_take_its_own_estimator_by_default(
+    data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """AdaptivePCA scores a row with a missing cell by "scp", so its contributions default to "scp" too (#1144).
+
+    "tsr" would need the training residuals, which an adaptive model does not keep, and would warn.
+    """
+    X, _ = data
+    model = AdaptivePCA(n_components=2).fit(X.dropna())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        by_default = t2_contributions(model, X)
+    pd.testing.assert_frame_equal(by_default, t2_contributions(model, X, method="scp"))
+
+
+def test_a_row_too_sparse_for_its_scores_gets_nan_contributions_and_a_warning(
+    pca: PCA, data: tuple[pd.DataFrame, pd.DataFrame]
+) -> None:
+    """One observed value cannot give two scores: that row is NaN, as in ``diagnose``, and the other rows are scored."""
+    X, _ = data
+    rows = X.loc[["r0", "r1"]].copy()
+    rows.iloc[1, 1:] = np.nan
+    with pytest.warns(SpecificationWarning, match=r"^1 row with missing cells has too few observed values"):
+        contributions = t2_contributions(pca, rows)
+    assert contributions.loc["r1"].isna().all()
+    pd.testing.assert_frame_equal(contributions.loc[["r0"]], t2_contributions(pca, X.loc[["r0"]]))
 
 
 def test_complete_rows_go_to_the_product_apart_from_the_rest() -> None:

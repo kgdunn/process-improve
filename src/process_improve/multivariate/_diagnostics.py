@@ -599,8 +599,9 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
         P = np.asarray(model.x_loadings_ if is_pls else model.loadings_)
         R = np.asarray(model.direct_weights_ if is_pls else model.loadings_)
     # An array's columns are taken by position, labelled as fitted, as they always were here: a frame
-    # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names.
-    return model._scaled_rows(X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)), R, P
+    # lets _scaled_rows do that without sklearn's warning that the rows carry no feature names. A frame
+    # passes through pd.DataFrame with its labels and values as they are.
+    return model._scaled_rows(pd.DataFrame(X)), R, P
 
 
 def _complete_rows_apart(X_values: np.ndarray, rows_product: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
@@ -644,12 +645,18 @@ def _scores_and_guides(
         R,
         np.asarray(model.explained_variance_),
         X_values,
-        method=getattr(model, "_MISSING_CELL_ESTIMATOR", "tsr") if method is None else method,
+        method=getattr(
+            model,
+            "_MISSING_CELL_ESTIMATOR",
+            "tsr",  # pragma: no mutate - every estimator of the package sets it, so this default is not read
+        )
+        if method is None
+        else method,
         ridge=ridge,
         # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
         x_weights=np.asarray(model.x_weights_) if hasattr(model, "direct_weights_") else None,
         x_residuals=getattr(model, "_x_residuals", None),
-        singular="nan",
+        singular="nan",  # pragma: no mutate - project_rows reads any value but "raise" as "nan"
         with_guides=True,
     )
     return estimated.scores, estimated.guides

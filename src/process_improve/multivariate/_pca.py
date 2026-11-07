@@ -1424,7 +1424,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
         # A column the fit left out (#1098) is read at 0, so it adds nothing to a score or an SPE, and
         # a NaN there does not make every score NaN. A model pickled before then left none out.
-        X_arr = np.where(getattr(self, "_unobserved_columns", False), 0.0, X_arr)
+        X_arr = np.where(
+            getattr(
+                self,
+                "_unobserved_columns",
+                False,  # pragma: no mutate - np.where reads a condition of None as False
+            ),
+            0.0,
+            X_arr,
+        )
         # pandas numbers the rows of an array from 0 when given no index.
         return X_arr, X.index if isinstance(X, pd.DataFrame) else None
 
@@ -2057,7 +2065,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("No components can be evaluated; the data is too small.")
 
         component_index = pd.Index(range(1, max_components + 1), name="n_components")
-        X_arr = np.asarray(X, dtype=float)
+        X_arr = np.asarray(
+            X,
+            dtype=float,  # pragma: no mutate - _float_frame has made X a frame of floats
+        )
         # The number of folds of "ekf", of column groups of "ckf", and of row and column
         # groups of "ek". A splitter object is not read: the default is used.
         n_folds = cv if isinstance(cv, int) else 5
@@ -2136,7 +2147,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # observed values are all equal, in any units, as MCUVScaler reads one: its
         # null sum of squares is then 0, or rounding where it was centred at a mean.
         # A floor of epsqrt on that sum took every column in small units for one (#1070).
-        varies = np.fmax.reduce(X_arr, axis=0) > np.fmin.reduce(X_arr, axis=0)  # fmax and fmin skip NaN
+        varies = np.fmax.reduce(X_arr) > np.fmin.reduce(X_arr)  # one per column: reduce runs over axis 0; both skip NaN
         null_ss = null_model_ss if varies.any() else np.nan
         q2 = (1.0 - press / null_ss).rename("Q2")
         column_null_ss = np.where(varies, per_column_null, np.nan)
