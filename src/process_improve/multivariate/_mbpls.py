@@ -886,13 +886,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 vip_b = np.zeros(self.block_widths_[name])
             self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
 
-        # Super VIP_b = sqrt(B * sum_a(r2_y_a * w_super[b,a]^2) / sum_a r2_y_a)
+        # Super VIP_b = sqrt(B * sum_a(r2_y_a * w_super[b,a]^2) / sum_a r2_y_a). fit refuses a Y that X cannot
+        # explain, so the first component explains some of it and the sum is above 0, as PLS's vip takes it.
         n_blocks = len(self.block_names_)
-        if np.sum(r2_y_per_a) > 0:
-            ws = self.super_weights_.values  # (B, A)
-            super_vip = np.sqrt(n_blocks * np.sum(r2_y_per_a * ws**2, axis=1) / np.sum(r2_y_per_a))
-        else:
-            super_vip = np.zeros(n_blocks)
+        ws = self.super_weights_.values  # (B, A)
+        super_vip = np.sqrt(n_blocks * np.sum(r2_y_per_a * ws**2, axis=1) / np.sum(r2_y_per_a))
         self.super_vip_ = pd.Series(super_vip, index=self.block_names_, name="Super VIP")
 
     def _store_diagnostics(self, work: _MBPLSArrays) -> None:
