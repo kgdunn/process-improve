@@ -195,6 +195,20 @@ def test_the_inversion_probe_reads_0_for_a_centre_and_1_for_a_spread_a_column_do
     np.testing.assert_allclose(probe.y_scale, np.where(y_spread > 0, y_spread, 1.0), rtol=1e-12)
 
 
+def test_the_inversion_probe_reads_each_lots_centre_and_spread_by_its_name() -> None:
+    """F may list a material's lots in another order than D does: the probe reads each lot's centre by its name."""
+    d_matrix, blocks = _blocks()
+    blocks["F"]["A"] = blocks["F"]["A"][LOTS["A"][::-1]]
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(blocks))
+
+    probe = model._inversion_probe(0.9)
+
+    assert probe.names[:4] == tuple(LOTS["A"])
+    inputs = pd.concat([*blocks["F"].values(), blocks["Z"]["Conditions"]], axis=1)[list(probe.names)]
+    np.testing.assert_allclose(probe.centre, inputs.mean(), rtol=1e-12)
+    np.testing.assert_allclose(probe.spread, inputs.std(), rtol=1e-12)
+
+
 def test_the_inversion_probe_diagnoses_rows_of_its_inputs_as_the_model_does() -> None:
     model, blocks = _fitted()
     rows = _inputs(blocks, slice(2, 7))
