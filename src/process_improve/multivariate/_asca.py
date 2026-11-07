@@ -21,6 +21,8 @@ Two variants ride on the same decomposition:
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 
 import numpy as np
@@ -40,7 +42,7 @@ from process_improve.experiments._lm import (
 )
 from process_improve.univariate.metrics import benjamini_hochberg
 
-from ._common import DataMatrix, _model_method, epsqrt, user_stacklevel
+from ._common import DataMatrix, _model_method, check_whole, epsqrt, refuse_empty_block, user_stacklevel
 from ._pca import PCA
 from ._preprocessing import MCUVScaler
 from .plots import effect_summary_plot as _effect_summary_plot
@@ -206,6 +208,8 @@ class ASCA(BaseEstimator):
     # `help` and `inspect.signature` stay accurate and a subclass can override it.
     effect_summary_plot = _model_method(_effect_summary_plot)
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+
     def __init__(
         self,
         n_components: int = 2,
@@ -244,6 +248,8 @@ class ASCA(BaseEstimator):
             If ``X`` and ``design`` disagree on the number of rows, if either holds
             missing values, or if a factor has only one level (it can carry no effect).
         """
+        self._validate_params()
+        refuse_empty_block(X, "X")
         X, design = self._validated(X, design)
         self.feature_names_in_ = np.asarray(X.columns)
         # MCUVScaler's centre and scale: a column is constant when its values are all
@@ -407,6 +413,7 @@ class ASCA(BaseEstimator):
         not repeated: the statistic is the sum of squares of the effect matrix, which the
         decomposition produces directly.
         """
+        check_whole("n_permutations", n_permutations)
         rng = check_random_state(random_state)
         design_array = self._design_array
         pvalues = {}
@@ -515,6 +522,7 @@ class ASCA(BaseEstimator):
         if term not in self.terms_:
             msg = f"{term!r} is not a fitted term; choose one of {self.terms_}."
             raise ValueError(msg)
+        check_whole("n_permutations", n_permutations)
 
         rng = check_random_state(random_state)
         per_variable = (self.effect_matrices_[term].to_numpy() ** 2).sum(axis=0)

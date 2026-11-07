@@ -26,12 +26,17 @@ from ._common import (
     DiagnoseResult,
     SpecificationWarning,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     check_at_least_one,
+    check_x_varies,
+    constant_columns,
     epsqrt,
     informative_widths,
+    refuse_empty_block,
     resolve_loop_settings,
+    text_table,
     unobserved_columns,
     user_stacklevel,
 )
@@ -58,6 +63,7 @@ def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
     for name, block in X.items():
         if not isinstance(block, pd.DataFrame):
             raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
+        refuse_empty_block(block, f'X["{name}"]')
     names = list(X)
     n_samples = X[names[0]].shape[0]
     for name in names:
@@ -514,9 +520,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             index (and row count). Each block is preprocessed independently.
         y : None
             Ignored; accepted so the transformer plugs into a sklearn Pipeline.
+
+        Raises
+        ------
+        NotEnoughVarianceError
+            If every column of every block is constant or has no observed value, as across the
+            family (#1144). A block with no variance beside one that varies is fitted with zero
+            weight: its block scores, loadings and contributions are 0, and a warning names it.
         """
         check_at_least_one("n_components", self.n_components)
         _validate_blocks(X)
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
@@ -530,7 +544,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             estimator_name="MBPCA",
         )
 
-        x_blocks_pp = self._preprocess(X)
+        x_blocks_pp = self._preprocess(X)  # refuses a block of fewer than two rows
+        # An X in which nothing varies tells no row apart: refused, as across the family, before its columns are named
+        check_x_varies([X[name] for name in self.block_names_], explains_y=False)
+        for name in self.block_names_:
+            constant_columns(X[name], f'X["{name}"]', self)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPCALoopContext(
             algo=algo,
@@ -1053,14 +1071,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         """Format a short text summary of per-block R²X, iterations and timing."""
         check_is_fitted(self, "super_scores_")
         rows: list[str] = [f"MBPCA model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)"]
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_)
-        rows.append(header)
-        rows.append("-" * len(header))
         src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-        for a in range(self.n_components_):
-            cells = [f"{a + 1:>3d}"]
-            cells.extend(f"{src.loc[name].iloc[a]:>9.4f}" for name in self.block_names_)
-            rows.append(" | ".join(cells))
+        header = ["PC", *(f"R²X[{name}]" for name in self.block_names_)]
+        body = [
+            [str(a + 1), *(f"{src.loc[name].iloc[a]:.4f}" for name in self.block_names_)]
+            for a in range(self.n_components_)
+        ]
+        rows.extend(text_table(header, body))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")

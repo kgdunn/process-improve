@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import re
+import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -17,7 +18,17 @@ import plotly.graph_objects as go
 import pytest
 
 from process_improve.multivariate._limits import spe_calculation
-from process_improve.multivariate.methods import MBPCA, MBPLS, SpecificationWarning, randomization_test_mbpls
+from process_improve.multivariate.methods import (
+    MBPCA,
+    MBPLS,
+    OPLS,
+    PLS,
+    PLSDA,
+    PRM,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    randomization_test_mbpls,
+)
 
 MultiblockModel = MBPCA | MBPLS
 
@@ -268,6 +279,36 @@ def test_display_results_prints_the_iterations_as_integers(cls: type[MultiblockM
     assert re.fullmatch(r"  Iterations per PC: \[\d+, \d+\]", lines[-2]), lines[-2]
 
 
+@pytest.mark.parametrize("cls", [MBPCA, MBPLS])
+@pytest.mark.parametrize("show_cumulative", [True, False])
+def test_display_results_lines_up_each_value_under_its_header(
+    cls: type[MultiblockModel], show_cumulative: bool
+) -> None:
+    """#1083: each value ends where its header ends, and reads back as the fitted R².
+
+    The headers were as wide as their text and the values nine characters wide, so with a
+    block name of any other length the columns drifted away from their headers.
+    """
+    blocks, y = _blocks()
+    blocks = {"a_long_block_name": blocks["a"], "b": blocks["b"]}
+    model = _fit(cls, blocks, y)
+    lines = model.display_results(show_cumulative=show_cumulative).splitlines()
+    header, rule, *rows = lines[1:5]
+    assert rule == "  " + "-" * (len(header) - 2)
+    right_edges = [[match.end() for match in re.finditer(r"\S+", line)] for line in (header, *rows)]
+    assert right_edges[1:] == [right_edges[0]] * len(rows)
+
+    r2x = model.r2_x_per_block_cumulative_ if show_cumulative else model.r2_x_per_block_per_component_
+    for component, row in enumerate(rows, start=1):
+        cells = dict(zip(header.split(" | "), row.split(" | "), strict=True))
+        expected = {"PC": str(component), **{f"R²X[{name}]": f"{r2x.loc[name, component]:.4f}" for name in blocks}}
+        if cls is MBPLS:
+            r2y = model.r2_y_cumulative_ if show_cumulative else model.r2_y_per_component_
+            expected["R²Y"] = f"{r2y.loc[component]:.4f}"
+        assert {label.strip(): value.strip() for label, value in cells.items()} == expected
+    assert lines[5] == ""
+
+
 def _assert_same(after: object, before: object) -> None:
     """Assert two diagnose results, or parts of them, equal: frames, series, and dicts of either."""
     if isinstance(before, dict):
@@ -339,23 +380,41 @@ def test_mbpls_accepts_y_as_an_array() -> None:
 
 
 def test_mbpls_refuses_a_y_of_another_height() -> None:
-    """Y must have one row per row of the X-blocks."""
+    """Y must have one row per row of the X-blocks, in the words the family uses (#1114)."""
     blocks, y = _blocks()
-    with pytest.raises(ValueError, match=r"^y has 9 rows; expected 10 to match X-blocks\.$"):
+    message = r"^The X and Y arrays must have the same number of rows: X has 10 and Y has 9\.$"
+    with pytest.raises(ValueError, match=message):
         MBPLS(n_components=2).fit(blocks, y.iloc[:9])
 
 
-def test_mbpls_super_vip_is_zero_when_x_explains_nothing() -> None:
-    """With nothing in X to explain Y by, R2Y is 0 and the super VIP is zero rather than NaN.
+@pytest.mark.parametrize("name", ["PLS", "PLSDA", "PRM", "OPLS", "MBPLS-dense", "MBPLS-nipals"])
+def test_a_y_uncorrelated_with_every_column_of_x_is_refused_across_the_family(name: str) -> None:
+    """Y orthogonal to every column of X leaves no first component, so the fit is refused, as a constant Y is (#1144).
 
-    The columns of a 2^4 design are exactly orthogonal, so blocks of three of them have nothing to
-    explain the fourth by, and every weight is 0. A Y with nothing to explain is refused (#1075), and
-    so are blocks of constants (#1128).
+    The columns of a 2^4 design are exactly orthogonal, so three of them have nothing to explain the
+    fourth by. PLS, PLSDA, PRM and OPLS raised a ``LinAlgError`` that blamed collinear columns, after
+    numpy's warnings of a division by 0; MBPLS fitted every weight 0, and predicted NaN for every new
+    row. Unscaled, the same data are refused in the same words.
     """
     design = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("abcy"))
-    model = MBPLS(n_components=2).fit({"ab": design[["a", "b"]], "c": design[["c"]]}, design[["y"]])
-    np.testing.assert_array_equal(model.r2_y_cumulative_.to_numpy(), [0.0, 0.0])
-    np.testing.assert_array_equal(model.super_vip_.to_numpy(), [0.0, 0.0])
+    X, y = design[["a", "b", "c"]], design[["y"]] * 2.0 + 5.0
+    fits: dict[str, Callable[[], object]] = {
+        "PLS": lambda: PLS(n_components=2).fit(X, y),
+        "PLSDA": lambda: PLSDA(n_components=2).fit(X, np.where(y["y"] > 5.0, "high", "low")),
+        "PRM": lambda: PRM(n_components=2).fit(X, y),
+        "OPLS": lambda: OPLS(n_orthogonal_components=1).fit(X, y),
+        "MBPLS-dense": lambda: MBPLS(n_components=2).fit({"ab": X[["a", "b"]], "c": X[["c"]]}, y),
+        "MBPLS-nipals": lambda: MBPLS(n_components=2, algorithm="nipals").fit({"ab": X[["a", "b"]], "c": X[["c"]]}, y),
+    }
+    message = r"^There is nothing in X to explain Y by: Y is uncorrelated with every column of X\.$"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with pytest.raises(NotEnoughVarianceError, match=message):
+            fits[name]()
+        if name in ("PLS", "OPLS"):
+            unscaled = {"PLS": PLS(n_components=1, scale=False), "OPLS": OPLS(n_orthogonal_components=0, scale=False)}
+            with pytest.raises(NotEnoughVarianceError, match=message):
+                unscaled[name].fit(X, y - 5.0)
 
 
 def test_mbpls_select_n_components_takes_a_generator_as_random_state() -> None:

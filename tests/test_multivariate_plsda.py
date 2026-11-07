@@ -844,7 +844,7 @@ def test_plsda_scores_and_rates_on_held_out_rows_by_hand() -> None:
     )
     assert held_out.accuracy == pytest.approx(a_hits, abs=1e-15)
     # One row against two labels: refused, not truncated to the one row.
-    with pytest.raises(ValueError, match="zip"):
+    with pytest.raises(ValueError, match=r"^X has 1 rows but y has 2 labels\.$"):
         model.confusion(X.iloc[:1], labels[:2])
 
 

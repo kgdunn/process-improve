@@ -35,15 +35,22 @@ from ._common import (
     SpecificationWarning,
     _equal_weight_r2_total,
     _nz,
+    _own_axes,
     _rows_with_data,
     _scale_block_contributions,
     _select_n_components,
     check_at_least_one,
+    check_response_block,
     check_variance_left,
+    check_whole,
+    check_x_varies,
+    constant_columns,
     epsqrt,
     informative_widths,
     largest_ssq_column,
+    refuse_empty_block,
     resolve_loop_settings,
+    text_table,
     unobserved_columns,
     user_stacklevel,
     y_is_exhausted,
@@ -51,6 +58,7 @@ from ._common import (
 )
 from ._diagnostics import _select_rows, _t2_score_sd, cumulative_block_t2
 from ._limits import spe_calculation
+from ._mbpca import _validate_blocks
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
 
@@ -119,23 +127,11 @@ def _pooled_divisor(
 
 def _validate_fit_arguments(X: dict[str, pd.DataFrame], y: pd.DataFrame) -> pd.DataFrame:
     """Check the shapes and types ``fit`` was handed, and return ``y`` as a DataFrame."""
-    if not isinstance(X, dict) or len(X) == 0:
-        raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
+    _validate_blocks(X)
     if not isinstance(y, pd.DataFrame):
         y = pd.DataFrame(y)
-    for name, block in X.items():
-        if not isinstance(block, pd.DataFrame):
-            raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
-
-    n_samples = X[next(iter(X))].shape[0]
-    for name in X:
-        if X[name].shape[0] != n_samples:
-            raise ValueError(
-                f"All X-blocks must have the same row count. Block '{name}' has "
-                f"{X[name].shape[0]} rows; expected {n_samples}."
-            )
-    if y.shape[0] != n_samples:
-        raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
+    refuse_empty_block(y, "y")
+    check_response_block(y, X[next(iter(X))].shape[0])
     return y
 
 
@@ -686,10 +682,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         NotEnoughVarianceError
             If every column of Y, or every column of every X-block, is constant or has no observed
             value, or if Y has no variance left for a component, as when it is fitted exactly: as
-            :meth:`PLS.fit` raises.
+            :meth:`PLS.fit` raises. A block with no variance beside one that varies is fitted with
+            zero weight: its block scores, weights and contributions are 0, and a warning names it.
         """
         check_at_least_one("n_components", self.n_components)
-        y = _validate_fit_arguments(X, y)
+        y = _own_axes(_validate_fit_arguments(X, y))
+        X = {name: _own_axes(block) for name, block in X.items()}  # nothing the caller renames later reaches the fit
         self._record_data_shape(X, y)
         # A column with nothing observed is left out, with a warning, as across the family (#1098)
         self._unobserved_columns = {name: unobserved_columns(X[name], f'X["{name}"]') for name in self.block_names_}
@@ -711,12 +709,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 "There is no variance in Y: every response is constant or has no observed value, "
                 "so there is nothing for X to explain."
             )
-        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128)
-        if sum(ssq(values) for values in x_blocks_pp.values()) < epsqrt:  # pragma: no mutate - <= as for Y above
-            raise NotEnoughVarianceError(
-                "There is no variance in X: every column of every block is constant or has no observed value, "
-                "so there is nothing to explain Y by."
-            )
+        # Nothing to explain Y by leaves every weight 0 too, and a new row with no score (#1128), in the family's words
+        check_x_varies([X[name] for name in self.block_names_], explains_y=True)
+        # Named once the blocks are not refused, so an X or a Y with no variance at all gets that error alone
+        for name in self.block_names_:
+            constant_columns(X[name], f'X["{name}"]', self)
+        constant_columns(y, "Y", self)
         self.block_informative_widths_: dict[str, int] = informative_widths(x_blocks_pp)
         context = _MBPLSLoopContext(
             algo=algo,
@@ -1226,17 +1224,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "super_scores_")
         rows: list[str] = []
         rows.append(f"MBPLS model: {self.n_components_} component(s), {len(self.block_names_)} X-block(s)")
-        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
-        rows.append(header)
-        rows.append("-" * len(header))
-        for a in range(self.n_components_):
-            cells = [f"{i:>3d}" for i in [a + 1]]
-            for name in self.block_names_:
-                src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
-                cells.append(f"{src.loc[name].iloc[a]:>9.4f}")
-            r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
-            cells.append(f"{r2y_src.iloc[a]:>9.4f}")
-            rows.append(" | ".join(cells))
+        src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
+        r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
+        header = ["PC", *(f"R²X[{name}]" for name in self.block_names_), "R²Y"]
+        body = [
+            [str(a + 1), *(f"{src.loc[name].iloc[a]:.4f}" for name in self.block_names_), f"{r2y_src.iloc[a]:.4f}"]
+            for a in range(self.n_components_)
+        ]
+        rows.extend(text_table(header, body))
         rows.append("")
         rows.append(f"  Iterations per PC: {self.fitting_info_['iterations'].tolist()}")
         rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
@@ -1422,11 +1417,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             if len(block) != len(y):
                 raise ValueError(f"Block {name!r} has {len(block)} rows; y has {len(y)}.")
         n_samples = len(y)
-        total_width = sum(block.shape[1] for block in X.values())
+        # A column with nothing observed is left out of every fold model, so it adds no component (#1114).
+        total_width = sum(int(block.notna().any().sum()) for block in X.values())
 
         if isinstance(cv, int):
             # One repeat of a RepeatedKFold is the shuffled KFold the docstring names: the same
             # random_state draws the same folds.
+            check_at_least_one("n_repeats", n_repeats)
             repeats = 10 if n_repeats is None else int(n_repeats)
             seed = sklearn_random_state(random_state)  # RepeatedKFold refuses a Generator (#1128)
             splitter: BaseCrossValidator = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=seed)
@@ -1434,8 +1431,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         else:
             splitter, n_splits = cv, cv.get_n_splits(y)
 
-        if max_components is not None and int(max_components) < 1:
-            raise ValueError(f"max_components must be at least 1; got {max_components}.")
+        check_at_least_one("max_components", max_components)
 
         splits = list(splitter.split(y))
         smallest_train = min(len(train) for train, _ in splits)
@@ -1446,7 +1442,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         component_index = pd.Index(range(1, A + 1), name="n_components")
         targets = list(y.columns)
-        values = y.to_numpy(dtype=float)
+        # A row with nothing observed in any block has no prediction, and is left out of PRESS and its
+        # reference, as PLS.select_n_components leaves it out (#1114).
+        has_x = np.any([_rows_with_data(block.to_numpy(dtype=float)) for block in X.values()], axis=0)
+        values = np.where(has_x[:, np.newaxis], y.to_numpy(dtype=float), np.nan)
         press = np.zeros((A, len(targets)))
         per_fold = np.full((A, len(splits)), np.nan)
         # Held-out predictions are gathered by row position, as rows may share a label.
@@ -1691,6 +1690,7 @@ def randomization_test_mbpls(
     Chemometrics, 21 (2007), 427-439.
     """
     check_is_fitted(model, "super_scores_")
+    check_whole("n_permutations", n_permutations)
     # seed is taken from **deprecated, not named in the signature, so that it adds no sixth argument (#307)
     if "seed" in deprecated:
         warnings.warn(

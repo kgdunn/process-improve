@@ -24,6 +24,8 @@ Hall/CRC, 2017. The staff-by-smoking table used in the tests is his.
 
 from __future__ import annotations
 
+import numbers
+import typing
 import warnings
 from collections.abc import Mapping
 
@@ -33,7 +35,7 @@ from pydantic import BaseModel
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from ._common import DataMatrix, SpecificationWarning, check_at_least_one, user_stacklevel
+from ._common import DataMatrix, SpecificationWarning, check_at_least_one, refuse_empty_block, user_stacklevel
 from ._pca import _opposes_convention
 
 try:
@@ -164,6 +166,8 @@ class CA(TransformerMixin, BaseEstimator):
     >>> ca.map_plot()                                     # doctest: +SKIP
     """
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+
     def __init__(self, n_components: int = 2):
         self.n_components = n_components
 
@@ -189,6 +193,7 @@ class CA(TransformerMixin, BaseEstimator):
             If ``n_components`` is not positive, or the table is not a valid
             contingency table (see :func:`_as_table`).
         """
+        self._validate_params()
         check_at_least_one("n_components", self.n_components)
         table = _as_table(X, "X")
         proportions = table.to_numpy() / table.to_numpy().sum()
@@ -692,6 +697,8 @@ class FAMD(TransformerMixin, BaseEstimator):
     >>> famd.map_plot()                                                      # doctest: +SKIP
     """
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+
     def __init__(self, n_components: int = 2, categorical: list[str] | None = None):
         self.n_components = n_components
         self.categorical = categorical
@@ -739,8 +746,10 @@ class FAMD(TransformerMixin, BaseEstimator):
             If ``n_components`` is not positive, a cell is missing, a numeric column
             is constant, or ``categorical`` names a column that is not there.
         """
+        self._validate_params()
         check_at_least_one("n_components", self.n_components)
         frame = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        refuse_empty_block(frame, "X")
         frame = frame.set_axis([str(c) for c in frame.columns], axis=1)
         if frame.isna().any().any():
             raise ValueError(
@@ -949,6 +958,8 @@ class MFA(TransformerMixin, BaseEstimator):
     >>> mfa.group_coordinates_                                            # doctest: +SKIP
     """
 
+    _parameter_constraints: typing.ClassVar = {"n_components": [numbers.Integral]}
+
     def __init__(self, groups: dict[str, list[str]] | None = None, n_components: int = 2, scale: bool = True):
         self.groups = groups
         self.n_components = n_components
@@ -1051,6 +1062,7 @@ class MFA(TransformerMixin, BaseEstimator):
         TypeError
             If ``groups`` is given but is not a dict.
         """
+        self._validate_params()
         check_at_least_one("n_components", self.n_components)
         self.groups_ = self._resolve_groups(X)
         frame = _as_frame(X)

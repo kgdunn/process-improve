@@ -50,6 +50,7 @@ from process_improve.multivariate._pca import _leverage_corrected_press, _low_ra
 from process_improve.multivariate._pls import _direct_weights, _held_out_scores
 from process_improve.multivariate._projection import operator_for_pattern, project_rows
 from process_improve.multivariate.methods import (
+    ASCA,
     MBPCA,
     MBPLS,
     OPLS,
@@ -97,6 +98,7 @@ from process_improve.multivariate.methods import (
     vip,
 )
 from process_improve.multivariate.plots import _x_space_loadings
+from tests._no_spread import thin_residual
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -837,16 +839,17 @@ def test_mcuv_constant_single_value_and_empty_columns() -> None:
     np.testing.assert_array_equal(out, [[0.0, 0.0, np.nan], [0.0, np.nan, np.nan], [0.0, np.nan, np.nan]])
 
 
-def test_mcuv_does_not_divide_by_a_spread_at_or_below_sqrt_tiny() -> None:
-    """The square root of the smallest normal float is 2**-511; a standard deviation that small scales by 1.
+def test_mcuv_does_not_divide_by_a_spread_below_the_smallest_normal_float() -> None:
+    """The smallest normal float is 2**-1022; a standard deviation below it scales by 1 (#1070).
 
-    The first column, 2**-510, 0 and 2**-511, has mean 2**-511 and deviations of +-2**-511 and 0, so its
-    sample standard deviation is exactly 2**-511. The second, a thousand times larger, keeps its own.
+    The first column, 2**-1022, 0 and 2**-1023, has mean 2**-1023 and deviations of +-2**-1023 and 0, so
+    its sample standard deviation is exactly 2**-1023. The second, twice as large, keeps its own, and so
+    does the third, 2**-600: the floor was the square root of the smallest normal float, 1.5e-154, which
+    took a column in units near 1e-160 for a constant one.
     """
-    X = np.array([[2.0**-510, 2.0**-500], [0.0, 0.0], [2.0**-511, 2.0**-501]])
+    X = np.array([[2.0**-1022, 2.0**-1021, 2.0**-599], [0.0, 0.0, 0.0], [2.0**-1023, 2.0**-1022, 2.0**-600]])
     scaler = MCUVScaler().fit(X)
-    assert scaler.scale_.iloc[0] == 1.0
-    assert scaler.scale_.iloc[1] == pytest.approx(np.std(X[:, 1], ddof=1), rel=1e-15)
+    assert scaler.scale_.tolist() == [1.0, 2.0**-1022, 2.0**-600]
 
 
 def test_center_and_scale_by_hand_along_either_axis() -> None:
@@ -949,15 +952,11 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
 
 
 def test_pca_errors_no_variance_to_start() -> None:
-    """Arrays with no variance should seem to work, but should have no variability explained."""
+    """An array with no variance is refused, as across the family (#1144); it was fitted, with zero scores."""
     K, N, A = 17, 12, 5
-    data = pd.DataFrame(np.zeros((N, K)))
-    model = PCA(n_components=A)
-    # with pytest.raises(RuntimeError):
-    model.fit(data)
-    assert np.sum(model.scores_.values) == pytest.approx(0, abs=epsqrt)
-    assert model.r2_cumulative_.sum() == pytest.approx(0, abs=epsqrt)
-    assert np.isnan(model.r2_cumulative_[A - 1])
+    for value in (0.0, 4.0):  # a constant that is not 0 too, though PCA does not centre it
+        with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+            PCA(n_components=A).fit(pd.DataFrame(np.full((N, K), value)))
 
 
 def test_pca_invalid_calls() -> None:
@@ -2161,7 +2160,7 @@ def test_t2_contributions_count_the_components_that_fit_counts_in_t2() -> None:
 
 
 def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
-    """A score sd counts when it exceeds ``epsqrt * max(1, largest sd)``; at the bound it does not.
+    """A score sd counts when it exceeds ``epsqrt`` times the largest sd; at the bound it does not.
 
     A stand-in model whose loadings are the identity, so each score is its own variable
     and each contribution is ``x_k^2 / s_k^2``, or 0 for a component left out. The largest
@@ -2175,12 +2174,12 @@ def test_t2_contributions_leave_out_a_component_by_the_bound_fit_uses() -> None:
     np.testing.assert_allclose(contributions.to_numpy(), [[4.0, 0.0, 2.0**52 / 3.0625, 0.0]], rtol=1e-15)
 
 
-def _rows_on_a_plane(units: float = 1.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _rows_on_a_plane() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return 30 centred rows that span a plane in four columns, and one row well off that plane."""
     rng = np.random.default_rng(0)
     plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 4))
-    flat = pd.DataFrame((plane - plane.mean(axis=0)) * units, columns=list("abcd"))
-    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd")) * units
+    flat = pd.DataFrame(plane - plane.mean(axis=0), columns=list("abcd"))
+    return flat, pd.DataFrame([[1.0, -2.0, 0.5, 3.0]], columns=list("abcd"))
 
 
 def test_pca_diagnose_and_project_leave_out_of_t2_the_component_fit_leaves_out() -> None:
@@ -2232,24 +2231,25 @@ def test_pca_t2_of_a_held_out_ldpe_row_with_as_many_components_as_rows() -> None
 def test_pls_diagnose_project_and_invert_leave_out_of_t2_the_component_fit_leaves_out() -> None:
     """PLS's T² of a new row, and of an inverted target, counts only the components with spread (#1026).
 
-    In units of 1e-3, unscaled, with noise of sd 1e-10 off the plane: the noise is above PLS's floor,
-    which is relative to the size of X (#1070), so a third component is fitted to it. Its score sd,
-    about 1e-10, is below epsqrt, which T² reads as no spread while every sd is below 1, so fit()
-    leaves it out of T². A row off the plane scores on it all the same. Its T² is
+    Twelve columns on a plane, unscaled, and a residual spread thinly over the ten directions off
+    it: the residual is above PLS's floor, which is relative to the size of X (#1070), so a third
+    component is fitted to it. Its score sd is below epsqrt times the first's, which T² reads as no
+    spread, so fit() leaves it out of T². A row off the plane scores on it all the same. Its T² is
     ``t_1^2 / s_1^2 + t_2^2 / s_2^2``, by hand, and so is the T² of invert's solution from its
     scores, which diagnose gives ``x_new`` too. The third component is fitted after Y is exhausted,
     so it has no Y-loading (#1074) and lies in invert's null space: the solution is moved along it,
     to give it a third score.
     """
-    flat, new = _rows_on_a_plane(units=1e-3)
-    noise = 1e-10 * np.random.default_rng(2).standard_normal((30, 4))
-    flat += noise - noise.mean(axis=0)
-    y = pd.DataFrame({"y": flat.to_numpy() @ [1e3, 2e3, 0.0, 0.0]})
-    y += 0.1 * np.random.default_rng(1).standard_normal((30, 1))
+    rng = np.random.default_rng(0)
+    plane = rng.standard_normal((30, 2)) @ rng.standard_normal((2, 12))
+    plane -= plane.mean(axis=0)
+    flat = pd.DataFrame(plane + thin_residual(plane), columns=[f"x{k}" for k in range(12)])
+    new = pd.DataFrame(rng.standard_normal((1, 12)), columns=flat.columns)
+    y = pd.DataFrame({"y": plane[:, 0] + 2.0 * plane[:, 1] + 0.1 * np.random.default_rng(1).standard_normal(30)})
     with pytest.warns(SpecificationWarning, match="nothing left in Y that X can explain"):
         pls = PLS(n_components=3, scale=False, warn_on_uncentred=False).fit(flat, y - y.mean())
     s = pls.scaling_factor_for_scores_.to_numpy()
-    assert s[2] < 1e-6 * s[0]
+    assert s[2] <= epsqrt * s[0]
     t = new.to_numpy() @ pls.direct_weights_.to_numpy()
     assert abs(t[0, 2]) > 1e6 * s[2]  # the new row is well off the plane
     by_hand = np.sum(t[0, :2] ** 2 / s[:2] ** 2)
@@ -4019,10 +4019,11 @@ def test_selectivity_ratio_ranks_driver_and_proxy_above_noise() -> None:
     # limitation that the discriminator narrative rests on).
     assert sr_standalone["driver"] == pytest.approx(sr_standalone["proxy"], rel=0.5)
 
-    # The advisory F-based critical value is attached and exceeded by the signal.
+    # The advisory F-based critical value is attached, one per feature, and exceeded by the signal.
     assert sr_standalone.attrs["conf_level"] == pytest.approx(0.95)
-    assert sr_standalone["driver"] > sr_standalone.attrs["f_critical"]
-    assert sr_standalone["noise1"] < sr_standalone.attrs["f_critical"]
+    critical = sr_standalone.attrs["f_critical"]
+    assert sr_standalone["driver"] > critical["driver"]
+    assert sr_standalone["noise1"] < critical["noise1"]
 
 
 def test_target_projection_aligns_with_response() -> None:
@@ -4123,7 +4124,7 @@ def test_selectivity_ratio_multi_response_and_errors(
     tiny = MCUVScaler().fit_transform(X.iloc[:3])
     tiny_y = MCUVScaler().fit_transform(Y.iloc[:3, [0]])
     sr_tiny = PLS(n_components=1).fit(tiny, tiny_y).selectivity_ratio(tiny)
-    assert np.isnan(sr_tiny.attrs["f_critical"])
+    assert sr_tiny.attrs["f_critical"].isna().all()
 
     # Real LDPE dataset (SIMCA reference data): SR is finite and non-negative.
     data = fixture_pls_ldpe_example
@@ -5165,11 +5166,15 @@ def test_equal_weight_r2_total_needs_one_row_per_component() -> None:
 
 
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
-    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
+    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError and as ValueError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad
     # ``except RuntimeError`` handlers keep working while callers can catch the
     # narrower type (e.g. to trim the component count during cross-validation).
+    # It is a ValueError too: it replaced the ValueError TPLS raised for data with no
+    # variance, and the LinAlgError (a ValueError) PLS and OPLS raised for a Y with no
+    # covariance with X, so a caller's ``except ValueError`` still catches it.
     assert issubclass(NotEnoughVarianceError, RuntimeError)
+    assert issubclass(NotEnoughVarianceError, ValueError)
 
     # PLS: rank-1 X (two identical columns) cannot support a 2nd component.
     X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0, 5.0], "b": [1.0, 2.0, 3.0, 4.0, 5.0]})
@@ -6179,7 +6184,8 @@ def _tpls_written_out(
 
     ``stop`` is ``(max_iter, tol)``. Sums of squares and R2 are per column, R2 relative to the
     block before the first component. The VIP of a block weights each component by the mean,
-    over the groups, of the mean R2 of each group's columns.
+    over the groups, of the mean R2 of each group's columns, and its width counts the columns
+    that vary (#913, #1144).
     """
     scaling, seen, left = _tpls_prepared(d_matrix, blocks, skip_f)
 
@@ -6207,20 +6213,30 @@ def _tpls_written_out(
     found["gap"] = [component["gap"] for component in components]
     t, ((y_name, _),) = found["t"], left["Y"].items()
     found["sd"] = sd = np.sqrt(np.sum(t**2, axis=0) / (len(t) - 1))
-    usable = sd > epsqrt * max(1.0, float(sd.max()))
+    usable = sd > epsqrt * float(sd.max())
     found["t2"] = np.cumsum(np.where(usable, t**2 / np.where(usable, sd, 1.0) ** 2, 0.0), axis=1)
     found["hat_"] = t @ found["q"].T
     found["hat"] = found["hat_"] * scaling["Y", y_name][1] + scaling["Y", y_name][0]
+    # A row with nothing seen in a block has no SPE there (#1114).
     found["spe"] = {
-        block: {key: np.sqrt(np.sum(v**2, axis=1)) for key, v in by_key.items()} for block, by_key in left.items()
+        block: {
+            key: np.where(seen[block][key].any(axis=1), np.sqrt(np.sum(v**2, axis=1)), np.nan)
+            for key, v in by_key.items()
+        }
+        for block, by_key in left.items()
     }
     for block, loadings in (("D", found["s"]), ("F", found["p_f"])):
         weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in found["r2"]])
         stacked = np.vstack(list(loadings.values()))
-        vip = np.sqrt(len(stacked) * (stacked**2 @ weights) / weights.sum())
+        vip = np.sqrt(_tpls_vip_width(scaling, block) * (stacked**2 @ weights) / weights.sum())
         ends = np.cumsum([len(values) for values in loadings.values()])
         found["vip", block] = dict(zip(loadings, np.split(vip, ends[:-1]), strict=True))
     return found
+
+
+def _tpls_vip_width(scaling: dict, block: str) -> int:
+    """Count the columns of D or F, over every group, whose scale is learned: those that vary, a VIP's width."""
+    return sum(int(np.isfinite(spread).sum()) for (name, _), (_, spread) in scaling.items() if name == block)
 
 
 def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]], skip_f: bool = False) -> dict:
@@ -6266,7 +6282,7 @@ def _tpls_diagnose_by_hand(fitted: dict, new: dict[str, dict[str, pd.DataFrame]]
         t_all.append(t)
     t = np.column_stack(t_all)
     centre, spread = next(value for key, value in fitted["scaling"].items() if key[0] == "Y")
-    usable = fitted["sd"] > epsqrt * max(1.0, float(fitted["sd"].max()))
+    usable = fitted["sd"] > epsqrt * float(fitted["sd"].max())
     return {
         "t": t,
         "t2": np.cumsum(np.where(usable, t**2 / np.where(usable, fitted["sd"], 1.0) ** 2, 0.0), axis=1),
@@ -6339,8 +6355,8 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
     # One row per Z group, then F; a single Z group keeps the plain label "Z" (#981).
     super_rows = ["Z"] if len(z_names) == 1 else [f'Z["{name}"]' for name in z_names]
     near(model.w_loadings_super, expected["w_super"], [*super_rows, "F"])
-    # The loadings' labels are lists of names, so they keep no index name.
-    qualities = blocks["Y"][y_name].columns.to_list()
+    # Each loading keeps the name of the axis its labels came from (#1083).
+    qualities = blocks["Y"][y_name].columns
     near(model.q_loadings_y[y_name], expected["q"], qualities)
     near(model.hat_[y_name], expected["hat_"], blends, columns=qualities)
     near(model.hat[y_name], expected["hat"], blends, columns=qualities)
@@ -6351,7 +6367,7 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         for key in names:
             near(model.spe[block][key], expected["spe"][block][key][:, np.newaxis], blends, columns=spe_column)
     for group in groups:
-        materials, properties = d_matrix[group].index.to_list(), d_matrix[group].columns.to_list()
+        materials, properties = d_matrix[group].index, d_matrix[group].columns
         near(model.r_loadings_f[group], expected["r"][group], materials)
         near(model.p_loadings_f[group], expected["p_f"][group], materials)
         near(model.s_loadings_d[group], expected["s"][group], properties)
@@ -6360,13 +6376,14 @@ def _check_tpls_fitted(model: TPLS, d_matrix: dict, blocks: dict, expected: dict
         near(model.feature_importance["D"][group], expected["vip", "D"][group], properties)
         near(model.feature_importance["F"][group], expected["vip", "F"][group], materials)
     for name in z_names:
-        conditions = blocks["Z"][name].columns.to_list()
+        conditions = blocks["Z"][name].columns
         near(model.w_loadings_z[name], expected["w_z"][name], conditions)
         near(model.p_loadings_z[name], expected["p_z"][name], conditions)
     assert model.feature_importance["Z"] == model.feature_importance["Y"] == {}
     for block in ("D", "F", "Y", "Z"):
         assert sorted(model.spe_limit[block]) == sorted(expected["spe"][block])
         for key, spe in expected["spe"][block].items():
+            spe = spe[~np.isnan(spe)]  # noqa: PLW2901 - the limit is over the rows that have an SPE
             assert model.spe_limit[block][key](0.9) == pytest.approx(spe_calculation(spe, 0.9), rel=rtol, abs=rtol)
             assert model.spe_limit[block][key]() == pytest.approx(spe_calculation(spe, 0.95), rel=rtol, abs=rtol)
     _check_tpls_bookkeeping(model, d_matrix, blocks, expected, rtol)
@@ -6455,7 +6472,7 @@ def _tpls_summary_by_hand(expected: dict, settings: tuple[int, bool], cumulative
         rule,
     ]
     for a, passes in enumerate(iterations):
-        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "        -"
+        z = f"{r2['Z'][a] * 100:>10.1f}" if with_z else "         -"  # as wide as a number (#1083)
         line = f"LV {a + 1:<2}  {r2['D'][a] * 100:>10.1f} {z} {r2['F'][a] * 100:>10.1f} {r2['Y'][a] * 100:>10.1f}|"
         line += f"{ms:>5.0f} [{passes:>4d}]".rjust(13)
         lines.append(line + ("** (max iter reached)" if passes == settings[0] else ""))
@@ -6600,6 +6617,67 @@ class TestTPLSWrittenOut:
             model.fit(DataFrameDict(blocks))
 
     @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
+    @pytest.mark.parametrize("constant", ["F", "D"])
+    def test_a_group_with_no_variation_gets_zero_weight_on_every_numpy(self, constant: str, skip_f: bool) -> None:
+        """#1144: a group whose F, or whose D, has no variation, beside one that varies, gets zero weight.
+
+        Used as given, such an F group meets a centred u with an F'u of rounding error: exactly 0
+        with numpy 2.2, which refused the fit after an overflow warning, and about 1e-17 with numpy
+        2.5, which took the varying group out of the model without a word. Then it was refused on
+        every build (#1167). It now takes no part in the model: its weights and loadings are 0, so
+        the fit, its predictions and the scores of new rows are those of the model without it,
+        whatever a new row holds in it, and one warning, at the caller's line, names it.
+        """
+        d_matrix, blocks = _t_shaped(gaps=False)
+        stuck = blocks["F"]["B"] if constant == "F" else d_matrix["B"]
+        stuck.loc[:, :] = np.arange(1, stuck.shape[1] + 1) / 10.0
+        without = {"F": {"A": blocks["F"]["A"]}, "Z": blocks["Z"], "Y": blocks["Y"]}
+        reference = TPLS(n_components=2, d_matrix={"A": d_matrix["A"]}, skip_f_matrix_preprocessing=skip_f)
+        reference.fit(DataFrameDict(copy.deepcopy(without)))
+        model = TPLS(n_components=2, d_matrix=d_matrix, skip_f_matrix_preprocessing=skip_f)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            model.fit(DataFrameDict(copy.deepcopy(blocks)))
+        assert [(w.category, str(w.message), w.filename) for w in caught] == [
+            (
+                UserWarning,
+                (
+                    f'Block {constant}["B"] has no variance: every column is constant or has no observed value, so '
+                    "it gets zero weight in the model. Drop the block, or check the data for a stuck sensor."
+                ),
+                __file__,
+            )
+        ]
+
+        for loadings in (model.r_loadings_f, model.p_loadings_f, model.s_loadings_d, model.v_loadings_d):
+            assert (loadings["B"].to_numpy() == 0.0).all()
+        _tpls_near(model.t_scores_super, reference.t_scores_super, 1e-10)
+        _tpls_near(model.hat["Q"], reference.hat["Q"], 1e-10)
+        _tpls_near(model.r_loadings_f["A"], reference.r_loadings_f["A"], 1e-10)
+
+        new = copy.deepcopy(blocks)
+        new["F"]["B"] += np.arange(new["F"]["B"].shape[0])[:, np.newaxis]  # what a new row holds in B adds nothing
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = model.diagnose(DataFrameDict(new))
+            vip = model.vip()
+            limits = {block: model.spe_limit[block]["B"](0.95) for block in ("D", "F")}
+        expected = reference.diagnose(DataFrameDict(without))
+        _tpls_near(result.t_scores_super, expected.t_scores_super, 1e-10)
+        _tpls_near(result.hat["Q"], expected.hat["Q"], 1e-10)
+        for block in ("D", "F"):
+            assert (vip[block]["B"] == 0.0).all()
+            assert (vip[block]["A"] > 0.0).all()
+        # A group the model uses no column of has nothing left: an SPE of 0 in every row and a limit of 0, as MBPLS
+        # gives a block with no variance, and as diagnose gives it. F used as given keeps its values, and its length.
+        if constant == "D" or not skip_f:
+            assert (np.asarray(model.spe[constant]["B"]) == 0.0).all()
+            assert limits[constant] == 0.0
+        assert np.isfinite(limits["F" if constant == "D" else "D"])
+        again = model.diagnose(DataFrameDict(blocks)).spe["F"]["B"].iloc[:, -1].to_numpy()
+        np.testing.assert_allclose(again, model.spe["F"]["B"].iloc[:, 0].to_numpy(), rtol=1e-10)
+
+    @pytest.mark.parametrize("skip_f", [False, True], ids=["F-scaled", "F-as-is"])
     @pytest.mark.parametrize("with_z", [True, False], ids=["with-Z", "no-Z"])
     def test_new_rows_are_scored_on_what_the_earlier_components_left(self, with_z: bool, skip_f: bool) -> None:
         """Diagnose deflates new rows as the fit did, over their observed cells, in the training column order.
@@ -6724,6 +6802,24 @@ class TestTPLSWrittenOut:
             assert model.display_results() == summary
         assert ("** (max iter reached)" in summary) == (max_iter < 500)
 
+    def test_a_model_fitted_before_zero_weight_keeps_the_vip_width_it_had(self) -> None:
+        """A VIP's width counts the columns that vary (#1144); a model fitted before then counts every column.
+
+        Such a model has no record of which groups have zero weight. One constant column of F among
+        nine raised every F VIP by the square root of 9 / 8; D, whose columns all vary, is the same.
+        """
+        d_matrix, blocks = _t_shaped()
+        blocks["F"]["A"]["a4"] = 0.25
+        model = TPLS(n_components=2, d_matrix=d_matrix)
+        with pytest.warns(UserWarning, match=r"'a4'"):
+            model.fit(DataFrameDict(blocks))
+        now = model.vip(method="deflated")
+        del model._groups_without_variation
+        before = model.vip(method="deflated")
+        for group in d_matrix:
+            _tpls_near(before["F"][group], now["F"][group] * np.sqrt(9 / 8), 1e-12)
+            _tpls_near(before["D"][group], now["D"][group], 1e-12)
+
     def test_the_deflated_vip_follows_the_direct_weights(self) -> None:
         """VIP on S (V'S)^-1 for D and P (P'P)^-1 for F, each component weighted by the block's R2."""
         d_matrix, blocks = _t_shaped()
@@ -6736,7 +6832,7 @@ class TestTPLSWrittenOut:
         assert found["Z"] == found["Y"] == {}
         for block, names in (("D", "columns"), ("F", "index")):
             weights = np.array([np.mean([np.nanmean(r2) for r2 in entry[block].values()]) for entry in expected["r2"]])
-            vip = np.sqrt(len(direct[block]) * (direct[block] ** 2 @ weights) / weights.sum())
+            vip = np.sqrt(_tpls_vip_width(expected["scaling"], block) * (direct[block] ** 2 @ weights) / weights.sum())
             ends = np.cumsum([d.shape[1 if block == "D" else 0] for d in d_matrix.values()])
             assert list(found[block]) == list(d_matrix)
             for group, values in zip(d_matrix, np.split(vip, ends[:-1]), strict=True):
@@ -8106,7 +8202,9 @@ def test_target_projection_and_selectivity_ratio_by_hand() -> None:
     pd.testing.assert_series_equal(
         ratio, pd.Series([49 / 68, 9 / 17], index=["a", "b"], name="selectivity_ratio"), rtol=1e-13
     )
-    assert ratio.attrs["f_critical"] == pytest.approx(49.5, rel=1e-12)
+    pd.testing.assert_series_equal(
+        ratio.attrs["f_critical"], pd.Series([49.5, 49.5], index=["a", "b"], name="f_critical"), rtol=1e-12
+    )
     assert ratio.attrs["conf_level"] == 0.9
     assert ratio.attrs["response"] == "y"
 
@@ -8131,6 +8229,37 @@ def test_target_projection_and_selectivity_ratio_skip_a_missing_cell() -> None:
     np.testing.assert_allclose(tp.scores.to_numpy(), [0.6, 0.8, -1.4, 10 / 3], rtol=1e-14)
     np.testing.assert_allclose(tp.loadings.to_numpy(), [975 / 1583, 55 / 74], rtol=1e-14)
     np.testing.assert_allclose(ratio.to_numpy(), [4225 / 524, 121 / 27], rtol=1e-13)
+
+
+def test_the_selectivity_ratio_s_f_critical_value_counts_each_feature_s_observed_rows() -> None:
+    """Each feature's ratio is formed over its observed cells, so its F critical value counts those rows (#1144).
+
+    Ten rows with a gap in b and two in c: a's ratio is formed over 10 rows, b's over 9 and c's over
+    8, with N - 2 and N - 3 degrees of freedom each. The value for all 10 rows was given for every
+    feature, so b and c were held to a lower bar than their rows support. A row with nothing
+    observed counts for no feature. The value is a Series by feature whatever the counts (decided
+    5 Nov), so code that reads it has one type to handle.
+    """
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((10, 3)), columns=["a", "b", "c"])
+    gaps = X.copy()
+    gaps.loc[3, "b"] = gaps.loc[[1, 6], "c"] = np.nan
+    model = SimpleNamespace(
+        beta_coefficients_=pd.DataFrame({"y": [0.0, 0.0, 0.0]}, index=["a", "b", "c"]),
+        direct_weights_=pd.DataFrame([[1.0], [2.0], [-1.0]], index=["a", "b", "c"]),
+        y_loadings_=pd.DataFrame([[1.0]], index=["y"]),
+    )
+    critical = selectivity_ratio(model, gaps, conf_level=0.9).attrs["f_critical"]
+    expected = pd.Series([f_dist.ppf(0.9, n - 2, n - 3) for n in (10, 9, 8)], index=["a", "b", "c"], name="f_critical")
+    pd.testing.assert_series_equal(critical, expected, rtol=1e-12)
+    blank_row = X.copy()
+    blank_row.loc[5] = np.nan
+    for data, n in ((X, 10), (blank_row, 9)):
+        pd.testing.assert_series_equal(
+            selectivity_ratio(model, data, conf_level=0.9).attrs["f_critical"],
+            pd.Series(f_dist.ppf(0.9, n - 2, n - 3), index=["a", "b", "c"], name="f_critical"),
+            rtol=1e-12,
+        )
 
 
 def test_selectivity_ratio_of_a_pls_fitted_with_missing_values_is_not_0() -> None:
@@ -8195,7 +8324,7 @@ def test_selectivity_ratio_is_inf_with_no_residual_and_0_with_no_signal() -> Non
         warnings.simplefilter("error")
         ratio = selectivity_ratio(_two_feature_tp_model([1.0, 0.0]), X)
     np.testing.assert_array_equal(ratio.to_numpy(), [np.inf, 0.0])
-    assert np.isnan(ratio.attrs["f_critical"])
+    assert ratio.attrs["f_critical"].isna().all()
 
 
 @pytest.mark.parametrize(("half_width", "expected_b"), [(2.0**-26, np.inf), (2.0**-25, 2.0**50)])
@@ -8433,17 +8562,23 @@ def test_t2_contributions_by_hand_over_the_components_selected() -> None:
             t2_contributions(model, X, components=wrong)
 
 
-def test_contribution_scalings_leave_a_largest_or_total_of_at_most_epsqrt_alone() -> None:
-    """``"maximum"`` and ``"within"`` divide by 1 when the largest contribution, or a row's total, is at most epsqrt.
+@pytest.mark.parametrize("units", [2.0**-40, 1.0, 2.0**40])
+def test_contribution_scalings_are_relative_to_the_largest_in_any_units(units: float) -> None:
+    """``"maximum"`` divides by the largest contribution unless it is 0; ``"within"`` leaves a row alone
+    whose total is at most epsqrt times the largest row's total (#1070).
 
-    epsqrt is exactly ``2**-26``. Such contributions keep their size, rather than being blown up to 1.
+    epsqrt is exactly ``2**-26``, and the units are powers of two, so every bound is exact. An
+    absolute epsqrt left every bar of data in small units unscaled.
     """
     model, tiny = _identity_model(2), 2.0**-26
-    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"])
-    expected = pd.DataFrame([[tiny, 0.0], [-tiny / 2, 0.0]], columns=["a", "b"])
+    X = pd.DataFrame([[tiny, 5.0], [-tiny / 2, 7.0]], columns=["a", "b"]) * units
+    expected = pd.DataFrame([[1.0, 0.0], [-0.5, 0.0]], columns=["a", "b"])
     pd.testing.assert_frame_equal(score_contributions(model, X, scaling="maximum"), expected, check_exact=True)
-    rows = pd.DataFrame([[tiny, 5.0], [tiny / 2, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"])
-    expected = pd.DataFrame([[tiny, 0.0], [tiny / 2, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
+    zeros = pd.DataFrame([[0.0, 5.0]], columns=["a", "b"])
+    pd.testing.assert_frame_equal(score_contributions(model, zeros, scaling="maximum"), 0.0 * zeros)
+    # Totals of 3 epsqrt, exactly the bound, 3.5 epsqrt, 0 and 3: the first and the third are left alone.
+    rows = pd.DataFrame([[3 * tiny, 5.0], [-3.5 * tiny, 7.0], [0.0, 3.0], [3.0, 1.0]], columns=["a", "b"]) * units
+    expected = pd.DataFrame([[3 * tiny * units, 0.0], [-1.0, 0.0], [0.0, 0.0], [1.0, 0.0]], columns=["a", "b"])
     pd.testing.assert_frame_equal(score_contributions(model, rows, scaling="within"), expected, check_exact=True)
 
 
@@ -9261,6 +9396,7 @@ def test_pca_fit_paths_by_hand_on_complete_data(algorithm: str) -> None:
     P, T = _svd_reference(X.to_numpy(), A)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
         pca = PCA(n_components=A, algorithm=algorithm).fit(X)
     tol = 1e-12 if algorithm != "nipals" else 1e-6
     np.testing.assert_allclose(pca.loadings_.to_numpy(), P, atol=tol)
@@ -9298,9 +9434,13 @@ def test_pca_svd_fit_of_a_block_of_zeros_has_no_r2_and_no_warning() -> None:
     P, T = _svd_reference(small, 1)
     expected = 1 - np.sum((small - T @ P.T) ** 2) / np.sum(small**2)
     assert PCA(n_components=1, algorithm="svd").fit(small).r2_cumulative_.iloc[0] == pytest.approx(expected, rel=1e-12)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X"):
+        PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))  # the caller's fit is refused (#1144)
+    # ASCA's effect matrix of a term with no effect is a block of zeros, which ASCA's own PCA fits
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        pca = PCA(n_components=2, algorithm="svd").fit(np.zeros((4, 3)))
+        pca = ASCA(n_components=2).fit(np.zeros((4, 3)), pd.DataFrame({"f": ["a", "b"] * 2})).models_["f"]
+    assert pca.algorithm_ == "svd"
     assert pca.r2_cumulative_.isna().all()
     assert pca.r2_per_component_.isna().all()
     assert pca.r2_per_variable_.isna().all().all()
@@ -9452,8 +9592,8 @@ def test_pca_nipals_judges_the_variance_left_against_the_block() -> None:
         np.testing.assert_allclose(pca.loadings_.to_numpy(), [[1.0], [0.0]], atol=1e-15)
         np.testing.assert_allclose(pca.scores_.to_numpy(), [[units * 2.0**-13], [0.0]], atol=1e-20)
     message = "There is no variance left in the data array: cannot compute any more components beyond component {}."
-    with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(0))}$"):
-        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)
+    with pytest.raises(NotEnoughVarianceError, match=r"^There is no variance in X: every column is constant"):
+        PCA(n_components=1, algorithm="nipals").fit(X * 0.0)  # in the family's words (#1144)
     with pytest.raises(NotEnoughVarianceError, match=f"^{re.escape(message.format(1))}$"):
         PCA(n_components=2, algorithm="nipals").fit(X)
     PCA(n_components=2, algorithm="nipals").fit(np.diag([1e3, 2e3 * epsqrt]))
@@ -9530,6 +9670,7 @@ def test_pca_tsr_on_complete_data_runs_no_imputation_and_does_not_warn() -> None
     X = _block_with_a_flat_and_a_small_column()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
+        warnings.filterwarnings("ignore", message=r"Block .* has columns with no variance")  # #1114
         pca = PCA(n_components=2, algorithm="tsr").fit(X)
     assert pca.fitting_info_["iterations"] == 0
     np.testing.assert_allclose(pca.loadings_.to_numpy(), _svd_reference(X.to_numpy(), 2)[0], atol=1e-12)
@@ -9552,7 +9693,7 @@ def _ekf_fill(X: np.ndarray, unknown: np.ndarray, a: int, constants: tuple, sett
             recon = _low_rank_reconstruction(Xa - mean, a) + mean
         Xa = np.where(unknown, recon, Xa)
         current = Xa[unknown] / sd
-        if np.linalg.norm(current - previous) < settings["tol"] * max(1.0, np.linalg.norm(previous)):
+        if np.linalg.norm(current - previous) < settings["tol"] * np.linalg.norm(previous):
             break
         previous = current
     return Xa
@@ -9567,7 +9708,7 @@ def _ekf_by_hand(X: np.ndarray, A: int, *, n_folds: int, n_repeats: int, seed: i
     its spread their sd, kept at 1 for fewer than two cells or cells all equal, in any units. The
     unknown cells start at the centre and are refilled from the rank-``a`` reconstruction
     (``_low_rank_reconstruction``, which its own test checks against the SVD) until their
-    scaled change is below ``tol`` times the norm of their scaled values (at least 1), or
+    scaled change is below ``tol`` times the norm of their scaled values, in any units (#1070), or
     for ``max_iter`` rounds. PRESS sums the held-out cells' scaled squared errors, the null
     reference their scaled squared deviations from the centre; totals are averaged over
     the repeats. ``settings`` holds ``max_iter``, ``tol`` and ``scale``. Returns the six
@@ -11074,7 +11215,7 @@ def test_pls_invert_refuses_a_target_or_a_move_it_cannot_use_in_full() -> None:
         ValueError, match=r"^y_desired has 3 value\(s\); expected 2 to match the fitted target\(s\): \['y0', 'y1'\]\.$"
     ):
         pls.invert([1.0, 2.0, 3.0])
-    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y0', 'y1'\]\.$"):
+    with pytest.raises(ValueError, match=r"^y_desired is missing value\(s\) for target\(s\): \['y1'\]\.$"):
         pls.invert({"y0": 1.0})
     message = r"^null_space_coordinates has 2 value\(s\); expected 1 to match the null-space dimension \(A - r\)\.$"
     with pytest.raises(ValueError, match=message):
@@ -11644,7 +11785,7 @@ def test_pls_fit_by_hand(scale: bool) -> None:
         X["small"] = np.r_[0.5, -0.5, np.zeros(13)]
         Y["tiny"] = 0.05 * X["x0"]
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        warnings.filterwarnings("error", message=r"(?!Block .* has columns with no variance)")  # but that (#1114)
         pls = PLS(n_components=3, scale=scale).fit(X, Y)
     with np.errstate(invalid="ignore"):  # the constant columns are 0 / 0 here, set to 0 below
         Z, Zy = (_autoscaled(X.to_numpy()), _autoscaled(Y.to_numpy())) if scale else (X.to_numpy(), Y.to_numpy())
@@ -11893,6 +12034,11 @@ def test_pls_fit_judges_the_variance_left_against_each_block(block: str) -> None
             f"There is no variance left in the data array for {block}: cannot compute any more components beyond "
             "component 0."
         )
+        if block == "X":  # in the family's words (#1144)
+            message = (
+                "There is no variance in X: every column is constant or has no observed value, so there is nothing "
+                "to explain Y by."
+            )
         with pytest.raises(NotEnoughVarianceError, match="^" + re.escape(message) + "$"):
             model.fit(X, Y)
 

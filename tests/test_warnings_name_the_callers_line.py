@@ -397,6 +397,10 @@ CASES: dict[str, tuple[Callable[[], object], str]] = {
         lambda: TPLS(n_components=1, d_matrix=_t_shaped(empty_f_column=True)[0]).fit(_t_shaped(empty_f_column=True)[1]),
         r"has columns with no observed values",
     ),
+    "TPLS: a component that does not converge": (
+        lambda: TPLS(n_components=1, d_matrix=_t_shaped()[0], max_iter=1).fit(_t_shaped()[1]),
+        r"TPLS NIPALS did not converge within max_iter=1",
+    ),
     "AdaptivePLS: its batch PLS finds nothing left in Y": (
         lambda: AdaptivePLS(n_components=2).fit(DESIGN, INTERACTION),
         r"nothing left in Y that X can explain",
