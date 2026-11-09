@@ -263,17 +263,10 @@ def test_how_the_map_was_made_is_read_from_its_data(context, site):
     numbers = how.text_content()
     assert f"{len(GRAPH['edges'])} links" in numbers
     assert how.locator(".map-kind svg").count() == 5, "each kind of term drawn in its legend shape"
-    guide = how.locator("details.map-guide")
-    assert guide.locator("summary").text_content() == "Build one on your own texts: a step-by-step guide"
-    assert guide.locator("ol > li").count() == 7
-    folder = guide.locator("a", has_text="knowledge-graph folder").get_attribute("href")
-    assert folder == "https://github.com/kgdunn/pid-book/tree/main/knowledge-graph", "the newest code to copy"
-    assert folder.endswith("/knowledge-graph")
-    assert (
-        guide.locator("a", has_text="README").get_attribute("href") == f"{folder.replace('/tree/', '/blob/')}/README.md"
-    )
-    page_files = guide.locator("a", has_text="the app's web folder").get_attribute("href")
-    assert page_files == "https://github.com/kgdunn/process-improve/tree/main/web", "the one page that draws a graph"
+    howto = "https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/HOWTO.md"
+    assert page.get_attribute("#howto", "href") == howto, "above the map: one tap to the steps for a reader's own texts"
+    assert how.locator("a", has_text="The how-to").get_attribute("href") == howto
+    assert not how.locator("ol").count(), "the how-to holds the steps, so the page does not repeat them"
     assert f"{GRAPH['method']['single_median']:.2f}" in numbers
     for topic in (c for c in GRAPH["clusters"] if c.get("moved")):
         assert f"{topic['agreement']:.2f}" in numbers
