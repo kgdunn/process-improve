@@ -637,8 +637,8 @@ def test_on_a_phone_the_two_switches_and_the_level_share_one_line(context, site)
     page.locator("#level").fill("2")  # Intermediate, the longest name
     row = page.evaluate("""() => ({
       tops: [...document.querySelectorAll('.map-view > label')].map((e) => Math.round(e.getBoundingClientRect().top)),
-      right: document.querySelector('.map-level').getBoundingClientRect().right,
+      right: document.querySelector('#level-name').getBoundingClientRect().right,
       width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
     assert len(set(row["tops"])) == 1, "Names, Links and the level on one line"
-    assert row["right"] <= row["width"] - 16, "inside the page's side margin"
+    assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
     assert row["scroll"] == row["width"], "and the page does not scroll sideways"

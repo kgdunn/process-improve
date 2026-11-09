@@ -1531,13 +1531,14 @@ main.map .lede { margin: 0; }
 .map-short { display: none; }
 /* On a phone the two switches and the level share one line: short names show, the full ones stay for screen readers. */
 @media (max-width: 480px) {
-  .map-view { flex-wrap: nowrap; gap: 0 10px; }
-  .map-view .switch { gap: 6px; }
+  .map-view { flex-wrap: nowrap; gap: 0 10px; flex: 1 1 100%; min-width: 0; }
+  .map-view .switch { gap: 6px; flex: none; }
   .map-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .map-short { display: inline; }
-  .map-level { gap: 4px; font-size: 0.85rem; }
-  .map-level input { width: 44px; }
-  .map-level output { min-width: 0; }
+  /* The slider takes what the line has left, so the row fits whatever the fonts measure. */
+  .map-level { gap: 4px; font-size: 0.85rem; flex: 1 1 auto; min-width: 0; }
+  .map-level input { width: auto; flex: 1 1 44px; min-width: 24px; max-width: 72px; }
+  .map-level output { min-width: 0; white-space: nowrap; }
 }
 .map-search { position: relative; flex: 1 1 200px; max-width: 420px; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
