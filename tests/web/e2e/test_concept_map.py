@@ -60,8 +60,12 @@ def _go(page: Any, term_id: str) -> None:  # noqa: ANN401 - a Playwright Page
     _settled(page)
 
 
-def _open(context: Any, site: str) -> Any:  # noqa: ANN401 - Playwright objects
+def _open(context: Any, site: str, level: int | None = 3) -> Any:  # noqa: ANN401 - Playwright objects
+    """Open the map, at the whole graph unless ``level`` says otherwise; ``None`` opens it as a first visit does."""
     page = context.new_page()
+    if level:  # as a reader who chose it before; a level chosen in the test still wins on a reload
+        store = "localStorage.getItem('factorial-map-level') || localStorage.setItem('factorial-map-level', '%s')"
+        page.add_init_script(f"try {{ {store % level}; }} catch {{}}")
     page.goto(f"{site}map/")
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     return page
@@ -597,9 +601,9 @@ LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_the_level_slider_shows_each_level_with_every_level_below_it(context, site):
-    page = _open(context, site)
-    assert page.input_value("#level") == "3", "Advanced, the whole graph, by default"
-    for level, name in enumerate(LEVELS, 1):
+    page = _open(context, site, level=None)
+    assert page.input_value("#level") == "1", "a first visit opens on Beginner"
+    for level, name in reversed(list(enumerate(LEVELS, 1))):
         page.locator("#level").fill(str(level))
         assert page.text_content("#level-name") == name
         expected = sorted(n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["type"] not in CONTEXT)
@@ -612,7 +616,7 @@ def test_the_level_slider_shows_each_level_with_every_level_below_it(context, si
 
 
 def test_the_level_is_remembered_and_search_stays_within_it(context, site):
-    page = _open(context, site)
+    page = _open(context, site, level=None)
     page.locator("#level").fill("1")
     advanced = next(n for n in GRAPH["nodes"] if n["level"] == 3 and n["type"] not in CONTEXT)
     page.fill("#q", advanced["name"])
@@ -625,3 +629,16 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     assert page.input_value("#level") == "1"
     assert page.text_content("#level-name") == "Beginner"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 360, "height": 780}, "is_mobile": True}, PHONE])
+def test_on_a_phone_the_two_switches_and_the_level_share_one_line(context, site):
+    page = _open(context, site, level=None)
+    page.locator("#level").fill("2")  # Intermediate, the longest name
+    row = page.evaluate("""() => ({
+      tops: [...document.querySelectorAll('.map-view > label')].map((e) => Math.round(e.getBoundingClientRect().top)),
+      right: document.querySelector('#level-name').getBoundingClientRect().right,
+      width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
+    assert len(set(row["tops"])) == 1, "Names, Links and the level on one line"
+    assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
+    assert row["scroll"] == row["width"], "and the page does not scroll sideways"
