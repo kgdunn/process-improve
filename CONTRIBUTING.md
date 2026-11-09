@@ -197,7 +197,11 @@ file of the app changes. `web/bootstrap.py` counts towards coverage, so the patc
 applies to it.
 
 Three slower tiers run only when asked for, since they need a browser, Pyodide, or both.
-CI's `web-app` job runs all three:
+CI's `web-app` job runs all three, in three duration-balanced parts (`--shard`). On a pull
+request it runs only the tests the change can reach (`--affected-since`), and a part with
+none skips its setup; a change to the changelog, a tool, the Sphinx docs or a test outside
+`tests/web` reaches none. Each part prints the seconds each browser-test file took, for
+`tests/.test_durations.json`, which the coverage shards' refresh leaves alone:
 
 - `tests/web/e2e` (`--e2e`): the page in Chromium, through Playwright, with its Python
   answered natively by `bootstrap.py` in the test process. It needs neither Pyodide nor
