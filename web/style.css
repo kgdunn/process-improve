@@ -1524,6 +1524,10 @@ main.map .lede { margin: 0; }
 /* The search, narrower, with what the map shows beside it; zoom and fit stay below the map. */
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
+.map-level { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
+.map-level input { width: 88px; accent-color: var(--accent); }
+.map-level output { color: var(--fg); min-width: 9ch; }
+.map-level[hidden] { display: none; }
 .map-search { position: relative; flex: 1 1 200px; max-width: 420px; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
 .map-search input { width: 100%; box-sizing: border-box; font-size: 1rem; }

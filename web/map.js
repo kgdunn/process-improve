@@ -59,6 +59,15 @@ const bookUrl = n => {
 };
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
 
+// Reading level: Beginner, Intermediate or Advanced; each shows every level below it (the book's build sets each
+// term's level from where chapter 5 introduces it). Advanced is the whole graph, and the default.
+const LEVELS = ["Beginner", "Intermediate", "Advanced"];
+const leveled = DATA.nodes.some(n => n.level);
+let level = LEVELS.length;
+try { const v = Number(localStorage.getItem("factorial-map-level")); if (leveled && v >= 1 && v <= LEVELS.length) level = v; } catch {}
+const shown = n => (n.level || LEVELS.length) <= level;
+const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && shown(n)).length;
+
 // Kinds of term hidden from the map, remembered in this browser. The selected term always stays visible.
 const hidden = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || '["context"]')) if (k in FAMILIES) hidden.add(k); } catch {}
@@ -98,14 +107,14 @@ applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.docum
 // ---------- the map
 const elements = [
   ...DATA.clusters.map(c => ({ group: "nodes", classes: "topic", position: { x: c.x, y: c.y },
-    data: { id: c.id, label: c.short, olabel: `${c.short}\n[${c.size}]`, d: 2 * c.r } })),
+    data: { id: c.id, label: c.short, olabel: `${c.short}\n[${sizeAt(c.id)}]`, d: 2 * c.r } })),
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subtopic", position: { x: s.x, y: s.y },
     data: { id: s.id, label: s.name, d: 2 * s.r } })),
   // The same names as markers of their own, drawn above terms and links while the names sit mid-circle.
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subname", position: { x: s.x, y: s.y },
-    data: { id: `${s.id}-name`, label: `${s.name}\n[${s.size}]`, w: 1.6 * s.r } })),
+    data: { id: `${s.id}-name`, label: `${s.name}\n[${sizeAt(s.id)}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
-    data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n) } })),
+    data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length } })),
   ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0 },
     classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between", data: { id: `b${i}`, source: e.a, target: e.b, n: e.n } })),
@@ -352,7 +361,7 @@ function setLimits() {
 // ---------- the card and the chips
 function chipFor(id) {
   if (groupOf(id)) { const c = groupOf(id);
-    return `<button class="map-chip" type="button" data-id="${id}">${esc(c.name)} <small>${c.size}</small></button>`; }
+    return `<button class="map-chip" type="button" data-id="${id}">${esc(c.name)} <small>${sizeAt(id)}</small></button>`; }
   const n = terms.get(id);
   return `<button class="map-chip" type="button" data-id="${id}">${icon(fam(n), css(`--map-${fam(n)}`))}${esc(n.name)}</button>`;
 }
@@ -377,12 +386,12 @@ function render() {
     strip.innerHTML = `<b>${esc(n.name)}</b> · ${esc(n.definition)}`;
   } else if (selected && groupOf(selected)) {
     const c = groupOf(selected), isSub = subtopics.has(selected);
-    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id)
+    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && shown(n))
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name)).map(n => n.id);
     const near = DATA.cluster_links.filter(l => l.a === c.id || l.b === c.id).sort((a, b) => b.n - a.n).map(l => (l.a === c.id ? l.b : l.a));
     card.style.removeProperty("--fam");
     card.innerHTML = `<span class="map-type">${isSub ? `Sub-topic of ${esc(topics.get(c.topic).short)}` : "Topic"}</span><h2>${esc(c.name)}</h2>
-      <p>${c.size} terms. The most connected are ${members.slice(0, 3).map(id => esc(terms.get(id).name).toLowerCase()).join(", ")}.</p>`;
+      <p>${members.length} terms${level < LEVELS.length ? ` at the ${LEVELS[level - 1].toLowerCase()} level` : ""}. The most connected are ${members.slice(0, 3).map(id => esc(terms.get(id).name).toLowerCase()).join(", ")}.</p>`;
     links.innerHTML = isSub ? group("Terms, most connected first", members) + group("Topic", [c.topic])
       : group("Sub-topics", (c.subs || []).map(s => s.id)) + group("Terms, most connected first", members)
         + group("Linked topics, most links first", near);
@@ -526,8 +535,29 @@ document.getElementById("links").addEventListener("click", ev => {
 const zoomBy = f => { const z = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * f));
   cy.stop(); cy.animate({ zoom: { level: z, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } } }, { duration: reduce ? 0 : 250 }); };
 function applyHidden() {
-  cy.nodes(".term").forEach(n => n.toggleClass("off", hidden.has(n.data("fam")) && !n.hasClass("sel")));
+  cy.nodes(".term").forEach(n => n.toggleClass("off", (hidden.has(n.data("fam")) || n.data("level") > level) && !n.hasClass("sel")));
 }
+const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
+function showLevel() {
+  levelSlider.value = level;
+  levelName.value = LEVELS[level - 1];
+  levelSlider.setAttribute("aria-valuetext", LEVELS[level - 1]);
+}
+levelSlider.closest(".map-level").hidden = !leveled;
+showLevel();
+levelSlider.addEventListener("input", () => {
+  level = Number(levelSlider.value);
+  try { localStorage.setItem("factorial-map-level", String(level)); } catch {}
+  showLevel();
+  cy.batch(() => {
+    cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
+    cy.nodes(".subname").forEach(n => { const s = subtopics.get(n.id().replace(/-name$/, ""));
+      n.data("label", `${s.name}\n[${sizeAt(s.id)}]`); });
+    applyHidden();
+  });
+  refresh(true);
+  render();   // an open topic's card lists the terms at this level
+});
 document.getElementById("legend").addEventListener("click", ev => {
   const b = ev.target.closest("button[data-fam]"); if (!b) return;
   const k = b.dataset.fam;
@@ -563,7 +593,7 @@ const norm = s => s.toLowerCase().normalize("NFKD");
 q.addEventListener("input", () => {
   const t = norm(q.value.trim());
   if (!t) { results.hidden = true; return; }
-  const hits = DATA.nodes.map(n => {
+  const hits = DATA.nodes.filter(shown).map(n => {
     const names = [n.name, ...n.aliases].map(norm);
     const score = names.some(s => s === t) ? 0 : names.some(s => s.startsWith(t)) ? 1 : names.some(s => s.includes(t)) ? 2
       : norm(n.definition).includes(t) ? 3 : 9;

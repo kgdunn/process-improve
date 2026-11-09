@@ -587,3 +587,41 @@ def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site)
     page.goto(site)
     page.wait_for_function("() => document.documentElement.dataset.mode")
     assert page.evaluate(theme) == chosen, "the start page opens in the mode chosen on the map"
+
+
+# The terms a reader sees at a reading level: every term at that level or below, of the kinds not hidden.
+SHOWN = """() => window.conceptMap.cy.nodes('.term').filter((n) => !n.hasClass('off')).map((n) => n.id()).sort()"""
+CONTEXT = {"Example", "Question", "Reference"}  # hidden by default, as the first test checks
+LEVELS = ["Beginner", "Intermediate", "Advanced"]
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_the_level_slider_shows_each_level_with_every_level_below_it(context, site):
+    page = _open(context, site)
+    assert page.input_value("#level") == "3", "Advanced, the whole graph, by default"
+    for level, name in enumerate(LEVELS, 1):
+        page.locator("#level").fill(str(level))
+        assert page.text_content("#level-name") == name
+        expected = sorted(n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["type"] not in CONTEXT)
+        assert page.evaluate(SHOWN) == expected, f"{name}: exactly the terms at that level or below"
+        size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["level"] <= level)
+        label = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
+        assert label == f"{BIGGEST['short']}\n[{size}]", "a topic counts the terms shown at the level"
+    sizes = [len([n for n in GRAPH["nodes"] if n["level"] <= level]) for level in (1, 2, 3)]
+    assert sizes[0] < sizes[1] < sizes[2] == len(GRAPH["nodes"]), "each level adds terms to the one below"
+
+
+def test_the_level_is_remembered_and_search_stays_within_it(context, site):
+    page = _open(context, site)
+    page.locator("#level").fill("1")
+    advanced = next(n for n in GRAPH["nodes"] if n["level"] == 3 and n["type"] not in CONTEXT)
+    page.fill("#q", advanced["name"])
+    offered = "(i) => document.querySelectorAll(`#results button[data-id='${i}']`).length"
+    assert page.evaluate(offered, advanced["id"]) == 0, "a term above the level is not offered"
+    beginner = next(n for n in GRAPH["nodes"] if n["level"] == 1 and n["type"] not in CONTEXT)
+    page.fill("#q", beginner["name"])
+    assert page.evaluate(offered, beginner["id"]) == 1
+    page.reload()
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    assert page.input_value("#level") == "1"
+    assert page.text_content("#level-name") == "Beginner"
