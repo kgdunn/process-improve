@@ -1521,6 +1521,7 @@ main.map .lede { margin: 0; }
 .map-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
 .map-howlink { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); cursor: pointer; font: inherit;
   text-decoration: underline; text-underline-offset: 2px; }
+.map-meta a { text-underline-offset: 2px; }
 /* The search, narrower, with what the map shows beside it; zoom and fit stay below the map. */
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
@@ -1596,7 +1597,6 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .map-how h3 { margin: 10px 0 0; }
 .map-how p, .map-how li { margin: 0; max-width: 68ch; }
 .map-how ul, .map-how ol { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
-.map-guide code { overflow-wrap: anywhere; }
 .map-kind { white-space: nowrap; }
 .map-kind svg { width: 0.95em; height: 0.95em; margin-right: 0.25em; vertical-align: -0.12em; }
 .map-how ul li { color: var(--muted); }
