@@ -79,4 +79,5 @@ def test_only_the_tests_that_ran_count_towards_a_files_duration() -> None:
     suite.pytest_runtest_logreport(SimpleNamespace(nodeid=f"{path}::test_b", duration=0.01, skipped=True))
     assert path not in suite._seconds
     suite.pytest_runtest_logreport(SimpleNamespace(nodeid=f"{path}::test_a", duration=2.0, skipped=False))
-    assert suite._seconds.pop(path) == 2.0
+    measured = suite._seconds.pop(path)  # out of the assert, so `python -O` still clears it
+    assert measured == 2.0
