@@ -161,7 +161,14 @@ _seconds: defaultdict[str, float] = defaultdict(float)
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
-    """Accumulate wall time per test file: setup, call and teardown."""
+    """Accumulate wall time per test file: setup, call and teardown, of the tests that ran.
+
+    A skipped test is left out. The coverage shards collect the browser tiers and skip them, so
+    counting their skips would record those files at about zero seconds, over the times the
+    ``web-app`` job measures, and its parts would then be balanced on nothing.
+    """
+    if report.skipped:
+        return
     _seconds[report.nodeid.split("::")[0]] += report.duration
 
 

@@ -6,8 +6,11 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+
+from tests import conftest as suite
 
 _TOOL = Path(__file__).resolve().parents[1] / "tools" / "shard_durations.py"
 
@@ -67,3 +70,13 @@ def test_the_script_writes_the_combined_file_and_warns_when_stale(durations, tmp
     assert "shard 1: 141 s of tests at the committed speed; its runner took 1.10x" in printed
     assert "shard 2: 8 s of tests" in printed
     assert "::warning title=Stale test durations::" in printed
+
+
+def test_only_the_tests_that_ran_count_towards_a_files_duration() -> None:
+    """A skipped test adds nothing: the coverage shards skip the browser tiers the web-app job times."""
+    path = "tests/web/e2e/test_example.py"
+    suite._seconds.pop(path, None)
+    suite.pytest_runtest_logreport(SimpleNamespace(nodeid=f"{path}::test_b", duration=0.01, skipped=True))
+    assert path not in suite._seconds
+    suite.pytest_runtest_logreport(SimpleNamespace(nodeid=f"{path}::test_a", duration=2.0, skipped=False))
+    assert suite._seconds.pop(path) == 2.0
