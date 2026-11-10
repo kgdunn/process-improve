@@ -1514,7 +1514,10 @@ main.reproduced .trust-section { background: none; border: 0; border-radius: 0; 
 
 /* The concept map (map/index.html, map.js): the ideas of designed experiments, and how the book links them.
    Every class is prefixed map- : the app already styles .card, .chip and .results its own way. */
-main.map { max-width: 980px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+main.map { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+/* The text keeps a reading width; the map and the bar under it take the page's whole width, up to 1600 px. */
+main.map > * { width: 100%; max-width: 980px; justify-self: center; box-sizing: border-box; }
+main.map > .map-box, main.map > .map-bar { max-width: 1600px; }
 main.map h1 { margin: 8px 0 0; font-size: 2rem; }
 main.map .lede { margin: 0; }
 .map-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -1625,6 +1628,8 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 .map-how th, .map-how td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .map-how th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
 .map-how td:nth-child(2) { text-align: right; }
+/* Stretched across a wide screen, the map can be a little shorter and still hold the topics. */
+@media (min-width: 1100px) { .map-box { height: clamp(340px, 56vh, 580px); } }
 @media (max-width: 480px) {
   main.map h1 { font-size: 1.6rem; }
   .map-box { height: clamp(340px, 58vh, 520px); }

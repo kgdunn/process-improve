@@ -42,6 +42,12 @@ const READ = {
   MAY_HAVE: ["may have", "may belong to"],
 };
 const read = (verb, i) => (READ[verb] || [verb.toLowerCase().replaceAll("_", " "), `${verb.toLowerCase().replaceAll("_", " ")} (from)`])[i];
+// Every link bows a little to the right of the way it reads: lines that would cross at a shallow angle part, and the
+// map reads as less of a tangle. Its control point sits BOW of the link's length off the straight line (the curve
+// itself reaches half that), so long links bow more than short ones and every link keeps the same shape.
+const BOW = 0.14;
+const ARC = { "curve-style": "unbundled-bezier", "control-point-distances": "data(bow)", "control-point-weights": 0.5 };
+const bowOf = (a, b) => BOW * Math.hypot(b.x - a.x, b.y - a.y);
 const TERM_GAP = 62;   // least distance between two terms in the drawing (layout_kg.py)
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -128,9 +134,11 @@ const elements = [
     data: { id: `${s.id}-name`, label: `${s.name}\n[${sizeAt(s.id)}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length } })),
-  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0 },
+  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0,
+    bow: bowOf(terms.get(e.source), terms.get(e.target)) },
     classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
-  ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between", data: { id: `b${i}`, source: e.a, target: e.b, n: e.n } })),
+  ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between",
+    data: { id: `b${i}`, source: e.a, target: e.b, n: e.n, bow: bowOf(topics.get(e.a), topics.get(e.b)) } })),
 ];
 const cy = cytoscape({ container: document.getElementById("cy"), elements, layout: { name: "preset" }, autoungrabify: true,
   autounselectify: true, boxSelectionEnabled: false, wheelSensitivity: 0.35, pixelRatio: "auto" });
@@ -205,7 +213,7 @@ function sheet(z) {
     { selector: ".term.nb", style: { "z-index": 20 } },
     { selector: ".term.held", style: { "border-width": px(3), "border-color": css("--accent"), "z-index": 35 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
-      "curve-style": "straight", "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
+      ...ARC, "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
     // in italic and the accent colour, so a verb is not read as a term.
     ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * 0.85),
@@ -215,9 +223,10 @@ function sheet(z) {
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
-    { selector: ".between", style: { display: overview ? "element" : "none", "curve-style": "straight", "z-index": 1,
+    { selector: ".between", style: { display: overview ? "element" : "none", ...ARC, "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
+    { selector: ".topic.empty, .subtopic.empty, .subname.empty", style: { opacity: 0.35 } },
     { selector: ".link.dim", style: { opacity: 0.08, "source-label": "" } },
     { selector: ".link.mute", style: { "source-label": "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
@@ -298,9 +307,13 @@ function settleLinkLabels(kept) {
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
     const s = e.source().renderedPosition(), t = e.target().renderedPosition();
     const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f) + 4;
-    const dx = (t.x - s.x) / len, dy = (t.y - s.y) / len;
     const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
-    const points = k => [-0.45, -0.2, 0, 0.2, 0.45].map(j => ({ x: s.x + dx * (k * len + w * j), y: s.y + dy * (k * len + w * j) }));
+    // Along the curve as Cytoscape draws it: the quadratic through its own control point, from the centre of one term
+    // to the other's, close enough to the arc length for a label's few points.
+    const pan = cy.pan(), [c] = e.controlPoints() || [{ x: ((s.x + t.x) / 2 - pan.x) / z, y: ((s.y + t.y) / 2 - pan.y) / z }];
+    const cx = c.x * z + pan.x, cy_ = c.y * z + pan.y;
+    const points = k => [-0.45, -0.2, 0, 0.2, 0.45].map(j => { const u = Math.min(1, Math.max(0, k + (w * j) / len)), v = 1 - u;
+      return { x: v * v * s.x + 2 * u * v * cx + u * u * t.x, y: v * v * s.y + 2 * u * v * cy_ + u * u * t.y }; });
     const mid = points(0.5)[2], off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
     const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !points(k).some(p => hit(p.x, p.y)));
     e.toggleClass("mute", k === undefined);
@@ -532,7 +545,14 @@ cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(
 cy.on("mouseout", "edge.link", () => {
   if (stripWas !== null) { document.getElementById("striptext").innerHTML = stripWas; stripWas = null; }
 });
-cy.on("tap", "node.term", ev => { if (!scrolled) go(ev.target.id()); });
+// A tap on the map brings it up the page, the filters at the top of the screen, so the card it opens below the map
+// is in view: a reader who tapped with the map low on the screen would otherwise not see that anything changed. A
+// page already scrolled further stays where it is.
+function bringUp() {
+  const top = document.querySelector(".map-find").getBoundingClientRect().top + scrollY - 8;
+  if (scrollY < top - 4) scrollTo({ top, behavior: reduce ? "auto" : "smooth" });
+}
+cy.on("tap", "node.term", ev => { if (!scrolled) { go(ev.target.id()); bringUp(); } });
 cy.on("tap", "edge.link.hl", ev => { if (!scrolled) sayLink(ev.target); });
 cy.on("tap", ev => {
   if (scrolled || (ev.target !== cy && !ev.target.isEdge()) || (ev.target !== cy && ev.target.hasClass("hl"))) return;
@@ -540,7 +560,7 @@ cy.on("tap", ev => {
   const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
   const hit = (!overview && [...subtopics.values()].find(inside)) || DATA.clusters.find(inside);
-  if (hit && hit.id !== selected) go(hit.id);
+  if (hit && hit.id !== selected) { go(hit.id); bringUp(); }
 });
 document.getElementById("links").addEventListener("click", ev => {
   const b = ev.target.closest(".map-chip"); if (b) { go(b.dataset.id); document.querySelector(".map-box").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" }); }
@@ -553,6 +573,9 @@ function applyHidden() {
   cy.nodes(".term").forEach(n => n.toggleClass("off", !onMap.has(n.id())));
   cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
   cy.nodes(".subname").forEach(n => n.data("label", `${subtopics.get(n.id().replace(/-name$/, "")).name}\n[${sizeAt(n.id().replace(/-name$/, ""))}]`));
+  // A topic with no term drawn at this level, or of these kinds, is dimmed: there is nothing in it to open.
+  cy.nodes(".topic, .subtopic").forEach(n => n.toggleClass("empty", sizeAt(n.id()) === 0));
+  cy.nodes(".subname").forEach(n => n.toggleClass("empty", sizeAt(n.id().replace(/-name$/, "")) === 0));
 }
 const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
 function showLevel() {

@@ -478,9 +478,9 @@ LONGEST = """() => { const cy = window.conceptMap.cy, box = cy.container().getBo
     return { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2, len: Math.hypot(t.x - s.x, t.y - s.y) }; };
   const inView = (m) => m.x > 20 && m.x < cy.width() - 20 && m.y > 20 && m.y < cy.height() - 20;
   const e = cy.edges('.link.hl').filter((x) => x.visible() && inView(mid(x))).max((x) => mid(x).len).ele;
-  const s = e.source().renderedPosition(), t = e.target().renderedPosition();
-  return { said: `${name(e.source())} ${e.data('verb')} ${name(e.target())}`,
-    x: box.left + (s.x + t.x) / 2, y: box.top + (s.y + t.y) / 2 }; }"""
+  const m = e.renderedMidpoint();   // on the curve: a link bows, so the straight line's middle is off it
+  const said = `${name(e.source())} ${e.data('verb')} ${name(e.target())}`;
+  return { said, x: box.left + m.x, y: box.top + m.y }; }"""
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
@@ -712,3 +712,46 @@ def test_no_term_is_drawn_alone_and_every_count_is_what_is_drawn(context, site, 
     _go(page, "confounding")  # a concept: drawn while selected, with its count, even when concepts are hidden
     assert page.evaluate("() => window.conceptMap.cy.getElementById('confounding').visible()")
     assert page.evaluate(FAULTS)["miscounted"] == []
+
+
+def test_a_topic_with_no_term_at_the_level_is_dimmed(context, site):
+    page = _open(context, site, level=1)
+    empty = page.evaluate("() => window.conceptMap.cy.nodes('.topic.empty').map((n) => n.id()).sort()")
+    drawn = set(_drawn(1, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT}))
+    expected = sorted(
+        c["id"]
+        for c in GRAPH["clusters"]
+        if not any(n["cluster"] == c["id"] for n in GRAPH["nodes"] if n["id"] in drawn)
+    )
+    assert empty == expected, "exactly the topics with no term drawn"
+    assert empty, "the beginner level leaves at least one topic empty, or this test checks nothing"
+    page.locator("#level").fill("3")
+    assert page.evaluate("() => window.conceptMap.cy.nodes('.topic.empty').length") == 0, (
+        "every topic has terms at the top"
+    )
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1860, "height": 1000}}])
+def test_on_a_wide_screen_the_map_takes_the_width_and_a_tap_brings_it_up(context, site):
+    page = _open(context, site)
+    widths = page.evaluate("""() => ['.map-box', '#card', '.map-find'].map((s) =>
+      Math.round(document.querySelector(s).getBoundingClientRect().width))""")
+    assert widths[0] == 1600, "the map stretches to its 1600 px"
+    assert widths[1] == widths[2] == 980, "the text keeps its reading width"
+    assert page.evaluate("scrollY") == 0
+    page.mouse.click(*_on_map(page, _rendered(page, BIGGEST["id"])))
+    page.wait_for_function("(name) => document.querySelector('#card h2').textContent === name", arg=BIGGEST["name"])
+    page.wait_for_function("() => Math.abs(document.querySelector('.map-find').getBoundingClientRect().top - 8) < 2")
+    card = page.evaluate("() => document.querySelector('#card').getBoundingClientRect().top")
+    assert card < 1000, "the card the tap opened is on the screen"
+
+
+def test_every_link_bows_a_little(context, site):
+    page = _open(context, site)
+    _go(page, "full_factorial")
+    bows = page.evaluate("""() => window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()).map((e) => {
+      const s = e.source().position(), t = e.target().position(), m = e.midpoint();
+      const len = Math.hypot(t.x - s.x, t.y - s.y);
+      return Math.hypot(m.x - (s.x + t.x) / 2, m.y - (s.y + t.y) / 2) / len; })""")
+    assert bows, "the selected term has links"
+    assert all(0.03 < b < 0.12 for b in bows), f"a mild arc, a few percent of the link's length: {bows}"
