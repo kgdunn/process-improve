@@ -288,22 +288,27 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_url("**/map/")
 
 
-@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
-def test_what_the_map_shows_is_set_above_it_and_how_it_is_drawn_below(context, site):
+SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
+
+
+@pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     page = _open(context, site)
-    box = {
-        s: page.locator(s).bounding_box()
-        for s in (".map-search input", "#level", "#legend", "#cy", ".map-names", ".map-verbs", ".map-controls")
-    }
-    top, bottom = box["#cy"]["y"], box["#cy"]["y"] + box["#cy"]["height"]
-    for above in (".map-search input", "#level", "#legend"):
-        assert box[above]["y"] + box[above]["height"] <= top, f"{above}: the filters sit above the map"
-    for below in (".map-controls", ".map-names", ".map-verbs"):
-        assert box[below]["y"] >= bottom, f"{below}: zoom and the appearance switches sit below the map"
-    assert box[".map-names"]["y"] >= box[".map-controls"]["y"] + box[".map-controls"]["height"], "under zoom and fit"
-    names, verbs = box[".map-names"], box[".map-verbs"]
-    assert names["y"] == pytest.approx(verbs["y"], abs=2), "the two switches share a row"
-    assert names["x"] + names["width"] <= verbs["x"], "term names, then link labels"
+    page.locator("#level").fill("2")  # Intermediate, the longest name
+    rows = page.evaluate("""() => {
+      const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
+      const box = (s) => document.querySelector(s).getBoundingClientRect();
+      return { switches: top('.map-view > label'), kinds: top('#legend button'), search: box('.map-search input'),
+        legend: box('#legend'), view: box('.map-view'), map: box('#cy'), zoom: box('.map-controls') }; }""")
+    assert len(set(rows["switches"])) == 1, "term names, link labels and the level on one line"
+    assert len(set(rows["kinds"])) == 1, "the kinds of term on one line"
+    assert rows["view"]["bottom"] <= rows["legend"]["top"], "the switches, then the kinds"
+    assert rows["legend"]["bottom"] <= rows["map"]["top"], "both above the map"
+    assert rows["zoom"]["top"] >= rows["map"]["bottom"], "zoom and fit stay below the map"
+    if page.viewport_size["width"] > 600:
+        assert rows["view"]["left"] >= rows["search"]["right"], "beside the search"
+    else:
+        assert rows["view"]["top"] >= rows["search"]["bottom"], "on a phone, on the row below the search"
     assert page.is_checked("#labels"), "term names start on"
     assert not page.is_checked("#verbs"), "link labels start off"
     assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
@@ -667,7 +672,7 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.text_content("#level-name") == "Beginner"
 
 
-@pytest.mark.parametrize("context_options", [{"viewport": {"width": 360, "height": 780}, "is_mobile": True}, PHONE])
+@pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE])
 def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
     page.locator("#level").fill("2")  # Intermediate, the longest name

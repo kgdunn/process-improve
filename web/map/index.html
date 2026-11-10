@@ -48,7 +48,7 @@
   <p class="map-meta"><button type="button" class="map-howlink" id="howlink">How this map was made</button>
     <a id="howto" href="https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/HOWTO.md" target="_blank" rel="noopener">Build one from your own texts</a></p>
 
-  <!-- Above the map, what it shows: the search, the level and the kinds of term. Below it, how it is drawn. -->
+  <!-- Above the map, two rows: the search with the switches and the level, then the kinds of term. -->
   <div class="map-find">
     <div class="map-search">
       <label for="q">Find a term</label>
@@ -56,9 +56,15 @@
         aria-controls="results">
       <div class="map-results" id="results" role="listbox" hidden></div>
     </div>
-    <label class="map-level">Level
-      <input type="range" id="level" min="1" max="3" step="1" value="1" aria-valuetext="Beginner">
-      <output id="level-name" for="level">Beginner</output></label>
+    <div class="map-view" role="group" aria-label="What the map shows">
+      <label class="switch map-names"><input type="checkbox" id="labels" checked>
+        <span class="switch__track" aria-hidden="true"></span><span class="switch__text"><span class="map-full">Term names</span><span class="map-short" aria-hidden="true">Names</span></span></label>
+      <label class="switch map-verbs"><input type="checkbox" id="verbs">
+        <span class="switch__track" aria-hidden="true"></span><span class="switch__text"><span class="map-full">Link labels</span><span class="map-short" aria-hidden="true">Links</span></span></label>
+      <label class="map-level"><span class="map-full">Level</span>
+        <input type="range" id="level" min="1" max="3" step="1" value="1" aria-valuetext="Beginner">
+        <output id="level-name" for="level">Beginner</output></label>
+    </div>
   </div>
   <div class="map-legend" id="legend" role="group" aria-label="Kinds of term shown on the map"></div>
 
@@ -75,13 +81,6 @@
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>
       </button>
     </div>
-  </div>
-
-  <div class="map-view" role="group" aria-label="How the map is drawn">
-    <label class="switch map-names"><input type="checkbox" id="labels" checked>
-      <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Term names</span></label>
-    <label class="switch map-verbs"><input type="checkbox" id="verbs">
-      <span class="switch__track" aria-hidden="true"></span><span class="switch__text">Link labels</span></label>
   </div>
 
   <section class="map-card" id="card" aria-live="polite"></section>

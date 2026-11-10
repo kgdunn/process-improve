@@ -20,7 +20,7 @@ const FAMILIES = {
   design: ["Designs and their properties", "round-rectangle", "M3 3h14v14H3z", "Designs"],
   method: ["Methods, plots, phases", "diamond", "M10 1.5 18.5 10 10 18.5 1.5 10z", "Methods"],
   concept: ["Concepts", "ellipse", "M10 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16z", "Concepts"],
-  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z", "Guidelines"],
+  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z", "Guides"],
   context: ["Examples, questions, sources", "hexagon", "M5.5 2.5h9L19 10l-4.5 7.5h-9L1 10z", "Examples"],
 };
 // How each verb reads from its source ([0]) and from its target ([1]); the verbs are those build_kg.py allows.
