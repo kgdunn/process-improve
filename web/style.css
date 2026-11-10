@@ -1542,6 +1542,11 @@ main.map .lede { margin: 0; }
   .map-level input { width: auto; flex: 1 1 44px; min-width: 24px; max-width: 72px; }
   .map-level output { min-width: 0; white-space: nowrap; }
 }
+/* Under 360 px the switches and the level need more than one line: the level wraps below them rather than widen the
+   page, which a phone would then scroll sideways. */
+@media (max-width: 359px) {
+  .map-view { flex-wrap: wrap; gap: 4px 10px; }
+}
 .map-search { position: relative; flex: 1 1 200px; max-width: 420px; }
 .map-search label { display: block; color: var(--muted); font-size: 0.9rem; margin-bottom: 4px; }
 .map-search input { width: 100%; box-sizing: border-box; font-size: 1rem; }
