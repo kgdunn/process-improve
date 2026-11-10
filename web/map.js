@@ -17,11 +17,11 @@ const FONT = getComputedStyle(document.body).fontFamily;
 const FAMILY = { DesignType: "design", Property: "design", Criterion: "design", Method: "method", Plot: "method", Phase: "method",
   Concept: "concept", Guideline: "guide", Diagnostic: "guide", Example: "context", Question: "context", Reference: "context" };
 const FAMILIES = {
-  design: ["Designs and their properties", "round-rectangle", "M3 3h14v14H3z"],
-  method: ["Methods, plots, phases", "diamond", "M10 1.5 18.5 10 10 18.5 1.5 10z"],
-  concept: ["Concepts", "ellipse", "M10 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16z"],
-  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z"],
-  context: ["Examples, questions, sources", "hexagon", "M5.5 2.5h9L19 10l-4.5 7.5h-9L1 10z"],
+  design: ["Designs and their properties", "round-rectangle", "M3 3h14v14H3z", "Designs"],
+  method: ["Methods, plots, phases", "diamond", "M10 1.5 18.5 10 10 18.5 1.5 10z", "Methods"],
+  concept: ["Concepts", "ellipse", "M10 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16z", "Concepts"],
+  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z", "Guidelines"],
+  context: ["Examples, questions, sources", "hexagon", "M5.5 2.5h9L19 10l-4.5 7.5h-9L1 10z", "Examples"],
 };
 // How each verb reads from its source ([0]) and from its target ([1]); the verbs are those build_kg.py allows.
 const READ = {
@@ -85,8 +85,8 @@ onMap = drawnTerms(null);
 const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && onMap.has(n.id)).length;
 const drawLegend = () => {
   document.getElementById("legend").innerHTML = `<span>Show:</span>` + Object.entries(FAMILIES)
-    .map(([k, [label]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
-      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}${label}</button>`).join("");
+    .map(([k, [label, , , short]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
+      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}<span class="map-full">${label}</span><span class="map-short" aria-hidden="true">${short}</span></button>`).join("");
 };
 
 // ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's

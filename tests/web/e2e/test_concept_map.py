@@ -289,16 +289,21 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
-def test_the_appearance_switches_sit_by_the_search_and_zoom_stays_below_the_map(context, site):
+def test_what_the_map_shows_is_set_above_it_and_how_it_is_drawn_below(context, site):
     page = _open(context, site)
-    search, names, verbs = (page.locator(s).bounding_box() for s in (".map-search input", ".map-names", ".map-verbs"))
+    box = {
+        s: page.locator(s).bounding_box()
+        for s in (".map-search input", "#level", "#legend", "#cy", ".map-names", ".map-verbs", ".map-controls")
+    }
+    top, bottom = box["#cy"]["y"], box["#cy"]["y"] + box["#cy"]["height"]
+    for above in (".map-search input", "#level", "#legend"):
+        assert box[above]["y"] + box[above]["height"] <= top, f"{above}: the filters sit above the map"
+    for below in (".map-controls", ".map-names", ".map-verbs"):
+        assert box[below]["y"] >= bottom, f"{below}: zoom and the appearance switches sit below the map"
+    assert box[".map-names"]["y"] >= box[".map-controls"]["y"] + box[".map-controls"]["height"], "under zoom and fit"
+    names, verbs = box[".map-names"], box[".map-verbs"]
     assert names["y"] == pytest.approx(verbs["y"], abs=2), "the two switches share a row"
     assert names["x"] + names["width"] <= verbs["x"], "term names, then link labels"
-    if page.viewport_size["width"] > 600:
-        assert names["x"] >= search["x"] + search["width"], "in the space to the right of the search"
-        assert names["y"] < search["y"] + search["height"], "on the search's row"
-    else:
-        assert names["y"] >= search["y"] + search["height"], "on a phone, on the row below the search"
     assert page.is_checked("#labels"), "term names start on"
     assert not page.is_checked("#verbs"), "link labels start off"
     assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
@@ -390,6 +395,12 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
 
 
 @pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def _map_in_view(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Scroll the whole map onto the screen, as a reader does before touching it."""
+    page.evaluate("() => document.querySelector('.map-box').scrollIntoView({ block: 'center' })")
+    _settled(page)
+
+
 def _drag(page: Any, finger: Any, rise: float, fingers: int = 1) -> None:  # noqa: ANN401 - Playwright objects
     """Drag one finger, or two side by side, up the map by ``rise`` pixels, from low in the map, as a reader does."""
     box = page.locator("#cy").bounding_box()
@@ -413,6 +424,7 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     page = _open(context, site)
     finger = context.new_cdp_session(page)
     view = "() => ({ scrolled: scrollY, pan: window.conceptMap.cy.pan(), zoom: window.conceptMap.cy.zoom() })"
+    _map_in_view(page)  # the filters above it push its lower part below a phone's first screen
     before = page.evaluate(view)
     _drag(page, finger, 300)
     after = page.evaluate(view)
@@ -427,11 +439,12 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     kept = page.evaluate(view)
     assert (kept["pan"], kept["zoom"]) == (after["pan"], after["zoom"]), "a taller window keeps the reader's view"
 
-    page.evaluate("() => window.scrollTo(0, 0)")
+    _map_in_view(page)
+    still = page.evaluate("() => scrollY")
     _drag(page, finger, 150, fingers=2)
     moved = page.evaluate(view)
     assert moved["pan"]["y"] < kept["pan"]["y"] - 50, "two fingers move the map"
-    assert moved["scrolled"] == 0, "and leave the page where it was"
+    assert moved["scrolled"] == still, "and leave the page where it was"
 
     box = page.locator("#cy").bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
@@ -497,6 +510,7 @@ def test_the_mouse_on_a_link_reads_it_as_a_sentence_below_the_map(context, site)
 def test_a_tap_on_a_link_of_the_selected_term_reads_it_and_keeps_the_term(context, site):
     page = _open(context, site)
     _go(page, "full_factorial")
+    _map_in_view(page)
     link = page.evaluate(LONGEST)
     finger = context.new_cdp_session(page)
     point = [{"x": link["x"], "y": link["y"], "id": 0}]
@@ -654,14 +668,12 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 360, "height": 780}, "is_mobile": True}, PHONE])
-def test_on_a_phone_the_two_switches_and_the_level_share_one_line(context, site):
+def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
     page.locator("#level").fill("2")  # Intermediate, the longest name
     row = page.evaluate("""() => ({
-      tops: [...document.querySelectorAll('.map-view > label')].map((e) => Math.round(e.getBoundingClientRect().top)),
       right: document.querySelector('#level-name').getBoundingClientRect().right,
       width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
-    assert len(set(row["tops"])) == 1, "Names, Links and the level on one line"
     assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
     assert row["scroll"] == row["width"], "and the page does not scroll sideways"
 
