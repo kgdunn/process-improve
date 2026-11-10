@@ -66,11 +66,23 @@ const leveled = DATA.nodes.some(n => n.level);
 let level = leveled ? 1 : LEVELS.length;
 try { const v = Number(localStorage.getItem("factorial-map-level")); if (leveled && v >= 1 && v <= LEVELS.length) level = v; } catch {}
 const shown = n => (n.level || LEVELS.length) <= level;
-const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && shown(n)).length;
 
 // Kinds of term hidden from the map, remembered in this browser. The selected term always stays visible.
 const hidden = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || '["context"]')) if (k in FAMILIES) hidden.add(k); } catch {}
+
+// The terms drawn: those at the level and of the kinds chosen, plus the selected one, less any left with no link to
+// another drawn term. One pass is enough: dropping a term with no drawn link takes no link from any other. Every
+// count on the map reads this same set, so a topic never counts a term it does not draw.
+let onMap = new Set();
+function drawnTerms(sel) {
+  const kept = new Set(DATA.nodes.filter(n => n.id === sel || (shown(n) && !hidden.has(fam(n)))).map(n => n.id));
+  const linked = new Set(sel ? [sel] : []);
+  for (const e of DATA.edges) if (kept.has(e.source) && kept.has(e.target)) { linked.add(e.source); linked.add(e.target); }
+  return new Set([...kept].filter(id => linked.has(id)));
+}
+onMap = drawnTerms(null);
+const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && onMap.has(n.id)).length;
 const drawLegend = () => {
   document.getElementById("legend").innerHTML = `<span>Show:</span>` + Object.entries(FAMILIES)
     .map(([k, [label]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
@@ -386,7 +398,7 @@ function render() {
     strip.innerHTML = `<b>${esc(n.name)}</b> · ${esc(n.definition)}`;
   } else if (selected && groupOf(selected)) {
     const c = groupOf(selected), isSub = subtopics.has(selected);
-    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && shown(n))
+    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && onMap.has(n.id))
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name)).map(n => n.id);
     const near = DATA.cluster_links.filter(l => l.a === c.id || l.b === c.id).sort((a, b) => b.n - a.n).map(l => (l.a === c.id ? l.b : l.a));
     card.style.removeProperty("--fam");
@@ -535,7 +547,11 @@ document.getElementById("links").addEventListener("click", ev => {
 const zoomBy = f => { const z = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * f));
   cy.stop(); cy.animate({ zoom: { level: z, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } } }, { duration: reduce ? 0 : 250 }); };
 function applyHidden() {
-  cy.nodes(".term").forEach(n => n.toggleClass("off", (hidden.has(n.data("fam")) || n.data("level") > level) && !n.hasClass("sel")));
+  const sel = cy.nodes(".term.sel");
+  onMap = drawnTerms(sel.nonempty() ? sel.id() : null);
+  cy.nodes(".term").forEach(n => n.toggleClass("off", !onMap.has(n.id())));
+  cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
+  cy.nodes(".subname").forEach(n => n.data("label", `${subtopics.get(n.id().replace(/-name$/, "")).name}\n[${sizeAt(n.id().replace(/-name$/, ""))}]`));
 }
 const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
 function showLevel() {
@@ -549,12 +565,7 @@ levelSlider.addEventListener("input", () => {
   level = Number(levelSlider.value);
   try { localStorage.setItem("factorial-map-level", String(level)); } catch {}
   showLevel();
-  cy.batch(() => {
-    cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
-    cy.nodes(".subname").forEach(n => { const s = subtopics.get(n.id().replace(/-name$/, ""));
-      n.data("label", `${s.name}\n[${sizeAt(s.id)}]`); });
-    applyHidden();
-  });
+  cy.batch(applyHidden);
   refresh(true);
   render();   // an open topic's card lists the terms at this level
 });
@@ -566,6 +577,7 @@ document.getElementById("legend").addEventListener("click", ev => {
   drawLegend();
   document.querySelector(`#legend button[data-fam="${k}"]`).focus();   // keep the keyboard where it was
   cy.batch(applyHidden); refresh(true);
+  render();   // an open topic's card counts the terms drawn
 });
 const labelsSwitch = document.getElementById("labels");
 labelsSwitch.checked = labelsOn;

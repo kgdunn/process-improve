@@ -96,11 +96,15 @@ BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     page = _open(context, site)
+    drawn = set(_drawn(3, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT}))
+    size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in drawn)
+    assert size < BIGGEST["size"], "the hidden examples are not counted"
     biggest = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
-    assert biggest == f"{BIGGEST['short']}\n[{BIGGEST['size']}]", "a topic's name, and its number of terms below it"
+    assert biggest == f"{BIGGEST['short']}\n[{size}]", "a topic's name, and its number of terms drawn below it"
     sub = BIGGEST["subs"][0]
+    size = sum(1 for n in GRAPH["nodes"] if n["sub"] == sub["id"] and n["id"] in drawn)
     named = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('label')", f"{sub['id']}-name")
-    assert named == f"{sub['name']}\n[{sub['size']}]", "and a sub-topic's"
+    assert named == f"{sub['name']}\n[{size}]", "and a sub-topic's"
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
@@ -586,10 +590,35 @@ def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site)
     assert page.evaluate(theme) == chosen, "the start page opens in the mode chosen on the map"
 
 
-# The terms a reader sees at a reading level: every term at that level or below, of the kinds not hidden.
+# The terms a reader sees at a reading level: every term at that level or below, of the kinds not hidden, that keeps
+# a link to another such term.
 SHOWN = """() => window.conceptMap.cy.nodes('.term').filter((n) => !n.hasClass('off')).map((n) => n.id()).sort()"""
 CONTEXT = {"Example", "Question", "Reference"}  # hidden by default, as the first test checks
 LEVELS = ["Beginner", "Intermediate", "Advanced"]
+
+
+def _drawn(level: int, hidden: set[str]) -> list[str]:
+    """List the terms drawn at ``level`` with the terms in ``hidden`` hidden by their kind, nothing selected."""
+    kept = {n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["id"] not in hidden}
+    ends = [(e["source"], e["target"]) for e in GRAPH["edges"]]
+    linked = {end for pair in ends if set(pair) <= kept for end in pair}
+    return sorted(kept & linked)
+
+
+# What the reader must never see: a drawn term with no drawn link, or a topic or sub-topic whose count is not the
+# number of terms it draws.
+FAULTS = """() => {
+  const cy = window.conceptMap.cy, on = cy.nodes('.term').filter((n) => !n.hasClass('off'));
+  const drawn = (e) => !e.source().hasClass('off') && !e.target().hasClass('off');
+  const alone = on.filter((n) => n.connectedEdges('.link').filter(drawn).empty()).map((n) => n.id());
+  const count = (id) => on.filter((n) => n.data('topic') === id || n.data('sub') === id).length;
+  const off = (key, id) => (n) => !n.data(key).endsWith(`[${count(id(n))}]`);
+  const miscounted = [
+    ...cy.nodes('.topic').filter(off('olabel', (n) => n.id())).map((n) => n.id()),
+    ...cy.nodes('.subname').filter(off('label', (n) => n.id().slice(0, -5))).map((n) => n.id()),
+  ];
+  return { alone, miscounted, drawn: on.length };
+}"""
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
@@ -599,9 +628,9 @@ def test_the_level_slider_shows_each_level_with_every_level_below_it(context, si
     for level, name in reversed(list(enumerate(LEVELS, 1))):
         page.locator("#level").fill(str(level))
         assert page.text_content("#level-name") == name
-        expected = sorted(n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["type"] not in CONTEXT)
+        expected = _drawn(level, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT})
         assert page.evaluate(SHOWN) == expected, f"{name}: exactly the terms at that level or below"
-        size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["level"] <= level)
+        size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in expected)
         label = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
         assert label == f"{BIGGEST['short']}\n[{size}]", "a topic counts the terms shown at the level"
     sizes = [len([n for n in GRAPH["nodes"] if n["level"] <= level]) for level in (1, 2, 3)]
@@ -635,3 +664,30 @@ def test_on_a_phone_the_two_switches_and_the_level_share_one_line(context, site)
     assert len(set(row["tops"])) == 1, "Names, Links and the level on one line"
     assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
     assert row["scroll"] == row["width"], "and the page does not scroll sideways"
+
+
+# Kinds of term to hide, by their legend key: the default, the one that drew lone terms and empty sub-topics on
+# 2026-11-10, and all but one kind.
+HIDDEN_KINDS = [{"context"}, {"method", "concept", "context"}, {"design", "method", "concept", "context"}]
+
+
+@pytest.mark.parametrize("kinds", HIDDEN_KINDS, ids=lambda k: "+".join(sorted(k)))
+def test_no_term_is_drawn_alone_and_every_count_is_what_is_drawn(context, site, kinds):
+    page = _open(context, site)
+    for key in ("design", "method", "concept", "guide", "context"):
+        button = f'#legend button[data-fam="{key}"]'
+        if (page.get_attribute(button, "aria-pressed") == "true") == (key in kinds):
+            page.click(button)
+    kind_of = page.evaluate(
+        "() => Object.fromEntries(window.conceptMap.cy.nodes('.term').map((n) => [n.id(), n.data('fam')]))"
+    )
+    hidden = {i for i, k in kind_of.items() if k in kinds}
+    for level in (3, 2, 1):
+        page.locator("#level").fill(str(level))
+        faults = page.evaluate(FAULTS)
+        assert faults["alone"] == [], f"level {level}: every drawn term keeps a drawn link"
+        assert faults["miscounted"] == [], f"level {level}: each topic counts the terms it draws"
+        assert page.evaluate(SHOWN) == _drawn(level, hidden)
+    _go(page, "confounding")  # a concept: drawn while selected, with its count, even when concepts are hidden
+    assert page.evaluate("() => window.conceptMap.cy.getElementById('confounding').visible()")
+    assert page.evaluate(FAULTS)["miscounted"] == []
