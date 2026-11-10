@@ -96,11 +96,15 @@ BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     page = _open(context, site)
+    drawn = set(_drawn(3, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT}))
+    size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in drawn)
+    assert size < BIGGEST["size"], "the hidden examples are not counted"
     biggest = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
-    assert biggest == f"{BIGGEST['short']}\n[{BIGGEST['size']}]", "a topic's name, and its number of terms below it"
+    assert biggest == f"{BIGGEST['short']}\n[{size}]", "a topic's name, and its number of terms drawn below it"
     sub = BIGGEST["subs"][0]
+    size = sum(1 for n in GRAPH["nodes"] if n["sub"] == sub["id"] and n["id"] in drawn)
     named = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('label')", f"{sub['id']}-name")
-    assert named == f"{sub['name']}\n[{sub['size']}]", "and a sub-topic's"
+    assert named == f"{sub['name']}\n[{size}]", "and a sub-topic's"
     assert page.text_content("#card h2") == f"{len(GRAPH['clusters'])} topics"
     assert page.evaluate(STATE)["terms"] == 0
     assert page.locator("#links .map-chip").count() == len(GRAPH["clusters"])
@@ -284,17 +288,29 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
     page.wait_for_url("**/map/")
 
 
-@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
-def test_the_appearance_switches_sit_by_the_search_and_zoom_stays_below_the_map(context, site):
+SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
+
+
+@pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     page = _open(context, site)
-    search, names, verbs = (page.locator(s).bounding_box() for s in (".map-search input", ".map-names", ".map-verbs"))
-    assert names["y"] == pytest.approx(verbs["y"], abs=2), "the two switches share a row"
-    assert names["x"] + names["width"] <= verbs["x"], "term names, then link labels"
+    page.locator("#level").fill("2")  # Intermediate, the longest name
+    # The kinds in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
+    page.evaluate("""() => { document.querySelector('#legend').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
+    rows = page.evaluate("""() => {
+      const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
+      const box = (s) => document.querySelector(s).getBoundingClientRect();
+      return { switches: top('.map-view > label'), kinds: top('#legend button'), search: box('.map-search input'),
+        legend: box('#legend'), view: box('.map-view'), map: box('#cy'), zoom: box('.map-controls') }; }""")
+    assert len(set(rows["switches"])) == 1, "term names, link labels and the level on one line"
+    assert len(set(rows["kinds"])) == 1, "the kinds of term on one line"
+    assert rows["view"]["bottom"] <= rows["legend"]["top"], "the switches, then the kinds"
+    assert rows["legend"]["bottom"] <= rows["map"]["top"], "both above the map"
+    assert rows["zoom"]["top"] >= rows["map"]["bottom"], "zoom and fit stay below the map"
     if page.viewport_size["width"] > 600:
-        assert names["x"] >= search["x"] + search["width"], "in the space to the right of the search"
-        assert names["y"] < search["y"] + search["height"], "on the search's row"
+        assert rows["view"]["left"] >= rows["search"]["right"], "beside the search"
     else:
-        assert names["y"] >= search["y"] + search["height"], "on a phone, on the row below the search"
+        assert rows["view"]["top"] >= rows["search"]["bottom"], "on a phone, on the row below the search"
     assert page.is_checked("#labels"), "term names start on"
     assert not page.is_checked("#verbs"), "link labels start off"
     assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
@@ -386,6 +402,12 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
 
 
 @pytest.mark.parametrize("context_options", [{**PHONE, "has_touch": True}])
+def _map_in_view(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Scroll the whole map onto the screen, as a reader does before touching it."""
+    page.evaluate("() => document.querySelector('.map-box').scrollIntoView({ block: 'center' })")
+    _settled(page)
+
+
 def _drag(page: Any, finger: Any, rise: float, fingers: int = 1) -> None:  # noqa: ANN401 - Playwright objects
     """Drag one finger, or two side by side, up the map by ``rise`` pixels, from low in the map, as a reader does."""
     box = page.locator("#cy").bounding_box()
@@ -409,6 +431,7 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     page = _open(context, site)
     finger = context.new_cdp_session(page)
     view = "() => ({ scrolled: scrollY, pan: window.conceptMap.cy.pan(), zoom: window.conceptMap.cy.zoom() })"
+    _map_in_view(page)  # the filters above it push its lower part below a phone's first screen
     before = page.evaluate(view)
     _drag(page, finger, 300)
     after = page.evaluate(view)
@@ -423,11 +446,12 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     kept = page.evaluate(view)
     assert (kept["pan"], kept["zoom"]) == (after["pan"], after["zoom"]), "a taller window keeps the reader's view"
 
-    page.evaluate("() => window.scrollTo(0, 0)")
+    _map_in_view(page)
+    still = page.evaluate("() => scrollY")
     _drag(page, finger, 150, fingers=2)
     moved = page.evaluate(view)
     assert moved["pan"]["y"] < kept["pan"]["y"] - 50, "two fingers move the map"
-    assert moved["scrolled"] == 0, "and leave the page where it was"
+    assert moved["scrolled"] == still, "and leave the page where it was"
 
     box = page.locator("#cy").bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
@@ -493,6 +517,7 @@ def test_the_mouse_on_a_link_reads_it_as_a_sentence_below_the_map(context, site)
 def test_a_tap_on_a_link_of_the_selected_term_reads_it_and_keeps_the_term(context, site):
     page = _open(context, site)
     _go(page, "full_factorial")
+    _map_in_view(page)
     link = page.evaluate(LONGEST)
     finger = context.new_cdp_session(page)
     point = [{"x": link["x"], "y": link["y"], "id": 0}]
@@ -586,10 +611,35 @@ def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site)
     assert page.evaluate(theme) == chosen, "the start page opens in the mode chosen on the map"
 
 
-# The terms a reader sees at a reading level: every term at that level or below, of the kinds not hidden.
+# The terms a reader sees at a reading level: every term at that level or below, of the kinds not hidden, that keeps
+# a link to another such term.
 SHOWN = """() => window.conceptMap.cy.nodes('.term').filter((n) => !n.hasClass('off')).map((n) => n.id()).sort()"""
 CONTEXT = {"Example", "Question", "Reference"}  # hidden by default, as the first test checks
 LEVELS = ["Beginner", "Intermediate", "Advanced"]
+
+
+def _drawn(level: int, hidden: set[str]) -> list[str]:
+    """List the terms drawn at ``level`` with the terms in ``hidden`` hidden by their kind, nothing selected."""
+    kept = {n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["id"] not in hidden}
+    ends = [(e["source"], e["target"]) for e in GRAPH["edges"]]
+    linked = {end for pair in ends if set(pair) <= kept for end in pair}
+    return sorted(kept & linked)
+
+
+# What the reader must never see: a drawn term with no drawn link, or a topic or sub-topic whose count is not the
+# number of terms it draws.
+FAULTS = """() => {
+  const cy = window.conceptMap.cy, on = cy.nodes('.term').filter((n) => !n.hasClass('off'));
+  const drawn = (e) => !e.source().hasClass('off') && !e.target().hasClass('off');
+  const alone = on.filter((n) => n.connectedEdges('.link').filter(drawn).empty()).map((n) => n.id());
+  const count = (id) => on.filter((n) => n.data('topic') === id || n.data('sub') === id).length;
+  const off = (key, id) => (n) => !n.data(key).endsWith(`[${count(id(n))}]`);
+  const miscounted = [
+    ...cy.nodes('.topic').filter(off('olabel', (n) => n.id())).map((n) => n.id()),
+    ...cy.nodes('.subname').filter(off('label', (n) => n.id().slice(0, -5))).map((n) => n.id()),
+  ];
+  return { alone, miscounted, drawn: on.length };
+}"""
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
@@ -599,9 +649,9 @@ def test_the_level_slider_shows_each_level_with_every_level_below_it(context, si
     for level, name in reversed(list(enumerate(LEVELS, 1))):
         page.locator("#level").fill(str(level))
         assert page.text_content("#level-name") == name
-        expected = sorted(n["id"] for n in GRAPH["nodes"] if n["level"] <= level and n["type"] not in CONTEXT)
+        expected = _drawn(level, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT})
         assert page.evaluate(SHOWN) == expected, f"{name}: exactly the terms at that level or below"
-        size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["level"] <= level)
+        size = sum(1 for n in GRAPH["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in expected)
         label = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).data('olabel')", BIGGEST["id"])
         assert label == f"{BIGGEST['short']}\n[{size}]", "a topic counts the terms shown at the level"
     sizes = [len([n for n in GRAPH["nodes"] if n["level"] <= level]) for level in (1, 2, 3)]
@@ -624,14 +674,39 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.text_content("#level-name") == "Beginner"
 
 
-@pytest.mark.parametrize("context_options", [{"viewport": {"width": 360, "height": 780}, "is_mobile": True}, PHONE])
-def test_on_a_phone_the_two_switches_and_the_level_share_one_line(context, site):
+@pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE])
+def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
     page.locator("#level").fill("2")  # Intermediate, the longest name
     row = page.evaluate("""() => ({
-      tops: [...document.querySelectorAll('.map-view > label')].map((e) => Math.round(e.getBoundingClientRect().top)),
       right: document.querySelector('#level-name').getBoundingClientRect().right,
       width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
-    assert len(set(row["tops"])) == 1, "Names, Links and the level on one line"
     assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
     assert row["scroll"] == row["width"], "and the page does not scroll sideways"
+
+
+# Kinds of term to hide, by their legend key: the default, the one that drew lone terms and empty sub-topics on
+# 2026-11-10, and all but one kind.
+HIDDEN_KINDS = [{"context"}, {"method", "concept", "context"}, {"design", "method", "concept", "context"}]
+
+
+@pytest.mark.parametrize("kinds", HIDDEN_KINDS, ids=lambda k: "+".join(sorted(k)))
+def test_no_term_is_drawn_alone_and_every_count_is_what_is_drawn(context, site, kinds):
+    page = _open(context, site)
+    for key in ("design", "method", "concept", "guide", "context"):
+        button = f'#legend button[data-fam="{key}"]'
+        if (page.get_attribute(button, "aria-pressed") == "true") == (key in kinds):
+            page.click(button)
+    kind_of = page.evaluate(
+        "() => Object.fromEntries(window.conceptMap.cy.nodes('.term').map((n) => [n.id(), n.data('fam')]))"
+    )
+    hidden = {i for i, k in kind_of.items() if k in kinds}
+    for level in (3, 2, 1):
+        page.locator("#level").fill(str(level))
+        faults = page.evaluate(FAULTS)
+        assert faults["alone"] == [], f"level {level}: every drawn term keeps a drawn link"
+        assert faults["miscounted"] == [], f"level {level}: each topic counts the terms it draws"
+        assert page.evaluate(SHOWN) == _drawn(level, hidden)
+    _go(page, "confounding")  # a concept: drawn while selected, with its count, even when concepts are hidden
+    assert page.evaluate("() => window.conceptMap.cy.getElementById('confounding').visible()")
+    assert page.evaluate(FAULTS)["miscounted"] == []

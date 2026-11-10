@@ -390,7 +390,7 @@ const NO_STUDY = "There is no run sheet yet, so there is no study to send.";
  * keys of CONTEXT), ``study()``, which resolves to the study's packed text, and ``hasStudy()``, whether there is one.
  * Returns ``open(topic)``.
  */
-export function installFeedback({ context, study, hasStudy }) {
+export function installFeedback({ context, study = null, hasStudy = () => false }) {
   let dialog = null;
   let form = null;
   let about = {}; // the page's context, as it was when the dialog opened
@@ -504,6 +504,11 @@ export function installFeedback({ context, study, hasStudy }) {
       shot = null;
       showShot();
     });
+    if (!study) {
+      // A page with no study of its own (the concept map) does not offer one.
+      field("study").closest("label").hidden = true;
+      note("study").hidden = true;
+    }
     dialog.querySelector("#feedback-copy").onclick = copy;
     for (const button of dialog.querySelectorAll("[data-close]")) button.onclick = () => dialog.close();
     if (!relay) {

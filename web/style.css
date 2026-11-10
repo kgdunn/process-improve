@@ -1522,7 +1522,8 @@ main.map .lede { margin: 0; }
 .map-howlink { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); cursor: pointer; font: inherit;
   text-decoration: underline; text-underline-offset: 2px; }
 .map-meta a { text-underline-offset: 2px; }
-/* The search, narrower, with what the map shows beside it; zoom and fit stay below the map. */
+/* Above the map, two rows: the search with the switches and the level beside it, then the kinds of term on one line.
+   Zoom and fit stay below the map. */
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .map-level { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
@@ -1530,7 +1531,7 @@ main.map .lede { margin: 0; }
 .map-level output { color: var(--fg); min-width: 9ch; }
 .map-level[hidden] { display: none; }
 .map-short { display: none; }
-/* On a phone the two switches and the level share one line: short names show, the full ones stay for screen readers. */
+/* On a phone the switches and the level share one line: short names show, the full ones stay for screen readers. */
 @media (max-width: 480px) {
   .map-view { flex-wrap: nowrap; gap: 0 10px; flex: 1 1 100%; min-width: 0; }
   .map-view .switch { gap: 6px; flex: none; }
@@ -1571,12 +1572,23 @@ main.map .lede { margin: 0; }
 .map-controls { display: flex; gap: 6px; flex: none; }
 .map-controls button { width: 42px; height: 42px; min-height: 0; padding: 0; display: grid; place-items: center; font-size: 1.15rem; }
 .map-controls button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.map-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 0.85rem; color: var(--muted); }
+.map-legend { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 6px; margin-top: -6px; font-size: 0.85rem; color: var(--muted); }
 .map-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent;
   color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: 6px; cursor: pointer; }
 .map-legend button:hover { border-color: var(--line); }
 .map-legend button[aria-pressed="false"] { color: var(--muted); opacity: 0.55; text-decoration: line-through; }
 .map-legend svg, .map-chip svg { width: 12px; height: 12px; flex: none; }
+/* The kinds of term on one line: their short names show, the full ones stay for screen readers and in each title. */
+.map-legend .map-full {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.map-legend .map-short { display: inline; }
+@media (max-width: 480px) {   /* one line from a 360 px phone up; a narrower one wraps it rather than scroll sideways */
+  .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
+  .map-legend > span { display: none; }   /* "Show:"; the group's label says it */
+  .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; }
+}
+}
 .map-card { margin: 0; border-left: 4px solid var(--fam, var(--line)); display: grid; gap: 6px; min-width: 0; }
 .map-card h2 { margin: 0; font-size: 1.35rem; }
 .map-card p { margin: 0; max-width: 68ch; }

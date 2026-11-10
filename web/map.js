@@ -7,6 +7,7 @@
 // This is the graph's only viewer: pid-book holds the data, and a change to how the map looks is made here alone.
 import cytoscape from "./vendor/cytoscape.mjs";
 import { MODES, nextMode } from "./logic.js";
+import { installFeedback } from "./feedback.js";
 
 const DATA = await fetch(new URL("map/graph.json", import.meta.url)).then((r) => {
   if (!r.ok) throw new Error(`map/graph.json: ${r.status}`);
@@ -17,11 +18,11 @@ const FONT = getComputedStyle(document.body).fontFamily;
 const FAMILY = { DesignType: "design", Property: "design", Criterion: "design", Method: "method", Plot: "method", Phase: "method",
   Concept: "concept", Guideline: "guide", Diagnostic: "guide", Example: "context", Question: "context", Reference: "context" };
 const FAMILIES = {
-  design: ["Designs and their properties", "round-rectangle", "M3 3h14v14H3z"],
-  method: ["Methods, plots, phases", "diamond", "M10 1.5 18.5 10 10 18.5 1.5 10z"],
-  concept: ["Concepts", "ellipse", "M10 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16z"],
-  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z"],
-  context: ["Examples, questions, sources", "hexagon", "M5.5 2.5h9L19 10l-4.5 7.5h-9L1 10z"],
+  design: ["Designs and their properties", "round-rectangle", "M3 3h14v14H3z", "Designs"],
+  method: ["Methods, plots, phases", "diamond", "M10 1.5 18.5 10 10 18.5 1.5 10z", "Methods"],
+  concept: ["Concepts", "ellipse", "M10 2a8 8 0 1 1 0 16a8 8 0 1 1 0-16z", "Concepts"],
+  guide: ["Guidelines and warning signs", "triangle", "M10 2 18.5 17.5H1.5z", "Guides"],
+  context: ["Examples, questions, sources", "hexagon", "M5.5 2.5h9L19 10l-4.5 7.5h-9L1 10z", "Examples"],
 };
 // How each verb reads from its source ([0]) and from its target ([1]); the verbs are those build_kg.py allows.
 const READ = {
@@ -66,15 +67,27 @@ const leveled = DATA.nodes.some(n => n.level);
 let level = leveled ? 1 : LEVELS.length;
 try { const v = Number(localStorage.getItem("factorial-map-level")); if (leveled && v >= 1 && v <= LEVELS.length) level = v; } catch {}
 const shown = n => (n.level || LEVELS.length) <= level;
-const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && shown(n)).length;
 
 // Kinds of term hidden from the map, remembered in this browser. The selected term always stays visible.
 const hidden = new Set();
 try { for (const k of JSON.parse(localStorage.getItem("factorial-map-hidden") || '["context"]')) if (k in FAMILIES) hidden.add(k); } catch {}
+
+// The terms drawn: those at the level and of the kinds chosen, plus the selected one, less any left with no link to
+// another drawn term. One pass is enough: dropping a term with no drawn link takes no link from any other. Every
+// count on the map reads this same set, so a topic never counts a term it does not draw.
+let onMap = new Set();
+function drawnTerms(sel) {
+  const kept = new Set(DATA.nodes.filter(n => n.id === sel || (shown(n) && !hidden.has(fam(n)))).map(n => n.id));
+  const linked = new Set(sel ? [sel] : []);
+  for (const e of DATA.edges) if (kept.has(e.source) && kept.has(e.target)) { linked.add(e.source); linked.add(e.target); }
+  return new Set([...kept].filter(id => linked.has(id)));
+}
+onMap = drawnTerms(null);
+const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) && onMap.has(n.id)).length;
 const drawLegend = () => {
   document.getElementById("legend").innerHTML = `<span>Show:</span>` + Object.entries(FAMILIES)
-    .map(([k, [label]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
-      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}${label}</button>`).join("");
+    .map(([k, [label, , , short]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
+      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}<span class="map-full">${label}</span><span class="map-short" aria-hidden="true">${short}</span></button>`).join("");
 };
 
 // ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's
@@ -386,7 +399,7 @@ function render() {
     strip.innerHTML = `<b>${esc(n.name)}</b> · ${esc(n.definition)}`;
   } else if (selected && groupOf(selected)) {
     const c = groupOf(selected), isSub = subtopics.has(selected);
-    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && shown(n))
+    const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && onMap.has(n.id))
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name)).map(n => n.id);
     const near = DATA.cluster_links.filter(l => l.a === c.id || l.b === c.id).sort((a, b) => b.n - a.n).map(l => (l.a === c.id ? l.b : l.a));
     card.style.removeProperty("--fam");
@@ -535,7 +548,11 @@ document.getElementById("links").addEventListener("click", ev => {
 const zoomBy = f => { const z = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * f));
   cy.stop(); cy.animate({ zoom: { level: z, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } } }, { duration: reduce ? 0 : 250 }); };
 function applyHidden() {
-  cy.nodes(".term").forEach(n => n.toggleClass("off", (hidden.has(n.data("fam")) || n.data("level") > level) && !n.hasClass("sel")));
+  const sel = cy.nodes(".term.sel");
+  onMap = drawnTerms(sel.nonempty() ? sel.id() : null);
+  cy.nodes(".term").forEach(n => n.toggleClass("off", !onMap.has(n.id())));
+  cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
+  cy.nodes(".subname").forEach(n => n.data("label", `${subtopics.get(n.id().replace(/-name$/, "")).name}\n[${sizeAt(n.id().replace(/-name$/, ""))}]`));
 }
 const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
 function showLevel() {
@@ -549,12 +566,7 @@ levelSlider.addEventListener("input", () => {
   level = Number(levelSlider.value);
   try { localStorage.setItem("factorial-map-level", String(level)); } catch {}
   showLevel();
-  cy.batch(() => {
-    cy.nodes(".topic").forEach(n => n.data("olabel", `${topics.get(n.id()).short}\n[${sizeAt(n.id())}]`));
-    cy.nodes(".subname").forEach(n => { const s = subtopics.get(n.id().replace(/-name$/, ""));
-      n.data("label", `${s.name}\n[${sizeAt(s.id)}]`); });
-    applyHidden();
-  });
+  cy.batch(applyHidden);
   refresh(true);
   render();   // an open topic's card lists the terms at this level
 });
@@ -566,6 +578,7 @@ document.getElementById("legend").addEventListener("click", ev => {
   drawLegend();
   document.querySelector(`#legend button[data-fam="${k}"]`).focus();   // keep the keyboard where it was
   cy.batch(applyHidden); refresh(true);
+  render();   // an open topic's card counts the terms drawn
 });
 const labelsSwitch = document.getElementById("labels");
 labelsSwitch.checked = labelsOn;
@@ -729,6 +742,17 @@ window.addEventListener("resize", () => { clearTimeout(resizing); resizing = set
   if (cy.width() !== mapWidth) { mapWidth = cy.width(); move(selected, false); } else cy.viewport({ zoom, pan });
 }, 150); });
 if (document.fonts) document.fonts.ready.then(() => { widths.clear(); refresh(true); });
+
+// Feedback, as the app sends it: the same dialog and relay, with what is open on the map in place of a study.
+installFeedback({
+  context: async () => ({
+    commit: await fetch(new URL("wheels/manifest.json", import.meta.url))
+      .then(r => r.json()).then(m => m.commit, () => null),
+    tab: `Concept map: ${document.querySelector("#card h2")?.textContent ?? ""}`,
+    browser: navigator.userAgent,
+    window: `${window.innerWidth} x ${window.innerHeight}`,
+  }),
+});
 
 drawLegend();
 setLimits();
