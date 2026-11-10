@@ -7,6 +7,7 @@
 // This is the graph's only viewer: pid-book holds the data, and a change to how the map looks is made here alone.
 import cytoscape from "./vendor/cytoscape.mjs";
 import { MODES, nextMode } from "./logic.js";
+import { installFeedback } from "./feedback.js";
 
 const DATA = await fetch(new URL("map/graph.json", import.meta.url)).then((r) => {
   if (!r.ok) throw new Error(`map/graph.json: ${r.status}`);
@@ -741,6 +742,17 @@ window.addEventListener("resize", () => { clearTimeout(resizing); resizing = set
   if (cy.width() !== mapWidth) { mapWidth = cy.width(); move(selected, false); } else cy.viewport({ zoom, pan });
 }, 150); });
 if (document.fonts) document.fonts.ready.then(() => { widths.clear(); refresh(true); });
+
+// Feedback, as the app sends it: the same dialog and relay, with what is open on the map in place of a study.
+installFeedback({
+  context: async () => ({
+    commit: await fetch(new URL("wheels/manifest.json", import.meta.url))
+      .then(r => r.json()).then(m => m.commit, () => null),
+    tab: `Concept map: ${document.querySelector("#card h2")?.textContent ?? ""}`,
+    browser: navigator.userAgent,
+    window: `${window.innerWidth} x ${window.innerHeight}`,
+  }),
+});
 
 drawLegend();
 setLimits();

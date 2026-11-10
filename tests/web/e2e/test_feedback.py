@@ -426,3 +426,20 @@ def test_on_a_phone_the_close_button_stays_in_reach_however_far_the_dialog_is_sc
     assert reach["hit"], "the close button is on screen, above the form, with the form scrolled to its end"
     page.click("#feedback-dialog .sheet__head [data-close]")
     assert not page.evaluate("document.querySelector('#feedback-dialog').open")
+
+
+# --------------------------------------------------------------------------- the concept map
+def test_the_concept_map_sends_feedback_the_same_way_with_no_study_offered(context, site, relay):
+    page = context.new_page()
+    page.goto(f"{site}map/")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    open_feedback(page)
+    assert topic(page) == "general"
+    assert not page.is_visible("#feedback-study"), "the map has no study to send"
+    send(page)
+    assert page.text_content(SENT).strip().startswith(f"Thank you: your report {REFERENCE}")
+    [report] = relay.reports
+    assert set(report) == {"topic", "message", "screenshot", "context"}
+    assert report["screenshot"].startswith("data:image/jpeg;base64,"), "a screenshot of the map, as the app sends"
+    assert report["context"]["tab"].startswith("Concept map: "), "with what is open on the map"
+    assert "HeadlessChrome" in report["context"]["browser"]
