@@ -1584,7 +1584,7 @@ main.map .lede { margin: 0; }
 }
 .map-legend .map-short { display: inline; }
 @media (max-width: 480px) {   /* one line from a 360 px phone up; a narrower one wraps it rather than scroll sideways */
-  .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: 0.75rem; }
+  .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
   .map-legend > span { display: none; }   /* "Show:"; the group's label says it */
   .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; }
 }

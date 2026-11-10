@@ -295,6 +295,8 @@ SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
 def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     page = _open(context, site)
     page.locator("#level").fill("2")  # Intermediate, the longest name
+    # The kinds in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
+    page.evaluate("""() => { document.querySelector('#legend').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
     rows = page.evaluate("""() => {
       const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
       const box = (s) => document.querySelector(s).getBoundingClientRect();
