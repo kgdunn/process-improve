@@ -674,7 +674,9 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.text_content("#level-name") == "Beginner"
 
 
-@pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE])
+@pytest.mark.parametrize(
+    "context_options", [{"viewport": {"width": 320, "height": 700}, "is_mobile": True}, SMALL_PHONE, PHONE]
+)
 def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
     page.locator("#level").fill("2")  # Intermediate, the longest name
