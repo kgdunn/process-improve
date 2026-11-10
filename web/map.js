@@ -375,6 +375,32 @@ function move(id, animate) {
   }
 }
 
+// On a screen wider than the drawing, the topics spread sideways to fill it. Each topic moves whole, its sub-topics
+// and terms with it, so nothing inside a topic changes; and as they move apart only across, no two circles that were
+// apart can meet. The spread is as much as the map's width holds, at most SPREAD_MAX; a map taller than it is wide
+// (a phone held upright) keeps the drawing as it is. A term the reader moved keeps its place in its topic.
+const SPREAD_MAX = 3;
+let spreadNow = 1;
+const centreX = (() => { const xs = DATA.clusters.flatMap(c => [c.x - c.r, c.x + c.r]); return (Math.min(...xs) + Math.max(...xs)) / 2; })();
+const topicOf = n => n.hasClass("topic") ? n.id() : n.hasClass("term") ? n.data("topic")
+  : subtopics.get(n.id().replace(/-name$/, "")).topic;
+function spread() {
+  const ys = DATA.clusters.flatMap(c => [c.y - c.r, c.y + c.r]), tall = Math.max(...ys) - Math.min(...ys);
+  // The drawing's width with the centres spread by k: the circles keep their size, so it grows less than k.
+  const wideAt = k => { const xs = DATA.clusters.flatMap(c => { const x = centreX + (c.x - centreX) * k; return [x - c.r, x + c.r]; });
+    return Math.max(...xs) - Math.min(...xs); };
+  const room = (cy.width() / cy.height()) * tall * 0.92;   // the width that fits the map at the height's zoom
+  let want = 1;
+  while (want < SPREAD_MAX && wideAt(want + 0.05) <= room) want += 0.05;
+  if (Math.abs(want - spreadNow) < 0.01) return;
+  const shift = id => (topics.get(id).x - centreX) * (want - spreadNow);
+  cy.batch(() => {
+    cy.nodes().forEach(n => { const p = n.position(); n.position({ x: p.x + shift(topicOf(n)), y: p.y }); });
+    cy.edges().forEach(e => e.data("bow", bowOf(e.source().position(), e.target().position())));
+  });
+  spreadNow = want;
+}
+
 function setLimits() {
   const z0 = cy.zoom();
   cy.fit(cy.nodes(".topic"), 14);
@@ -557,7 +583,7 @@ cy.on("tap", "edge.link.hl", ev => { if (!scrolled) sayLink(ev.target); });
 cy.on("tap", ev => {
   if (scrolled || (ev.target !== cy && !ev.target.isEdge()) || (ev.target !== cy && ev.target.hasClass("hl"))) return;
   const { x, y } = ev.position;
-  const inside = c => Math.hypot(x - c.x, y - c.y) <= c.r;
+  const inside = c => { const p = cy.getElementById(c.id).position(); return Math.hypot(x - p.x, y - p.y) <= c.r; };
   const overview = TERM_GAP * cy.zoom() < DETAIL_GAP;   // sub-topics are hidden there
   const hit = (!overview && [...subtopics.values()].find(inside)) || DATA.clusters.find(inside);
   if (hit && hit.id !== selected) { go(hit.id); bringUp(); }
@@ -761,7 +787,7 @@ window.addEventListener("hashchange", () => go(fromHash(), { hash: false }));
 let resizing, mapWidth = cy.width();
 window.addEventListener("resize", () => { clearTimeout(resizing); resizing = setTimeout(() => {
   const zoom = cy.zoom(), pan = { ...cy.pan() };
-  cy.resize(); setLimits();
+  cy.resize(); spread(); setLimits();
   if (cy.width() !== mapWidth) { mapWidth = cy.width(); move(selected, false); } else cy.viewport({ zoom, pan });
 }, 150); });
 if (document.fonts) document.fonts.ready.then(() => { widths.clear(); refresh(true); });
@@ -778,5 +804,6 @@ installFeedback({
 });
 
 drawLegend();
+spread();
 setLimits();
 go(fromHash() || null, { animate: false, hash: false });

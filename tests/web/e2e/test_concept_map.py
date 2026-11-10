@@ -755,3 +755,37 @@ def test_every_link_bows_a_little(context, site):
       return Math.hypot(m.x - (s.x + t.x) / 2, m.y - (s.y + t.y) / 2) / len; })""")
     assert bows, "the selected term has links"
     assert all(0.03 < b < 0.12 for b in bows), f"a mild arc, a few percent of the link's length: {bows}"
+
+
+# The topics as drawn: how much of the map's width they fill, any two circles that meet, and how far each has moved
+# from where the drawing puts it.
+SPREAD = """(graph) => { const cy = window.conceptMap.cy, t = cy.nodes('.topic');
+  const meet = [];
+  t.forEach((a, i) => t.forEach((b, j) => { if (j <= i) return; const pa = a.position(), pb = b.position();
+    if (Math.hypot(pa.x - pb.x, pa.y - pb.y) < (a.width() + b.width()) / 2 - 1) meet.push(a.id() + '+' + b.id()); }));
+  const moved = Math.max(...graph.map((c) => Math.abs(cy.getElementById(c.id).position().x - c.x)));
+  return { fill: t.renderedBoundingBox().w / cy.width(), meet, moved }; }"""
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1846, "height": 1000}}])
+def test_on_a_wide_screen_the_topics_spread_across_it_without_meeting(context, site):
+    page = _open(context, site)
+    drawn = page.evaluate(SPREAD, GRAPH["clusters"])
+    assert drawn["fill"] > 0.75, "the topics fill most of the map's width"
+    assert drawn["meet"] == [], "no two circles meet"
+    _go(page, "full_factorial")
+    term = page.evaluate("() => window.conceptMap.cy.getElementById('full_factorial').position()")
+    topic = next(
+        c
+        for c in GRAPH["clusters"]
+        if c["id"] == next(n for n in GRAPH["nodes"] if n["id"] == "full_factorial")["cluster"]
+    )
+    centre = page.evaluate("(i) => window.conceptMap.cy.getElementById(i).position()", topic["id"])
+    node = next(n for n in GRAPH["nodes"] if n["id"] == "full_factorial")
+    assert term["x"] - centre["x"] == pytest.approx(node["x"] - topic["x"]), "a term keeps its place in its topic"
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_on_a_phone_held_upright_the_drawing_is_as_the_book_lays_it_out(context, site):
+    page = _open(context, site)
+    assert page.evaluate(SPREAD, GRAPH["clusters"])["moved"] == pytest.approx(0)
