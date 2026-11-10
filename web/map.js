@@ -48,6 +48,9 @@ const read = (verb, i) => (READ[verb] || [verb.toLowerCase().replaceAll("_", " "
 const BOW = 0.14;
 const ARC = { "curve-style": "unbundled-bezier", "control-point-distances": "data(bow)", "control-point-weights": 0.5 };
 const bowOf = (a, b) => BOW * Math.hypot(b.x - a.x, b.y - a.y);
+// A name sits on the map with no box behind it: a thin halo in the map's own colour cuts the lines just short of its
+// letters, so it reads where lines cross it and hides nothing else.
+const HALO = px => ({ "text-outline-color": css("--map-bubble"), "text-outline-width": px(2), "text-outline-opacity": 0.7 });
 const TERM_GAP = 62;   // least distance between two terms in the drawing (layout_kg.py)
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -206,8 +209,7 @@ function sheet(z) {
     ...famRules,
     { selector: ".term.lab", style: { label: "data(label)", color: css("--fg"), "font-family": FONT,
       "font-size": px(font), "text-wrap": "wrap", "text-max-width": px(font * LABEL_EMS),
-      "text-valign": "bottom", "text-margin-y": px(3), "text-background-color": css("--panel"), "text-background-opacity": 0.8,
-      "text-background-padding": px(1.5), "text-background-shape": "roundrectangle" } },
+      "text-valign": "bottom", "text-margin-y": px(3), ...HALO(px) } },
     { selector: ".term.sel", style: { width: size * 1.9, height: size * 1.9, "border-width": px(2.5), "border-color": css("--fg"),
       "font-weight": 600, "font-size": px(font * 1.12), "z-index": 30 } },
     { selector: ".term.nb", style: { "z-index": 20 } },
@@ -217,8 +219,7 @@ function sheet(z) {
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
     // in italic and the accent colour, so a verb is not read as a term.
     ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * 0.85),
-      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", "text-background-color": css("--panel"),
-      "text-background-opacity": 0.9, "text-background-padding": px(1.5), "target-arrow-shape": "triangle",
+      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
