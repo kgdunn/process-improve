@@ -674,6 +674,18 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.text_content("#level-name") == "Beginner"
 
 
+def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_does_not_show_that_name(context, site):
+    page = _open(context, site)
+    term = next(n for n in GRAPH["nodes"] if n.get("found_as") and n["type"] not in CONTEXT)
+    hidden = term["found_as"][0]
+    shown = " ".join([term["name"], *term["aliases"], term["definition"]]).lower()
+    assert hidden.lower() not in shown, "only found_as holds it"
+    page.fill("#q", hidden)
+    page.click(f"#results button[data-id='{term['id']}']")
+    page.wait_for_function("(name) => document.querySelector('#card h2')?.textContent === name", arg=term["name"])
+    assert hidden.lower() not in page.text_content("#card").lower(), "searched and matched, never shown"
+
+
 @pytest.mark.parametrize(
     "context_options", [{"viewport": {"width": 320, "height": 700}, "is_mobile": True}, SMALL_PHONE, PHONE]
 )

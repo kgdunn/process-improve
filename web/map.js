@@ -657,7 +657,8 @@ q.addEventListener("input", () => {
   const t = norm(q.value.trim());
   if (!t) { results.hidden = true; return; }
   const hits = DATA.nodes.filter(shown).map(n => {
-    const names = [n.name, ...n.aliases].map(norm);
+    // A term's found_as names are what other texts call it: searched like its other names, never shown on its card.
+    const names = [n.name, ...n.aliases, ...(n.found_as || [])].map(norm);
     const score = names.some(s => s === t) ? 0 : names.some(s => s.startsWith(t)) ? 1 : names.some(s => s.includes(t)) ? 2
       : norm(n.definition).includes(t) ? 3 : 9;
     return { n, score };
