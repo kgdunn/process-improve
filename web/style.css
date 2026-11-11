@@ -1530,7 +1530,24 @@ main.map .lede { margin: 0; }
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .map-level { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
-.map-level input { width: 88px; accent-color: var(--accent); }
+.map-level input { width: 88px; }
+/* The level's slider: a rounded track filled with the accent up to a round handle (--fill, set by map.js), the same
+   in every browser. The input keeps its full height, so the handle is as easy to catch with a finger as before. */
+.map-level input[type="range"] { appearance: none; -webkit-appearance: none; height: 24px; margin: 0; padding: 0; border: 0;
+  background: none; box-shadow: none;
+  cursor: pointer; }
+.map-level input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
+.map-level input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
+.map-level input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+.map-level input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px;
+  margin-top: -6px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3); }
+.map-level input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent), 0 1px 3px rgb(0 0 0 / 0.3); }
+.map-level input[type="range"]:focus-visible { outline: none; }
+.map-level input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
+.map-level input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent); }
 .map-level output { color: var(--fg); min-width: 9ch; }
 .map-level[hidden] { display: none; }
 .map-short { display: none; }
