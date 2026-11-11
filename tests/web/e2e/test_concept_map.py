@@ -289,28 +289,30 @@ def test_the_catalog_and_the_start_page_lead_to_it(context, site):
 
 
 SMALL_PHONE = {"viewport": {"width": 360, "height": 780}, "is_mobile": True}
+LONG_LEVELS = ("2", "3")  # Intermediate and Adventurous: the row of switches must hold either name
 
 
 @pytest.mark.parametrize("context_options", [SMALL_PHONE, PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     page = _open(context, site)
-    page.locator("#level").fill("2")  # Intermediate, the longest name
     # The kinds in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
     page.evaluate("""() => { document.querySelector('#legend').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
-    rows = page.evaluate("""() => {
-      const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
-      const box = (s) => document.querySelector(s).getBoundingClientRect();
-      return { switches: top('.map-view > label'), kinds: top('#legend button'), search: box('.map-search input'),
-        legend: box('#legend'), view: box('.map-view'), map: box('#cy'), zoom: box('.map-controls') }; }""")
-    assert len(set(rows["switches"])) == 1, "term names, link labels and the level on one line"
-    assert len(set(rows["kinds"])) == 1, "the kinds of term on one line"
-    assert rows["view"]["bottom"] <= rows["legend"]["top"], "the switches, then the kinds"
-    assert rows["legend"]["bottom"] <= rows["map"]["top"], "both above the map"
-    assert rows["zoom"]["top"] >= rows["map"]["bottom"], "zoom and fit stay below the map"
-    if page.viewport_size["width"] > 600:
-        assert rows["view"]["left"] >= rows["search"]["right"], "beside the search"
-    else:
-        assert rows["view"]["top"] >= rows["search"]["bottom"], "on a phone, on the row below the search"
+    for level in LONG_LEVELS:
+        page.locator("#level").fill(level)
+        rows = page.evaluate("""() => {
+          const top = (s) => [...document.querySelectorAll(s)].map((e) => Math.round(e.getBoundingClientRect().top));
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          return { switches: top('.map-view > label'), kinds: top('#legend button'), search: box('.map-search input'),
+            legend: box('#legend'), view: box('.map-view'), map: box('#cy'), zoom: box('.map-controls') }; }""")
+        assert len(set(rows["switches"])) == 1, "term names, link labels and the level on one line"
+        assert len(set(rows["kinds"])) == 1, "the kinds of term on one line"
+        assert rows["view"]["bottom"] <= rows["legend"]["top"], "the switches, then the kinds"
+        assert rows["legend"]["bottom"] <= rows["map"]["top"], "both above the map"
+        assert rows["zoom"]["top"] >= rows["map"]["bottom"], "zoom and fit stay below the map"
+        if page.viewport_size["width"] > 600:
+            assert rows["view"]["left"] >= rows["search"]["right"], "beside the search"
+        else:
+            assert rows["view"]["top"] >= rows["search"]["bottom"], "on a phone, on the row below the search"
     assert page.is_checked("#labels"), "term names start on"
     assert not page.is_checked("#verbs"), "link labels start off"
     assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
@@ -644,7 +646,7 @@ def test_the_colour_mode_switches_here_and_is_kept_with_the_app_s(context, site)
 # a link to another such term.
 SHOWN = """() => window.conceptMap.cy.nodes('.term').filter((n) => !n.hasClass('off')).map((n) => n.id()).sort()"""
 CONTEXT = {"Example", "Question", "Reference"}  # hidden by default, as the first test checks
-LEVELS = ["Beginner", "Intermediate", "Advanced"]
+LEVELS = ["Beginner", "Intermediate", "Adventurous"]
 
 
 def _drawn(level: int, hidden: set[str]) -> list[str]:
@@ -727,12 +729,13 @@ def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_
 )
 def test_on_a_phone_the_level_fits_inside_the_page(context, site):
     page = _open(context, site, level=None)
-    page.locator("#level").fill("2")  # Intermediate, the longest name
-    row = page.evaluate("""() => ({
-      right: document.querySelector('#level-name').getBoundingClientRect().right,
-      width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
-    assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
-    assert row["scroll"] == row["width"], "and the page does not scroll sideways"
+    for level in LONG_LEVELS:
+        page.locator("#level").fill(level)
+        row = page.evaluate("""() => ({
+          right: document.querySelector('#level-name').getBoundingClientRect().right,
+          width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth })""")
+        assert row["right"] <= row["width"] - 16 + 0.5, "the level's name ends inside the page's side margin"
+        assert row["scroll"] == row["width"], "and the page does not scroll sideways"
 
 
 # Kinds of term to hide, by their legend key: the default, the one that drew lone terms and empty sub-topics on
