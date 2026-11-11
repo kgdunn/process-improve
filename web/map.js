@@ -51,6 +51,7 @@ const bowOf = (a, b) => BOW * Math.hypot(b.x - a.x, b.y - a.y);
 // A name sits on the map with no box behind it: a thin halo in the map's own colour cuts the lines just short of its
 // letters, so it reads where lines cross it and hides nothing else.
 const HALO = px => ({ "text-outline-color": css("--map-bubble"), "text-outline-width": px(2), "text-outline-opacity": 0.7 });
+const VERB_EM = 0.95;   // a link label's size, as a fraction of a term name's
 const TERM_GAP = 62;   // least distance between two terms in the drawing (layout_kg.py)
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -242,8 +243,8 @@ function sheet(z) {
       ...ARC, "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
     // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
     // in italic and the accent colour, so a verb is not read as a term.
-    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * 0.85),
-      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "target-arrow-shape": "triangle",
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * VERB_EM), "font-weight": 600,
+      color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "text-outline-opacity": 0.95, "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
@@ -263,9 +264,9 @@ function sheet(z) {
 const LABEL_EMS = 9;   // wrap width of a label, in multiples of its font size
 const widths = new Map();
 const ruler = document.createElement("canvas").getContext("2d");
-function textWidth(text, font) {
-  const key = `${font}|${text}`;
-  if (!widths.has(key)) { ruler.font = `${font}px ${FONT}`; widths.set(key, ruler.measureText(text).width); }
+function textWidth(text, font, style = "") {   // style: as a CSS font's first words, "italic 600" for a link label
+  const key = `${style}|${font}|${text}`;
+  if (!widths.has(key)) { ruler.font = `${style} ${font}px ${FONT}`; widths.set(key, ruler.measureText(text).width); }
   return widths.get(key);
 }
 function placeLabels(z) {
@@ -323,7 +324,7 @@ function settleOverlaps() {
 // The label is drawn `at` drawing units along the line from where it leaves its source term.
 const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way from the source term to the target
 function settleLinkLabels(kept) {
-  const z = cy.zoom(), { font, dot } = sizes(z), f = font * 0.85, pad = f * 0.5;   // pad: half the text's height
+  const z = cy.zoom(), { font, dot } = sizes(z), f = font * VERB_EM, pad = f * 0.5;   // pad: half the text's height
   if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
   const W = cy.width(), H = cy.height();
   const taken = [...kept, ...cy.nodes(".term").filter(n => n.visible()).map(n => n.renderedBoundingBox({ includeLabels: false }))];
@@ -331,7 +332,7 @@ function settleLinkLabels(kept) {
   const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
     const s = e.source().renderedPosition(), t = e.target().renderedPosition();
-    const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f) + 4;
+    const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f, "italic 600") + 4;
     const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
     // Along the curve as Cytoscape draws it: the quadratic through its own control point, from the centre of one term
     // to the other's, close enough to the arc length for a label's few points.
@@ -632,6 +633,7 @@ function applyHidden() {
 const levelSlider = document.getElementById("level"), levelName = document.getElementById("level-name");
 function showLevel() {
   levelSlider.value = level;
+  levelSlider.style.setProperty("--fill", `${((level - 1) / (LEVELS.length - 1)) * 100}%`);   // the track's filled part
   levelName.value = LEVELS[level - 1];
   levelSlider.setAttribute("aria-valuetext", LEVELS[level - 1]);
 }
