@@ -530,6 +530,16 @@ _SPARSE_ROWS = np.array(
 )
 
 
+def _counted(caught: pytest.WarningsRecorder) -> list[str]:
+    """Return the messages of the library's own warnings among those caught.
+
+    numpy 2.2 on Apple's Accelerate BLAS (the macOS 26 runner at the lowest dependency versions) also raises
+    "invalid value encountered in matmul" for a Gram product of finite numbers, ``P'P`` in ``operator_for_pattern``
+    among them. A list of every warning caught holds that stray one on that platform alone (#1212).
+    """
+    return [str(warning.message) for warning in caught if warning.category is SpecificationWarning]
+
+
 @pytest.mark.parametrize("given", [{}, {"singular": "raise"}])
 def test_project_rows_raises_on_a_singular_pattern_unless_asked_for_nan(given: dict) -> None:
     """By default, and with ``singular="raise"``, a pattern too sparse to invert raises, as ``project`` does."""
@@ -547,9 +557,7 @@ def test_project_rows_gives_nan_for_singular_patterns_and_counts_their_rows() ->
         result = project_rows(
             _LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS, method="pmp", singular="nan", with_guides=True
         )
-    assert [str(warning.message) for warning in caught] == [
-        _unestimated_message("3 rows with missing cells have", "pmp")
-    ]
+    assert _counted(caught) == [_unestimated_message("3 rows with missing cells have", "pmp")]
     assert np.isnan(result.scores[1:4]).all()
     assert np.isnan(result.spe[1:4]).all()
     np.testing.assert_array_equal(result.condition_number[1:4], [np.inf] * 3)
@@ -570,7 +578,7 @@ def test_project_rows_says_1_row_in_the_singular_and_names_the_method() -> None:
         project_rows(
             _LOADINGS, _LOADINGS, _VARIANCES, _SPARSE_ROWS[[0, 3]], singular="nan", x_residuals=np.zeros((4, 3))
         )
-    assert [str(warning.message) for warning in caught] == [_unestimated_message("1 row with missing cells has", "tsr")]
+    assert _counted(caught) == [_unestimated_message("1 row with missing cells has", "tsr")]
 
 
 def test_project_rows_returns_no_guides_unless_asked() -> None:
