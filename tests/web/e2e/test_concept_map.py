@@ -466,11 +466,21 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
 
 
 # Each drawn link's label: where along its line it sits (0 at the source term, 1 at the target), or None if held back.
-SPOTS = """() => { const cy = window.conceptMap.cy, z = cy.zoom();
-  return cy.edges('.link').filter((e) => e.visible() && !e.hasClass('dim')).map((e) => {
-    if (e.hasClass('mute')) return null;
-    const s = e.source().renderedPosition(), t = e.target().renderedPosition();
-    return (e.data('at') * z + e.source().renderedWidth() / 2) / Math.hypot(t.x - s.x, t.y - s.y); }); }"""
+SPOT = """(e) => { if (e.hasClass('mute')) return null;
+  const s = e.source().renderedPosition(), t = e.target().renderedPosition(), z = window.conceptMap.cy.zoom();
+  return (e.data('at') * z + e.source().renderedWidth() / 2) / Math.hypot(t.x - s.x, t.y - s.y); }"""
+SPOTS = f"() => window.conceptMap.cy.edges('.link').filter((e) => e.visible() && !e.hasClass('dim')).map({SPOT})"
+# The selected term's drawn links, longest first; and one link's middle brought to the middle of the map, with or
+# without a term that is on none of those links dragged onto it, as a reader can drag one.
+LONG_FIRST = """() => { const span = (e, k) => e.target().position(k) - e.source().position(k);
+  const len = (e) => Math.hypot(span(e, 'x'), span(e, 'y'));
+  return window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()).sort((a, b) => len(b) - len(a))
+    .map((e) => e.id()); }"""
+AT_MIDDLE = """([id, take]) => { const cy = window.conceptMap.cy, e = cy.getElementById(id), z = cy.zoom();
+  const s = e.source().position(), t = e.target().position(), [c] = e.controlPoints();
+  const m = { x: (s.x + 2 * c.x + t.x) / 4, y: (s.y + 2 * c.y + t.y) / 4 };   // of the curve, as map.js has it
+  if (take) cy.nodes('.term').filter((n) => n.visible() && !n.hasClass('sel') && !n.hasClass('nb'))[0].position(m);
+  else cy.pan({ x: cy.width() / 2 - m.x * z, y: cy.height() / 2 - m.y * z }); }"""
 # The longest of the selected term's drawn links with its middle in view: its sentence, and that middle on the page.
 LONGEST = """() => { const cy = window.conceptMap.cy, box = cy.container().getBoundingClientRect();
   const name = (n) => n.data('label');
@@ -481,6 +491,13 @@ LONGEST = """() => { const cy = window.conceptMap.cy, box = cy.container().getBo
   const m = e.renderedMidpoint();   // on the curve: a link bows, so the straight line's middle is off it
   const said = `${name(e.source())} ${e.data('verb')} ${name(e.target())}`;
   return { said, x: box.left + m.x, y: box.top + m.y }; }"""
+
+
+def _label_spot(page: Any, link: str, *, take: bool) -> float | None:  # noqa: ANN401 - a Playwright Page
+    """Bring a link's middle to the middle of the map, or drag a term onto it; then where its label sits."""
+    page.evaluate(AT_MIDDLE, [link, take])
+    _settled(page)
+    return page.evaluate(f"(id) => ({SPOT})(window.conceptMap.cy.getElementById(id))", link)
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
@@ -496,7 +513,19 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     spots = [k for k in page.evaluate(SPOTS) if k is not None]
     assert spots, "some links are labelled"
     assert all(0.15 < k < 0.85 for k in spots), f"each label sits on its line, clear of both terms: {spots}"
-    assert any(abs(k - 0.5) > 0.05 for k in spots), "a label whose middle is taken moves along its line"
+    # The test takes a middle itself: whether the drawing takes one changes with every drawing. A label with no room
+    # left on its line is held back, so it tries the longest links first, which have the most room.
+    moved = None
+    for link in page.evaluate(LONG_FIRST):
+        spot = _label_spot(page, link, take=False)
+        if spot is None or abs(spot - 0.5) > 0.01:
+            continue  # not labelled, or its middle is taken already
+        moved = _label_spot(page, link, take=True)
+        if moved is not None:
+            break
+    assert moved is not None, "a label still drawn after a term took its middle"
+    assert abs(moved - 0.5) > 0.05, "a label whose middle is taken moves along its line"
+    assert 0.15 < moved < 0.85, "and stays clear of both terms"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
@@ -770,8 +799,8 @@ def test_every_link_bows_a_little(context, site):
     _go(page, "full_factorial")
     bows = page.evaluate("""() => window.conceptMap.cy.edges('.link.hl').filter((e) => e.visible()).map((e) => {
       const s = e.source().position(), t = e.target().position(), m = e.midpoint();
-      const len = Math.hypot(t.x - s.x, t.y - s.y);
-      return Math.hypot(m.x - (s.x + t.x) / 2, m.y - (s.y + t.y) / 2) / len; })""")
+      const len = Math.hypot(t.x - s.x, t.y - s.y);   // across the line only: unequal terms shift the middle along it
+      return Math.abs((t.x - s.x) * (m.y - s.y) - (t.y - s.y) * (m.x - s.x)) / len / len; })""")
     assert bows, "the selected term has links"
     assert all(0.03 < b < 0.12 for b in bows), f"a mild arc, a few percent of the link's length: {bows}"
 
