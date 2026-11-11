@@ -1602,6 +1602,7 @@ main.map .lede { margin: 0; }
 .map-card p { margin: 0; max-width: 68ch; }
 .map-type { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fam, var(--muted)); }
 .map-aka { color: var(--muted); font-size: 0.92rem; }
+.map-elsewhere { font-size: 0.85rem; font-style: italic; }
 .map-quote { margin: 4px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--muted); }
 .map-quote p { font-style: italic; }
 .map-book { font-size: 0.9rem; overflow-wrap: anywhere; }

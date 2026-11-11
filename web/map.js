@@ -452,6 +452,7 @@ function render() {
     card.style.setProperty("--fam", color);
     card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${esc(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
+      ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       <blockquote class="map-quote"><p>${esc(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
@@ -681,7 +682,8 @@ q.addEventListener("input", () => {
   const t = norm(q.value.trim());
   if (!t) { results.hidden = true; return; }
   const hits = DATA.nodes.filter(shown).map(n => {
-    // A term's found_as names are what other texts call it: searched like its other names, never shown on its card.
+    // A term's found_as names are what other texts call it: searched like its other names, and listed on its card
+    // on a quieter line of their own, so the term keeps one leading name.
     const names = [n.name, ...n.aliases, ...(n.found_as || [])].map(norm);
     const score = names.some(s => s === t) ? 0 : names.some(s => s.startsWith(t)) ? 1 : names.some(s => s.includes(t)) ? 2
       : norm(n.definition).includes(t) ? 3 : 9;
