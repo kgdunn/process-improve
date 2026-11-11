@@ -789,3 +789,29 @@ def test_on_a_wide_screen_the_topics_spread_across_it_without_meeting(context, s
 def test_on_a_phone_held_upright_the_drawing_is_as_the_book_lays_it_out(context, site):
     page = _open(context, site)
     assert page.evaluate(SPREAD, GRAPH["clusters"])["moved"] == pytest.approx(0)
+
+
+def test_a_term_s_book_link_goes_to_the_sentence_it_quotes(context, site):
+    """The link is the page with the quote, its section when the quote is from there, and a text fragment of the
+    quote's words that read the same on the page; a word with markup, or that Sphinx rewrites, is left out.
+    """
+    page = _open(context, site)
+    url = lambda term: page.evaluate(  # noqa: E731 - one call, three terms
+        "(t) => window.conceptMap.bookUrl({ book_file: 'a/b.rst', book_label: 'DOE_x', evidence: 'a/b.rst:3', ...t })",
+        term,
+    )
+    plain = url({"quote": "because one or more columns are exactly identical, also known as"})
+    assert plain == (
+        "https://learnche.org/pid/a/b#doe-x:~:text=because%20one%20or%20more,identical%2C%20also%20known%20as"
+    ), "a long quote: its first and last four words, the comma encoded"
+    marked = url(
+        {"quote": "we can run a :math:`2^{k-p}` fractional factorial with all the factors' levels -- in short"}
+    )
+    assert marked.endswith(":~:text=fractional%20factorial%20with%20all%20the"), (
+        "the longest run free of markup and rewrites"
+    )
+    elsewhere = url({"quote": "Each row is one experimental run.", "evidence": "c/d.rst:147"})
+    assert elsewhere == "https://learnche.org/pid/c/d#:~:text=Each%20row%20is%20one%20experimental%20run.", (
+        "a quote from another page links to that page, without the section's anchor"
+    )
+    assert url({"quote": "a :math:`b`"}) == "https://learnche.org/pid/a/b#doe-x", "no fragment: the section alone"
