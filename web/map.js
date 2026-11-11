@@ -63,9 +63,33 @@ const groupOf = id => topics.get(id) || subtopics.get(id);   // a topic or a sub
 const fam = n => FAMILY[n.type] || "concept";
 const icon = (f, color) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}" fill="${color}"/></svg>`;
 const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+// The link to the book goes to the term's section and, as a text fragment (#:~:text=), to the sentence it quotes: a
+// browser that knows text fragments scrolls to that sentence and highlights it, and one that does not stops at the
+// section. The quote is a line of the book's source, so a word with markup in it (a role, emphasis, a literal) or
+// with a character Sphinx rewrites (a quote mark, a double dash) would not match the page: the fragment is the
+// longest run of the other words, or that run's first and last four words when it is long. Under three such words,
+// the link names the section alone.
+const PLAIN = /^[\p{L}\p{N}.,;:!?()%/+=-]+$/u;
+const textFragment = quote => {
+  let best = [], run = [];
+  for (const w of (quote || "").split(/\s+/)) {
+    if (PLAIN.test(w) && !w.includes("--") && !/:\S/.test(w)) { run.push(w); if (run.length > best.length) best = [...run]; }
+    else run = [];
+  }
+  if (best.length < 3) return "";
+  const enc = t => encodeURIComponent(t).replace(/[-,]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  const parts = best.length > 8 ? [best.slice(0, 4).join(" "), best.slice(-4).join(" ")] : [best.join(" ")];
+  return `:~:text=${parts.map(enc).join(",")}`;
+};
+// A term's quote can come from a page other than its own section's (its evidence names that file): the link then goes
+// to the page that holds the quote, which the card shows just above the link. Without a fragment, it goes to the section.
 const bookUrl = n => {
-  const page = `https://learnche.org/pid/${n.book_file.replace(/\.rst$/, "")}`;
-  return n.book_label ? `${page}#${n.book_label.toLowerCase().replaceAll("_", "-")}` : page;
+  const fragment = textFragment(n.quote);
+  const quoted = n.evidence.replace(/:\d+$/, "");
+  const file = fragment ? quoted : n.book_file;
+  const page = `https://learnche.org/pid/${file.replace(/\.rst$/, "")}`;
+  const label = n.book_label && file === n.book_file ? n.book_label.toLowerCase().replaceAll("_", "-") : "";
+  return label || fragment ? `${page}#${label}${fragment}` : page;
 };
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
 
@@ -146,7 +170,7 @@ const elements = [
 const cy = cytoscape({ container: document.getElementById("cy"), elements, layout: { name: "preset" }, autoungrabify: true,
   autounselectify: true, boxSelectionEnabled: false, wheelSensitivity: 0.35, pixelRatio: "auto" });
 // The map and its data, for the tests that drive this page (tests/web/e2e/test_concept_map.py) and for the console.
-window.conceptMap = { cy, data: DATA };
+window.conceptMap = { cy, data: DATA, bookUrl };
 
 let selected = null;   // a term id, a topic id, or null for the overview
 let labelsOn = true;   // term names on the map; with them off, only the selected term is named
