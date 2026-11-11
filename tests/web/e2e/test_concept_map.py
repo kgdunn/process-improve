@@ -674,7 +674,7 @@ def test_the_level_is_remembered_and_search_stays_within_it(context, site):
     assert page.text_content("#level-name") == "Beginner"
 
 
-def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_does_not_show_that_name(context, site):
+def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_name_apart(context, site):
     page = _open(context, site)
     term = next(n for n in GRAPH["nodes"] if n.get("found_as") and n["type"] not in CONTEXT)
     hidden = term["found_as"][0]
@@ -683,7 +683,14 @@ def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_does_not_sh
     page.fill("#q", hidden)
     page.click(f"#results button[data-id='{term['id']}']")
     page.wait_for_function("(name) => document.querySelector('#card h2')?.textContent === name", arg=term["name"])
-    assert hidden.lower() not in page.text_content("#card").lower(), "searched and matched, never shown"
+    elsewhere = page.text_content("#card .map-elsewhere")
+    assert elsewhere == "In other texts: " + ", ".join(term["found_as"]), "on a line of its own"
+    also = page.locator("#card .map-aka:not(.map-elsewhere)")
+    assert also.count() == bool(term["aliases"]), "the line of the book's own other names is unchanged"
+    assert not also.count() or hidden.lower() not in also.text_content().lower()
+    page.fill("#q", term["name"])
+    page.click(f"#results button[data-id='{term['id']}']")
+    assert page.text_content("#card .map-elsewhere") == elsewhere, "the same card when the leading name was searched"
 
 
 @pytest.mark.parametrize(
