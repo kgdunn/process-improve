@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Factorial: designed experiments in your browser</title>
-  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your machine.">
+  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your device.">
   <!-- The app's address, factori.al. A link card needs absolute URLs, so the address is written out here;
        tests/web/page/test_brand.py checks it is the one docs.yml deploys to and checks. The copy on GitHub
        Pages names it too, so search engines treat the two as one page. -->
@@ -37,7 +37,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
   <meta property="og:title" content="Factorial: designed experiments in your browser">
-  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.">
+  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.">
   <meta property="og:url" content="https://factori.al/">
   <meta property="og:image" content="https://factori.al/og-card.png">
   <meta property="og:image:width" content="1200">
@@ -76,7 +76,7 @@
         <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
       </button>
     </div>
-    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
+    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.</p>
     <!-- The reading level (levels.js): each level adds designs and charts to the ones below it, as the concept
          map's levels add terms. The two pages keep one choice. -->
     <fieldset id="level" class="level-switch">
@@ -93,6 +93,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l11 7-11 7z"/></svg>Explore a worked example</button>
       <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
+      <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
+      <button type="button" id="import-data" class="button hero__action hero__action--import">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v10M7.5 10l4.5 4.5 4.5-4.5M5 19h14"/></svg>Analyse data you have</button>
     </div>
     <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
     <details id="library" class="library">
@@ -712,6 +715,35 @@
   </div>
 
   <!-- Every design that can learn the study's aim, side by side on the book's nine measures. -->
+  <!-- A table of the reader's own (import.js): read by bootstrap.read_table, made a study by bootstrap.import_study. -->
+  <dialog id="import-dialog" class="sheet import" aria-labelledby="h-import">
+    <div class="sheet__head">
+      <h2 id="h-import">Analyse data you have</h2>
+      <button type="button" id="import-close" class="link" aria-label="Close">✕</button>
+    </div>
+    <p>A design you ran elsewhere, or the records of a process: a table with a line of headings and a run on each
+      line below it. It is read here, in your browser, and goes nowhere.</p>
+    <div class="import-source">
+      <label class="button import-choose">Choose a .csv or .xlsx file
+        <input type="file" id="import-file" accept=".csv,.tsv,.txt,.xlsx" class="visually-hidden"></label>
+      <label for="import-text">or paste the table here</label>
+      <textarea id="import-text" rows="5" spellcheck="false" autocomplete="off" placeholder="Temp (degC),Pressure (bar),Yield (%)&#10;150,1,61.2&#10;200,1,66.0&#10;150,3,55.1&#10;200,3,60.4"></textarea>
+      <button type="button" id="import-read" class="button">Read the pasted table</button>
+    </div>
+    <p id="import-status" class="hint" role="status"></p>
+    <div id="import-columns" hidden>
+      <label id="import-sheet-choice" hidden>Sheet <select id="import-sheet"></select></label>
+      <label>Name of the study <input id="import-title" type="text" maxlength="200" autocomplete="off"></label>
+      <div class="scroll">
+        <table class="data import-table">
+          <thead><tr><th scope="col">Column</th><th scope="col">It is</th><th scope="col">Name</th><th scope="col">Units</th><th scope="col">Range</th></tr></thead>
+          <tbody id="import-rows"></tbody>
+        </table>
+      </div>
+      <p id="import-problems" class="hint error" role="status" hidden></p>
+      <button type="button" id="import-open" class="button">Open as a study</button>
+    </div>
+  </dialog>
   <dialog id="compare-dialog" class="sheet" aria-labelledby="h-compare">
     <div class="sheet__head">
       <h2 id="h-compare">The designs compared in detail</h2>

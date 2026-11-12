@@ -152,6 +152,10 @@ h1 {
 @media (max-width: 480px) {
   .brand { gap: 10px; }
   .brand h1 { font-size: 2rem; }
+  /* The tagline stays on its one line, a little smaller: it runs on under the two buttons, which sit above it, and
+     is cut short only where it would reach past the screen, as in a font far wider than the page's. */
+  .brand__home, .brand__home > div { min-width: 0; }
+  .tagline { font-size: clamp(0.78rem, 3.9vw, 0.95rem); width: max-content; max-width: calc(100vw - 100px); overflow: hidden; }
   .feedback-button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* The colour-mode switch, an icon at the header's right as the book has it: the mode now, and a press for the next. */
@@ -170,7 +174,7 @@ h1 {
 .mark__runs circle { fill: var(--mark-run); }
 .mark__centre { fill: var(--mark-centre); }
 .tagline {
-  margin: 6px 0 0; color: var(--muted); font-style: italic;
+  margin: 6px 0 0; color: var(--muted); font-style: italic; white-space: nowrap;
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "DejaVu Serif", serif;
 }
 /* "prove" in Improve: upright in the italic line, bold, in the red of the mark's centre run. */
@@ -440,6 +444,8 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .hero__action--new svg { fill: none; }
 .hero__action--example { --hero: var(--mark-centre); }
 .hero__action--catalog { --hero: var(--ok); }
+.hero__action--import { --hero: var(--warn); }
+.hero__action--import svg { fill: none; }
 .hero__action--catalog svg { stroke-width: 0; }
 /* Wider than a phone, the three share one row. The row is a size container, so 1cqi is a hundredth of
    its width, and the font is 1.9cqi: the row is then about 53 font sizes wide, and the three buttons,
@@ -1676,19 +1682,47 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 :root[data-level="1"] [data-level="2"]:not(.in-use),
 :root[data-level="1"] [data-level="3"]:not(.in-use),
 :root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
-.level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-.level-switch legend { float: left; padding: 0; margin-right: 8px; color: var(--muted); font-size: 0.9rem; }
-.level-switch label { display: inline-flex; }
+.level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+/* Its name is read out, not drawn: the three levels then fit one line of a 360 px screen. */
+.level-switch legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.level-switch label { display: inline-flex; min-width: 0; }
 .level-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.level-switch span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; cursor: pointer; }
+.level-switch span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
 .level-switch input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
 .level-switch input:focus-visible + span { outline: 2px solid var(--warn); outline-offset: 2px; }
 .level-more button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 @media (pointer: coarse) {
-  .level-switch span { padding: 11px 14px; }
+  .level-switch span { padding: 11px 12px; }
   .level-more button { min-height: 44px; }
 }
 
 /* A way past the header for a reader on a keyboard: on the page only while it has the focus. */
 .skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px; background: var(--accent); color: #fff; }
 .skip-link:focus { top: 8px; }
+
+/* The dialog that makes a study of the reader's own table (import.js). */
+dialog.import { width: min(860px, 100vw - 32px); }
+.import-source { display: grid; gap: 8px; justify-items: start; margin: 12px 0; }
+.import-source textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
+.import-choose { cursor: pointer; }
+.import-choose:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+#import-columns { display: grid; gap: 10px; justify-items: start; }
+#import-columns .scroll { width: 100%; }
+.import-table th[scope="row"] { text-align: left; font-weight: 600; }
+.import-holds { display: block; font-weight: 400; }
+.import-table input[type="text"] { width: 9em; }
+.import-table input[type="number"] { width: 6em; }
+.import-range { white-space: nowrap; }
+@media (max-width: 600px) {
+  /* On a phone each column of the table is a card: its heading, then each choice under its own label. */
+  .import-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .import-table tr { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .import-table th[scope="row"], .import-table td { display: block; border: 0; padding: 0; }
+  .import-table td::before { content: attr(data-label) " "; color: var(--muted); font-size: 0.85rem; display: block; }
+  .import-table td:has(> [hidden]:only-child) { display: none; }
+}
+/* On the narrowest phones the three levels keep their one line by sitting closer. */
+@media (max-width: 350px) {
+  .level-switch { gap: 4px; }
+  .level-switch span { padding-left: 7px; padding-right: 7px; font-size: 0.82rem; }
+}

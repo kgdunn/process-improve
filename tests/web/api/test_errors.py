@@ -802,6 +802,91 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "judge the effects by Lenth's method, in the table of effects."
         ),
     ),
+    "no table to read": (
+        "api_read_table",
+        lambda _: {"text": "  "},
+        "There is no table to read: paste one, or choose a .csv or .xlsx file.",
+    ),
+    "a table of headings alone": (
+        "api_read_table",
+        lambda _: {"text": "A,B,y\n1,2,3\n"},
+        "The table needs a line of headings and at least two runs below it.",
+    ),
+    "a table too large to read": (
+        "api_read_table",
+        lambda _: {"text": "A,B\n" + "1,2\n" * 600_000},
+        "The table is larger than this page reads: 2 MB at most.",
+    ),
+    "a file too large to read": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": "A" * 2_800_000},
+        "The file is larger than this page reads: 2 MB at most.",
+    ),
+    "a file that is no workbook": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": "bm90IGEgd29ya2Jvb2s="},
+        "The file could not be read as an Excel workbook (.xlsx).",
+    ),
+    "a table of too many columns": (
+        "api_read_table",
+        lambda _: {"text": ",".join(f"c{i}" for i in range(61)) + "\n" + ("1," * 61 + "\n") * 2 + ("2," * 61 + "\n")},
+        "The table has 61 columns; this page reads 60 at most.",
+    ),
+    "a table of too many runs": (
+        "api_read_table",
+        lambda _: {"text": "A,B\n" + "".join(f"{i},{i % 3}\n" for i in range(2001))},
+        "The table has 2001 runs; a study holds 2000 at most.",
+    ),
+    "two columns of one heading": (
+        "api_read_table",
+        lambda _: {"text": "A,A,y\n1,2,3\n2,3,4\n3,4,5\n"},
+        "Two columns share the heading A: give each column its own.",
+    ),
+    "a table the page did not read": (
+        "api_import_study",
+        lambda _: {"columns": [{"role": "factor"}], "rows": [[1, 2], [3, 4]]},
+        "The page sent a table this page did not read.",
+    ),
+    "a table with no response chosen": (
+        "api_import_study",
+        lambda _: {"columns": [{"role": "factor", "name": "A"}, {"role": "ignore"}], "rows": [[1, 2], [2, 4], [1, 5]]},
+        "A study needs at least one factor and one response: choose which columns they are.",
+    ),
+    "a table whose runs lack a factor's setting": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [None, 4], [None, 5]],
+        },
+        "Fewer than two runs have a setting for every factor: leave out a factor with blanks.",
+    ),
+    "a factor at one setting": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [1, 4], [1, 5]],
+        },
+        "A has one setting in every run, so these runs say nothing of it: leave it out.",
+    ),
+    "a factor of too many labels": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "Lot"}, {"role": "response", "name": "y"}],
+            "rows": [[f"lot {i}", i] for i in range(9)],
+        },
+        (
+            "Lot has 9 different labels, and a categorical factor has 2 to 8 levels: "
+            "leave it out, or make its column numbers."
+        ),
+    ),
+    "a response of text": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [2, "high"], [1, 5]],
+        },
+        "The response y holds text in some runs: a response is a number.",
+    ),
     "a surface over one factor twice": (
         "api_plots",
         _runs(contour_factors=["T", "T"]),

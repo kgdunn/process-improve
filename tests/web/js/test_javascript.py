@@ -24,6 +24,7 @@ HERE = Path(__file__).parent
 SUITES = (
     "logic.test.mjs",
     "levels.test.mjs",
+    "import.test.mjs",
     "charts.test.mjs",
     "python.test.mjs",
     "best.test.mjs",

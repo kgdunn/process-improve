@@ -178,6 +178,29 @@ READS: dict[str, list[str]] = {
         "lenth.effects[].active_ME: bool",
         "lenth.effects[].active_SME: bool",
     ],
+    "table read": [
+        "columns[].heading: str",
+        "columns[].name: str",
+        "columns[].label: str",
+        "columns[].units: str",
+        "columns[].kind: str",
+        "columns[].settings: int",
+        "columns[].role: str",
+        "columns[].low: number?",
+        "columns[].high: number?",
+        "columns[].levels: list?",
+        "rows[]: list",
+        "n_rows: int",
+        "sheets: list",
+        "sheet: str?",
+    ],
+    "table made a study": [
+        "campaign.design.n_runs: int",
+        "campaign.design.spec.factors[].name: str",
+        "campaign.responses: list",
+        "campaign.model: str",
+        "left_out: list",
+    ],
     "simpler model": [
         "terms[]: list",
         "kept[]: str",
@@ -788,6 +811,8 @@ ENTRY_POINTS = {
     "analysis of readings repeated at each setting": "api_analyze_runs",
     "transformed analysis": "api_analyze_runs",
     "saturated analysis": "api_analyze_runs",
+    "table read": "api_read_table",
+    "table made a study": "api_import_study",
     "simpler model": "api_simpler_model",
     "charts": "api_plots",
     "charts through the best settings": "api_plots",
@@ -1014,6 +1039,19 @@ def one_factor_levels(api) -> dict:
     return {**held, "responses": [float(i) for i in range(len(held["rows"]))]}
 
 
+#: A table of the reader's own: a 2^2 factorial with each of two catalysts, its units in the headings.
+TABLE = "Temp (degC),Pressure (bar),Catalyst,Yield (%)\n" + "".join(
+    f"{t},{p},{c},{60 + 0.1 * (t - 175) - 3 * (p - 2) + 0.3 * i}\n"
+    for i, (t, p, c) in enumerate([(t, p, c) for t in (150, 200) for p in (1, 3) for c in "AB"])
+)
+
+
+def table_read(api) -> dict:
+    """Return the table as ``api_read_table`` reads it, with the roles it guessed: what the page sends back."""
+    read = api.ok("api_read_table", {"text": TABLE})
+    return {"columns": read["columns"], "rows": read["rows"], "title": "Trials"}
+
+
 def repeated(api) -> dict:
     """Return Schmidt and Launsby's 2^(3-1) read twice a setting, aimed at a target, one reading still to do."""
     factors = [{"name": n, "low": 1, "high": 2, "units": ""} for n in "ABC"]
@@ -1107,6 +1145,8 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "transformed analysis": lambda: logged(analysed),
         "analysis of readings repeated at each setting": lambda: repeated(api),
         "saturated analysis": saturated,
+        "table read": lambda: {"text": TABLE},
+        "table made a study": lambda: table_read(api),
         "simpler model": lambda: analysed,
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
@@ -1210,7 +1250,7 @@ def test_each_measure_has_a_cell_for_each_design(reply):
 
 
 #: The page's modules that call Python.
-CALLERS = ("app.js", "limits.js")
+CALLERS = ("app.js", "limits.js", "import.js")
 
 
 def test_the_page_calls_only_entry_points_this_contract_covers(bootstrap):

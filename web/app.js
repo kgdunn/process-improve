@@ -227,6 +227,7 @@ import {
   withUnits,
 } from "./logic.js";
 import {
+  CAMPAIGN_VERSION,
   AIMS,
   BOOK_PARAM,
   EXAMPLE_PARAM,
@@ -273,6 +274,7 @@ import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
 import { LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "./levels.js";
+import { installImport, openedWords } from "./import.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -5892,6 +5894,12 @@ async function openCampaign(c, record, message) {
   );
 }
 
+/** Open the study Python made of the reader's own table (import.js), saved here as a study of its own. */
+async function openImported(made) {
+  const c = checkCampaign({ v: CAMPAIGN_VERSION, ...made.campaign });
+  await openCampaign(c, newCampaign(false), openedWords(c.design.n_runs, made.left_out.length));
+}
+
 /** Resolve to the studies saved in this browser, or to none if the browser has not answered in a moment. */
 const savedSoon = () => Promise.race([savedCampaigns(), new Promise((resolve) => setTimeout(() => resolve([]), 2000))]);
 
@@ -6475,6 +6483,7 @@ $("#term-list").onchange = () => {
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
+installImport({ call, open: openImported });
 $("#simplify-ask").onclick = askSimpler;
 $("#simplify-apply").onclick = fitSimpler;
 $("#term-first").onchange = showTermAdder;

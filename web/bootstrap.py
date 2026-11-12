@@ -2735,6 +2735,9 @@ def _analysis(
 #: The chance of calling some run of a study unusual when none is: the outlier test's level, shared over the runs.
 UNUSUAL_AT = 0.05
 
+#: A factor whose variance inflation factor is past this moved with the others too closely to be judged alone.
+TANGLED_VIF = 10.0
+
 #: The level an effect is judged real at, where the runs leave a measure of the noise to judge it with.
 REAL_AT = 0.05
 
@@ -2810,7 +2813,32 @@ def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
     return f"raising {name} from {span}{amount}"
 
 
-def _findings(  # noqa: C901 - one sentence a finding, each from one part of the analysis
+def _fit_findings(
+    label: str, summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
+) -> list[str]:
+    """Say how well the model fits, whether a term may be missing, and which runs to look at again."""
+    said: list[str] = []
+    if summary["df_residual"] > 0:
+        fit = f"The model explains {summary['r_squared']:.0%} of the variation in {label}"
+        predicted = summary.get("r_squared_pred")
+        said.append(
+            fit + ("." if predicted is None else f", and about {max(predicted, 0):.0%} in runs it has not seen.")
+        )
+    else:
+        said.append(
+            "The model uses every run, so none is left to measure the noise with: "
+            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
+        )
+    if lack_of_fit and lack_of_fit.get("significant"):
+        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
+    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
+    if unusual:
+        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
+        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
+    return said
+
+
+def _findings(
     spec: dict,
     coefficients: list[dict],
     summary: dict,
@@ -2846,9 +2874,15 @@ def _findings(  # noqa: C901 - one sentence a finding, each from one part of the
             said.append(f"Also real: {', '.join(ways)}.")
     elif mains:
         said.append(f"No factor's effect on {label} stands out from the noise.")
-    quiet = [n for n in mains if not judged[n]]
+    tangled = [n for n in mains if not judged[n] and (by_term[n].get("vif") or 0) > TANGLED_VIF]
+    quiet = [n for n in mains if not judged[n] and n not in tangled]
     if real and quiet:
         said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
+    if tangled:
+        said.append(
+            f"{_listed(tangled)} moved together with other factors in these runs, so the runs cannot judge "
+            f"{'it' if len(tangled) == 1 else 'any of them'} alone."
+        )
     for term, is_real in judged.items():
         pair = term.split(":")
         if is_real and len(pair) == len("ab") and set(pair) <= set(simple):
@@ -2856,24 +2890,7 @@ def _findings(  # noqa: C901 - one sentence a finding, each from one part of the
         squared = re.fullmatch(r"I\((.+) \*\* 2\)", term)
         if is_real and squared and squared[1] in simple:
             said.append(f"{label} curves over {squared[1]}: its best setting may lie inside the range, not at an end.")
-    if summary["df_residual"] > 0:
-        fit = f"The model explains {summary['r_squared']:.0%} of the variation in {label}"
-        predicted = summary.get("r_squared_pred")
-        said.append(
-            fit + ("." if predicted is None else f", and about {max(predicted, 0):.0%} in runs it has not seen.")
-        )
-    else:
-        said.append(
-            "The model uses every run, so none is left to measure the noise with: "
-            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
-        )
-    if lack_of_fit and lack_of_fit.get("significant"):
-        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
-    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
-    if unusual:
-        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
-        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
-    return said
+    return [*said, *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics)]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:
@@ -4450,6 +4467,346 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
     expected = {c["term"]: round(c["coefficient"], 9) + 0.0 for c in noiseless["coefficients"]}
     for c in coefficients:
         c["true_value"] = expected.get(c["term"])
+
+
+# --------------------------------------------------------------------------- a table of the reader's own
+#: The most a table of the reader's own may hold: its text or file in bytes, and its columns. Its rows are a
+#: study's, :data:`MAX_GIVEN_RUNS`.
+MAX_TABLE_BYTES = 2_000_000
+MAX_TABLE_COLUMNS = 60
+
+#: A numeric column at this many settings or fewer looks set by a design, not measured.
+FEW_SETTINGS = 5
+
+#: Cells a spreadsheet or a logger writes for "no value".
+_BLANK_CELLS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "?"}
+
+#: Headings of columns that number or date the runs: no factor and no response.
+_BOOKKEEPING = re.compile(
+    r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date|time|day|block)$"
+)
+
+#: A heading that ends in its units: "Temp (degC)" or "Yield [%]".
+_WITH_UNITS = re.compile(r"^(.*?)\s*[\(\[]\s*([^\)\]]{1,32})\s*[\)\]]\s*$")
+
+#: How strongly two factors must move together before the page says so, and before it says they cannot be separated.
+MOVED_TOGETHER = 0.7
+NOT_SEPARABLE = 0.95
+
+
+def _cell(value: object, *, decimal_comma: bool = False) -> float | str | None:
+    """Read one cell of a table: a finite number, a label, or None for a blank. Nothing in it is ever evaluated."""
+    if value is None or isinstance(value, bool):
+        return None if value is None else str(value)
+    if isinstance(value, (int, float)):
+        return float(value) if math.isfinite(value) else None
+    text = str(value).strip()
+    if text.lower() in _BLANK_CELLS:
+        return None
+    if decimal_comma and re.fullmatch(r"[-+]?\d+,\d+", text):
+        text = text.replace(",", ".")
+    number = _number(text) if re.fullmatch(r"[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", text) else None
+    return number if number is not None else text[:64]
+
+
+def _csv_cells(text: str) -> list[list[float | str | None]]:
+    """Read delimited text: commas, semicolons, tabs or bars, found from its first lines; a decimal comma where
+    the columns are not split by commas.
+    """
+    import csv  # noqa: PLC0415 - only a reader's own table needs it
+
+    sample = "\n".join(text.splitlines()[:20])
+    delimiter = max(",;\t|", key=sample.count) if sample else ","
+    return [
+        [_cell(value, decimal_comma=delimiter != ",") for value in row]
+        for row in csv.reader(io.StringIO(text), delimiter=delimiter)
+    ]
+
+
+def _xlsx_cells(data: bytes, sheet: object) -> tuple[list[list[float | str | None]], list[str], str]:
+    """Read one sheet of a workbook, the first unless named: its cells' values, never its formulas."""
+    from openpyxl import load_workbook  # noqa: PLC0415 - loaded with the page's own workbook
+
+    try:
+        book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception as err:
+        raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+    names = [str(name) for name in book.sheetnames]
+    name = sheet if isinstance(sheet, str) and sheet in names else names[0]
+    rows = []
+    for i, row in enumerate(book[name].iter_rows(values_only=True)):
+        if i > MAX_GIVEN_RUNS + 50:  # blank lines above the heading are few
+            break
+        rows.append([_cell(value) for value in row[: MAX_TABLE_COLUMNS + 1]])
+    return rows, names, name
+
+
+def _table_of(request: dict) -> tuple[list[str], list[list[float | str | None]], list[str], str | None]:
+    """Read the table a reader gave, as text or as a workbook: its headings, its rows, and the workbook's sheets.
+
+    The first line that holds anything is the headings. Lines and columns with nothing in them are left out.
+    """
+    text, encoded = request.get("text"), request.get("xlsx_base64")
+    sheets: list[str] = []
+    sheet: str | None = None
+    if isinstance(encoded, str) and encoded:
+        if len(encoded) > MAX_TABLE_BYTES * 4 // 3 + 4:
+            raise ValueError(f"The file is larger than this page reads: {MAX_TABLE_BYTES // 1_000_000} MB at most.")
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except ValueError as err:
+            raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+        cells, sheets, sheet = _xlsx_cells(data, request.get("sheet"))
+    elif isinstance(text, str) and text.strip():
+        if len(text.encode()) > MAX_TABLE_BYTES:
+            raise ValueError(f"The table is larger than this page reads: {MAX_TABLE_BYTES // 1_000_000} MB at most.")
+        cells = _csv_cells(text)
+    else:
+        raise ValueError("There is no table to read: paste one, or choose a .csv or .xlsx file.")
+    cells = [row for row in cells if any(value is not None for value in row)]
+    if len(cells) < 3:
+        raise ValueError("The table needs a line of headings and at least two runs below it.")
+    width = max(len(row) for row in cells)
+    cells = [[*row, *[None] * (width - len(row))] for row in cells]
+    keep = [j for j in range(width) if any(row[j] is not None for row in cells[1:])]
+    if len(keep) > MAX_TABLE_COLUMNS:
+        raise ValueError(f"The table has {len(keep)} columns; this page reads {MAX_TABLE_COLUMNS} at most.")
+    if len(cells) - 1 > MAX_GIVEN_RUNS:
+        raise ValueError(f"The table has {len(cells) - 1} runs; a study holds {MAX_GIVEN_RUNS} at most.")
+    headings = [str(cells[0][j]) if cells[0][j] is not None else f"Column {j + 1}" for j in keep]
+    headings = [_plain_number(h) for h in headings]
+    if len(set(headings)) != len(headings):
+        twice = sorted({h for h in headings if headings.count(h) > 1})
+        raise ValueError(f"Two columns share the heading {_listed(twice)}: give each column its own.")
+    return headings, [[row[j] for j in keep] for row in cells[1:]], sheets, sheet
+
+
+def _plain_number(heading: str) -> str:
+    """Write a heading a spreadsheet read as a number, such as 2024.0, as it was typed."""
+    return heading[:-2] if re.fullmatch(r"\d+\.0", heading) else heading
+
+
+def _column(heading: str, values: list[float | str | None]) -> dict[str, Any]:
+    """Describe one column of a table: what it holds, and the name and units its heading gives a factor or response."""
+    there = [v for v in values if v is not None]
+    numbers = [v for v in there if isinstance(v, float)]
+    kind = "number" if there and len(numbers) == len(there) else "text" if there else "empty"
+    with_units = _WITH_UNITS.match(heading)
+    words, units = (with_units[1], with_units[2]) if with_units and with_units[1] else (heading, "")
+    distinct = list(dict.fromkeys(there))
+    return {
+        "heading": heading,
+        "name": suggest_identifier(words),
+        "label": words[:64],
+        "units": units,
+        "kind": kind,
+        "filled": len(there),
+        "settings": len(distinct),
+        "low": min(numbers) if kind == "number" else None,
+        "high": max(numbers) if kind == "number" else None,
+        "levels": [str(v) for v in distinct[: MAX_LEVELS + 1]] if kind == "text" else None,
+    }
+
+
+def _guess_roles(columns: list[dict[str, Any]]) -> None:
+    """Guess what each column of a table is: a factor, a response, or neither. The reader changes any of them.
+
+    A column of one setting, of numbers or dates of the runs, or of more labels than a factor has levels, is
+    neither. Numbers at a few settings were set, so they are a factor, and labels at a few are a categorical
+    one. Numbers at many settings were measured: beside columns that were set they are responses; in a table
+    where nothing was set, as a plant's records are, the last is the response and the others are factors.
+    """
+    designed = any(c["kind"] == "number" and 1 < c["settings"] <= FEW_SETTINGS for c in columns)
+    measured = [c for c in columns if c["kind"] == "number" and c["settings"] > FEW_SETTINGS]
+    for c in columns:
+        if c["settings"] < 2 or _BOOKKEEPING.match(c["label"]):
+            c["role"] = "ignore"
+        elif c["kind"] == "text":
+            c["role"] = "factor" if c["settings"] <= MAX_LEVELS else "ignore"
+        elif c["settings"] <= FEW_SETTINGS:
+            c["role"] = "factor"
+        else:
+            c["role"] = "response" if designed or c is measured[-1] else "factor"
+    numbers = [c for c in columns if c["role"] == "factor" and c["kind"] == "number"]
+    if numbers and not any(c["role"] == "response" for c in columns):
+        numbers[-1]["role"] = "response"  # a table's results are most often its last column
+    responses = [c for c in columns if c["role"] == "response"]
+    for c in responses[MAX_RESPONSES:]:
+        c["role"] = "ignore"
+    factors = [c for c in columns if c["role"] == "factor"]
+    for c in factors[MAX_FACTORS:]:
+        c["role"] = "ignore"
+
+
+def read_table(request: dict) -> dict:
+    """Read a table of the reader's own, pasted or in a .csv or .xlsx file, and guess what each column is.
+
+    ``text`` holds delimited text, or ``xlsx_base64`` a workbook with the ``sheet`` to read (its first without).
+    The reply holds the headings and the rows as read, each cell a number, a label or null, and for each column
+    what :func:`_column` says of it with a guessed ``role`` (see :func:`_guess_roles`): the page shows them for
+    the reader to correct, and sends them back to :func:`import_study`. Nothing in the table is evaluated.
+    """
+    headings, rows, sheets, sheet = _table_of(request)
+    columns = [_column(heading, [row[j] for row in rows]) for j, heading in enumerate(headings)]
+    _guess_roles(columns)
+    return {"columns": columns, "rows": rows, "n_rows": len(rows), "sheets": sheets, "sheet": sheet}
+
+
+def _sent_table(request: dict) -> tuple[list[dict], list[list]]:
+    """Check the table the page sends back with the reader's choices: the columns as read, and their rows."""
+    columns, rows = request.get("columns"), request.get("rows")
+    if (
+        not isinstance(columns, list)
+        or not isinstance(rows, list)
+        or not 0 < len(columns) <= MAX_TABLE_COLUMNS
+        or not 1 < len(rows) <= MAX_GIVEN_RUNS
+        or not all(isinstance(c, dict) and c.get("role") in ("factor", "response", "ignore") for c in columns)
+        or not all(isinstance(row, list) and len(row) == len(columns) for row in rows)
+        or not all(value is None or isinstance(value, (int, float, str)) for row in rows for value in row)
+    ):
+        raise ValueError("The page sent a table this page did not read.")
+    return columns, [[_cell(value) for value in row] for row in rows]
+
+
+def _imported_factor(column: dict, values: list) -> dict[str, Any]:
+    """Make a factor of a column the reader chose: numeric over the range of its settings, or categorical."""
+    name = str(column.get("name") or "").strip()
+    there = [v for v in values if v is not None]
+    if all(isinstance(v, float) for v in there):
+        low, high = _number(column.get("low")), _number(column.get("high"))
+        low, high = (min(there) if low is None else low), (max(there) if high is None else high)
+        if not low < high:
+            raise ValueError(f"{name} has one setting in every run, so these runs say nothing of it: leave it out.")
+        return {"name": name, "type": "numeric", "low": low, "high": high, "units": str(column.get("units") or "")[:32]}
+    levels = list(dict.fromkeys(str(v) if not isinstance(v, float) else f"{v:g}" for v in there))
+    if not 2 <= len(levels) <= MAX_LEVELS:
+        raise ValueError(
+            f"{name} has {len(levels)} different labels, and a categorical factor has 2 to {MAX_LEVELS} levels: "
+            "leave it out, or make its column numbers."
+        )
+    return {"name": name, "type": "categorical", "levels": levels}
+
+
+def _moved_together(coded: pd.DataFrame) -> list[str]:
+    """Say which factors moved together in the runs, strongest first: their effects are then hard to tell apart."""
+    names = [name for name in coded.columns if coded[name].std() > 0]
+    if len(names) < 2:
+        return []
+    r = coded[names].corr().to_numpy()
+    pairs = sorted(
+        ((abs(r[i, j]), names[i], names[j]) for i in range(len(names)) for j in range(i + 1, len(names))), reverse=True
+    )
+    pairs = [(size, a, b) for size, a, b in pairs if size >= MOVED_TOGETHER]
+    said = [
+        f"{a} and {b} moved together in these runs (correlation {_correlation_words(size)}): "
+        + (
+            "their effects cannot be told apart."
+            if size >= NOT_SEPARABLE
+            else "their effects are known less precisely than either alone would be."
+        )
+        for size, a, b in pairs[:5]
+    ]
+    if len(pairs) > len(said):
+        said.append(f"{len(pairs) - len(said)} more pairs of factors moved together.")
+    return said
+
+
+def _correlation_words(size: float) -> str:
+    """Write the size of a correlation to two decimals, and one that would round to 1 as above 0.99."""
+    return f"{size:.2f}" if size < 0.995 else "above 0.99"
+
+
+def import_study(request: dict) -> dict:
+    """Make a study of a table of the reader's own: its factors and responses as chosen, its runs as given.
+
+    ``columns`` and ``rows`` are what :func:`read_table` returned, each column with the ``role`` the reader
+    left it, and for a factor or a response the ``name``, ``units`` and (a numeric factor) the ``low`` and
+    ``high`` they gave. A run with no setting for some factor is left out, and ``left_out`` lists those by
+    their line in the table. The design is :data:`GIVEN`, made by :func:`_given_design`, so everything the
+    page does with a design's runs it does with these.
+
+    ``campaign`` is the study as the page opens one (``checkCampaign`` in campaign.js): the design, and each
+    response's results with their sources. The design's notes say what the runs can and cannot show: which
+    factors moved together (see :func:`_moved_together`), and, when the factors were not set at a few levels,
+    that the runs were not planned as an experiment.
+    """
+    columns, rows = _sent_table(request)
+    at = {id(c): j for j, c in enumerate(columns)}
+    chosen = [c for c in columns if c["role"] == "factor"]
+    measured = [c for c in columns if c["role"] == "response"]
+    if not chosen or not measured:
+        raise ValueError("A study needs at least one factor and one response: choose which columns they are.")
+    kept = [i for i, row in enumerate(rows) if all(row[at[id(c)]] is not None for c in chosen)]
+    if len(kept) < 2:
+        raise ValueError("Fewer than two runs have a setting for every factor: leave out a factor with blanks.")
+    factors = [_imported_factor(c, [rows[i][at[id(c)]] for i in kept]) for c in chosen]
+    if text := next((c for c in measured if any(isinstance(rows[i][at[id(c)]], str) for i in kept)), None):
+        raise ValueError(f"The response {text.get('name')} holds text in some runs: a response is a number.")
+    spec = {
+        "design_type": GIVEN,
+        "factors": factors,
+        "responses": [
+            {
+                "name": str(c.get("name") or "").strip(),
+                "label": c.get("label"),
+                "units": c.get("units"),
+                "goal": "learn",
+            }
+            for c in measured
+        ],
+        "runs": [
+            [
+                rows[i][at[id(c)]] if f["type"] == "numeric" else _level_label(rows[i][at[id(c)]])
+                for c, f in zip(chosen, factors, strict=True)
+            ]
+            for i in kept
+        ],
+    }
+    design = _given_design(spec)
+    stored = design["spec"]
+    settings = pd.DataFrame(spec["runs"], columns=[f["name"] for f in factors])
+    notes = _moved_together(
+        _coded(settings, stored["factors"])[[f["name"] for f in stored["factors"] if not _several(f)]]
+    )
+    planned = all(settings[f["name"]].nunique() <= FEW_SETTINGS for f in factors if f["type"] == "numeric")
+    if not planned:
+        notes.append(
+            "These runs were not set out as an experiment: an effect found in them may belong to something else "
+            "that changed at the same time. Confirm what matters with runs you plan."
+        )
+    left_out = [i + 2 for i in range(len(rows)) if i not in set(kept)]  # its line in the table, under the headings
+    if left_out:
+        notes.append(
+            f"{len(left_out)} of the table's {len(rows)} runs had no setting for some factor, and were left out."
+        )
+    design["facts"]["notes"] = [*design["facts"]["notes"], *notes]
+    results = {c.get("name"): [rows[i][at[id(c)]] for i in kept] for c in measured}
+    first, *others = [r["name"] for r in _responses(stored)]
+    sources = {name: ["entered" if v is not None else None for v in values] for name, values in results.items()}
+    return {
+        "campaign": {
+            "title": str(request.get("title") or "")[:200],
+            "design": {
+                key: design[key] for key in ("spec", "columns", "rows", "model", "n_runs", "facts", "outside_range")
+            },
+            "responses": results[first],
+            "sources": sources[first],
+            **(
+                {"more_responses": {n: results[n] for n in others}, "more_sources": {n: sources[n] for n in others}}
+                if others
+                else {}
+            ),
+            # Runs that were not planned seldom hold a surface's worth of settings: Learn starts on the main effects.
+            "model": "" if planned else "main_effects",
+        },
+        "left_out": left_out,
+        "notes": notes,
+    }
+
+
+def _level_label(value: float | str | None) -> str:
+    """Write a categorical factor's setting as its level's label: a number as a spreadsheet shows it."""
+    return f"{value:g}" if isinstance(value, float) else str(value)
 
 
 def read_workbook(request: dict) -> dict:
@@ -8773,6 +9130,16 @@ def api_simpler_model(payload: str) -> str:
 def api_plots(payload: str) -> str:
     """JSON wrapper around :func:`plots`."""
     return _reply(plots, payload)
+
+
+def api_read_table(payload: str) -> str:
+    """JSON wrapper around :func:`read_table`."""
+    return _reply(read_table, payload)
+
+
+def api_import_study(payload: str) -> str:
+    """JSON wrapper around :func:`import_study`."""
+    return _reply(import_study, payload)
 
 
 def api_read_workbook(payload: str) -> str:
