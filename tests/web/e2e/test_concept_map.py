@@ -1007,6 +1007,8 @@ def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(cont
     context.route("**/map/graph.json", lambda route: route.fulfill(json=TWO_OTHERS))  # two textbooks: the longest row
     page = _open(context, site)
     page.click("#books .switch")
+    # The names in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
+    page.evaluate("""() => { document.querySelector('#books').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
     rows = page.evaluate("""() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
       const page = document.documentElement;
       const middle = (e) => { const b = e.getBoundingClientRect(); return (b.top + b.bottom) / 2; };
