@@ -25,6 +25,7 @@ import {
   withBounds,
   CAPTIONS,
   MORE_CHARTS,
+  simplerWords,
   TITLES,
   CATEGORICAL,
   MODES,
@@ -407,6 +408,15 @@ describe("words and numbers", () => {
   test("text placed in HTML is escaped", () => {
     assert.equal(escape('<b a="1">&</b>'), "&lt;b a=&quot;1&quot;&gt;&amp;&lt;/b&gt;");
     assert.equal(escape(12), "12");
+  });
+
+  test("the search for a simpler model is said in a sentence", () => {
+    const fmt = (v) => v.toFixed(2);
+    const found = { kept: ["T", "P", "T·P"], dropped: ["F"], added: [], changed: true, adjusted_r_squared: 0.9777 };
+    assert.equal(simplerWords(found, fmt), "The results support T, P and T·P, without F. Adjusted R² would be 0.98.");
+    assert.match(simplerWords({ ...found, added: ["F²"] }, fmt), /without F, and with F²\. /);
+    assert.equal(simplerWords({ ...found, dropped: [], changed: false }, fmt), "The results support every term of the model as it is.");
+    assert.match(simplerWords({ ...found, kept: [] }, fmt), /^No term of the model stands out from the noise/);
   });
 
   test("the captions name the factors drawn", () => {

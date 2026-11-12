@@ -37,6 +37,7 @@ export const FEATURES = {
   "chart:perturbation": { level: 2, term: "response_surface" },
   "chart:surface_3d": { level: 2, term: "response_surface" },
   "chart:prediction_variance": { level: 3, term: "prediction_variance" },
+  "action:simplify": { level: 2, because: "choosing a model's terms from the results, past fitting the model as designed" },
   "table:diagnostics": { level: 2, because: "leverage and Cook's distance, past the residuals a beginner reads" },
 };
 

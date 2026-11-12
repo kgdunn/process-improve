@@ -1688,3 +1688,7 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
   .level-switch span { padding: 11px 14px; }
   .level-more button { min-height: 44px; }
 }
+
+/* A way past the header for a reader on a keyboard: on the page only while it has the focus. */
+.skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px; background: var(--accent); color: #fff; }
+.skip-link:focus { top: 8px; }

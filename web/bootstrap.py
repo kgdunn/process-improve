@@ -4742,6 +4742,73 @@ def plots(request: dict) -> dict:
     }
 
 
+def simpler_model(request: dict) -> dict:
+    """Propose the terms of the fitted model that the results support, for the reader to accept or not.
+
+    The search is the library's stepwise selection, scored by AICc and keeping effect heredity: an
+    interaction stays only with both its main effects. It
+    searches the terms of the standard model ``within``. ``terms`` holds what it keeps, as the page ticks them
+    (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it leaves
+    out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
+    Nothing is fitted for the reader here: the page puts the terms in its list when the reader asks.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
+    spec = _for_response(spec, request.get("response"))
+    names = [f["name"] for f in spec["factors"]]
+    # shortcut: the search knows a term by its factors, not a block's or a level's contrast; upgrade when the
+    # library's selection keeps a factor's contrasts together and the blocks in every model.
+    if _mixture(spec) or _blocked(spec) or any(_several(f) for f in spec["factors"]):
+        raise ValueError(
+            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
+            "choose this study's terms yourself, under Terms you choose."
+        )
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    fitted, columns = _fitted_model(model, spec)
+    runs = _design_runs(every_run)
+    response = spec["response"]
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna().to_numpy()
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(response)
+    with _listening():
+        fit = _fit_estimable(coded, y, fitted, columns, categorical)
+        if fit["out"]["model_summary"]["df_residual"] < 1:
+            raise ValueError(
+                "The model uses every run, so none is left to compare a simpler model with: "
+                "judge the effects by Lenth's method, in the table of effects."
+            )
+        before = [c["term"] for c in fit["out"]["coefficients"] if c["term"] != "Intercept"]
+        # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
+        # smallest that holds them all, so a term they took out can come back when the results call for it.
+        within = model if isinstance(model, str) else _standard_model_of(before)
+        chosen = analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
+    kept = chosen["model_selection"]["selected_terms"]
+    return {
+        "terms": [_page_term(term) for term in kept],
+        "kept": [_pretty(term) for term in kept],
+        "dropped": [_pretty(term) for term in before if term not in kept],
+        "added": [_pretty(term) for term in kept if term not in before],
+        "changed": set(kept) != set(before),
+        "within": within,
+        "adjusted_r_squared": chosen["model_selection"]["r_squared_adj"],
+    }
+
+
+def _standard_model_of(terms: list[str]) -> str:
+    """Name the smallest standard model that holds every one of some fitted terms."""
+    if any(term.startswith("I(") for term in terms):
+        return "quadratic"
+    return "interactions" if any(":" in term for term in terms) else "main_effects"
+
+
+def _page_term(term: str) -> list[str]:
+    """Write a fitted term as the page ticks it: a factor's name once, an interaction's names, a square's twice."""
+    squared = re.fullmatch(r"I\((.+) \*\* 2\)", term)
+    return [squared[1], squared[1]] if squared else term.split(":")
+
+
 def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, float], list[dict[str, Any]]] | None:
     """Return where the response surface holds the factors it does not draw when the page has the best settings.
 
@@ -8696,6 +8763,11 @@ def api_analyze_runs(payload: str) -> str:
 def api_workbook(payload: str) -> str:
     """JSON wrapper around :func:`workbook`."""
     return _reply(workbook, payload)
+
+
+def api_simpler_model(payload: str) -> str:
+    """JSON wrapper around :func:`simpler_model`."""
+    return _reply(simpler_model, payload)
 
 
 def api_plots(payload: str) -> str:

@@ -98,6 +98,7 @@ import {
   BLOCK,
   CAPTIONS,
   MORE_CHARTS,
+  simplerWords,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
@@ -441,6 +442,7 @@ const state = {
   analysis: null,
   contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
   moreCharts: false, // whether "More charts" is open
+  simpler: null, // the terms the search for a simpler model proposed for the analysis on show, or null
   plots: null, // what api_plots last returned, and the request it answered: drawn again at another reading level
   chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
@@ -3350,6 +3352,7 @@ function renderAnalysis(reply) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
     out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
+    showSimpler(false);
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
     clearBest();
@@ -3365,6 +3368,7 @@ function renderAnalysis(reply) {
   showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
+  showSimpler(!mixture); // a mixture's model is chosen by name
   $("#transform").value = r.transform ?? "";
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
@@ -3459,6 +3463,37 @@ function renderAnalysis(reply) {
   }
   parts.push(...spreadParts(r.spread), ...diagnosticParts(r.diagnostics, r.transform));
   out.replaceChildren(...parts);
+}
+
+/** Offer the search for a simpler model, or take it away; what an earlier search found goes with the analysis it was of. */
+function showSimpler(offered) {
+  $("#simplify").hidden = !offered;
+  $("#simplify-words").textContent = "";
+  $("#simplify-apply").hidden = true;
+  state.simpler = null;
+}
+
+/** Search for the terms of the fitted model the results support, and say them; the reader fits them, or not. */
+async function askSimpler() {
+  const mine = ticket;
+  $("#simplify-apply").hidden = true;
+  $("#simplify-words").textContent = "Searching...";
+  const reply = await call("api_simpler_model", analysisRequest());
+  if (mine !== ticket) return; // the analysis it was asked of is gone
+  if (!reply.ok) {
+    $("#simplify-words").textContent = reply.error;
+    return;
+  }
+  state.simpler = reply.result.terms;
+  $("#simplify-words").textContent = simplerWords(reply.result, fmt);
+  $("#simplify-apply").hidden = !reply.result.changed || !reply.result.terms.length;
+}
+
+/** Fit the terms the search proposed: they are ticked in the list of terms, as if the reader had ticked them. */
+function fitSimpler() {
+  if (!state.simpler?.length) return;
+  setModel({ terms: state.simpler });
+  $("#term-list").dispatchEvent(new Event("change"));
 }
 
 /** What the analysis found, in sentences Python wrote from its numbers: the same results give the same words. */
@@ -6440,6 +6475,8 @@ $("#term-list").onchange = () => {
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
+$("#simplify-ask").onclick = askSimpler;
+$("#simplify-apply").onclick = fitSimpler;
 $("#term-first").onchange = showTermAdder;
 $("#term-second").onchange = showTermAdder;
 $("#add-term").onclick = addNamedTerm;

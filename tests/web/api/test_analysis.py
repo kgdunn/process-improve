@@ -101,6 +101,28 @@ def test_nothing_real_is_said_plainly(api, held):
     assert findings[0] == "No factor's effect on Yield stands out from the noise."
 
 
+# --------------------------------------------------------------------------- a simpler model, proposed
+def test_the_simpler_model_keeps_the_terms_of_the_process_the_results_came_from(api, held, simulated):
+    """The reactor process has five terms, and the quadratic model nine: the search keeps the five."""
+    request = {**held, "responses": simulated["responses"]}
+    proposed = api.ok("api_simpler_model", request)
+    truth = {t["term"] for t in simulated["truth"] if t["term"] != "Intercept" and t["coefficient"]}
+    assert proposed["kept"] == ["T", "P", "F", "T·P", "F²"]
+    assert {":".join(t) if len(set(t)) > 1 or len(t) == 1 else f"I({t[0]} ** 2)" for t in proposed["terms"]} == truth
+    assert proposed["dropped"] == ["T·F", "P·F", "T²", "P²"]
+    assert (proposed["added"], proposed["changed"], proposed["within"]) == ([], True, "quadratic")
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+    assert len(fitted["coefficients"]) == 6, "the page fits the terms as proposed, with the intercept"
+
+
+def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    terms = api.ok("api_simpler_model", request)["terms"]
+    again = api.ok("api_simpler_model", {**request, "model": {"terms": terms}})
+    assert (again["changed"], again["dropped"], again["added"], again["terms"]) == (False, [], [], terms)
+
+
 def test_true_values_are_what_each_coefficient_estimates(api, held, simulated):
     """In a Box-Behnken design every term is estimated on its own, so the true values are the process's."""
     request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}

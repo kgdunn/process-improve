@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import FACTORS, correlated_study, fill_workbook
+from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -282,3 +282,38 @@ def test_each_run_is_listed_as_the_model_sees_it_under_a_heading_to_open(page):
     assert box.locator("tbody tr").count() == 15
     heads = box.locator("thead th").all_text_contents()
     assert heads == ["Run", "Fitted", "Residual", "In standard deviations", "Leverage", "Cook's distance", "Look again"]
+
+
+# --------------------------------------------------------------------------- a simpler model, proposed and accepted
+def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
+    """The worked example's process has five terms and its model nine: the search proposes the five."""
+    assert page.text_content("#simplify-words") == ""
+    assert page.is_hidden("#simplify-apply"), "nothing is proposed until the reader asks"
+    page.click("#simplify-ask")
+    page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
+    said = page.text_content("#simplify-words")
+    assert said.startswith(
+        "The results support T, P, F, T·P and F², without T·F, P·F, T² and P². Adjusted R² would be "
+    )
+    assert len(coefficient_rows(page)) == 10, "the model is fitted as it was until the reader accepts"
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#simplify-apply")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "F²"]
+    assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
+    assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
+
+
+def test_a_model_that_uses_every_run_is_not_simplified_and_the_page_says_why(blank_page):
+    page = blank_page
+    set_factors(page, factors_named(*"AB"))  # four runs, and four coefficients with the interaction
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + (i * 7) % 11 for i in range(4)})
+    settled(page)
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function(
+        "document.querySelector('#simplify-words').textContent.startsWith('The model uses every run')"
+    )
+    assert page.is_hidden("#simplify-apply")

@@ -1050,6 +1050,18 @@ export const TITLES = {
   prediction_variance: "Where the predictions are least certain",
 };
 
+/**
+ * What the search for a simpler model found (``found``, as api_simpler_model gives it), in a sentence: the terms the
+ * results support, the fitted terms left out, and any brought in. ``fmt`` writes a number as the tables do.
+ */
+export function simplerWords(found, fmt) {
+  if (!found.kept.length) return "No term of the model stands out from the noise: the results support none of them.";
+  if (!found.changed) return "The results support every term of the model as it is.";
+  const without = found.dropped.length ? `, without ${listNames(found.dropped)}` : "";
+  const more = found.added.length ? `, and with ${listNames(found.added)}` : "";
+  return `The results support ${listNames(found.kept)}${without}${more}. Adjusted R² would be ${fmt(found.adjusted_r_squared)}.`;
+}
+
 /** The charts under "More charts", in their order: what the factors do, then whether to trust the model. */
 export const MORE_CHARTS = [
   "perturbation",

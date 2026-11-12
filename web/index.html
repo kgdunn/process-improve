@@ -47,6 +47,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#workspace">Skip to the study</a>
 <main>
   <header class="masthead">
     <div class="brand">
@@ -177,7 +178,6 @@
             </label>
           </div>
         </details>
-        <p id="response-problems" class="hint error" role="status" hidden></p>
       </section>
 
       <section id="factors-card" class="card" aria-labelledby="h-factors">
@@ -566,6 +566,9 @@
         <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors: why the models with every interaction are not offered. -->
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
+        <!-- The terms of the model the results support (bootstrap.simpler_model): proposed when asked, fitted when accepted. -->
+        <p id="simplify" class="hint" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
+          <span id="simplify-words" role="status"></span> <button type="button" class="link" id="simplify-apply" hidden>Fit these terms</button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
