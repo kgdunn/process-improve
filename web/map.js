@@ -94,9 +94,9 @@ const bookUrl = n => {
 };
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
 
-// Reading level: Beginner, Intermediate or Advanced; each shows every level below it (the book's build sets each
+// Reading level: Beginner, Intermediate or Adventurous; each shows every level below it (the book's build sets each
 // term's level from where chapter 5 introduces it). A first visit opens on Beginner; the reader's choice is kept.
-const LEVELS = ["Beginner", "Intermediate", "Advanced"];
+const LEVELS = ["Beginner", "Intermediate", "Adventurous"];
 const leveled = DATA.nodes.some(n => n.level);
 let level = leveled ? 1 : LEVELS.length;
 try { const v = Number(localStorage.getItem("factorial-map-level")); if (leveled && v >= 1 && v <= LEVELS.length) level = v; } catch {}
