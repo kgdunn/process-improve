@@ -2923,7 +2923,7 @@ const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart";
 
 /** The attributes a report's copy keeps: those that say how a cell spans, where a link goes, and how a part looks. */
-const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan"]);
+const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan", "open"]);
 
 /**
  * A part of the page as a report holds it, as HTML: a copy without what NOT_REPORTED names, a table's heading that
@@ -2934,6 +2934,7 @@ function reportCopy(node) {
   const copy = node.cloneNode(true);
   for (const word of copy.querySelectorAll("th button, .term")) word.replaceWith(word.textContent);
   for (const part of copy.querySelectorAll(NOT_REPORTED)) part.remove();
+  for (const box of copy.querySelectorAll("details")) box.setAttribute("open", ""); // paper has no heading to press
   for (const part of [copy, ...copy.querySelectorAll("*")]) {
     for (const { name } of [...part.attributes]) if (!REPORTED_ATTRIBUTES.has(name)) part.removeAttribute(name);
   }
@@ -3363,6 +3364,7 @@ function renderAnalysis(reply) {
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
   const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
   const parts = [
+    ...findingParts(r.findings),
     ...comparisonParts(r),
     el("p", "equation", r.equation),
     said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
@@ -3449,8 +3451,45 @@ function renderAnalysis(reply) {
       ),
     );
   }
-  parts.push(...spreadParts(r.spread));
+  parts.push(...spreadParts(r.spread), ...diagnosticParts(r.diagnostics, r.transform));
   out.replaceChildren(...parts);
+}
+
+/** What the analysis found, in sentences Python wrote from its numbers: the same results give the same words. */
+function findingParts(findings) {
+  if (!findings?.length) return [];
+  const list = el("ul", "findings", "");
+  list.id = "findings";
+  list.append(...findings.map((sentence) => el("li", "", sentence)));
+  return [el("h3", "", "What the results say"), list];
+}
+
+/**
+ * Each run as the fitted model sees it, under a heading the reader opens: open already when a run is one to look
+ * at again. On a transform's scale the fitted values and residuals are on that scale, which the hint says.
+ */
+function diagnosticParts(diagnostics, transform) {
+  if (!diagnostics?.length) return [];
+  const unusual = diagnostics.filter((d) => d.unusual);
+  const box = el("details", "diagnostics", "");
+  box.id = "diagnostics";
+  box.open = unusual.length > 0;
+  box.append(
+    el("summary", "", unusual.length ? `Each run, as the model sees it (${unusual.length} to look at again)` : "Each run, as the model sees it"),
+    said(
+      "hint",
+      "A residual is the result less what the model fits there" +
+        (transform ? ", on the scale the model is fitted on" : "") +
+        "; in standard deviations it is judged with the run itself left out of the fit. Leverage is how much the run " +
+        "alone decides its own fitted value, from 0 to 1, and Cook's distance how far the whole model moves without it.",
+    ),
+    table(
+      ["Run", "Fitted", "Residual", "In standard deviations", "Leverage", "Cook's distance", "Look again"],
+      diagnostics.map((d) => [d.run, fmt(d.fitted), fmt(d.residual), fmt(d.studentized), fmt(d.leverage), fmt(d.cooks), d.unusual ? "yes" : ""]),
+      { Residual: "residuals" },
+    ),
+  );
+  return [box];
 }
 
 /**

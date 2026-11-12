@@ -68,7 +68,10 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     assert sheet.locator("tbody tr").count() == 15
     assert sheet.locator("td.simulated").count() == 15, "every result simulated, in italics"
     learn = report.locator("section:nth-of-type(3)")
-    assert learn.locator("h3").all_text_contents() == ["Coefficients", "ANOVA", "The best settings for your goal"]
+    heads = ["What the results say", "Coefficients", "ANOVA", "The best settings for your goal"]
+    assert learn.locator("h3").all_text_contents() == heads
+    assert learn.locator("li").first.text_content().startswith("T matters most: ")
+    assert learn.locator("details[open] tbody tr").count() == 15, "each run as the model sees it, opened for paper"
     assert learn.locator(".equation").text_content() == page.text_content("#analysis .equation")
     coefficients = learn.locator("table").first.locator("thead th").all_text_contents()
     assert coefficients == ["Term", "Coefficient", "Std. error", "95% interval", "p-value", "True value"]

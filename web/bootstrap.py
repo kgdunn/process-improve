@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import t as t_distribution
 
 from process_improve.experiments import (
     DesignRegion,
@@ -2700,6 +2701,7 @@ def _analysis(
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
         comparison["difference"]["true"] = None if true is None else 2 * true
+    diagnostics = _diagnostics(coded, y_done, fit["formula"], order, int(out["model_summary"]["df_residual"]))
     terms = _model_terms(model, names, categorical)
     if spec["design_type"] == "taguchi" and not any(":" in term for term in terms):
         # A model with interactions has the alias chains' note instead.
@@ -2725,7 +2727,153 @@ def _analysis(
         "transform": transform,
         "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
         "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
+        "diagnostics": diagnostics,
+        "findings": _findings(spec, coefficients, out["model_summary"], lenth, out.get("lack_of_fit"), diagnostics),
     }
+
+
+#: The chance of calling some run of a study unusual when none is: the outlier test's level, shared over the runs.
+UNUSUAL_AT = 0.05
+
+#: The level an effect is judged real at, where the runs leave a measure of the noise to judge it with.
+REAL_AT = 0.05
+
+
+def _diagnostics(
+    coded: pd.DataFrame, y: pd.Series, formula: str, order: list[int] | None, residual_df: int
+) -> list[dict[str, Any]] | None:
+    """Return what the fitted model says of each run: its fitted value, residual, leverage and Cook's distance.
+
+    None when the model uses every run (no ``residual_df``): there is then no residual to judge.
+
+    ``studentized`` is the residual in standard deviations, with the run itself left out of the fit that
+    estimates them. It follows Student's t when the run is like the others, so ``unusual`` marks a run past
+    the t value that one of the study's runs in :data:`UNUSUAL_AT` would pass by chance (the Bonferroni outlier
+    test): a fixed limit of 3 would mark runs of a small study that are nothing out of the way. Each run is named
+    by its place in the order the runs were made, and the values are on the model's scale.
+    """
+    if residual_df < 1:
+        return None
+    with warnings.catch_warnings():
+        # Its tests of the residuals as a whole, which the page does not show, warn when the runs are few.
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
+    found = found["residual_diagnostics"]
+
+    def finite(value: float | None) -> float | None:
+        return float(value) if value is not None and math.isfinite(value) else None
+
+    n = len(y)
+    limit = float(t_distribution.ppf(1 - UNUSUAL_AT / (2 * n), residual_df - 1)) if residual_df > 1 else math.inf
+    rows = []
+    for i in range(n):
+        studentized = finite(found["externally_studentized_residuals"][i])
+        rows.append(
+            {
+                "run": order[i] if order else i + 1,
+                "fitted": finite(found["fitted_values"][i]),
+                "residual": finite(found["residuals"][i]),
+                "studentized": studentized,
+                "leverage": finite(found["leverage"][i]),
+                "cooks": finite(found["cooks_distance"][i]),
+                "unusual": studentized is not None and abs(studentized) > limit,
+            }
+        )
+    return rows
+
+
+def _real(coefficient: dict, beyond_margin: dict[str, bool]) -> bool | None:
+    """Say whether an effect stands out from the noise: by its p-value, else by Lenth's margin; None when untested."""
+    p = coefficient.get("p_value")
+    if p is not None and math.isfinite(p):
+        return p < REAL_AT
+    return beyond_margin.get(coefficient["term"])
+
+
+def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
+    """Write what a factor does to the response from its low setting to its high one, on average over the others."""
+    label, units = _response_words(spec)
+    transform = _transform_of(spec)
+    name, change = factor["name"], 2 * coefficient["coefficient"]
+    up = change > 0
+    if transform == "log":
+        amount = (
+            f" {'multiplies' if up else 'divides'} {label} by {max(coefficient['ratio'], 1 / coefficient['ratio']):.3g}"
+        )
+    elif transform is None:
+        amount = f" {'raises' if up else 'lowers'} {label} by {abs(change):.3g}{f' {units}' if units else ''}"
+    else:  # on another scale the change in the response's units depends on where the others are set
+        amount = f" {'raises' if up else 'lowers'} {label}"
+    if _categorical(factor):
+        return f"changing {name} from {factor['low']} to {factor['high']}{amount}"
+    span = f"{factor['low']:.4g} to {factor['high']:.4g}{' ' + factor['units'] if factor['units'] else ''}"
+    return f"raising {name} from {span}{amount}"
+
+
+def _findings(  # noqa: C901 - one sentence a finding, each from one part of the analysis
+    spec: dict,
+    coefficients: list[dict],
+    summary: dict,
+    lenth: dict | None,
+    lack_of_fit: dict | None,
+    diagnostics: list[dict] | None,
+) -> list[str]:
+    """Say in plain sentences what the analysis found, from its numbers alone: the same results give the same words.
+
+    Which factor matters most and by how much, which others are real and which cannot be told from the noise,
+    which effects depend on another factor, where the response curves, how well the model fits, and which runs
+    to look at again. A factor of three levels or more has no one effect, and is left to its table.
+    """
+    label, units = _response_words(spec)
+    simple = {f["name"]: f for f in spec["factors"] if not _several(f)}
+    beyond = {e["term"]: bool(e["active_ME"]) for e in (lenth or {}).get("effects", [])}
+    judged = {c["term"]: _real(c, beyond) for c in coefficients if c.get("coefficient") is not None}
+    by_term = {c["term"]: c for c in coefficients}
+    mains = [name for name in simple if judged.get(name) is not None]
+    real = sorted((n for n in mains if judged[n]), key=lambda n: -abs(by_term[n]["coefficient"]))
+    said: list[str] = []
+    if real:
+        first, *others = real
+        sentence = _effect_words(by_term[first], simple[first], spec)
+        said.append(f"{first} matters most: {sentence}, on average.")
+        worth = (spec.get("response_info") or {}).get("smallest_change")
+        if worth and _transform_of(spec) is None:
+            change = abs(2 * by_term[first]["coefficient"])
+            than = "more than" if change > worth else "less than" if change < worth else "the same as"
+            said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
+        if others:
+            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in others]
+            said.append(f"Also real: {', '.join(ways)}.")
+    elif mains:
+        said.append(f"No factor's effect on {label} stands out from the noise.")
+    quiet = [n for n in mains if not judged[n]]
+    if real and quiet:
+        said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
+    for term, is_real in judged.items():
+        pair = term.split(":")
+        if is_real and len(pair) == len("ab") and set(pair) <= set(simple):
+            said.append(f"The effect of {pair[0]} depends on {pair[1]}: read the two together, not one at a time.")
+        squared = re.fullmatch(r"I\((.+) \*\* 2\)", term)
+        if is_real and squared and squared[1] in simple:
+            said.append(f"{label} curves over {squared[1]}: its best setting may lie inside the range, not at an end.")
+    if summary["df_residual"] > 0:
+        fit = f"The model explains {summary['r_squared']:.0%} of the variation in {label}"
+        predicted = summary.get("r_squared_pred")
+        said.append(
+            fit + ("." if predicted is None else f", and about {max(predicted, 0):.0%} in runs it has not seen.")
+        )
+    else:
+        said.append(
+            "The model uses every run, so none is left to measure the noise with: "
+            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
+        )
+    if lack_of_fit and lack_of_fit.get("significant"):
+        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
+    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
+    if unusual:
+        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
+        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
+    return said
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:

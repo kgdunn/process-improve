@@ -1662,3 +1662,11 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 @media (pointer: coarse) {
   .more-charts > summary { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* What the analysis found, in sentences; and each run as the model sees it. */
+.findings { margin: 4px 0 12px; padding-left: 1.2em; display: grid; gap: 4px; max-width: 72ch; }
+.diagnostics { margin: 16px 0 0; }
+.diagnostics > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+@media (pointer: coarse) {
+  .diagnostics > summary { min-height: 44px; display: flex; align-items: center; }
+}
