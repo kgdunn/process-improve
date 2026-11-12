@@ -93,6 +93,17 @@ const bookUrl = n => {
   return label || fragment ? `${page}#${label}${fragment}` : page;
 };
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
+// The other textbooks checked against the graph (build_kg.py: sources, and each link's and term's `also`). A link is
+// one a text also states; a term is one a text defines as the book does, or one end of a link it states. They are
+// named by their place after this book: a second textbook, a third.
+const BOOKS = Object.keys(DATA.sources || {});
+const ORDINAL = ["second", "third", "fourth", "fifth"], COUNT = ["two", "three", "four", "five"];
+const booksOfLink = e => BOOKS.filter(b => (e.also || []).includes(b));
+const booksOfTerm = n => BOOKS.filter(b => (n.also || []).includes(b) || linksOf(n.id).some(e => (e.also || []).includes(b)));
+// shortcut: with three or more other texts, a link some but not all of them state is drawn as the first of them, upgrade when a third text is reviewed
+const bookClass = (books, stem) => (!books.length ? "" : books.length === BOOKS.length && BOOKS.length > 1 ? ` ${stem}-all` : ` ${stem}-${BOOKS.indexOf(books[0])}`);
+const inBooks = books => { const names = books.map(b => `a ${ORDINAL[BOOKS.indexOf(b)]}`);
+  return `${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]} textbook`; };
 
 // Reading level: Beginner, Intermediate or Adventurous; each shows every level below it (the book's build sets each
 // term's level from where chapter 5 introduces it). A first visit opens on Beginner; the reader's choice is kept.
@@ -160,11 +171,11 @@ const elements = [
   // The same names as markers of their own, drawn above terms and links while the names sit mid-circle.
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subname", position: { x: s.x, y: s.y },
     data: { id: `${s.id}-name`, label: `${s.name}\n[${sizeAt(s.id)}]`, w: 1.6 * s.r } })),
-  ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
+  ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}${bookClass(booksOfTerm(n), "book")}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length } })),
   ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0,
     bow: bowOf(terms.get(e.source), terms.get(e.target)) },
-    classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
+    classes: (terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross") + bookClass(booksOfLink(e), "also") })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between",
     data: { id: `b${i}`, source: e.a, target: e.b, n: e.n, bow: bowOf(topics.get(e.a), topics.get(e.b)) } })),
 ];
@@ -179,6 +190,8 @@ try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch
 let stripWas = null;   // the strip's own text, while it reads out a link
 let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
 try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
+let othersOn = false;   // what the other textbooks also state: their links coloured, their terms ringed
+try { othersOn = BOOKS.length > 0 && localStorage.getItem("factorial-map-others") === "on"; } catch {}
 const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
@@ -232,6 +245,8 @@ function sheet(z) {
     { selector: ".term", style: { display: overview ? "none" : "element", width: size, height: size, "z-index": 10, label: "",
       "border-width": 0 } },
     ...famRules,
+    ...(othersOn ? [...BOOKS.map((_, k) => ({ selector: `.term.book-${k}`, style: { "border-width": px(2), "border-color": css(`--map-book${k + 2}`) } })),
+      { selector: ".term.book-all", style: { "border-width": px(2.6), "border-color": css("--fg") } }] : []),
     { selector: ".term.lab", style: { label: "data(label)", color: css("--fg"), "font-family": FONT,
       "font-size": px(font), "text-wrap": "wrap", "text-max-width": px(font * LABEL_EMS),
       "text-valign": "bottom", "text-margin-y": px(3), ...HALO(px) } },
@@ -249,6 +264,17 @@ function sheet(z) {
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
+    ...(othersOn ? [
+      { selector: ".link", style: { "line-opacity": middle ? 0.18 : 0.32 } },
+      { selector: ".link.cross", style: { "line-opacity": middle ? 0.07 : 0.14 } },
+      ...BOOKS.flatMap((_, k) => [
+        { selector: `.link.also-${k}`, style: { "line-color": css(`--map-book${k + 2}`), "target-arrow-color": css(`--map-book${k + 2}`), width: px(line * 1.5),
+          "line-opacity": 0.9, "z-index": 7 } },
+        { selector: `.link.cross.also-${k}`, style: { "line-opacity": middle ? 0.45 : 0.6 } }]),
+      { selector: ".link.also-all", style: { "line-color": css("--fg"), "target-arrow-color": css("--fg"), width: px(line * 2.1), "line-opacity": 0.95, "z-index": 8 } },
+      { selector: ".link.cross.also-all", style: { "line-opacity": middle ? 0.6 : 0.78 } },
+      { selector: ".link.hl", style: { "line-opacity": 1, "z-index": 15 } },   // the selected term's links stay in front, in their book's colour
+    ] : []),
     { selector: ".between", style: { display: overview ? "element" : "none", ...ARC, "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
     { selector: ".dim", style: { opacity: 0.18 } },
@@ -454,6 +480,7 @@ function render() {
     card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${esc(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
+      ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
       <blockquote class="map-quote"><p>${esc(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
@@ -592,7 +619,9 @@ window.addEventListener("touchend", ev => {
 function sayLink(e) {
   const strip = document.getElementById("striptext"), name = id => esc(terms.get(id).name);
   if (stripWas === null) stripWas = strip.innerHTML;
-  strip.innerHTML = `<b>${name(e.data("source"))}</b> <i>${esc(e.data("verb"))}</i> <b>${name(e.data("target"))}</b>`;
+  const books = othersOn ? booksOfLink(DATA.edges[Number(e.id().slice(1))]) : [];
+  strip.innerHTML = `<b>${name(e.data("source"))}</b> <i>${esc(e.data("verb"))}</i> <b>${name(e.data("target"))}</b>`
+    + (books.length ? ` <span class="map-backed">(also in ${inBooks(books)})</span>` : "");
 }
 cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(ev.target); });
 cy.on("mouseout", "edge.link", () => {
@@ -670,6 +699,17 @@ verbsSwitch.addEventListener("change", () => {
   verbsOn = verbsSwitch.checked;
   try { localStorage.setItem("factorial-map-verbs", verbsOn ? "on" : "off"); } catch {}
   refresh(true);
+});
+const othersSwitch = document.getElementById("others"), bookKey = document.getElementById("bookkey");
+document.getElementById("books").hidden = BOOKS.length === 0;
+bookKey.innerHTML = BOOKS.map((_, k) => `<span><i class="b${k}"></i>a ${ORDINAL[k]}<span class="map-full"> textbook</span></span>`).join("")
+  + (BOOKS.length > 1 ? `<span><i class="all"></i>all ${COUNT[BOOKS.length - 1]}</span>` : "");
+const showOthers = () => { othersSwitch.checked = othersOn; bookKey.hidden = !othersOn; };
+showOthers();
+othersSwitch.addEventListener("change", () => {
+  othersOn = othersSwitch.checked;
+  try { localStorage.setItem("factorial-map-others", othersOn ? "on" : "off"); } catch {}
+  showOthers(); refresh(true);
 });
 document.getElementById("zin").addEventListener("click", () => zoomBy(1.6));
 document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.6));
@@ -755,6 +795,10 @@ function renderHow() {
     <details><summary>Show the numbers</summary>
       <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>
     </details>
+    ${BOOKS.length ? `<p>${BOOKS.length === 1 ? "Another textbook was" : `${COUNT[BOOKS.length - 2][0].toUpperCase()}${COUNT[BOOKS.length - 2].slice(1)} other textbooks were`}
+      read against the map. With <b>Other textbooks</b> switched on, a line ${BOOKS.length === 1 ? "that textbook" : "one of them"} also states takes
+      ${BOOKS.length === 1 ? "its" : "that textbook's"} colour${BOOKS.length > 1 ? `, a line all ${COUNT[BOOKS.length - 1]} books state is the heaviest` : ""}, and a ring marks a term
+      ${BOOKS.length === 1 ? "it" : "they"} also cover. The other lines and terms are in this book alone.</p>` : ""}
 
     <h3>3. How the topics are found</h3>
     <p>A topic is a group of ideas that are more related to each other than to the rest. A computer finds the groups,

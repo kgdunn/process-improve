@@ -40,6 +40,9 @@
   --map-guide: #b45f0b;
   --map-context: #8e4482;
   --map-bubble: #efece4;
+  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states. */
+  --map-book2: #2a78d6;
+  --map-book3: #e0611f;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -79,6 +82,8 @@
     --map-guide: #f0a050;
     --map-context: #c993c0;
     --map-bubble: #22252a;
+    --map-book2: #6aa9ff;
+    --map-book3: #ff9057;
     color-scheme: dark;
   }
 }
@@ -118,6 +123,8 @@
   --map-guide: #f0a050;
   --map-context: #c993c0;
   --map-bubble: #22252a;
+  --map-book2: #6aa9ff;
+  --map-book3: #ff9057;
   color-scheme: dark;
 }
 
@@ -1615,6 +1622,16 @@ main.map .lede { margin: 0; }
   .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; flex-direction: column; }   /* the shape above its name */
   .map-legend svg { width: 24px; height: 24px; }
 }
+/* The other textbooks: a switch and, while it is on, the key to their colours. */
+.map-books { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 0.9rem; }
+.map-books[hidden], .map-bookkey[hidden] { display: none; }
+.map-bookkey { display: inline-flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); }
+.map-bookkey span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.map-bookkey i { width: 26px; height: 3px; border-radius: 2px; flex: none; }
+.map-bookkey .b0 { background: var(--map-book2); }
+.map-bookkey .b1 { background: var(--map-book3); }
+.map-bookkey .all { background: var(--fg); height: 5px; }
+.map-backed { font-size: 0.85rem; color: var(--muted); }
 }
 .map-card { margin: 0; border-left: 4px solid var(--fam, var(--line)); display: grid; gap: 6px; min-width: 0; }
 .map-card h2 { margin: 0; font-size: 1.35rem; }
