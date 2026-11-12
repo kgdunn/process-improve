@@ -1602,7 +1602,8 @@ main.map .lede { margin: 0; }
   color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: 6px; cursor: pointer; }
 .map-legend button:hover { border-color: var(--line); }
 .map-legend button[aria-pressed="false"] { color: var(--muted); opacity: 0.55; text-decoration: line-through; }
-.map-legend svg, .map-chip svg { width: 12px; height: 12px; flex: none; }
+.map-legend svg { width: 22px; height: 22px; flex: none; }
+.map-chip svg { width: 12px; height: 12px; flex: none; }
 /* The kinds of term on one line: their short names show, the full ones stay for screen readers and in each title. */
 .map-legend .map-full {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
@@ -1611,7 +1612,8 @@ main.map .lede { margin: 0; }
 @media (max-width: 480px) {   /* one line from a 360 px phone up; a narrower one wraps it rather than scroll sideways */
   .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
   .map-legend > span { display: none; }   /* "Show:"; the group's label says it */
-  .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; }
+  .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; flex-direction: column; }   /* the shape above its name */
+  .map-legend svg { width: 24px; height: 24px; }
 }
 }
 .map-card { margin: 0; border-left: 4px solid var(--fam, var(--line)); display: grid; gap: 6px; min-width: 0; }
