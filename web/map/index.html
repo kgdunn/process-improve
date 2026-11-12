@@ -48,10 +48,8 @@
   </div>
   <h1>Experimental design concept graph</h1>
   <p class="lede">How the ideas of designed experiments link, in <em>Process Improvement using Data</em>.</p>
-  <p class="map-meta"><button type="button" class="map-howlink" id="howlink">How this map was made</button>
-    <a id="howto" href="https://github.com/kgdunn/pid-book/blob/main/knowledge-graph/HOWTO.md" target="_blank" rel="noopener">Build one from your own texts</a></p>
 
-  <!-- Above the map, two rows: the search with the switches and the level, then the kinds of term. -->
+  <!-- Above the map, three rows: the search with the switches and the level, the kinds of term, the other textbooks. -->
   <div class="map-find">
     <div class="map-search">
       <label for="q">Find a term</label>
@@ -70,6 +68,11 @@
     </div>
   </div>
   <div class="map-legend" id="legend" role="group" aria-label="Kinds of term shown on the map"></div>
+  <div class="map-books" id="books" role="group" aria-label="What other textbooks also state" hidden>
+    <label class="switch"><input type="checkbox" id="others">
+      <span class="switch__track" aria-hidden="true"></span><span class="switch__text"><span class="map-full">Other textbooks</span></span></label>
+    <span class="map-bookkey" id="bookkey"></span>
+  </div>
 
   <div class="map-box">
     <div id="cy" role="img" aria-label="Map of the topics and terms. The same items are listed as buttons below the map."></div>

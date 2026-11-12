@@ -40,6 +40,9 @@
   --map-guide: #b45f0b;
   --map-context: #8e4482;
   --map-bubble: #efece4;
+  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states. */
+  --map-book2: #2a78d6;
+  --map-book3: #e0611f;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -79,6 +82,8 @@
     --map-guide: #f0a050;
     --map-context: #c993c0;
     --map-bubble: #22252a;
+    --map-book2: #6aa9ff;
+    --map-book3: #ff9057;
     color-scheme: dark;
   }
 }
@@ -118,6 +123,8 @@
   --map-guide: #f0a050;
   --map-context: #c993c0;
   --map-bubble: #22252a;
+  --map-book2: #6aa9ff;
+  --map-book3: #ff9057;
   color-scheme: dark;
 }
 
@@ -1521,12 +1528,8 @@ main.map > .map-box, main.map > .map-bar { max-width: 1600px; }
 main.map h1 { margin: 8px 0 0; font-size: 2rem; }
 main.map .lede { margin: 0; }
 .map-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.map-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
-.map-howlink { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); cursor: pointer; font: inherit;
-  text-decoration: underline; text-underline-offset: 2px; }
-.map-meta a { text-underline-offset: 2px; }
-/* Above the map, two rows: the search with the switches and the level beside it, then the kinds of term on one line.
-   Zoom and fit stay below the map. */
+/* Above the map, three rows: the search with the switches and the level beside it, the kinds of term on one line, and
+   the other textbooks on one line. Zoom and fit stay below the map. */
 .map-find { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .map-view { display: flex; flex-wrap: wrap; gap: 0 18px; }
 .map-level { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
@@ -1602,7 +1605,8 @@ main.map .lede { margin: 0; }
   color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: 6px; cursor: pointer; }
 .map-legend button:hover { border-color: var(--line); }
 .map-legend button[aria-pressed="false"] { color: var(--muted); opacity: 0.55; text-decoration: line-through; }
-.map-legend svg, .map-chip svg { width: 12px; height: 12px; flex: none; }
+.map-legend svg { width: 22px; height: 22px; flex: none; }
+.map-chip svg { width: 12px; height: 12px; flex: none; }
 /* The kinds of term on one line: their short names show, the full ones stay for screen readers and in each title. */
 .map-legend .map-full {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
@@ -1611,8 +1615,31 @@ main.map .lede { margin: 0; }
 @media (max-width: 480px) {   /* one line from a 360 px phone up; a narrower one wraps it rather than scroll sideways */
   .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
   .map-legend > span { display: none; }   /* "Show:"; the group's label says it */
-  .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; }
+  .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; flex-direction: column; }   /* the shape above its name */
+  .map-legend svg { width: 24px; height: 24px; }
 }
+/* The other textbooks, on one line: a switch, then a button for each textbook and one for what all of them state,
+   each with its line as the map draws it. A narrow phone wraps the line rather than scroll sideways. */
+.map-books { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 0.9rem; margin-top: -6px; }
+.map-books[hidden] { display: none; }
+.map-bookkey { display: inline-flex; flex-wrap: wrap; gap: 2px 4px; }
+.map-bookkey button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent;
+  color: var(--fg); font: inherit; padding: 5px 7px; min-height: 36px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.map-bookkey button:hover:enabled { border-color: var(--line); }
+.map-bookkey button[aria-pressed="false"] { color: var(--muted); opacity: 0.55; text-decoration: line-through; }
+.map-bookkey button:disabled { opacity: 0.45; cursor: default; }
+.map-bookkey i { width: 22px; height: 3px; border-radius: 2px; flex: none; }
+.map-bookkey .b-0 { background: var(--map-book2); }
+.map-bookkey .b-1 { background: var(--map-book3); }
+.map-bookkey .b-all { background: var(--fg); height: 5px; }
+@media (max-width: 480px) {   /* one line from a 360 px phone up, in a font wider than the page's own too */
+  .map-books { gap: 2px 4px; font-size: min(0.9rem, 3.8vw); }
+  .map-books .switch { gap: 0; }   /* its words are for a screen reader here, so no gap is kept for them */
+  .map-bookkey { gap: 2px; }
+  .map-bookkey button { padding: 4px; gap: 4px; }
+  .map-bookkey i { width: 16px; }
+}
+.map-backed { font-size: 0.85rem; color: var(--muted); }
 }
 .map-card { margin: 0; border-left: 4px solid var(--fam, var(--line)); display: grid; gap: 6px; min-width: 0; }
 .map-card h2 { margin: 0; font-size: 1.35rem; }
