@@ -1670,3 +1670,21 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 @media (pointer: coarse) {
   .diagnostics > summary { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* The reading level (levels.js). A part of the page tagged with a level is shown from that level up; a part the
+   study on the page uses (.in-use) is shown at every level, so a study never loses what it was made with. */
+:root[data-level="1"] [data-level="2"]:not(.in-use),
+:root[data-level="1"] [data-level="3"]:not(.in-use),
+:root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
+.level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.level-switch legend { float: left; padding: 0; margin-right: 8px; color: var(--muted); font-size: 0.9rem; }
+.level-switch label { display: inline-flex; }
+.level-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.level-switch span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; cursor: pointer; }
+.level-switch input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.level-switch input:focus-visible + span { outline: 2px solid var(--warn); outline-offset: 2px; }
+.level-more button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+@media (pointer: coarse) {
+  .level-switch span { padding: 11px 14px; }
+  .level-more button { min-height: 44px; }
+}

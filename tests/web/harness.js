@@ -9,6 +9,16 @@
 // Otherwise the page's own worker runs, Pyodide and all, and is only watched.
 
 (() => {
+  // The tests see the whole page: the reading level (web/levels.js) is set to its highest once a tab, so a test of
+  // the levels can clear or change it and load the page again.
+  try {
+    if (!sessionStorage.getItem("pi-level-seeded")) {
+      sessionStorage.setItem("pi-level-seeded", "1");
+      localStorage.setItem("factorial-map-level", "3");
+    }
+  } catch {
+    /* storage refused: the page's own default */
+  }
   const post = Worker.prototype.postMessage; // the browser's own, before Worker is replaced below
   const pi = {
     calls: [], // {fn, payload} for each call, in the order the page made it, with its seeds' stand-ins

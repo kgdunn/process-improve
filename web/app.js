@@ -271,6 +271,7 @@ import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
+import { LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "./levels.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -440,6 +441,8 @@ const state = {
   analysis: null,
   contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
   moreCharts: false, // whether "More charts" is open
+  plots: null, // what api_plots last returned, and the request it answered: drawn again at another reading level
+  chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
@@ -2098,6 +2101,7 @@ function candidateList(c, current) {
     for (const r of fitting) {
       const tr = el("tr", "", "");
       tr.dataset.design = r.design_type;
+      tr.dataset.level = levelOf(`design:${r.design_type}`);
       const name = el("td", "", "");
       const label = el("label", "", "");
       const radio = el("input", "", "");
@@ -2237,7 +2241,9 @@ function markPicked() {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));
     tr.querySelector("input").checked = on;
+    tr.classList.toggle("in-use", on); // the study's own design is listed at every level
   }
+  showLevelDesigns();
 }
 
 /**
@@ -3473,6 +3479,8 @@ function diagnosticParts(diagnostics, transform) {
   const unusual = diagnostics.filter((d) => d.unusual);
   const box = el("details", "diagnostics", "");
   box.id = "diagnostics";
+  box.dataset.level = levelOf("table:diagnostics");
+  box.classList.toggle("in-use", unusual.length > 0); // a run to look at again is said at every level
   box.open = unusual.length > 0;
   box.append(
     el("summary", "", unusual.length ? `Each run, as the model sees it (${unusual.length} to look at again)` : "Each run, as the model sees it"),
@@ -4128,8 +4136,12 @@ async function drawCharts(request, mine, given = null) {
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
     }
-    const more = MORE_CHARTS.filter((key) => figures[key]);
-    if (more.length) charts.append(moreCharts(more, figures, captioned, version));
+    state.plots = plots; // drawn again, from these, when the reading level changes
+    state.chartRequest = request;
+    const drawable = MORE_CHARTS.filter((key) => figures[key]);
+    const more = drawable.filter((key) => levelOf(`chart:${key}`) <= pageLevel());
+    const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map((key) => levelOf(`chart:${key}`)), "chart");
+    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
@@ -4142,10 +4154,11 @@ const SOLID_CHARTS = new Set(["surface_3d", "cube"]);
  * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
  * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
  */
-function moreCharts(keys, figures, captioned, version) {
+function moreCharts(keys, figures, captioned, version, beyond = "") {
   const box = el("details", "more-charts", "");
   box.id = "more-charts";
   box.append(el("summary", "", `More charts (${keys.length})`));
+  if (beyond) box.append(levelNote(beyond));
   const grid = el("div", "charts", "");
   box.append(grid);
   box.open = state.moreCharts;
@@ -6147,6 +6160,57 @@ function fillBody(t, rows) {
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
 
+// ---------------------------------------------------------------- reading level
+/** The reading level the page shows: 1 Beginner, 2 Intermediate, 3 Adventurous (levels.js). */
+const pageLevel = () => readLevel(document.documentElement.dataset.level ?? null);
+
+/** A sentence on what the level leaves out of a list, with a button that shows the page at every level. */
+function levelNote(words) {
+  const note = el("p", "hint level-more", `${words}. `);
+  const all = el("button", "", "Show them");
+  all.type = "button";
+  all.onclick = () => setLevel(LEVELS.length);
+  note.append(all);
+  return note;
+}
+
+/**
+ * List the designs of the page's level in the design list, and say how many more a higher level has. The design the
+ * plan holds stays listed whatever the level; "Runs as given" is listed by the study that has such runs, not here.
+ */
+function showLevelDesigns() {
+  const select = $("#design-type");
+  const hidden = [];
+  for (const option of select.options) {
+    if (option.value === "given") continue;
+    const level = levelOf(`design:${option.value}`);
+    option.hidden = level > pageLevel() && option.value !== select.value;
+    if (option.hidden) hidden.push(level);
+  }
+  for (const group of select.querySelectorAll("optgroup")) group.hidden = [...group.children].every((o) => o.hidden);
+  const note = $("#level-designs");
+  note.hidden = !hidden.length;
+  if (hidden.length) note.replaceChildren(...levelNote(moreWords(hidden, "design")).childNodes);
+}
+
+/** Show the page at a level, and keep the choice where the concept map keeps its own. */
+function setLevel(level, keep = true) {
+  document.documentElement.dataset.level = level;
+  for (const radio of document.querySelectorAll('#level input[name="level"]')) radio.checked = Number(radio.value) === level;
+  if (keep) {
+    try {
+      localStorage.setItem(LEVEL_KEY, String(level));
+    } catch {
+      /* storage refused: the level holds for this visit */
+    }
+  }
+  showLevelDesigns();
+  if (state.plots && !$("#charts").hidden) drawCharts(state.chartRequest, ticket, state.plots); // its charts follow
+}
+
+$("#level").onchange = (event) => setLevel(Number(event.target.value));
+$("#design-type").addEventListener("change", showLevelDesigns);
+
 // ---------------------------------------------------------------- colour mode
 const MODE_KEY = "factorial-mode";
 const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
@@ -6184,6 +6248,7 @@ systemDark.addEventListener("change", () => {
   if (document.documentElement.dataset.mode === "auto") redrawAll(); // the charts follow the system
 });
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
+setLevel(pageLevel(), false);
 
 // ---------------------------------------------------------------- wiring
 installTerms(GLOSSARY);

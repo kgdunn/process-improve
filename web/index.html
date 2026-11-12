@@ -25,6 +25,14 @@
     } catch {
       /* storage refused: the system's mode */
     }
+    /* The reading level (levels.js), put on the page before it is drawn, so no part of a higher level flashes by.
+       2 is levels.DEFAULT_LEVEL, a first visit's. */
+    try {
+      const level = Number(localStorage.getItem("factorial-map-level"));
+      document.documentElement.dataset.level = level >= 1 && level <= 3 ? level : 2;
+    } catch {
+      document.documentElement.dataset.level = 2;
+    }
   </script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
@@ -68,6 +76,14 @@
       </button>
     </div>
     <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
+    <!-- The reading level (levels.js): each level adds designs and charts to the ones below it, as the concept
+         map's levels add terms. The two pages keep one choice. -->
+    <fieldset id="level" class="level-switch">
+      <legend>Show the page for</legend>
+      <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
+      <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
+      <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
+    </fieldset>
     <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
     <div class="hero">
       <button type="button" id="new-study" class="button hero__action hero__action--new">
@@ -304,6 +320,7 @@
             </label>
           </div>
           <p id="design-hint" class="hint"></p>
+          <p id="level-designs" class="hint level-more" hidden></p>
 
           <div class="row" id="options">
             <label data-option="n_center_points"><span class="term" data-term="center-points">Center points</span>
