@@ -782,6 +782,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
         "The page sent a best blend this page did not write.",
     ),
+    "a surface over one factor twice": (
+        "api_plots",
+        _runs(contour_factors=["T", "T"]),
+        "A response surface is drawn over two different factors of ['T', 'P', 'F'].",
+    ),
     "a surface held at best settings the page did not write": (
         "api_plots",
         _runs(best={"T": 1.0, "P": -1.0, "F": 3.0}),

@@ -42,7 +42,7 @@ def test_the_built_worked_example_carries_what_the_page_draws(built_example):
     assert set(example["simulation"]) >= {"responses", "truth", "equation", "inactive", "label", "sigma", "seed"}
     assert all("true_value" in c for c in example["analysis"]["coefficients"])
     assert set(example["analysis"]) >= {"equation", "summary", "notes", "anova", "pending_runs", "n_completed"}
-    assert set(example["plots"]["figures"]) == {"contour", "true_contour", "residuals"}
+    assert {"contour", "true_contour", "residuals", "perturbation", "surface_3d"} <= set(example["plots"]["figures"])
     assert example["plots"]["plotly_js"]
     [fit] = example["predictors"]["responses"]
     assert len(fit["terms"]) == len(example["analysis"]["coefficients"]), "what if predicts from the model shown"

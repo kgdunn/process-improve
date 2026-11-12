@@ -4451,6 +4451,52 @@ def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
     return sorted(names, key=lambda n: -size.get(n, 0.0))[:2]
 
 
+#: The most settings of a factor the runs are averaged at, for the plots of the runs' averages. A factor at more
+#: settings, as in a rotatable central composite design, has settings only a run or two were made at.
+MAX_AVERAGED_SETTINGS = 3
+
+
+def _chosen_pair(raw: object, axes: list[str]) -> list[str] | None:
+    """Return the two factors the reader chose to draw the response surface over, or None when they chose none."""
+    if raw is None:
+        return None
+    if not (isinstance(raw, list) and len(raw) == 2 and raw[0] != raw[1] and all(name in axes for name in raw)):
+        raise ValueError(f"A response surface is drawn over two different factors of {axes}.")
+    return list(raw)
+
+
+def _more_charts(
+    spec: dict, axes: list[str], pair: list[str], settings: dict[str, int], transform: str | None, residual_df: int
+) -> dict[str, tuple[str, str | None, list[str], bool]]:
+    """List the page's further charts this study can draw, each as the library's plot, its scale and its factors.
+
+    ``settings`` counts the settings each factor of ``axes`` was run at. The last item of each says whether the
+    chart is drawn over the response surface's two factors, and so takes the surface's shading and held values.
+    """
+    surface = len(pair) > 1
+    charts: dict[str, tuple[str, str | None, list[str], bool]] = {}
+    if surface:
+        charts["surface_3d"] = ("surface_3d", transform, pair, True)
+    # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
+    # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
+    if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]}:
+        charts["prediction_variance"] = ("prediction_variance", None, pair, True)
+    charts["perturbation"] = ("perturbation", transform, axes, False)
+    # Averages of the runs at each setting say something only where runs share settings: three settings or fewer.
+    few = [name for name in axes if settings[name] <= MAX_AVERAGED_SETTINGS]
+    if few:
+        charts["main_effects"] = ("main_effects", transform, few, False)
+    if surface and set(pair) <= set(few):
+        charts["interaction"] = ("interaction", transform, pair, False)
+    corners = sorted(axes, key=lambda n: (n not in pair, axes.index(n)))[:3]  # the pair drawn, and the next factor
+    if len(corners) == len("xyz") and transform is None:  # the library prints the corners on the model's scale
+        charts["cube"] = ("cube_plot", None, corners, False)
+    if residual_df > 0:
+        charts["normal_probability"] = ("normal_probability", transform, [], False)
+        charts["residuals_order"] = ("residuals_vs_order", transform, [], False)
+    return charts
+
+
 def plots(request: dict) -> dict:
     """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
 
@@ -4459,6 +4505,15 @@ def plots(request: dict) -> dict:
     results were simulated; the residuals against the fitted values; and, for a
     saturated two-level design, the half-normal plot of the effects with Lenth's
     margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+
+    ``contour_factors`` in the request names the two factors to draw the surface over
+    instead (``contour_chosen`` says so, and ``axes`` lists the factors to choose from).
+    Beside those, the page's further charts: the same surface in three dimensions and the
+    variance of a prediction over it; each factor's effect on the prediction with the others
+    at their centre (``perturbation``); the runs' averages at each setting (``main_effects``)
+    and at each pair of settings of the surface's two factors (``interaction``), for factors
+    at three settings or fewer; the predictions at the corners of three factors (``cube``);
+    and the residuals against the normal distribution and against the order of the runs.
 
     With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
     when the centre of the ranges cannot be run either, the other factors are held at a
@@ -4493,14 +4548,15 @@ def plots(request: dict) -> dict:
     rows = coded.assign(**{response: y}).to_dict("records")
     # A factor of several levels is no axis: the surface holds it at its average level, its contrasts at 0.
     axes = [f["name"] for f in spec["factors"] if not _several(f)]
-    pair = _contour_pair(out["coefficients"], axes)
+    chosen = _chosen_pair(request.get("contour_factors"), axes)
+    pair = chosen or _contour_pair(out["coefficients"], axes)
     shading, held = _shading(spec, pair)
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    def draw(kind: str, results: dict, scale: str | None, **options: Any) -> str:  # noqa: ANN401
+    def draw(kind: str, results: dict, scale: str | None, drawn: list[str] = pair, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair, scale), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -4519,9 +4575,18 @@ def plots(request: dict) -> dict:
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
+    settings = {name: coded[name].round(6).nunique() for name in axes}
+    residual_df = fit["out"]["model_summary"]["df_residual"]
+    for key, (kind, scale, drawn, on_surface) in _more_charts(
+        spec, axes, pair, settings, transform, residual_df
+    ).items():
+        options = {"factors_to_plot": drawn} if drawn else {}
+        figures[key] = draw(kind, out, scale, drawn, **options, **(shading if on_surface else {}))
     return {
         "figures": figures,
         "contour_factors": pair,
+        "contour_chosen": chosen is not None,
+        "axes": axes,
         "shaded": "region" in shading,
         "held": held,
         "held_best": best is not None,
@@ -4620,7 +4685,126 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
         title("yaxis", _with_units("Residual", scale_units))
     elif kind == "half_normal":
         title("yaxis", _with_units("|Effect|", scale_units))
+    else:
+        _dressed_more(figure, kind, spec, pair, transform)
     return figure
+
+
+def _setting_words(factor: dict, coded: float) -> str:
+    """Write a coded setting in the factor's own units, or as its level."""
+    if _categorical(factor):
+        return _level_at(factor, coded)
+    return f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.4g}"
+
+
+#: The three settings most designs run a factor at, as the plots of every factor at once name them.
+SETTING_WORDS = {-1.0: "Low", 0.0: "Middle", 1.0: "High"}
+
+
+def _titled(layout: dict, axis: str, text: str, **more: Any) -> None:  # noqa: ANN401
+    """Title an axis of a figure's layout, keeping what the library set on it."""
+    layout[axis] = {**layout.get(axis, {}), "title": {"text": text}, **more}
+
+
+def _factor_axis(factor: dict) -> dict[str, Any]:
+    """Return a coded axis named for a factor with its units, ticked at its own settings."""
+    return {"title": {"text": _with_units(factor["name"], factor["units"])}, **_ticks(factor)}
+
+
+def _dress_surface_3d(figure: dict, w: dict) -> None:
+    response = {"title": {"text": _with_units(w["label"], w["units"])}}
+    for trace in figure["data"]:
+        if w["transform"] is not None:
+            z = np.asarray(trace["z"], float).tolist()
+            trace["z"] = [[_put_back(v, w["transform"]) for v in row] for row in z]
+        trace["colorbar"] = response
+    x, y = (_factor_axis(f) for f in w["drawn"])
+    figure["layout"]["scene"] = {"xaxis": x, "yaxis": y, "zaxis": response}
+
+
+def _dress_cube(figure: dict, w: dict) -> None:
+    x, y, z = (_factor_axis(f) for f in w["drawn"])
+    figure["layout"].update(scene={"xaxis": x, "yaxis": y, "zaxis": z}, showlegend=False)
+    for trace in figure["data"]:  # the edges are the cube; the corners carry the numbers, and no line joins them
+        if trace.get("name") == "Edges":
+            trace["mode"], trace["line"] = "lines", {"color": "#8a8f98", "width": 3}
+        else:
+            trace["mode"] = "markers+text"
+
+
+def _dress_prediction_variance(figure: dict, w: dict) -> None:
+    for axis, factor in zip(("xaxis", "yaxis"), w["drawn"], strict=True):
+        figure["layout"][axis] = _factor_axis(factor)
+    for trace in figure["data"]:  # the variance's contours; the shading of a region's limits has no scale
+        if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
+            trace["colorbar"] = {"title": {"text": "Relative variance"}}
+
+
+def _dress_perturbation(figure: dict, w: dict) -> None:
+    for trace in figure["data"]:
+        trace["y"] = [_put_back(v, w["transform"]) for v in np.asarray(trace["y"], float).tolist()]
+    _titled(figure["layout"], "xaxis", "Each factor's setting", tickvals=[-1, 0, 1], ticktext=["Low", "Center", "High"])
+    _titled(figure["layout"], "yaxis", _with_units(f"Predicted {w['label']}", w["units"]))
+
+
+def _dress_main_effects(figure: dict, w: dict) -> None:
+    layout = figure["layout"]
+    for trace in figure["data"]:
+        trace["x"] = [SETTING_WORDS.get(float(v), v) for v in trace["x"]]
+    for note in layout.get("annotations", []):
+        note["text"] = note["text"].replace("Grand Mean", "All runs")
+    _titled(layout, "xaxis", "Setting", categoryorder="array", categoryarray=list(SETTING_WORDS.values()))
+    _titled(layout, "yaxis", _with_units(f"Average {w['scaled']}", w["scale_units"]))
+
+
+def _dress_interaction(figure: dict, w: dict) -> None:
+    lines, across = w["drawn"]
+    for trace in figure["data"]:
+        trace["x"] = [_setting_words(across, float(v)) for v in trace["x"]]
+        trace["name"] = f"{lines['name']} = {_setting_words(lines, float(trace['name'].rsplit('=', 1)[1]))}"
+    _titled(figure["layout"], "xaxis", _with_units(across["name"], across["units"]), type="category")
+    _titled(figure["layout"], "yaxis", _with_units(f"Average {w['scaled']}", w["scale_units"]))
+
+
+def _dress_residuals(axis_title: str) -> Callable[[dict, dict], None]:
+    def dress(figure: dict, w: dict) -> None:
+        _titled(figure["layout"], "xaxis", axis_title)
+        _titled(figure["layout"], "yaxis", _with_units("Residual", w["scale_units"]))
+        figure["layout"]["showlegend"] = False
+
+    return dress
+
+
+#: How each of the page's further charts is put in the reader's words, by the library's name for the plot.
+_DRESS_MORE: dict[str, Callable[[dict, dict], None]] = {
+    "surface_3d": _dress_surface_3d,
+    "cube_plot": _dress_cube,
+    "prediction_variance": _dress_prediction_variance,
+    "perturbation": _dress_perturbation,
+    "main_effects": _dress_main_effects,
+    "interaction": _dress_interaction,
+    "normal_probability": _dress_residuals("Expected, were the residuals normally distributed"),
+    "residuals_vs_order": _dress_residuals("Run, in the order made"),
+}
+
+#: The charts with a line per factor or setting: their legend sits above the plot, off the axis title.
+_LEGEND_ABOVE = {"perturbation", "main_effects", "interaction"}
+
+
+def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transform: str | None) -> None:
+    """Title the page's further charts in the reader's words and units, as :func:`_dressed` does the first ones.
+
+    ``drawn`` names the factors the figure draws, in its order. A prediction on a ``transform``'s scale is put
+    back in the response's units; the runs' averages and the residuals stay on that scale, and are named on it.
+    """
+    label, units = _response_words(spec)
+    scaled, scale_units = (_scale_words(label, transform), "") if transform else (label, units)
+    factors = {f["name"]: f for f in spec["factors"]}
+    words = {"label": label, "units": units, "scaled": scaled, "scale_units": scale_units, "transform": transform}
+    figure.setdefault("data", [])
+    _DRESS_MORE[kind](figure, {**words, "drawn": [factors[name] for name in drawn]})
+    if kind in _LEGEND_ABOVE:
+        figure["layout"].update(legend={"y": 1.02, "yanchor": "bottom"}, margin={"t": 40})
 
 
 # --------------------------------------------------------------------------- the pictures of a mixture

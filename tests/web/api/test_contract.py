@@ -173,6 +173,8 @@ READS: dict[str, list[str]] = {
     "charts": [
         "plotly_js: str",
         "contour_factors[]: str",
+        "contour_chosen: bool",
+        "axes[]: str",
         "figures{}: str",
         "shaded: bool",
         "held: list",

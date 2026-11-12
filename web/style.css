@@ -1652,3 +1652,13 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
   main.map h1 { font-size: 1.6rem; }
   .map-box { height: clamp(340px, 58vh, 520px); }
 }
+
+/* The further charts of Learn, under a heading the reader opens; and the two factors a surface is drawn over. */
+.more-charts { grid-column: 1 / -1; }
+.more-charts > summary { cursor: pointer; font-weight: 600; padding: 8px 0; min-height: 28px; }
+.more-charts > .charts { margin-top: 8px; }
+.contour-picker { margin: 8px 0 0; }
+.contour-picker select { max-width: 9em; }
+@media (pointer: coarse) {
+  .more-charts > summary { min-height: 44px; display: flex; align-items: center; }
+}

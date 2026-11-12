@@ -24,6 +24,8 @@ import {
   shareText,
   withBounds,
   CAPTIONS,
+  MORE_CHARTS,
+  TITLES,
   CATEGORICAL,
   MODES,
   NUMERIC,
@@ -408,7 +410,14 @@ describe("words and numbers", () => {
   });
 
   test("the captions name the factors drawn", () => {
-    assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
+    assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
+    assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
+    for (const key of MORE_CHARTS) {
+      assert.ok(TITLES[key], `${key} has a heading`);
+      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](["T", "P"]) : CAPTIONS[key];
+      assert.match(caption, /\.$/, `${key} has a caption`);
+    }
+    assert.match(CAPTIONS.interaction(["T", "P"]), /the effect of P depends on T/);
   });
 
   test("a mixture's captions say what the star marks once the best blend is found", () => {

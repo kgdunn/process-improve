@@ -1040,7 +1040,30 @@ export const TITLES = {
   true_ternary: "True response over the blends",
   cox: "Fitted response along each Cox direction",
   levels: "The runs at each level",
+  surface_3d: "Fitted response surface, in three dimensions",
+  perturbation: "Each factor's effect on the prediction",
+  main_effects: "Average result at each setting",
+  interaction: "Interaction of the two factors",
+  cube: "Predictions at the corners",
+  normal_probability: "Residuals against the normal distribution",
+  residuals_order: "Residuals in the order the runs were made",
+  prediction_variance: "Where the predictions are least certain",
 };
+
+/** The charts under "More charts", in their order: what the factors do, then whether to trust the model. */
+export const MORE_CHARTS = [
+  "perturbation",
+  "main_effects",
+  "interaction",
+  "surface_3d",
+  "cube",
+  "normal_probability",
+  "residuals_order",
+  "prediction_variance",
+];
+
+/** How the caption of a response surface says which two factors it is drawn over. */
+export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "the two factors with the largest main effects");
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
@@ -1049,14 +1072,14 @@ export const CAPTIONS = {
    * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
    * in their own units).
    */
-  contour: (pair, { shaded = false, held = [], factors = [] } = {}) => {
+  contour: (pair, { shaded = false, held = [], factors = [], chosen = false } = {}) => {
     const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
     const others = held.length
       ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
         "the ranges cannot be run"
       : ", with the others at their center";
     const grey = shaded ? "; grey: settings outside your limits" : "";
-    return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
+    return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
   },
   true_contour: "The process the results were simulated from, on the same scale.",
   /** With the best blend found, a star marks it (``starred``). */
@@ -1076,6 +1099,23 @@ export const CAPTIONS = {
   levels:
     "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
     "within a level is the noise a difference between the levels is judged against.",
+  surface_3d: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
+  perturbation:
+    "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
+    "factor that matters; a bent one has an optimum inside its range.",
+  main_effects:
+    "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
+    "these are your results.",
+  interaction: (pair) =>
+    `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
+    `are not parallel say the effect of ${pair[1]} depends on ${pair[0]}.`,
+  cube: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
+  normal_probability:
+    "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again.",
+  residuals_order: "A drift or a step says something changed while the runs were made, which the model does not know of.",
+  prediction_variance:
+    "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
+    "the runs are, not on their results: predictions are firmest where it is lowest.",
 };
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */

@@ -97,6 +97,7 @@ import {
   AXIAL_DISTANCE,
   BLOCK,
   CAPTIONS,
+  MORE_CHARTS,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
@@ -437,6 +438,8 @@ const state = {
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
+  contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
+  moreCharts: false, // whether "More charts" is open
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
@@ -4072,22 +4075,94 @@ async function drawCharts(request, mine, given = null) {
     if (cox) figures.cox = () => coxFigure(cox, { ...words, best: blend && cox.through === "best" ? blend.predicted : null });
     const levels = state.analysis?.comparison;
     if (levels) figures.levels = () => levelsFigure(levels, comparisonWords());
+    const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
+    limits.chosen = Boolean(plots.contour_chosen);
+    const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
+    const captioned = (key) => {
+      const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
+      return chartCard(key, caption);
+    };
     for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
-      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
-      const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
-      const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
-      const card = chartCard(key, caption);
+      const card = captioned(key);
+      if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
     }
+    const more = MORE_CHARTS.filter((key) => figures[key]);
+    if (more.length) charts.append(moreCharts(more, figures, captioned, version));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
 
+/** The charts in three dimensions, which need more height to be read. */
+const SOLID_CHARTS = new Set(["surface_3d", "cube"]);
+
+/**
+ * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
+ * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
+ */
+function moreCharts(keys, figures, captioned, version) {
+  const box = el("details", "more-charts", "");
+  box.id = "more-charts";
+  box.append(el("summary", "", `More charts (${keys.length})`));
+  const grid = el("div", "charts", "");
+  box.append(grid);
+  box.open = state.moreCharts;
+  let shown = false;
+  const show = async () => {
+    if (!box.open || shown) return;
+    shown = true;
+    for (const key of keys) {
+      const card = captioned(key);
+      card.card.dataset.chart = key;
+      grid.append(card.card);
+      await draw(card.plot, figures[key], version, SOLID_CHARTS.has(key) ? 420 : 340);
+    }
+  };
+  box.addEventListener("toggle", () => {
+    state.moreCharts = box.open;
+    show();
+  });
+  show();
+  return box;
+}
+
+/** The two factors the response surface is drawn over, for the reader to change: the charts are then drawn again. */
+function contourPicker(plots) {
+  const row = el("p", "hint contour-picker", "");
+  const pick = (at) => {
+    const select = el("select", "", "");
+    select.id = `contour-factor-${at + 1}`;
+    select.setAttribute("aria-label", `${at ? "Second" : "First"} factor the response surface is drawn over`);
+    for (const name of plots.axes) select.append(new Option(name, name));
+    select.value = plots.contour_factors[at];
+    return select;
+  };
+  const selects = [pick(0), pick(1)];
+  selects.forEach((select, at) => {
+    select.onchange = () => {
+      const other = selects[1 - at];
+      if (other.value === select.value) other.value = plots.contour_factors[at]; // the two change places
+      state.contourPair = selects.map((s) => s.value);
+      const request = analysisRequest();
+      drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket);
+    };
+  });
+  row.append("Draw it over ", selects[0], " and ", selects[1]);
+  return row;
+}
+
 async function libraryPlots(request, mine) {
-  const reply = await call("api_plots", request);
+  // The reader's choice of the surface's two factors holds while the study has both; a refusal forgets it.
+  const names = state.design.spec.factors.map((f) => f.name);
+  const pair = state.contourPair?.every((name) => names.includes(name)) ? state.contourPair : null;
+  let reply = await call("api_plots", pair ? { ...request, contour_factors: pair } : request);
+  if (!reply.ok && pair) {
+    state.contourPair = null;
+    reply = await call("api_plots", request);
+  }
   if (mine === ticket && [analysisSaid, pythonSaid].includes(statusTicket)) {
     setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
   }

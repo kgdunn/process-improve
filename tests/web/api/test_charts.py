@@ -18,11 +18,72 @@ pytest.importorskip("plotly", reason="the page installs plotly for its first cha
 
 def test_the_charts_are_the_library_s_plots(api, held, simulated):
     result = api.ok("api_plots", {**held, "responses": simulated["responses"], "truth": simulated["truth"]})
-    assert set(result["figures"]) == {"contour", "true_contour", "residuals"}
+    assert set(result["figures"]) == {"contour", "true_contour", "residuals", *MORE}
     assert result["contour_factors"] == ["T", "P"], "the two largest main effects"
+    assert not result["contour_chosen"]
+    assert result["axes"] == ["T", "P", "F"]
     contour = json.loads(result["figures"]["contour"])
     assert contour["data"][0]["type"] == "contour"
     assert result["plotly_js"]
+
+
+#: The page's further charts, as it draws them for the worked example: logic.MORE_CHARTS.
+MORE = {
+    "perturbation",
+    "main_effects",
+    "interaction",
+    "surface_3d",
+    "cube",
+    "normal_probability",
+    "residuals_order",
+    "prediction_variance",
+}
+
+
+def test_the_reader_chooses_the_two_factors_of_the_surface(api, held, simulated):
+    result = api.ok("api_plots", {**held, "responses": simulated["responses"], "contour_factors": ["F", "T"]})
+    assert result["contour_factors"] == ["F", "T"]
+    assert result["contour_chosen"]
+    for key in ("contour", "surface_3d", "prediction_variance"):
+        assert "F (L/min)" in result["figures"][key], f"{key} is drawn over the factors chosen"
+    assert "F = 10" in result["figures"]["interaction"], "one line for each setting of the first factor, in its units"
+
+
+def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simulated):
+    figures = {
+        k: json.loads(v)
+        for k, v in api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"].items()
+    }
+    assert figures["surface_3d"]["layout"]["scene"]["xaxis"]["ticktext"] == ["150", "175", "200"]
+    assert figures["perturbation"]["layout"]["yaxis"]["title"]["text"] == "Predicted Yield (%)"
+    assert figures["main_effects"]["data"][0]["x"] == ["Low", "Middle", "High"]
+    assert figures["interaction"]["data"][0]["x"] == ["1", "2", "3"], "the settings of P, in bar"
+    corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
+    assert corners["mode"] == "markers+text"
+    assert len(corners["text"]) == 8
+    assert len(figures["residuals_order"]["data"][-1]["x"]) == 15, "one residual a run"
+
+
+def test_a_transformed_prediction_is_drawn_in_the_response_s_units(api, held, simulated):
+    """The model is fitted to ln(Yield): each prediction drawn is put back in percent, as the surface is."""
+    spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
+    plain = api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]
+    logged = api.ok("api_plots", {**held, "spec": spec, "responses": simulated["responses"]})["figures"]
+    assert "cube" not in logged, "the library prints the corners on the model's scale"
+    for key, read in (
+        ("perturbation", lambda f: f["data"][0]["y"][0]),
+        ("surface_3d", lambda f: f["data"][0]["z"][0][0]),
+    ):
+        assert read(json.loads(logged[key])) == pytest.approx(read(json.loads(plain[key])), rel=0.05)
+
+
+def test_averages_are_drawn_only_for_factors_at_three_settings_or_fewer(api):
+    """A space-filling design runs each factor at a setting of its own in every run: there is nothing to average."""
+    held = held_of(api.ok("api_make_design", {"design_type": "maximin_lhs", "factors": factors_named("A", "B", "C")}))
+    responses = api.ok("api_simulate", {**held, "seed": 1})["responses"]
+    figures = api.ok("api_plots", {**held, "responses": responses})["figures"]
+    assert not {"main_effects", "interaction"} & set(figures)
+    assert {"perturbation", "surface_3d"} <= set(figures)
 
 
 def test_the_true_surface_is_drawn_over_the_same_grid(api, held, simulated):
@@ -60,7 +121,8 @@ def test_a_blocked_design_is_charted(api):
     design = api.ok("api_make_design", spec)
     responses = [float((i * 7) % 11) for i in range(design["n_runs"])]
     plots = api.ok("api_plots", {**held_of(design), "responses": responses})
-    assert {"contour", "residuals"} <= set(plots["figures"])
+    assert {"contour", "residuals", "surface_3d"} <= set(plots["figures"])
+    assert "prediction_variance" not in plots["figures"], "a block has no setting to hold"
 
 
 # --------------------------------------------------------------------------- limits on the settings
