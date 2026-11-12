@@ -139,13 +139,15 @@ def _oklab(colour: str) -> tuple[float, float, float]:
     )
 
 
-def test_another_textbook_s_colour_is_no_other_colour_of_the_map():
-    """In each theme a book's colour stands apart from a selected term's links, the plain links and the kinds' fills.
+def test_another_textbook_s_colour_is_no_other_colour_of_the_links():
+    """In each theme a book's colour stands apart from the accent and from the other colours a link can take.
 
-    Book B's blue was once a third of ``APART`` from the accent, so its links could not be told from this book's.
+    While the other textbooks are shown a link is this book's alone (the muted neutral), one other book's, or every
+    book's (the text colour). Book B's blue was once a third of ``APART`` from the accent, which a selected term's
+    links then took.
     """
     css = source("style.css")
-    names = ("map-book2", "map-book3", "accent", "muted", "fg", "map-method", "map-guide", "map-context")
+    names = ("map-book2", "map-book3", "accent", "muted", "fg")
     themes = zip(*(re.findall(rf"--{name}: (#[0-9a-f]{{6}});", css) for name in names), strict=True)
     for second, third, *rest in themes:  # the light theme, then the dark one twice: the device's choice, the reader's
         for book, others in ((second, [third, *rest]), (third, rest)):

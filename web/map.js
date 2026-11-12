@@ -103,11 +103,13 @@ const COUNT = ["two", "three", "four", "five"];
 const booksOfLink = e => BOOKS.filter(b => (e.also || []).includes(b));
 const booksOfTerm = n => BOOKS.filter(b => (n.also || []).includes(b) || linksOf(n.id).some(e => (e.also || []).includes(b)));
 // shortcut: with three or more other texts, a link some but not all of them state is drawn as the first of them, upgrade when a third text is reviewed
-const bookClass = (books, stem) => (!books.length ? "" : books.length === BOOKS.length && BOOKS.length > 1 ? ` ${stem}-all` : ` ${stem}-${BOOKS.indexOf(books[0])}`);
+const bookClass = (books, stem) => ` ${stem}-${!books.length ? "own" : books.length === BOOKS.length && BOOKS.length > 1 ? "all" : BOOKS.indexOf(books[0])}`;
 const inBooks = books => { const names = books.map(bookName);
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]; };
-// What the row above the map can show or hide: each textbook's own links and terms, and those every textbook has.
-const BOOK_KINDS = [...BOOKS.map((b, k) => [String(k), bookName(b)]), ...(BOOKS.length > 1 ? [["all", `All ${BOOKS.length + 1}`]] : [])];
+// What the row above the map can show or fade: what this book alone has, what each textbook also has, and what all have.
+const BOOK_KINDS = [["own", "This book"], ...BOOKS.map((b, k) => [String(k), bookName(b)]), ...(BOOKS.length > 1 ? [["all", `All ${BOOKS.length + 1}`]] : [])];
+// The colour of each while the other textbooks are shown: a neutral for this book alone, the strongest ink for all of them.
+const BOOK_INK = { own: "--muted", all: "--fg", ...Object.fromEntries(BOOKS.map((_, k) => [k, `--map-book${k + 2}`])) };
 
 // Reading level: Beginner, Intermediate or Adventurous; each shows every level below it (the book's build sets each
 // term's level from where chapter 5 introduces it). A first visit opens on Beginner; the reader's choice is kept.
@@ -136,7 +138,7 @@ const sizeAt = id => DATA.nodes.filter(n => (n.cluster === id || n.sub === id) &
 const drawLegend = () => {
   document.getElementById("legend").innerHTML = `<span>Show:</span>` + Object.entries(FAMILIES)
     .map(([k, [label, , , short]]) => `<button type="button" data-fam="${k}" aria-pressed="${!hidden.has(k)}"
-      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(`--map-${k}`))}<span class="map-full">${label}</span><span class="map-short" aria-hidden="true">${short}</span></button>`).join("");
+      title="${hidden.has(k) ? "Show" : "Hide"} ${label.toLowerCase()}">${icon(k, css(othersOn ? "--muted" : `--map-${k}`))}<span class="map-full">${label}</span><span class="map-short" aria-hidden="true">${short}</span></button>`).join("");
 };
 
 // ---------- the colour mode: light, dark or the system's, in turn, from the same switch as the start page's
@@ -194,11 +196,10 @@ try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch
 let stripWas = null;   // the strip's own text, while it reads out a link
 let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
 try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
-let othersOn = false;   // what the other textbooks also state: their links coloured, their terms ringed
+let othersOn = false;   // who else states a link or covers a term: colour says it, and the kinds keep their shapes alone
 try { othersOn = BOOKS.length > 0 && localStorage.getItem("factorial-map-others") === "on"; } catch {}
-const booksOff = new Set();   // the textbooks, or "all", whose colour the reader has switched off
+const booksOff = new Set();   // of BOOK_KINDS, those the reader has faded
 try { (localStorage.getItem("factorial-map-books-off") || "").split(",").filter(k => BOOK_KINDS.some(([kind]) => kind === k)).forEach(k => booksOff.add(k)); } catch {}
-const bookShown = k => othersOn && !booksOff.has(String(k));
 const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
@@ -218,6 +219,7 @@ function sheet(z) {
   // An arrowhead `length` px long on a line `width` px wide. Cytoscape draws it 0.3 x max((13.37 x width)^0.9, 29) drawing
   // units long, a floor that grows on screen with the zoom, so the scale is solved for the length wanted.
   const arrow = (width, length) => length / (0.3 * Math.max(Math.pow(13.37 * px(width), 0.9), 29) * z);
+  const faded = othersOn ? [...booksOff] : [];
   const famRules = Object.entries(FAMILIES).map(([k, [, shape]]) =>
     ({ selector: `.fam-${k}`, style: { shape, "background-color": css(`--map-${k}`) } }));
   return [
@@ -252,8 +254,8 @@ function sheet(z) {
     { selector: ".term", style: { display: overview ? "none" : "element", width: size, height: size, "z-index": 10, label: "",
       "border-width": 0 } },
     ...famRules,
-    ...BOOKS.flatMap((_, k) => (bookShown(k) ? [{ selector: `.term.book-${k}`, style: { "border-width": px(2), "border-color": css(`--map-book${k + 2}`) } }] : [])),
-    ...(bookShown("all") ? [{ selector: ".term.book-all", style: { "border-width": px(2.6), "border-color": css("--fg") } }] : []),
+    // With the other textbooks shown, a term keeps its kind's shape and takes the colour of who covers it.
+    ...(othersOn ? BOOK_KINDS.map(([k]) => ({ selector: `.term.book-${k}`, style: { "background-color": css(BOOK_INK[k]) } })) : []),
     { selector: ".term.lab", style: { label: "data(label)", color: css("--fg"), "font-family": FONT,
       "font-size": px(font), "text-wrap": "wrap", "text-max-width": px(font * LABEL_EMS),
       "text-valign": "bottom", "text-margin-y": px(3), ...HALO(px) } },
@@ -274,20 +276,19 @@ function sheet(z) {
     ...(othersOn ? [
       { selector: ".link", style: { "line-opacity": middle ? 0.18 : 0.32 } },
       { selector: ".link.cross", style: { "line-opacity": middle ? 0.07 : 0.14 } },
-      ...BOOKS.flatMap((_, k) => (bookShown(k) ? [
-        { selector: `.link.also-${k}`, style: { "line-color": css(`--map-book${k + 2}`), "target-arrow-color": css(`--map-book${k + 2}`), width: px(line * 1.5),
-          "line-opacity": 0.9, "z-index": 7 } },
-        { selector: `.link.cross.also-${k}`, style: { "line-opacity": middle ? 0.45 : 0.6 } }] : [])),
-      ...(bookShown("all") ? [
-        { selector: ".link.also-all", style: { "line-color": css("--fg"), "target-arrow-color": css("--fg"), width: px(line * 2.1), "line-opacity": 0.95, "z-index": 8 } },
-        { selector: ".link.cross.also-all", style: { "line-opacity": middle ? 0.6 : 0.78 } }] : []),
-      { selector: ".link.hl", style: { "line-opacity": 1, "z-index": 15 } },   // the selected term's links stay in front, in their book's colour
+      { selector: ".link.hl", style: { "line-color": css(BOOK_INK.own), "target-arrow-color": css(BOOK_INK.own) } },   // not the accent: colour says who states it
+      ...BOOK_KINDS.filter(([k]) => k !== "own").flatMap(([k]) => [
+        { selector: `.link.also-${k}`, style: { "line-color": css(BOOK_INK[k]), "target-arrow-color": css(BOOK_INK[k]), width: px(line * (k === "all" ? 2.1 : 1.5)),
+          "line-opacity": k === "all" ? 0.95 : 0.9, "z-index": k === "all" ? 8 : 7 } },
+        { selector: `.link.cross.also-${k}`, style: { "line-opacity": k === "all" ? (middle ? 0.6 : 0.78) : (middle ? 0.45 : 0.6) } }]),
+      { selector: ".link.hl", style: { "line-opacity": 1, "z-index": 15 } },   // the selected term's links stay in front, in their colour
     ] : []),
     { selector: ".between", style: { display: overview ? "element" : "none", ...ARC, "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
-    { selector: ".dim", style: { opacity: 0.18 } },
+    { selector: [".dim", ...faded.map(k => `.term.book-${k}`)].join(", "), style: { opacity: 0.18 } },
     { selector: ".topic.empty, .subtopic.empty, .subname.empty", style: { opacity: 0.35 } },
-    { selector: ".link.dim", style: { opacity: 0.08, "source-label": "" } },
+    { selector: [".link.dim", ...faded.map(k => `.link.also-${k}`)].join(", "), style: { opacity: 0.08, "source-label": "" } },
+    ...(faded.length ? [{ selector: ".term.sel", style: { opacity: 1 } }] : []),   // the selected term is never faded
     { selector: ".link.mute", style: { "source-label": "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
@@ -710,12 +711,14 @@ verbsSwitch.addEventListener("change", () => {
 });
 const othersSwitch = document.getElementById("others"), bookKey = document.getElementById("bookkey");
 document.getElementById("books").hidden = BOOKS.length === 0;
-// One button for each textbook and one for what all of them state: its line as the map draws it, and its name. They
-// work while the switch is on, and a tap hides or shows that colour.
+// One button for this book alone, one for each textbook and one for what all of them state: its colour on the map, and
+// its name. They work while the switch is on, and a tap fades or shows that colour's lines and terms.
 const showOthers = () => {
   othersSwitch.checked = othersOn;
+  const what = (k, name) => (k === "own" ? "this book alone states" : k === "all" ? "every textbook states" : `${name} also states`);
   bookKey.innerHTML = BOOK_KINDS.map(([k, name]) => `<button type="button" data-book="${k}" aria-pressed="${!booksOff.has(k)}"${othersOn ? "" : " disabled"}
-    title="${booksOff.has(k) ? "Show" : "Hide"} what ${k === "all" ? "every textbook states" : `${name} also states`}"><i class="b-${k}"></i>${name}</button>`).join("");
+    title="${booksOff.has(k) ? "Show" : "Fade"} what ${what(k, name)}"><i class="b-${k}"></i>${name}</button>`).join("");
+  drawLegend();   // the kinds' shapes lose their colours while the other textbooks are shown
 };
 showOthers();
 othersSwitch.addEventListener("change", () => {
@@ -816,9 +819,10 @@ function renderHow() {
       <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>
     </details>
     ${BOOKS.length ? `<p>${BOOKS.length === 1 ? "Another textbook was" : `${COUNT[BOOKS.length - 2][0].toUpperCase()}${COUNT[BOOKS.length - 2].slice(1)} other textbooks were`}
-      read against the map, named ${inBooks(BOOKS)} here. Switch them on above the map: a line ${BOOKS.length === 1 ? "that textbook" : "one of them"} also states takes
-      ${BOOKS.length === 1 ? "its" : "that book's"} colour${BOOKS.length > 1 ? `, a line all ${COUNT[BOOKS.length - 1]} books state is the heaviest` : ""}, and a ring marks a term
-      ${BOOKS.length === 1 ? "it" : "they"} also cover. Tap a name there to hide or show its lines. The other lines and terms are in this book alone.</p>` : ""}
+      read against the map, named ${inBooks(BOOKS)} here. Switch ${BOOKS.length === 1 ? "it" : "them"} on above the map: the kinds of term keep their shapes and give up
+      their colours, and a colour then says who states a line or covers a term: this book alone,
+      ${BOOKS.length === 1 ? `or ${bookName(BOOKS[0])} too` : `${BOOKS.map(b => `${bookName(b)} too`).join(", ")}, or all ${COUNT[BOOKS.length - 1]}`}.
+      Tap a name there to fade or show its lines and terms.</p>` : ""}
 
     <h3>3. How the topics are found</h3>
     <p>A topic is a group of ideas that are more related to each other than to the rest. A computer finds the groups,
