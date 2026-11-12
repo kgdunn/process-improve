@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import struct
 
@@ -15,6 +16,7 @@ from process_improve.experiments.design_catalog import FAMILIES
 from tests.web._support import APP_SOURCES, WEB, source
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
+APART = 0.15  # in OKLab: closer than this, two colours start to read as one
 
 
 def test_the_map_s_cytoscape_is_the_published_release_with_its_licence():
@@ -121,3 +123,31 @@ def test_each_catalog_family_the_map_has_links_to_its_term():
     for family, term in pairs.items():
         assert family in FAMILIES, family
         assert term in terms, term
+
+
+def _oklab(colour: str) -> tuple[float, float, float]:
+    """One ``#rrggbb`` colour in OKLab, where equal distances look equally far apart."""
+    red, green, blue = (int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5))
+    red, green, blue = (c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (red, green, blue))
+    long = (0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue) ** (1 / 3)
+    medium = (0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue) ** (1 / 3)
+    short = (0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue) ** (1 / 3)
+    return (
+        0.2104542553 * long + 0.7936177850 * medium - 0.0040720468 * short,
+        1.9779984951 * long - 2.4285922050 * medium + 0.4505937099 * short,
+        0.0259040371 * long + 0.7827717662 * medium - 0.8086757660 * short,
+    )
+
+
+def test_another_textbook_s_colour_is_no_other_colour_of_the_map():
+    """In each theme a book's colour stands apart from a selected term's links, the plain links and the kinds' fills.
+
+    Book B's blue was once a third of ``APART`` from the accent, so its links could not be told from this book's.
+    """
+    css = source("style.css")
+    names = ("map-book2", "map-book3", "accent", "muted", "fg", "map-method", "map-guide", "map-context")
+    themes = zip(*(re.findall(rf"--{name}: (#[0-9a-f]{{6}});", css) for name in names), strict=True)
+    for second, third, *rest in themes:  # the light theme, then the dark one twice: the device's choice, the reader's
+        for book, others in ((second, [third, *rest]), (third, rest)):
+            for other in others:
+                assert math.dist(_oklab(book), _oklab(other)) >= APART, f"{book} is too close to {other}"

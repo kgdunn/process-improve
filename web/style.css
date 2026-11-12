@@ -40,9 +40,10 @@
   --map-guide: #b45f0b;
   --map-context: #8e4482;
   --map-bubble: #efece4;
-  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states. */
-  --map-book2: #2a78d6;
-  --map-book3: #e0611f;
+  /* The other textbooks read against the map: a second and a third, each with its own colour for what it also states.
+     Violet and red: the hues furthest from the accent (a selected term's links) and from the fills of the kinds. */
+  --map-book2: #b93ef3;
+  --map-book3: #8a0700;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -82,8 +83,8 @@
     --map-guide: #f0a050;
     --map-context: #c993c0;
     --map-bubble: #22252a;
-    --map-book2: #6aa9ff;
-    --map-book3: #ff9057;
+    --map-book2: #c337e8;
+    --map-book3: #f51b3d;
     color-scheme: dark;
   }
 }
@@ -123,8 +124,8 @@
   --map-guide: #f0a050;
   --map-context: #c993c0;
   --map-bubble: #22252a;
-  --map-book2: #6aa9ff;
-  --map-book3: #ff9057;
+  --map-book2: #c337e8;
+  --map-book3: #f51b3d;
   color-scheme: dark;
 }
 
