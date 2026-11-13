@@ -104,7 +104,6 @@ import {
   asideWords,
   fittedResults,
   toggleAside,
-  STOPPED,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
@@ -282,6 +281,7 @@ import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
 import { LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
+import { pythonLine } from "./worker-rpc.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -306,87 +306,26 @@ const BOOK_PAGES = {
 };
 
 const $ = (sel) => document.querySelector(sel);
-// ---------------------------------------------------------------- worker RPC
-let nextId = 0;
-const pending = new Map(); // each call waiting for its reply, by its id: the entry point, who waits, and since when
-
+// ---------------------------------------------------------------- the line to Python
 /** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
 let pythonErrors = [];
 
-/**
- * Start the worker that runs Python. The page has one at a time: stopPython ends it and starts another, and a
- * message from one that was ended is not this page's any more.
- */
-function startWorker() {
-  const made = new Worker("worker.js", { type: "module" });
-  made.onmessage = ({ data }) => {
-    if (made !== worker) return;
-    if (data.status) {
-      if (pythonFailure) return;
-      if (data.state === "ok") made.started = true; // it says it is ready: a call it has now can be stopped
-      setStatus(data.status, data.state);
-      pythonSaid = statusTicket;
-      return;
-    }
-    const waiting = pending.get(data.id);
-    if (!waiting) return; // stopped before its reply came
-    pending.delete(data.id);
-    showStop();
-    const reply = JSON.parse(data.reply);
-    if (!reply.ok) pythonErrors = keepError(pythonErrors, `${waiting.fn}: ${reply.error}`);
-    waiting.resolve(reply);
-  };
-  // worker.js itself did not load or run: nothing will answer, so say so rather than wait.
-  made.onerror = (event) => {
-    event.preventDefault();
-    if (made === worker) pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
-  };
-  return made;
-}
-let worker = startWorker();
+/** The worker that runs Python, the calls that wait for it, and Stop (worker-rpc.js): what the page shows of them. */
+const python = pythonLine({
+  make: () => new Worker("worker.js", { type: "module" }),
+  onStatus(status, state) {
+    if (pythonFailure) return;
+    setStatus(status, state);
+    pythonSaid = statusTicket;
+  },
+  onStoppable: (offered) => ($("#stop").hidden = !offered),
+  onRefusal: (fn, error) => (pythonErrors = keepError(pythonErrors, `${fn}: ${error}`)),
+  onCrash: (message) => pythonFailed(`Could not start Python: ${message || "worker.js did not load"}`),
+  onStopped: () => setStatus("Stopped. Python is starting again...", "busy"),
+});
 
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
-function call(fn, payload = {}) {
-  if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
-  const id = nextId++;
-  return new Promise((resolve) => {
-    pending.set(id, { fn, resolve, since: Date.now() });
-    worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
-    showStop();
-  });
-}
-
-/** How long Python may take over a call before the page offers to stop it, in milliseconds. */
-const STOP_AFTER = 2500;
-let stopTimer = null;
-
-/**
- * Offer to stop Python once a call has waited STOP_AFTER, and take the offer away when nothing waits. Python
- * starting is not a call to stop, the first time or after a stop: the offer waits until this worker has started.
- */
-function showStop() {
-  clearTimeout(stopTimer);
-  const oldest = Math.min(...[...pending.values()].map((waiting) => waiting.since));
-  const wait = pending.size && worker.started ? STOP_AFTER - (Date.now() - oldest) : Infinity;
-  $("#stop").hidden = wait > 0;
-  if (wait > 0 && wait !== Infinity) stopTimer = setTimeout(showStop, wait);
-}
-
-/**
- * Stop what Python is doing: a search the reader does not want to wait for. A worker cannot be interrupted, so
- * this one is ended and another started, which loads Python again from the browser's copy; every call that was
- * waiting is answered as stopped, and the page's later calls wait for the new worker as they did for the first.
- */
-function stopPython() {
-  if (!pending.size || pythonFailure) return;
-  const waiting = [...pending.values()];
-  pending.clear();
-  worker.terminate();
-  worker = startWorker();
-  showStop();
-  setStatus("Stopped. Python is starting again...", "busy");
-  for (const { resolve } of waiting) resolve({ ok: false, error: STOPPED, warnings: [], stopped: true });
-}
+const call = (fn, payload = {}) => python.call(fn, payload);
 
 /**
  * Python could not start: say why, and stop everything that waits for it. A worked example on
@@ -398,8 +337,7 @@ function pythonFailed(reason) {
   if (!pythonErrors.at(-1)?.endsWith(reason)) pythonErrors = keepError(pythonErrors, reason); // a reply may have said it
   setStatus(reason, "error");
   $("#run-example").disabled = true;
-  for (const { resolve } of pending.values()) resolve({ ok: false, error: reason, warnings: [] });
-  pending.clear();
+  python.fail(reason);
   rejectReady(new Error(reason));
   renderCandidates();
 }
@@ -6631,7 +6569,7 @@ $("#term-list").onchange = () => {
   scheduleSave();
 };
 installImport({ call, open: openImported });
-$("#stop").onclick = stopPython;
+$("#stop").onclick = () => python.stop();
 $("#simplify-ask").onclick = askSimpler;
 $("#simplify-apply").onclick = fitSimpler;
 $("#term-first").onchange = showTermAdder;
