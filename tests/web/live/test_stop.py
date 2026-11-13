@@ -19,6 +19,22 @@ from tests.web.live.test_live import started
 
 READY = "document.querySelector('#status .status__text').textContent.startsWith('Ready')"
 
+#: Press Stop in the same moment the page offers it. Found visible and then pressed, in two trips to the browser,
+#: Stop could be withdrawn in between: a call that ends takes the offer away, and on a busy machine the page's offer
+#: and the search's reply can come one straight after the other. Run as the offer is made, the press always lands
+#: while the call still waits, which is what a reader pressing Stop sees.
+STOP_ONCE_OFFERED = """() => {
+  window.__stopPressed = false;
+  const stop = document.querySelector('#stop');
+  const offered = new MutationObserver(() => {
+    if (stop.hidden) return;
+    offered.disconnect();
+    stop.click();
+    window.__stopPressed = true;
+  });
+  offered.observe(stop, { attributes: true, attributeFilter: ['hidden'] });
+}"""
+
 
 def search_and_stop(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
     """Ask for the optimal designs of the brief as well, and stop the search once Stop is offered.
@@ -30,9 +46,10 @@ def search_and_stop(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
     set_aim(page, "main_quadratic")  # a model with squares: its optimal designs wait until the reader asks
     page.wait_for_function(listed, timeout=180_000)
     reveal(page, "#search")
+    assert page.is_hidden("#stop"), "no call waits yet"
+    page.evaluate(STOP_ONCE_OFFERED)  # set before the search, so the offer cannot be missed
     page.click("#search")
-    page.wait_for_selector("#stop:not([hidden])", timeout=60_000)
-    page.click("#stop")
+    page.wait_for_function("window.__stopPressed", timeout=60_000)
     page.wait_for_function("document.querySelector('#stop').hidden")
     # The search is answered as stopped, where its designs would have been listed: the status line has by then
     # moved on to the Python that is starting.
