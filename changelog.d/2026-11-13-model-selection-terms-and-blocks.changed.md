@@ -6,8 +6,9 @@
     `A`). `candidate_model` is the formula, and there is no `note`.
   - The blocks of a blocked design were left out of every model the search scored, so the
     differences between blocks went to the residual and hid real effects. They are now in every
-    model. `selected_terms` holds the terms chosen, without the blocks, and `selected_formula`
-    names the `Block` column, so it can be given back as `model=`.
+    model, with any term of a formula that names the blocks itself (`C(Block)`, `Block:A`).
+    `selected_terms` holds the terms chosen, without the blocks, and `selected_formula` names the
+    `Block` column, so it can be given back as `model=`.
   - A categorical factor has no square in the quadratic model's search, where the search used to
     stop on one, and all its contrasts enter and leave together.
 

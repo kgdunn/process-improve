@@ -1074,13 +1074,15 @@ def _searched_formula(fit: _Fit) -> _Formula | None:
 def _block_terms(fit: _Fit) -> list[str]:
     """Return the terms that fit the blocks, which model_selection keeps in every model it scores.
 
-    They are the contrast columns :func:`_add_block_term` made, or else the terms of an explicit formula that
-    name the block column themselves (``C(Block)``).
+    They are the contrast columns :func:`_add_block_term` made, and the terms of an explicit formula that name
+    the block column themselves (``C(Block)``, ``Block:A``). The formula's own ``Block`` term is not among the
+    second where the contrasts stand in its place.
     """
-    if fit.blocks or fit.model in _NAMED_MODELS:
+    if fit.model in _NAMED_MODELS:
         return list(fit.blocks)
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
-    return [t.name() for t in terms if t.factors and _references(t.name(), BLOCK_COL)]
+    own = [t.name() for t in terms if t.factors and _references(t.name(), BLOCK_COL)]
+    return [*fit.blocks, *(name for name in own if not (fit.blocks and name == BLOCK_COL))]
 
 
 def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:

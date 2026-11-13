@@ -207,6 +207,70 @@ def test_a_factor_of_several_levels_is_kept_or_dropped_whole(api):
     assert proposed["kept"] == ["T"], "both its levels' columns leave together"
 
 
+def test_an_interaction_the_blocks_took_is_not_proposed_back(api):
+    """A 2^4 in four blocks gives C·D to the blocks. The fit leaves it out, and so does the search.
+
+    Searched as a candidate, C·D could not be told from the blocks, cost nothing to keep, and held C and D in the
+    model with it: the page proposed adding a term its own fit had just said the runs cannot estimate.
+    """
+    factors = [{"name": name, "low": 0, "high": 10} for name in "ABCD"]
+    spec = {"design_type": "full_factorial", "factors": factors, "n_blocks": 4, "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    responses = _results(design, lambda run: 10 + 0.8 * run["A"], seed=7)
+    request = {**held_of(design), "responses": responses, "model": "interactions"}
+    fitted = api.ok("api_analyze_runs", request)
+    estimated = [c["label"] for c in fitted["coefficients"]]
+    (taken,) = [pair for pair in ("A·B", "A·C", "A·D", "B·C", "B·D", "C·D") if pair not in estimated]
+    proposed = api.ok("api_simpler_model", request)
+    assert (proposed["kept"], proposed["added"]) == (["A"], [])
+    assert taken not in proposed["dropped"], "it was not in the model to be dropped"
+    assert len(proposed["dropped"]) == 8, "the three other main effects and the five interactions fitted"
+
+
+#: Batches within suppliers: batch 1 of one supplier has nothing to do with batch 1 of another.
+SUPPLIER = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
+BATCH = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
+NESTED = {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+
+
+def _nested_study(api, batch_effect: dict[str, float]) -> dict:
+    """Return three runs of each batch of each supplier, the batches differing within a supplier as given."""
+    spec = {"design_type": "full_factorial", "factors": [SUPPLIER, BATCH], "n_center_points": 0, "n_replicates": 3}
+    design = api.ok("api_make_design", spec)
+    assert design["n_runs"] == 18
+    supplier = {"X": 0.0, "Y": 5.0, "Z": -5.0}
+
+    def process(run: dict) -> float:
+        sign = 1 if run["Batch"] == "first" else -1
+        return 40 + supplier[run["Supplier"]] + sign * batch_effect[run["Supplier"]]
+
+    return {**held_of(design), "responses": _results(design, process), "model": NESTED}
+
+
+def test_a_factor_nested_in_another_is_searched_as_nested(api):
+    """No standard model holds a nested term, so the search is over the model's own terms.
+
+    Searched within the interactions model, the nested term needed Batch's own main effect, and the page proposed
+    adding it: the crossed model the reader had left on purpose, where a batch means the same at every supplier.
+    """
+    request = _nested_study(api, {"X": 3.0, "Y": -2.0, "Z": 0.5})
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["kept"] == ["Supplier", "Supplier·Batch"]
+    assert (proposed["added"], proposed["dropped"], proposed["changed"]) == ([], [], False)
+    assert proposed["within"] is None, "its own terms, and no standard model"
+    assert proposed["terms"] == NESTED["terms"], "as the page ticks them"
+    fitted = api.ok("api_analyze_runs", request)
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+
+
+def test_a_nested_term_the_results_do_not_support_is_dropped_and_the_factor_it_is_in_stays(api):
+    request = _nested_study(api, {"X": 0.0, "Y": 0.0, "Z": 0.0})
+    proposed = api.ok("api_simpler_model", request)
+    assert (proposed["kept"], proposed["dropped"], proposed["added"]) == (["Supplier"], ["Supplier·Batch"], [])
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+
+
 def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
     request = {**held, "responses": simulated["responses"]}
     terms = api.ok("api_simpler_model", request)["terms"]

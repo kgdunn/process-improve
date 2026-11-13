@@ -1103,6 +1103,160 @@ class TestModelSelection:
         assert out["model_selection"]["selected_formula"].startswith("y ~ -1 + ")
         assert "Block" in out["model_selection"]["selected_formula"]
 
+    # ----- candidates the runs cannot tell apart: none of these could leave a search begun from them all
+    @staticmethod
+    def _two_cubed_twice() -> pd.DataFrame:
+        return pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 2, columns=list("ABC"))
+
+    def test_an_interaction_confounded_with_the_blocks_is_no_candidate(self) -> None:
+        """A 2^4 in four blocks gives ABC, ABD and so CD to the blocks: kept, CD held C and D in with it."""
+        runs = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=4)), columns=list("ABCD"))
+        runs["Block"] = (1 + (runs.A * runs.B * runs.C > 0) + 2 * (runs.A * runs.B * runs.D > 0)).astype(int)
+        between = runs.Block.map({1: 6.0, 2: -6.0, 3: 2.0, 4: -2.0})
+        y = pd.Series(10 + 4 * runs.A + between + np.random.default_rng(1).normal(0, 0.3, 16), name="y")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # the fit of every interaction says CD is not estimable
+            ms = analyze_experiment(runs, y, model="interactions", analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A"]
+        assert (ms["direction"], ms["selected_formula"]) == ("backward", "y ~ Block + A")
+        assert ms["n_terms"] == 5, "the intercept, three block contrasts and A"
+
+    def test_of_two_aliased_interactions_the_one_whose_main_effects_are_in_enters(self) -> None:
+        """A half fraction run twice has the runs for all ten terms, and AB = CD: neither left the full model."""
+        half = [(a, b, c, a * b * c) for a, b, c in itertools.product([-1.0, 1.0], repeat=3)]
+        runs = pd.DataFrame(half * 2, columns=list("ABCD"))
+        y = 5 + 3 * runs.C + 2 * runs.D + 2.5 * runs.C * runs.D + np.random.default_rng(2).normal(0, 0.3, 16)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # the fit of the ten terms says three are not estimable
+            ms = analyze_experiment(runs, pd.Series(y, name="y"), model="interactions", analysis_type="model_selection")
+        chosen = ms["model_selection"]
+        assert chosen["selected_terms"] == ["C", "D", "C:D"], "not A:B, its alias: A and B are not in"
+        assert chosen["direction"] == "forward"
+
+    def test_a_square_of_a_factor_run_at_two_levels_is_no_candidate(self) -> None:
+        """It is the intercept again. Kept, as it was, it held its main effect in the model whatever the data."""
+        runs = self._two_cubed_twice()
+        y = pd.Series(5 + 3 * runs.A + np.random.default_rng(3).normal(0, 0.3, 16), name="y")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # the quadratic fit says the squares are not estimable
+            ms = analyze_experiment(runs, y, model="quadratic", analysis_type="model_selection")["model_selection"]
+        assert (ms["selected_terms"], ms["direction"]) == (["A"], "backward")
+
+    def test_a_factor_of_true_and_false_is_a_category_with_no_square(self) -> None:
+        """Booleans are a category to patsy; counted as a number, the factor was given a square it cannot have."""
+        from process_improve.experiments._analyses.model_selection import _candidates
+
+        runs = self._two_cubed_twice().assign(Hot=lambda frame: frame.C > 0).drop(columns="C")
+        _, _, terms, _ = _candidates(runs, ["A", "B", "Hot"], "quadratic", None)
+        assert [t.name for t in terms if t.name.startswith("I(")] == ["I(A ** 2)", "I(B ** 2)"]
+        y = pd.Series(5 + 3 * runs.A + 2 * runs.Hot + np.random.default_rng(7).normal(0, 0.3, 16), name="y")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # the quadratic fit says the squares are not estimable
+            ms = analyze_experiment(runs, y, model="quadratic", analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "Hot"]
+
+    @pytest.mark.parametrize("first", ["A", "Twin"])
+    def test_of_two_terms_that_score_the_same_the_one_named_first_is_taken(self, first: str) -> None:
+        """Two columns the same: which one enters must not hang on the last digit of a score."""
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        runs = self._two_cubed_twice()
+        runs["Twin"] = runs.A
+        runs["y"] = 5 + 3 * runs.A + np.random.default_rng(5).normal(0, 0.3, 16)
+        factors = [first, *(name for name in ("A", "Twin", "B") if name != first)]
+        ms = _run_model_selection(runs, "y", factors, "main_effects")["model_selection"]
+        assert (ms["selected_terms"], ms["direction"]) == ([first], "forward")
+
+    def test_the_candidates_are_those_the_runs_can_tell_from_what_every_model_keeps(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _formula_terms, _Scorer
+
+        runs = self._two_cubed_twice()
+        runs["Block1"] = runs.A * runs.B  # the blocks take AB
+        runs["y"] = 1.0
+        codes = [("A",), ("B",), ("C",), ("A", "B"), ("A", "B", "C"), ("I(A ** 2)",)]
+        score = _Scorer(runs, runs.y.to_numpy(), _formula_terms(codes), "aicc", fixed=["Block1"])
+        told = {term.name: sorted(term.parents) for term in score.terms}
+        assert told == {"A": [], "B": [], "C": [], "A:B:C": ["A", "B", "C"]}, "no A:B, so A:B:C does not wait for it"
+        assert score.estimable, "what is left, the runs estimate at once with runs to spare"
+        nothing = _Scorer(runs, runs.y.to_numpy(), _formula_terms([("A", "B")]), "aicc", fixed=["Block1"])
+        assert nothing.terms == []
+
+    def test_a_search_with_no_candidate_left_keeps_what_every_model_keeps(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _Formula, _run_model_selection
+
+        runs = self._two_cubed_twice()
+        runs["Block1"] = runs.A * runs.B
+        runs["y"] = 5 + 2 * runs.Block1 + np.random.default_rng(6).normal(0, 0.3, 16)
+        ms = _run_model_selection(
+            runs, "y", list("ABC"), "y ~ A:B + Block", formula=_Formula([("A", "B")]), blocks=["Block1"]
+        )["model_selection"]
+        assert (ms["selected_terms"], ms["selected_formula"], ms["n_terms"]) == ([], "y ~ Block", 2)
+
+    # ----- a formula with no intercept, and a formula's own terms of the blocks
+    def test_a_formula_without_an_intercept_keeps_one_term_at_least(self) -> None:
+        """With no intercept and no term there is no model: it was scored all the same, and the search crashed."""
+        runs = self._two_cubed_twice()
+        y = pd.Series(50 + np.random.default_rng(7).normal(0, 0.3, 16), name="y")  # no factor does anything
+        ms = analyze_experiment(runs, y, model="y ~ 0 + A + B + C", analysis_type="model_selection")
+        chosen = ms["model_selection"]
+        assert len(chosen["selected_terms"]) == 1
+        assert chosen["selected_formula"] == f"y ~ -1 + {chosen['selected_terms'][0]}"
+        assert chosen["n_terms"] == 1
+
+    @pytest.mark.parametrize(("active", "idle"), [("P", "Q"), ("Q", "P")])
+    def test_without_an_intercept_either_of_two_categorical_factors_may_leave(self, active: str, idle: str) -> None:
+        """The first is given a column for each level by patsy, and the second a column short of the constant.
+
+        Scored from those columns alone, a model with the second and not the first had no constant, and scored
+        so badly that the first factor could never leave.
+        """
+        import statsmodels.formula.api as smf
+
+        from process_improve.experiments._analyses import model_selection as ms
+
+        runs = pd.DataFrame(list(itertools.product("pqr", "uvw")) * 2, columns=["P", "Q"])
+        shift = dict(zip(sorted(set(runs[active])), [0.0, 6.0, -6.0], strict=True))
+        runs["y"] = 50 + runs[active].map(shift) + np.random.default_rng(1).normal(0, 0.3, len(runs))
+        formula = ms._Formula([("P",), ("Q",)], intercept=False)
+        chosen = ms._run_model_selection(runs, "y", ["P", "Q"], "y ~ -1 + P + Q", formula=formula)["model_selection"]
+        assert (chosen["selected_terms"], chosen["selected_formula"]) == ([active], f"y ~ -1 + {active}")
+        assert chosen["n_terms"] == 3, "a column for each of its levels, the constant among them"
+        score = ms._Scorer(runs, runs.y.to_numpy(), ms._formula_terms(formula.terms), "aic", intercept=False)
+        for kept in ([active], [idle], ["P", "Q"]):
+            fitted = smf.ols(f"y ~ -1 + {' + '.join(kept)}", runs).fit()
+            assert score(frozenset(kept)) == pytest.approx(fitted.aic + 2), (
+                f"{kept}: statsmodels leaves the variance out"
+            )
+
+    def test_too_few_runs_to_score_any_term_without_an_intercept_are_refused(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _Formula, _run_model_selection
+
+        runs = pd.DataFrame({"A": [-1.0, 1.0, 0.0], "B": [1.0, 1.0, -1.0], "y": [3.0, 5.0, 4.0]})
+        formula = _Formula([("A",), ("B",)], intercept=False)
+        with pytest.raises(ValueError, match="No term of the model can be scored by AICC with 3 run"):
+            _run_model_selection(runs, "y", ["A", "B"], "y ~ -1 + A + B", formula=formula)
+        by_aic = _run_model_selection(runs, "y", ["A", "B"], "y ~ -1 + A + B", "aic", formula=formula)
+        assert by_aic["model_selection"]["selected_terms"], "AIC is defined where AICc is not"
+
+    @pytest.mark.parametrize(
+        ("model", "kept"),
+        [
+            ("y ~ Block + A + B + C + Block:A", "Block + Block:A"),
+            ("y ~ C(Block) + A + B + C + C(Block):A", "C(Block) + C(Block):A"),
+        ],
+    )
+    def test_a_formula_s_own_terms_of_the_blocks_are_all_in_every_model(self, model: str, kept: str) -> None:
+        """``Block:A`` was neither a candidate nor kept: the search fitted a model the formula did not ask for."""
+        runs, _ = self._blocked_runs()
+        slope = np.where(runs.Block == 1, 5.0, 1.0)  # the effect of A differs between the blocks
+        y = pd.Series(20 + slope * runs.A - 2 * runs.C + np.random.default_rng(8).normal(0, 0.3, 16), name="y")
+        ms = analyze_experiment(runs, y, model=model, analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "C"]
+        assert ms["selected_formula"] == f"y ~ {kept} + A + C"
+        assert ms["r_squared_adj"] > 0.99, "which it is not without the term for the blocks' slopes"
+        again = analyze_experiment(runs, y, model=ms["selected_formula"], analysis_type="coefficients")
+        assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
+
     def test_unknown_criterion(self) -> None:
         from process_improve.experiments._analyses.model_selection import _run_model_selection
 
