@@ -173,6 +173,56 @@ def test_zooming_in_names_more_terms_never_overlapping_and_a_little_larger(conte
     assert all(b > a or b >= 19 for a, b in pairwise(named)), fonts
 
 
+# One link put in the middle of the map, its two terms `span` apart: a share of the map's shorter side, or, above 1, of
+# its longer side, which puts both terms out of view.
+VIEW_LINK = """([id, span]) => { const cy = window.conceptMap.cy, e = cy.getElementById(id);
+  const s = e.source().position(), t = e.target().position(), side = span > 1 ? Math.max : Math.min;
+  const zoom = (span * side(cy.width(), cy.height())) / Math.hypot(t.x - s.x, t.y - s.y);
+  const middle = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+  cy.viewport({ zoom, pan: { x: cy.width() / 2 - zoom * middle.x, y: cy.height() / 2 - zoom * middle.y } });
+  return { zoom, least: cy.minZoom(), most: cy.maxZoom() }; }"""
+# Whether that link is drawn, and what is wrong in the rest: links drawn with a term well out of view, and links not
+# drawn though both their terms are well in view and neither is switched off. "Well" is by 20 px, more than the map's
+# own margin. Of the selected term's links, which all stay: how many there are to draw, are drawn, and leave the view.
+LINKS_IN_VIEW = """(id) => { const cy = window.conceptMap.cy, W = cy.width(), H = cy.height();
+  const past = (n, by) => { const p = n.renderedPosition();
+    return p.x < -by || p.x > W + by || p.y < -by || p.y > H + by; };
+  const ends = (e) => [e.source(), e.target()], on = (e) => !ends(e).some((n) => n.hasClass('off'));
+  const links = cy.edges('.link').filter((e) => !e.hasClass('hl') && on(e)), lit = cy.edges('.link.hl').filter(on);
+  return { drawn: cy.getElementById(id).visible(), lit: lit.length, lit_drawn: lit.filter((e) => e.visible()).length,
+    lit_leaving: lit.filter((e) => ends(e).some((n) => past(n, 20))).length,
+    astray: links.filter((e) => e.visible() && ends(e).some((n) => past(n, 20))).length,
+    held: links.filter((e) => !e.visible() && !ends(e).some((n) => past(n, -20))).length }; }"""
+
+
+def test_a_link_is_drawn_only_while_both_its_terms_are_in_view(context, site):
+    page = _open(context, site)
+    link = page.evaluate("""() => { const cy = window.conceptMap.cy, far = (e) => Math.hypot(
+        e.target().position('x') - e.source().position('x'), e.target().position('y') - e.source().position('y'));
+      return cy.edges('.link').sort((a, b) => Math.abs(far(a) - 350) - Math.abs(far(b) - 350))[0].id(); }""")
+
+    def look(span: float) -> dict[str, Any]:
+        view = page.evaluate(VIEW_LINK, [link, span])
+        assert view["least"] < view["zoom"] < view["most"], "the map can be zoomed this far"
+        assert view["zoom"] * TERM_GAP > DETAIL_GAP, "and its terms and links are drawn at this zoom"
+        _settled(page)
+        return page.evaluate(LINKS_IN_VIEW, link)
+
+    both = look(0.4)
+    assert both["drawn"], "both its terms are in view"
+    assert (both["astray"], both["held"]) == (0, 0)
+    through = look(1.2)
+    assert not through["drawn"], "zoomed in between its terms, it only crosses the view, so it is gone"
+    assert (through["astray"], through["held"]) == (0, 0), "and so is every other link that leaves the view"
+    assert look(0.4)["drawn"], "zooming out brings it back"
+    # A selected term keeps its links, wherever they lead.
+    term = next(e for i, e in enumerate(GRAPH["edges"]) if f"l{i}" == link)["source"]
+    _go(page, term)
+    lit = look(1.2)
+    assert lit["lit"] == lit["lit_drawn"] > 0
+    assert lit["lit_leaving"], "one of them leaves the view here"
+
+
 def test_a_tap_on_a_term_shows_its_definition_its_book_line_and_lights_its_links(context, site):
     page = _open(context, site)
     _go(page, "full_factorial")
@@ -715,7 +765,7 @@ def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_
     page.wait_for_function("(name) => document.querySelector('#card h2')?.textContent === name", arg=term["name"])
     elsewhere = page.text_content("#card .map-elsewhere")
     assert elsewhere == "In other texts: " + ", ".join(term["found_as"]), "on a line of its own"
-    also = page.locator("#card .map-aka:not(.map-elsewhere)")
+    also = page.locator("#card .map-aka:not(.map-elsewhere):not(.map-backed)")  # not the other texts' lines
     assert also.count() == bool(term["aliases"]), "the line of the book's own other names is unchanged"
     assert not also.count() or hidden.lower() not in also.text_content().lower()
     page.fill("#q", term["name"])

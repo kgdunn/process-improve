@@ -271,6 +271,7 @@ function sheet(z) {
       color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "text-outline-opacity": 0.95, "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
+    { selector: ".link.away", style: { display: "none" } },   // a term of it is out of view (linksInView); the selected term's links stay, by the next rule
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
     ...(othersOn ? [
@@ -385,11 +386,21 @@ function settleLinkLabels(kept) {
   });
 }
 
+// A link is drawn only while both its terms are in view. One that crosses the view from a term outside it joins nothing
+// the reader can see, so it goes, and it is back once zooming out or moving the map brings both its terms in.
+const VIEW_EDGE = 12;   // px past the map's edge at which a term still counts as in view, so its links do not flicker there
+function linksInView() {
+  const W = cy.width() + VIEW_EDGE, H = cy.height() + VIEW_EDGE, seen = new Set();
+  cy.nodes(".term").forEach(n => { const p = n.renderedPosition(); if (p.x > -VIEW_EDGE && p.x < W && p.y > -VIEW_EDGE && p.y < H) seen.add(n.id()); });
+  cy.edges(".link").forEach(e => e.toggleClass("away", !(seen.has(e.data("source")) && seen.has(e.data("target")))));
+}
+
 let styledZoom = null;
 function refresh(force = false) {
   const z = cy.zoom();
   cy.batch(() => {
     if (force || z !== styledZoom) { cy.style(sheet(z)); styledZoom = z; }
+    linksInView();
     placeLabels(z);
   });
   cy.batch(settleOverlaps);   // after the first batch, so the labels have real sizes
