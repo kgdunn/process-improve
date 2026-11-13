@@ -197,36 +197,91 @@ def test_every_module_of_a_package_is_listed_and_is_what_importing_it_gives(pack
         assert getattr(package, name) is importlib.import_module(f"{package.__name__}.{name}"), name
 
 
-@pytest.mark.parametrize("name", ["__wrapped__", "not an identifier", "no.such.name", "no_such_name"])
-def test_a_name_that_is_no_module_is_looked_for_no_further(name):
+@pytest.mark.parametrize(
+    ("name", "looked_for"), [("__wrapped__", 0), ("not a name", 0), ("no.such.name", 0), ("no_such_name", 1)]
+)
+def test_a_name_that_cannot_be_a_module_is_not_looked_for(monkeypatch, name, looked_for):
     """A dunder is what tools probe a module for; a name with a dot would import a parent that is not there."""
+    asked = []
+    load = _lazy.load
+    monkeypatch.setattr(_lazy, "load", lambda module: asked.append(module) or load(module))
     for package in (process_improve, experiments):
         with pytest.raises(AttributeError, match="has no attribute"):
             getattr(package, name)
         assert f"{package.__name__}.{name}" not in sys.modules
+    assert len(asked) == 2 * looked_for, asked
 
 
-def test_an_error_a_module_raises_itself_is_the_error_the_reader_sees(tmp_path, monkeypatch):
-    """A module that lacks an optional dependency says which: that is not the package having no such module."""
+def test_a_module_that_cannot_be_imported_is_no_attribute_and_the_error_says_why(tmp_path, monkeypatch):
+    """``hasattr``, ``help`` and ``inspect.getmembers`` ask for every name ``dir`` lists, and expect this error only."""
     package = tmp_path / "a_lazy_package"
     package.mkdir()
     (package / "__init__.py").write_text("", encoding="utf-8")
     (package / "whole.py").write_text("answer = 42\n", encoding="utf-8")
     (package / "lacking.py").write_text("import a_dependency_nobody_has\n", encoding="utf-8")
+    (package / "refusing.py").write_text("raise ImportError('install the extra')\n", encoding="utf-8")
+    (package / "broken.py").write_text("1 / 0\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(tmp_path))
     try:
         assert _lazy.submodule("a_lazy_package", "whole").answer == 42
-        with pytest.raises(ModuleNotFoundError, match="a_dependency_nobody_has"):
-            _lazy.submodule("a_lazy_package", "lacking")
-        with pytest.raises(AttributeError, match="module 'a_lazy_package' has no attribute 'absent'") as refused:
+        for name, cause, why in (
+            ("lacking", ModuleNotFoundError, "No module named 'a_dependency_nobody_has'"),
+            ("refusing", ImportError, "install the extra"),
+        ):
+            with pytest.raises(
+                AttributeError, match=f"has no attribute '{name}': a_lazy_package.{name} could not be"
+            ) as told:
+                _lazy.submodule("a_lazy_package", name)
+            assert why in str(told.value)
+            assert type(told.value.__cause__) is cause, "the module's own error, for a reader of the traceback"
+        with pytest.raises(AttributeError, match=r"^module 'a_lazy_package' has no attribute 'absent'$") as refused:
             _lazy.submodule("a_lazy_package", "absent")
         assert refused.value.__context__ is None, "an attribute that is not there, and no talk of imports"
+        with pytest.raises(ZeroDivisionError):  # a module that is broken, not unavailable, says so itself
+            _lazy.submodule("a_lazy_package", "broken")
         monkeypatch.setitem(sys.modules, "a_lazy_package.whole", None)  # how an import is refused, in a test say
-        with pytest.raises(AttributeError, match="has no attribute 'whole'"):
+        with pytest.raises(AttributeError, match=r"^module 'a_lazy_package' has no attribute 'whole'$"):
             _lazy.submodule("a_lazy_package", "whole")
     finally:
         for name in [name for name in sys.modules if name.partition(".")[0] == "a_lazy_package"]:
             del sys.modules[name]
+
+
+@pytest.mark.slow
+def test_a_package_can_be_looked_over_where_an_extra_is_not_installed():
+    """Its server module needs the ``mcp`` extra. ``dir`` lists the module, and looking the package over asked for it.
+
+    ``help(process_improve)`` and ``inspect.getmembers`` then failed for everyone who installed no extra.
+    """
+    found = fresh(
+        """
+import sys
+sys.modules["mcp"] = None  # an import of it fails, as where the extra is not installed
+
+import inspect
+import pydoc
+
+import process_improve
+
+print("mcp_server" in dir(process_improve), hasattr(process_improve, "mcp_server"))
+members = dict(inspect.getmembers(process_improve))
+print("mcp_server" in members, members["experiments"].__name__, len(pydoc.render_doc(process_improve)) > 1000)
+try:
+    process_improve.mcp_server
+except AttributeError as error:
+    print(type(error.__cause__).__name__, "'mcp' extra" in str(error))
+try:
+    from process_improve import mcp_server
+except ImportError as error:
+    print(type(error).__name__, "'mcp' extra" in str(error))
+"""
+    )
+    assert found.splitlines() == [
+        "True False",
+        "False process_improve.experiments True",
+        "ImportError True",
+        "ImportError True",
+    ]
 
 
 # --------------------------------------------------------------------------- several threads at once

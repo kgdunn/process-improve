@@ -4,7 +4,7 @@
 (#1235). Each then answers ``__getattr__`` and ``__dir__`` with the three functions here, so that the package
 still looks, to its users, as it did when it imported everything itself:
 
-- a name of the package is imported under one lock, so asking from several threads at once is as safe as it was;
+- a name of the package is imported under one lock, so several threads may ask the package at once;
 - a module of the package is its attribute without an import of its own (``experiments.models.lm``);
 - ``dir(package)`` lists the lazy names and the public modules, for a reader and for tab completion.
 """
@@ -26,6 +26,12 @@ if TYPE_CHECKING:
 #: circle; Python then hands one thread a module the other has only half made. One lock puts the threads back
 #: in a queue. It is re-entrant, because importing one name can ask the package for another.
 #:
+#: shortcut: the lock covers what is asked of the two packages (``experiments.lm``), not an ``import`` statement
+#: that runs in another thread at the same moment (``import process_improve.multivariate``), which Python
+#: imports under that module's own lock; the two can still meet in a third package. A program with threads
+#: imports what they will use before it starts them, as with any package. Upgrade if that proves too much to
+#: ask: the import system would have to be given the lock, by a finder on ``sys.meta_path``.
+#:
 #: No module of the library may ask these packages for a name while it is itself being imported: it would wait
 #: here holding its own import lock, which the thread ahead of it may need. ``tests/test_lazy_imports.py`` holds
 #: the library to that.
@@ -39,20 +45,22 @@ def load(module: str) -> ModuleType:
 
 
 def submodule(package: str, name: str) -> ModuleType:
-    """Return the module ``name`` of ``package``, imported if it was not; ``AttributeError`` if there is none.
+    """Return the module ``name`` of ``package``, imported if it was not; ``AttributeError`` if it cannot be had.
 
-    An error the module raises itself (an optional dependency that is missing, say) is raised as it is. A name
-    that cannot be a module is looked for no further: a dunder is what tools probe a module for, and a name
-    with a dot in it would import a parent that is not there.
+    A name that cannot be a module is looked for no further: a dunder is what tools probe a module for, and a
+    name with a dot in it would import a parent that is not there. A module that is there and cannot be
+    imported, for want of an optional dependency say, is no attribute either, and the error says why:
+    ``hasattr``, ``help`` and ``inspect.getmembers`` ask for every name ``dir`` lists and expect nothing else.
+    ``from package import name`` then imports the module itself, and raises what the module raises.
     """
     full = f"{package}.{name}"
+    message = f"module {package!r} has no attribute {name!r}"
     if name.isidentifier() and not name.startswith("__"):
         try:
             return load(full)
-        except ModuleNotFoundError as error:
-            if error.name != full:
-                raise
-    message = f"module {package!r} has no attribute {name!r}"
+        except ImportError as error:
+            if not (isinstance(error, ModuleNotFoundError) and error.name == full):  # there, and not importable
+                raise AttributeError(f"{message}: {full} could not be imported ({error})") from error
     raise AttributeError(message)
 
 

@@ -483,13 +483,20 @@ checks do in `experiments/_formula.py`.
 The two packages still look as they did when they imported everything themselves, and
 `process_improve/_lazy.py` is what keeps that: a module is an attribute of its package
 without an import of its own (`experiments.models.lm`), and a name is imported under one
-lock, so several threads may ask at once. That lock asks one thing of the library: no module
-takes a name from either package at its top (`from process_improve.experiments import
-Factor`). It imports from the module that holds the name (`from
-process_improve.experiments.factor import Factor`), as every module does now, or inside the
-function that needs it. A module that asked the package would wait for the lock while
-holding its own import lock, which the thread ahead of it may need; the same test file
-fails on one that does.
+lock, so several threads may ask a package at once. The lock does not cover an `import`
+statement that runs in another thread at that moment, which `_lazy.py` says where it is
+made. It asks one thing of the library: no module takes a name from either package at its
+top (`from process_improve.experiments import Factor`). It imports from the module that
+holds the name (`from process_improve.experiments.factor import Factor`), as every module
+does now, or inside the function that needs it. A module that asked the package would wait
+for the lock while holding its own import lock, which the thread ahead of it may need; the
+same test file fails on one that does.
+
+A module of the package that needs an optional extra (`mcp_server`) is listed by `dir()`
+like any other, and is no attribute where the extra is missing: `help()` and
+`inspect.getmembers()` ask for every name listed, and take no other answer than
+`AttributeError`. The error names what is missing, and `from process_improve import
+mcp_server` raises the module's own `ImportError`.
 
 ## Adding new methods to PCA / PLS
 
