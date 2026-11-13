@@ -20,9 +20,9 @@ from pathlib import Path
 import pytest
 
 import process_improve
-from process_improve import _lazy
 
 experiments = process_improve.experiments  # a subpackage is an attribute of the package: one of the things tested
+_lazy = process_improve._lazy  # bound by the package itself: imported, not asked for
 
 #: The packages a model is fitted with, which a design must not load.
 FITTING = ("sklearn", "statsmodels")
