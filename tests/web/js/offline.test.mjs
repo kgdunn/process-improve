@@ -358,6 +358,12 @@ describe("a copy that cannot be finished", () => {
     assert.match(page.said.textContent, /^Factorial opens and works/);
   });
 
+  test("is not spoken of on a first visit where Python did not start: there is no copy, and none was promised", async () => {
+    const browser = new Browser();
+    const page = await browser.visit({ started: Promise.reject(new Error("Could not start Python: no network")) });
+    assert.deepEqual([page.box.hidden, await browser.caches.keys(), browser.worker], [true, [], null]);
+  });
+
   test("because Python did not start says so, and offers to remove a copy that may be the cause", async () => {
     const browser = new Browser();
     await browser.visit();

@@ -274,7 +274,9 @@ export async function installOffline({ manifest, started, box }) {
       await say(files);
     } catch (err) {
       // No worker though the reader asked for a copy, a full disk, no network for a file, or Python did not start.
-      show("failed", String(err?.message || err));
+      // Unasked, it is said only of a copy that is there: with none, the reader was promised nothing.
+      const copies = await caches.keys().catch(() => []);
+      if (meanwhile || copies.some((name) => name.startsWith("factorial-"))) show("failed", String(err?.message || err));
     } finally {
       busy = false;
     }
