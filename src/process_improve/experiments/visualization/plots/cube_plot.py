@@ -26,9 +26,10 @@ class CubePlot(BasePlot):
     """Cube plot for 3-factor designs.
 
     Displays a 3D cube with predicted response values at each of the
-    8 vertices (2^3 = 8 corners).  The cube wireframe is drawn with
-    :class:`MarkType.wireframe` (``go.Scatter3d`` in Plotly,
-    ``scatter3D`` in ECharts).
+    8 vertices (2^3 = 8 corners), written to four significant figures.
+    The cube is two :class:`MarkType.wireframe` layers (``go.Scatter3d``
+    in Plotly, ``scatter3D`` in ECharts): its twelve edges, drawn as
+    lines, and its corners, drawn as points with their values.
 
     Data sources
     ------------
@@ -64,7 +65,7 @@ class CubePlot(BasePlot):
                     "x": float(x),
                     "y": float(y),
                     "z": float(z),
-                    "text": f"{val:.2f}",
+                    "text": f"{val:.4g}",
                     "value": val,
                 }
             )
@@ -115,8 +116,8 @@ class CubePlot(BasePlot):
             y=Encoding(field="y"),
             z=Encoding(field="z"),
             name="Edges",
-            color=DOE_PALETTE["grid"],
-            style={"width": 1, "size": 0},
+            color=DOE_PALETTE["neutral"],  # the grid's own grey is all but invisible on a white page
+            style={"width": 3, "size": 0},
         )
 
         panel = PanelSpec(
