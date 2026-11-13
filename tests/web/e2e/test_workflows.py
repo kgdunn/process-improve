@@ -34,7 +34,7 @@ from tests.web.e2e._page import (
     settled,
     status,
 )
-from tests.web.e2e.test_analysis import coefficient_rows, set_aside
+from tests.web.e2e.test_analysis import coefficient_rows, set_aside, terms_fitted
 from tests.web.e2e.test_balance import balanced
 from tests.web.e2e.test_import import paste
 from tests.web.e2e.test_levels import listed_designs, more_charts, set_level
@@ -70,7 +70,7 @@ def download(page: Any, button: str) -> Any:  # noqa: ANN401
 
 # --------------------------------------------------------------------------- a study of the reader's own
 #: The terms the search keeps of the quadratic model, for results that follow ``quadratic``.
-KEPT = ["Intercept", "T", "P", "T·P", "T²"]
+KEPT = sorted(["Intercept", "T", "P", "T·P", "T²"])
 
 
 def strength_study(page: Any) -> np.ndarray:  # noqa: ANN401
@@ -116,10 +116,10 @@ def test_a_study_goes_from_its_brief_to_its_report(fresh_page):
     assert "15 completed runs" in page.text_content("#analysis")
 
     simplified(page)
-    assert [row[0] for row in coefficient_rows(page)] == KEPT
+    assert terms_fitted(page) == KEPT
     set_aside(page, 4)
     assert "14 completed runs" in page.text_content("#analysis")
-    assert [row[0] for row in coefficient_rows(page)] == KEPT, "the model chosen is the one fitted without the run"
+    assert terms_fitted(page) == KEPT, "the model chosen is the one fitted without the run"
     assert page.text_content("#best .lead").startswith("These settings give the highest Strength the model predicts")
 
     name, html = download_report(page)
@@ -147,7 +147,7 @@ def test_a_study_is_kept_as_it_was_left_and_opens_the_same_from_a_link(open_cont
     assert again.text_content(BANNER).startswith("Picked up where you left off: Strength (MPa), maximise: ")
     assert again.get_attribute("#workspace", "data-phase") == "learn", "a study with results opens on its analysis"
     assert [float(v) for v in results(again)] == list(typed), "every result as it was typed"
-    assert [row[0] for row in coefficient_rows(again)] == KEPT, "the terms chosen are kept with the study"
+    assert terms_fitted(again) == KEPT, "the terms chosen are kept with the study"
     assert again.text_content("#aside-runs").startswith("Run 4 is set aside: ")
     assert findings(again) == learned
 

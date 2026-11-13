@@ -153,6 +153,7 @@ import {
   cellText,
   changeWords,
   compareCells,
+  csvOf,
   comparedRow,
   comparisonOrder,
   comparisonSentence,
@@ -166,6 +167,7 @@ import {
   escape,
   factorType,
   boxCoxSentence,
+  bySignificance,
   fitStatistics,
   fittedFormula,
   fmt,
@@ -3540,36 +3542,7 @@ function renderAnalysis(reply) {
     ...noteList(r.notes),
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
-    table(
-      [
-        "Term",
-        "Coefficient",
-        "Std. error",
-        "95% interval",
-        "p-value",
-        ...(ratio ? ["Low to high"] : []),
-        ...(vif ? ["VIF"] : []),
-        ...(simulated ? ["True value"] : []),
-      ],
-      r.coefficients.map((c) => [
-        c.label,
-        fmt(c.coefficient),
-        fmt(c.std_error),
-        c.std_error === null ? "" : `${fmt(c.ci_low)} to ${fmt(c.ci_high)}`,
-        pval(c.p_value),
-        ...(ratio ? [c.ratio === undefined || c.ratio === null ? "" : `×${fmt(c.ratio)}`] : []),
-        ...(vif ? [fmt(c.vif)] : []),
-        ...(simulated ? [fmt(c.true_value)] : []),
-      ]),
-      {
-        Coefficient: "coefficient",
-        "Std. error": "std-error",
-        "95% interval": "interval",
-        "p-value": "p-value",
-        VIF: "vif",
-        "True value": "true-value",
-      },
-    ),
+    ...coefficientsTable(r.coefficients, { ratio, vif, simulated }),
   ];
   if (r.lenth) {
     const heading = el("h3", "", "");
@@ -6412,13 +6385,72 @@ function link(href, text, target = "pid-book") {
   return a;
 }
 
-/** A table of results; `terms` names the glossary entry of a column whose heading is a term. */
-function table(columns, rows, terms = {}) {
+/**
+ * A table of results; `terms` names the glossary entry of a column whose heading is a term. `sortedBy` names the
+ * column the rows arrive sorted on, smallest first, and `looks` gives a column its look (style.css: dim, strong).
+ */
+function table(columns, rows, terms = {}, { sortedBy = null, looks = {} } = {}) {
   const wrap = el("div", "scroll", "");
   const t = el("table", "data", "");
-  renderTable(t, columns, rows, null, [], terms);
+  t._looks = columns.map((c) => looks[c] ?? "");
+  renderTable(t, columns, rows, sortedBy, [], terms);
   wrap.append(t);
   return wrap;
+}
+
+/**
+ * The table of a fit's coefficients, and under it the button that saves it as a file.
+ *
+ * - The most significant comes first (logic.bySignificance), and the heading of the p-values says the rows are in
+ *   their order: a reader sorts by any other column as in every table.
+ * - Each estimate stands between the ends of its 95% interval, the low end on its left and the high end on its
+ *   right, so the three read in the order of their size. The ends are dimmed and the estimate is bold.
+ * - The file is the table as it is shown, its rows in the order the reader left them in, with each number in full:
+ *   the page shows four figures, and a reader who works on with the numbers wants what was computed.
+ */
+function coefficientsTable(coefficients, { ratio, vif, simulated }) {
+  const listed = bySignificance(coefficients);
+  const end = (c, which) => (c.std_error === null ? "" : fmt(c[which]));
+  const columns = [
+    ["Term", (c) => c.label, (c) => c.label],
+    ["95% low", (c) => end(c, "ci_low"), (c) => c.ci_low],
+    ["Coefficient", (c) => fmt(c.coefficient), (c) => c.coefficient],
+    ["95% high", (c) => end(c, "ci_high"), (c) => c.ci_high],
+    ["Std. error", (c) => fmt(c.std_error), (c) => c.std_error],
+    ["p-value", (c) => pval(c.p_value), (c) => c.p_value],
+    ...(ratio ? [["Low to high", (c) => (c.ratio === undefined || c.ratio === null ? "" : `×${fmt(c.ratio)}`), (c) => c.ratio]] : []),
+    ...(vif ? [["VIF", (c) => fmt(c.vif), (c) => c.vif]] : []),
+    ...(simulated ? [["True value", (c) => fmt(c.true_value), (c) => c.true_value]] : []),
+  ];
+  const names = columns.map(([name]) => name);
+  const rows = listed.map((c) => columns.map(([, shown]) => shown(c)));
+  const inFull = new Map(rows.map((row, i) => [row, columns.map(([, , value]) => value(listed[i]) ?? null)]));
+  const shown = table(
+    names,
+    rows,
+    {
+      "95% low": "interval",
+      Coefficient: "coefficient",
+      "95% high": "interval",
+      "Std. error": "std-error",
+      "p-value": "p-value",
+      VIF: "vif",
+      "True value": "true-value",
+    },
+    {
+      sortedBy: listed.some((c) => c.p_value !== null && c.p_value !== undefined) ? "p-value" : null,
+      looks: { "95% low": "dim", Coefficient: "strong", "95% high": "dim" },
+    },
+  );
+  const save = el("button", "button", "Download this table (.csv)");
+  save.type = "button";
+  save.onclick = () => {
+    const text = csvOf(names, shown.querySelector("table")._shown.map((row) => inFull.get(row)));
+    download(new Blob([text], { type: "text/csv" }), `coefficients-${shownSpec().response}.csv`);
+  };
+  const actions = el("p", "actions", "");
+  actions.append(save);
+  return [shown, actions];
 }
 
 /**
@@ -6434,7 +6466,8 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
     .map((c, i) => {
       const unit = units[i] ? `<span class="col-unit">${escape(units[i])}</span>` : "";
       const name = terms[c] ? `<span class="term" data-term="${terms[c]}">${escape(c)}</span>` : escape(c);
-      return `<th aria-sort="${c === sortedBy ? "ascending" : "none"}"><button type="button" class="sort" data-col="${i}">${name}</button>${unit}</th>`;
+      const sorted = c === sortedBy ? "ascending" : "none";
+      return `<th${lookOf(t, i)} aria-sort="${sorted}"><button type="button" class="sort" data-col="${i}">${name}</button>${unit}</th>`;
     })
     .join("");
   t.innerHTML = `<thead><tr>${head}</tr></thead><tbody></tbody>`;
@@ -6455,12 +6488,17 @@ function renderTable(t, columns, rows, sortedBy = null, units = [], terms = {}) 
   };
 }
 
+/** The class of a table's column, as an attribute: its look, where the table gives its columns looks. */
+const lookOf = (t, col) => (t._looks?.[col] ? ` class="${t._looks[col]}"` : "");
+
+/** Fill a table's body with these rows, in this order, and note them as the rows it shows. */
 function fillBody(t, rows) {
   const cell = (row, v, c) => {
     const own = t._cell ? t._cell(row, c) : null;
     return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : (v ?? ""));
   };
-  t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
+  t._shown = rows;
+  t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td${lookOf(t, c)}>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
 
 // ---------------------------------------------------------------- reading level

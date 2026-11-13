@@ -8,6 +8,7 @@ import {
   AXIAL_DISTANCE,
   TRANSFORM_WORDS,
   boxCoxSentence,
+  bySignificance,
   categoricalFactor,
   correlationWords,
   isSeveral,
@@ -1747,5 +1748,31 @@ describe("what the correlation map of a study's runs says", () => {
     assert.equal(said.length, 4);
     assert.equal(said.at(-1), "492 more pairs move together as far; the table lists the largest.");
     assert.equal(correlationWords(found(pairs, 4)).at(-1), "1 more pair moves together as far; the table lists the largest.");
+  });
+});
+
+describe("the order of a fit's coefficients in their table", () => {
+  const row = (label, coefficient, std_error, p_value) => ({ label, coefficient, std_error, p_value });
+  const labels = (rows) => bySignificance(rows).map((c) => c.label);
+
+  test("is by p-value, the smallest first, whatever order the model has them in", () => {
+    const rows = [row("Intercept", 60, 0.5, 1e-9), row("T", 0.2, 0.3, 0.52), row("P", -3.4, 0.3, 0.0002), row("T·P", 1.5, 0.4, 0.016)];
+    assert.deepEqual(labels(rows), ["Intercept", "P", "T·P", "T"]);
+    assert.deepEqual(rows.map((c) => c.label), ["Intercept", "T", "P", "T·P"], "the rows given are left as they were");
+  });
+
+  test("of p-values too small to tell apart, is by the size of the estimate against its standard error", () => {
+    const rows = [row("A", 3, 0.1, 0), row("B", -9, 0.1, 0), row("C", 6, 0.1, 0)];
+    assert.deepEqual(labels(rows), ["B", "C", "A"]);
+  });
+
+  test("puts a coefficient with no p-value after the rest, and leaves such rows in the model's order", () => {
+    const saturated = [row("Intercept", 60, null, null), row("T", 4, null, null), row("P", -3, null, null)];
+    assert.deepEqual(labels(saturated), ["Intercept", "T", "P"]);
+    assert.deepEqual(labels([row("T", 4, null, undefined), row("P", -3, 0.3, 0.01), row("F", 2, null, null)]), ["P", "T", "F"]);
+  });
+
+  test("leaves rows with one p-value and no standard error to speak of in the order given", () => {
+    assert.deepEqual(labels([row("A", 1, 0, 0.5), row("B", 2, 0, 0.5)]), ["A", "B"]);
   });
 });

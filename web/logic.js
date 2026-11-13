@@ -1028,6 +1028,19 @@ export function comparedRow(values, direction, ranked = values.map(() => true)) 
 /** A p-value to four decimals, or "< 0.0001". */
 export const pval = (p) => (p === null || p === undefined ? "" : p < 0.0001 ? "< 0.0001" : Number(p).toFixed(4));
 
+/**
+ * A fit's coefficients in the order their table lists them: the smallest p-value first, so what the runs are surest of
+ * heads the table. Two p-values too small to tell apart go by the size of the estimate against its standard error. A
+ * coefficient with no p-value, as when the model uses every run, comes after the rest; such rows keep the order of
+ * the model, which is the order they are given in.
+ */
+export function bySignificance(coefficients) {
+  const none = (c) => c.p_value === null || c.p_value === undefined;
+  const size = (c) => (c.std_error ? Math.abs(c.coefficient / c.std_error) : 0);
+  const sooner = (a, b) => a.p_value - b.p_value || size(b) - size(a);
+  return [...coefficients].sort((a, b) => none(a) - none(b) || (none(a) ? 0 : sooner(a, b)));
+}
+
 /** The variance inflation factor above which a term is correlated enough for a note; bootstrap.py's VIF_HIGH. */
 export const VIF_HIGH = 5;
 

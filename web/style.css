@@ -409,6 +409,15 @@ table.data { border-collapse: collapse; font-size: 0.9rem; font-variant-numeric:
 table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: right; }
 table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data th { padding: 0; }
+/* A column's look: the ends of an interval step back, and the estimate between them stands out. */
+table.data .dim { color: var(--muted); }
+table.data td.strong { font-weight: 700; color: var(--fg); }
+/* A table of the analysis wider than its screen is moved sideways: the column that names its rows stays in view,
+   and a number stays whole ("< 0.0001" broke after its sign). */
+#analysis .scroll > table.data th:first-child, #analysis .scroll > table.data td:first-child {
+  position: sticky; left: 0; background: var(--panel);
+}
+#analysis .scroll > table.data td:not(:first-child) { white-space: nowrap; }
 button.sort {
   all: unset; box-sizing: border-box; display: block; width: 100%; padding: 4px 10px;
   cursor: pointer; font-weight: 600; text-align: inherit; white-space: nowrap;

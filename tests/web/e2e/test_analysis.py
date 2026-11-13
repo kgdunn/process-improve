@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import base64
 import re
+from pathlib import Path
+
+import pytest
 
 from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook, workbook_of
 from tests.web.e2e._page import (
@@ -29,10 +32,22 @@ from tests.web.e2e._page import (
     type_results,
 )
 
+#: The columns of the coefficients table every fit has: each estimate between the ends of its 95% interval.
+COEFFICIENT_HEADS = ["Term", "95% low", "Coefficient", "95% high", "Std. error", "p-value"]
+
 
 def coefficient_rows(page) -> list[list[str]]:
     table = page.locator("#analysis table").first
     return [row.locator("td").all_text_contents() for row in table.locator("tbody tr").all()]
+
+
+def coefficient_heads(page) -> list[str]:
+    return page.locator("#analysis table").first.locator("thead th button.sort").all_text_contents()
+
+
+def terms_fitted(page) -> list[str]:
+    """Return the terms of the coefficients table by name: it lists them by significance, which the results decide."""
+    return sorted(row[0] for row in coefficient_rows(page))
 
 
 def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy(page):
@@ -47,20 +62,101 @@ def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy
     assert page.is_hidden("#status")
 
 
+def test_the_coefficients_are_listed_most_significant_first_each_between_the_ends_of_its_interval(page, first_paint):
+    """What the runs are surest of heads the table, and each row reads low end, estimate, high end."""
+    fitted = first_paint["analysis"]["coefficients"]
+    table = page.locator("#analysis table").first
+    assert coefficient_heads(page)[:6] == COEFFICIENT_HEADS
+    rows = coefficient_rows(page)
+    assert [row[0] for row in rows] == [c["label"] for c in sorted(fitted, key=lambda c: c["p_value"])]
+    assert [row[0] for row in rows] != [c["label"] for c in fitted], "which is not the order of the model"
+    said = table.locator("thead th").evaluate_all("(ths) => ths.map((th) => th.ariaSort)")
+    sorts = dict(zip(coefficient_heads(page), said, strict=True))
+    assert sorts["p-value"] == "ascending", "the heading says the rows are in its order"
+    assert set(sorts.values()) == {"ascending", "none"}
+    assert sum(value == "ascending" for value in sorts.values()) == 1
+    for _, low, estimate, high, *_ in rows:
+        assert float(low) <= float(estimate) <= float(high)
+    looks = (
+        table.locator("tbody tr")
+        .first.locator("td")
+        .evaluate_all(
+            "(cells) => cells.map((cell) => [getComputedStyle(cell).color, Number(getComputedStyle(cell).fontWeight)])"
+        )
+    )
+    (_, plain), (dim, _), (bright, bold), (also_dim, _), *_ = looks
+    assert dim == also_dim != bright, "the ends of the interval step back"
+    assert bold >= 700 > plain, "and the estimate between them stands out"
+
+    table.locator("thead button.sort", has_text="p-value").click()
+    assert coefficient_rows(page)[0][0] == rows[-1][0], "pressed, the heading turns the order round"
+    table.locator("thead button.sort", has_text="Term").click()
+    by_name = [row[0] for row in coefficient_rows(page)]
+    assert by_name[:2] == ["F", "F²"], "and any other heading sorts by its own column, as in every table"
+    assert sorted(by_name) == sorted(row[0] for row in rows)
+
+
+def test_a_table_moved_sideways_on_a_narrow_screen_keeps_its_terms_in_view_and_its_numbers_whole(page):
+    """On a phone the table is wider than the screen: moved to its p-values, it showed numbers and no term."""
+    page.set_viewport_size({"width": 390, "height": 800})
+    reveal(page, "#analysis table")
+    held = page.locator("#analysis .scroll").first
+    assert held.evaluate("(box) => box.scrollWidth > box.clientWidth"), "the table is wider than its place"
+    edge = held.bounding_box()["x"]
+    first = held.locator("tbody td").first
+    assert first.bounding_box()["x"] == pytest.approx(edge, abs=1)
+    held.evaluate("(box) => { box.scrollLeft = box.scrollWidth; }")
+    assert held.evaluate("(box) => box.scrollLeft") > 50
+    assert first.bounding_box()["x"] == pytest.approx(edge, abs=1), "the terms stay where they were"
+    assert first.is_visible()
+    heights = held.locator("tbody tr").evaluate_all("(rows) => rows.map((row) => row.getBoundingClientRect().height)")
+    assert max(heights) - min(heights) < 1, '"< 0.0001" is not broken after its sign into a second line'
+
+
+def test_the_coefficients_are_saved_as_a_file_in_full_and_in_the_order_shown(page, first_paint):
+    """The page shows four figures. A reader who works on with the numbers gets them as they were computed."""
+    fitted = {c["label"]: c for c in first_paint["analysis"]["coefficients"]}
+    button = page.get_by_role("button", name="Download this table (.csv)")
+    reveal(page, "#analysis table")
+    asked = page.evaluate("window.__pi.calls.length")
+
+    def saved() -> tuple[str, list[list[str]]]:
+        with page.expect_download() as caught:
+            button.click()
+        lines = Path(caught.value.path()).read_bytes().decode().split("\r\n")
+        assert lines[-1] == "", "each line ends, the last too"
+        return caught.value.suggested_filename, [line.split(",") for line in lines[:-1]]
+
+    name, (heads, *lines) = saved()
+    assert name == f"coefficients-{first_paint['design']['spec']['response']}.csv"
+    assert heads == coefficient_heads(page)
+    assert [line[0] for line in lines] == [row[0] for row in coefficient_rows(page)], "in the order shown"
+    for term, low, estimate, high, error, p, true in lines:
+        row = fitted[term]
+        given = [float(low), float(estimate), float(high), float(error), float(p), float(true)]
+        full = [row["ci_low"], row["coefficient"], row["ci_high"], row["std_error"], row["p_value"], row["true_value"]]
+        assert given == pytest.approx(full, rel=1e-12, abs=0), term
+    assert any(len(line[2].replace("-", "").replace(".", "").lstrip("0")) > 4 for line in lines), (
+        "more than four figures"
+    )
+    assert all("<" not in line[5] for line in lines), (
+        "a p-value is its number, not what the page prints for a small one"
+    )
+
+    page.locator("#analysis table").first.locator("thead button.sort", has_text="Term").click()
+    _, (_, *by_term) = saved()
+    assert [line[0] for line in by_term] == [row[0] for row in coefficient_rows(page)], "sorted by the reader, saved so"
+    assert [line[0] for line in by_term] != [line[0] for line in lines]
+    assert page.evaluate("window.__pi.calls.length") == asked, "Python is not asked"
+
+
 def test_each_estimate_stands_beside_its_true_value(page, first_paint):
     analysis = first_paint["analysis"]
     assert page.text_content("#analysis .equation") == analysis["equation"]
-    assert headers(page, "#analysis table")[:6] == [
-        "Term",
-        "Coefficient",
-        "Std. error",
-        "95% interval",
-        "p-value",
-        "True value",
-    ]
+    assert coefficient_heads(page) == [*COEFFICIENT_HEADS, "True value"]
     rows = coefficient_rows(page)
-    assert [row[0] for row in rows] == [c["label"] for c in analysis["coefficients"]]
-    assert [float(row[-1]) for row in rows] == [c["true_value"] for c in analysis["coefficients"]]
+    assert sorted(row[0] for row in rows) == sorted(c["label"] for c in analysis["coefficients"])
+    assert {row[0]: float(row[-1]) for row in rows} == {c["label"]: c["true_value"] for c in analysis["coefficients"]}
     shown = definition(page, '#analysis table th .term[data-term="true-value"]')
     assert shown.startswith("What the coefficient estimates for the process the results were simulated from")
 
@@ -111,8 +207,7 @@ def test_correlated_terms_show_their_vifs_in_a_column_and_a_note(page, api, tmp_
     # The page reads the file before it calls Python, and is idle meanwhile: wait for the call, then for its answer.
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1")
     settled(page)
-    coefficients = page.locator("#analysis table").first.locator("thead th button.sort").all_text_contents()
-    assert coefficients == ["Term", "Coefficient", "Std. error", "95% interval", "p-value", "VIF"]
+    assert coefficient_heads(page) == [*COEFFICIENT_HEADS, "VIF"]
     assert {row[0]: row[-1] for row in coefficient_rows(page)} == {
         "Intercept": "",
         "A": "10.80",
@@ -135,7 +230,7 @@ def test_choosing_a_model_analyses_the_results_again(page):
     choose(page, model="main_effects")
     settled(page)
     assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == "main_effects"
-    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F"]
+    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F"])
 
 
 def test_choosing_a_transform_analyses_the_response_on_its_scale_and_as_measured_again(page):
@@ -194,7 +289,7 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(b
     practise(page)
     assert status(page)[1] == "ok"
     terms = ["T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
-    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", *terms]
+    assert terms_fitted(page) == sorted(["Intercept", *terms])
     anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert anova == [*terms, "Residual"]
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 4")
@@ -237,7 +332,7 @@ def test_the_terms_to_fit_can_be_ticked_three_factor_interactions_included(blank
     assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == {
         "terms": [["T"], ["P"], ["F"], ["T", "P"], ["T", "F"], ["T", "P", "F"]]
     }
-    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "T·F", "T·P·F"]
+    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F", "T·P", "T·F", "T·P·F"])
     assert 'model="T + P + F + T:P + T:F + T:P:F"' in page.text_content("#py-analyse code")
 
 
@@ -258,7 +353,7 @@ def test_a_design_that_can_fit_the_aim_is_analysed_for_it(blank_page):
     assert page.input_value("#model") == "terms"
     assert ticked(page) == ["T", "P", "F", "T²", "P²", "F²"]
     practise(page)
-    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T²", "P²", "F²"]
+    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F", "T²", "P²", "F²"])
 
 
 def test_a_design_that_cannot_fit_the_aim_is_analysed_as_designed(blank_page):
@@ -312,7 +407,7 @@ def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
     page.click("#simplify-apply")
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
-    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "F²"]
+    assert terms_fitted(page) == sorted(["Intercept", "T", "P", "F", "T·P", "F²"])
     assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
     assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
 
@@ -331,7 +426,7 @@ def test_a_blocked_design_s_model_is_simplified_and_its_blocks_stay_in(blank_pag
 
     enter_results(page, {place: result(place, run) for place, run in enumerate(rows)})
     settled(page)
-    assert [row[0] for row in coefficient_rows(page)][:3] == ["Intercept", "Block 1", "Block 2"]
+    assert {"Intercept", "Block 1", "Block 2"} <= set(terms_fitted(page))
     reveal(page, "#simplify")
     page.click("#simplify-ask")
     page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
@@ -343,9 +438,9 @@ def test_a_blocked_design_s_model_is_simplified_and_its_blocks_stay_in(blank_pag
     page.click("#simplify-apply")
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
-    fitted = [row[0] for row in coefficient_rows(page)]
-    assert fitted[:3] == ["Intercept", "Block 1", "Block 2"], "the blocks stay in the model that is then fitted"
-    assert {"T", "T²"} <= set(fitted[3:])
+    fitted = terms_fitted(page)
+    assert {"Intercept", "Block 1", "Block 2"} <= set(fitted), "the blocks stay in the model that is then fitted"
+    assert {"T", "T²"} <= set(fitted)
     assert len(fitted) < 12, "and it is a simpler model than the nine terms and two blocks before"
     assert page.locator("#term-list input:checked").count() == len(fitted) - 3, "the blocks are no term to tick"
 
@@ -416,7 +511,7 @@ def test_a_nested_model_is_simplified_as_nested_and_the_crossed_one_is_not_propo
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
     nested = ["Intercept", "Supplier[X]", "Supplier[Y]", "Supplier[X]·Batch", "Supplier[Y]·Batch", "Supplier[Z]·Batch"]
-    assert [row[0] for row in coefficient_rows(page)] == nested, "Batch's effect within each supplier"
+    assert terms_fitted(page) == sorted(nested), "Batch's effect within each supplier"
 
     reveal(page, "#simplify")
     page.click("#simplify-ask")

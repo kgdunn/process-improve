@@ -84,7 +84,11 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     assert learn.locator("details[open] tbody tr").count() == 15, "each run as the model sees it, opened for paper"
     assert learn.locator(".equation").text_content() == page.text_content("#analysis .equation")
     coefficients = learn.locator("table").first.locator("thead th").all_text_contents()
-    assert coefficients == ["Term", "Coefficient", "Std. error", "95% interval", "p-value", "True value"]
+    assert coefficients == ["Term", "95% low", "Coefficient", "95% high", "Std. error", "p-value", "True value"]
+    assert learn.locator("table").first.locator("tbody td.strong").count() == 10, (
+        "each estimate stands out on paper too"
+    )
+    assert "Download this table" not in learn.text_content(), "paper has no button to press"
     images = report.locator("figure img")
     assert images.count() >= 3, "the coefficients, the response surface and the residuals at least"
     assert all(src.startswith("data:image/png;base64,") for src in images.evaluate_all("(i) => i.map((x) => x.src)"))

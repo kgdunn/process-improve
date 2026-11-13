@@ -198,6 +198,8 @@ th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: ri
 th:first-child, td:first-child { text-align: left; }
 th { font-weight: 600; }
 td.simulated { font-style: italic; }
+.dim { color: var(--muted); }
+td.strong { font-weight: 700; }
 td.low { color: var(--warn); }
 table.stamp { display: table; width: 100%; }
 table.stamp th { width: 9.5em; text-align: left; color: var(--muted); font-weight: 500; }
