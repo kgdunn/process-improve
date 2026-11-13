@@ -8,11 +8,15 @@ when the results were simulated, each coefficient carries the true value of what
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
 
 from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet, workbook_of
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def analyse(api, spec: dict, model: str = "") -> dict:
@@ -154,6 +158,55 @@ def test_terms_the_reader_chose_are_searched_within_the_smallest_standard_model_
     assert (pairs["within"], pairs["dropped"]) == ("interactions", ["T·F"])
 
 
+def _results(design: dict, of_a_run: Callable[[dict], float], seed: int = 3) -> list[float]:
+    """Return a result for each run of a design: what ``of_a_run`` makes of its settings, with a little noise."""
+    noise = np.random.default_rng(seed).normal(0, 0.1, design["n_runs"])
+    rows = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+    return [float(of_a_run(row) + e) for row, e in zip(rows, noise, strict=True)]
+
+
+def test_a_blocked_design_s_model_is_simplified_with_its_blocks_kept(api):
+    """Ten units between blocks, left in the residual, would hide every effect: the search keeps the blocks in."""
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 3})
+    between = {1: 5.0, 2: -5.0, 3: 0.0}
+
+    def process(run: dict) -> float:
+        t = (run["T"] - 175) / 25
+        return 60 + 4 * t - 3 * t**2 + between[int(run["Block"])]
+
+    request = {**held_of(design), "responses": _results(design, process)}
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["kept"] == ["T", "T²"], "the process's own terms; the blocks are kept, not chosen"
+    assert proposed["terms"] == [["T"], ["T", "T"]]
+    assert set(proposed["dropped"]) == {"P", "F", "T·P", "T·F", "P·F", "P²", "F²"}, "no block among them"
+    assert (proposed["added"], proposed["within"]) == ([], "quadratic")
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert [c["label"] for c in fitted["coefficients"]] == ["Intercept", "Block 1", "Block 2", "T", "T²"]
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+    assert proposed["adjusted_r_squared"] > 0.99
+
+
+def test_a_factor_of_several_levels_is_kept_or_dropped_whole(api):
+    """Its levels are two columns of the model, and one term of the search: both stay, or neither."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    spec = {"design_type": "full_factorial", "factors": [*FACTORS[:2], catalyst], "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    by_level = {"X": 0.0, "Y": 6.0, "Z": -6.0}
+    with_it = _results(design, lambda run: 50 + 3 * (run["T"] - 175) / 25 + by_level[run["Catalyst"]])
+    request = {**held_of(design), "responses": with_it}
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["kept"] == ["T", "Catalyst"]
+    assert proposed["terms"] == [["T"], ["Catalyst"]], "as the page ticks them: the factor, not its levels"
+    assert proposed["dropped"] == ["P", "T·P", "T·Catalyst", "P·Catalyst"], "each named once, by its factors"
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert [c["label"] for c in fitted["coefficients"]] == ["Intercept", "T", "Catalyst[X]", "Catalyst[Y]"]
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+
+    without_it = _results(design, lambda run: 50 + 3 * (run["T"] - 175) / 25)
+    proposed = api.ok("api_simpler_model", {**held_of(design), "responses": without_it})
+    assert proposed["kept"] == ["T"], "both its levels' columns leave together"
+
+
 def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
     request = {**held, "responses": simulated["responses"]}
     terms = api.ok("api_simpler_model", request)["terms"]
@@ -260,6 +313,10 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(a
     contour, contour_x = (json.loads(c["figures"]["contour"]) for c in (charts, charts_x))
     assert contour["layout"]["yaxis"]["title"]["text"] == "I (bar)"
     np.testing.assert_allclose(contour["data"][0]["z"], contour_x["data"][0]["z"])
+    # The prediction variance is of the fitted formula too, whose squares call I(): once there was no such chart.
+    variance, variance_x = (json.loads(c["figures"]["prediction_variance"]) for c in (charts, charts_x))
+    assert variance["layout"]["yaxis"]["title"]["text"] == "I (bar)"
+    np.testing.assert_allclose(variance["data"][0]["z"], variance_x["data"][0]["z"])
 
 
 # --------------------------------------------------------------------------- what the fit can and cannot estimate

@@ -13,6 +13,7 @@ import re
 from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook, workbook_of
 from tests.web.e2e._page import (
     calls,
+    candidates_done,
     choose,
     definition,
     enter_results,
@@ -20,6 +21,7 @@ from tests.web.e2e._page import (
     headers,
     practise,
     reveal,
+    run_sheet,
     saved_studies,
     set_factors,
     settled,
@@ -313,6 +315,70 @@ def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "F²"]
     assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
     assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
+
+
+def test_a_blocked_design_s_model_is_simplified_and_its_blocks_stay_in(blank_page):
+    """The page once refused a blocked study: the search could not keep the blocks in, and dropped effects for it."""
+    page = blank_page
+    generate(page, design_type="box_behnken", n_blocks=3)
+    columns = headers(page)
+    rows = [dict(zip(columns, row, strict=False)) for row in run_sheet(page)]
+    between = {"1": 5.0, "2": -5.0, "3": 0.0}
+
+    def result(place: int, run: dict) -> float:
+        t = (float(run["T"]) - 175) / 25
+        return round(60 + 4 * t - 3 * t**2 + between[run["Block"]] + 0.05 * ((place * 7) % 5 - 2), 3)
+
+    enter_results(page, {place: result(place, run) for place, run in enumerate(rows)})
+    settled(page)
+    assert [row[0] for row in coefficient_rows(page)][:3] == ["Intercept", "Block 1", "Block 2"]
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
+    kept, dropped = page.text_content("#simplify-words").removeprefix("The results support ").split(", without ")
+    assert kept.startswith("T"), "the process's own terms are among those kept"
+    assert "T²" in kept
+    assert "Block" not in kept + dropped, "the blocks are kept in every model: the search neither picks nor drops them"
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#simplify-apply")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    fitted = [row[0] for row in coefficient_rows(page)]
+    assert fitted[:3] == ["Intercept", "Block 1", "Block 2"], "the blocks stay in the model that is then fitted"
+    assert {"T", "T²"} <= set(fitted[3:])
+    assert len(fitted) < 12, "and it is a simpler model than the nine terms and two blocks before"
+    assert page.locator("#term-list input:checked").count() == len(fitted) - 3, "the blocks are no term to tick"
+
+
+def test_a_factor_of_several_levels_is_kept_whole_in_the_simpler_model(fresh_page):
+    """Its levels are two columns of the model and one term of the proposal, ticked once and fitted with both."""
+    page = fresh_page
+    set_factors(page, [*FACTORS[:2], {"name": "Catalyst", "levels": ["X", "Y", "Z"]}])
+    candidates_done(page)
+    generate(page, design_type="full_factorial", n_center_points=0)
+    columns = headers(page)
+    rows = [dict(zip(columns, row, strict=False)) for row in run_sheet(page)]
+    by_level = {"X": 0.0, "Y": 6.0, "Z": -6.0}
+
+    def result(place: int, run: dict) -> float:
+        t = (float(run["T"]) - 175) / 25
+        return round(50 + 3 * t + by_level[run["Catalyst"]] + 0.05 * ((place * 7) % 5 - 2), 3)
+
+    enter_results(page, {place: result(place, run) for place, run in enumerate(rows)})
+    settled(page)
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
+    kept = page.text_content("#simplify-words").removeprefix("The results support ").split(", without ")[0]
+    assert "Catalyst" in kept
+    assert "[" not in kept, f"the factor is named, not its levels: {kept}"
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#simplify-apply")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    fitted = [row[0] for row in coefficient_rows(page)]
+    assert {"T", "Catalyst[X]", "Catalyst[Y]"} <= set(fitted), "both its columns are fitted"
+    assert len(fitted) < 10, "a simpler model than the interactions model's ten columns"
 
 
 PICKED = "The terms of this model were picked from these same results"

@@ -5230,9 +5230,7 @@ def _more_charts(
         "cube": corners if len(corners) == len("xyz") and transform is None else None,
         "normal_probability": [] if residual_df > 0 else None,
         "residuals_order": [] if residual_df > 0 else None,
-        # shortcut: the library's plot reads the fitted formula with patsy, which calls a factor named I where the
-        # formula squares one; upgrade when the plot takes the model's terms (#1229, item 2).
-        "prediction_variance": pair if surface and "I" not in {f["name"] for f in spec["factors"]} else None,
+        "prediction_variance": pair if surface else None,
     }
     return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 
@@ -5334,7 +5332,8 @@ def simpler_model(request: dict) -> dict:
     """Propose the terms of the fitted model that the results support, for the reader to accept or not.
 
     The search is the library's stepwise selection, scored by AICc and keeping effect heredity: an
-    interaction stays only with both its main effects. It
+    interaction stays only with both its main effects. A categorical factor is kept or dropped whole, every
+    level with it, and the blocks of a blocked design are in every model the search scores. It
     searches the terms of the standard model ``within``. ``terms`` holds what it keeps, as the page ticks them
     (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it leaves
     out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
@@ -5344,13 +5343,8 @@ def simpler_model(request: dict) -> dict:
     every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
     spec = _for_response(spec, request.get("response"))
     names = [f["name"] for f in spec["factors"]]
-    # shortcut: the search knows a term by its factors, not a block's or a level's contrast; upgrade when the
-    # library's selection keeps a factor's contrasts together and the blocks in every model.
-    if _mixture(spec) or _blocked(spec) or any(_several(f) for f in spec["factors"]):
-        raise ValueError(
-            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
-            "choose this study's terms yourself, under Terms you choose."
-        )
+    if _mixture(spec):
+        raise ValueError("A mixture's model is chosen by name, under Model: the page proposes no simpler one.")
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
     fitted, columns = _fitted_model(model, spec)
@@ -5367,11 +5361,12 @@ def simpler_model(request: dict) -> dict:
                 "The model uses every run, so none is left to compare a simpler model with: "
                 "judge the effects by Lenth's method, in the table of effects."
             )
-        before = [c["term"] for c in fit["out"]["coefficients"] if c["term"] != "Intercept"]
+        before = _factor_terms(_fitted_terms(fit["out"], columns), spec)
         # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
         # smallest that holds them all, so a term they took out can come back when the results call for it.
         within = model if isinstance(model, str) else _standard_model_of(before)
-        chosen = doe.analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
+        searched = _searched_frame(runs, spec)[done].reset_index(drop=True)
+        chosen = doe.analyze_experiment(searched, y, model=within, analysis_type="model_selection", coding="actual")
     kept = chosen["model_selection"]["selected_terms"]
     return {
         "terms": [_page_term(term) for term in kept],
@@ -5382,6 +5377,42 @@ def simpler_model(request: dict) -> dict:
         "within": within,
         "adjusted_r_squared": chosen["model_selection"]["r_squared_adj"],
     }
+
+
+def _searched_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
+    """Return the runs as the search for a simpler model reads them: a column for each factor, and each run's block.
+
+    A numeric factor is coded as the analysis codes it. A categorical factor is its levels' labels, where the
+    analysis fits a column for each contrast: the library then knows it for a category, keeps or drops all its
+    contrasts together, and searches no square of it.
+    """
+    frame = _coded(runs, spec["factors"])
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            frame[f["name"]] = [levels[i] for i in _level_indices(runs, f)]
+    if _blocked(spec):
+        frame[BLOCK] = runs[BLOCK].to_numpy()
+    return frame
+
+
+def _factor_terms(terms: list[str], spec: dict) -> list[str]:
+    """Name fitted terms by their factors, each once: a term over a level's column of a factor is the factor's.
+
+    The analysis fits a categorical factor of several levels as a column for each contrast, or for each level
+    where another factor is nested in it; the search, and the list the reader ticks, know the factor.
+    """
+    owner = {
+        column: f["name"]
+        for f in spec["factors"]
+        if _categorical(f)
+        for column in (*_contrast_names(f), *_indicator_names(f))
+    }
+    named = [
+        term if term.startswith("I(") else ":".join(dict.fromkeys(owner.get(part, part) for part in term.split(":")))
+        for term in terms
+    ]
+    return list(dict.fromkeys(named))
 
 
 def _standard_model_of(terms: list[str]) -> str:

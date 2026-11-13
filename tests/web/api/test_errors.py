@@ -792,17 +792,10 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
         "The page sent a best blend this page did not write.",
     ),
-    "a blocked design's model to simplify": (
+    "a mixture's model to simplify": (
         "api_simpler_model",
-        lambda ex: {
-            **ex["held"],
-            "spec": {**ex["held"]["spec"], "options": {**ex["held"]["spec"].get("options", {}), "n_blocks": 3}},
-            "responses": ex["simulated"]["responses"],
-        },
-        (
-            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
-            "choose this study's terms yourself, under Terms you choose."
-        ),
+        _mixed(),
+        "A mixture's model is chosen by name, under Model: the page proposes no simpler one.",
     ),
     "a model that uses every run, to simplify": (  # ten coefficients, and ten runs with a result
         "api_simpler_model",
