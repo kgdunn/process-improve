@@ -74,6 +74,14 @@ def test_a_term_of_the_model_confounded_with_the_blocks_is_listed_as_moving_with
     assert [(p["a"], p["blocks"], p["r"]) for p in with_centers["pairs"] if p["blocks"]] == [("T:P", True, 1.0)]
 
 
+def test_a_term_of_the_model_that_does_not_vary_moves_with_nothing_the_blocks_included(api):
+    """Two levels and no center runs hold every square at one value: asked for with squares, the map lists none."""
+    spec = {"design_type": "full_factorial", "factors": factors_named("T", "P"), "n_center_points": 0, "n_blocks": 2}
+    held = held_of(api.ok("api_make_design", spec))
+    reply = api.ok("api_correlations", {**held, "spec": {**held["spec"], "model": "quadratic"}})
+    assert [(pair["a"], pair["blocks"]) for pair in reply["pairs"]] == [("T:P", True)], "the squares are in no pair"
+
+
 def test_a_term_the_blocks_balance_does_not_move_with_them(api):
     """A 2^3 in two blocks gives up A:B:C, which no model of two-factor interactions holds."""
     spec = {"design_type": "full_factorial", "factors": factors_named(*"ABC"), "n_center_points": 0, "n_blocks": 2}

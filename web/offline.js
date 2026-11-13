@@ -22,9 +22,14 @@
 // Nothing here touches the document or the browser until installOffline is called, so tests/web/js reads the lists
 // and the words under Node.js, and runs installOffline against a stand-in for the browser.
 
-/** The copies' names, as sw.js has them (tests/web/page/test_offline.py keeps the two in step). */
+/**
+ * The copies' names, as sw.js has them (tests/web/page/test_offline.py keeps the two in step), and the mark that
+ * the page has made a copy: an empty cache, made before the copies and removed before them. The worker adds
+ * nothing to a copy without its mark, so a copy removed here is not brought back by a worker still at work.
+ */
 export const KEPT = "factorial-kept-1";
 export const APP = "factorial-app-1";
+export const MADE = "factorial-made-1";
 
 /** Where the reader's wish for no copy is noted. */
 const WISH = "factorial-copy";
@@ -204,11 +209,16 @@ function wish(none) {
   }
 }
 
-/** Unregister the worker and delete its copies: the build retires it, or the reader removes the copy. */
+/**
+ * Unregister the worker and delete the copies: the build retires it, or the reader removes the copy. The mark
+ * goes first, so the worker adds nothing more; then each copy, whatever becomes of the one before it.
+ */
 async function removeCopy() {
+  await caches.delete(MADE);
   const registration = await navigator.serviceWorker.getRegistration();
   await registration?.unregister();
-  for (const name of await caches.keys()) if (name.startsWith("factorial-")) await caches.delete(name);
+  const copies = (await caches.keys()).filter((name) => name.startsWith("factorial-"));
+  await Promise.allSettled(copies.map((name) => caches.delete(name)));
 }
 
 const read = async (address, options) => (await fetch(address, options)).json();
@@ -279,6 +289,7 @@ export async function installOffline({ manifest, started, box }) {
         (refused) => (meanwhile ? Promise.reject(refused) : false),
       );
       if (!served) return;
+      await caches.open(MADE); // the mark first: from here on the worker may add to the copy
       await copyInto(KEPT, files.start);
       await copyInto(APP, opening(scope));
       await copyInto(APP, alsoLoaded(scope), { needed: false });

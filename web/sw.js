@@ -11,9 +11,10 @@
 // - Any other request, and any that is not a GET, is left alone: the feedback form's among them.
 //
 // What the copy holds is the page's business (offline.js): it makes the copy, drops what earlier builds left in
-// it, and removes it. This worker only adds to a copy that is there, so one removed stays removed. And it serves a
-// page from the page's next visit on: it never takes over a page that is open, so the visit that registers it
-// loads, and makes its copy, with no worker in its way.
+// it, and removes it. This worker makes no copy: it adds to one the page has made and marked as made (MADE), so a
+// copy removed stays removed, whatever this worker was in the middle of. And it serves a page from the page's next
+// visit on: it never takes over a page that is open, so the visit that registers it loads, and makes its copy,
+// with no worker in its way.
 //
 // The way out, should this worker ever serve a page wrongly, is a build made with --no-service-worker
 // (scripts/build_web_app.py): it puts sw-retire.js at this address, which the browser fetches at the reader's next
@@ -24,6 +25,7 @@
 
 const KEPT = "factorial-kept-1"; // files whose address names their version
 const APP = "factorial-app-1"; // the app's own files and the package indexes: the network's copy when there is one
+const MADE = "factorial-made-1"; // empty: there while the page has a copy, made first and removed first
 
 const PYODIDE = "https://cdn.jsdelivr.net/pyodide/";
 const PLOTLY_JS = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@";
@@ -55,22 +57,28 @@ function address(request) {
   return page.href;
 }
 
-if (typeof module === "object") module.exports = { kind, address, KEPT, APP }; // Node.js, for the tests
+if (typeof module === "object") module.exports = { kind, address, KEPT, APP, MADE }; // Node.js, for the tests
 
 if (typeof ServiceWorkerGlobalScope !== "undefined") {
   const scope = self.registration.scope;
   const whole = (response) => response.status === 200 && response.type !== "opaque";
 
   /**
-   * Keep a response under its address, in a copy that is there. The copies are made by the page (offline.js) and
-   * when this worker takes over (activate); once a reader removes them, a page this worker still serves must not
-   * bring them back. A full disk, or a browser that refuses, loses the copy and not the page.
+   * Keep a response under its address, in a copy the page has made. A reader may remove the copy while this
+   * worker still serves their page, and opening a cache to write to it makes the cache anew. So the page's mark
+   * is looked for before the write and after it: without it nothing is written, and a cache this write brought
+   * back, because the copy went in between, is deleted again. A full disk, or a browser that refuses, loses the
+   * copy and not the page.
    */
-  const keep = (name, href, response) =>
-    caches
-      .has(name)
-      .then((there) => there && caches.open(name).then((cache) => cache.put(href, response)))
-      .catch(() => {});
+  async function keep(name, href, response) {
+    try {
+      if (!(await caches.has(MADE))) return;
+      await (await caches.open(name)).put(href, response);
+      if (!(await caches.has(MADE))) await caches.delete(name);
+    } catch {
+      /* the copy goes without this file */
+    }
+  }
 
   /** The copy of a request, whatever headers it was asked with. Looked up by the copy's name: looking makes none. */
   const held = (name, request) => caches.match(address(request), { cacheName: name, ignoreVary: true });
@@ -102,11 +110,10 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
   self.addEventListener("activate", (event) => {
     event.waitUntil(
       (async () => {
-        // A later version of this worker names its copies anew: the ones before it go.
+        // A later version of this worker names its copies anew: the ones before it go. It makes none itself.
         for (const name of await caches.keys()) {
-          if (name.startsWith("factorial-") && name !== KEPT && name !== APP) await caches.delete(name);
+          if (name.startsWith("factorial-") && ![KEPT, APP, MADE].includes(name)) await caches.delete(name);
         }
-        await Promise.all([caches.open(KEPT), caches.open(APP)]); // the copies, which keep() adds to while they last
       })(),
     );
   });

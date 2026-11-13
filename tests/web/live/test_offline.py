@@ -151,7 +151,7 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
         started(page)
         said(page, "Factorial opens on this device")
         assert page.evaluate(REGISTERED)
-        assert sorted(page.evaluate(COPIES)) == ["factorial-app-1", "factorial-kept-1"]
+        assert sorted(page.evaluate(COPIES)) == ["factorial-app-1", "factorial-kept-1", "factorial-made-1"]
 
     for url in serve(app):
         context = chromium.new_context(viewport={"width": 1280, "height": 900})

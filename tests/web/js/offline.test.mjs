@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
 
-import { APP, KEPT, copyWords, installOffline, laterFiles, loadedNow, pyodideFiles, stale, startFiles } from "../../../web/offline.js";
+import { APP, KEPT, MADE, copyWords, installOffline, laterFiles, loadedNow, pyodideFiles, stale, startFiles } from "../../../web/offline.js";
 import worker from "../../../web/sw.js";
 import { CacheStorage, Network } from "./standins.mjs";
 
@@ -73,8 +73,8 @@ describe("the files the copy is made of", () => {
     assert.equal(laterFiles({ ...listing, manifest: { ...manifest, on_demand: null } }), null);
   });
 
-  test("are under the names the service worker serves from", () => {
-    assert.deepEqual([KEPT, APP], [worker.KEPT, worker.APP]);
+  test("are under the names the service worker serves from, with the mark it looks for", () => {
+    assert.deepEqual([KEPT, APP, MADE], [worker.KEPT, worker.APP, worker.MADE]);
   });
 });
 
@@ -255,6 +255,11 @@ describe("a first visit", () => {
     assert.ok(START.every((address) => browser.network.asked.includes(address)));
   });
 
+  test("marks the copy as made before anything is copied into it, for the worker to add to", async () => {
+    assert.deepEqual(await browser.caches.keys(), [MADE, KEPT, APP]);
+    assert.deepEqual(browser.caches.held(MADE), [], "a mark holds nothing");
+  });
+
   test("downloads nothing of the charts and workbooks", () => {
     assert.ok(!LATER.some((address) => browser.network.asked.includes(address)));
   });
@@ -395,6 +400,17 @@ describe("a reader who removes the copy", () => {
     browser = new Browser();
     page = await browser.visit();
     await page.remove.onclick();
+  });
+
+  test("has the mark removed before the copies, so a worker still at work adds nothing more", async () => {
+    const again = new Browser();
+    const visit = await again.visit();
+    const deleted = [];
+    const remove = again.caches.delete;
+    again.caches.delete = (name) => (deleted.push(name), remove(name));
+    await visit.remove.onclick();
+    assert.equal(deleted[0], MADE);
+    assert.deepEqual(deleted.slice(1).sort(), [APP, KEPT].sort());
   });
 
   test("has the copies deleted and the worker unregistered, and is told so", async () => {

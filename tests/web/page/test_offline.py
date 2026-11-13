@@ -62,9 +62,12 @@ def test_the_worker_reads_nothing_of_the_build(build_script):
 
 def test_the_page_registers_the_worker_it_ships_and_names_the_copies_as_it_does():
     assert 'navigator.serviceWorker.register("sw.js")' in source("offline.js")
-    names = re.findall(r'const (KEPT|APP) = "([^"]+)";', source("sw.js"))
-    assert dict(names) == dict(re.findall(r'export const (KEPT|APP) = "([^"]+)";', source("offline.js")))
+    names = re.findall(r'const (KEPT|APP|MADE) = "([^"]+)";', source("sw.js"))
+    assert {name for name, _ in names} == {"KEPT", "APP", "MADE"}, "the two copies, and the mark that they are made"
+    assert dict(names) == dict(re.findall(r'export const (KEPT|APP|MADE) = "([^"]+)";', source("offline.js")))
     assert all(name.startswith("factorial-") for _, name in names), "what retiring the worker deletes"
+    made = dict(names)["MADE"]
+    assert f'name.startsWith("{made.rsplit("-", 1)[0]}-")' in source("sw-retire.js"), "and its mark, which goes first"
 
 
 def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_is_a_copy():

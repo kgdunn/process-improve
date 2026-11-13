@@ -9,7 +9,11 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      for (const name of await caches.keys()) if (name.startsWith("factorial-")) await caches.delete(name);
+      // The mark that a copy is made goes first: the worker being retired may still be at work, and adds nothing
+      // to a copy without its mark (keep in sw.js).
+      const made = (name) => name.startsWith("factorial-made-");
+      const copies = (await caches.keys()).filter((name) => name.startsWith("factorial-"));
+      for (const name of [...copies.filter(made), ...copies.filter((name) => !made(name))]) await caches.delete(name);
       await self.registration.unregister();
     })(),
   );

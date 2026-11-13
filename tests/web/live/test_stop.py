@@ -1,9 +1,11 @@
 """Stop, against the page's own worker: Pyodide ended in the middle of a search, and started again.
 
 ``tests/web/e2e/test_stop.py`` holds a reply back from a stand-in worker. Here the worker is real: the search for
-the optimal designs of a brief of six factors takes Pyodide long enough for Stop to be offered, and ending it ends
-Python itself. The page starts Python again from what the browser kept, a chart is drawn (plotly is installed anew,
-as the first time), and a second search is stopped as the first was.
+the optimal designs of a brief of six factors, with squares in its model, takes Pyodide long enough for Stop to be
+offered (about fifteen seconds where five or seven factors take about four, which a fast machine could finish before
+Stop is offered at all), and ending it ends Python itself. The page starts Python again from what the browser kept,
+a chart is drawn (plotly is installed anew, as the first time), and the same search is stopped as it was the first
+time.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from typing import Any
 
 from tests.web._browser import BOOT_TIMEOUT, Console
 from tests.web._support import factors_named
-from tests.web.e2e._page import choose, reveal, set_aim, set_factors, settled, status
+from tests.web.e2e._page import choose, reveal, set_aim, set_factors, settled
 from tests.web.live.test_live import started
 
 READY = "document.querySelector('#status .status__text').textContent.startsWith('Ready')"
@@ -32,7 +34,9 @@ def search_and_stop(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
     page.wait_for_selector("#stop:not([hidden])", timeout=60_000)
     page.click("#stop")
     page.wait_for_function("document.querySelector('#stop').hidden")
-    assert status(page)[0].startswith("Stopped"), status(page)[0]
+    # The search is answered as stopped, where its designs would have been listed: the status line has by then
+    # moved on to the Python that is starting.
+    page.wait_for_function("document.querySelector('#candidates').textContent.includes('Stopped, as you asked')")
     page.wait_for_function(READY, timeout=BOOT_TIMEOUT)  # a new worker, and Python in it
 
 
@@ -59,6 +63,6 @@ def test_a_real_search_is_stopped_and_python_starts_again_and_again(own_context,
         "document.querySelectorAll('#charts .js-plotly-plot').length >= 2", timeout=180_000
     )  # it lacked plotly, as the first did, and installed it for its first chart
 
-    set_factors(page, factors_named(*"ABCDEFG"))  # a seventh factor: a new brief, with optimal designs to search for
-    search_and_stop(page)  # the worker that followed is ended as the first was
+    reveal(page, "#factors")  # back to the brief: the same search is asked for again
+    search_and_stop(page)  # and the worker that followed is ended as the first was
     assert not console.unexpected(), console.unexpected()
