@@ -15,7 +15,7 @@
  * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
  * Format 6 holds a curve each run gives (``spec.curve`` and ``curves``), which an earlier page would drop too.
  */
-export const CAMPAIGN_VERSION = 6;
+export const CAMPAIGN_VERSION = 7;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -32,6 +32,9 @@ export const WHAT_IF_FORMAT = 5;
 /** The format of a study that measures a curve on each run; a study without one keeps an earlier format. */
 export const CURVE_FORMAT = 6;
 
+/** The format of a study with runs set aside from a fit (``set_aside``); a study without any keeps an earlier format. */
+export const SET_ASIDE_FORMAT = 7;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
@@ -39,7 +42,8 @@ export const FEW_FACTORS = 12;
 export const CURVE_POINTS_HELD = 1000;
 
 /** The lowest format that holds a study of this specification and these kept settings, which the study is saved in. */
-export function studyFormat(spec, kept = []) {
+export function studyFormat(spec, kept = [], setAside = {}) {
+  if (Object.values(setAside ?? {}).some((runs) => runs.length)) return SET_ASIDE_FORMAT;
   if (spec.curve) return CURVE_FORMAT;
   if (kept.length) return WHAT_IF_FORMAT;
   if (spec.factors.length > FEW_FACTORS) return MANY_FACTORS_FORMAT;
@@ -403,8 +407,9 @@ export function checkCampaign(data) {
   const [responses, sources] = results(data.responses, data.sources, n);
   const factorNames = s.factors.map((f) => f.name);
   const kept = data.what_if === undefined || data.what_if === null ? [] : keptSettings(data.what_if);
+  const aside = setAside(data.set_aside, names, n);
   const out = {
-    v: studyFormat(s, kept),
+    v: studyFormat(s, kept, aside),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -426,6 +431,7 @@ export function checkCampaign(data) {
   if (names.length > 1) Object.assign(out, laterResults(data, names.slice(1), n, factorNames, names[0]));
   if (data.source !== undefined && data.source !== null) out.source = studySource(data.source);
   if (kept.length) out.what_if = kept;
+  if (Object.keys(aside).length) out.set_aside = aside;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
@@ -448,6 +454,24 @@ function studySource(data) {
 }
 
 /** One response's results and their sources: a number or a blank per run, and where each came from. */
+/**
+ * The runs set aside from each response's fit: for a response's column, the places on the run sheet (from 0) of the
+ * runs its model is fitted without. Their results stay on the run sheet. A response with none set aside is left out.
+ */
+function setAside(data, names, n) {
+  if (data === undefined || data === null) return {};
+  if (!isObject(data)) refuse("its runs set aside are not listed by response");
+  const out = {};
+  for (const [name, runs] of Object.entries(data)) {
+    if (!names.includes(name)) refuse(`it sets runs aside for ${JSON.stringify(name)}, which the study does not measure`);
+    const places = list(runs, "the runs set aside", n);
+    if (!places.every((i) => Number.isInteger(i) && i >= 0 && i < n)) refuse("a run set aside is not one of the run sheet's");
+    const sorted = [...new Set(places)].sort((a, b) => a - b);
+    if (sorted.length) out[name] = sorted;
+  }
+  return out;
+}
+
 function results(values, marks, n) {
   const responses = values === undefined ? Array(n).fill(null) : list(values, "the results", n);
   if (responses.length !== n || !responses.every((v) => v === null || isFiniteNumber(v))) refuse("its results are not one number, or a blank, per run");
@@ -596,6 +620,7 @@ export function shareable(campaign, withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });
     if (campaign.curves) out.curves = campaign.curves;
+    if (campaign.set_aside) out.set_aside = campaign.set_aside; // which results a fit goes without: no use without them
     out.simulate = campaign.simulate;
   }
   return out;

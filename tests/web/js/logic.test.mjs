@@ -26,6 +26,10 @@ import {
   CAPTIONS,
   MORE_CHARTS,
   simplerWords,
+  asideOf,
+  asideWords,
+  fittedResults,
+  toggleAside,
   TITLES,
   CATEGORICAL,
   MODES,
@@ -408,6 +412,28 @@ describe("words and numbers", () => {
   test("text placed in HTML is escaped", () => {
     assert.equal(escape('<b a="1">&</b>'), "&lt;b a=&quot;1&quot;&gt;&amp;&lt;/b&gt;");
     assert.equal(escape(12), "12");
+  });
+
+  test("a run set aside from a response's fit has no result for it, and keeps it for the others", () => {
+    const results = { y: [1, 2, 3], cost: [4, 5, 6] };
+    assert.deepEqual(fittedResults(results, { y: [1] }), { y: [1, null, 3], cost: [4, 5, 6] });
+    assert.deepEqual(fittedResults(results), results);
+    assert.deepEqual(results.y, [1, 2, 3], "the run sheet keeps its result");
+  });
+
+  test("a run is set aside and put back, and one with no result is only still to do", () => {
+    let aside = toggleAside({}, "y", 2);
+    aside = toggleAside(aside, "y", 0);
+    assert.deepEqual(aside, { y: [0, 2] });
+    assert.deepEqual(toggleAside(aside, "y", 2), { y: [0] });
+    assert.deepEqual(asideOf(aside, { y: [1, 2, null] }, "y"), [0], "run 3 has no result to set aside");
+    assert.deepEqual(asideOf(aside, { y: [1, 2, 3] }, "cost"), []);
+  });
+
+  test("the runs set aside are said by their run order", () => {
+    assert.equal(asideWords([]), "");
+    assert.equal(asideWords([5]), "Run 5 is set aside: the model is fitted without it.");
+    assert.equal(asideWords([3, 5]), "Runs 3 and 5 are set aside: the model is fitted without them.");
   });
 
   test("the search for a simpler model is said in a sentence", () => {

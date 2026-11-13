@@ -99,6 +99,10 @@ import {
   CAPTIONS,
   MORE_CHARTS,
   simplerWords,
+  asideOf,
+  asideWords,
+  fittedResults,
+  toggleAside,
   STOPPED,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
@@ -490,6 +494,7 @@ const state = {
   analysis: null,
   contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
   moreCharts: false, // whether "More charts" is open
+  setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
   simpler: null, // the terms the search for a simpler model proposed for the analysis on show, or null
   plots: null, // what api_plots last returned, and the request it answered: drawn again at another reading level
   chartRequest: null,
@@ -548,6 +553,15 @@ const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[
 const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, modelOf(name)]));
 
 /** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
+/** Each response's results as its model is fitted to them: without the runs set aside from its fit. */
+const fitted = () => fittedResults(state.results, state.setAside);
+
+/** The runs set aside from a response's fit that have a result, as places on the run sheet. */
+const asideRuns = (name = state.shown) => asideOf(state.setAside, state.results, name);
+
+/** A run's number in the order the runs were made, from its place on the run sheet. */
+const runOrderOf = (place) => state.design.rows[place]?.[state.design.columns.indexOf("Run order")] ?? place + 1;
+
 const sentResults = () => ({ ...splitResults(resultNames(), state.results), ...splitResults(resultNames(), state.marks, "sources") });
 
 /** Each run's curve as Python and a saved study take them, when the study reads one. */
@@ -1929,6 +1943,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   $("#share-out").hidden = true;
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
+  state.setAside = {};
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -3238,6 +3253,7 @@ async function readUpload(file) {
   const names = resultNames();
   state.results = joinResults(names, r.responses, r.more_responses);
   state.marks = joinResults(names, r.sources, r.more_sources);
+  state.setAside = {};
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -3308,7 +3324,7 @@ function clearAnalysis() {
 function analysisRequest(name = state.shown) {
   return {
     ...held(),
-    ...splitResults(resultNames(), state.results),
+    ...splitResults(resultNames(), fitted()),
     model: modelOf(name),
     truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
     ...(several() ? { response: name } : {}),
@@ -3402,7 +3418,7 @@ function renderAnalysis(reply) {
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
-    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
+    out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
     showSimpler(false);
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
@@ -3416,7 +3432,7 @@ function renderAnalysis(reply) {
   setStatus("Analysis complete.");
   analysisSaid = statusTicket;
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete() && !asideRuns().length, shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
   showSimpler(!mixture); // a mixture's model is chosen by name
@@ -3425,6 +3441,7 @@ function renderAnalysis(reply) {
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
   const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
   const parts = [
+    ...asideParts(),
     ...findingParts(r.findings),
     ...comparisonParts(r),
     el("p", "equation", r.equation),
@@ -3547,6 +3564,33 @@ function fitSimpler() {
   $("#term-list").dispatchEvent(new Event("change"));
 }
 
+/** Set a run aside from the fit Learn shows, or put it back, and fit the model again. */
+function setRunAside(place) {
+  state.setAside = toggleAside(state.setAside, state.shown, place);
+  scheduleSave();
+  showResultsCode();
+  analyseRuns();
+}
+
+/**
+ * The runs set aside from the fit on show, in a sentence, each with a button that puts it back: said above
+ * everything else, since every number below is the model's without them.
+ */
+function asideParts() {
+  const places = asideRuns();
+  if (!places.length) return [];
+  const note = el("p", "aside-runs", `${asideWords(places.map(runOrderOf))} `);
+  note.id = "aside-runs";
+  for (const place of places) {
+    const back = el("button", "link", `Put run ${runOrderOf(place)} back`);
+    back.type = "button";
+    back.dataset.place = place;
+    back.onclick = () => setRunAside(place);
+    note.append(back, " ");
+  }
+  return [note];
+}
+
 /** What the analysis found, in sentences Python wrote from its numbers: the same results give the same words. */
 function findingParts(findings) {
   if (!findings?.length) return [];
@@ -3583,6 +3627,19 @@ function diagnosticParts(diagnostics, transform) {
       { Residual: "residuals" },
     ),
   );
+  // Each run can be set aside from this fit: its result stays on the run sheet, and the model is fitted without it.
+  const order = state.design.columns.indexOf("Run order");
+  box.querySelector("thead tr").append(el("th", "", "Set aside"));
+  box.querySelectorAll("tbody tr").forEach((tr, i) => {
+    const place = state.design.rows.findIndex((row) => row[order] === diagnostics[i].run);
+    const aside = el("button", "link", "Set aside");
+    aside.type = "button";
+    aside.setAttribute("aria-label", `Set run ${diagnostics[i].run} aside from this fit`);
+    aside.onclick = () => setRunAside(place);
+    const cell = el("td", "", "");
+    if (place >= 0) cell.append(aside);
+    tr.append(cell);
+  });
   return [box];
 }
 
@@ -3920,7 +3977,9 @@ function comparisonNotes(r) {
  * Run tab counts them, and a line says how a run with some of its results is fitted: for the responses it has.
  */
 function fitLines(r) {
-  if (!several()) return fitStatistics(r.summary, r.n_completed, r.pending_runs);
+  const aside = new Set(asideRuns().map(runOrderOf));
+  const pending = r.pending_runs.filter((run) => !aside.has(run));
+  if (!several()) return fitStatistics(r.summary, r.n_completed, pending);
   const names = resultNames();
   const confirming = new Set(confirmationRows(state.design));
   const complete = completeRuns(state.results, names).filter((ok, i) => ok && !confirming.has(i)).length;
@@ -3928,7 +3987,7 @@ function fitLines(r) {
   const runs = partialRuns(state.results, names)
     .filter((i) => !confirming.has(i))
     .map((i) => state.design.rows[i][order] ?? i + 1);
-  const lines = fitStatistics(r.summary, complete, r.pending_runs);
+  const lines = fitStatistics(r.summary, complete, pending);
   if (runs.length) lines.splice(1, 0, partialSentence(runs, wordsOf(state.shown).label, r.n_completed));
   return lines;
 }
@@ -4583,7 +4642,7 @@ async function findBalance() {
     return;
   }
   const mine = ++balanceTicket;
-  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName(), goals: sentGoals() });
+  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
   if (mine !== balanceTicket) return;
   renderBalance(reply);
   if (state.whatIf) renderWhatIf(); // the balanced settings it comes back to have moved
@@ -4803,7 +4862,7 @@ async function findWhatIf() {
     return;
   }
   const mine = ++whatIfTicket;
-  const reply = await call("api_predictors", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName() });
+  const reply = await call("api_predictors", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName() });
   if (mine !== whatIfTicket) return;
   showWhatIf(reply.ok ? reply.result : null);
 }
@@ -5395,6 +5454,7 @@ async function showBuiltExample() {
   const [name] = resultNames(); // the worked example measures one response
   state.results = { [name]: [...example.simulation.responses] };
   state.marks = { [name]: example.simulation.responses.map(() => "simulated") };
+  state.setAside = {};
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -5655,7 +5715,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, state.scenarios),
+    v: studyFormat(spec, state.scenarios, keptAside()),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -5666,8 +5726,15 @@ function currentCampaign() {
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
     ...sentCurves(),
   };
+}
+
+/** The runs set aside as a study keeps them: for each response with some, those that have a result. */
+function keptAside() {
+  const kept = resultNames().map((name) => [name, asideRuns(name)]);
+  return Object.fromEntries(kept.filter(([, runs]) => runs.length));
 }
 
 let saveTimer = null;
@@ -5902,6 +5969,7 @@ async function openCampaign(c, record, message) {
   const names = resultNames();
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
+  state.setAside = structuredClone(c.set_aside ?? {});
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
@@ -6139,7 +6207,8 @@ function hidePython(key) {
 /** Show the run's code: the simulation while every result is as simulated, else the results on the page. */
 function showResultsCode() {
   const simulated = state.simulation && allSimulated();
-  showPython("run", resultsCode(state.design, state.results, simulated ? state.simulation : null));
+  // The code holds the results the models are fitted to: a run set aside has none, as on the page.
+  showPython("run", resultsCode(state.design, fitted(), simulated ? state.simulation : null));
 }
 
 /**

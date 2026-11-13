@@ -524,6 +524,37 @@ export function splitResults(names, byName, key = "responses") {
   return out;
 }
 
+/**
+ * Each response's results as its model is fitted to them: a run set aside from a response's fit has no result for
+ * it. ``setAside`` holds, for a response's column, the places on the run sheet of the runs set aside.
+ */
+export function fittedResults(results, setAside = {}) {
+  return Object.fromEntries(
+    Object.entries(results).map(([name, values]) => {
+      const aside = new Set(setAside[name] ?? []);
+      return [name, values.map((value, i) => (aside.has(i) ? null : value))];
+    }),
+  );
+}
+
+/** A response's runs set aside, kept to those the run sheet has a result for: a run with none is only still to do. */
+export const asideOf = (setAside, results, name) => (setAside[name] ?? []).filter((i) => (results[name]?.[i] ?? null) !== null);
+
+/** One more run set aside from a response's fit, or one put back: the places set aside, in order. */
+export function toggleAside(setAside, name, place) {
+  const now = new Set(setAside[name] ?? []);
+  if (now.has(place)) now.delete(place);
+  else now.add(place);
+  return { ...setAside, [name]: [...now].sort((a, b) => a - b) };
+}
+
+/** What Learn says of the runs set aside from the fit it shows, by their run order: "" for none. */
+export function asideWords(runs) {
+  if (!runs.length) return "";
+  const one = runs.length === 1;
+  return `Run${one ? "" : "s"} ${listNames(runs.map(String))} ${one ? "is" : "are"} set aside: the model is fitted without ${one ? "it" : "them"}.`;
+}
+
 /** The reverse of splitResults: each response's results by its column, from the first's list and the others'. */
 export function joinResults(names, first, more = {}) {
   const [head, ...rest] = names;

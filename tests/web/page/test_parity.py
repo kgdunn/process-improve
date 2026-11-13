@@ -727,7 +727,14 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
     """The replicates the page offers, more for one factor's levels, and the format a one-factor study is saved in."""
     held = javascript(node, source("logic.js"), [("MAX_REPLICATES", []), ("MAX_LEVEL_RUNS", [])])
     assert held == [bootstrap.MAX_REPLICATES, bootstrap.MAX_LEVEL_RUNS]
-    each = ["ONE_FACTOR_FORMAT", "LEVELS_FORMAT", "MANY_FACTORS_FORMAT", "WHAT_IF_FORMAT", "CURVE_FORMAT"]
+    each = [
+        "ONE_FACTOR_FORMAT",
+        "LEVELS_FORMAT",
+        "MANY_FACTORS_FORMAT",
+        "WHAT_IF_FORMAT",
+        "CURVE_FORMAT",
+        "SET_ASIDE_FORMAT",
+    ]
     names = ["CAMPAIGN_VERSION", *each, "FEW_FACTORS"]
     formats = javascript(node, source("campaign.js"), [(name, []) for name in names])
     assert formats == [getattr(build_script, name) for name in names]

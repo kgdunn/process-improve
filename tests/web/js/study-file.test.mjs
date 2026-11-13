@@ -7,7 +7,17 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { CAMPAIGN_VERSION, CURVE_FORMAT, LEVELS_FORMAT, MANY_FACTORS_FORMAT, WHAT_IF_FORMAT, checkCampaign, packCampaign, shareable } from "../../../web/campaign.js";
+import {
+  CAMPAIGN_VERSION,
+  CURVE_FORMAT,
+  LEVELS_FORMAT,
+  MANY_FACTORS_FORMAT,
+  SET_ASIDE_FORMAT,
+  WHAT_IF_FORMAT,
+  checkCampaign,
+  packCampaign,
+  shareable,
+} from "../../../web/campaign.js";
 import { canonicalJson, sha256 } from "../../../web/report.js";
 import { FILE_FORMAT, FILE_VERSION, fileStem, readStudyFile, studyFile, studyOf } from "../../../web/study-file.js";
 
@@ -215,6 +225,32 @@ describe("the study file", () => {
     study.design.spec.curve = { label: "Colour", argument: { label: "Time", values: [0, 5, 10] } };
     study.curves = [[0, 1, 2], null, null, null];
     await refusedByAnEarlierPage(CURVE_FORMAT - 1, study);
+  });
+
+  test("an earlier Factorial, of format 6, refuses a study with a run set aside as saved by a later one", async () => {
+    const study = { ...record("aside", "Aside"), v: SET_ASIDE_FORMAT, set_aside: { y: [1] } };
+    await refusedByAnEarlierPage(SET_ASIDE_FORMAT - 1, study);
+  });
+
+  test("writes the runs set aside from a fit and reads them back, in the format that holds them", async () => {
+    const study = { ...record("aside"), v: SET_ASIDE_FORMAT, set_aside: { y: [3, 0, 3] } };
+    const { studies, refused } = await readStudyFile(await asText([study, record("none", "Without")]));
+    assert.deepEqual(refused, []);
+    assert.deepEqual(studies[0].study.set_aside, { y: [0, 3] }, "each place once, in order");
+    assert.equal(studies[0].study.v, SET_ASIDE_FORMAT);
+    assert.deepEqual(studies[0].study.responses, [12.5, 9.75, null, 14], "a run set aside keeps its result");
+    assert.equal(studies[1].study.set_aside, undefined);
+    assert.equal(studies[1].study.v, 1, "a study with no run set aside keeps the format it had");
+    assert.deepEqual(shareable(studies[0].study, true).set_aside, { y: [0, 3] });
+    assert.equal(shareable(studies[0].study, false).set_aside, undefined, "a link without results has none to set aside");
+  });
+
+  test("a run set aside must be one of the run sheet's, for a response the study measures", () => {
+    const { id, created, updated, ...study } = record();
+    assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: { y: [4] } }), /a run set aside is not one of the run sheet's/);
+    assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: { cost: [0] } }), /which the study does not measure/);
+    assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: [0] }), /not listed by response/);
+    assert.equal(checkCampaign({ ...study, set_aside: { y: [] } }).set_aside, undefined, "none set aside is not kept");
   });
 
   test("names its file from the study's title", () => {

@@ -281,7 +281,16 @@ def test_each_run_is_listed_as_the_model_sees_it_under_a_heading_to_open(page):
     box.locator("summary").click()
     assert box.locator("tbody tr").count() == 15
     heads = box.locator("thead th").all_text_contents()
-    assert heads == ["Run", "Fitted", "Residual", "In standard deviations", "Leverage", "Cook's distance", "Look again"]
+    assert heads == [
+        "Run",
+        "Fitted",
+        "Residual",
+        "In standard deviations",
+        "Leverage",
+        "Cook's distance",
+        "Look again",
+        "Set aside",
+    ]
 
 
 # --------------------------------------------------------------------------- a simpler model, proposed and accepted
@@ -317,3 +326,53 @@ def test_a_model_that_uses_every_run_is_not_simplified_and_the_page_says_why(bla
         "document.querySelector('#simplify-words').textContent.startsWith('The model uses every run')"
     )
     assert page.is_hidden("#simplify-apply")
+
+
+# --------------------------------------------------------------------------- a run set aside from the fit
+def set_aside(page, run: int) -> None:
+    """Open the runs' table and set a run aside, by its run order; wait for the model to be fitted without it."""
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    if not page.locator("#diagnostics").evaluate("(box) => box.open"):
+        page.click("#diagnostics > summary")
+    page.click(f'#diagnostics button[aria-label="Set run {run} aside from this fit"]')
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+
+
+def test_a_run_set_aside_keeps_its_result_and_the_model_is_fitted_without_it(page):
+    set_aside(page, 5)
+    assert page.text_content("#aside-runs").startswith("Run 5 is set aside: the model is fitted without it.")
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]
+    place = next(i for i, row in enumerate(sent["rows"]) if row[sent["columns"].index("Run order")] == 5)
+    assert sent["responses"][place] is None, "Python fits the model without it"
+    assert page.locator(f'#design-table input[data-index="{place}"]').input_value() != "", "the run sheet keeps it"
+    assert "14 completed runs" in page.text_content("#analysis")
+    assert "Still to run" not in page.text_content("#analysis"), "a run set aside is not one still to do"
+    assert page.locator("#diagnostics tbody tr").count() == 14
+
+
+def test_a_run_set_aside_is_put_back(page):
+    set_aside(page, 5)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#aside-runs button")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    assert page.locator("#aside-runs").count() == 0
+    assert "15 completed runs" in page.text_content("#analysis")
+    assert None not in calls(page, "api_analyze_runs")[-1]["payload"]["responses"]
+
+
+def test_a_run_set_aside_is_kept_with_the_study(blank_page):
+    """The study is saved with it, in the format that holds it, and a later visit fits the model without it still."""
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=4)
+    practise(page)
+    settled(page)
+    reveal(page, "#analysis")
+    set_aside(page, 3)
+    page.wait_for_function("window.__pi.idle()")
+    page.wait_for_timeout(600)  # the study is saved a moment after its last change
+    page.reload()
+    page.wait_for_selector("#aside-runs")
+    assert page.text_content("#aside-runs").startswith("Run 3 is set aside: ")
+    assert "11 completed runs" in page.text_content("#analysis")
