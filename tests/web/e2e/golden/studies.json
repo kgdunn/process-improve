@@ -1,0 +1,404 @@
+{
+ "made": "Made on 13 November 2026 with factori.al, which then served process-improve 2.5.0 at commit 26ccfba9. Each link opened there showing these readings, to within one unit of the last digit shown, and studies.factorial.json is what its Download all wrote once every link had been opened.",
+ "cases": [
+  {
+   "name": "worked_example",
+   "about": "The worked example as the home page draws it, shared with its results: a Box-Behnken design in three factors.",
+   "title": "Yield (%), maximise: Box-Behnken in T, P and F",
+   "link": "#c=1VXbiuM4EP0VUTAwl4o3si0nbdiXWQgMLEszm5clBKO2lUSsLWUkuS_b5KfmJe_5sqVsJzHpndeBBRMrpVOnjlQXv8Ij5Bwh6FAryOEvreqKvX_3AVkjn3WjvcrZZ_s8-ax25m9lmDZsieyeSVOxBSBUyuutgfwV_F6V9H5UzmtrOtp-twgveyJ_sM_FQ88DCBtZBus85KtXMLIhwBIQavsEORdThJ3e7iCPp1OE1ujgIYdKbX-DA14c7i8OZ3hyBT9IN8YuLtgR9xX9-y-NNnBYIzjl99b4y3UAQmMrVUMO31pZORl0CQh2H7Q1no7spKlsU_ggg4I8jRFMUSoTlCv2VhviTw5X4kKbjSW_Wj50tOcwZy3vAGFrJW31WfhHAUJ42euSjBkFsJoUcgTfyLpWPhTlTpqtgjw-IEjddM7aFFfNB4TS1m1DolfwZ6iYdZVygPC1NZc1JYHule6rF0Z3Yp_IaTVDjpSRGPkUTVvXa1zNMR5s8cXGp5ggn4kOfjammHbABLm4AFEgZZuPbTFmnXMyZhQ464zxGMlxPiCvejK86yjHerp9ij2OI5DzAXn15gny-E2gGMkubrSnSM8NlIIPRz-zrv-7gqgD-vpR3tZt6LqGHBC2yignh_5YUyNttNFmWzhVyx5IZllr6dWAGSrOtZTfhEokdFvwh2VUCUxtNqoMzDoWnuyk7z-myUmWxMm0Z5u2rl9Yz1uxJx12TBobdspFsD4g2DZ4XanC9bW2Itv5bHAtcYqbxVEiMMuiJMYsje4SzJKI04_gKObRXGDGozRDIaJ0jmIWzTPMZtH8DkUaTRPM4kgIFHGUZYScp5hNoyxeI3jburI_nNdNW8ugqH_-H-v15U-Xx1fwpTLSaQs5ONVlhUbVMBu-9hb2MswIr7eN7Btfqapb_KRLD64Nu25cB-VovHyh0inVPozkjm2lVZuNLrUygYYWzeLBcznyWN4i0xHwfgS8vwVOkoiPsIsRdnGL5dFMjAXkY-bl6fiGnEdj_Jf3C_bxI4s_jGOcvr9RFEexoG-I-tYO6R0-qb-yLGafWHo6LtmEJRE_He_ZJ0ayTsdFtxKnIwlhE0Ysp2PPrw015-O5185l9MO6eVMfh8O_",
+   "headers": ["Std order", "Run order", "T", "P", "F", "Yield"],
+   "run_sheet": [
+    ["7", "1", "200", "2", "10", "62.35"],
+    ["8", "2", "200", "2", "20", "66.32"],
+    ["10", "3", "175", "1", "20", "64.93"],
+    ["4", "4", "200", "3", "15", "63.1"],
+    ["1", "5", "150", "1", "15", "63.51"],
+    ["12", "6", "175", "3", "20", "58.85"],
+    ["15", "7", "175", "2", "15", "61.46"],
+    ["11", "8", "175", "3", "10", "55.48"],
+    ["6", "9", "150", "2", "20", "57.86"],
+    ["3", "10", "200", "1", "15", "67.89"],
+    ["5", "11", "150", "2", "10", "54.03"],
+    ["13", "12", "175", "2", "15", "62.55"],
+    ["2", "13", "150", "3", "15", "52.66"],
+    ["14", "14", "175", "2", "15", "61.84"],
+    ["9", "15", "175", "1", "10", "60.62"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Yield": {
+     "coefficients": {
+      "Intercept": ["61.95", "0.4855", "< 0.0001"],
+      "T": ["3.950", "0.2973", "< 0.0001"],
+      "P": ["-3.358", "0.2973", "< 0.0001"],
+      "F": ["1.935", "0.2973", "0.0013"],
+      "T·P": ["1.515", "0.4205", "0.0155"],
+      "T·F": ["0.03500", "0.4205", "0.9369"],
+      "P·F": ["-0.2350", "0.4205", "0.6004"],
+      "T²": ["0.005000", "0.4377", "0.9913"],
+      "P²": ["-0.1650", "0.4377", "0.7216"],
+      "F²": ["-1.815", "0.4377", "0.0089"]
+     },
+     "best": {"T": "200 degC", "P": "1 bar", "F": "18.04 L/min"}
+    }
+   }
+  },
+  {
+   "name": "full_factorial_center",
+   "about": "A full factorial in three factors with two centre points, its results typed in.",
+   "title": "Yield (%), maximise: Full factorial (2-level) in T, P and F",
+   "link": "#c=tVTBjpswEP0Va6SVdqXZNJAEAtdKOVXVqt1LFUXICxNiydipbTbdRvx7NUAgPfTYS5g8v-dnvxm4wjvkEUJQQRPk8EORrsTjwxOKRv5SjfKUi12rtTjKMlinpBaP8bOmd9JPQhnxiuJFSFOJHSBU5FVtIL-CP1PJz3dyXlnTewyrRfg4s9Ox1bqYNgWEofaQ769gZMOcV0DQ9gJ5tFkinFR9gjxeLhFao4KHHCqqP0OHk-BlEtzoq5n8Jt09dzdx7_ae2V8-NcpAd0Bw5M_W-CkeQGhsRRpyUCaQk2VQ1nhAsOehyq_gpKlsU_ggA0Eepdk6ieLtao1gipJYVpytMmwVd7NHoczRsl7Lt97h5ng71gMg1Fby0tCg3wQdglRNjyhT_Gxl5WRQJeOl1W3DJ9rD91AJ6ypygPCtNVPNIXNunMfgxne2FxbtE4yQE-dfNK3WB9ynGPfYCqMJi_jfhnkztsX1yJu1a9z0vHtshcmIzdoNpqPvnccStxilG4wx2tzAGLPReN4wY9HfxMM_e8ZjN3SMvNVt6KeVNQg1GXJyHMoDD_BRGWXqwpGWA5FhqZX0NHLG3rqWQ48RjA39Eny1gtsj6HikMgjrRLjY52Hoxd2ZhPKC340PMexbiYsKJyGNDSdyCzh0CLYNXlVUOGlqYt9uvh7Mw8S-SbbIME0XW0xSTBN-rhcZJukiwnS1iDDJBizmanVA8LZ15XDm_i7E4_e_KvZTTXuLc8h9RKj_kJRkpFMWcnDUhwVMqBvZv-SeqII86ro_",
+   "headers": ["Std order", "Run order", "T", "P", "F", "Yield"],
+   "run_sheet": [
+    ["6", "1", "200", "1", "20", "69.9"],
+    ["7", "2", "200", "3", "10", "77.8"],
+    ["1", "3", "150", "1", "10", "67"],
+    ["8", "4", "200", "3", "20", "76.8"],
+    ["4", "5", "150", "3", "20", "64.9"],
+    ["3", "6", "150", "3", "10", "67.1"],
+    ["5", "7", "200", "1", "10", "73.1"],
+    ["10", "8", "175", "2", "15", "69.8"],
+    ["2", "9", "150", "1", "20", "64.2"],
+    ["9", "10", "175", "2", "15", "69.3"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Yield": {
+     "coefficients": {
+      "Intercept": ["69.99", "0.1760", "< 0.0001"],
+      "T": ["4.300", "0.1967", "0.0002"],
+      "P": ["1.550", "0.1967", "0.0043"],
+      "F": ["-1.150", "0.1967", "0.0100"],
+      "T·P": ["1.350", "0.1967", "0.0063"],
+      "T·F": ["0.1000", "0.1967", "0.6463"],
+      "P·F": ["0.3500", "0.1967", "0.1733"]
+     },
+     "best": {"T": "200 degC", "P": "3 bar", "F": "10 L/min"}
+    }
+   }
+  },
+  {
+   "name": "fractional_five",
+   "about": "A half fraction of resolution V in five factors, with centre points.",
+   "title": "Strength (MPa), maximise: Fractional factorial (2-level) in A, B, C, D and E",
+   "link": "#c=1VVNj5swEP0r1px2pQmKAYeA1MN-pFIPW622Ui9RhNzgEEtgR8Zsuo3yu3LPL6sMBEhXVfdaGYF5fp43fh7DAV4hoQhW2kJAAt-sESq3W3Lz9MxvkZT8pyxlJRLy2fC1lVrxgmz42mojeUFu_EkhXkVxS6Qid0jukTwgeSRcZWQBCJmoZK4gOUC1E2v3fBWmklo1ou1oat92TnrTC6S9ACC0_QqS5QEULx3zDhAKvYdkQhG2Mt820WolbQUJwBF75v2HmQ8fZj5-mLn4B3OFYES106oaWw8Ipc5EAQlIZUXnSgUIetf2kgMYrjJdppXlVkBCozicUX8exAgqXQs3Ld1pqZxQ0KjooraN7-FxUE2l2mgXruA_GsFRDpc0n545IOSau_G2HH4JOCJwWTaIVKnYbMTaVg5d66IuXY5L-GYzok0mDCC81Krvu-1zG-Msd2Y6m3ph54neu_lLypB2bdJcqi6KFS7pFP0ec-2CzzHAad86dI7hhXcVJEA2Cj3gFGfYQWM8wugS5ooe4_y9ZojxKL2BjHTa4X-qzpBSHFoHz5D6o1QGuo80GNBhVQHSsI99ZRpDysbwyIkI6ez9Gnyk0TjT0YQQ6XxwYhiIkcZjgcvI6q8V7Q53W8-jCmUIuVDC8O7cw4J8Infn0_359HA-PboSycRGKqny1IiCt7OW8OWKdj4tHJMXklfChVkhdCfD1Ko9F0rbZgheennyHUmvTq6VPUD4qokredKWPNGG2L2etB8pMlodkRXZ1EXxRtoMMrKXdku40nYrjAerI4KubSUzkRqucuEyPA5GwXBKXYYs9Cgy6s2QTb0Aw1nbo8jC9jXAMPbmyHwMI_cMPYah7_nImBc5KsMw8HzHYu4WuluEzPfiFUKla7NurWgsEhngf9hzK5FlfSkJV3w9Ipq_0FoobqSGBIxo9gwcIS9582muhMggocfjbw",
+   "headers": ["Std order", "Run order", "A", "B", "C", "D", "E", "Strength"],
+   "run_sheet": [
+    ["15", "1", "1", "1", "1", "-1", "-1", "54.1"],
+    ["10", "2", "1", "-1", "-1", "1", "1", "51.6"],
+    ["18", "3", "0", "0", "0", "0", "0", "50.3"],
+    ["8", "4", "-1", "1", "1", "1", "-1", "46.6"],
+    ["13", "5", "1", "1", "-1", "-1", "1", "50.1"],
+    ["11", "6", "1", "-1", "1", "-1", "1", "54.3"],
+    ["7", "7", "-1", "1", "1", "-1", "1", "46.3"],
+    ["19", "8", "0", "0", "0", "0", "0", "49.8"],
+    ["4", "9", "-1", "-1", "1", "1", "1", "52"],
+    ["1", "10", "-1", "-1", "-1", "-1", "1", "47.8"],
+    ["16", "11", "1", "1", "1", "1", "1", "54.5"],
+    ["6", "12", "-1", "1", "-1", "1", "1", "42.2"],
+    ["12", "13", "1", "-1", "1", "1", "-1", "55.7"],
+    ["3", "14", "-1", "-1", "1", "-1", "-1", "50.5"],
+    ["5", "15", "-1", "1", "-1", "-1", "-1", "43.2"],
+    ["17", "16", "0", "0", "0", "0", "0", "49.5"],
+    ["2", "17", "-1", "-1", "-1", "1", "-1", "49.4"],
+    ["14", "18", "1", "1", "-1", "1", "-1", "49.7"],
+    ["9", "19", "1", "-1", "-1", "-1", "-1", "52.9"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Strength": {
+     "coefficients": {
+      "Intercept": ["50.03", "0.08558", "< 0.0001"],
+      "A": ["2.806", "0.09326", "< 0.0001"],
+      "B": ["-1.719", "0.09326", "0.0003"],
+      "C": ["1.694", "0.09326", "0.0004"],
+      "D": ["0.1563", "0.09326", "0.1924"],
+      "E": ["-0.2063", "0.09326", "0.1139"],
+      "A·B": ["0.9562", "0.09326", "0.0020"],
+      "A·C": ["0.09375", "0.09326", "0.3888"],
+      "A·D": ["-0.1438", "0.09326", "0.2209"],
+      "A·E": ["-0.03125", "0.09326", "0.7596"],
+      "B·C": ["0.3438", "0.09326", "0.0346"],
+      "B·D": ["-0.2438", "0.09326", "0.0794"],
+      "B·E": ["0.1437", "0.09326", "0.2209"],
+      "C·D": ["0.2937", "0.09326", "0.0513"],
+      "C·E": ["0.2312", "0.09326", "0.0893"],
+      "D·E": ["0.06875", "0.09326", "0.5144"]
+     },
+     "best": {"A": "1", "B": "-1", "C": "1", "D": "1", "E": "-1"}
+    }
+   }
+  },
+  {
+   "name": "ccd_two",
+   "about": "A central composite design in two factors, whose best settings lie inside the region.",
+   "title": "Conversion (%), maximise: Central composite (CCD) in Temperature and Time",
+   "link": "#c=vVRNj5swEP0r1kiVdqUpwvkAwjU999DuLYqQCxNiydjUNptuV_z3aiAbkqrnXmA08-a9-ZLf4RVKiRB1NAQl7J19JR-0s-Lp0zOKTv3SnQ5Uij3Z6JURtet6F3Qk8bTff3kW2ooX6nryKg6ehLKNeNEdAUJDQbcWyncIPdX8v1JPinO0im8969Z1AwgnVUfnA5SHd7Cq48AdNyAYd4GySBHOuj1DKVcpwmB1DFBCQ-0eRlwy5yqmlPUtZXeX0WkL4xHBU-idDY_9A0LnGjJQws9BNV5FXQOC66N2NnA3XtnGdVWIKhKUMt9tMrkqNhsEW9VkI_mqd9qy1BpBmf6soOQe6RqmBsZFvdL25JjXqB-T7EMtHzV_AoTWKY7Pu_lNTKJ0N3m0rZZqR4TamaHjcg_wPTbC-YY8IHwb7M1-nPB1anfaPCB3YYpDjhJlmuI6RTsYc8RDgavJs7t5JK6xuIdIiZsJk91cG9wi727JyjCbPAtmjfnkWYi2WDDzApEp7v5i5moYtDDvUMoH0PHfi-Xbm9dKwZkhTnfKCQgtWR7QfJlHPt2Tttq2lSejZiC7ldEq0BVzPQA_2Hn91sUpBF-d4DUJOp2ojsJ5ES_u83z5QnOSqplT6CBOgzFvYuZtxEXHs1DWxTP5BI4jghti0A1VXtmWWHdceoPlslg33yYZ5kUiMcuSAguZSMwz_uRJwdYa8xUH0mR7teQRIbjB13PhHyeL_8FiZd0NH9Od13D10PSi1GSV1w5K8DTNDhjQdmp6XAJRA6Ucxz8",
+   "headers": ["Std order", "Run order", "Temperature", "Time", "Conversion"],
+   "run_sheet": [
+    ["7", "1", "100", "30", "75.6"],
+    ["8", "2", "100", "90", "78.1"],
+    ["1", "3", "80", "30", "66.8"],
+    ["11", "4", "100", "60", "81.1"],
+    ["4", "5", "120", "90", "76.1"],
+    ["6", "6", "120", "60", "77.8"],
+    ["3", "7", "120", "30", "76.3"],
+    ["5", "8", "80", "60", "72.8"],
+    ["10", "9", "100", "60", "80.5"],
+    ["2", "10", "80", "90", "72.8"],
+    ["9", "11", "100", "60", "81"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Conversion": {
+     "coefficients": {
+      "Intercept": ["80.51", "0.3821", "< 0.0001"],
+      "Temperature": ["2.967", "0.3041", "0.0002"],
+      "Time": ["1.383", "0.3041", "0.0061"],
+      "Temperature·Time": ["-1.550", "0.3725", "0.0088"],
+      "Temperature²": ["-4.663", "0.4680", "0.0002"],
+      "Time²": ["-3.113", "0.4680", "0.0012"]
+     },
+     "best": {"Temperature": "105.9 degC", "Time": "64.47 min"}
+    }
+   }
+  },
+  {
+   "name": "analysis_choices",
+   "about": "A full factorial in four factors analysed as the reader chose: main effects only, on the log scale, run 3 set aside.",
+   "title": "Haze (NTU), minimise: Full factorial (2-level) in T, P, F and S",
+   "link": "#c=1VRNb5wwEP0r1pwaaULXsMDCtVLUQxVFTXJarZADXmLJ2FvbJEoi_ns1sLuQbfsDesLMezNvPuz5gBcoc4SggpZQwnfxLtmX24fHK2SdMqpTXpbsptea7UUdrFNCsy_xtZYvUl8xZdgDsjtkN0yYht0DQiO9ag2UH-APsqbvi3ReWQMlP6FVeDuQ2r7XujrHBYTp7KHcfoARHXEeAEHbVyh5ukJ4Vu0zlPFqhdAbFTyU0Mj2Gwx4drg7O5zoyUx-Em7JvTlzF7Fn9o-vnTJL_v3MPzsky2TcoYNhh-CkP1jjTy0FhM42UkMJygTpRB2UNR4Q7GE6lR_ghGlsV_kggoSS58U64_FmvUEwVS3JrTpYZUgnHmaJSpm9JX8tnkaFo-AppduHR0BorSBsmum7hAFBqI4sQpnqVy8aJ4KqAUEYod-88lVwwvi9dd2Y3Ri1BG1bGAaE2uq-o7y3cB8aZl0jHSD87M35TJOjYVCTqXFjBOqNfSW_Lc-RI89TjJGnSDM1vdY73PINmf4GJJiM_wnyFfIZyHGNdD8IXdo5xykAvwRWmB0BvsJkBjaYz5EW9jVuRju_sHMsjvbPGfGUDFOun6Uz5Pwo8Vmax8jjOdsFkiBPZvVFrBT5eo61lM9OrbssJMYR-7NyipTP3V0gBdJEVpdF7v55qekZT1daeqv7ML5-8kFopZFOHB_5jhbCXhll2spJLSYimYVWwssj53j5XU_3LUYwNowQ3FpG15fJ_V7WgVnHwqu9npYIW-TElGe0a97YFLdhryo8M2FseJYugt2AYPvgVSMrJ0wrSXeYyxvfyCRC5Z1eHuWQRqsNJlG6wSLKC0yjJMM8SnKycUyipEAeFTEmUVHghihJlBa4jtaEZvQbZ5hF6xR5lMWYRVmKWVTkOwRve1dPlY4dkA3gf3Oi_FXXn4Y6Td_LUAlq87xRtjF1-kgd7b6WRjhlaZ3KcZZAhLYT4073UjZQ8mH4DQ",
+   "headers": ["Std order", "Run order", "T", "P", "F", "S", "Haze"],
+   "run_sheet": [
+    ["17", "1", "175", "2", "15", "200", "5.08"],
+    ["18", "2", "175", "2", "15", "200", "3.58"],
+    ["13", "3", "200", "3", "10", "100", "9.79"],
+    ["7", "4", "150", "3", "20", "100", "5.36"],
+    ["11", "5", "200", "1", "20", "100", "7.37"],
+    ["10", "6", "200", "1", "10", "300", "3.51"],
+    ["8", "7", "150", "3", "20", "300", "3.39"],
+    ["4", "8", "150", "1", "20", "300", "1.92"],
+    ["1", "9", "150", "1", "10", "100", "3.99"],
+    ["15", "10", "200", "3", "20", "100", "8.79"],
+    ["6", "11", "150", "3", "10", "300", "3.59"],
+    ["12", "12", "200", "1", "20", "300", "4.41"],
+    ["3", "13", "150", "1", "20", "100", "3.69"],
+    ["5", "14", "150", "3", "10", "100", "3.26"],
+    ["16", "15", "200", "3", "20", "300", "6.45"],
+    ["2", "16", "150", "1", "10", "300", "1.62"],
+    ["14", "17", "200", "3", "10", "300", "6.65"],
+    ["9", "18", "200", "1", "10", "100", "6.97"]
+   ],
+   "model": "main_effects",
+   "transform": "log",
+   "responses": {
+    "Haze": {
+     "coefficients": {
+      "Intercept": ["1.496", "0.04593", "< 0.0001"],
+      "T": ["0.3533", "0.04894", "< 0.0001"],
+      "P": ["0.1885", "0.04894", "0.0023"],
+      "F": ["0.04576", "0.04894", "0.3682"],
+      "S": ["-0.2348", "0.04894", "0.0004"]
+     },
+     "best": {"T": "150 degC", "P": "1 bar", "F": "10 L/min", "S": "300 rpm"}
+    }
+   }
+  },
+  {
+   "name": "plackett_burman_seven",
+   "about": "A saturated Plackett-Burman screen of seven factors in eight runs.",
+   "title": "Cycle (s), minimise: Plackett-Burman screening in A, B, C, D, E, F and G",
+   "link": "#c=rVXbbts4EP2VwTztAhMjipzLKvCDL7KfChTdR8MQWGnsEJVIg6QStIG_K-_5smJI2U67WKwfFjJkes6ZC89w6Fd8xiIjDDq0jAXOv9ctwx_-T4JOG91pzwV8blX9jUO4mvWuUwZ87ZiNNjvQBqYEM4I5wYKgJFiCMg2skLBhr3cGi1f0e67l-5md19bEhAmtwve9pN0PGaqvMQMSblUdrPNYrF_RqE5IUyRs7QsWVxnhk949xUC90cFjgXigE3N2MXN-MXNxMbO8mLm8mLn6D-aG0LHfW-NPXUTCzjbcYoGd0qbi7Zbr4JHQ7oO2xktLnDKN7SofVGAssvu_xnfZzcPtLaGpajaBXbW32kiW68M5R6XN1op_q77GDMeMx4okzc6qmDyeox-MB0Klu9_LORDWtu07qWeNf4cGrGvYIeGX3pzW0nvpqvRLOiEai3qiS8otCtgXCbIeUzY8Vx8-pm_bDa1v6WYwnAknMKc8_T7aP4IPdA6cngG4p9sP7ONrAG_o7rdCPnje0T1l_yhnADN6-LWOM7j5197K3KTOsrdtH-K8iQ_hjg07NUzVRkZwq2WKK8etSkQxq1Yrz1HIJPv7W1T9_S2K_v62wg2tYzemJ0h6UR6heYJmCVolaBmhRYLKFFe85kevMkGLBK0SlLyWCVolaJGgMkKrBC0TVCZogaLQcH5dL0frmtDYELeFn5Q2MEgGyjGkLTfwosMThBd7lW4f0BJA1XFaCpjCBEQMmICIARMQMR5hBhOYnuxLmEAZ7fNknyX7KtmXj7BI9jKFE_488uXizKGzjke4ORDaPnjdcOWU2bH05nDuOp5nUbaUj0cZjbPRHY2vRw9plefJltN4LK98lG8Ive1dnWSI8nCD9L-sJLbu-uNJSkdusHD8F6jZKKctFug46otC2HUq3mWeucEiOxx-Ag",
+   "headers": ["Std order", "Run order", "A", "B", "C", "D", "E", "F", "G", "Cycle"],
+   "run_sheet": [
+    ["4", "1", "1", "1", "1", "-1", "-1", "-1", "-1", "34.1"],
+    ["5", "2", "-1", "-1", "1", "1", "-1", "-1", "1", "41.6"],
+    ["3", "3", "-1", "1", "-1", "-1", "1", "-1", "1", "40.8"],
+    ["8", "4", "1", "1", "1", "1", "1", "1", "1", "41.6"],
+    ["7", "5", "-1", "1", "-1", "1", "-1", "1", "-1", "33.1"],
+    ["2", "6", "1", "-1", "-1", "-1", "-1", "1", "1", "41.3"],
+    ["6", "7", "1", "-1", "-1", "1", "1", "-1", "-1", "44.3"],
+    ["1", "8", "-1", "-1", "1", "-1", "1", "1", "-1", "43.3"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Cycle": {
+     "coefficients": {
+      "Intercept": ["40.01", "", ""],
+      "A": ["0.3125", "", ""],
+      "B": ["-2.612", "", ""],
+      "C": ["0.1375", "", ""],
+      "D": ["0.1375", "", ""],
+      "E": ["2.488", "", ""],
+      "F": ["-0.1875", "", ""],
+      "G": ["1.313", "", ""]
+     },
+     "best": {"A": "-1", "B": "1", "C": "-1", "D": "-1", "E": "-1", "F": "1", "G": "-1"}
+    }
+   }
+  },
+  {
+   "name": "categorical_factor",
+   "about": "A replicated full factorial with a categorical factor, aiming at a target.",
+   "title": "Purity (%), target 98: Full factorial (2-level) in Catalyst, T and P",
+   "link": "#c=zVRNa-MwEP0rYqDQwtRETuJEvpbdY7fs9haCUe2JI5AlryQ3lOL_vsh2nJTN3vdij57efM_oE94h5whBBU2Qw0vnVPhg93cPyIJ0NQUmtjn73mnNDrIM1imp2X36qOmd9ANThj3JIPWHD8hemTQVewGEiryqDeSf4Fsq4_-dnFfWDM7G2yJ8tNHlodO6mG0Dwih7yHefYGQTOWcfgKDtCXL4oStAOKr6CDk80wkQOqOChxygx1nv9azA14szPV0sLuSK6qdrhZdZ4UxfXshv0kG_R3DkW2v8pV6A0NiKNOSgTCAny6Cs8YBg21HKP8FJU9mm8EEGgpxvxCrj6TbjCKYoKaoVrVUmelpEzFGrVSkDecjT_uK1UOZgo0Et3waXcwznOO8AobYy3o09BDwLudj2CFI1kEMjlSl-d7JyMqgSeoTS6q6J0e7gV6iYdRU5QPjZmVm-6kQsbqzX5D8Wxp6i8m6DHMeuxGJzNJ3We9zxDNMrfDnjKS5xbOlXnOPqCr_YWeB6wmNfZ_4Ks5tmcHPFnq1scXszmCWKCf9Cz5AvrvCZv0TObwW5Rp7essPXyJe3qpMiX93Kiq-Qr295FsizvxPb_3MW416Nk0je6i4M6xh1EGoy5OS0dfu4oQdllKkLR1qOxAhLraSniTPNrOvMNLF2GNUdPFsWR4vR4UBlYNaxcLKP41azq5iY8iwu_wcb7VbspMKRSWPDkVwCCN9keWQuTl9EWDhKw8KR2Og63ngm25ak8yxlQTXkkXk7cBy1JINn5INqZKABbDtHjJyzLoF9j2C74FVFhZOmpphWf6keXFYupiVEskaxQbFGkSVbFMt4Hj7rZINiM3xQrOJdFg9ZkqIQCUeRJmI6rpLVHsHbzpVjsYZMKD5m_6MUY1VNd56BcVgmhIbnvSQjnbKQg6OhwxAJdSOHJ9QTVZDzvv8D",
+   "headers": ["Std order", "Run order", "Catalyst", "T", "P", "Purity"],
+   "run_sheet": [
+    ["7", "1", "New", "200", "1", "99.5"],
+    ["16", "2", "New", "200", "3", "97"],
+    ["12", "3", "Old", "200", "3", "95"],
+    ["11", "4", "Old", "200", "1", "96.8"],
+    ["10", "5", "Old", "150", "3", "93.5"],
+    ["4", "6", "Old", "200", "3", "93.5"],
+    ["1", "7", "Old", "150", "1", "95.7"],
+    ["8", "8", "New", "200", "3", "97.7"],
+    ["13", "9", "New", "150", "1", "97"],
+    ["6", "10", "New", "150", "3", "94.8"],
+    ["3", "11", "Old", "200", "1", "96.7"],
+    ["5", "12", "New", "150", "1", "96.2"],
+    ["15", "13", "New", "200", "1", "99.1"],
+    ["2", "14", "Old", "150", "3", "92.9"],
+    ["14", "15", "New", "150", "3", "96.2"],
+    ["9", "16", "Old", "150", "1", "94.4"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Purity": {
+     "coefficients": {
+      "Intercept": ["96.00", "0.1622", "< 0.0001"],
+      "Catalyst": ["1.187", "0.1622", "< 0.0001"],
+      "T": ["0.9125", "0.1622", "0.0003"],
+      "P": ["-0.9250", "0.1622", "0.0003"],
+      "Catalyst·T": ["0.2250", "0.1622", "0.1989"],
+      "Catalyst·P": ["0.1625", "0.1622", "0.3427"],
+      "T·P": ["-0.1875", "0.1622", "0.2775"]
+     },
+     "best": {"Catalyst": "New", "T": "180.2 degC", "P": "1.281 bar"}
+    }
+   }
+  },
+  {
+   "name": "mixture_centroid",
+   "about": "A simplex centroid design in three mixture components, to minimise.",
+   "title": "Viscosity (cP), minimise: Simplex centroid (mixture) in Water, Oil and Wax",
+   "link": "#c=nVTbbtswDP0Vgk8tQLh2nMvq9z23WIf1IQgM1WYSArLkSXIvK_Lvg2Tn0j10wwzYlsmjQ-qQ9Ds-Y1UQBgmascIf4hvrJbzBVXN_TdCJkU48V_AgXa_5FRo2wVlp4aqT1zA4vgYx8KgCO4I70aBMC4_qFQlb9rIzWL2j77mJ72d2XqxJIUdvHd76GNiP9PWRHgm3qgnWeazW72hUF1EpDBJq-4JVTriX3T6RDUaCxwrxQCfwneh_hY75fgLdEDr2vTX-g0pI2NmWdTxAs-ftluufg2qdCtIgoe2DWOPjyZ0yre1qH1RgrIrV7XxZzG7zfCI4yTCxRMFE6boZnqTBwzl6LWZrI6FWTynuZS7HfJt7JNxZFf1jBX9xJFHSRYsSc5HmgbCxeuhinmt8CC1Y1yaVvw3mtD4qP4o66nUOHeWxL5FgPaeC8mwx3mQGrTe0LmlGOeVUHA0rKinPyovrL5_TvgXNJ-b4nIwzWiTuU7glLSfEBaqgVcJMqM3npYvNNxaOvdVDSF0bNxLu2LBTU2tuYiNvxYjZ1Y61GoHRrLQozxMmtjW72g1R5ZzQ2JBc-FU1e3CDAfGg4EmzaSuQ4KF3trcu9Q_4oYNgociQ8Puewf8xixWEPUMJ_eAYGtv11rAJniZzYvVgtxBeLKgAxc0MOAaOsxox9pmd0vpESFDclHFDQp0YM9wcCO0QvLRcO2V2HI93OEuJ506NxyvLrKDFbVbQfJ6t5jRfjsslLRZZvqAyz75sCL0dXDPqkXTiOP7_v4qM0g3HYoxVmyycfkcNG-XEYoVJG4zuXafS0HvmFqvicPgN",
+   "headers": ["Std order", "Run order", "Water", "Oil", "Wax", "Viscosity"],
+   "run_sheet": [
+    ["4", "1", "0.5", "0.5", "0", "33.1"],
+    ["3", "2", "0", "0", "1", "59.1"],
+    ["7", "3", "0.333333", "0.333333", "0.333333", "44.74"],
+    ["5", "4", "0.5", "0", "0.5", "46.1"],
+    ["2", "5", "0", "1", "0", "44.6"],
+    ["6", "6", "0", "0.5", "0.5", "55.05"],
+    ["1", "7", "1", "0", "0", "30.8"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Viscosity": {
+     "coefficients": {
+      "Water": ["30.80", "0.01387", "0.0003"],
+      "Oil": ["44.60", "0.01387", "0.0002"],
+      "Wax": ["59.10", "0.01387", "0.0001"],
+      "Water·Oil": ["-18.38", "0.06377", "0.0022"],
+      "Water·Wax": ["4.624", "0.06377", "0.0088"],
+      "Oil·Wax": ["12.82", "0.06377", "0.0032"]
+     },
+     "best": {"Water": "0.8755", "Oil": "0.1245", "Wax": "0"}
+    }
+   }
+  },
+  {
+   "name": "dsd_six",
+   "about": "A definitive screening design in six factors.",
+   "title": "Titre (g/L), maximise: Definitive screening (DSD) in A, B, C, D, E and F",
+   "link": "#c=xVRNj9owEP0r1px2pYHFwPKR2-6ye1r10O0NochNhmApsZHtQLco_72aOBBaqSq3CiSGee_5jcdjn-AAiUQIOpQECXzTwZG4Kx7e71FU6oeutKdErGirjQ76QMJnjshoU4i71cfqXmgjnlA8o3hBsULxKpTJxRsg5OR1YSA5gd9Txr8Hcl5b0xpGNA2fe7bNfQ4IW5UF6zwk6xMYVTHwBAilPUIykAg7XexacW108JAANHhhPt_MfLmZubqZ-Xoz8-0fzA2CI7-3xl_OAxAqm1MJCVRKm5S2W8qCBwS7D9oaz811yuS2Sn1QgSCR8-V0JseL2RLBpBmZQC7dW23YRTa9R6rN1rK-VN9bh7PjuaLi4R0QCquiPU_ET4IGQenqz4IahMyWdcUVreEj5MK6nBwgfK3NJeYz5dPic-AOc--4K9GZ92-PvMBaosQRysvH1GW5wbWc4BhHV58uv8AJDlgxiPRBr5A4vcqOrqERPkaol3bQFGcxHavoNXOcR-r1t8NmuDjbdMoOmOASr5bqFY8oR78J-trGKHugq7DDxsgoXis7ZIly0uUurWihzV_HiC9eHCLytqxDe0lZg1CQIae6a7nhe8svgSlSR6WKRE6rUitPHacbN1fzHEgEY0MLwRcr2FlEZ2GdCEc7iNdeaBapjNcU2ottXZafIq6bi6MOO6GMDTtyQ9g0CLYOXueUOmUKYt-m3x70882-cjxcoJRDifMYTHExnHMwQTkezlCOOJrEaMY5yX8XTNsgeFu7LO6g3RnxY_V_Iq5GV_W59fGMugy1b21GRjltIQFHbWOBCUWl2qPwRDk_AM0v",
+   "headers": ["Std order", "Run order", "A", "B", "C", "D", "E", "F", "Titre"],
+   "run_sheet": [
+    ["1", "1", "0", "1", "1", "1", "1", "1", "12.8"],
+    ["13", "2", "0", "0", "0", "0", "0", "0", "11.1"],
+    ["8", "3", "-1", "0", "-1", "1", "1", "-1", "7.8"],
+    ["11", "4", "-1", "1", "1", "-1", "0", "-1", "11.4"],
+    ["10", "5", "-1", "1", "-1", "0", "-1", "1", "8.7"],
+    ["4", "6", "1", "-1", "1", "0", "1", "-1", "11.3"],
+    ["7", "7", "0", "-1", "-1", "-1", "-1", "-1", "12.6"],
+    ["6", "8", "1", "1", "-1", "-1", "1", "0", "10.3"],
+    ["3", "9", "1", "1", "0", "1", "-1", "-1", "13.6"],
+    ["5", "10", "1", "-1", "-1", "1", "0", "1", "10.6"],
+    ["12", "11", "-1", "-1", "1", "1", "-1", "0", "12.1"],
+    ["2", "12", "1", "0", "1", "-1", "-1", "1", "13.8"],
+    ["9", "13", "-1", "-1", "0", "-1", "1", "1", "8.7"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Titre": {
+     "coefficients": {
+      "Intercept": ["11.14", "0.3151", "< 0.0001"],
+      "A": ["1.090", "0.3593", "0.0230"],
+      "B": ["0.1500", "0.3593", "0.6909"],
+      "C": ["1.140", "0.3593", "0.0192"],
+      "D": ["0.01000", "0.3593", "0.9787"],
+      "E": ["-0.9900", "0.3593", "0.0331"],
+      "F": ["-0.2100", "0.3593", "0.5802"]
+     },
+     "best": {"A": "1", "B": "1", "C": "1", "D": "0.7018", "E": "-1", "F": "-1"}
+    }
+   }
+  },
+  {
+   "name": "two_responses",
+   "about": "Two responses on one run sheet, one to maximise and one to minimise.",
+   "title": "Yield and Cost: Full factorial (2-level) in T, P and F",
+   "link": "#c=vVXBbtswDP0VgdiADWBdy47txNcCPQ1Dse0yBIGh2oojTJYyWW7WBfn3gXLipFl32GG7MLT5Hp8oks4enqDkCF55LaGEr0rqhgnTsDvb-5LdD1qztai9dUpo9i650fJJ6vdMGfYF2UOA3gNCI3vVGij30G9lTb9P0vXKmpB-jFb-eUsi60HrakoKCKPfQ7ncgxEdYb4AgrY7KHkWI2xUu4EyiWOEwSjfQwmNbO_ggBPhYSKc4OkZ_CjcJfZ-wl7kPqM_3HbKwGGF4GS_taafbgYQOttIDSUo46UTtVfW9IBgt6NX7sEJ09iu6r3wEkpeLGY5T-bFDMFUtSRatbXKkFR6OGtUyqwt8bV4DAonxdOx3gJCawWFOvFDdeqnhAv-i-s7cf8u10Sn5l-wj48n8pvbb-0FX5kjf4UgVBdSKlN9H0TjhFc1HbK2eujoepbw2TfMukY6QPg0mMmnjlMTqTmn4wZh6oPdEXdZIEeaghR5jGbQOpgVLueYHAPJywAnbBYjv2ZwjjPkRYYJ8uxFZIZZoPyWK8c8iPDrQIrFkXElkuH8yLhWj3HxunpC0PHEVyoL5Pw1zuqPQ0l7NY6k7K0efFjHQIRWGunEcetWtKFrZZRpKye1GIH0WmglxtFaIRyH1w3UyBTBWB9C8NEyajmT67WsPbOO-Z29GbeaXZyJqZ7R8j-zMW_DdspvmDDWb6SLYHVAsIPvVSMrJ0wrSfdwLi-sn5NVeA6FhQEp4XoPinnEsUijHPMsmmPBI455TmYRpVjEZNLRyzDnAbJC6O3g6rGkUKqkGfz3Himrbjjd-9igUOhFTadalzyN5shnUYY8jjjylExM75IoJ5Mg59GMvAzn0QJ5Ot6hk9VU4JTt_xZ6mCqV4a-ilkY4ZaEEJ8O0AAHaToTPeC9lAyU_HH4B",
+   "headers": ["Std order", "Run order", "T", "P", "F", "Yield", "Cost"],
+   "run_sheet": [
+    ["7", "1", "200", "3", "10", "78.1", "13.8"],
+    ["8", "2", "200", "3", "20", "73.6", "14.5"],
+    ["1", "3", "150", "1", "10", "65.8", "10.1"],
+    ["11", "4", "175", "2", "15", "71.1", "13.1"],
+    ["4", "5", "150", "3", "20", "66.1", "10.8"],
+    ["6", "6", "200", "1", "20", "69.3", "12.6"],
+    ["3", "7", "150", "3", "10", "70.3", "12.2"],
+    ["5", "8", "200", "1", "10", "73.3", "11.4"],
+    ["10", "9", "175", "2", "15", "70.5", "12.5"],
+    ["2", "10", "150", "1", "20", "61.8", "8.9"],
+    ["9", "11", "175", "2", "15", "71", "13"]
+   ],
+   "model": "",
+   "transform": "",
+   "responses": {
+    "Yield": {
+     "coefficients": {
+      "Intercept": ["70.08", "0.2504", "< 0.0001"],
+      "T": ["3.787", "0.2936", "0.0002"],
+      "P": ["2.238", "0.2936", "0.0016"],
+      "F": ["-2.088", "0.2936", "0.0021"],
+      "T·P": ["0.03750", "0.2936", "0.9045"],
+      "T·F": ["-0.03750", "0.2936", "0.9045"],
+      "P·F": ["-0.08750", "0.2936", "0.7805"]
+     },
+     "best": {"T": "200 degC", "P": "3 bar", "F": "10 L/min"}
+    },
+    "Cost": {
+     "coefficients": {
+      "Intercept": ["12.08", "0.2504", "< 0.0001"],
+      "T": ["1.287", "0.2936", "0.0118"],
+      "P": ["1.037", "0.2936", "0.0242"],
+      "F": ["-0.08750", "0.2936", "0.7805"],
+      "T·P": ["0.03750", "0.2936", "0.9045"],
+      "T·F": ["0.5625", "0.2936", "0.1279"],
+      "P·F": ["-0.08750", "0.2936", "0.7805"]
+     },
+     "best": {"T": "150 degC", "P": "1 bar", "F": "20 L/min"}
+    }
+   }
+  }
+ ]
+}
