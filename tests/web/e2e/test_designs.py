@@ -206,8 +206,8 @@ def test_the_map_follows_the_design_while_it_is_open_and_is_asked_for_once_a_des
     open_the_map(page)
     generate(page, design_type="full_factorial")
     page.wait_for_function("window.__pi.count('api_correlations') === 2 && window.__pi.idle()")
-    clear = "No term of the model moves with another over these runs, or with a term the model leaves out"
-    assert page.locator("#correlation-words p").all_text_contents() == [f"{clear}: each is estimated on its own."]
+    clear = "Over these runs no term of the model moves with another, or with a term the model leaves out"
+    assert page.locator("#correlation-words p").all_text_contents() == [f"{clear}, as far as |r| = 0.3."]
     assert page.locator("#correlation-pairs tr").count() == 0
     page.click("#correlation > summary")
     page.click("#correlation > summary")

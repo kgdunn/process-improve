@@ -1693,18 +1693,26 @@ describe("curves pasted from a spreadsheet", () => {
 });
 
 describe("what the correlation map of a study's runs says", () => {
-  const found = (pairs, count = pairs.length) => ({ pairs, n_pairs: count, together_from: 0.7, inseparable_from: 0.95 });
+  const found = (pairs, count = pairs.length) => ({ pairs, n_pairs: count, listed_from: 0.3, together_from: 0.7, inseparable_from: 0.95 });
   const shown = (term) => term.replace(":", "·");
 
-  test("runs that tell every term of the model apart say so in one sentence", () => {
+  test("runs with no pair to list say how far a pair would have to move to be listed, and claim no more", () => {
     assert.deepEqual(correlationWords(found([])), [
-      "No term of the model moves with another over these runs, or with a term the model leaves out: each is estimated on its own.",
+      "Over these runs no term of the model moves with another, or with a term the model leaves out, as far as |r| = 0.3.",
     ]);
   });
 
   test("a term aliased with one the model leaves out takes its effect", () => {
     const [said] = correlationWords(found([{ a: "A", b: "B:C", r: 1, both: false }]), shown);
     assert.equal(said, "A is aliased with B·C, which the model leaves out (|r| = 1): an effect of B·C shows as A's.");
+    const [nearly] = correlationWords(found([{ a: "A", b: "B:C", r: 0.96, both: false }]), shown);
+    assert.equal(nearly, "A is nearly aliased with B·C, which the model leaves out (|r| = 0.96): almost all of an effect of B·C shows as A's.");
+  });
+
+  test("a term of the model that moves with the blocks is said as a pair of the model's own", () => {
+    const blocks = (r) => correlationWords(found([{ a: "T:P", b: "Block", r, both: true, blocks: true }]), shown)[0];
+    assert.equal(blocks(1), "T·P and the blocks cannot be told apart over these runs (|r| = 1): the model can hold one of them, not both.");
+    assert.equal(blocks(0.5), "T·P and the blocks move together a little over these runs (|r| = 0.50), so each is known a little less precisely than it would be alone.");
   });
 
   test("a term partly aliased has its estimate shifted, and the size is given to two decimals", () => {
@@ -1715,8 +1723,10 @@ describe("what the correlation map of a study's runs says", () => {
   test("two terms of the model that move together are each known less precisely, or cannot both be held", () => {
     const [partly] = correlationWords(found([{ a: "T", b: "P", r: 0.82, both: true }]));
     assert.equal(partly, "T and P move together over these runs (|r| = 0.82), so each is known less precisely than it would be alone.");
-    const [whole] = correlationWords(found([{ a: "T", b: "P", r: 0.97, both: true }]));
-    assert.equal(whole, "T and P cannot be told apart over these runs (|r| = 0.97): the model can hold one of them, not both.");
+    const [nearly] = correlationWords(found([{ a: "T", b: "P", r: 0.97, both: true }]));
+    assert.equal(nearly, "T and P can hardly be told apart over these runs (|r| = 0.97): with both in the model, neither is known precisely.");
+    const [whole] = correlationWords(found([{ a: "T", b: "P", r: 0.9999, both: true }]));
+    assert.equal(whole, "T and P cannot be told apart over these runs (|r| = 1): the model can hold one of them, not both.", "one column to the runs, and only then");
     const [little] = correlationWords(found([{ a: "T²", b: "P²", r: 0.3, both: true }]));
     assert.equal(little, "T² and P² move together a little over these runs (|r| = 0.30), so each is known a little less precisely than it would be alone.");
   });

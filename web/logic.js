@@ -153,31 +153,37 @@ export const CHOSEN_TERMS = "terms";
 /** The most factors a study has; mirrors bootstrap.MAX_FACTORS. */
 export const MAX_FACTORS = 40;
 
+/** What the page calls the blocks, where a term of the model moves with them. */
+export const THE_BLOCKS = "the blocks";
+
+/** Past this correlation two terms are one column to the runs: no fit tells them apart at all. */
+const ONE_COLUMN = 0.999;
+
 /**
  * What the correlation map of a study's runs says, in sentences: the reply of api_correlations (``found``), whose
  * pairs are those that matter to the model the design estimates. Two of the model's terms that move together are
- * each known less precisely; one that moves with a term the model leaves out is aliased with it, and takes its
- * effect. The three largest pairs are said, and how many more the table lists. ``shown`` writes a term as the page
- * shows it.
+ * each known less precisely, and the blocks of a blocked design count as one; a term that moves with one the model
+ * leaves out is aliased with it, and takes its effect. Only terms that are one column to the runs "cannot" be told
+ * apart: short of that the words say how nearly. The three largest pairs are said, and how many more the table
+ * lists. ``shown`` writes a term as the page shows it.
  */
 export function correlationWords(found, shown = (term) => term) {
-  const { pairs, n_pairs: count, together_from: together, inseparable_from: inseparable } = found;
+  const { pairs, n_pairs: count, listed_from: listed, together_from: together, inseparable_from: inseparable } = found;
   if (!count) {
-    return ["No term of the model moves with another over these runs, or with a term the model leaves out: each is estimated on its own."];
+    return [`Over these runs no term of the model moves with another, or with a term the model leaves out, as far as |r| = ${listed}.`];
   }
-  const size = (r) => (r > 0.999 ? "1" : r.toFixed(2));
-  const said = pairs.slice(0, 3).map(({ a, b, r, both }) => {
-    const [first, second] = [shown(a), shown(b)];
-    if (both && r >= inseparable) {
-      return `${first} and ${second} cannot be told apart over these runs (|r| = ${size(r)}): the model can hold one of them, not both.`;
-    }
+  const said = pairs.slice(0, 3).map(({ a, b, r, both, blocks }) => {
+    const [first, second] = [shown(a), blocks ? THE_BLOCKS : shown(b)];
+    const size = `(|r| = ${r > ONE_COLUMN ? "1" : r.toFixed(2)})`;
     if (both) {
+      if (r > ONE_COLUMN) return `${first} and ${second} cannot be told apart over these runs ${size}: the model can hold one of them, not both.`;
+      if (r >= inseparable) return `${first} and ${second} can hardly be told apart over these runs ${size}: with both in the model, neither is known precisely.`;
       const little = r < together ? "a little " : "";
-      return `${first} and ${second} move together ${little}over these runs (|r| = ${size(r)}), so each is known ${little}less precisely than it would be alone.`;
+      return `${first} and ${second} move together ${little}over these runs ${size}, so each is known ${little}less precisely than it would be alone.`;
     }
-    return r >= inseparable
-      ? `${first} is aliased with ${second}, which the model leaves out (|r| = ${size(r)}): an effect of ${second} shows as ${first}'s.`
-      : `${first} is partly aliased with ${second}, which the model leaves out (|r| = ${size(r)}): an effect of ${second} shifts the estimate of ${first}.`;
+    if (r > ONE_COLUMN) return `${first} is aliased with ${second}, which the model leaves out ${size}: an effect of ${second} shows as ${first}'s.`;
+    if (r >= inseparable) return `${first} is nearly aliased with ${second}, which the model leaves out ${size}: almost all of an effect of ${second} shows as ${first}'s.`;
+    return `${first} is partly aliased with ${second}, which the model leaves out ${size}: an effect of ${second} shifts the estimate of ${first}.`;
   });
   const more = count - said.length;
   if (more > 0) said.push(`${more} more ${more === 1 ? "pair moves" : "pairs move"} together as far; the table lists the largest.`);

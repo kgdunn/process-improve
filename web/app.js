@@ -102,6 +102,7 @@ import {
   chartHeight,
   chartLevel,
   correlationWords,
+  THE_BLOCKS,
   simplerWords,
   findingWords,
   runSheetCsv,
@@ -487,7 +488,7 @@ const state = {
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
-  contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
+  contourPairs: {}, // for a response's column, the two factors the reader chose to draw its surface over: else the largest two
   moreCharts: false, // whether "More charts" is open
   setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
   simpler: null, // the terms the search for a simpler model proposed for the analysis on show, or null
@@ -1942,6 +1943,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
   state.setAside = {};
+  state.contourPairs = {};
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -2009,9 +2011,9 @@ function renderPairs({ pairs }) {
   const head = table.createTHead().insertRow();
   for (const heading of ["A term of the model", "Moves with", "|r|", "Which is"]) head.append(el("th", "", heading));
   const body = table.createTBody();
-  for (const { a, b, r, both } of pairs) {
+  for (const { a, b, r, both, blocks } of pairs) {
     const row = body.insertRow();
-    row.append(el("td", "", prettyTerm(a)), el("td", "", prettyTerm(b)), el("td", "num", r.toFixed(2)));
+    row.append(el("td", "", prettyTerm(a)), el("td", "", blocks ? THE_BLOCKS : prettyTerm(b)), el("td", "num", r.toFixed(2)));
     row.append(el("td", "", both ? "in the model too" : "left out of the model"));
   }
 }
@@ -3324,6 +3326,7 @@ async function readUpload(file) {
   state.results = joinResults(names, r.responses, r.more_responses);
   state.marks = joinResults(names, r.sources, r.more_sources);
   state.setAside = {};
+  state.contourPairs = {};
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -4408,9 +4411,18 @@ function moreCharts(keys, figures, captioned, version, beyond = "") {
   return box;
 }
 
-/** The two factors the response surface is drawn over, for the reader to change: the charts are then drawn again. */
+/**
+ * The two factors the response surface is drawn over, for the reader to change: the charts are then drawn again.
+ * The choice is the response's own, since each response has its own largest effects, and a button takes it back.
+ * It is a way of looking and no part of the study, so it is not saved with one.
+ */
 function contourPicker(plots) {
   const row = el("p", "hint contour-picker", "");
+  const redraw = (focus) => {
+    const request = analysisRequest();
+    // The picker is drawn again with the charts: the keyboard stays where it was, or goes to the first box.
+    drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(focus)?.focus());
+  };
   const pick = (at) => {
     const select = el("select", "", "");
     select.id = `contour-factor-${at + 1}`;
@@ -4424,23 +4436,33 @@ function contourPicker(plots) {
     select.onchange = () => {
       const other = selects[1 - at];
       if (other.value === select.value) other.value = plots.contour_factors[at]; // the two change places
-      state.contourPair = selects.map((s) => s.value);
-      const request = analysisRequest();
-      // The boxes are drawn again with the charts: the one changed keeps the focus.
-      drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(`#${select.id}`)?.focus());
+      state.contourPairs[state.shown] = selects.map((s) => s.value);
+      redraw(`#${select.id}`);
     };
   });
   row.append("Draw it over ", selects[0], " and ", selects[1]);
+  if (plots.contour_chosen) {
+    const back = el("button", "link", "Back to the two largest effects");
+    back.type = "button";
+    back.id = "contour-largest";
+    back.onclick = () => {
+      delete state.contourPairs[state.shown];
+      redraw("#contour-factor-1"); // the button goes with the choice it took back
+    };
+    row.append(". ", back);
+  }
   return row;
 }
 
 async function libraryPlots(request, mine) {
-  // The reader's choice of the surface's two factors holds while the study has both; a refusal forgets it.
+  // The reader's choice of the surface's two factors, for the response shown, holds while the study has both; a
+  // refusal forgets it.
   const names = state.design.spec.factors.map((f) => f.name);
-  const pair = state.contourPair?.every((name) => names.includes(name)) ? state.contourPair : null;
+  const shown = state.shown;
+  const pair = state.contourPairs[shown]?.every((name) => names.includes(name)) ? state.contourPairs[shown] : null;
   let reply = await call("api_plots", pair ? { ...request, contour_factors: pair } : request);
   if (!reply.ok && pair && !reply.stopped) {
-    state.contourPair = null;
+    delete state.contourPairs[shown];
     reply = await call("api_plots", request);
   }
   if (mine === ticket && [analysisSaid, pythonSaid].includes(statusTicket)) {
@@ -5538,6 +5560,7 @@ async function showBuiltExample() {
   state.results = { [name]: [...example.simulation.responses] };
   state.marks = { [name]: example.simulation.responses.map(() => "simulated") };
   state.setAside = {};
+  state.contourPairs = {};
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -6053,6 +6076,7 @@ async function openCampaign(c, record, message) {
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
   state.setAside = structuredClone(c.set_aside ?? {});
+  state.contourPairs = {};
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };

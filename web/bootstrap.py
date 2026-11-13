@@ -6192,6 +6192,23 @@ PARTLY_TOGETHER = 0.3
 MOST_PAIRS = 12
 
 
+def _moved_with_blocks(coded: pd.DataFrame, blocks: pd.Series, terms: list[str]) -> dict[str, float]:
+    """Return how far each term moves with the blocks: the correlation of its column with its own means by block.
+
+    0 for a term the blocks balance, and 1 for one that differs only between blocks, which the runs cannot tell
+    from a difference between the blocks. A term that does not vary in the runs has no correlation: it is left out.
+    """
+    moved = {}
+    for term in terms:
+        column = coded[list(_parts(term))].prod(axis=1)
+        centred = column - column.mean()
+        total = float((centred**2).sum())
+        if total > ALIAS_TOLERANCE:
+            between = centred.groupby(blocks.to_numpy()).transform("mean")
+            moved[term] = math.sqrt(float((between**2).sum()) / total)
+    return moved
+
+
 def correlations(request: dict) -> dict:
     """Return how far each pair of the runs' terms moves together: the comparison's correlation map, for one study.
 
@@ -6203,11 +6220,16 @@ def correlations(request: dict) -> dict:
     ``pairs`` lists the pairs that matter to the model the design estimates (``model``): two of its terms, which
     are then known less precisely (``both``), or one of its terms with a term it leaves out, whose effect would
     show as the model's term (aliasing). A pair of terms the model leaves out says nothing of it, and is not
-    listed. The pairs are those at :data:`PARTLY_TOGETHER` or above, the largest first and :data:`MOST_PAIRS` at
-    most, each ``{a, b, r, both}`` with the model's term as ``a``; ``n_pairs`` counts them all. The page's words
-    turn on two correlations: a pair at ``together_from`` or above moves together, and one at ``inseparable_from``
-    or above cannot be told apart; below the first, a pair moves together a little. The runs are the ones the page
-    holds: a design made here, or runs as given, such as a table of the reader's own.
+    listed. In a blocked design a term of the model may move with the blocks, which the fit holds too: such a pair
+    has ``blocks`` set, and its size is the term's correlation with its own means by block; the map itself draws
+    the factors' terms only. The pairs are those at ``listed_from`` (:data:`PARTLY_TOGETHER`) or above, the largest
+    first and :data:`MOST_PAIRS` at most, each ``{a, b, r, both, blocks}`` with the model's term as ``a``;
+    ``n_pairs`` counts them all. The page's words turn on two more correlations: a pair at ``together_from`` or
+    above moves together, and one at ``inseparable_from`` or above can hardly be told apart; below the first, a
+    pair moves together a little.
+
+    The runs are the ones a model is fitted to: a design made here, or runs as given, such as a table of the
+    reader's own, without the confirmation runs, which no fit uses.
     """
     spec = _checked_spec(request.get("spec") or {})
     if _mixture(spec):
@@ -6219,17 +6241,28 @@ def correlations(request: dict) -> dict:
         raise ValueError(
             f"This map is drawn for 2 to {MAX_INTERACTION_FACTORS} factors, and the study has {len(names)}."
         )
-    coded = _coded(_runs_frame(request, spec), spec["factors"])
+    runs = _design_runs(_runs_frame(request, spec))
+    coded = _coded(runs, spec["factors"])
     with _listening():
         (frame,) = compare_designs({"runs": coded}).correlations.values()
     r, terms = frame.to_numpy(), list(frame.index)
-    estimated = set(_model_terms(spec["model"], names, _categorical_names(spec)))
+    categorical = _categorical_names(spec)
+    estimated = set(_model_terms(spec["model"], names, categorical))
     together = []
     for i, j in itertools.combinations(range(len(terms)), 2):
         inside = [terms[i] in estimated, terms[j] in estimated]
         if r[i, j] >= PARTLY_TOGETHER and any(inside):  # false for a term that does not vary: it has no correlation
             a, b = (terms[i], terms[j]) if inside[0] else (terms[j], terms[i])
-            together.append({"a": a, "b": b, "r": float(r[i, j]), "both": all(inside)})
+            together.append({"a": a, "b": b, "r": float(r[i, j]), "both": all(inside), "blocks": False})
+    if _blocked(spec):
+        in_model = [term for term in terms if term in estimated]
+        # A term that takes one value in each block is confounded with the blocks, whatever the center runs add:
+        # the design's own note says so and every fit leaves it out, so here it is one column with them.
+        gone = _confounded_with_blocks(coded.assign(**{BLOCK: runs[BLOCK].to_numpy()}), in_model, categorical)
+        for term, moved in _moved_with_blocks(coded, runs[BLOCK], in_model).items():
+            size = 1.0 if term in gone else moved
+            if size >= PARTLY_TOGETHER:
+                together.append({"a": term, "b": BLOCK, "r": size, "both": True, "blocks": True})
     # The largest first; pairs equal to six decimals stay in the map's order, under WebAssembly's rounding as natively.
     together.sort(key=lambda pair: -round(pair["r"], 6))
     return {
@@ -6239,6 +6272,7 @@ def correlations(request: dict) -> dict:
         "model": spec["model"],
         "pairs": together[:MOST_PAIRS],
         "n_pairs": len(together),
+        "listed_from": PARTLY_TOGETHER,
         "together_from": MOVED_TOGETHER,
         "inseparable_from": NOT_SEPARABLE,
     }
