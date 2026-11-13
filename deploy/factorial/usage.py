@@ -9,7 +9,7 @@ The log has one line per request, written with the reader's address cut to its n
                counted apart from the page's
     readers    distinct networks and browsers among the visits and the catalog's: approximate, since
                one network can hold many readers and one reader can move between networks
-    python     Python started in the page, which fetches bootstrap.py once Pyodide has loaded
+    python     Python started in the page: its worker reads runtime.json, past every cache, as it starts
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
 Robots, link-preview fetchers and the deploy's own checks (headless Chromium, Python's urllib)
@@ -40,7 +40,12 @@ SITE = "factori.al"
 PAGE = {"/", "/index.html"}
 #: The design catalog's page. factori.al/catalog is redirected to factori.al/catalog/, so it is not counted twice.
 CATALOG = {"/catalog/", "/catalog/index.html"}
-PYTHON = "/bootstrap.py"
+#: Python is started by the page's worker, which reads runtime.json past every cache as it starts. The page's own
+#: Python used to be fetched as bootstrap.py; a build now ships it in an archive kept for a year, which a returning
+#: browser does not ask for again. The page reads runtime.json too, for the copy it keeps for use without a network,
+#: and so does the multivariate page's worker: the Referer, which names the worker, tells those apart.
+PYTHON = "/runtime.json"
+WORKER = "/worker.js"
 CARD = "/og-card.png"
 #: User agents that are not a reader at a browser: robots, link-preview fetchers, monitors, and
 #: the deploy's own checks, which run headless Chromium and Python's urllib.
@@ -115,7 +120,7 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
             came_from = urlsplit(header(request, "Referer")).hostname
             if came_from and came_from != SITE and not came_from.endswith(f".{SITE}"):
                 referrers[came_from] += 1
-        elif path == PYTHON:
+        elif path == PYTHON and urlsplit(header(request, "Referer")).path == WORKER:
             day.python += 1
     return days, referrers
 
