@@ -35,20 +35,33 @@ def test_the_worked_example_recovers_the_true_process(api, held, simulated):
     assert analysis["model"] == "quadratic"
 
 
-# --------------------------------------------------------------------------- what the results say, in sentences
-def test_the_findings_say_what_the_worked_example_found(api, held, simulated):
+# --------------------------------------------------------------------------- what the results say
+def kinds(findings: list[dict]) -> list[str]:
+    """Name the kind of each finding, in the order the page says them."""
+    return [f["kind"] for f in findings]
+
+
+def test_the_findings_are_what_the_worked_example_found(api, held, simulated):
+    """Python finds; the page writes the sentences (logic.findingWords, in tests/web/js/logic.test.mjs)."""
     findings = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})["findings"]
-    assert findings == [
-        "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average.",
-        "That is more than the 2 % you said is worth finding.",
-        "Also real: P (lowers it), F (raises it).",
-        "The effect of T depends on P: read the two together, not one at a time.",
-        "Yield curves over F: its best setting may lie inside the range, not at an end.",
-        "The model explains 99% of the variation in Yield, and about 82% in runs it has not seen.",
-    ]
+    assert kinds(findings) == ["leads", "worth", "also", "depends", "curves", "fit"]
+    leads, worth, also, depends, curves, fit = findings
+    assert {key: leads[key] for key in ("factor", "categorical", "low", "high", "factor_units", "up")} == {
+        "factor": "T",
+        "categorical": False,
+        "low": 150,
+        "high": 200,
+        "factor_units": "degC",
+        "up": True,
+    }
+    assert leads["change"] == pytest.approx(7.9)
+    assert (worth["than"], worth["worth"]) == ("more", 2)
+    assert also["factors"] == [{"name": "P", "up": False}, {"name": "F", "up": True}]
+    assert (depends["factor"], depends["on"], curves["factor"]) == ("T", "P", "F")
+    assert (round(fit["explained"], 2), round(fit["unseen"], 2)) == (0.99, 0.82)
 
 
-def test_the_same_results_give_the_same_words(api, held, simulated):
+def test_the_same_results_give_the_same_findings(api, held, simulated):
     request = {**held, "responses": simulated["responses"]}
     assert api.ok("api_analyze_runs", request)["findings"] == api.ok("api_analyze_runs", request)["findings"]
 
@@ -61,17 +74,18 @@ def test_a_saturated_design_s_findings_rest_on_lenth_s_method(api):
     beyond = [e["term"] for e in analysis["lenth"]["effects"] if e["active_ME"]]
     assert beyond, "the scenario has effects that stand out"
     largest = max(beyond, key=lambda t: abs(next(e["effect"] for e in analysis["lenth"]["effects"] if e["term"] == t)))
-    assert analysis["findings"][0].startswith(f"{largest} matters most: ")
-    assert analysis["findings"][-1].endswith("the effects are judged by Lenth's method.")
+    assert (analysis["findings"][0]["kind"], analysis["findings"][0]["factor"]) == ("leads", largest)
+    assert analysis["findings"][-1] == {"kind": "saturated", "lenth": True}
     assert analysis["diagnostics"] is None, "no run is left over to judge the others with"
 
 
-def test_on_the_log_scale_an_effect_is_said_as_a_ratio(api, held, simulated):
+def test_on_the_log_scale_an_effect_is_a_ratio(api, held, simulated):
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
     request = {**held, "spec": spec, "responses": simulated["responses"], "model": "main_effects"}
     findings = api.ok("api_analyze_runs", request)["findings"]
-    assert findings[0] == "T matters most: raising T from 150 to 200 degC multiplies Yield by 1.14, on average."
-    assert not any("worth finding" in sentence for sentence in findings), "that change is in percent, not a ratio"
+    assert findings[0]["ratio"] == pytest.approx(1.14, abs=0.005)
+    assert "change" not in findings[0], "that change is a ratio, not an amount in percent"
+    assert "worth" not in kinds(findings), "so it is not set against the change worth finding"
 
 
 def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simulated):
@@ -82,10 +96,9 @@ def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simul
     responses = list(simulated["responses"])
     responses[4] += 25
     analysis = api.ok("api_analyze_runs", {**request, "responses": responses})
-    assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [
-        held["rows"][4][held["columns"].index("Run order")]
-    ]
-    assert analysis["findings"][-1].endswith("far from what the model expects: check before trusting the fit.")
+    run = held["rows"][4][held["columns"].index("Run order")]
+    assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [run]
+    assert analysis["findings"][-1] == {"kind": "unusual", "runs": [run]}
 
 
 def test_each_run_has_its_leverage_and_they_sum_to_the_number_of_coefficients(api, held, simulated):
@@ -103,18 +116,19 @@ def test_a_factor_that_acts_through_its_square_or_an_interaction_is_not_lost_in_
         t, p, f = (row[at["T"]] - 175) / 25, row[at["P"]] - 2, (row[at["F"]] - 15) / 5
         responses.append(float(60 + 0.4 * f + 9 * t * p - 12 * p * p + rng.normal(0, 0.05)))
     findings = api.ok("api_analyze_runs", {**held, "responses": responses})["findings"]
-    assert findings[0] == "P matters most, though Yield does not rise or fall steadily with it: see how below."
-    assert not any(f.startswith("Not told apart from the noise") and "P" in f for f in findings)
-    assert "The effect of T depends on P: read the two together, not one at a time." in findings
-    assert "Yield curves over P: its best setting may lie inside the range, not at an end." in findings
-    assert any(f.startswith("The model explains more than 99% of the variation") for f in findings), "not 100%"
+    assert findings[0] == {"kind": "leads_unsteadily", "factor": "P"}
+    assert not [f for f in findings if f["kind"] == "quiet" and "P" in f["factors"]]
+    assert {"kind": "depends", "factor": "T", "on": "P"} in findings
+    assert {"kind": "curves", "factor": "P"} in findings
+    (fit,) = [f for f in findings if f["kind"] == "fit"]
+    assert 0.995 <= fit["explained"] < 1, "which the page says as more than 99%, not as 100%"
 
 
-def test_nothing_real_is_said_plainly(api, held):
+def test_nothing_real_is_found_plainly(api, held):
     """Results that are noise alone: no factor is named as mattering."""
     noise = np.random.default_rng(3).normal(60, 1, len(held["rows"])).round(2).tolist()
     findings = api.ok("api_analyze_runs", {**held, "responses": noise, "model": "main_effects"})["findings"]
-    assert findings[0] == "No factor's effect on Yield stands out from the noise."
+    assert findings[0] == {"kind": "none"}
 
 
 # --------------------------------------------------------------------------- a simpler model, proposed

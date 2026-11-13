@@ -2865,53 +2865,48 @@ def _real(coefficient: dict, beyond_margin: dict[str, bool]) -> bool | None:
     return beyond_margin.get(coefficient["term"])
 
 
-def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
-    """Write what a factor does to the response from its low setting to its high one, on average over the others."""
-    label, units = _response_words(spec)
+def _effect(coefficient: dict, factor: dict, spec: dict) -> dict[str, Any]:
+    """Return what a factor does to the response from its low setting to its high one, on average over the others.
+
+    ``up`` says whether the response rises. ``change`` is by how much, in the response's units; on the log scale
+    ``ratio`` is the factor it is multiplied or divided by instead; on another scale the change in the
+    response's units depends on where the other factors are set, and neither is given.
+    """
     transform = _transform_of(spec)
-    name, change = factor["name"], 2 * coefficient["coefficient"]
-    up = change > 0
+    change = 2 * coefficient["coefficient"]
+    effect: dict[str, Any] = {
+        "factor": factor["name"],
+        "categorical": _categorical(factor),
+        "low": factor["low"],
+        "high": factor["high"],
+        "factor_units": factor.get("units") or "",
+        "up": change > 0,
+    }
     if transform == "log":
-        amount = (
-            f" {'multiplies' if up else 'divides'} {label} by {max(coefficient['ratio'], 1 / coefficient['ratio']):.3g}"
-        )
+        effect["ratio"] = max(coefficient["ratio"], 1 / coefficient["ratio"])
     elif transform is None:
-        amount = f" {'raises' if up else 'lowers'} {label} by {abs(change):.3g}{f' {units}' if units else ''}"
-    else:  # on another scale the change in the response's units depends on where the others are set
-        amount = f" {'raises' if up else 'lowers'} {label}"
-    if _categorical(factor):
-        return f"changing {name} from {factor['low']} to {factor['high']}{amount}"
-    span = f"{factor['low']:.4g} to {factor['high']:.4g}{' ' + factor['units'] if factor['units'] else ''}"
-    return f"raising {name} from {span}{amount}"
-
-
-def _share_words(share: float) -> str:
-    """Write a share as a whole percentage; one that would round up to 100% and is not all of it as more than 99%."""
-    return "more than 99%" if 0.995 <= share < 1 else f"{share:.0%}"
+        effect["change"] = abs(change)
+    return effect
 
 
 def _fit_findings(
-    label: str, summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
-) -> list[str]:
-    """Say how well the model fits, whether a term may be missing, and which runs to look at again."""
-    said: list[str] = []
+    summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
+) -> list[dict[str, Any]]:
+    """Find how well the model fits, whether a term may be missing, and which runs to look at again."""
+    found: list[dict[str, Any]] = []
     if summary["df_residual"] > 0:
-        fit = f"The model explains {_share_words(summary['r_squared'])} of the variation in {label}"
-        predicted = summary.get("r_squared_pred")
-        seen = "." if predicted is None else f", and about {_share_words(max(predicted, 0))} in runs it has not seen."
-        said.append(fit + seen)
-    else:
-        said.append(
-            "The model uses every run, so none is left to measure the noise with: "
-            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
+        unseen = summary.get("r_squared_pred")
+        found.append(
+            {"kind": "fit", "explained": summary["r_squared"], "unseen": None if unseen is None else max(unseen, 0)}
         )
+    else:
+        found.append({"kind": "saturated", "lenth": bool(lenth)})
     if lack_of_fit and lack_of_fit.get("significant"):
-        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
-    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
+        found.append({"kind": "lack_of_fit"})
+    unusual = [d["run"] for d in diagnostics or [] if d["unusual"]]
     if unusual:
-        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
-        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
-    return said
+        found.append({"kind": "unusual", "runs": unusual})
+    return found
 
 
 #: A fitted term that is a factor's square, as the library names it: ``I(T ** 2)``.
@@ -2929,36 +2924,40 @@ def _swing(term: str, coefficient: float) -> float:
     return abs(coefficient) if _SQUARE.fullmatch(term) else 2 * abs(coefficient)
 
 
-def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[str]:
-    """Say which factor matters most, and by how much when it moves the response steadily across its range.
+def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[dict[str, Any]]:
+    """Find which factor matters most, and by how much when it moves the response steadily across its range.
 
     A factor may matter most through its square or an interaction while its own main effect is nothing to speak
     of: the response then does not rise or fall steadily with it, and no one amount says what it does.
     """
-    label, units = _response_words(spec)
     if not judged.get(first):
-        return [f"{first} matters most, though {label} does not rise or fall steadily with it: see how below."]
-    said = [f"{first} matters most: {_effect_words(by_term[first], simple[first], spec)}, on average."]
+        return [{"kind": "leads_unsteadily", "factor": first}]
+    found: list[dict[str, Any]] = [{"kind": "leads", **_effect(by_term[first], simple[first], spec)}]
     worth = (spec.get("response_info") or {}).get("smallest_change")
     if worth and _transform_of(spec) is None:
         change = abs(2 * by_term[first]["coefficient"])
-        than = "more than" if change > worth else "less than" if change < worth else "the same as"
-        said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
-    return said
+        found.append(
+            {
+                "kind": "worth",
+                "than": "more" if change > worth else "less" if change < worth else "same",
+                "worth": worth,
+            }
+        )
+    return found
 
 
-def _shape_findings(label: str, judged: dict, simple: dict) -> list[str]:
-    """Say which effects depend on another factor, and over which factors the response curves."""
-    said = []
+def _shape_findings(judged: dict, simple: dict) -> list[dict[str, Any]]:
+    """Find which effects depend on another factor, and over which factors the response curves."""
+    found: list[dict[str, Any]] = []
     for term, is_real in judged.items():
         named = _factors_of(term)
         if not is_real or not set(named) <= set(simple):
             continue
         if _SQUARE.fullmatch(term):
-            said.append(f"{label} curves over {named[0]}: its best setting may lie inside the range, not at an end.")
+            found.append({"kind": "curves", "factor": named[0]})
         elif len(named) == len("ab"):
-            said.append(f"The effect of {named[0]} depends on {named[1]}: read the two together, not one at a time.")
-    return said
+            found.append({"kind": "depends", "factor": named[0], "on": named[1]})
+    return found
 
 
 def _findings(
@@ -2968,16 +2967,21 @@ def _findings(
     lenth: dict | None,
     lack_of_fit: dict | None,
     diagnostics: list[dict] | None,
-) -> list[str]:
-    """Say in plain sentences what the analysis found, from its numbers alone: the same results give the same words.
+) -> list[dict[str, Any]]:
+    """Find what the analysis says, from its numbers alone, for the page to write in sentences (logic.findingWords).
 
-    Which factor matters most and by how much, which others are real and which cannot be told from the noise,
-    which effects depend on another factor, where the response curves, how well the model fits, and which runs
-    to look at again. A factor matters through any term that holds it, so one whose square or interaction is
-    real is never said to be lost in the noise, and the factor that matters most is the one whose largest real
-    term moves the response furthest. A factor of three levels or more has no one effect, and is left to its table.
+    Each finding is ``{"kind": ..., ...}``, in the order the page says them: which factor matters most and by
+    how much (``leads``, or ``leads_unsteadily``; then ``worth``, against the change the reader said is worth
+    finding), which others are real (``also``) or that none is (``none``), which cannot be told from the noise
+    (``quiet``) or from each other (``tangled``), which effects depend on another factor (``depends``), where the
+    response curves (``curves``), how well the model fits (``fit``, or ``saturated``), whether a term may be
+    missing (``lack_of_fit``), and which runs to look at again (``unusual``). The same results give the same
+    findings.
+
+    A factor matters through any term that holds it, so one whose square or interaction is real is never
+    lost in the noise, and the factor that matters most is the one whose largest real term moves the response
+    furthest. A factor of three levels or more has no one effect, and is left to its table.
     """
-    label, _ = _response_words(spec)
     simple = {f["name"]: f for f in spec["factors"] if not _several(f)}
     beyond = {e["term"]: bool(e["active_ME"]) for e in (lenth or {}).get("effects", [])}
     judged = {c["term"]: _real(c, beyond) for c in coefficients if c.get("coefficient") is not None}
@@ -2994,30 +2998,22 @@ def _findings(
                 reach[name] = max(reach.get(name, 0.0), swing)
                 total[name] = total.get(name, 0.0) + swing
     ranked = sorted(reach, key=lambda name: (-reach[name], -total[name]))
-    said: list[str] = []
+    found: list[dict[str, Any]] = []
     if ranked:
         first, *others = ranked
-        said += _leading_finding(first, by_term, judged, simple, spec)
-        steady = [n for n in others if judged.get(n)]
+        found += _leading_finding(first, by_term, judged, simple, spec)
+        steady = [{"name": n, "up": by_term[n]["coefficient"] > 0} for n in others if judged.get(n)]
         if steady:
-            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in steady]
-            said.append(f"Also real: {', '.join(ways)}.")
+            found.append({"kind": "also", "factors": steady})
     elif mains:
-        said.append(f"No factor's effect on {label} stands out from the noise.")
+        found.append({"kind": "none"})
     tangled = [n for n in mains if n not in reach and (by_term[n].get("vif") or 0) > TANGLED_VIF]
     quiet = [n for n in mains if n not in reach and n not in tangled]
     if ranked and quiet:
-        said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
+        found.append({"kind": "quiet", "factors": quiet})
     if tangled:
-        said.append(
-            f"{_listed(tangled)} moved together with other factors in these runs, so the runs cannot judge "
-            f"{'it' if len(tangled) == 1 else 'any of them'} alone."
-        )
-    return [
-        *said,
-        *_shape_findings(label, judged, simple),
-        *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics),
-    ]
+        found.append({"kind": "tangled", "factors": tangled})
+    return [*found, *_shape_findings(judged, simple), *_fit_findings(summary, lenth, lack_of_fit, diagnostics)]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:

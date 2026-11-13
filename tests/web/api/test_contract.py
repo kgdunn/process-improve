@@ -124,7 +124,7 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
         "spread: dict?",
-        "findings[]: str",
+        "findings[].kind: str",
         "diagnostics[].run: int",
         "diagnostics[].fitted: number",
         "diagnostics[].residual: number",

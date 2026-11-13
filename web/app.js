@@ -102,6 +102,7 @@ import {
   chartHeight,
   chartLevel,
   simplerWords,
+  findingWords,
   runSheetCsv,
   asideOf,
   asideWords,
@@ -3552,12 +3553,13 @@ function asideParts() {
   return [note];
 }
 
-/** What the analysis found, in sentences Python wrote from its numbers: the same results give the same words. */
+/** What the analysis found, each finding of Python's in a sentence: the same results give the same words. */
 function findingParts(findings) {
-  if (!findings?.length) return [];
+  const sentences = findingWords(findings, responseWords(shownSpec()));
+  if (!sentences.length) return [];
   const list = el("ul", "findings", "");
   list.id = "findings";
-  list.append(...findings.map((sentence) => el("li", "", sentence)));
+  list.append(...sentences.map((sentence) => el("li", "", sentence)));
   return [el("h3", "", "What the results say"), list];
 }
 

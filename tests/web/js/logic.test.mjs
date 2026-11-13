@@ -28,6 +28,7 @@ import {
   chartHeight,
   chartLevel,
   simplerWords,
+  findingWords,
   csvOf,
   runSheetCsv,
   asideOf,
@@ -449,6 +450,50 @@ describe("words and numbers", () => {
   test("the run sheet's CSV holds each result the page has, and a blank for a run still to do", () => {
     const design = { columns: ["Run order", "T", "y", "cost"], rows: [[1, 150, null, null], [2, 200, null, null]] };
     assert.equal(runSheetCsv(design, { y: [61.5, null], cost: [3, 4] }), "Run order,T,y,cost\r\n1,150,61.5,3\r\n2,200,,4\r\n");
+  });
+
+  test("each finding of Python's is said in a sentence about the response", () => {
+    const leads = { kind: "leads", factor: "T", categorical: false, low: 150, high: 200, factor_units: "degC", up: true, change: 7.9 };
+    const found = [
+      leads,
+      { kind: "worth", than: "more", worth: 2 },
+      { kind: "also", factors: [{ name: "P", up: false }, { name: "F", up: true }] },
+      { kind: "depends", factor: "T", on: "P" },
+      { kind: "curves", factor: "F" },
+      { kind: "fit", explained: 0.9869, unseen: 0.8217 },
+    ];
+    assert.deepEqual(findingWords(found, { label: "Yield", units: "%" }), [
+      "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average.",
+      "That is more than the 2 % you said is worth finding.",
+      "Also real: P (lowers it), F (raises it).",
+      "The effect of T depends on P: read the two together, not one at a time.",
+      "Yield curves over F: its best setting may lie inside the range, not at an end.",
+      "The model explains 99% of the variation in Yield, and about 82% in runs it has not seen.",
+    ]);
+    const say = (finding, response = { label: "y", units: "" }) => findingWords([finding], response)[0];
+    const { change, ...direction } = leads;
+    assert.equal(say({ ...direction, ratio: 1.1437, up: false }), "T matters most: raising T from 150 to 200 degC divides y by 1.14, on average.");
+    assert.equal(say(direction), "T matters most: raising T from 150 to 200 degC raises y, on average.", "on a scale with no one amount");
+    assert.equal(
+      say({ kind: "leads", factor: "Supplier", categorical: true, low: "old", high: "new", factor_units: "", up: false, change: 1234.5 }),
+      "Supplier matters most: changing Supplier from old to new lowers y by 1230, on average.",
+    );
+    assert.equal(say({ kind: "leads_unsteadily", factor: "P" }), "P matters most, though y does not rise or fall steadily with it: see how below.");
+    assert.equal(say({ kind: "worth", than: "less", worth: 0.25 }, { label: "y", units: "g/L" }), "That is less than the 0.25 g/L you said is worth finding.");
+    assert.equal(say({ kind: "worth", than: "same", worth: 2 }), "That is the same as the 2 you said is worth finding.");
+    assert.equal(say({ kind: "none" }), "No factor's effect on y stands out from the noise.");
+    assert.equal(say({ kind: "quiet", factors: ["D", "E"] }), "Not told apart from the noise: D, E.");
+    assert.equal(say({ kind: "tangled", factors: ["T", "P"] }), "T and P moved together with other factors in these runs, so the runs cannot judge any of them alone.");
+    assert.equal(say({ kind: "tangled", factors: ["T"] }), "T moved together with other factors in these runs, so the runs cannot judge it alone.");
+    assert.equal(say({ kind: "fit", explained: 0.9961, unseen: null }), "The model explains more than 99% of the variation in y.");
+    assert.equal(say({ kind: "fit", explained: 1, unseen: 0 }), "The model explains 100% of the variation in y, and about 0% in runs it has not seen.");
+    assert.match(say({ kind: "saturated", lenth: true }), /the effects are judged by Lenth's method\.$/);
+    assert.match(say({ kind: "saturated", lenth: false }), /no effect can be tested\.$/);
+    assert.equal(say({ kind: "lack_of_fit" }), "The repeated runs agree more closely than the model fits them: a term may be missing.");
+    assert.equal(say({ kind: "unusual", runs: [5] }), "Run 5's result is far from what the model expects: check before trusting the fit.");
+    assert.equal(say({ kind: "unusual", runs: [3, 5] }), "The results of runs 3, 5 are far from what the model expects: check before trusting the fit.");
+    assert.deepEqual(findingWords([{ kind: "of-a-later-page" }, { kind: "none" }], { label: "y", units: "" }), ["No factor's effect on y stands out from the noise."]);
+    assert.deepEqual(findingWords(undefined, { label: "y", units: "" }), []);
   });
 
   test("the search for a simpler model is said in a sentence", () => {

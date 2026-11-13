@@ -1102,6 +1102,63 @@ export function runSheetCsv(design, results) {
   return csvOf(design.columns, rows);
 }
 
+/** A number to three figures, as a finding says one: 7.9, 12.6, 1230. */
+const figures = (value, digits = 3) => String(Number(Number(value).toPrecision(digits)));
+
+/** A share as a whole percentage; one that would round up to 100% and is not all of it as "more than 99%". */
+const shareWords = (share) => (share >= 0.995 && share < 1 ? "more than 99%" : `${Math.round(share * 100)}%`);
+
+/** A quantity with its units after it, or alone. */
+const amountIn = (text, units) => (units ? `${text} ${units}` : text);
+
+/** Each kind of finding (bootstrap._findings), as a function of it and of the response's ``label`` and ``units``. */
+const FINDINGS = {
+  leads(f, { label, units }) {
+    const span = f.categorical
+      ? `changing ${f.factor} from ${f.low} to ${f.high}`
+      : `raising ${f.factor} from ${amountIn(`${figures(f.low, 4)} to ${figures(f.high, 4)}`, f.factor_units)}`;
+    const does =
+      f.ratio !== undefined
+        ? `${f.up ? "multiplies" : "divides"} ${label} by ${figures(f.ratio)}`
+        : f.change !== undefined
+          ? `${f.up ? "raises" : "lowers"} ${label} by ${amountIn(figures(f.change), units)}`
+          : `${f.up ? "raises" : "lowers"} ${label}`;
+    return `${f.factor} matters most: ${span} ${does}, on average.`;
+  },
+  leads_unsteadily: (f, { label }) => `${f.factor} matters most, though ${label} does not rise or fall steadily with it: see how below.`,
+  worth(f, { units }) {
+    const than = { more: "more than", less: "less than", same: "the same as" }[f.than];
+    return `That is ${than} the ${amountIn(figures(f.worth), units)} you said is worth finding.`;
+  },
+  also: (f) => `Also real: ${f.factors.map((one) => `${one.name} (${one.up ? "raises" : "lowers"} it)`).join(", ")}.`,
+  none: (_, { label }) => `No factor's effect on ${label} stands out from the noise.`,
+  quiet: (f) => `Not told apart from the noise: ${f.factors.join(", ")}.`,
+  tangled: (f) =>
+    `${listNames(f.factors)} moved together with other factors in these runs, so the runs cannot judge ` +
+    `${f.factors.length === 1 ? "it" : "any of them"} alone.`,
+  depends: (f) => `The effect of ${f.factor} depends on ${f.on}: read the two together, not one at a time.`,
+  curves: (f, { label }) => `${label} curves over ${f.factor}: its best setting may lie inside the range, not at an end.`,
+  fit(f, { label }) {
+    const seen = `The model explains ${shareWords(f.explained)} of the variation in ${label}`;
+    return f.unseen === null ? `${seen}.` : `${seen}, and about ${shareWords(f.unseen)} in runs it has not seen.`;
+  },
+  saturated: (f) =>
+    "The model uses every run, so none is left to measure the noise with: " +
+    (f.lenth ? "the effects are judged by Lenth's method." : "no effect can be tested."),
+  lack_of_fit: () => "The repeated runs agree more closely than the model fits them: a term may be missing.",
+  unusual(f) {
+    const runs = f.runs.length === 1 ? `Run ${f.runs[0]}'s result is` : `The results of runs ${f.runs.join(", ")} are`;
+    return `${runs} far from what the model expects: check before trusting the fit.`;
+  },
+};
+
+/**
+ * What the analysis found (``findings``, as bootstrap._findings lists them), each in a sentence about the response
+ * (its ``label`` and ``units``). A kind of finding this page does not know, from a later bootstrap.py, is left out.
+ */
+export const findingWords = (findings, response) =>
+  (findings ?? []).filter((finding) => finding.kind in FINDINGS).map((finding) => FINDINGS[finding.kind](finding, response));
+
 /** What a call to Python is answered with when the reader stopped it. */
 export const STOPPED = "Stopped, as you asked: nothing was changed.";
 
