@@ -61,6 +61,8 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
     assert corners["mode"] == "markers+text"
     assert len(corners["text"]) == 8
+    edges = next(t for t in figures["cube"]["data"] if t["name"] == "Edges")
+    assert (edges["mode"], edges["line"]["width"]) == ("lines", 3), "the library draws the cube: the page adds nothing"
     assert len(figures["residuals_order"]["data"][-1]["x"]) == 15, "one residual a run"
 
 

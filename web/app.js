@@ -547,7 +547,6 @@ const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[
 /** Each response's model, by its column, as a study keeps them. */
 const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, modelOf(name)]));
 
-/** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
 /** Each response's results as its model is fitted to them: without the runs set aside from its fit. */
 const fitted = () => fittedResults(state.results, state.setAside);
 
@@ -557,6 +556,7 @@ const asideRuns = (name = state.shown) => asideOf(state.setAside, state.results,
 /** A run's number in the order the runs were made, from its place on the run sheet. */
 const runOrderOf = (place) => state.design.rows[place]?.[state.design.columns.indexOf("Run order")] ?? place + 1;
 
+/** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
 const sentResults = () => ({ ...splitResults(resultNames(), state.results), ...splitResults(resultNames(), state.marks, "sources") });
 
 /** Each run's curve as Python and a saved study take them, when the study reads one. */
@@ -3399,6 +3399,7 @@ function analysisRequest(name = state.shown) {
     truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
     ...(several() ? { response: name } : {}),
     ...chosenControl(),
+    ...(asideRuns(name).length ? { set_aside: asideRuns(name).map(runOrderOf) } : {}), // so Python names them apart
   };
 }
 

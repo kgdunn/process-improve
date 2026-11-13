@@ -81,6 +81,9 @@ def test_a_mixture_needs_a_completed_run_per_coefficient(api):
         "The quadratic blending model has 6 coefficients, so it needs at least 6 completed runs, and 5 are complete. "
         "Still to run: 6, 7."
     )
+    request = {**held, "responses": [1.0, 2.0, 3.0, 4.0, 5.0, None, None], "set_aside": [7]}
+    aside = api.error("api_analyze_runs", request)
+    assert aside.endswith("and 5 are complete. Still to run: 6. Set aside: 7."), "a run set aside is named apart"
 
 
 def test_a_mixture_sent_back_with_limits_on_its_settings_is_refused(api):

@@ -413,6 +413,21 @@ def test_too_few_results_for_the_model_are_reported_in_the_page_s_words(api, hel
     )
 
 
+def test_too_few_results_name_the_runs_set_aside_apart_from_those_still_to_do(api, held, simulated):
+    """A run set aside comes with no result, as a run still to do does: the page says which it set aside."""
+    request = {**held, "responses": [None] * 8 + simulated["responses"][8:], "model": "quadratic"}
+    needs = "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete."
+    assert api.error("api_analyze_runs", {**request, "set_aside": [2, 5]}) == (
+        f"{needs} Still to run: 1, 3, 4, 6, 7, 8. Set aside: 2, 5."
+    )
+    assert api.error("api_analyze_runs", {**request, "set_aside": list(range(1, 9))}) == (
+        f"{needs} Set aside: 1, 2, 3, 4, 5, 6, 7, 8."
+    )
+    assert api.error("api_analyze_runs", {**request, "set_aside": "2"}) == (
+        f"{needs} Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
+    ), "a list is read, and nothing else"
+
+
 # --------------------------------------------------------------------------- blocks
 def _blocked(api, factors: list[dict], **options: object) -> dict:
     return api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_blocks": 2, **options})

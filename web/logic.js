@@ -579,11 +579,17 @@ export function toggleAside(setAside, name, place) {
   return { ...setAside, [name]: [...now].sort((a, b) => a - b) };
 }
 
-/** What Learn says of the runs set aside from the fit it shows, by their run order: "" for none. */
+/**
+ * What Learn says of the runs set aside from the fit it shows, by their run order: "" for none. From the second
+ * run on it says what setting runs aside one after another does: with a run gone the noise is estimated smaller,
+ * so the next run looks more unusual than it did, and a reader can go on until the model fits what is left.
+ */
 export function asideWords(runs) {
   if (!runs.length) return "";
   const one = runs.length === 1;
-  return `Run${one ? "" : "s"} ${listNames(runs.map(String))} ${one ? "is" : "are"} set aside: the model is fitted without ${one ? "it" : "them"}.`;
+  const said = `Run${one ? "" : "s"} ${listNames(runs.map(String))} ${one ? "is" : "are"} set aside: the model is fitted without ${one ? "it" : "them"}.`;
+  if (one) return said;
+  return `${said} Each fit judges the runs that remain afresh, and with less noise left a run looks more unusual than it did: set a run aside for a reason you know of, not for its residual alone.`;
 }
 
 /** The reverse of splitResults: each response's results by its column, from the first's list and the others'. */

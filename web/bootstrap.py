@@ -2710,19 +2710,35 @@ def analyze(request: dict) -> dict:
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
+def _runs_lacking(pending: list[int], aside: Collection[int]) -> str:
+    """Say which runs a fit lacks, by their run order: those still to do, and those the reader set aside."""
+    waiting = [run for run in pending if run not in aside]
+    held = [run for run in pending if run in aside]
+    still = f" Still to run: {', '.join(map(str, waiting))}." if waiting else ""
+    return f"{still} Set aside: {', '.join(map(str, held))}." if held else still
+
+
 def _analysis(
-    runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None, *, control: object = None
+    runs: pd.DataFrame,
+    spec: dict,
+    model: str,
+    truth: list[dict] | None = None,
+    *,
+    control: object = None,
+    aside: Collection[int] = (),
 ) -> dict:
     """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
 
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`). A study of
     one categorical factor of three levels or more compares each level with ``control``,
-    one of its levels, the first unless named (see :func:`_comparison`).
+    one of its levels, the first unless named (see :func:`_comparison`). ``aside`` holds the
+    run orders the reader set aside from this fit: they come without a result, as runs still
+    to do, and a refusal for too few runs names them apart.
     """
     runs = _design_runs(runs)
     if _mixture(spec):
-        return _mixture_analysis(runs, spec, model, truth)
+        return _mixture_analysis(runs, spec, model, truth, aside)
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
@@ -2745,8 +2761,8 @@ def _analysis(
         complete = int(done.sum())
         raise ValueError(
             f"The {name} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
-            f"Still to run: {', '.join(map(str, pending))}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete."
+            f"{_runs_lacking(pending, aside)}"
         )
 
     y_done = y[done].reset_index(drop=True).rename(response)
@@ -3603,7 +3619,9 @@ MIXTURE_NOTES = [
 ]
 
 
-def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list[dict] | None = None) -> dict:
+def _mixture_analysis(
+    runs: pd.DataFrame, spec: dict, model: object, truth: list[dict] | None = None, aside: Collection[int] = ()
+) -> dict:
     """Fit a Scheffé model to a mixture's completed runs, in their proportions, which are not coded.
 
     The mixture ANOVA tests the linear blending terms together, whether the components blend
@@ -3626,8 +3644,8 @@ def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list
         complete = int(done.sum())
         raise ValueError(
             f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
-            f"Still to run: {', '.join(map(str, pending))}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete."
+            f"{_runs_lacking(pending, aside)}"
         )
     blends = runs.loc[done, names].astype(float).reset_index(drop=True)
     out = _mixture_fit(blends, y[done].reset_index(drop=True).rename(response), model)
@@ -4577,12 +4595,16 @@ def analyze_runs(request: dict) -> dict:
     ``truth``, the process the results were simulated from, adds each coefficient's true value.
     ``response`` names the response to analyse, by its column; the first without it. Each response
     is fitted to the runs that have its result, so a run with some of its results in counts for those.
+    ``set_aside`` lists the run orders the reader set aside from this fit, which come with no result:
+    a refusal for too few runs then says which runs are set aside, and which are still to do.
     """
     spec = _checked_spec(request.get("spec") or {})
     runs, _ = _on_model_scale(_runs_frame(request, spec), spec)  # the spec as sent: the reply gives it back
     spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"))
+    sent = request.get("set_aside")
+    aside = {run for run in sent if isinstance(run, int)} if isinstance(sent, list) else set()
+    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"), aside=aside)
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -5456,11 +5478,6 @@ def _dress_surface_3d(figure: dict, w: dict) -> None:
 def _dress_cube(figure: dict, w: dict) -> None:
     x, y, z = (_factor_axis(f) for f in w["drawn"])
     figure["layout"].update(scene={"xaxis": x, "yaxis": y, "zaxis": z}, showlegend=False)
-    for trace in figure["data"]:  # the edges are the cube; the corners carry the numbers, and no line joins them
-        if trace.get("name") == "Edges":
-            trace["mode"], trace["line"] = "lines", {"color": "#8a8f98", "width": 3}
-        else:
-            trace["mode"] = "markers+text"
 
 
 def _dress_prediction_variance(figure: dict, w: dict) -> None:

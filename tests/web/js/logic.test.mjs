@@ -439,7 +439,9 @@ describe("words and numbers", () => {
   test("the runs set aside are said by their run order", () => {
     assert.equal(asideWords([]), "");
     assert.equal(asideWords([5]), "Run 5 is set aside: the model is fitted without it.");
-    assert.equal(asideWords([3, 5]), "Runs 3 and 5 are set aside: the model is fitted without them.");
+    assert.ok(asideWords([3, 5]).startsWith("Runs 3 and 5 are set aside: the model is fitted without them. "));
+    assert.ok(asideWords([3, 5]).endsWith("set a run aside for a reason you know of, not for its residual alone."), "said from the second run");
+    assert.ok(!asideWords([5]).includes("afresh"), "one run set aside needs no such word");
   });
 
   test("a table is written as CSV, its text quoted where it must be and never run as a formula", () => {

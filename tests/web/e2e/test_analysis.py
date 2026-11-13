@@ -345,6 +345,7 @@ def test_a_run_set_aside_keeps_its_result_and_the_model_is_fitted_without_it(pag
     sent = calls(page, "api_analyze_runs")[-1]["payload"]
     place = next(i for i, row in enumerate(sent["rows"]) if row[sent["columns"].index("Run order")] == 5)
     assert sent["responses"][place] is None, "Python fits the model without it"
+    assert sent["set_aside"] == [5], "and is told which run that is, to name it apart from a run still to do"
     assert page.locator(f'#design-table input[data-index="{place}"]').input_value() != "", "the run sheet keeps it"
     assert "14 completed runs" in page.text_content("#analysis")
     assert "Still to run" not in page.text_content("#analysis"), "a run set aside is not one still to do"
@@ -359,7 +360,9 @@ def test_a_run_set_aside_is_put_back(page):
     settled(page)
     assert page.locator("#aside-runs").count() == 0
     assert "15 completed runs" in page.text_content("#analysis")
-    assert None not in calls(page, "api_analyze_runs")[-1]["payload"]["responses"]
+    back = calls(page, "api_analyze_runs")[-1]["payload"]
+    assert None not in back["responses"]
+    assert "set_aside" not in back
 
 
 def test_a_run_set_aside_is_kept_with_the_study(blank_page):
