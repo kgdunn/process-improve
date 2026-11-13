@@ -267,6 +267,44 @@ def test_a_nested_term_the_results_do_not_support_is_dropped_and_the_factor_it_i
     request = _nested_study(api, {"X": 0.0, "Y": 0.0, "Z": 0.0})
     proposed = api.ok("api_simpler_model", request)
     assert (proposed["kept"], proposed["dropped"], proposed["added"]) == (["Supplier"], ["Supplier·Batch"], [])
+    assert proposed["within"] is None, "searched over its own terms: within a standard model, Batch could come in"
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+
+
+SHIFT = {"name": "Shift", "type": "categorical", "levels": ["day", "night"]}
+
+
+@pytest.mark.parametrize(
+    ("factors", "terms", "process"),
+    [
+        (  # T acts in the second batch only
+            [SUPPLIER, BATCH, FACTORS[0]],
+            [["Supplier"], ["Supplier", "T"], ["Batch", "T"]],
+            lambda run: 3 * (run["T"] - 175) / 25 * (run["Batch"] == "second"),
+        ),
+        (  # the second batch differs at night only
+            [SUPPLIER, BATCH, SHIFT],
+            [["Supplier"], ["Supplier", "Batch"], ["Shift"], ["Batch", "Shift"]],
+            lambda run: 3.0 * (run["Batch"] == "second" and run["Shift"] == "night"),
+        ),
+    ],
+    ids=["a two-level factor with a number", "two two-level factors"],
+)
+def test_a_term_without_the_terms_below_it_is_scored_as_the_page_fits_it(api, factors, terms, process):
+    """Beside a nested term, a model may hold ``Batch·T`` with neither Batch nor T: the product of their columns.
+
+    Given Batch as labels, the library fitted T's slope within each batch, which is another model, and the
+    page said what the adjusted R² "would be" for a model it then did not fit: 0.9995 said, 0.88 fitted.
+    """
+    spec = {"design_type": "full_factorial", "factors": factors, "n_center_points": 0, "n_replicates": 2}
+    design = api.ok("api_make_design", spec)
+    of_supplier = {"X": 0.0, "Y": 5.0, "Z": -5.0}
+    responses = _results(design, lambda run: 40 + of_supplier[run["Supplier"]] + process(run))
+    request = {**held_of(design), "responses": responses, "model": {"terms": terms}}
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["within"] is None
+    assert proposed["added"] == []
     fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
     assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
 

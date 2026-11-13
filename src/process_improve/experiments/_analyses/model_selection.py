@@ -18,12 +18,18 @@ for designed experiments:
   residual with ever more terms. AIC and BIC count ``K`` the same way.
 
 The search starts from the full candidate model (backward) when the runs can
-estimate every term of it and leave at least two residual degrees of freedom, and
-from the intercept alone (forward) otherwise: in a screening or supersaturated
-design, and wherever two candidates are aliased with each other, as ``A:B`` and
-``C:D`` are in a replicated half fraction. Started from both, neither of an aliased
-pair could leave, since the model fits as well without either one; started from
-none, the first of the pair to enter is the one whose main effects are in.
+estimate every term of it and leave at least two residual degrees of freedom. It
+starts from the intercept alone (forward) when the runs are too few for that, as in a
+screening or supersaturated design.
+
+Between the two lie the designs whose runs are enough but whose candidates are
+aliased with each other, as ``A:B`` and ``C:D`` are in a half fraction run twice, or
+the squares of a two-level factorial with centre runs. Started from all of them,
+neither of an aliased pair could leave, since the model fits as well without either
+one. So the search is run twice, and the better result kept: forward from none, where
+the first of an aliased pair to enter is the one whose main effects are in; and
+backward from the candidates the runs estimate together, those named first, which
+finds an interaction one of whose main effects is not active, as forward cannot.
 
 A candidate that adds nothing to what every model holds is no candidate: an
 interaction confounded with the blocks, or the square of a factor run at two levels,
@@ -144,21 +150,23 @@ def _candidate_terms(
 
 
 class _Scorer:
-    """Score subsets of terms from one model matrix, built once by patsy.
+    """Score subsets of terms.
 
     ``fixed`` names the terms every model keeps: the linear blending terms of a mixture model, and the
     blocks. Every model has an intercept unless ``intercept`` is false, as for a mixture model, whose
     blending terms make up the constant. A term of several columns, a categorical factor or an interaction
     with one, is scored whole.
 
+    Each term is coded by patsy on its own, a categorical factor with a column for every level. Coded within
+    a formula, a term's columns depend on the other terms there: the second of two categorical factors is a
+    column short where the first holds the constant, and a slope within each level (``P:x``) is one short
+    where ``x`` is a term. The model of some terms is the span of their columns, so with each term coded in
+    full a subset is scored as the model patsy fits when given those terms alone, whichever subset it is.
+    The columns of a model are then more than its rank; the coefficients counted are its rank.
+
     ``terms`` holds the candidates the search may use: those given, less any that adds nothing to what every
     model keeps. The runs cannot tell such a term from the blocks or the intercept, so no model is better
     for it, and left in it would hold its parents in the model with it.
-
-    Without an intercept, a term of categorical factors alone holds the constant: patsy gives the first such
-    term of a formula a column for every level, and codes the later ones a column short, the constant being
-    there already. The matrix is built once, from every term, so a model with a later one and not the first
-    is scored with the constant put back: it is the model patsy fits when given those terms alone.
     """
 
     def __init__(
@@ -171,45 +179,46 @@ class _Scorer:
         *,
         intercept: bool = True,
     ) -> None:
-        names = [*fixed, *(t.name for t in terms)]
-        formula = " + ".join(names if intercept else ["-1", *names]) or "1"
-        full = dmatrix(formula, design_df, return_type="dataframe")
-        info = full.design_info
-        slices = info.term_name_slices
-        positions = np.arange(full.shape[1])
-        self._x = np.column_stack([full.to_numpy(dtype=float), np.ones(len(full))])  # the constant, in the last column
-        kept = itertools.chain.from_iterable(positions[slices[f]] for f in fixed)
-        self._fixed = [*([0] if intercept else []), *kept]
-        categories = {f for f, kind in info.factor_infos.items() if kind.type == "categorical"}
-        self._constant = (
-            frozenset()
-            if intercept
-            else frozenset(t.name() for t in info.terms if t.factors and categories.issuperset(t.factors))
-        )
+        def coded(term: str) -> np.ndarray:
+            return np.asarray(dmatrix(f"0 + {term}", design_df), dtype=float)
+
+        blocks = [np.ones((len(y), int(intercept))), *(coded(name) for name in [*fixed, *(t.name for t in terms)])]
+        ends = np.cumsum([block.shape[1] for block in blocks])
+        spans = [np.arange(end - block.shape[1], end) for block, end in zip(blocks, ends, strict=True)]
+        self._x = np.column_stack(blocks)
+        self._fixed = [*itertools.chain.from_iterable(spans[: 1 + len(fixed)])]
         self._y, self._n, self._criterion = y, len(y), criterion
         always = self._rank(self._fixed)
-        told = {t.name for t in terms if self._rank([*self._fixed, *positions[slices[t.name]]]) > always}
+        columns = dict(zip((t.name for t in terms), spans[1 + len(fixed) :], strict=True))
+        told = {name for name, span in columns.items() if self._rank([*self._fixed, *span]) > always}
         self.terms = [_Term(t.name, t.parents & told) for t in terms if t.name in told]
-        self._columns = {t.name: positions[slices[t.name]] for t in self.terms}
+        self._columns = {t.name: columns[t.name] for t in self.terms}
 
     def _rank(self, columns: Sequence[int]) -> int:
         """Rank of some columns of the model matrix: how many coefficients the runs can estimate of them."""
         return int(np.linalg.matrix_rank(self._x[:, columns])) if len(columns) else 0
 
-    @property
-    def estimable(self) -> bool:
-        """Whether the runs estimate every candidate at once, with two residual degrees of freedom to spare."""
-        every = [*self._fixed, *itertools.chain.from_iterable(self._columns.values())]
-        rank = self._rank(every)
-        return rank - self._rank(self._fixed) == len(every) - len(self._fixed) and self._n - rank >= 2
+    def together(self) -> frozenset[str] | None:
+        """Return the candidates the runs estimate together, those named first; None where they leave no runs over.
+
+        Each candidate in turn is taken if its parents were and it adds to what the runs estimate of the terms
+        before it. One that adds nothing is aliased with those: it waits for one of them to leave. The model
+        of the terms taken must leave two residual degrees of freedom, or a search cannot start from it.
+        """
+        held, rank = list(self._fixed), self._rank(self._fixed)
+        taken: set[str] = set()
+        for term in self.terms:
+            with_it = [*held, *self._columns[term.name]]
+            if term.parents <= taken and (added := self._rank(with_it)) > rank:
+                held, rank = with_it, added
+                taken.add(term.name)
+        return frozenset(taken) if self._n - rank >= 2 else None
 
     def __call__(self, included: frozenset[str]) -> float:
         """Score the model with the fixed columns and the ``included`` terms (lower is better)."""
         cols = [*self._fixed, *itertools.chain.from_iterable(self._columns[t] for t in sorted(included))]
         if not cols:
             return np.inf  # no intercept, nothing kept and no term: that is no model, so one term stays
-        if self._constant & included:
-            cols.append(self._x.shape[1] - 1)
         x = self._x[:, cols]
         beta, _, rank, _ = np.linalg.lstsq(x, self._y, rcond=None)
         rss = max(float(np.sum((self._y - x @ beta) ** 2)), 1e-300)
@@ -225,19 +234,23 @@ class _Scorer:
 
 
 def _moves(current: frozenset[str], terms: list[_Term]) -> list[frozenset[str]]:
-    """Every model one heredity-respecting addition or removal away from ``current``, in the order of ``terms``."""
+    """Every model one heredity-respecting addition or removal away from ``current``.
+
+    The additions are in the order of ``terms`` and the removals in the reverse of it, so of moves that
+    score the same the first leaves the term named first in the model, whether it enters or another leaves.
+    """
     held = [t for t in terms if t.name in current]
     needed = frozenset().union(*(t.parents for t in held))
     additions = [current | {t.name} for t in terms if t.name not in current and t.parents <= current]
-    removals = [current - {t.name} for t in held if t.name not in needed]
+    removals = [current - {t.name} for t in reversed(held) if t.name not in needed]
     return additions + removals
 
 
 def _stepwise(score: _Scorer, start: frozenset[str]) -> tuple[frozenset[str], float]:
     """Take the best single move while it improves the score; each step strictly lowers it, so this ends.
 
-    Of moves that score the same, the first is taken: an addition before a removal, each in the order of the
-    candidates. So of two aliased terms the one named first enters, whatever the rounding of their scores.
+    Of moves that score the same, the first is taken (see :func:`_moves`). So of two terms the runs can
+    barely tell apart, the one named first is the one kept, whatever the rounding of their scores.
     """
     current, best = start, score(start)
     while True:
@@ -249,11 +262,19 @@ def _stepwise(score: _Scorer, start: frozenset[str]) -> tuple[frozenset[str], fl
 
 
 def _search(score: _Scorer) -> tuple[frozenset[str], float, str]:
-    """Search backward from every candidate when the runs estimate them all, else forward from none."""
-    direction = "backward" if score.estimable else "forward"
-    start = frozenset(t.name for t in score.terms) if direction == "backward" else frozenset()
-    selected, value = _stepwise(score, start)
-    return selected, value, direction
+    """Search backward from the candidates the runs estimate together, and forward from none unless those are all.
+
+    Too few runs for a backward start leave the forward search alone. Where both are run, the lower score is
+    kept, and of two that score the same the model of fewer terms.
+    """
+    start = score.together()
+    found = []
+    if start is not None:
+        found.append((*_stepwise(score, start), "backward"))
+    if start is None or len(start) < len(score.terms):
+        found.append((*_stepwise(score, frozenset()), "forward"))
+    lowest = min(value for _, value, _ in found)
+    return min((result for result in found if result[1] <= lowest + _SAME_SCORE), key=lambda result: len(result[0]))
 
 
 def _proposed_terms(design_df: pd.DataFrame, response_col: str, factor_cols: list[str], model: str) -> list[str]:

@@ -1157,15 +1157,29 @@ class TestModelSelection:
 
     @pytest.mark.parametrize("first", ["A", "Twin"])
     def test_of_two_terms_that_score_the_same_the_one_named_first_is_taken(self, first: str) -> None:
-        """Two columns the same: which one enters must not hang on the last digit of a score."""
-        from process_improve.experiments._analyses.model_selection import _run_model_selection
+        """Which of two terms enters must not hang on the last digits of a score.
+
+        Twin is A moved a million-millionth of the way to B, on the side of what A leaves unexplained: it
+        fits better than A by less than two equal scores may differ. The lowest score alone would take Twin
+        wherever it is named, entering first or left in last. The search keeps whichever is named first.
+        """
+        from process_improve.experiments._analyses import model_selection as ms
 
         runs = self._two_cubed_twice()
-        runs["Twin"] = runs.A
-        runs["y"] = 5 + 3 * runs.A + np.random.default_rng(5).normal(0, 0.3, 16)
-        factors = [first, *(name for name in ("A", "Twin", "B") if name != first)]
-        ms = _run_model_selection(runs, "y", factors, "main_effects")["model_selection"]
-        assert (ms["selected_terms"], ms["direction"]) == ([first], "forward")
+        y = 5 + 3 * runs.A + np.random.default_rng(5).normal(0, 0.3, 16)
+        left_by_a = y - np.polyval(np.polyfit(runs.A, y, 1), runs.A)
+        runs["Twin"] = runs.A + 1e-12 * runs.B * np.sign(runs.B @ left_by_a)
+        runs["y"] = y
+        factors = [first, *(name for name in ("A", "Twin") if name != first)]
+        terms = ms._candidate_terms(factors, "main_effects")
+        score = ms._Scorer(runs, runs.y.to_numpy(), terms, "aicc")
+        apart = score(frozenset({"A"})) - score(frozenset({"Twin"}))
+        assert 0 < apart < ms._SAME_SCORE, "Twin scores lower, by less than two equal scores may differ"
+        assert score.together() == {"A", "Twin"}, "the runs do tell the two apart, just"
+        assert ms._stepwise(score, frozenset())[0] == {first}, "from none: the first named enters"
+        assert ms._stepwise(score, frozenset({"A", "Twin"}))[0] == {first}, "from both: the later named leaves"
+        chosen = ms._run_model_selection(runs, "y", factors, "main_effects")["model_selection"]
+        assert chosen["selected_terms"] == [first]
 
     def test_the_candidates_are_those_the_runs_can_tell_from_what_every_model_keeps(self) -> None:
         from process_improve.experiments._analyses.model_selection import _formula_terms, _Scorer
@@ -1177,9 +1191,67 @@ class TestModelSelection:
         score = _Scorer(runs, runs.y.to_numpy(), _formula_terms(codes), "aicc", fixed=["Block1"])
         told = {term.name: sorted(term.parents) for term in score.terms}
         assert told == {"A": [], "B": [], "C": [], "A:B:C": ["A", "B", "C"]}, "no A:B, so A:B:C does not wait for it"
-        assert score.estimable, "what is left, the runs estimate at once with runs to spare"
+        assert score.together() == {"A", "B", "C", "A:B:C"}, "what is left, the runs estimate at once"
         nothing = _Scorer(runs, runs.y.to_numpy(), _formula_terms([("A", "B")]), "aicc", fixed=["Block1"])
         assert nothing.terms == []
+        assert nothing.together() == frozenset()
+
+    def test_the_candidates_a_search_starts_from_are_those_the_runs_estimate_together(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _candidate_terms, _Scorer, _Term
+
+        half = [(a, b, c, a * b * c) for a, b, c in itertools.product([-1.0, 1.0], repeat=3)]
+        runs = pd.DataFrame(half * 2, columns=list("ABCD")).assign(y=1.0)
+        score = _Scorer(runs, runs.y.to_numpy(), _candidate_terms(list("ABCD"), "interactions"), "aicc")
+        assert len(score.terms) == 10, "each of the ten adds to the intercept: all are candidates"
+        assert score.together() == {"A", "B", "C", "D", "A:B", "A:C", "A:D"}, (
+            "of each aliased pair, the one named first"
+        )
+        once = runs.iloc[:8]
+        too_few = _Scorer(once, once.y.to_numpy(), _candidate_terms(list("ABCD"), "interactions"), "aicc")
+        assert too_few.together() is None, "eight runs and eight coefficients leave nothing to judge a model by"
+        # A term whose parent was not taken is not taken either: it waits for the parent to enter.
+        twin = runs.assign(Twin=runs.A, Lone=runs.B * runs.C)
+        terms = [_Term("A", frozenset()), _Term("Twin", frozenset()), _Term("Lone", frozenset({"Twin"}))]
+        assert _Scorer(twin, twin.y.to_numpy(), terms, "aicc").together() == {"A"}
+
+    def test_aliased_candidates_are_searched_from_both_ends_and_the_better_result_is_kept(self) -> None:
+        """Forward alone never reaches an interaction one of whose main effects does nothing; backward alone
+        gives an aliased interaction to the term named first. Each finds what the other cannot.
+        """
+        half = [(a, b, c, a * b * c) for a, b, c in itertools.product([-1.0, 1.0], repeat=3)]
+        runs = pd.DataFrame(half * 2, columns=list("ABCD"))
+        noise = np.random.default_rng(1).normal(0, 0.3, 16)
+        found = {}
+        for truth, y in (
+            ("A and A:B", 10 + 3 * runs.A + 4 * runs.A * runs.B),
+            ("C, D and C:D", 5 + 3 * runs.C + 2 * runs.D + 2.5 * runs.C * runs.D),
+        ):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)  # the fit of the ten terms says three are not estimable
+                ms = analyze_experiment(
+                    runs, pd.Series(y + noise, name="y"), model="interactions", analysis_type="model_selection"
+                )
+            found[truth] = (ms["model_selection"]["selected_terms"], ms["model_selection"]["direction"])
+        assert found == {"A and A:B": (["A", "B", "A:B"], "backward"), "C, D and C:D": (["C", "D", "C:D"], "forward")}
+
+    def test_squares_aliased_with_each_other_do_not_cost_the_search_an_interaction(self) -> None:
+        """A two-level factorial with centre runs has one square to estimate, whichever factor it is named for.
+
+        Searched forward for that, the quadratic model lost an interaction that the interactions model, which it
+        contains, kept: 117 units of AICc worse, for having more to choose from.
+        """
+        cube = list(itertools.product([-1.0, 1.0], repeat=3))
+        runs = pd.DataFrame(cube * 2 + [(0.0, 0.0, 0.0)] * 4, columns=list("ABC"))
+        y = pd.Series(10 + 3 * runs.A + 4 * runs.A * runs.B + np.random.default_rng(1).normal(0, 0.3, 20), name="y")
+        chosen = {}
+        for model in ("interactions", "quadratic"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)  # the quadratic fit says two squares are not estimable
+                chosen[model] = analyze_experiment(runs, y, model=model, analysis_type="model_selection")[
+                    "model_selection"
+                ]
+        assert chosen["quadratic"]["selected_terms"] == chosen["interactions"]["selected_terms"] == ["A", "B", "A:B"]
+        assert chosen["quadratic"]["criterion_value"] == pytest.approx(chosen["interactions"]["criterion_value"])
 
     def test_a_search_with_no_candidate_left_keeps_what_every_model_keeps(self) -> None:
         from process_improve.experiments._analyses.model_selection import _Formula, _run_model_selection
@@ -1238,24 +1310,61 @@ class TestModelSelection:
         by_aic = _run_model_selection(runs, "y", ["A", "B"], "y ~ -1 + A + B", "aic", formula=formula)
         assert by_aic["model_selection"]["selected_terms"], "AIC is defined where AICc is not"
 
-    @pytest.mark.parametrize(
-        ("model", "kept"),
-        [
-            ("y ~ Block + A + B + C + Block:A", "Block + Block:A"),
-            ("y ~ C(Block) + A + B + C + C(Block):A", "C(Block) + C(Block):A"),
-        ],
-    )
-    def test_a_formula_s_own_terms_of_the_blocks_are_all_in_every_model(self, model: str, kept: str) -> None:
+    def test_a_formula_s_own_terms_of_the_blocks_are_all_in_every_model(self) -> None:
         """``Block:A`` was neither a candidate nor kept: the search fitted a model the formula did not ask for."""
         runs, _ = self._blocked_runs()
         slope = np.where(runs.Block == 1, 5.0, 1.0)  # the effect of A differs between the blocks
         y = pd.Series(20 + slope * runs.A - 2 * runs.C + np.random.default_rng(8).normal(0, 0.3, 16), name="y")
+        model = "y ~ Block + A + B + C + Block:A"
         ms = analyze_experiment(runs, y, model=model, analysis_type="model_selection")["model_selection"]
         assert ms["selected_terms"] == ["A", "C"]
-        assert ms["selected_formula"] == f"y ~ {kept} + A + C"
+        assert ms["selected_formula"] == "y ~ Block + Block:A + A + C"
         assert ms["r_squared_adj"] > 0.99, "which it is not without the term for the blocks' slopes"
         again = analyze_experiment(runs, y, model=ms["selected_formula"], analysis_type="coefficients")
         assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
+
+    @pytest.mark.parametrize("slopes", [(5.0, 0.0), (0.0, 5.0)])
+    def test_a_slope_within_each_block_holds_the_factor_s_own_effect(self, slopes: tuple[float, float]) -> None:
+        """``C(Block):A`` is A's slope in each block, so A is in every model: it is no term to keep or drop.
+
+        Scored from the columns patsy codes it with beside ``A``, one slope short, the term lost A's effect
+        with A, and whether A was kept turned on which block had no slope.
+        """
+        runs, _ = self._blocked_runs()
+        slope = np.where(runs.Block == 1, *slopes)
+        y = pd.Series(20 + slope * runs.A - 2 * runs.C + np.random.default_rng(8).normal(0, 0.3, 16), name="y")
+        model = "y ~ C(Block) + A + B + C + C(Block):A"
+        ms = analyze_experiment(runs, y, model=model, analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["C"], "the same, whichever block the slope is in"
+        assert ms["selected_formula"] == "y ~ C(Block) + C(Block):A + C"
+        assert ms["n_terms"] == 5, "the intercept, a block, a slope of A for each block, and C"
+        again = analyze_experiment(runs, y, model=ms["selected_formula"], analysis_type="coefficients")
+        assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
+        assert ms["r_squared_adj"] > 0.99
+
+    @pytest.mark.parametrize("without_slope", ["u", "w"])
+    def test_a_subset_of_a_formula_s_terms_is_scored_as_the_model_patsy_fits_of_them(self, without_slope: str) -> None:
+        """``y ~ P:x + Q:x``: a slope for each level of P, and Q's a column short beside it. The slopes go by Q.
+
+        Scored from those columns, Q's slopes alone lacked one, and the answer turned on which level it was.
+        """
+        import statsmodels.formula.api as smf
+
+        from process_improve.experiments._analyses import model_selection as ms
+
+        grid = list(itertools.product("pqr", "uvw", [-1.0, 0.0, 1.0]))
+        runs = pd.DataFrame(grid * 2, columns=["P", "Q", "x"])
+        by_q = {"u": 2.0, "v": 4.0, "w": -3.0} | {without_slope: 0.0}
+        runs["y"] = 10 + runs.Q.map(by_q) * runs.x + np.random.default_rng(2).normal(0, 0.3, len(runs))
+        formula = ms._Formula([("P", "x"), ("Q", "x")])
+        chosen = ms._run_model_selection(runs, "y", ["P", "Q", "x"], "y ~ P:x + Q:x", formula=formula)
+        assert chosen["model_selection"]["selected_terms"] == ["Q:x"]
+        score = ms._Scorer(runs, runs.y.to_numpy(), ms._formula_terms(formula.terms), "aic")
+        for kept in (["P:x"], ["Q:x"], ["P:x", "Q:x"]):
+            fitted = smf.ols(f"y ~ {' + '.join(kept)}", runs).fit()
+            assert score(frozenset(kept)) == pytest.approx(fitted.aic + 2), (
+                f"{kept}: statsmodels leaves the variance out"
+            )
 
     def test_unknown_criterion(self) -> None:
         from process_improve.experiments._analyses.model_selection import _run_model_selection

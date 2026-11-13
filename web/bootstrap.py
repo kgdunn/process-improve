@@ -5364,7 +5364,7 @@ def simpler_model(request: dict) -> dict:
             )
         before = _factor_terms(_fitted_terms(fit["out"], columns), spec)
         within, asked = _model_to_search(model, before, spec)
-        searched = _searched_frame(runs, spec)[done].reset_index(drop=True)
+        searched = _searched_frame(runs, spec, own_terms=within is None)[done].reset_index(drop=True)
         chosen = doe.analyze_experiment(searched, y, model=asked, analysis_type="model_selection", coding="actual")
     kept = chosen["model_selection"]["selected_terms"]
     return {
@@ -5393,16 +5393,21 @@ def _model_to_search(model: str | list[str], before: list[str], spec: dict) -> t
     return within, within
 
 
-def _searched_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
+def _searched_frame(runs: pd.DataFrame, spec: dict, *, own_terms: bool) -> pd.DataFrame:
     """Return the runs as the search for a simpler model reads them: a column for each factor, and each run's block.
 
-    A numeric factor is coded as the analysis codes it. A categorical factor is its levels' labels, where the
-    analysis fits a column for each contrast: the library then knows it for a category, keeps or drops all its
-    contrasts together, and searches no square of it.
+    A numeric factor is coded as the analysis codes it. A categorical factor of three levels or more is its
+    levels' labels, where the analysis fits a column for each contrast: the library then knows it for a
+    category, keeps or drops all its contrasts together, and searches no square of it.
+
+    A categorical factor of two levels is its labels too in a standard model, where every term has the terms
+    below it. A model searched over its ``own_terms`` may hold a term without them, which the page fits as the
+    product of the factors' -1/+1 columns (:func:`_nested`), and the library, given labels, would fit as an
+    effect within each level. There the factor is its -1/+1 column, so the model scored is the model fitted.
     """
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
-        if _categorical(f):
+        if _several(f) or (_categorical(f) and not own_terms):
             levels = _levels_of(f)
             frame[f["name"]] = [levels[i] for i in _level_indices(runs, f)]
     if _blocked(spec):
