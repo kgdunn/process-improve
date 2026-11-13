@@ -384,6 +384,48 @@ def test_a_factor_of_several_levels_is_kept_whole_in_the_simpler_model(fresh_pag
 PICKED = "The terms of this model were picked from these same results"
 
 
+def test_a_nested_model_is_simplified_as_nested_and_the_crossed_one_is_not_proposed(fresh_page):
+    """Batches within suppliers: the reader takes Batch's own effect out, and the page does not propose it back.
+
+    Batch 1 of one supplier has nothing to do with batch 1 of another. Searched within the interactions model, as
+    it was, the nested term needed Batch's main effect, and the page said the results supported adding it.
+    """
+    page = fresh_page
+    supplier = {"name": "Supplier", "levels": ["X", "Y", "Z"]}
+    set_factors(page, [supplier, {"name": "Batch", "levels": ["first", "second"]}])
+    candidates_done(page)
+    generate(page, design_type="full_factorial", n_center_points=0, n_replicates=3)
+    columns = headers(page)
+    rows = [dict(zip(columns, row, strict=False)) for row in run_sheet(page)]
+    assert len(rows) == 18
+    of_supplier = {"X": 0.0, "Y": 5.0, "Z": -5.0}
+    of_batch_within = {"X": 3.0, "Y": -2.0, "Z": 0.5}
+
+    def result(place: int, run: dict) -> float:
+        sign = 1 if run["Batch"] == "first" else -1
+        level = run["Supplier"]
+        return round(40 + of_supplier[level] + sign * of_batch_within[level] + 0.05 * ((place * 7) % 5 - 2), 3)
+
+    enter_results(page, {place: result(place, run) for place, run in enumerate(rows)})
+    settled(page)
+    reveal(page, "#model")
+    page.select_option("#model", "terms")
+    settled(page)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.locator("#term-list label").filter(has_text=re.compile(r"^\s*Batch\s*$")).locator("input").uncheck()
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    nested = ["Intercept", "Supplier[X]", "Supplier[Y]", "Supplier[X]·Batch", "Supplier[Y]·Batch", "Supplier[Z]·Batch"]
+    assert [row[0] for row in coefficient_rows(page)] == nested, "Batch's effect within each supplier"
+
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function("!['', 'Searching...'].includes(document.querySelector('#simplify-words').textContent)")
+    assert page.text_content("#simplify-words") == "The results support every term of the model as it is."
+    assert page.is_hidden("#simplify-apply"), "nothing to change, and no Batch to add"
+    assert calls(page, "api_simpler_model")[-1]["payload"]["model"] == {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+
+
 def simplified(page) -> None:
     """Ask for a simpler model and fit the terms proposed; wait for the model fitted with them."""
     reveal(page, "#simplify")
