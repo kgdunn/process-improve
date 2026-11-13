@@ -14,7 +14,7 @@ import pytest
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
-from tests.web._support import FACTORS, fill_workbook, held_of, run_sheet, sheets_of
+from tests.web._support import FACTORS, fill_workbook, held_of, run_sheet, sheets_of, workbook_of
 
 CATALYST = {"name": "Catalyst", "type": "categorical", "levels": ["A", "B", "C"], "units": ""}
 LOT = {"name": "Lot", "type": "categorical", "levels": ["1", "2", "3", "4"], "units": ""}
@@ -208,7 +208,7 @@ def test_the_workbook_keeps_labels_that_read_as_numbers(api):
     design = made(api, [LOT, T], n_replicates=2)
     sheet = run_sheet(design)
     y = [10.0 + int(lot) + (t - 175) / 25 for lot, t in zip(sheet["Lot"], sheet["T"], strict=True)]
-    workbook = fill_workbook(design["xlsx_base64"], lambda _: y)
+    workbook = fill_workbook(workbook_of(api, design), lambda _: y)
     runs = sheets_of(workbook)["Runs"]
     assert sorted(set(runs["Lot"].astype(str))) == ["1", "2", "3", "4"]
     analysis = api.ok("api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})
@@ -341,7 +341,7 @@ def test_the_workbook_of_one_factor_comes_back_compared_and_checked_as_the_page_
     design = api.ok("api_make_design", spec)
     rates = {power: iter(values) for power, values in ETCH.items()}
     y = [next(rates[power]) for power in run_sheet(design)["Power"]]
-    workbook = fill_workbook(design["xlsx_base64"], lambda _: y)
+    workbook = fill_workbook(workbook_of(api, design), lambda _: y)
     analysed = api.ok("api_analyze", {"xlsx_base64": workbook})["comparison"]
     assert analysed == api.ok("api_analyze_runs", {**held_of(design), "responses": y})["comparison"]
     assert round(analysed["several"]["checks"][0]["statistic"], 2) == 0.43, "Bartlett's, as Montgomery prints it"

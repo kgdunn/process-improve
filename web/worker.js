@@ -1,127 +1,82 @@
-// Runs Python in a Web Worker, so the page never freezes while Pyodide loads
-// (about 10 s on first visit) or while a design is optimised. It is a module
-// worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
+// Runs Python in a Web Worker, so the page never freezes while Pyodide loads or while a design is optimised.
+// It is a module worker (app.js makes it with type "module"): Pyodide 314 refuses a classic one.
 //
-// Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}
-// where reply is the JSON string the Python function returned, or
-// {status, state} while it starts up or installs plotly, where state is "busy",
-// "ok" or "error" so the page can show a spinner, a tick or an error. If Python
-// cannot start, every call is answered with the reason, so nothing waits for it.
+// Protocol: the page posts {id, fn, payload}; the worker answers {id, reply}, where reply is the JSON string the
+// Python function returned, or {status, state} while it starts up or installs a package, where state is "busy",
+// "ok" or "error" so the page can show a spinner, a tick or an error. If Python cannot start, every call is
+// answered with the reason, so nothing waits for it.
 
-// runtime.json names the Pyodide release, the packages loaded from it and the PyPI packages
-// micropip installs, each pinned; the wasm tests and CI read the same file.
-const runtime = fetch("runtime.json", { cache: "no-store" }).then((res) => {
-  if (!res.ok) throw new Error(`runtime.json could not be read (HTTP ${res.status})`);
-  return res.json();
+import { answer, install, loadGlue, oneLine, startPython } from "./python-boot.js";
+
+const say = (status, state = "busy") => self.postMessage({ status, state });
+const here = new URL(".", self.location.href);
+
+/**
+ * What start-up leaves out, since designing and analysing need neither: the module Python says a call lacks, what
+ * micropip installs for it, and what the status line says it is for. openpyxl is installed with the first
+ * workbook, written or read, and plotly with the first chart, at the release the build drew the worked example
+ * with; neither adds its download to a visit that makes a run sheet and no more.
+ */
+const onDemand = ({ runtime, manifest }) => ({
+  openpyxl: { install: runtime.micropip, purpose: "Excel workbooks" },
+  plotly: { install: [manifest.plotly ? `plotly==${manifest.plotly}` : "plotly"], purpose: "the charts" },
 });
 
-/** An error in one line: a Python traceback's last line names the exception and says what went wrong. */
-const oneLine = (err) => String(err?.message || err).trim().split("\n").at(-1);
-
-// The deploy step writes wheels/manifest.json naming the wheel built from this
-// commit, and the plotly release its worked example was drawn with. Without it (a
-// local preview) the page falls back to the PyPI release of each.
-async function readManifest() {
-  try {
-    const res = await fetch("wheels/manifest.json", { cache: "no-store" });
-    if (res.ok) return await res.json();
-  } catch (_) {
-    /* fall through to PyPI */
-  }
-  return {};
-}
-const manifest = readManifest();
-
-async function wheelSource() {
-  const { wheel } = await manifest;
-  return wheel ? new URL(`wheels/${wheel}`, self.location.href).href : "process-improve";
-}
-
-// plotly is installed on the first chart rather than at start-up: designing and
-// analysing do not need it, and it would add its download to every visit. The
-// install ends its own note, as start-up does: the first chart may be the curves'
-// fit, after which the page says nothing more.
-let plotly = null;
-function installPlotly(pyodide) {
-  const say = (status, state) => self.postMessage({ status, state });
-  plotly ??= (async () => {
-    say("Installing plotly for the charts...", "busy");
-    const { plotly: version } = await manifest;
-    pyodide.globals.set("_plotly", version ? `plotly==${version}` : "plotly");
-    try {
-      await pyodide.runPythonAsync("import micropip\nawait micropip.install(_plotly)");
-    } catch (err) {
-      say(`Could not install plotly: ${oneLine(err)}`, "error");
-      throw err;
-    } finally {
-      pyodide.globals.delete("_plotly");
-    }
-    say("Installed plotly for the charts.", "ok");
-  })();
-  return plotly;
-}
-
 async function boot() {
-  const say = (status, state = "busy") => self.postMessage({ status, state });
-  say("Loading Python (WebAssembly)...");
-  const { pyodide: release, packages, micropip } = await runtime;
-  const indexURL = `https://cdn.jsdelivr.net/pyodide/v${release}/full/`;
-  const { loadPyodide } = await import(`${indexURL}pyodide.mjs`); // here, so a refused download stops boot()
-  const pyodide = await loadPyodide({ indexURL });
-
-  say("Loading numpy, pandas, scipy, statsmodels, scikit-learn...");
-  // Compiled packages come prebuilt from the Pyodide distribution.
-  await pyodide.loadPackage(packages);
-
-  say("Installing process-improve...");
-  pyodide.globals.set("_pypi", pyodide.toPy(micropip));
-  pyodide.globals.set("_wheel", await wheelSource());
-  await pyodide.runPythonAsync(`
-import micropip
-# The pure-Python packages the Pyodide distribution lacks come from PyPI, at the pinned versions.
-await micropip.install(list(_pypi))
-# deps=False: every package the page runs is loaded above, from the Pyodide release or
-# pinned from PyPI, so micropip must not fetch an unpinned dependency of its own, and the
-# Pyodide release need not meet the wheel's version floors. The packages loaded above are
-# what the experiments module needs (tests/web/api/test_browser_safe.py), and the wasm
-# tier checks its answers under them against native Python's.
-await micropip.install(_wheel, deps=False)
-`);
-  pyodide.globals.delete("_pypi");
-  pyodide.globals.delete("_wheel");
-
-  const glue = await (await fetch("bootstrap.py", { cache: "no-store" })).text();
-  await pyodide.runPythonAsync(glue);
+  const python = await startPython(here, say);
+  const { pyodide, manifest } = python;
+  // The page's own Python: the build's archive of it, kept by the browser as the wheel is, or the file as it is.
+  const archive = manifest.glue && new URL(`wheels/${manifest.glue}`, here).href;
+  const glue = await loadGlue(pyodide, "bootstrap", { archive, source: new URL("bootstrap.py", here).href });
   const version = pyodide.runPython("from importlib.metadata import version; version('process-improve')");
   say(`Ready: process-improve ${version}`, "ok");
-  return pyodide;
+  return { ...python, glue };
 }
 
 const ready = boot().catch((err) => {
   const reason = `Could not start Python: ${oneLine(err)}`;
-  self.postMessage({ status: reason, state: "error" });
+  say(reason, "error");
   throw new Error(reason);
 });
 ready.catch(() => {}); // each call is answered with the reason
 
-// The page calls only the api_* entry points bootstrap.py defines; nothing else in its namespace answers.
-const ENTRY_POINT = /^api_[a-z_]+$/;
+// One install of each package, shared by the calls that find it missing at the same time. An install ends its own
+// note, as start-up does: the first chart may be the curves' fit, after which the page says nothing more.
+const installs = new Map();
+function provide(python, name) {
+  const wanted = onDemand(python)[name];
+  if (!wanted) throw new Error(`Python needs ${name}, which this page does not install.`);
+  if (!installs.has(name)) {
+    const installing = (async () => {
+      say(`Installing ${name} for ${wanted.purpose}...`);
+      try {
+        await install(python.pyodide, wanted.install);
+      } catch (err) {
+        installs.delete(name); // the next call that needs it tries the install again
+        const reason = `Could not install ${name}: ${oneLine(err)}`;
+        say(reason, "error");
+        throw new Error(reason); // what the call is answered with, too
+      }
+      say(`Installed ${name} for ${wanted.purpose}.`, "ok");
+    })();
+    installs.set(name, installing);
+  }
+  return installs.get(name);
+}
 
-// The entry points whose replies the page draws charts from, and which name the Plotly.js they are drawn with.
-const CHARTS = new Set(["api_plots", "api_functional"]);
+// The page calls only the api_* entry points bootstrap.py defines; nothing else in the module answers.
+const ENTRY_POINT = /^api_[a-z_]+$/;
 
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
     const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
     if (!ENTRY_POINT.test(fn)) throw refused;
-    const pyodide = await ready;
-    const entry = pyodide.globals.get(fn);
+    const python = await ready;
+    const entry = python.glue[fn];
     if (typeof entry !== "function") throw refused;
-    if (CHARTS.has(fn)) await installPlotly(pyodide);
-    const reply = entry(payload ?? "{}");
+    const reply = await answer(entry, payload ?? "{}", (name) => provide(python, name));
     self.postMessage({ id, reply });
   } catch (err) {
-    if (CHARTS.has(fn)) plotly = null; // the next chart tries the install again
     self.postMessage({ id, reply: JSON.stringify({ ok: false, error: oneLine(err) }) });
   }
 };

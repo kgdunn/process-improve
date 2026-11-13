@@ -9,7 +9,9 @@
 // its micropip packages, then the wheel with deps=False. pytest and plotly are added, since the
 // tests need them. The checkout is mounted at /repo and is the working directory, so the tests and
 // scripts find their data; process_improve itself comes from the wheel. Pyodide is the npm package
-// the wasm tests use: PI_PYODIDE, or else ~/.cache/process-improve/node/node_modules/pyodide.
+// the wasm tests use: PI_PYODIDE, or else ~/.cache/process-improve/node/node_modules/pyodide, with
+// the folder of the release the page loads beside it: `uv run python -m tests.web._pyodide` fetches
+// that folder, and a package it lacks (pytest) is fetched from the CDN as it is asked for.
 // Behind a proxy, Node.js needs NODE_USE_ENV_PROXY=1 to fetch Pyodide's packages.
 
 import fs from "node:fs";
@@ -29,7 +31,13 @@ const runtime = JSON.parse(fs.readFileSync(path.join(repo, "web", "runtime.json"
 
 const start = performance.now();
 const { loadPyodide } = await import(pathToFileURL(path.join(pyodideDir, "pyodide.mjs")).href);
-const pyodide = await loadPyodide();
+const folder = path.join(pyodideDir, runtime.distribution);
+const pyodide = await loadPyodide({
+  stdLibURL: path.join(folder, "python_stdlib.zip"),
+  lockFileURL: path.join(folder, "pyodide-lock.json"),
+  packageCacheDir: folder,
+  packageBaseUrl: `https://cdn.jsdelivr.net/pyodide/v${runtime.pyodide}/${runtime.distribution}/`,
+});
 await pyodide.loadPackage([...runtime.packages, "pytest"], { messageCallback: () => {} });
 pyodide.FS.mkdirTree("/repo");
 pyodide.FS.mount(pyodide.FS.filesystems.NODEFS, { root: repo }, "/repo");

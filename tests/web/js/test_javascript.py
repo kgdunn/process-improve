@@ -26,6 +26,7 @@ SUITES = (
     "levels.test.mjs",
     "import.test.mjs",
     "worker-rpc.test.mjs",
+    "python-boot.test.mjs",
     "charts.test.mjs",
     "python.test.mjs",
     "best.test.mjs",

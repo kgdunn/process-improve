@@ -13,7 +13,7 @@ import itertools
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet, workbook_of
 
 CUBE = [list(p) for p in itertools.product([-1, 1], repeat=3)]
 AXIAL = 1.682
@@ -128,9 +128,9 @@ def test_the_limits_name_the_runs_they_rule_out_and_not_the_runs_beyond_a_range(
 def test_a_design_of_given_runs_is_analysed_and_read_back_from_its_workbook(api):
     factors = factors_named("T", "P", "F")
     result = api.ok("api_make_design", given(CCD, factors))
-    analysis = api.ok("api_analyze", {"xlsx_base64": fill_workbook(result["xlsx_base64"], quadratic), "model": ""})
+    analysis = api.ok("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, result), quadratic), "model": ""})
     assert analysis["model"] == "quadratic"
-    read = api.ok("api_read_workbook", {"xlsx_base64": result["xlsx_base64"]})
+    read = api.ok("api_read_workbook", {"xlsx_base64": workbook_of(api, result)})
     assert read["spec"]["design_type"] == "given"
     assert len(read["rows"]) == len(CCD)
 

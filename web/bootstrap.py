@@ -24,6 +24,7 @@ import ast
 import base64
 import contextlib
 import functools
+import importlib
 import io
 import itertools
 import json
@@ -83,6 +84,7 @@ from process_improve.univariate import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
+    from types import ModuleType
 
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
@@ -693,17 +695,38 @@ def _clean(value: object) -> object:
     return value
 
 
+class _Needs(Exception):  # noqa: N818 - a request to the worker, not an error for the reader
+    """A call needs a package that start-up leaves out: the worker installs it, then makes the call again."""
+
+
+def _installed(package: str) -> ModuleType:
+    """Import a package the page installs when a call first needs it: openpyxl for a workbook, plotly for a chart.
+
+    Start-up leaves them out (``onDemand`` in ``web/worker.js``), so a visit that makes a run sheet and no more
+    never downloads them. A call that finds one missing ends here, with :class:`_Needs`.
+    """
+    try:
+        return importlib.import_module(package)
+    except ModuleNotFoundError as missing:
+        if missing.name != package:
+            raise  # the package is there, and something it imports is not: an error like any other
+        raise _Needs(package) from None
+
+
 def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     """Run ``fn`` on the decoded payload; report errors as data, not exceptions.
 
     Whatever the library warned about during the call travels with the reply as
     ``warnings``, so the page can show it rather than leave it in the console. An error
     nothing here expected comes back in one line, its type and message: the page shows
-    the error as it is, and a traceback is no sentence for a reader.
+    the error as it is, and a traceback is no sentence for a reader. A call that needs a package start-up leaves
+    out says so in ``needs``, for the worker and not for the reader: it installs the package and calls again.
     """
     with _listening() as heard:
         try:
             reply: dict[str, Any] = {"ok": True, "result": _clean(fn(_request(payload)))}
+        except _Needs as lacking:
+            return json.dumps({"ok": False, "needs": str(lacking)})
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
@@ -1425,10 +1448,10 @@ def catalogue(_: dict) -> dict:
 
 
 def make_design(spec: dict) -> dict:
-    """Generate a design and return its runs plus a ready-to-download workbook.
+    """Generate a design and return its runs, in randomised order and in the factors' own units.
 
-    The workbook lists the runs in randomised order, in the factors' own units,
-    with an empty response column for the reader to fill in.
+    Each response has an empty column for the reader to fill in. The workbook of the runs is written when the
+    reader asks for it (:func:`workbook`), so making a design needs nothing that reads or writes one.
     """
     design_type = spec.get("design_type", "")
     if design_type == GIVEN:
@@ -1483,7 +1506,6 @@ def make_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -1592,7 +1614,6 @@ def _given_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -1714,7 +1735,6 @@ def _mixture_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -2619,6 +2639,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
     The Curves sheet has a row per run, in the run sheet's order and with its run order, and a column per
     point along the curve, headed by its value. The workbook holds no time of day, so one study gives one file.
     """
+    _installed("openpyxl")
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         runs.to_excel(xl, sheet_name=RUN_SHEET, index=False)
@@ -2634,6 +2655,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
 
 
 def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict, pd.DataFrame | None]:
+    _installed("openpyxl")
     try:
         sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, engine="openpyxl")
     except Exception as exc:  # openpyxl raises several unrelated types on a bad file
@@ -4657,8 +4679,7 @@ def _xlsx_cells(data: bytes, sheet: object) -> tuple[list[list[float | str | Non
     """Read one sheet of a workbook, the first unless named: its cells' values, never its formulas."""
     import zipfile  # noqa: PLC0415
 
-    from openpyxl import load_workbook  # noqa: PLC0415 - loaded with the page's own workbook
-
+    load_workbook = _installed("openpyxl").load_workbook
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as packed:
             unpacked = sum(part.file_size for part in packed.infolist())
@@ -5166,9 +5187,7 @@ def plots(request: dict) -> dict:
     when the centre of the ranges cannot be run either, the other factors are held at a
     central setting that can, which ``held`` lists in their own units.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
-    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
-
+    plotly = _installed("plotly")  # before the library's charts, which import it
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
@@ -5203,7 +5222,7 @@ def plots(request: dict) -> dict:
 
     def draw(kind: str, results: dict, scale: str | None, drawn: list[str] = pair, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=plotly.utils.PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -5235,7 +5254,7 @@ def plots(request: dict) -> dict:
         "shaded": "region" in shading,
         "held": held,
         "held_best": best is not None,
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
 
 
@@ -5560,9 +5579,7 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
     stars the blend on the triangle, and the Cox directions go through the best blend instead (see
     :func:`_cox_through`), so they cross at its prediction, where the page puts the star.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
-    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
-
+    plotly = _installed("plotly")  # before the library's charts, which import it
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     names = [f["name"] for f in spec["factors"]]
@@ -5584,14 +5601,14 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         rows = blends.assign(**{response: y}).to_dict("records")
         figure = create_plot("residuals_vs_fitted", analysis_results=out, design_data=rows, response_column=response)
         dressed = _dressed(figure.to_plotly(), "residuals_vs_fitted", spec, [])
-        figures["residuals"] = json.dumps(dressed, cls=PlotlyJSONEncoder)
+        figures["residuals"] = json.dumps(dressed, cls=plotly.utils.PlotlyJSONEncoder)
     reply: dict[str, Any] = {
         "figures": figures,
         "contour_factors": [],
         "shaded": False,
         "held": [],
         "held_best": best is not None,
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
@@ -6284,7 +6301,6 @@ def candidates(request: dict) -> dict:
             except Exception as exc:  # noqa: BLE001 - one design that cannot be made leaves the others to compare
                 notes.append(f"{item['label']} could not be made: {exc}")
                 continue
-        design.pop("xlsx_base64", None)
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
     if not made and not waiting:
         raise ValueError("None of the designs this page offers can be made for these factors.")
@@ -8537,7 +8553,7 @@ def functional(request: dict) -> dict:
     its level in ``held``. shortcut: the search ignores the limits on the settings; keep to them there
     once a study with both limits and curves needs it.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    plotly = _installed("plotly")
     from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
     spec = _checked_spec(request.get("spec") or {})
@@ -8585,7 +8601,7 @@ def functional(request: dict) -> dict:
             for name, row in result.components.iterrows()
         ],
         "notes": fit["notes"],
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
     if request.get("target") is not None:
         reply["match"] = _matched(result, request, spec, grid.size)
@@ -8957,7 +8973,7 @@ def add_runs(request: dict) -> dict:
     in block 1, and a confirmation run in no block. The study is then a design of runs as given (its
     ``design_type`` is ``given``), estimating the largest model its runs estimate in full, and its notes
     say what was added and what the design now separates. The reply is a design as :func:`make_design`
-    returns it, less its workbook, with ``added``, the number of runs added.
+    returns it, with ``added``, the number of runs added.
     """
     kind = request.get("kind")
     if kind not in EXTENSIONS and kind != RECOMMENDED:

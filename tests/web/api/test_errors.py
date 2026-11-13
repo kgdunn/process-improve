@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic
+from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic, workbook_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -55,7 +55,7 @@ def _workbook(edit: Callable[[dict], object], **request: object) -> Callable[[Ex
     """Build an upload of the worked example's workbook, filled in and then changed as a reader could in Excel."""
 
     def payload(ex: Example) -> dict:
-        filled = fill_workbook(ex["design"]["xlsx_base64"], quadratic)
+        filled = fill_workbook(ex["workbook"], quadratic)
         return {"xlsx_base64": edit_workbook(filled, edit), **request}
 
     return payload
@@ -1417,7 +1417,7 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
 
 @pytest.fixture(scope="module")
 def example(worked_example: dict[str, Any], api) -> Example:
-    """Return the worked example, a 9-run DSD that cannot fit the quadratic model whatever its results, and a mixture.
+    """Return the worked example with its workbook, a 9-run DSD that cannot fit the quadratic model, and a mixture.
 
     The mixture is a simplex lattice in three components, with results simulated from a blend.
     """
@@ -1427,6 +1427,7 @@ def example(worked_example: dict[str, Any], api) -> Example:
     responses = api.ok("api_simulate", mixture)["responses"]
     return {
         **worked_example,
+        "workbook": workbook_of(api, worked_example["design"]),
         "dsd": {key: dsd[key] for key in ("spec", "columns", "rows")},
         "mixture": {**mixture, "responses": responses},
     }

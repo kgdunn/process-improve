@@ -20,6 +20,18 @@ def test_python_starts_with_the_package_the_page_was_built_with(page, demo):
     assert page.text_content("#demo-version") == f"process-improve {demo['version']}"
 
 
+def test_the_app_s_own_python_arrives_compiled_for_the_python_that_runs_it(page):
+    """The build compiled the wheel and ``bootstrap.py`` for the Python this Pyodide runs: the start compiles neither.
+
+    A build without bytecode still works, two to three seconds slower at every visit. It must not be deployed.
+    """
+    built = page.evaluate("fetch('wheels/manifest.json').then((r) => r.json())")
+    pins = page.evaluate("fetch('runtime.json').then((r) => r.json())")
+    assert built["bytecode"] == pins["python"], "the build made no bytecode for the Python web/runtime.json names"
+    running = page.evaluate("window.__pi.ask('api_catalogue')")["result"]["runtime"]["python"]
+    assert running.startswith(f"{pins['python']}."), "Pyodide runs another Python than the bytecode was made for"
+
+
 def test_the_worked_example_runs_live_as_the_build_drew_it(page, demo):
     """The same numbers, to rounding: Pyodide's numerics differ from native ones in the last bits.
 

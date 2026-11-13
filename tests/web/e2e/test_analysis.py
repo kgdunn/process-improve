@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook
+from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook, workbook_of
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -100,7 +100,7 @@ def test_correlated_terms_show_their_vifs_in_a_column_and_a_note(page, api, tmp_
     """Runs as given in which A and B move together: the note names them, and the table shows each term's VIF."""
     design = api.ok("api_make_design", correlated_study())
     path = tmp_path / "correlated.xlsx"
-    filled = fill_workbook(design["xlsx_base64"], lambda runs: 10 + 2 * runs["A"] - runs["C"] + 0.1 * runs.index)
+    filled = fill_workbook(workbook_of(api, design), lambda runs: 10 + 2 * runs["A"] - runs["C"] + 0.1 * runs.index)
     path.write_bytes(base64.b64decode(filled))
     reveal(page, "#tab-real")
     page.click("#tab-real")

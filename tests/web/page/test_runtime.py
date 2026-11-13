@@ -22,12 +22,30 @@ if TYPE_CHECKING:
 RUNTIME = json.loads(source("runtime.json"))
 
 
-def test_the_worker_reads_runtime_json_and_keeps_no_copy_of_it():
-    worker = source("worker.js")
-    assert 'fetch("runtime.json"' in worker
-    assert RUNTIME["pyodide"] not in worker, "no Pyodide release written out"
-    for name in [*RUNTIME["packages"], *RUNTIME["micropip"]]:
-        assert f'"{name}"' not in worker, f"{name} is written out in worker.js"
+#: The files that start Python in a worker: the module both pages share, and each page's worker.
+STARTERS = ("python-boot.js", "worker.js", "mva/worker.js")
+
+
+def test_the_workers_read_runtime_json_and_keep_no_copy_of_it():
+    assert 'new URL("runtime.json", root)' in source("python-boot.js")
+    for file in STARTERS:
+        starter = source(file)
+        assert RUNTIME["pyodide"] not in starter, "no Pyodide release written out"
+        for name in [*RUNTIME["packages"], *RUNTIME["micropip"]]:
+            if name != "micropip":  # the installer, named where it is called
+                assert f'"{name}"' not in starter, f"{name} is written out in {file}"
+
+
+def test_both_pages_start_python_with_the_module_they_share():
+    for file in ("worker.js", "mva/worker.js"):
+        assert re.search(r'import \{[^}]*\bstartPython\b[^}]*\} from "(\.\.?)/python-boot\.js";', source(file)), file
+
+
+def test_the_distribution_is_a_folder_of_the_release_on_the_cdn():
+    """``pyc`` is the release with its Python compiled to bytecode already; ``full`` is the release as it is."""
+    assert RUNTIME["distribution"] in {"pyc", "full"}
+    assert "/${runtime.distribution}/" in source("python-boot.js")
+    assert re.fullmatch(r"3\.\d+", RUNTIME["python"]), "the Python that release runs, which the build compiles for"
 
 
 def test_the_pyodide_release_is_an_exact_version():
@@ -50,6 +68,7 @@ def test_the_wasm_runner_reads_runtime_json():
     runner = (ROOT / "tests" / "web" / "wasm" / "runner.mjs").read_text(encoding="utf-8")
     assert "runtime.packages" in runner
     assert "runtime.micropip" in runner
+    assert "runtime.distribution" in runner
 
 
 def test_ci_reads_the_pyodide_release_from_runtime_json():

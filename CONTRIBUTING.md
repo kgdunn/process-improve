@@ -214,7 +214,9 @@ none skips its setup; a change to the changelog, a tool, the Sphinx docs or a te
   latest release (`tools/check_web_runtime.py`). When npm has a newer Pyodide, that workflow
   runs the wasm and live tiers on it and says in its summary whether moving the pin is safe.
 - `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
-  native Python is asked; the answers must agree.
+  native Python is asked; the answers must agree. Node.js runs Pyodide's npm package with
+  the folder of the release the page loads beside it (`distribution` in `web/runtime.json`),
+  which `tests/web/_pyodide.py` fetches and checks against that folder's lock file.
 
 To run them locally:
 
@@ -246,8 +248,11 @@ When you change the app, the tests move with it:
   one phase at a time (Design, Run or Learn): a test shows the phase that holds what it types
   into or clicks first, with `reveal` in `tests/web/e2e/_page.py`, as a reader presses its tab.
 - A new package the page loads into Pyodide: in `web/runtime.json` only, which
-  `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
+  `web/python-boot.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
+  A package that only some calls need stays out of start-up: the call imports it with
+  `_installed(...)` in `bootstrap.py`, and `onDemand` in `web/worker.js` says what to
+  install when a call first lacks it (`tests/web/api/test_on_demand.py`).
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new example the book links to (`https://factori.al/?book=<name>`): an entry in
@@ -255,6 +260,14 @@ When you change the app, the tests move with it:
   the numbers the book prints for it; the suite fails until there is one. Its name is
   printed in the book, so keep it once published: the book checks every name it uses
   against `book/index.json` on factori.al.
+
+The page starts Python in a worker (`web/python-boot.js`), and three choices keep that
+start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode
+already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,
+for the Python `web/runtime.json` names: uv fetches that interpreter, and a build that
+cannot get it still works, starts more slowly, and fails the smoke tests, so it is not
+deployed. openpyxl and plotly are installed when a call first needs them. A change to
+any of the three is measured, not assumed: time the start in a browser before and after.
 
 One build is served in two places: https://factori.al/, the app's address, and GitHub
 Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests

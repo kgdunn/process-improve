@@ -3,9 +3,13 @@
 Builds the wheel from this checkout, copies ``web/`` next to it and writes the
 ``wheels/manifest.json`` that ``web/worker.js`` reads, so the published page
 always runs the code it was deployed from rather than the latest PyPI release.
-The wheel goes in a folder named by its digest, so each deploy's wheel has a URL
-of its own and a browser cannot install one it cached from an earlier deploy; the
-manifest, fetched past the cache, names it and the commit the app was built from.
+The wheel and the page's own Python, ``bootstrap.py`` in an archive, go in a folder
+named by their digest, so each deploy's Python has a URL of its own, which a browser
+can keep for good and cannot confuse with an earlier deploy's; the manifest, fetched
+past the cache, names both and the commit the app was built from. Both carry their
+bytecode, compiled here for the Python that Pyodide runs, so the browser compiles
+nothing at start-up, and the wheel leaves out the one folder of data the page never
+reads.
 It also runs the page's worked example through ``web/bootstrap.py``, the code the
 page runs, and writes the results to ``demo.json``: the page draws them at first
 paint while Python loads in the browser. Each of the book's examples in
@@ -24,6 +28,7 @@ The docs workflow runs this into
 from __future__ import annotations
 
 import argparse
+import base64
 import dataclasses
 import functools
 import hashlib
@@ -38,6 +43,8 @@ import re
 import shutil
 import statistics
 import subprocess
+import tempfile
+import zipfile
 from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
@@ -87,6 +94,7 @@ APP_FILES = (
     "vendor/cytoscape.mjs",
     "map/og-card.png",
     "worker.js",
+    "python-boot.js",
     "runtime.json",
     "bootstrap.py",
     "style.css",
@@ -120,6 +128,98 @@ def build_wheel(dist: Path) -> Path:
     if not wheels:
         raise SystemExit(f"no wheel produced in {dist}")
     return wheels[-1]
+
+
+#: The archive of the page's own Python, beside the wheel: ``bootstrap.py`` and, when it was compiled, its bytecode.
+GLUE = "bootstrap.zip"
+
+#: Where Pyodide keeps what it installs: the folder bytecode names its source in, should an error print it.
+SITE_PACKAGES = "/lib/python{python}/site-packages"
+
+
+def runtime() -> dict[str, Any]:
+    """Return ``web/runtime.json``: the Pyodide release the page loads, and the Python that release runs."""
+    return json.loads((WEB_SRC / "runtime.json").read_text(encoding="utf-8"))
+
+
+def compile_bytecode(tree: Path, python: str) -> bool:
+    """Compile every ``.py`` under ``tree`` for Python ``python``, beside its source; return whether it was done.
+
+    Pyodide's own packages come compiled (the ``pyc`` distribution ``web/runtime.json`` names). This does the same
+    for the app's Python, which the browser would otherwise compile at every start, for two to three seconds.
+    Bytecode is read only by the minor version of Python that wrote it, so uv provides that interpreter; a
+    browser that runs another one ignores the bytecode and compiles the source, as before. The bytecode is marked
+    never to be checked against its source (PEP 552): an install changes the source's dates, and the two are made
+    here together. Without the interpreter (uv could not fetch it), the app is built without bytecode, and the
+    manifest says so.
+    """
+    uv = shutil.which("uv")
+    if uv is None:
+        raise SystemExit("uv not found on PATH; see https://docs.astral.sh/uv/")
+    module = ["-m", "compileall", "-q", "--invalidation-mode", "unchecked-hash"]
+    paths = ["-s", str(tree), "-p", SITE_PACKAGES.format(python=python), str(tree)]
+    done = subprocess.run(  # noqa: S603
+        [uv, "run", "--no-project", "--python", python, "python", *module, *paths],
+        capture_output=True,
+        text=True,
+        check=False,
+        encoding="utf-8",
+    )
+    if done.returncode:
+        said = (done.stderr or done.stdout).strip().splitlines()
+        print(f"note: built without bytecode for Python {python}: {said[-1] if said else 'compileall failed'}")
+    return done.returncode == 0
+
+
+def _pack(tree: Path, target: Path) -> None:
+    """Zip the files under ``tree`` into ``target``, in one order and with one date, so the same files give one zip."""
+    files = sorted((p for p in tree.rglob("*") if p.is_file()), key=lambda p: (".dist-info" in p.parts[-2], p))
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as packed:
+        for path in files:  # a wheel lists its .dist-info folder last
+            packed.writestr(zipfile.ZipInfo(path.relative_to(tree).as_posix()), path.read_bytes(), zipfile.ZIP_DEFLATED)
+
+
+#: The folder of the wheel that the browser's copy leaves out: the reference catalogue's sources, 29 MB that the build
+#: turns into the catalog's pages (:func:`write_catalog`, :func:`write_reproduction`). Only
+#: ``process_improve.experiments.reference_catalogue`` reads it, which the page's Python never imports
+#: (``tests/web/api/test_browser_safe.py``), so the browser neither downloads it nor unpacks it at each start.
+NOT_FOR_THE_PAGE = "process_improve/datasets/experiments/reference_catalogue"
+
+
+def for_the_browser(wheel: Path, python: str) -> bool:
+    """Make ``wheel`` the browser's copy: without what the page never reads, and with bytecode for Python ``python``.
+
+    The wheel's RECORD lists what it then holds. Return whether the bytecode was made: without it the wheel is
+    still the smaller copy, and its Python is compiled in the browser.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        tree = Path(scratch) / "wheel"
+        with zipfile.ZipFile(wheel) as packed:
+            packed.extractall(tree)
+        shutil.rmtree(tree / NOT_FOR_THE_PAGE, ignore_errors=True)
+        compiled = compile_bytecode(tree, python)
+        (record,) = tree.glob("*.dist-info/RECORD")
+        kept = [
+            line
+            for line in record.read_text(encoding="utf-8").splitlines()
+            if not line.startswith(f"{NOT_FOR_THE_PAGE}/")
+        ]
+        for path in sorted(tree.rglob("*.pyc")):
+            digest = base64.urlsafe_b64encode(hashlib.sha256(path.read_bytes()).digest()).rstrip(b"=").decode()
+            kept.append(f"{path.relative_to(tree).as_posix()},sha256={digest},{path.stat().st_size}")
+        record.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8", newline="")
+        _pack(tree, wheel)
+    return compiled
+
+
+def glue_archive(target: Path, python: str) -> bool:
+    """Pack ``web/bootstrap.py`` into ``target`` with its bytecode for Python ``python``; say whether it has any."""
+    with tempfile.TemporaryDirectory() as scratch:
+        tree = Path(scratch)
+        shutil.copy2(WEB_SRC / "bootstrap.py", tree / "bootstrap.py")
+        compiled = compile_bytecode(tree, python)
+        _pack(tree, target)
+    return compiled
 
 
 def commit() -> str | None:
@@ -174,7 +274,6 @@ def worked_example() -> dict[str, Any]:
         "api_simulate", {**held, "scenario": inputs["scenario"], "sigma": inputs["sigma"], "seed": inputs["seed"]}
     )
     request = {**held, "responses": simulation["responses"], "model": inputs["model"], "truth": simulation["truth"]}
-    design.pop("xlsx_base64")  # the page writes the workbook when it is asked for
 
     # The designs that can learn what the example aims to, as Plan lists them: every design the page offers for
     # the same factors, made and compared on the nine measures, with power for the smallest change its response names.
@@ -455,7 +554,6 @@ def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     factors = [page_factor({**f, "units": ""}) for f in record["factors"]]
     asked = {"design_type": spec["design_type"], "factors": factors, "response": "y", **options}
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
-    design.pop("xlsx_base64")
     drawn = Counter(tuple(round(v, 2) for v in row) for row in record["coded_runs"])
     if _coded_runs(design) != drawn:
         raise SystemExit(f"the catalog's design {record['id']!r}: the page makes other runs than the library drew")
@@ -727,7 +825,6 @@ def given_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
         **({"blocks": _block_numbers(record["blocks"])} if record.get("blocks") else {}),
     }
     design = caller(f"the catalog's design {record['id']!r}")("api_make_design", asked)
-    design.pop("xlsx_base64")
     values = record["response_values"].get(response) or [None] * len(rows)
     return _campaign(record["title"], design, values), ""
 
@@ -1865,21 +1962,26 @@ def write_books(folder: Path, data: dict[str, Any]) -> None:
 def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
     """Copy the app, a wheel freshly built in ``dist``, the book's examples and the worked example into ``out_dir``.
 
-    Return the wheel's name. ``demo.json`` is written last, so its presence says the app is complete.
+    The wheel and the archive of the page's own Python share a folder named by the digest of both. Return the
+    wheel's name. ``demo.json`` is written last, so its presence says the app is complete.
     """
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
         (out_dir / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(WEB_SRC / name, out_dir / name)
-    wheel = build_wheel(dist)
-    published = Path(hashlib.sha256(wheel.read_bytes()).hexdigest()[:16]) / wheel.name
-    (out_dir / "wheels" / published.parent).mkdir()
-    shutil.copy2(wheel, out_dir / "wheels" / published)
+    wheel, glue, python = build_wheel(dist), dist / GLUE, runtime()["python"]
+    compiled = [for_the_browser(wheel, python), glue_archive(glue, python)]
+    folder = hashlib.sha256(wheel.read_bytes() + glue.read_bytes()).hexdigest()[:16]
+    (out_dir / "wheels" / folder).mkdir()
+    for built in (wheel, glue):
+        shutil.copy2(built, out_dir / "wheels" / folder / built.name)
     from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - the docs environment has plotly
 
     manifest = {
-        "wheel": published.as_posix(),
+        "wheel": f"{folder}/{wheel.name}",
+        "glue": f"{folder}/{glue.name}",
+        "bytecode": python if all(compiled) else None,  # the Python the app's own modules are compiled for
         "commit": commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),

@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import FACTORS, fill_workbook, quadratic
+from tests.web._support import FACTORS, fill_workbook, quadratic, workbook_of
 from tests.web.e2e._page import reveal, settled, type_results
 
 
@@ -67,7 +67,7 @@ def test_copy_puts_the_code_on_the_clipboard(context, page, site):
 def test_after_an_upload_the_panels_show_the_workbook_s_design_and_results(page, api, tmp_path):
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "filled.xlsx"
-    path.write_bytes(base64.b64decode(fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0,))))
+    path.write_bytes(base64.b64decode(fill_workbook(workbook_of(api, design), quadratic, blank_rows=(0,))))
     reveal(page, "#tab-real")
     page.click("#tab-real")
     page.set_input_files("#upload", path)

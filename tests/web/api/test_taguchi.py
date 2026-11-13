@@ -13,7 +13,7 @@ import itertools
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, run_sheet, workbook_of
 
 SUPPLIER = {"name": "Supplier", "low": "A", "high": "B", "units": ""}
 
@@ -240,7 +240,7 @@ def test_the_comparison_scores_the_three_level_array_on_the_main_effects_and_squ
 # --------------------------------------------------------------------------- the workbook and renaming
 def test_the_workbook_keeps_the_levels_and_the_model(api):
     design = make(api, [*FACTORS, SUPPLIER], n_levels=3)
-    filled = fill_workbook(design["xlsx_base64"], lambda runs: np.arange(len(runs), dtype=float) % 5)
+    filled = fill_workbook(workbook_of(api, design), lambda runs: np.arange(len(runs), dtype=float) % 5)
     back = api.ok("api_read_workbook", {"xlsx_base64": filled})
     assert back["spec"] == design["spec"]
     assert back["rows"] == design["rows"]

@@ -12,7 +12,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic
+from tests.web._support import FACTORS, factors_named, fill_workbook, quadratic, workbook_of
 from tests.web.e2e._page import choose, factor_table, reveal, run_sheet, settled, status
 
 
@@ -44,7 +44,7 @@ def test_the_downloaded_workbook_holds_the_page_s_runs_and_results(page, first_p
 def filled_ccd(api) -> tuple[dict, bytes]:
     """Make a central composite design's workbook, filled in as in Excel except for its first run."""
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
-    return design, base64.b64decode(fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0,)))
+    return design, base64.b64decode(fill_workbook(workbook_of(api, design), quadratic, blank_rows=(0,)))
 
 
 def assert_the_page_holds(page, design: dict) -> None:
@@ -107,7 +107,7 @@ def test_a_file_that_is_not_a_workbook_is_refused(page, tmp_path):
 def test_a_workbook_with_no_results_yet_is_read_and_the_page_waits_for_them(page, api, tmp_path):
     design = api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS})
     path = tmp_path / "fresh.xlsx"
-    path.write_bytes(base64.b64decode(design["xlsx_base64"]))
+    path.write_bytes(base64.b64decode(workbook_of(api, design)))
     upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
     assert status(page) == ("No results to analyse yet.", "ok")
@@ -119,7 +119,7 @@ def upload_design(page, api, tmp_path, request: dict) -> dict:
     """Make a design's workbook, upload it with no results yet, and return the design."""
     design = api.ok("api_make_design", request)
     path = tmp_path / "design.xlsx"
-    path.write_bytes(base64.b64decode(design["xlsx_base64"]))
+    path.write_bytes(base64.b64decode(workbook_of(api, design)))
     upload(page, path)
     page.wait_for_function("window.__pi.count('api_read_workbook') === 1 && window.__pi.idle()")
     return design

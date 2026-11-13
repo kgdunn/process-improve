@@ -29,12 +29,13 @@ factori.al {
 	}
 
 	# A deploy reaches a reader at their next visit: the browser checks each file is unchanged
-	# before using its copy. The wheel sits in a folder named by its digest, so its address
-	# changes whenever it does, and it is kept for a year. The images are kept for a day.
-	@wheel path /wheels/*/*.whl
+	# before using its copy. The app's Python (the wheel, and the page's own in an archive) sits
+	# in a folder named by its digest, so its address changes whenever it does, and it is kept
+	# for a year. The images are kept for a day.
+	@python path /wheels/*/*
 	@images path *.png *.svg
-	@rest not path /wheels/*/*.whl *.png *.svg
-	header @wheel Cache-Control "public, max-age=31536000, immutable"
+	@rest not path /wheels/*/* *.png *.svg
+	header @python Cache-Control "public, max-age=31536000, immutable"
 	header @images Cache-Control "public, max-age=86400"
 	header @rest Cache-Control "no-cache"
 

@@ -12,13 +12,13 @@ import json
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet, workbook_of
 
 
 def analyse(api, spec: dict, model: str = "") -> dict:
     """Generate a design, fill its workbook with the ``quadratic`` response, and return the analysis reply."""
     design = api.ok("api_make_design", spec)
-    return api.reply("api_analyze", {"xlsx_base64": fill_workbook(design["xlsx_base64"], quadratic), "model": model})
+    return api.reply("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, design), quadratic), "model": model})
 
 
 def by_label(result: dict) -> dict:
@@ -265,7 +265,7 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(a
 # --------------------------------------------------------------------------- what the fit can and cannot estimate
 def test_too_few_runs_says_how_many_are_needed(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
-    xlsx = fill_workbook(design["xlsx_base64"], quadratic, blank_rows=tuple(range(8)))
+    xlsx = fill_workbook(workbook_of(api, design), quadratic, blank_rows=tuple(range(8)))
     assert "10 coefficients" in api.error("api_analyze", {"xlsx_base64": xlsx, "model": "quadratic"})
 
 
@@ -343,7 +343,7 @@ def test_a_saturated_fit_has_no_predicted_r_squared(api):
 def test_lenth_margins_are_not_called_wide_with_seven_effects(api):
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
     design = api.ok("api_make_design", spec)
-    workbook = fill_workbook(design["xlsx_base64"], lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
+    workbook = fill_workbook(workbook_of(api, design), lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
     result = api.ok("api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})
     assert len(result["lenth"]["effects"]) == 7
     assert not any("margins are wide" in note for note in result["notes"])

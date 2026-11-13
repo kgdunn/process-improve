@@ -1,10 +1,10 @@
 """The app needs nothing the browser does not have.
 
-Pyodide has no WebAssembly build of some of the package's optional dependencies, and the page
-installs only ``tqdm`` and ``openpyxl`` beyond the Pyodide distribution (``web/worker.js``).
-Here a fresh interpreter refuses those packages at import and runs every step of the page but
-the charts (``api_plots`` installs plotly on its first call), so a code path that reaches for
-one fails here rather than on a reader's screen. ``tests/web/wasm`` runs the app's Python
+Pyodide has no WebAssembly build of some of the package's optional dependencies, and beyond the
+Pyodide distribution the page installs only ``openpyxl``, with its first workbook, and plotly,
+with its first chart (``web/worker.js``). Here a fresh interpreter refuses the other packages at
+import and runs every step of the page but the charts, so a code path that reaches for one fails
+here rather than on a reader's screen. ``tests/web/wasm`` runs the app's Python
 under real Pyodide (``--wasm``).
 """
 
@@ -67,6 +67,10 @@ call("api_analyze", book)
 plan = call("api_compare_plan", {"factors": demo["design"]["factors"]})
 made = [{"label": item["label"], **held(call("api_make_design", item["spec"]))} for item in plan["designs"]]
 call("api_compare", {"model": plan["model"], "designs": made})
+
+# The browser's copy of the wheel leaves out the reference catalogue's sources (NOT_FOR_THE_PAGE in
+# scripts/build_web_app.py). One module reads them, and the page's Python must never load it.
+assert "process_improve.experiments.reference_catalogue" not in sys.modules
 """
 
 

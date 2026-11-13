@@ -92,10 +92,10 @@ def test_the_build_it_prints_is_the_build_script_s():
 
 def test_the_addresses_it_says_to_change_for_a_closed_network_are_in_the_files_it_names():
     text = about()
-    assert "<code>web/worker.js</code> (Pyodide and the PyPI packages)" in text
+    assert "<code>web/python-boot.js</code> (Pyodide and the PyPI packages)" in text
     assert "<code>web/charts.js</code> (Plotly.js)" in text
-    assert "cdn.jsdelivr.net/pyodide" in source("worker.js")
-    assert "micropip.install" in source("worker.js")
+    assert "cdn.jsdelivr.net/pyodide" in source("python-boot.js")
+    assert "micropip.install" in source("python-boot.js")
     assert "cdn.jsdelivr.net/npm/plotly.js" in source("charts.js")
 
 

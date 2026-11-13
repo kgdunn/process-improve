@@ -24,6 +24,7 @@ from tests.web._support import (
     quadratic,
     run_sheet,
     sheets_of,
+    workbook_of,
 )
 
 
@@ -45,9 +46,9 @@ def test_a_workbook_sent_without_sources_is_the_run_sheet_alone(api, held, simul
     assert list(sheets_of(book["xlsx_base64"])["Runs"].columns) == held["columns"]
 
 
-def test_the_workbook_opens_on_its_run_sheet_with_the_design_hidden(design):
+def test_the_workbook_opens_on_its_run_sheet_with_the_design_hidden(api, design):
     openpyxl = pytest.importorskip("openpyxl")
-    book = openpyxl.load_workbook(io.BytesIO(base64.b64decode(design["xlsx_base64"])))
+    book = openpyxl.load_workbook(io.BytesIO(base64.b64decode(workbook_of(api, design))))
     assert book.sheetnames == ["Runs", "_pi_design"]
     assert book["_pi_design"].sheet_state == "hidden"
     assert book["Runs"].freeze_panes == "A2", "the header row stays in view"
@@ -82,7 +83,7 @@ def test_a_workbook_the_page_wrote_reads_back_as_the_page_held_it(api, held, sim
 
 
 def test_a_fresh_workbook_reads_back_with_every_run_still_to_do(api, design):
-    back = api.ok("api_read_workbook", {"xlsx_base64": design["xlsx_base64"]})
+    back = api.ok("api_read_workbook", {"xlsx_base64": workbook_of(api, design)})
     assert back["spec"] == design["spec"]
     assert back["rows"] == design["rows"]
     assert back["responses"] == back["sources"] == [None] * design["n_runs"]
@@ -91,7 +92,7 @@ def test_a_fresh_workbook_reads_back_with_every_run_still_to_do(api, design):
 def test_results_typed_into_the_workbook_read_back_as_entered(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
     back = api.ok(
-        "api_read_workbook", {"xlsx_base64": fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0, 4))}
+        "api_read_workbook", {"xlsx_base64": fill_workbook(workbook_of(api, design), quadratic, blank_rows=(0, 4))}
     )
     assert back["sources"] == [None if i in {0, 4} else "entered" for i in range(design["n_runs"])]
     typed = [v for v in back["responses"] if v is not None]
@@ -153,7 +154,7 @@ def test_code_in_a_workbook_is_refused_never_run(api, design, fn, factor, model)
         sheets["_pi_design"]["spec"] = [json.dumps(stored)]
         sheets["Runs"] = sheets["Runs"].rename(columns={"T": factor}).assign(y=1.0)
 
-    api.error(fn, {"xlsx_base64": edit_workbook(design["xlsx_base64"], tamper)})
+    api.error(fn, {"xlsx_base64": edit_workbook(workbook_of(api, design), tamper)})
 
 
 @pytest.mark.parametrize("change", [{"design_type": "rocket"}, {"response": "T"}], ids=["design type", "response"])
@@ -162,13 +163,13 @@ def test_an_uploaded_workbook_must_hold_a_design_this_page_makes(api, design, ch
         stored = json.loads(sheets["_pi_design"]["spec"].iloc[0])
         sheets["_pi_design"]["spec"] = [json.dumps({**stored, **change})]
 
-    api.error("api_read_workbook", {"xlsx_base64": edit_workbook(design["xlsx_base64"], tamper)})
+    api.error("api_read_workbook", {"xlsx_base64": edit_workbook(workbook_of(api, design), tamper)})
 
 
 # --------------------------------------------------------------------------- analysing a workbook
 def test_workbook_round_trip_recovers_the_model(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
-    result = api.ok("api_analyze", {"xlsx_base64": fill_workbook(design["xlsx_base64"], quadratic)})
+    result = api.ok("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, design), quadratic)})
     coef = {c["term"]: c["coefficient"] for c in result["coefficients"]}
     assert coef["T"] == pytest.approx(4, abs=0.2)
     assert coef["T:P"] == pytest.approx(2, abs=0.2)
@@ -178,7 +179,7 @@ def test_workbook_round_trip_recovers_the_model(api):
 
 def test_partly_filled_workbook_reports_pending_runs(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
-    xlsx = fill_workbook(design["xlsx_base64"], quadratic, blank_rows=(0, 4))
+    xlsx = fill_workbook(workbook_of(api, design), quadratic, blank_rows=(0, 4))
     result = api.ok("api_analyze", {"xlsx_base64": xlsx, "model": "interactions"})
     assert result["pending_runs"] == [1, 5]
     assert result["n_completed"] == design["n_runs"] - 2
@@ -200,7 +201,7 @@ def test_foreign_file_is_reported(api):
 def test_a_blocked_design_s_workbook_keeps_its_blocks(api):
     spec = {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 2, "n_blocks": 2}
     design = api.ok("api_make_design", spec)
-    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    filled = fill_workbook(workbook_of(api, design), quadratic)
     read = api.ok("api_read_workbook", {"xlsx_base64": filled})
     assert read["columns"] == design["columns"]
     assert [row[2] for row in read["rows"]] == [row[2] for row in design["rows"]], "each run keeps its block"
@@ -228,7 +229,7 @@ def test_a_workbook_analysed_as_designed_keeps_no_model(api, worked_example):
 def test_a_categorical_factor_s_labels_go_through_the_workbook(api):
     factors = [*FACTORS[:2], {"name": "Supplier", "low": "old", "high": "new", "units": ""}]
     design = api.ok("api_make_design", {"design_type": "full_factorial", "factors": factors, "n_center_points": 2})
-    filled = fill_workbook(design["xlsx_base64"], quadratic)
+    filled = fill_workbook(workbook_of(api, design), quadratic)
     read = api.ok("api_read_workbook", {"xlsx_base64": filled})
     assert read["spec"]["factors"][2] == factors[2]
     assert [row[4] for row in read["rows"]] == [row[4] for row in design["rows"]], "each run keeps its label"
@@ -239,7 +240,7 @@ def test_a_categorical_factor_s_labels_go_through_the_workbook(api):
 def test_a_design_s_limits_go_through_the_workbook(api):
     limits = [{"expression": "T + 25*P <= 250", "note": "the product chars"}]
     design = api.ok("api_make_design", {"design_type": "d_optimal", "factors": FACTORS, "constraints": limits})
-    read = api.ok("api_read_workbook", {"xlsx_base64": design["xlsx_base64"]})
+    read = api.ok("api_read_workbook", {"xlsx_base64": workbook_of(api, design)})
     assert read["spec"]["constraints"] == [
         {"expression": "T + 25 * P <= 250", "type": "linear", "note": "the product chars"}
     ]
@@ -277,7 +278,7 @@ def test_kept_settings_edited_in_a_workbook_are_checked_for_their_shape_only(api
     def keep(sheets: dict) -> None:
         sheets["_pi_design"]["spec"] = [json.dumps({**design["spec"], "what_if": odd})]
 
-    assert api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(design["xlsx_base64"], keep)})["what_if"] == odd
+    assert api.ok("api_read_workbook", {"xlsx_base64": edit_workbook(workbook_of(api, design), keep)})["what_if"] == odd
 
 
 @pytest.mark.parametrize(

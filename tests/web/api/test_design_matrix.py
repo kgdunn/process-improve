@@ -26,7 +26,7 @@ import pandas as pd
 import pytest
 
 from process_improve.experiments import moment_aberration
-from tests.web._support import coded, fill_workbook, run_sheet
+from tests.web._support import coded, fill_workbook, run_sheet, workbook_of
 
 #: Factor names: single letters, avoiding "I", which a defining relation uses for the identity.
 NAMES = ("T", "P", "F", "C", "S", "R", "M", "W", "V", "Q", "N", "L")
@@ -285,7 +285,7 @@ def _round_trip(api, result: dict, x: np.ndarray) -> None:
     matrix = model_matrix(x, terms)
     beta = known_coefficients(terms)
     y = matrix @ beta + np.random.default_rng(len(x) + 7 * k).normal(0, SIGMA, len(x))
-    analysis = api.ok("api_analyze", {"xlsx_base64": fill_workbook(result["xlsx_base64"], lambda _: y)})
+    analysis = api.ok("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, result), lambda _: y)})
 
     got = {c["term"]: c for c in analysis["coefficients"]}
     assert set(got) == {term_name(t) for t in terms}, "the design fits its own model without aliasing"

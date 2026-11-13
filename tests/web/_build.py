@@ -98,7 +98,17 @@ def app_file(app: Path | str, name: str, scratch: Path) -> Path:
     return target
 
 
+def manifest(app: Path | str, scratch: Path) -> dict:
+    """Return the built app's ``wheels/manifest.json``: what its worker installs, and what it was built from."""
+    return json.loads(app_file(app, "wheels/manifest.json", scratch).read_text(encoding="utf-8"))
+
+
 def wheel(app: Path | str, scratch: Path) -> Path:
     """Return the wheel the built app's worker installs, as its manifest names it."""
-    manifest = json.loads(app_file(app, "wheels/manifest.json", scratch).read_text(encoding="utf-8"))
-    return app_file(app, f"wheels/{manifest['wheel']}", scratch)
+    return app_file(app, f"wheels/{manifest(app, scratch)['wheel']}", scratch)
+
+
+def glue(app: Path | str, scratch: Path) -> Path:
+    """Return the page's own Python as its worker loads it: the build's archive of it, or else ``bootstrap.py``."""
+    archive = manifest(app, scratch).get("glue")
+    return app_file(app, f"wheels/{archive}" if archive else "bootstrap.py", scratch)

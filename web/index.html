@@ -45,6 +45,31 @@
   <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
+  <!-- Python comes from this address, and is the longest wait of a visit: the connection to it is opened while
+       the page loads, before the worker asks for its first file. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <!-- Every module of the page, asked for at once, not as each import is read: app.js and all it imports.
+       tests/web/page/test_build.py keeps the list in step with the imports. -->
+  <link rel="modulepreload" href="app.js">
+  <link rel="modulepreload" href="charts.js">
+  <link rel="modulepreload" href="best.js">
+  <link rel="modulepreload" href="logic.js">
+  <link rel="modulepreload" href="campaign.js">
+  <link rel="modulepreload" href="study-file.js">
+  <link rel="modulepreload" href="report.js">
+  <link rel="modulepreload" href="limits.js">
+  <link rel="modulepreload" href="corners.js">
+  <link rel="modulepreload" href="picture.js">
+  <link rel="modulepreload" href="field-chart.js">
+  <link rel="modulepreload" href="python.js">
+  <link rel="modulepreload" href="store.js">
+  <link rel="modulepreload" href="glossary.js">
+  <link rel="modulepreload" href="terms.js">
+  <link rel="modulepreload" href="dialogs.js">
+  <link rel="modulepreload" href="levels.js">
+  <link rel="modulepreload" href="import.js">
+  <link rel="modulepreload" href="worker-rpc.js">
+  <link rel="modulepreload" href="feedback.js">
 </head>
 <body>
 <a class="skip-link" href="#workspace">Skip to the study</a>

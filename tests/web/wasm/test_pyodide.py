@@ -10,23 +10,29 @@ of chosen terms and an axial distance typed as a number.
 
 from __future__ import annotations
 
+import json
 import re
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tests.web._build import wheel
+from tests.web._build import manifest, wheel
 from tests.web._support import (
     ALL_DESIGNS,
     FACTORS,
+    WEB,
     coded,
     factors_named,
     fill_workbook,
     generate_all,
     held_of,
     run_sheet,
+    workbook_of,
 )
+
+#: What the page loads into Pyodide, and the Python that release runs.
+RUNTIME = json.loads((WEB / "runtime.json").read_text(encoding="utf-8"))
 
 #: Each design type at three and at six factors, or at the most the page makes it for: the page's defaults otherwise.
 MOST_FACTORS = {"omars": 5}
@@ -53,6 +59,30 @@ def test_python_under_pyodide_runs_the_app_s_own_wheel(pyodide, web_app, tmp_pat
     assert pyodide.module.version == version
 
 
+def test_the_app_s_own_python_is_loaded_from_the_bytecode_the_build_made(pyodide, web_app, tmp_path):
+    """The build compiled the wheel and ``bootstrap.py`` for the Python Pyodide runs, so the start compiles neither.
+
+    A build that could not compile them (uv could not provide that Python) names no bytecode in its manifest, and
+    fails here: the app would work, and start two to three seconds slower at every visit.
+    """
+    compiled_for = manifest(web_app, tmp_path).get("bytecode")
+    assert compiled_for == RUNTIME["python"], "the build made no bytecode for the Python that web/runtime.json names"
+    assert pyodide.module.python.startswith(f"{compiled_for}."), "Pyodide runs another Python than runtime.json names"
+    assert pyodide.module.bytecode == {"wheel": True, "glue": True}
+
+
+def test_a_design_and_its_analysis_install_nothing_and_a_workbook_installs_openpyxl(pyodide):
+    """Start-up leaves openpyxl out: a visit that makes a run sheet and analyses it never downloads it."""
+    before = pyodide.module.installed()
+    design = pyodide.ok("api_make_design", {"design_type": "full_factorial", "factors": factors_named(*"ABC")})
+    request = {**held_of(design), "responses": known(run_sheet(design)).tolist()}
+    assert pyodide.ok("api_analyze_runs", request)["coefficients"]
+    pyodide.ok("api_best_settings", {**request, "goal": "maximize"})
+    assert pyodide.module.installed() == before
+    assert workbook_of(pyodide, design), "the call that lacked openpyxl is made again once it is installed"
+    assert "openpyxl" in pyodide.module.installed()
+
+
 @pytest.mark.parametrize(("design_type", "k"), CASES)
 def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, design_type, k):
     spec = {"design_type": design_type, "factors": factors_named(*"ABCDEF"[:k])}
@@ -61,7 +91,7 @@ def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, des
     np.testing.assert_allclose(numbers(under["rows"]), numbers(native["rows"]), atol=1e-9)
     assert under["facts"] == native["facts"]
 
-    workbook = {"xlsx_base64": fill_workbook(under["xlsx_base64"], known)}
+    workbook = {"xlsx_base64": fill_workbook(workbook_of(pyodide, under), known)}
     fitted, expected = pyodide.ok("api_analyze", workbook), api.ok("api_analyze", workbook)
     assert [c["term"] for c in fitted["coefficients"]] == [c["term"] for c in expected["coefficients"]]
     for got, want in zip(fitted["coefficients"], expected["coefficients"], strict=True):
