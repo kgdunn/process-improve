@@ -715,7 +715,7 @@ def test_a_term_is_found_under_a_name_another_text_uses_and_its_card_lists_that_
     page.wait_for_function("(name) => document.querySelector('#card h2')?.textContent === name", arg=term["name"])
     elsewhere = page.text_content("#card .map-elsewhere")
     assert elsewhere == "In other texts: " + ", ".join(term["found_as"]), "on a line of its own"
-    also = page.locator("#card .map-aka:not(.map-elsewhere)")
+    also = page.locator("#card .map-aka:not(.map-elsewhere):not(.map-backed)")  # not the other texts' lines
     assert also.count() == bool(term["aliases"]), "the line of the book's own other names is unchanged"
     assert not also.count() or hidden.lower() not in also.text_content().lower()
     page.fill("#q", term["name"])
