@@ -63,6 +63,10 @@ before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines ar
 90 days. There are no cookies, no tracking script and no database. A design shared by link
 travels after the `#`, which a browser never sends, so no design reaches the log.
 
+So that usage can be followed for longer than the log is kept, a daily job adds each finished
+day's counts to `/var/lib/factorial/usage.csv`: a row a day of numbers (each page's views,
+readers, Python starts, link previews), with no address, browser or path of anyone's in it.
+
 The one exception is a report a reader sends with the app's Feedback button, and only when they
 press Send: the relay emails it to the maintainer, and keeps no copy and no line of it
 ([Feedback](#feedback)). Its request is logged as any other, without its body. A reader who gives
@@ -70,14 +74,18 @@ an address gets a receipt of fixed text; to send an address at most one a day, t
 keyed hash of it in memory for a day.
 
 ```bash
-sudo factorial-usage            # visits, catalog visits, readers, Python sessions and link previews per day
-sudo factorial-usage --days 90
+sudo factorial-usage                        # the last 28 days, a row a day
+sudo factorial-usage --days 90 --by week    # a row a week
+sudo factorial-usage --days 365 --by month  # a row a month, from the kept counts
 ```
 
-Robots, link-preview fetchers and the deploy's own checks are not counted as visits. A visit to
-the design catalog (`/catalog/`) is counted in a column of its own, and its readers among the app's.
-The report is the `factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a
-newer one.
+Each page has a column: the app (Home), the concept map (Map), the design catalog's pages
+(Catalog), the multivariate page, About, and any other page (Other). Readers are distinct
+networks and browsers in a day, and over a week or a month their average a day; Python counts
+the app's worker starting Python. Under the table, a line of bars for each page shows its use
+over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
+The report reads the log for the days it holds and the kept counts for older days. It is the
+`factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a newer one.
 
 ## Setting it up, once
 
@@ -234,6 +242,7 @@ The last line rolls back without GitHub, as the workflow would.
 |---|---|---|
 | [`factorial_deploy.py`](factorial_deploy.py) | `/usr/local/bin/factorial-deploy` | The deploy key's one command |
 | [`usage.py`](usage.py) | `/usr/local/bin/factorial-usage` | The usage report |
+| [`usage-daily.sh`](usage-daily.sh) | `/etc/cron.daily/factorial-usage` | Keeps each finished day's counts |
 | [`sshd.conf`](sshd.conf) | `/etc/ssh/sshd_config.d/factorial.conf` | What sshd allows the deploy account |
 | [`factorial.caddy`](factorial.caddy) | `/etc/caddy/factorial.caddy` | The site, its headers and its log |
 | [`feedback_relay.py`](feedback_relay.py) | `/usr/local/bin/factorial-feedback` | The relay that emails a reader's report |
