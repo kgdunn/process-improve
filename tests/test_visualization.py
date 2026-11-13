@@ -1031,6 +1031,18 @@ class TestPredictionVariancePlot:
         )
         assert spec.panels[0].layers[0].style["z_matrix"] == unblocked.to_spec().panels[0].layers[0].style["z_matrix"]
 
+    def test_a_factor_named_as_a_block_contrast_stays_and_the_contrast_goes(self) -> None:
+        """The fit names its contrast ``Block1_`` when a factor is ``Block1``: the factor stays, the contrast goes."""
+        factors = [Factor(name=name, low=-1, high=1) for name in ("A", "Block1", "C")]
+        design = generate_design(factors, "full_factorial", n_blocks=2, random_state=1).design
+        runs = design.assign(y=10 + 2 * design["A"] - design["Block1"] + 0.5 * (design["Block"] == 2))
+        fit = analyze_experiment(runs, response_column="y", analysis_type="coefficients", model="main_effects")
+        assert "Block1_" in fit["model_summary"]["formula"], "the contrast made way for the factor's name"
+        plot = create_plot(
+            "prediction_variance", analysis_results=fit, design_data=runs.to_dict("records"), response_column="y"
+        )
+        assert plot.to_spec().metadata["model"] == "A + Block1 + C"
+
 
 # ---------------------------------------------------------------------------
 # Surface plots over a region: the settings that cannot be run
@@ -2784,6 +2796,25 @@ class TestThreeDimensionalPlotly:
         plot = create_plot("cube_plot", analysis_results={"coefficients": small}, factors_to_plot=["A", "B", "C"])
         assert {vertex["text"] for vertex in plot.to_spec().panels[0].layers[1].data} == {"-0.001235", "0.001235"}
 
+    @pytest.mark.parametrize(
+        ("value", "written"),
+        [
+            (12345.6, "12350"),
+            (1234567.0, "1235000"),
+            (0.0000123456, "0.00001235"),
+            (85.0, "85"),
+            (-0.5, "-0.5"),
+            (0.0, "0"),
+        ],
+    )
+    def test_a_corner_s_value_is_written_in_full_never_with_an_exponent(self, value: float, written: str) -> None:
+        plot = create_plot(
+            "cube_plot",
+            analysis_results={"coefficients": [{"term": "Intercept", "coefficient": value}]},
+            factors_to_plot=["A", "B", "C"],
+        )
+        assert {vertex["text"] for vertex in plot.to_spec().panels[0].layers[1].data} == {written}
+
     def test_a_wireframe_layer_that_says_nothing_of_its_style_draws_lines_and_points(self) -> None:
         from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
         from process_improve.visualization.spec import ChartSpec, Encoding, LayerSpec, PanelSpec
@@ -2795,3 +2826,20 @@ class TestThreeDimensionalPlotly:
         )
         figure = PlotlyAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
         assert figure["data"][0]["mode"] == "lines+markers", "no row has text to write"
+
+    def test_a_wireframe_layer_with_neither_lines_nor_points_nor_text_draws_none(self) -> None:
+        """Plotly refuses an empty mode: its word for a trace that draws nothing is ``none``."""
+        from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
+        from process_improve.visualization.spec import ChartSpec, Encoding, LayerSpec, PanelSpec
+        from process_improve.visualization.types import MarkType
+
+        layer = LayerSpec(
+            mark=MarkType.wireframe,
+            data=[{"x": 0.0, "y": 0.0, "z": 0.0}],
+            x=Encoding(field="x"),
+            y=Encoding(field="y"),
+            z=Encoding(field="z"),
+            style={"width": 0, "size": 0},
+        )
+        figure = PlotlyAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+        assert figure["data"][0]["mode"] == "none"

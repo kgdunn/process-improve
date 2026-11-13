@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import itertools
 
+import numpy as np
+
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _evaluate_model
 from process_improve.visualization.colors import DOE_PALETTE
@@ -19,6 +21,11 @@ from process_improve.visualization.spec import (
     PanelSpec,
 )
 from process_improve.visualization.types import MarkType
+
+
+def _four_figures(value: float) -> str:
+    """Write a number to four significant figures, in full: ``12350`` and ``0.00001235``, never ``1.235e+04``."""
+    return np.format_float_positional(float(f"{value:.4g}"), trim="-")
 
 
 @register_plot("cube_plot")
@@ -65,7 +72,7 @@ class CubePlot(BasePlot):
                     "x": float(x),
                     "y": float(y),
                     "z": float(z),
-                    "text": f"{val:.4g}",
+                    "text": _four_figures(val),
                     "value": val,
                 }
             )

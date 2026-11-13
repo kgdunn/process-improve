@@ -46,8 +46,9 @@ from process_improve.visualization.types import AnnotationType, MarkType
 #: Bookkeeping columns of a generated design, which are not factors.
 _RUN_COLUMNS = RESERVED_COLUMN_NAMES
 
-#: A block contrast as ``analyze_experiment`` names it in a fitted formula: ``Block1`` to ``Block{b-1}``.
-_BLOCK_CONTRAST = re.compile(rf"{BLOCK_COL}\d+")
+#: A block contrast as ``analyze_experiment`` names it in a fitted formula: ``Block1`` to ``Block{b-1}``, with
+#: underscores after it while a column of the design has that name already.
+_BLOCK_CONTRAST = re.compile(rf"{BLOCK_COL}\d+_*")
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ def design_model(plot: BasePlot, df: pd.DataFrame, factors: list[str]) -> str:
     formula = plot.analysis_results.get("model_summary", {}).get("formula", "")
     if "~" in formula:
         rhs = formula.split("~", 1)[1].strip()
-        return _without_block_contrasts(rhs) if _BLOCK_CONTRAST.search(rhs) else rhs
+        return _without_block_contrasts(rhs, factors) if _BLOCK_CONTRAST.search(rhs) else rhs
     numeric = [f for f in factors if pd.api.types.is_numeric_dtype(df[f])]
     ladder = ["interactions", "main_effects"]
     if numeric and all(df[f].nunique() >= 3 for f in numeric):
@@ -97,10 +98,15 @@ def design_model(plot: BasePlot, df: pd.DataFrame, factors: list[str]) -> str:
     return ladder[-1]
 
 
-def _without_block_contrasts(rhs: str) -> str:
-    """Write a fitted model's right-hand side without its block contrasts, keeping what it says of the intercept."""
+def _without_block_contrasts(rhs: str, factors: list[str]) -> str:
+    """Write a fitted model's right-hand side without its block contrasts, keeping what it says of the intercept.
+
+    A factor may itself be named as a contrast is (``Block1``): it stays, and the contrast, which the fit then
+    named ``Block1_``, goes.
+    """
     terms = ModelDesc.from_formula(rhs).rhs_termlist
-    kept = [term.name() for term in terms if term.factors and not _BLOCK_CONTRAST.fullmatch(term.name())]
+    names = [term.name() for term in terms if term.factors]
+    kept = [name for name in names if name in factors or not _BLOCK_CONTRAST.fullmatch(name)]
     return " + ".join(kept if any(not term.factors for term in terms) else ["0", *kept])
 
 

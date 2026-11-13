@@ -426,7 +426,7 @@ class PlotlyAdapter(AbstractAdapter):
             x=x_vals,
             y=y_vals,
             z=z_vals,
-            mode="+".join(part for part, on in drawn.items() if on),
+            mode="+".join(part for part, on in drawn.items() if on) or "none",  # Plotly's word for none of them
             name=layer.name,
             line=dict(color=layer.color or DOE_PALETTE["primary"], width=width or 3),
             marker=dict(size=size or 5, color=layer.color or DOE_PALETTE["primary"]),
