@@ -11,10 +11,10 @@
 // - Any other request, and any that is not a GET, is left alone: the feedback form's among them.
 //
 // What the copy holds is the page's business (offline.js): it makes the copy, drops what earlier builds left in
-// it, and removes it. This worker makes no copy: it adds to one the page has made and marked as made (MADE), so a
-// copy removed stays removed, whatever this worker was in the middle of. And it serves a page from the page's next
-// visit on: it never takes over a page that is open, so the visit that registers it loads, and makes its copy,
-// with no worker in its way.
+// it, and removes it. This worker makes no copy: it reads and adds to one the page has made and marked as made
+// (MADE), so a copy removed stays removed, whatever this worker was in the middle of. And it serves a page from
+// the page's next visit on: it never takes over a page that is open, so the visit that registers it loads, and
+// makes its copy, with no worker in its way.
 //
 // The way out, should this worker ever serve a page wrongly, is a build made with --no-service-worker
 // (scripts/build_web_app.py): it puts sw-retire.js at this address, which the browser fetches at the reader's next
@@ -64,24 +64,27 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
   const whole = (response) => response.status === 200 && response.type !== "opaque";
 
   /**
-   * Keep a response under its address, in a copy the page has made. A reader may remove the copy while this
-   * worker still serves their page, and opening a cache to write to it makes the cache anew. So the page's mark
-   * is looked for before the write and after it: without it nothing is written, and a cache this write brought
-   * back, because the copy went in between, is deleted again. A full disk, or a browser that refuses, loses the
-   * copy and not the page.
+   * Read or write one of the copies, only while the page's mark is there; resolve to what `work` gave, or to
+   * nothing without the mark. A reader may remove the copy while this worker still serves their page, and a
+   * browser makes a cache anew when it is opened and, in Chromium, when it is only looked up by its name. So the
+   * mark is looked for before the work and after it, however the work ended: without it nothing is done, and a
+   * cache the work brought back, because the copy went in between, is deleted again.
    */
-  async function keep(name, href, response) {
+  async function inCopy(name, work) {
+    if (!(await caches.has(MADE))) return undefined;
     try {
-      if (!(await caches.has(MADE))) return;
-      await (await caches.open(name)).put(href, response);
+      return await work();
+    } finally {
       if (!(await caches.has(MADE))) await caches.delete(name);
-    } catch {
-      /* the copy goes without this file */
     }
   }
 
-  /** The copy of a request, whatever headers it was asked with. Looked up by the copy's name: looking makes none. */
-  const held = (name, request) => caches.match(address(request), { cacheName: name, ignoreVary: true });
+  /** Keep a response under its address. A full disk, or a browser that refuses, loses the copy and not the page. */
+  const keep = (name, href, response) => inCopy(name, async () => (await caches.open(name)).put(href, response)).catch(() => {});
+
+  /** The copy of a request, whatever headers it was asked with; none if the copy cannot be read. */
+  const held = (name, request) =>
+    inCopy(name, () => caches.match(address(request), { cacheName: name, ignoreVary: true })).catch(() => undefined);
 
   /** A file whose address names its version: the copy, or the network's once, kept from then on. */
   async function kept(request, event) {

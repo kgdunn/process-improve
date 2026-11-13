@@ -69,7 +69,9 @@ export class CacheStorage {
     if (!this.caches.has(name)) this.caches.set(name, new Map());
     return new Cache(this.caches.get(name), this.network);
   };
-  match = async (address, { cacheName }) => this.caches.get(cacheName)?.get(plain(address));
+  // As Chromium has it, and the specification does not: looking a cache up by its name makes the cache, as
+  // opening it does. A removed copy's name came back this way, empty, until sw.js stopped looking without the mark.
+  match = async (address, { cacheName }) => (await this.open(cacheName)).match(address);
   held = (name) => [...(this.caches.get(name)?.keys() ?? [])];
 }
 

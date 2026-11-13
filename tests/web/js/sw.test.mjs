@@ -148,6 +148,42 @@ describe("a file whose address names its version", () => {
     assert.equal((await fetched(WASM)).got.body, "wasm");
     assert.deepEqual(await caches.keys(), [], "the cache the write brought back is deleted again");
   });
+
+  test("does not bring the copy back when the write that made it anew then fails", async () => {
+    const { fetched, caches } = await running();
+    const open = caches.open;
+    caches.open = async (name) => {
+      for (const gone of [MADE, KEPT, APP]) await caches.delete(gone);
+      const cache = await open(name);
+      cache.put = async () => Promise.reject(new Error("QuotaExceededError")); // a full disk, say
+      return cache;
+    };
+    assert.equal((await fetched(WASM)).got.body, "wasm", "the page has its file all the same");
+    assert.deepEqual(await caches.keys(), []);
+  });
+
+  test("is looked up in no copy once the copy is removed: in Chromium a look by its name would make it anew", async () => {
+    const { fetched, caches } = await running();
+    for (const name of [MADE, KEPT, APP]) await caches.delete(name);
+    let looked = 0;
+    const match = caches.match;
+    caches.match = (...asked) => ((looked += 1), match(...asked));
+    assert.equal((await fetched(WASM)).got.body, "wasm");
+    assert.equal(looked, 0);
+    assert.deepEqual(await caches.keys(), []);
+  });
+
+  test("does not bring the copy back when it is removed just as the worker goes to look in it", async () => {
+    const { fetched, caches } = await running();
+    await fetched(WASM); // kept
+    const match = caches.match;
+    caches.match = async (...asked) => {
+      for (const gone of [MADE, KEPT, APP]) await caches.delete(gone); // the reader's removal, after the mark was seen
+      return match(...asked); // which makes the cache anew, and finds nothing in it
+    };
+    assert.equal((await fetched(WASM)).got.body, "wasm", "from the network, there being no copy");
+    assert.deepEqual(await caches.keys(), [], "the cache the look brought back is deleted again");
+  });
 });
 
 describe("one of the app's own files", () => {
@@ -170,6 +206,15 @@ describe("one of the app's own files", () => {
     const { fetched, network } = await running();
     network.down = true;
     assert.match((await fetched(APP_JS)).error.message, /Failed to fetch/);
+  });
+
+  test("with no network, once the copy is removed, fails the same way and brings no copy back", async () => {
+    const { fetched, network, caches } = await running();
+    await fetched(APP_JS); // kept
+    for (const name of [MADE, KEPT, APP]) await caches.delete(name);
+    network.down = true;
+    assert.match((await fetched(APP_JS)).error.message, /Failed to fetch/);
+    assert.deepEqual(await caches.keys(), []);
   });
 
   test("that is the page is kept once, and opens from the copy by any link to it", async () => {

@@ -28,6 +28,9 @@ from tests.web.live.test_live import started
 SAID = "document.querySelector('#offline span').textContent"
 COPIES = "caches.keys().then((names) => names.filter((name) => name.startsWith('factorial-')))"
 REGISTERED = "navigator.serviceWorker.getRegistration().then((found) => found !== undefined)"
+#: Ask for the app's wheel, a file the worker serves from the copy: resolves once the whole of it has arrived.
+THE_WHEEL_AGAIN = """fetch('wheels/manifest.json').then((got) => got.json())
+    .then((manifest) => fetch(`wheels/${manifest.wheel}`)).then((got) => got.arrayBuffer()).then(() => true)"""
 
 
 def until(page: Any, expression: str, wanted: object, timeout: float = 60) -> object:  # noqa: ANN401 - a Playwright Page
@@ -99,6 +102,10 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         said(page, "Factorial keeps no copy of itself on this device.")
         assert until(page, REGISTERED, wanted=False) is False
         assert page.evaluate(COPIES) == []
+        # The worker serves this page until it is closed, and looks in the copy for each file asked of it. In
+        # Chromium a look by a cache's name makes the cache: the copy's name came back that way, empty.
+        page.evaluate(THE_WHEEL_AGAIN)
+        assert page.evaluate(COPIES) == [], "a file asked for after the copy was removed brings no copy back"
     finally:
         context.close()
 
@@ -175,5 +182,7 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
             assert until(page, REGISTERED, wanted=False) is False, "the page unregistered the worker"
             assert until(page, COPIES, wanted=[]) == []
             assert page.is_hidden("#offline")
+            page.evaluate(THE_WHEEL_AGAIN)  # through the worker, which serves this page until it is closed
+            assert page.evaluate(COPIES) == [], "and a file asked for afterwards brings no copy back"
         finally:
             context.close()
