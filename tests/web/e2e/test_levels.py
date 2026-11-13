@@ -107,3 +107,23 @@ def test_a_run_to_look_at_again_is_listed_at_every_level(blank_page):
     reveal(page, "#analysis")
     assert page.locator("#diagnostics").is_visible()
     assert "to look at again" in page.text_content("#diagnostics summary")
+
+
+def test_two_changes_of_level_in_a_row_draw_the_charts_once(page):
+    """An arrow key on the levels passes through the one between: the charts drawn for it stop, and one set stays."""
+    reveal(page, "#analysis")
+    more_charts(page)
+    page.evaluate(
+        """() => {
+          for (const level of ["1", "3"]) {
+            const radio = document.querySelector(`#level input[value="${level}"]`);
+            radio.checked = true;
+            radio.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }"""
+    )
+    page.wait_for_function("document.querySelectorAll('#more-charts .js-plotly-plot').length === 8")
+    page.wait_for_timeout(500)  # a second drawing, were there one, would have added its cards by now
+    assert page.locator("#more-charts").count() == 1
+    assert page.locator("#charts > figure h3").all_text_contents().count("Fitted response surface") == 1
+    assert len(more_charts(page)) == 8

@@ -5,7 +5,7 @@
 //
 // The helpers above installImport need no document, so they are tested under Node.js.
 
-import { nameProblem } from "./logic.js";
+import { MAX_RESPONSES, nameProblem } from "./logic.js";
 
 /** What a column of the table can be in the study, and how the list names each. */
 export const ROLES = [
@@ -13,9 +13,6 @@ export const ROLES = [
   ["response", "A response"],
   ["ignore", "Leave it out"],
 ];
-
-/** The most responses a study measures: bootstrap.MAX_RESPONSES. */
-export const MAX_RESPONSES = 5;
 
 /** The files the page reads a table from, and which of them are workbooks. */
 export const TABLE_FILES = ".csv,.tsv,.txt,.xlsx";

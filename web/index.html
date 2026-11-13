@@ -80,7 +80,7 @@
     <!-- The reading level (levels.js): each level adds designs and charts to the ones below it, as the concept
          map's levels add terms. The two pages keep one choice. -->
     <fieldset id="level" class="level-switch">
-      <legend>Show the page for</legend>
+      <legend>Level</legend>
       <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
       <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
       <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
@@ -125,9 +125,10 @@
     <div id="status" class="status" role="status" aria-live="polite" data-state="busy">
       <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
       <span class="status__text">Starting Python...</span>
-      <!-- Offered once a call to Python has taken a while (app.js stopPython): it ends the search and starts Python again. -->
-      <button type="button" id="stop" class="link status__stop" hidden>Stop</button>
     </div>
+    <!-- Offered once a call to Python has taken a while (app.js stopPython): it ends the search and starts Python
+         again. It is outside the status line, which fades when it has nothing new to say and is read out when it has. -->
+    <button type="button" id="stop" class="button stop" hidden>Stop the calculation</button>
   </nav>
 
   <div id="demo-banner" class="banner" hidden>

@@ -221,3 +221,69 @@ def test_many_pairs_that_moved_together_are_counted_past_the_strongest_five(api)
     notes = study(api, api.ok("api_read_table", {"text": text}))["notes"]
     assert sum("moved together in these runs" in note for note in notes) == 5
     assert "1 more pairs of factors moved together." in notes
+
+
+# --------------------------------------------------------------------------- what a careful reviewer tried
+def test_time_is_a_factor_and_one_shift_column_does_not_make_records_a_design(api):
+    """Time is among the commonest factors; and a plant's shift, at three settings, is not a design's doing."""
+    timed = "Time (min),Temp,y\n" + "".join(
+        f"{t},{c},{50 + t / 10 + c / 20 + 0.37 * i}\n"
+        for i, (t, c) in enumerate([(10, 150), (30, 150), (10, 200), (30, 200)] * 2)
+    )
+    assert roles(api.ok("api_read_table", {"text": timed}))["Time (min)"] == "factor"
+    lines = records().split("\n")
+    shifted = "\n".join([f"{lines[0]},shift", *[f"{line},{1 + i % 3}" for i, line in enumerate(lines[1:])]])
+    shifted = "\n".join(
+        ",".join([*row.split(",")[:4], row.split(",")[5], row.split(",")[4]]) for row in shifted.split("\n")
+    )
+    guessed = roles(api.ok("api_read_table", {"text": shifted}))
+    assert guessed == {
+        "date": "ignore",
+        "T": "factor",
+        "P": "factor",
+        "F": "factor",
+        "shift": "factor",
+        "yield": "response",
+    }
+
+
+def test_a_name_typed_with_a_space_after_it_is_the_name_without(api):
+    table = api.ok("api_read_table", {"text": DESIGNED})
+    table["columns"][-1]["name"] = "Yield "
+    made = study(api, table)
+    assert made["campaign"]["design"]["spec"]["response"] == "Yield"
+    assert len(made["campaign"]["responses"]) == 16
+
+
+def test_a_number_too_large_to_hold_is_a_blank(api):
+    table = api.ok("api_read_table", {"text": "A,B,y\n1,10,5\n2,10,6\n1,20,7\n2,20,8\n"})
+    table["rows"][1][2] = 10**400
+    assert study(api, table)["campaign"]["responses"] == [5, None, 7, 8]
+
+
+def test_a_quote_never_closed_is_refused_in_a_sentence(api):
+    text = 'A,B,y\n1,"2,3\n' + "4,5,6\n" * 30_000
+    assert api.error("api_read_table", {"text": text}) == (
+        "The table could not be split into columns: look for a quote that is opened and never closed."
+    )
+
+
+def zipped(name: str, size: int) -> str:
+    """Return a zip file of one part of ``size`` zero bytes, in base64: small as sent, whatever it unpacks to."""
+    import zipfile
+
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w", zipfile.ZIP_DEFLATED) as packed:
+        packed.writestr(name, b"\0" * size)
+    return base64.b64encode(held.getvalue()).decode()
+
+
+def test_a_workbook_that_unpacks_to_far_more_than_it_weighs_is_refused_before_it_is_opened(api):
+    said = api.error("api_read_table", {"xlsx_base64": zipped("xl/sharedStrings.xml", 60_000_000)})
+    assert said == "The workbook unpacks to more than this page reads: 50 MB."
+
+
+def test_a_zip_file_that_is_no_workbook_is_refused(api):
+    assert api.error("api_read_table", {"xlsx_base64": zipped("notes.txt", 10)}) == (
+        "The file could not be read as an Excel workbook (.xlsx)."
+    )

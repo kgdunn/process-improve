@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { MAX_RESPONSES, ROLES, holdsWords, importProblems, isWorkbook, openedWords, takesRange } from "../../../web/import.js";
+import { ROLES, holdsWords, importProblems, isWorkbook, openedWords, takesRange } from "../../../web/import.js";
+import { MAX_RESPONSES } from "../../../web/logic.js";
 
 const temp = { heading: "Temp (degC)", name: "Temp", units: "degC", kind: "number", settings: 2, low: 150, high: 200, role: "factor" };
 const catalyst = { heading: "Catalyst", name: "Catalyst", units: "", kind: "text", settings: 2, levels: ["A", "B"], role: "factor" };

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import ast
 import base64
+import io
 import json
 import re
+import zipfile
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -34,6 +36,14 @@ def _make(**change: object) -> Callable[[Example], dict]:
 def _runs(**change: object) -> Callable[[Example], dict]:
     """Build a request about the runs the page holds, with the simulated results, changed."""
     return lambda ex: {**ex["held"], "responses": ex["simulated"]["responses"], **change}
+
+
+def _zipped(size: int) -> str:
+    """Return a zip file of one part of ``size`` zero bytes, in base64: small as sent, whatever it unpacks to."""
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w", zipfile.ZIP_DEFLATED) as packed:
+        packed.writestr("xl/sharedStrings.xml", b"\0" * size)
+    return base64.b64encode(held.getvalue()).decode()
 
 
 def _spec(**change: object) -> Callable[[Example], dict]:
@@ -831,6 +841,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_read_table",
         lambda _: {"xlsx_base64": "bm90IGEgd29ya2Jvb2s="},
         "The file could not be read as an Excel workbook (.xlsx).",
+    ),
+    "a quote never closed": (
+        "api_read_table",
+        lambda _: {"text": 'A,B,y\n1,"2,3\n' + "4,5,6\n" * 30_000},
+        "The table could not be split into columns: look for a quote that is opened and never closed.",
+    ),
+    "a workbook that unpacks to far more than it weighs": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": _zipped(60_000_000)},
+        "The workbook unpacks to more than this page reads: 50 MB.",
     ),
     "a table of too many columns": (
         "api_read_table",

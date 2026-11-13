@@ -2885,17 +2885,21 @@ def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
     return f"raising {name} from {span}{amount}"
 
 
+def _share_words(share: float) -> str:
+    """Write a share as a whole percentage; one that would round up to 100% and is not all of it as more than 99%."""
+    return "more than 99%" if 0.995 <= share < 1 else f"{share:.0%}"
+
+
 def _fit_findings(
     label: str, summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
 ) -> list[str]:
     """Say how well the model fits, whether a term may be missing, and which runs to look at again."""
     said: list[str] = []
     if summary["df_residual"] > 0:
-        fit = f"The model explains {summary['r_squared']:.0%} of the variation in {label}"
+        fit = f"The model explains {_share_words(summary['r_squared'])} of the variation in {label}"
         predicted = summary.get("r_squared_pred")
-        said.append(
-            fit + ("." if predicted is None else f", and about {max(predicted, 0):.0%} in runs it has not seen.")
-        )
+        seen = "." if predicted is None else f", and about {_share_words(max(predicted, 0))} in runs it has not seen."
+        said.append(fit + seen)
     else:
         said.append(
             "The model uses every run, so none is left to measure the noise with: "
@@ -2907,6 +2911,53 @@ def _fit_findings(
     if unusual:
         runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
         said.append(f"{runs} far from what the model expects: check before trusting the fit.")
+    return said
+
+
+#: A fitted term that is a factor's square, as the library names it: ``I(T ** 2)``.
+_SQUARE = re.compile(r"I\((.+) \*\* 2\)")
+
+
+def _factors_of(term: str) -> list[str]:
+    """Name the factors a fitted term holds: one for a main effect or a square, two or three for an interaction."""
+    squared = _SQUARE.fullmatch(term)
+    return [squared[1]] if squared else term.split(":")
+
+
+def _swing(term: str, coefficient: float) -> float:
+    """Return how far a term moves the response over the factors' ranges: a square from the center to an end."""
+    return abs(coefficient) if _SQUARE.fullmatch(term) else 2 * abs(coefficient)
+
+
+def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[str]:
+    """Say which factor matters most, and by how much when it moves the response steadily across its range.
+
+    A factor may matter most through its square or an interaction while its own main effect is nothing to speak
+    of: the response then does not rise or fall steadily with it, and no one amount says what it does.
+    """
+    label, units = _response_words(spec)
+    if not judged.get(first):
+        return [f"{first} matters most, though {label} does not rise or fall steadily with it: see how below."]
+    said = [f"{first} matters most: {_effect_words(by_term[first], simple[first], spec)}, on average."]
+    worth = (spec.get("response_info") or {}).get("smallest_change")
+    if worth and _transform_of(spec) is None:
+        change = abs(2 * by_term[first]["coefficient"])
+        than = "more than" if change > worth else "less than" if change < worth else "the same as"
+        said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
+    return said
+
+
+def _shape_findings(label: str, judged: dict, simple: dict) -> list[str]:
+    """Say which effects depend on another factor, and over which factors the response curves."""
+    said = []
+    for term, is_real in judged.items():
+        named = _factors_of(term)
+        if not is_real or not set(named) <= set(simple):
+            continue
+        if _SQUARE.fullmatch(term):
+            said.append(f"{label} curves over {named[0]}: its best setting may lie inside the range, not at an end.")
+        elif len(named) == len("ab"):
+            said.append(f"The effect of {named[0]} depends on {named[1]}: read the two together, not one at a time.")
     return said
 
 
@@ -2922,47 +2973,51 @@ def _findings(
 
     Which factor matters most and by how much, which others are real and which cannot be told from the noise,
     which effects depend on another factor, where the response curves, how well the model fits, and which runs
-    to look at again. A factor of three levels or more has no one effect, and is left to its table.
+    to look at again. A factor matters through any term that holds it, so one whose square or interaction is
+    real is never said to be lost in the noise, and the factor that matters most is the one whose largest real
+    term moves the response furthest. A factor of three levels or more has no one effect, and is left to its table.
     """
-    label, units = _response_words(spec)
+    label, _ = _response_words(spec)
     simple = {f["name"]: f for f in spec["factors"] if not _several(f)}
     beyond = {e["term"]: bool(e["active_ME"]) for e in (lenth or {}).get("effects", [])}
     judged = {c["term"]: _real(c, beyond) for c in coefficients if c.get("coefficient") is not None}
     by_term = {c["term"]: c for c in coefficients}
     mains = [name for name in simple if judged.get(name) is not None]
-    real = sorted((n for n in mains if judged[n]), key=lambda n: -abs(by_term[n]["coefficient"]))
+    # How far each factor's largest real term moves the response, and all of its real terms together, which
+    # settles a tie: none for a factor no real term holds.
+    reach: dict[str, float] = {}
+    total: dict[str, float] = {}
+    for term, is_real in judged.items():
+        if is_real and term != "Intercept":
+            swing = _swing(term, by_term[term]["coefficient"])
+            for name in (n for n in _factors_of(term) if n in simple):
+                reach[name] = max(reach.get(name, 0.0), swing)
+                total[name] = total.get(name, 0.0) + swing
+    ranked = sorted(reach, key=lambda name: (-reach[name], -total[name]))
     said: list[str] = []
-    if real:
-        first, *others = real
-        sentence = _effect_words(by_term[first], simple[first], spec)
-        said.append(f"{first} matters most: {sentence}, on average.")
-        worth = (spec.get("response_info") or {}).get("smallest_change")
-        if worth and _transform_of(spec) is None:
-            change = abs(2 * by_term[first]["coefficient"])
-            than = "more than" if change > worth else "less than" if change < worth else "the same as"
-            said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
-        if others:
-            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in others]
+    if ranked:
+        first, *others = ranked
+        said += _leading_finding(first, by_term, judged, simple, spec)
+        steady = [n for n in others if judged.get(n)]
+        if steady:
+            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in steady]
             said.append(f"Also real: {', '.join(ways)}.")
     elif mains:
         said.append(f"No factor's effect on {label} stands out from the noise.")
-    tangled = [n for n in mains if not judged[n] and (by_term[n].get("vif") or 0) > TANGLED_VIF]
-    quiet = [n for n in mains if not judged[n] and n not in tangled]
-    if real and quiet:
+    tangled = [n for n in mains if n not in reach and (by_term[n].get("vif") or 0) > TANGLED_VIF]
+    quiet = [n for n in mains if n not in reach and n not in tangled]
+    if ranked and quiet:
         said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
     if tangled:
         said.append(
             f"{_listed(tangled)} moved together with other factors in these runs, so the runs cannot judge "
             f"{'it' if len(tangled) == 1 else 'any of them'} alone."
         )
-    for term, is_real in judged.items():
-        pair = term.split(":")
-        if is_real and len(pair) == len("ab") and set(pair) <= set(simple):
-            said.append(f"The effect of {pair[0]} depends on {pair[1]}: read the two together, not one at a time.")
-        squared = re.fullmatch(r"I\((.+) \*\* 2\)", term)
-        if is_real and squared and squared[1] in simple:
-            said.append(f"{label} curves over {squared[1]}: its best setting may lie inside the range, not at an end.")
-    return [*said, *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics)]
+    return [
+        *said,
+        *_shape_findings(label, judged, simple),
+        *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics),
+    ]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:
@@ -4547,6 +4602,9 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
 MAX_TABLE_BYTES = 2_000_000
 MAX_TABLE_COLUMNS = 60
 
+#: The most a workbook may unpack to: it is a zip file, and its size as sent says little of its size in memory.
+MAX_UNPACKED_BYTES = 50_000_000
+
 #: A numeric column at this many settings or fewer looks set by a design, not measured.
 FEW_SETTINGS = 5
 
@@ -4554,9 +4612,7 @@ FEW_SETTINGS = 5
 _BLANK_CELLS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "?"}
 
 #: Headings of columns that number or date the runs: no factor and no response.
-_BOOKKEEPING = re.compile(
-    r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date|time|day|block)$"
-)
+_BOOKKEEPING = re.compile(r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date)$")
 
 #: A heading that ends in its units: "Temp (degC)" or "Yield [%]".
 _WITH_UNITS = re.compile(r"^(.*?)\s*[\(\[]\s*([^\)\]]{1,32})\s*[\)\]]\s*$")
@@ -4571,7 +4627,10 @@ def _cell(value: object, *, decimal_comma: bool = False) -> float | str | None:
     if value is None or isinstance(value, bool):
         return None if value is None else str(value)
     if isinstance(value, (int, float)):
-        return float(value) if math.isfinite(value) else None
+        try:
+            return float(value) if math.isfinite(value) else None
+        except OverflowError:  # a whole number past what a float holds: no setting and no result
+            return None
     text = str(value).strip()
     if text.lower() in _BLANK_CELLS:
         return None
@@ -4589,16 +4648,29 @@ def _csv_cells(text: str) -> list[list[float | str | None]]:
 
     sample = "\n".join(text.splitlines()[:20])
     delimiter = max(",;\t|", key=sample.count) if sample else ","
-    return [
-        [_cell(value, decimal_comma=delimiter != ",") for value in row]
-        for row in csv.reader(io.StringIO(text), delimiter=delimiter)
-    ]
+    try:
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    except csv.Error as err:
+        raise ValueError(
+            "The table could not be split into columns: look for a quote that is opened and never closed."
+        ) from err
+    return [[_cell(value, decimal_comma=delimiter != ",") for value in row] for row in rows]
 
 
 def _xlsx_cells(data: bytes, sheet: object) -> tuple[list[list[float | str | None]], list[str], str]:
     """Read one sheet of a workbook, the first unless named: its cells' values, never its formulas."""
+    import zipfile  # noqa: PLC0415
+
     from openpyxl import load_workbook  # noqa: PLC0415 - loaded with the page's own workbook
 
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as packed:
+            unpacked = sum(part.file_size for part in packed.infolist())
+    except Exception as err:
+        raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+    # A workbook is a zip file, and a small one can unpack to gigabytes, which would end Python.
+    if unpacked > MAX_UNPACKED_BYTES:
+        raise ValueError(f"The workbook unpacks to more than this page reads: {MAX_UNPACKED_BYTES // 1_000_000} MB.")
     try:
         book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception as err:
@@ -4685,11 +4757,16 @@ def _guess_roles(columns: list[dict[str, Any]]) -> None:
 
     A column of one setting, of numbers or dates of the runs, or of more labels than a factor has levels, is
     neither. Numbers at a few settings were set, so they are a factor, and labels at a few are a categorical
-    one. Numbers at many settings were measured: beside columns that were set they are responses; in a table
-    where nothing was set, as a plant's records are, the last is the response and the others are factors.
+    one. Numbers at many settings were measured: in a table that looks designed (two columns or more at a few
+    settings, or one beside a result or two) they are responses; in a table where nothing was set, as a
+    plant's records are, the last is the response and the others are factors.
     """
-    designed = any(c["kind"] == "number" and 1 < c["settings"] <= FEW_SETTINGS for c in columns)
-    measured = [c for c in columns if c["kind"] == "number" and c["settings"] > FEW_SETTINGS]
+    kept = [c for c in columns if c["settings"] > 1 and not _BOOKKEEPING.match(c["label"])]
+    measured = [c for c in kept if c["kind"] == "number" and c["settings"] > FEW_SETTINGS]
+    few = [c for c in kept if c["settings"] <= FEW_SETTINGS and (c["kind"] == "number" or c["settings"] <= MAX_LEVELS)]
+    # One column at a few settings among many that were measured is a shift or a line in a plant's records, not
+    # a design: a design sets two columns or more, or one beside a result or two.
+    designed = len(few) > 1 or (len(few) == 1 and len(measured) <= 2)
     for c in columns:
         if c["settings"] < 2 or _BOOKKEEPING.match(c["label"]):
             c["role"] = "ignore"
@@ -4852,7 +4929,7 @@ def import_study(request: dict) -> dict:
             f"{len(left_out)} of the table's {len(rows)} runs had no setting for some factor, and were left out."
         )
     design["facts"]["notes"] = [*design["facts"]["notes"], *notes]
-    results = {c.get("name"): [rows[i][at[id(c)]] for i in kept] for c in measured}
+    results = {str(c.get("name") or "").strip(): [rows[i][at[id(c)]] for i in kept] for c in measured}
     first, *others = [r["name"] for r in _responses(stored)]
     sources = {name: ["entered" if v is not None else None for v in values] for name, values in results.items()}
     return {
@@ -5234,7 +5311,7 @@ def _standard_model_of(terms: list[str]) -> str:
 
 def _page_term(term: str) -> list[str]:
     """Write a fitted term as the page ticks it: a factor's name once, an interaction's names, a square's twice."""
-    squared = re.fullmatch(r"I\((.+) \*\* 2\)", term)
+    squared = _SQUARE.fullmatch(term)
     return [squared[1], squared[1]] if squared else term.split(":")
 
 

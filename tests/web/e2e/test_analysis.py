@@ -376,3 +376,21 @@ def test_a_run_set_aside_is_kept_with_the_study(blank_page):
     page.wait_for_selector("#aside-runs")
     assert page.text_content("#aside-runs").startswith("Run 3 is set aside: ")
     assert "11 completed runs" in page.text_content("#analysis")
+
+
+def test_results_simulated_afresh_set_no_run_aside(blank_page):
+    """Every result is new, so none of the runs set aside from the old ones stays out of the fit."""
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=4)
+    practise(page)
+    settled(page)
+    reveal(page, "#analysis")
+    set_aside(page, 3)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    reveal(page, "#reroll")
+    page.click("#reroll")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    reveal(page, "#analysis")
+    assert page.locator("#aside-runs").count() == 0
+    assert "12 completed runs" in page.text_content("#analysis")

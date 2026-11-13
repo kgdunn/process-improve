@@ -452,7 +452,11 @@ describe("words and numbers", () => {
   test("the search for a simpler model is said in a sentence", () => {
     const fmt = (v) => v.toFixed(2);
     const found = { kept: ["T", "P", "T·P"], dropped: ["F"], added: [], changed: true, adjusted_r_squared: 0.9777 };
-    assert.equal(simplerWords(found, fmt), "The results support T, P and T·P, without F. Adjusted R² would be 0.98.");
+    assert.equal(
+      simplerWords(found, fmt),
+      "The results support T, P and T·P, without F. Adjusted R² would be 0.98. Terms picked from the results look surer " +
+        "afterwards than they are: confirm them with new runs.",
+    );
     assert.match(simplerWords({ ...found, added: ["F²"] }, fmt), /without F, and with F²\. /);
     assert.equal(simplerWords({ ...found, dropped: [], changed: false }, fmt), "The results support every term of the model as it is.");
     assert.match(simplerWords({ ...found, kept: [] }, fmt), /^No term of the model stands out from the noise/);

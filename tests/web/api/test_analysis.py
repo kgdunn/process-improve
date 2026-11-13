@@ -94,6 +94,22 @@ def test_each_run_has_its_leverage_and_they_sum_to_the_number_of_coefficients(ap
     assert sum(d["leverage"] for d in analysis["diagnostics"]) == pytest.approx(len(analysis["coefficients"]))
 
 
+def test_a_factor_that_acts_through_its_square_or_an_interaction_is_not_lost_in_the_noise(api, held):
+    """P's own main effect is nothing, yet P decides the yield through its square and through T: P matters most."""
+    at = {name: held["columns"].index(name) for name in ("T", "P", "F")}
+    rng = np.random.default_rng(7)
+    responses = []
+    for row in held["rows"]:
+        t, p, f = (row[at["T"]] - 175) / 25, row[at["P"]] - 2, (row[at["F"]] - 15) / 5
+        responses.append(float(60 + 0.4 * f + 9 * t * p - 12 * p * p + rng.normal(0, 0.05)))
+    findings = api.ok("api_analyze_runs", {**held, "responses": responses})["findings"]
+    assert findings[0] == "P matters most, though Yield does not rise or fall steadily with it: see how below."
+    assert not any(f.startswith("Not told apart from the noise") and "P" in f for f in findings)
+    assert "The effect of T depends on P: read the two together, not one at a time." in findings
+    assert "Yield curves over P: its best setting may lie inside the range, not at an end." in findings
+    assert any(f.startswith("The model explains more than 99% of the variation") for f in findings), "not 100%"
+
+
 def test_nothing_real_is_said_plainly(api, held):
     """Results that are noise alone: no factor is named as mattering."""
     noise = np.random.default_rng(3).normal(60, 1, len(held["rows"])).round(2).tolist()

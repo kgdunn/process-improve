@@ -1683,12 +1683,15 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 :root[data-level="1"] [data-level="3"]:not(.in-use),
 :root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
 .level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
-/* Its name is read out, not drawn: the three levels then fit one line of a 360 px screen. */
-.level-switch legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.level-switch legend { float: left; padding: 0; margin-right: 4px; color: var(--muted); font-size: 0.9rem; }
+/* On a phone its name is read out, not drawn: the three levels then fit one line of a 360 px screen. */
+@media (max-width: 600px) {
+  .level-switch legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 .level-switch label { display: inline-flex; min-width: 0; }
 .level-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .level-switch span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
-.level-switch input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.level-switch input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .level-switch input:focus-visible + span { outline: 2px solid var(--warn); outline-offset: 2px; }
 .level-more button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 @media (pointer: coarse) {
@@ -1697,7 +1700,7 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 }
 
 /* A way past the header for a reader on a keyboard: on the page only while it has the focus. */
-.skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px; background: var(--accent); color: #fff; }
+.skip-link { position: absolute; left: 8px; top: -60px; z-index: 20; padding: 10px 14px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); }
 .skip-link:focus { top: 8px; }
 
 /* The dialog that makes a study of the reader's own table (import.js). */
@@ -1728,8 +1731,7 @@ dialog.import { width: min(860px, 100vw - 32px); }
 }
 
 /* Stop, in the status line: offered once Python has taken a while over a call. */
-.status__stop { margin-left: auto; padding: 2px 10px; }
-@media (pointer: coarse) { .status__stop { min-height: 44px; padding: 0 14px; } }
+.stop { margin: 8px 0 0; }
 
 /* The runs set aside from the fit on show, said above the analysis. */
 .aside-runs { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--warn); background: var(--panel); border-radius: 0 6px 6px 0; }

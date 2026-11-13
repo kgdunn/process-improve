@@ -323,6 +323,7 @@ function startWorker() {
     if (made !== worker) return;
     if (data.status) {
       if (pythonFailure) return;
+      if (data.state === "ok") made.started = true; // it says it is ready: a call it has now can be stopped
       setStatus(data.status, data.state);
       pythonSaid = statusTicket;
       return;
@@ -361,12 +362,12 @@ let stopTimer = null;
 
 /**
  * Offer to stop Python once a call has waited STOP_AFTER, and take the offer away when nothing waits. Python
- * starting is not a call to stop: the offer waits until it has started once.
+ * starting is not a call to stop, the first time or after a stop: the offer waits until this worker has started.
  */
 function showStop() {
   clearTimeout(stopTimer);
   const oldest = Math.min(...[...pending.values()].map((waiting) => waiting.since));
-  const wait = pending.size && pythonReady ? STOP_AFTER - (Date.now() - oldest) : Infinity;
+  const wait = pending.size && worker.started ? STOP_AFTER - (Date.now() - oldest) : Infinity;
   $("#stop").hidden = wait > 0;
   if (wait > 0 && wait !== Infinity) stopTimer = setTimeout(showStop, wait);
 }
@@ -2648,6 +2649,7 @@ function renderRuns() {
     const name = input.dataset.response;
     state.results[name][i] = input.value === "" ? null : Number(input.value);
     state.marks[name][i] = input.value === "" ? null : "entered";
+    backInTheFit(name, i);
     input.classList.remove("sim");
     resultsChanged();
   };
@@ -2762,6 +2764,7 @@ function pasteResults(e) {
   for (const { index, name, value } of placed.values) {
     state.results[name][index] = value;
     state.marks[name][index] = "entered";
+    backInTheFit(name, index);
     const box = $("#design-table").querySelector(`input[data-index="${index}"][data-response="${CSS.escape(name)}"]`);
     box.value = String(value);
     box.classList.remove("sim");
@@ -2878,6 +2881,7 @@ async function simulateResults() {
   const more = Object.fromEntries(Object.entries(reply.result.more ?? {}).map(([name, one]) => [name, one.responses]));
   state.results = joinResults(names, [...reply.result.responses], more);
   state.marks = Object.fromEntries(names.map((name) => [name, state.results[name].map(() => "simulated")]));
+  state.setAside = {}; // every result is new
   renderRuns();
   renderTruth();
   showResultsCode();
@@ -3572,12 +3576,21 @@ function fitSimpler() {
   $("#term-list").dispatchEvent(new Event("change"));
 }
 
-/** Set a run aside from the fit Learn shows, or put it back, and fit the model again. */
-function setRunAside(place) {
+/** A result typed or pasted again is a new result: its run is no longer set aside from that response's fit. */
+function backInTheFit(name, place) {
+  if (state.setAside[name]?.includes(place)) state.setAside = toggleAside(state.setAside, name, place);
+}
+
+/**
+ * Set a run aside from the fit Learn shows, or put it back, and fit the model again. The button pressed goes with
+ * the analysis it was in, so the focus moves to what the page now says of the runs set aside, or to the runs' table.
+ */
+async function setRunAside(place) {
   state.setAside = toggleAside(state.setAside, state.shown, place);
   scheduleSave();
   showResultsCode();
-  analyseRuns();
+  await analyseRuns();
+  ($("#aside-runs button") ?? $("#diagnostics > summary"))?.focus();
 }
 
 /**
@@ -4238,7 +4251,12 @@ function coefficientCard(analysis, simulated) {
 }
 
 /** Draw the coefficient chart, then the library's plots for the same analysis. */
+/** One more each time the charts are drawn: a drawing still on its way when another starts stops where it is. */
+let chartTicket = 0;
+
 async function drawCharts(request, mine, given = null) {
+  const drawing = ++chartTicket;
+  const overtaken = () => mine !== ticket || drawing !== chartTicket;
   const charts = $("#charts");
   charts.hidden = false;
   const simulated = Boolean(request.truth);
@@ -4247,7 +4265,7 @@ async function drawCharts(request, mine, given = null) {
   await coefficients.show(coefficientView());
 
   const plots = given ?? (await libraryPlots(request, mine));
-  if (mine !== ticket) return;
+  if (overtaken()) return;
   const version = plots?.plotly_js ?? state.plotlyJs;
   if (!version) {
     coefficients.card.append(el("p", "hint", "The charts could not be drawn here; the tables above hold the numbers."));
@@ -4257,7 +4275,7 @@ async function drawCharts(request, mine, given = null) {
   try {
     await coefficients.show(coefficientView(), version);
     await drawBestChart();
-    if (!plots) return;
+    if (!plots || overtaken()) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
     // A mixture's best blend is starred on its triangle, or where its Cox traces, drawn through it, cross.
@@ -4288,6 +4306,7 @@ async function drawCharts(request, mine, given = null) {
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
+      if (overtaken()) return;
     }
     state.plots = plots; // drawn again, from these, when the reading level changes
     state.chartRequest = request;
@@ -4352,7 +4371,8 @@ function contourPicker(plots) {
       if (other.value === select.value) other.value = plots.contour_factors[at]; // the two change places
       state.contourPair = selects.map((s) => s.value);
       const request = analysisRequest();
-      drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket);
+      // The boxes are drawn again with the charts: the one changed keeps the focus.
+      drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(`#${select.id}`)?.focus());
     };
   });
   row.append("Draw it over ", selects[0], " and ", selects[1]);
@@ -4364,7 +4384,7 @@ async function libraryPlots(request, mine) {
   const names = state.design.spec.factors.map((f) => f.name);
   const pair = state.contourPair?.every((name) => names.includes(name)) ? state.contourPair : null;
   let reply = await call("api_plots", pair ? { ...request, contour_factors: pair } : request);
-  if (!reply.ok && pair) {
+  if (!reply.ok && pair && !reply.stopped) {
     state.contourPair = null;
     reply = await call("api_plots", request);
   }

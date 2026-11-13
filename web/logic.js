@@ -1134,7 +1134,10 @@ export function simplerWords(found, fmt) {
   if (!found.changed) return "The results support every term of the model as it is.";
   const without = found.dropped.length ? `, without ${listNames(found.dropped)}` : "";
   const more = found.added.length ? `, and with ${listNames(found.added)}` : "";
-  return `The results support ${listNames(found.kept)}${without}${more}. Adjusted R² would be ${fmt(found.adjusted_r_squared)}.`;
+  return (
+    `The results support ${listNames(found.kept)}${without}${more}. Adjusted R² would be ${fmt(found.adjusted_r_squared)}. ` +
+    "Terms picked from the results look surer afterwards than they are: confirm them with new runs."
+  );
 }
 
 /** The charts under "More charts", in their order: what the factors do, then whether to trust the model. */
