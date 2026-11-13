@@ -6,4 +6,6 @@
   wheel's browser copy leaves out the reference catalogue's 29 MB of sources, which the page never
   reads. openpyxl and plotly are installed when a call first needs them, a workbook or a chart, and
   no longer at start-up, so a visit that makes a run sheet downloads neither, and the page starts
-  on a network that cannot reach PyPI. (#1233)
+  on a network that cannot reach PyPI. The build asks PyPI once for the exact files of those
+  packages and writes their addresses into its manifest: the page installs those files, asks no
+  package index, and chooses no version in the browser. (#1233)

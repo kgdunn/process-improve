@@ -1,8 +1,8 @@
-// The service worker of Factorial: it keeps a copy of what the page loads, so the page opens without a network,
-// and Python starts from the copy when Stop starts it again.
+// The service worker of Factorial: it serves the copy of the page kept on the reader's device, so the page opens
+// without a network, and adds to the copy what passes through it.
 //
-// It holds no list of files and no version of the app. It has one rule for each kind of address, so nothing in it
-// can fall behind a deploy:
+// It holds no list of files and no version of the app, and it reads none: it has one rule for each kind of
+// address, so nothing in it can fall behind a deploy.
 //
 // - A file whose address names its version is kept as it is, and served from the copy: Pyodide's release, the
 //   app's wheel and its own Python in their folder named by digest, Plotly.js, and PyPI's files.
@@ -10,13 +10,15 @@
 //   last one it gave: a deploy reaches a reader at their next visit with a network, as it does without this worker.
 // - Any other request, and any that is not a GET, is left alone: the feedback form's among them.
 //
-// wheels/manifest.json is the switch. A build made with "service_worker": false there retires this worker and
-// its copies at the reader's next visit (scripts/build_web_app.py --no-service-worker), with no change here. The
-// same file, and runtime.json, say which wheel, Pyodide release and Plotly.js the page now loads: copies of
-// earlier ones are dropped as these two pass by.
+// What the copy holds is the page's business (offline.js): it makes the copy, drops what earlier builds left in
+// it, and removes it. This worker only adds to a copy that is there, so one removed stays removed.
 //
-// This is a classic script, as every browser's service worker takes one; tests/web/js reads its two rules under
-// Node.js through the export at the foot.
+// The way out, should this worker ever serve a page wrongly, is a build made with --no-service-worker
+// (scripts/build_web_app.py): it puts sw-retire.js at this address, which the browser fetches at the reader's next
+// visit whatever the page's own code does, and which deletes the copies and unregisters.
+//
+// This is a classic script, as every browser's service worker takes one; tests/web/js reads its rules, and runs
+// its handlers against a stand-in for the browser, under Node.js.
 
 const KEPT = "factorial-kept-1"; // files whose address names their version
 const APP = "factorial-app-1"; // the app's own files and the package indexes: the network's copy when there is one
@@ -41,31 +43,26 @@ function kind(href, scope) {
 }
 
 /**
- * Whether a kept file is of an earlier build or release than the page now loads. `now` holds what is known of
- * that, each part or none: `folder`, the wheels' folder named by their digest; `pyodide`, the release and the
- * folder of it, as "v314.0.7/pyc"; `plotlyJs`, the Plotly.js version. A file `now` says nothing of is kept.
+ * The address a response is kept under. A page's is without its query, which the page itself reads: one copy
+ * of the page then serves every link to it, and a link's query adds no copy.
  */
-function stale(href, scope, { folder, pyodide, plotlyJs }) {
-  if (folder && href.startsWith(`${scope}wheels/`)) return !href.startsWith(`${scope}wheels/${folder}/`);
-  if (pyodide && href.startsWith(PYODIDE)) return !href.startsWith(`${PYODIDE}${pyodide}/`);
-  if (plotlyJs && href.startsWith(PLOTLY_JS)) return !href.startsWith(`${PLOTLY_JS}${plotlyJs}/`);
-  return false;
+function address(request) {
+  if (request.mode !== "navigate") return request.url;
+  const page = new URL(request.url);
+  page.search = page.hash = "";
+  return page.href;
 }
 
-if (typeof module === "object") module.exports = { kind, stale, KEPT, APP }; // Node.js, for the tests
+if (typeof module === "object") module.exports = { kind, address, KEPT, APP }; // Node.js, for the tests
 
 if (typeof ServiceWorkerGlobalScope !== "undefined") {
   const scope = self.registration.scope;
   const whole = (response) => response.status === 200 && response.type !== "opaque";
-  /** The two files that say what the page now loads, and whether this worker is wanted. */
-  const [MANIFEST, RUNTIME] = [`${scope}wheels/manifest.json`, `${scope}runtime.json`];
-  const SAYS = [MANIFEST, RUNTIME];
 
   /**
-   * Keep a response under its address, in a copy that is there. The copies are made when this worker takes over
-   * (activate) and by the page (offline.js); once they are deleted, by a build that retires the worker or by a
-   * reader who removes the copy, a page this worker still serves must not bring them back. A full disk, or a
-   * browser that refuses, loses the copy and not the page.
+   * Keep a response under its address, in a copy that is there. The copies are made by the page (offline.js) and
+   * when this worker takes over (activate); once a reader removes them, a page this worker still serves must not
+   * bring them back. A full disk, or a browser that refuses, loses the copy and not the page.
    */
   const keep = (name, href, response) =>
     caches
@@ -73,20 +70,15 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
       .then((there) => there && caches.open(name).then((cache) => cache.put(href, response)))
       .catch(() => {});
 
-  /** The copy of an address, whatever headers it was asked with; a page's, with or without its query. */
-  async function held(name, request) {
-    const within = { cacheName: name, ignoreVary: true }; // looked up by name, so that looking makes no copy
-    const copy = await caches.match(request.url, within);
-    if (copy || request.mode !== "navigate") return copy;
-    return caches.match(request.url.split("?")[0], within); // the page reads its own query
-  }
+  /** The copy of a request, whatever headers it was asked with. Looked up by the copy's name: looking makes none. */
+  const held = (name, request) => caches.match(address(request), { cacheName: name, ignoreVary: true });
 
   /** A file whose address names its version: the copy, or the network's once, kept from then on. */
-  async function kept(request) {
+  async function kept(request, event) {
     const copy = await held(KEPT, request);
     if (copy) return copy;
     const response = await fetch(request);
-    if (whole(response)) keep(KEPT, request.url, response.clone());
+    if (whole(response)) event.waitUntil(keep(KEPT, request.url, response.clone()));
     return response;
   }
 
@@ -100,32 +92,8 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
       if (copy) return copy;
       throw offline;
     }
-    if (whole(response)) {
-      event.waitUntil(keep(APP, request.url, response.clone()));
-      if (SAYS.includes(request.url)) event.waitUntil(follow(request.url, response.clone()).catch(() => {}));
-    }
+    if (whole(response)) event.waitUntil(keep(APP, address(request), response.clone()));
     return response;
-  }
-
-  /** Retire this worker and every copy it kept: the build says it is not wanted. */
-  async function retire() {
-    for (const name of await caches.keys()) if (name.startsWith("factorial-")) await caches.delete(name);
-    await self.registration.unregister();
-  }
-
-  /** Drop the kept files of earlier builds and releases, which `now` names the successors of. */
-  async function prune(now) {
-    if (!(await caches.has(KEPT))) return;
-    const cache = await caches.open(KEPT);
-    for (const request of await cache.keys()) if (stale(request.url, scope, now)) await cache.delete(request);
-  }
-
-  /** Read the two files that say what the page now loads, as the network gives them, and act on what they say. */
-  async function follow(href, response) {
-    const said = await response.json();
-    if (href === RUNTIME) return prune({ pyodide: `v${said.pyodide}/${said.distribution}` });
-    if (said.service_worker === false) return retire();
-    return prune({ folder: said.wheel?.split("/")[0], plotlyJs: said.plotly_js });
   }
 
   self.addEventListener("install", () => self.skipWaiting());
@@ -145,7 +113,7 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
     const { request } = event;
     if (request.method !== "GET") return;
     const what = kind(request.url, scope);
-    if (what === "kept") event.respondWith(kept(request));
+    if (what === "kept") event.respondWith(kept(request, event));
     else if (what === "fresh") event.respondWith(fresh(request, event));
   });
 }

@@ -44,11 +44,15 @@ import shutil
 import statistics
 import subprocess
 import tempfile
+import urllib.request
 import zipfile
 from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -87,6 +91,7 @@ APP_FILES = (
     "worker-rpc.js",
     "offline.js",
     "sw.js",
+    "sw-retire.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
@@ -172,6 +177,60 @@ def compile_bytecode(tree: Path, python: str) -> bool:
         said = (done.stderr or done.stdout).strip().splitlines()
         print(f"note: built without bytecode for Python {python}: {said[-1] if said else 'compileall failed'}")
     return done.returncode == 0
+
+
+#: PyPI's record of one release of a package: its files, and what it requires.
+PYPI_RELEASE = "https://pypi.org/pypi/{name}/{version}/json"
+
+
+def _pypi_release(name: str, release: str) -> dict[str, Any]:
+    """Return PyPI's record of one release: its files (``urls``) and what it requires (``info.requires_dist``)."""
+    with urllib.request.urlopen(PYPI_RELEASE.format(name=name, version=release), timeout=30) as reply:  # noqa: S310
+        return json.load(reply)
+
+
+def on_demand_pins(plotly: str) -> dict[str, list[str]]:
+    """Return what the page installs when a call first needs it, by the module the call lacks.
+
+    The modules are ``onDemand``'s in ``web/worker.js``: the workbooks' packages at their pins in
+    ``web/runtime.json``, and plotly at the release this build drew the worked example with.
+    """
+    return {"openpyxl": runtime()["micropip"], "plotly": [f"plotly=={plotly}"]}
+
+
+def exact_files(pins: dict[str, list[str]], python: str) -> dict[str, dict[str, list[str]]] | None:
+    """Resolve what the page installs on demand to exact files, so the page resolves nothing itself.
+
+    For each module, ``wheels`` are the addresses of its pinned releases' pure-Python wheels on PyPI, and
+    ``packages`` name what those require beyond each other, for Python ``python`` in a browser: packages of the
+    Pyodide release, which the page loads from there. The page then installs them with no package index asked and
+    no version chosen in the browser: every visit installs these files, and the copy kept for use without a
+    network (``web/offline.js``) can name each one. PyPI is asked once per package, as the build runs. Where it
+    cannot be asked, the build goes on without the exact files and says so: the page then installs each pin
+    through the index, as a plain preview of ``web/`` does.
+    """
+    browser = {
+        "extra": "",
+        "python_version": python,
+        "python_full_version": f"{python}.0",
+        "sys_platform": "emscripten",
+    }
+    resolved = {}
+    try:
+        for module, requirements in pins.items():
+            pinned = [requirement.split("==") for requirement in requirements]
+            wheels, needed = [], set()
+            for name, pin in pinned:
+                record = _pypi_release(name, pin)
+                wheels.append(next(f["url"] for f in record["urls"] if f["filename"].endswith("-none-any.whl")))
+                required = [Requirement(line) for line in record["info"]["requires_dist"] or []]
+                needed |= {canonicalize_name(r.name) for r in required if not r.marker or r.marker.evaluate(browser)}
+            own = {canonicalize_name(name) for name, _ in pinned}
+            resolved[module] = {"packages": sorted(needed - own), "wheels": wheels}
+    except (OSError, ValueError, LookupError, StopIteration) as err:
+        print(f"note: built without the exact files of the packages installed on demand: {type(err).__name__}: {err}")
+        return None
+    return resolved
 
 
 def _pack(tree: Path, target: Path) -> None:
@@ -1968,15 +2027,18 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
     The wheel and the archive of the page's own Python share a folder named by the digest of both. Return the
     wheel's name. ``demo.json`` is written last, so its presence says the app is complete.
 
-    ``service_worker`` is what the manifest tells the page to do about ``web/sw.js``, which keeps a copy of the
-    page on the reader's device for use without a network. Without it, a page that has the worker retires it and
-    deletes its copies at the reader's next visit: the way out, should a worker ever serve a page wrongly.
+    ``service_worker`` says whether the app keeps a copy of itself on the reader's device for use without a
+    network (``web/sw.js``, ``web/offline.js``). Without it the build is the way out, should a worker ever serve a
+    page wrongly: ``sw.js`` is ``web/sw-retire.js``, which a browser that has the worker fetches at the reader's
+    next visit and which deletes the copies and unregisters, and the manifest tells the page to register none.
     """
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
     for name in APP_FILES:
         (out_dir / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(WEB_SRC / name, out_dir / name)
+    if not service_worker:  # a browser that has the worker asks for sw.js at the next visit, and gets its retirement
+        shutil.copy2(WEB_SRC / "sw-retire.js", out_dir / "sw.js")
     wheel, glue, python = build_wheel(dist), dist / GLUE, runtime()["python"]
     compiled = [for_the_browser(wheel, python), glue_archive(glue, python)]
     folder = hashlib.sha256(wheel.read_bytes() + glue.read_bytes()).hexdigest()[:16]
@@ -1993,6 +2055,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worke
         "commit": commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
+        "on_demand": exact_files(on_demand_pins(version("plotly")), python),
     }
     (out_dir / "wheels" / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     write_book(out_dir)

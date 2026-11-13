@@ -30,6 +30,18 @@ export async function install(pyodide, requirements, { deps = true } = {}) {
 }
 
 /**
+ * Install what the build resolved to exact files (exact_files in scripts/build_web_app.py): packages of the Pyodide
+ * release, loaded from it by name, and wheels from the addresses the build found for them. Nothing is resolved
+ * here, so no package index is asked and every visit installs the same files.
+ */
+export async function installExact(pyodide, { packages, wheels }) {
+  if (packages.length) await pyodide.loadPackage(packages);
+  const lacking = packages.filter((name) => !pyodide.loadedPackages[name]); // a failed download is only logged
+  if (lacking.length) throw new Error(`${lacking.join(", ")} could not be loaded from the Pyodide release`);
+  await install(pyodide, wheels, { deps: false });
+}
+
+/**
  * Start Python in this worker, and resolve to {pyodide, runtime, manifest}.
  *
  * `root` is the address of the folder that holds runtime.json and wheels/, and `say(status)` is told how far the

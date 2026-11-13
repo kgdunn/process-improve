@@ -92,11 +92,18 @@ def test_the_build_it_prints_is_the_build_script_s():
 
 def test_the_addresses_it_says_to_change_for_a_closed_network_are_in_the_files_it_names():
     text = about()
-    assert "<code>web/python-boot.js</code> (Pyodide and the PyPI packages)" in text
+    assert "<code>web/python-boot.js</code> (Pyodide)" in text
     assert "<code>web/charts.js</code> (Plotly.js)" in text
+    assert "<code>wheels/manifest.json</code> (the PyPI packages, under <code>on_demand</code>)" in text
     assert "cdn.jsdelivr.net/pyodide" in source("python-boot.js")
-    assert "micropip.install" in source("python-boot.js")
     assert "cdn.jsdelivr.net/npm/plotly.js" in source("charts.js")
+    # The worker installs what the manifest lists under on_demand, from the addresses it gives.
+    assert "python.manifest.on_demand?.[name]" in source("worker.js")
+    assert '"on_demand": exact_files(' in source_of("scripts/build_web_app.py")
+    for file in ("offline.js", "sw.js"):  # the copy for use without a network reads the first two addresses there
+        assert f"<code>web/{file}</code>" in text
+        assert "cdn.jsdelivr.net/pyodide" in source(file)
+        assert "cdn.jsdelivr.net/npm/plotly.js" in source(file)
 
 
 def test_it_writes_no_version_into_the_page():

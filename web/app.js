@@ -4447,7 +4447,7 @@ function contourPicker(plots) {
     back.id = "contour-largest";
     back.onclick = () => {
       delete state.contourPairs[state.shown];
-      redraw("#contour-factor-1"); // the button goes with the choice it took back
+      redraw(`#${selects[0].id}`); // the button goes with the choice it took back: the first box takes the keyboard
     };
     row.append(". ", back);
   }
@@ -6800,7 +6800,7 @@ renderStudyBar();
 // The build's manifest names the Plotly.js the charts are drawn with, and says whether a copy of the page is kept
 // on this device for use without a network: one is, of a built app, once Python has started.
 readManifest().then((manifest) =>
-  installOffline({ manifest, started: whenReady, keepPackages: () => call("keep_packages"), box: $("#offline") }),
+  installOffline({ manifest, started: whenReady, box: $("#offline") }),
 );
 start();
 loadFields();

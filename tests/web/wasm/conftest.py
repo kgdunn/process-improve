@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.web._build import glue, wheel
+from tests.web._build import app_file, glue, wheel
 from tests.web._pyodide import distribution, package
 from tests.web._support import WEB, Api
 
@@ -99,7 +99,8 @@ def pyodide(node: str, web_app: Path | str, tmp_path_factory: pytest.TempPathFac
     npm = pyodide_package(pins["pyodide"])
     distribution(pins, npm)  # the folder of the release the page loads, fetched if it is not all there
     scratch = tmp_path_factory.mktemp("app")
-    files = [wheel(web_app, scratch), glue(web_app, scratch)]
+    # The wheel, the page's Python, and the manifest: what the build resolved is installed as the worker installs it.
+    files = [wheel(web_app, scratch), glue(web_app, scratch), app_file(web_app, "wheels/manifest.json", scratch)]
     process = subprocess.Popen(  # noqa: S603 - Node.js running this directory's runner
         [node, str(RUNNER), str(npm), str(runtime), *map(str, files)],
         stdin=subprocess.PIPE,

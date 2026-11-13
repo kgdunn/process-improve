@@ -266,16 +266,23 @@ start short. Pyodide's packages come from the release's `pyc` folder, compiled t
 already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,
 for the Python `web/runtime.json` names: uv fetches that interpreter, and a build that
 cannot get it still works, starts more slowly, and fails the smoke tests, so it is not
-deployed. openpyxl and plotly are installed when a call first needs them. A change to
-any of the three is measured, not assumed: time the start in a browser before and after.
+deployed. openpyxl and plotly are installed when a call first needs them, from the exact
+files the build resolved for them (`on_demand` in its manifest: PyPI is asked once, as the
+build runs), so the page asks no package index and every visit installs the same files. A
+change to any of the three is measured, not assumed: time the start in a browser before and
+after.
 
-A service worker, `web/sw.js`, keeps a copy of the built app in the reader's browser, so it
-opens without a network (`web/offline.js` fills the copy and says what is kept). It holds no
-list of files: a file whose address names its version is served from the copy, and the app's
-own files come from the network whenever it answers. A new address the page loads from needs
-its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows; the live
-tier opens the built app without a network (`tests/web/live/test_offline.py`). The other
-browser tests run without the worker: a request it answers passes by Playwright's routes.
+A copy of the built app is kept in the reader's browser, so it opens without a network.
+`web/offline.js` makes the copy from the build's own lists of files, drops what earlier
+builds left in it, and says in the footer what it holds by reading the copy, never a note of
+what was once copied. A service worker, `web/sw.js`, serves it. The worker holds no list of
+files and reads none: a file whose address names its version is served from the copy, and the
+app's own files come from the network whenever it answers. A new address the page loads from
+needs its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows.
+Both files run under Node.js against a stand-in for the browser (`offline.test.mjs` and
+`sw.test.mjs` in `tests/web/js`), visit after visit; the live tier opens the built app without
+a network (`tests/web/live/test_offline.py`). The other browser tests run without the worker:
+a request it answers passes by Playwright's routes.
 
 One build is served in two places: https://factori.al/, the app's address, and GitHub
 Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests

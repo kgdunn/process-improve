@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { answer, oneLine } from "../../../web/python-boot.js";
+import { answer, installExact, oneLine } from "../../../web/python-boot.js";
 
 const lacks = (name) => JSON.stringify({ ok: false, needs: name });
 const done = JSON.stringify({ ok: true, result: { runs: 8 }, warnings: [] });
@@ -69,6 +69,45 @@ describe("a call to Python", () => {
   test("that is refused in a short sentence lacks nothing", async () => {
     const refused = JSON.stringify({ ok: false, error: "Unknown design type 'x'.", warnings: [] });
     assert.equal(await answer(() => refused, "{}", async () => assert.fail("nothing is lacking")), refused);
+  });
+});
+
+describe("what the build resolved to exact files", () => {
+  /** A stand-in for Pyodide that notes what it is asked to load and to install; `fails` names a package that does not load. */
+  function standIn(fails = null) {
+    const asked = [];
+    const pyodide = {
+      loadedPackages: {},
+      async loadPackage(names) {
+        asked.push(["from the release", names]);
+        for (const name of names) if (name !== fails) this.loadedPackages[name] = "default channel";
+      },
+      toPy: (value) => ({ value, destroy() {} }),
+      pyimport: () => ({ destroy() {}, install: { callKwargs: async (wanted, options) => asked.push(["wheels", wanted.value, options]) } }),
+    };
+    return { pyodide, asked };
+  }
+  const plotly = { packages: ["narwhals", "packaging"], wheels: ["https://files.pythonhosted.org/packages/ab/plotly-7.1.0-py3-none-any.whl"] };
+
+  test("is installed as it is: the release's packages by name, then the wheels, with nothing resolved", async () => {
+    const { pyodide, asked } = standIn();
+    await installExact(pyodide, plotly);
+    assert.deepEqual(asked, [
+      ["from the release", ["narwhals", "packaging"]],
+      ["wheels", plotly.wheels, { deps: false }],
+    ]);
+  });
+
+  test("with nothing needed of the release, asks it for nothing", async () => {
+    const { pyodide, asked } = standIn();
+    await installExact(pyodide, { packages: [], wheels: ["a.whl", "b.whl"] });
+    assert.deepEqual(asked, [["wheels", ["a.whl", "b.whl"], { deps: false }]]);
+  });
+
+  test("a package of the release that did not load is an error, and no wheel is installed over the gap", async () => {
+    const { pyodide, asked } = standIn("narwhals");
+    await assert.rejects(installExact(pyodide, plotly), /narwhals could not be loaded from the Pyodide release/);
+    assert.equal(asked.length, 1);
   });
 });
 

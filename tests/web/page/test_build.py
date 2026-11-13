@@ -160,10 +160,19 @@ def _stand_in_reproduction(out: Path) -> None:
     (out / "catalog" / "reproduction.json").write_text("{}", encoding="utf-8")
 
 
+def _refused(_name: str, _release: str) -> dict:
+    """Stand in for PyPI where a test's build must not ask it."""
+    raise OSError("no network in this test")
+
+
 def _no_bytecode(build_script, monkeypatch) -> None:
-    """Leave the app's Python as it is: a stand-in wheel is no zip, and compiling asks uv for another Python."""
+    """Leave the app's Python as it is: a stand-in wheel is no zip, and compiling asks uv for another Python.
+
+    The build asks nothing of the network either: PyPI is refused, so the manifest holds no exact files.
+    """
     monkeypatch.setattr(build_script, "for_the_browser", lambda _wheel, _python: False)
     monkeypatch.setattr(build_script, "compile_bytecode", lambda _tree, _python: False)
+    monkeypatch.setattr(build_script, "_pypi_release", _refused)
 
 
 def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_path, monkeypatch):
@@ -212,6 +221,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
         "commit": build_script.commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
+        "on_demand": None,
     }
     assert json.loads((out / "demo.json").read_text(encoding="utf-8")) == {"the": "worked example"}
 
@@ -316,10 +326,89 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
     )
 
 
+# --------------------------------------------------------------------------- the packages installed on demand
+def _release(files: list[str], requires: list[str] | None = None) -> dict:
+    """Return PyPI's record of a release, as far as the build reads it."""
+    urls = [{"filename": name, "url": f"https://files.pythonhosted.org/packages/ab/cd/{name}"} for name in files]
+    return {"urls": urls, "info": {"requires_dist": requires}}
+
+
+#: PyPI's records of the releases the page installs on demand, with the kinds of requirement a release lists.
+RELEASES = {
+    ("openpyxl", "3.1.5"): _release(["openpyxl-3.1.5.tar.gz", "openpyxl-3.1.5-py2.py3-none-any.whl"], ["et-xmlfile"]),
+    ("et-xmlfile", "2.0.0"): _release(["et_xmlfile-2.0.0-py3-none-any.whl"]),
+    ("plotly", "7.1.0"): _release(
+        ["plotly-7.1.0-py3-none-any.whl", "plotly-7.1.0.tar.gz"],
+        [
+            "narwhals>=1.15.1",
+            "packaging",
+            'kaleido>=1.1.0; extra == "kaleido"',
+            'tzdata; sys_platform == "win32"',
+            'typing_extensions; python_version < "3.11"',
+        ],
+    ),
+}
+PINS = {"openpyxl": ["openpyxl==3.1.5", "et-xmlfile==2.0.0"], "plotly": ["plotly==7.1.0"]}
+
+
+def test_the_packages_installed_on_demand_are_resolved_to_exact_files(build_script, monkeypatch):
+    """Each pin's wheel by its address, and what the wheels need of the Pyodide release, for the browser's Python."""
+    monkeypatch.setattr(build_script, "_pypi_release", lambda name, release: RELEASES[name, release])
+    at = "https://files.pythonhosted.org/packages/ab/cd/"
+    assert build_script.exact_files(PINS, "3.14") == {
+        "openpyxl": {
+            "packages": [],
+            "wheels": [f"{at}openpyxl-3.1.5-py2.py3-none-any.whl", f"{at}et_xmlfile-2.0.0-py3-none-any.whl"],
+        },
+        "plotly": {"packages": ["narwhals", "packaging"], "wheels": [f"{at}plotly-7.1.0-py3-none-any.whl"]},
+    }
+    old = build_script.exact_files({"plotly": ["plotly==7.1.0"]}, "3.10")
+    assert old["plotly"]["packages"] == ["narwhals", "packaging", "typing-extensions"], "read for the Python named"
+
+
+@pytest.mark.parametrize(
+    ("pins", "pypi"),
+    [
+        (PINS, _refused),
+        ({"plotly": ["plotly"]}, RELEASES.get),  # no pin to ask PyPI about
+        (
+            {"plotly": ["plotly==7.1.0"]},
+            lambda *_: _release(["plotly-7.1.0-cp314-linux_x86_64.whl"]),
+        ),  # no wheel for it
+    ],
+)
+def test_a_build_that_cannot_resolve_them_goes_on_without_and_says_so(build_script, monkeypatch, capsys, pins, pypi):
+    monkeypatch.setattr(build_script, "_pypi_release", pypi)
+    assert build_script.exact_files(pins, "3.14") is None
+    assert "note: built without the exact files of the packages installed on demand" in capsys.readouterr().out
+
+
+def test_the_build_resolves_what_the_worker_installs_on_demand_at_the_pins_the_page_has(build_script):
+    block = re.search(r"const onDemand = .*?\n\}\);", source("worker.js"), re.DOTALL)
+    assert block, "the worker's table of what it installs on demand"
+    pins = build_script.on_demand_pins("7.1.0")
+    assert set(re.findall(r"^  (\w+): \{", block[0], re.MULTILINE)) == set(pins)
+    assert pins == {"openpyxl": json.loads(source("runtime.json"))["micropip"], "plotly": ["plotly==7.1.0"]}
+
+
+def test_the_manifest_holds_the_exact_files_the_build_resolved(build_script, tmp_path, monkeypatch):
+    manifest = _assemble_around(build_script, tmp_path / "app", b"a wheel", monkeypatch)
+    assert manifest["on_demand"] is None, "PyPI could not be asked"
+    monkeypatch.setattr(build_script, "exact_files", lambda pins, python: {"pins": pins, "python": python})
+    built = tmp_path / "again" / "app"
+    built.parent.mkdir()
+    again = _assemble_around(build_script, built, b"a wheel", monkeypatch)
+    from importlib.metadata import version
+
+    python = json.loads(source("runtime.json"))["python"]
+    assert again["on_demand"] == {"pins": build_script.on_demand_pins(version("plotly")), "python": python}
+
+
 def test_the_page_reads_only_what_the_manifest_holds():
-    """The worker installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there,
-    and a report from the Feedback dialog names the commit; the copy kept for use without a network follows
-    ``service_worker``. ``bytecode`` is for a reader of the manifest, and for the tests.
+    """The worker installs the wheel and the plotly release named there, from the exact files in ``on_demand`` when
+    the build resolved them; app.js draws with the Plotly.js named there, and a report from the Feedback dialog
+    names the commit; the copy kept for use without a network follows ``service_worker``. ``bytecode`` is for a
+    reader of the manifest, and for the tests.
     """
     read = {
         name
@@ -328,7 +417,7 @@ def test_the_page_reads_only_what_the_manifest_holds():
     }
     for names in re.findall(r"const \{ ([^}]+) \} = manifest;", source("app.js")):
         read |= {name.split(":")[0].strip() for name in names.split(",")}
-    assert read == {"wheel", "glue", "plotly", "plotly_js", "commit", "service_worker"}
+    assert read == {"wheel", "glue", "plotly", "plotly_js", "on_demand", "commit", "service_worker"}
 
 
 # --------------------------------------------------------------------------- the book's examples

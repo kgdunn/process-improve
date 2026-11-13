@@ -6,7 +6,7 @@
 // "ok" or "error" so the page can show a spinner, a tick or an error. If Python cannot start, every call is
 // answered with the reason, so nothing waits for it.
 
-import { answer, install, loadGlue, oneLine, startPython } from "./python-boot.js";
+import { answer, install, installExact, loadGlue, oneLine, startPython } from "./python-boot.js";
 
 const say = (status, state = "busy") => self.postMessage({ status, state });
 const here = new URL(".", self.location.href);
@@ -16,6 +16,10 @@ const here = new URL(".", self.location.href);
  * micropip installs for it, and what the status line says it is for. openpyxl is installed with the first
  * workbook, written or read, and plotly with the first chart, at the release the build drew the worked example
  * with; neither adds its download to a visit that makes a run sheet and no more.
+ *
+ * A build resolves these pins to exact files (its manifest's on_demand), which are then installed as they are; the
+ * pins themselves are installed through the package index by a plain preview of web/, which has no manifest, and
+ * by a build that could not ask PyPI.
  */
 const onDemand = ({ runtime, manifest }) => ({
   openpyxl: { install: runtime.micropip, purpose: "Excel workbooks" },
@@ -50,7 +54,8 @@ function provide(python, name) {
     const installing = (async () => {
       say(`Installing ${name} for ${wanted.purpose}...`);
       try {
-        await install(python.pyodide, wanted.install);
+        const exact = python.manifest.on_demand?.[name];
+        await (exact ? installExact(python.pyodide, exact) : install(python.pyodide, wanted.install));
       } catch (err) {
         installs.delete(name); // the next call that needs it tries the install again
         const reason = `Could not install ${name}: ${oneLine(err)}`;
@@ -67,20 +72,9 @@ function provide(python, name) {
 // The page calls only the api_* entry points bootstrap.py defines; nothing else in the module answers.
 const ENTRY_POINT = /^api_[a-z_]+$/;
 
-// The one call that is no entry point: every package a call might need, installed now. The page asks for it when a
-// reader wants the whole page kept for use without a network (offline.js), and the service worker keeps what the
-// installs download.
-const KEEP_PACKAGES = "keep_packages";
-
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
     const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
-    if (fn === KEEP_PACKAGES) {
-      const python = await ready;
-      for (const name of Object.keys(onDemand(python))) await provide(python, name);
-      self.postMessage({ id, reply: JSON.stringify({ ok: true, result: {}, warnings: [] }) });
-      return;
-    }
     if (!ENTRY_POINT.test(fn)) throw refused;
     const python = await ready;
     const entry = python.glue[fn];

@@ -1,6 +1,7 @@
 // web/bootstrap.py under Pyodide in Node.js, answering the tests' calls one JSON line at a time.
 //
 //   node runner.mjs <pyodide package directory> <runtime.json> <wheel> <the page's Python: its archive, or its file>
+//                   [<the build's manifest>]
 //
 // It starts Python as the page's worker does (web/python-boot.js and web/worker.js): the Pyodide release with the
 // packages web/runtime.json names, from the folder of the release it names; the wheel with deps=False; then the
@@ -18,10 +19,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // The worker's own way of installing a package and of answering a call that lacks one.
 const boot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../web/python-boot.js");
-const { answer, install } = await import(pathToFileURL(boot).href);
+const { answer, install, installExact } = await import(pathToFileURL(boot).href);
 
-const [pyodideDir, runtimePath, wheelPath, gluePath] = process.argv.slice(2);
+const [pyodideDir, runtimePath, wheelPath, gluePath, manifestPath] = process.argv.slice(2);
 const runtime = JSON.parse(fs.readFileSync(runtimePath, "utf8"));
+const manifest = manifestPath ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : {};
 const aside = (text) => process.stderr.write(`${text}\n`);
 
 // The interpreter is the npm package's, the same file in every folder of the release; the folder's own standard
@@ -49,13 +51,15 @@ else pyodide.FS.writeFile(`${site}/bootstrap.py`, packed);
 pyodide.runPython("import importlib; importlib.invalidate_caches()");
 const glue = pyodide.pyimport("bootstrap");
 
-// What the page's worker installs when a call first needs it (onDemand in web/worker.js): openpyxl with its pins,
-// and plotly. `installed` lists them as they are asked for, so a test can see what a call needed.
-const onDemand = { openpyxl: runtime.micropip, plotly: ["plotly"] };
+// What the page's worker installs when a call first needs it, as it installs it (onDemand and provide in
+// web/worker.js): the exact files the build resolved, or else the pins, through the package index. `installed`
+// lists the packages as they are asked for, so a test can see what a call needed.
+const onDemand = { openpyxl: runtime.micropip, plotly: [manifest.plotly ? `plotly==${manifest.plotly}` : "plotly"] };
 const installed = [];
 async function provide(name) {
   if (!onDemand[name]) throw new Error(`Python needs ${name}, which the page does not install.`);
-  await install(pyodide, onDemand[name]);
+  const exact = manifest.on_demand?.[name];
+  await (exact ? installExact(pyodide, exact) : install(pyodide, onDemand[name]));
   installed.push(name);
 }
 
