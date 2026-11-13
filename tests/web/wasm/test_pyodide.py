@@ -153,6 +153,31 @@ def test_blocks_labels_replicates_and_chosen_terms_agree_with_native_python(pyod
     assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
 
 
+def test_the_simpler_model_proposed_for_blocks_and_levels_is_native_python_s(pyodide, api):
+    """A blocked study, and a factor of three levels: the search keeps the blocks in and the factor whole.
+
+    The results are far from any tie between two models, so the last bits of Pyodide's numerics pick no other.
+    """
+    blocked = {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 3}
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    levels = {"design_type": "full_factorial", "factors": [*FACTORS[:2], catalyst], "n_center_points": 0}
+    between, by_level = {1: 5.0, 2: -5.0, 3: 0.0}, {"X": 0.0, "Y": 6.0, "Z": -6.0}
+    processes = {
+        "blocked": (blocked, lambda t, run: 60 + 4 * t - 3 * t**2 + between[int(run["Block"])]),
+        "levels": (levels, lambda t, run: 50 + 3 * t + by_level[run["Catalyst"]]),
+    }
+    for name, (spec, process) in processes.items():
+        design = pyodide.ok("api_make_design", spec)
+        runs = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        noise = np.random.default_rng(3).normal(0, 0.1, len(runs))
+        y = [float(process((run["T"] - 175) / 25, run) + e) for run, e in zip(runs, noise, strict=True)]
+        request = {**held_of(design), "responses": y}
+        under, native = pyodide.ok("api_simpler_model", request), api.ok("api_simpler_model", request)
+        assert (under["terms"], under["kept"], under["dropped"]) == (native["terms"], native["kept"], native["dropped"])
+        assert under["adjusted_r_squared"] == pytest.approx(native["adjusted_r_squared"], rel=1e-9), name
+        assert under["kept"] == {"blocked": ["T", "T²"], "levels": ["T", "Catalyst"]}[name]
+
+
 def test_the_correlation_map_of_a_design_agrees_with_native_python(pyodide, api):
     """A Plackett-Burman design in seven factors: the same pairs, in the same order, though all are of one size."""
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG")}
