@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Factorial: designed experiments in your browser</title>
-  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your machine.">
+  <meta name="description" content="Design, Run and Learn from your experiments in your browser, with the process-improve Python package. Nothing to install. Data never leaves your device.">
   <!-- The app's address, factori.al. A link card needs absolute URLs, so the address is written out here;
        tests/web/page/test_brand.py checks it is the one docs.yml deploys to and checks. The copy on GitHub
        Pages names it too, so search engines treat the two as one page. -->
@@ -25,11 +25,19 @@
     } catch {
       /* storage refused: the system's mode */
     }
+    /* The reading level (levels.js), put on the page before it is drawn, so no part of a higher level flashes by.
+       2 is levels.DEFAULT_LEVEL, a first visit's. */
+    try {
+      const level = Number(localStorage.getItem("factorial-map-level"));
+      document.documentElement.dataset.level = level >= 1 && level <= 3 ? level : 2;
+    } catch {
+      document.documentElement.dataset.level = 2;
+    }
   </script>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="process-improve">
   <meta property="og:title" content="Factorial: designed experiments in your browser">
-  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.">
+  <meta property="og:description" content="Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.">
   <meta property="og:url" content="https://factori.al/">
   <meta property="og:image" content="https://factori.al/og-card.png">
   <meta property="og:image:width" content="1200">
@@ -39,6 +47,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#workspace">Skip to the study</a>
 <main>
   <header class="masthead">
     <div class="brand">
@@ -67,7 +76,15 @@
         <svg data-for="dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z" fill="currentColor"/></svg>
       </button>
     </div>
-    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your machine.</p>
+    <p class="lede">Design, Run and Learn from your experiments. Nothing to install. Data never leaves your device.</p>
+    <!-- The reading level (levels.js): each level adds designs and charts to the ones below it, as the concept
+         map's levels add terms. The two pages keep one choice. -->
+    <fieldset id="level" class="level-switch">
+      <legend>Level</legend>
+      <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
+      <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
+      <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
+    </fieldset>
     <!-- Three ways in, each in a colour of its own: the mark's navy and red, and the page's green. -->
     <div class="hero">
       <button type="button" id="new-study" class="button hero__action hero__action--new">
@@ -76,6 +93,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5l11 7-11 7z"/></svg>Explore a worked example</button>
       <a href="catalog/" class="button hero__action hero__action--catalog" id="catalog-link">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>Browse the design catalog</a>
+      <!-- A table of the reader's own, made into a study (import.js): a design run elsewhere, or a process's records. -->
+      <button type="button" id="import-data" class="button hero__action hero__action--import">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v10M7.5 10l4.5 4.5 4.5-4.5M5 19h14"/></svg>Analyse data you have</button>
     </div>
     <!-- Your studies (store.js), and the study file (study-file.js) that carries them out of this browser and back. -->
     <details id="library" class="library">
@@ -106,6 +126,9 @@
       <span class="status__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="14.68" cy="42" r="7"/><circle cx="32" cy="52" r="7"/><circle cx="49.32" cy="42" r="7"/><circle cx="49.32" cy="22" r="7"/><circle cx="32" cy="12" r="7"/><circle cx="14.68" cy="22" r="7"/><circle cx="32" cy="32" r="7"/></svg></span>
       <span class="status__text">Starting Python...</span>
     </div>
+    <!-- Offered once a call to Python has taken a while (app.js stopPython): it ends the search and starts Python
+         again. It is outside the status line, which fades when it has nothing new to say and is read out when it has. -->
+    <button type="button" id="stop" class="button stop" hidden>Stop the calculation</button>
   </nav>
 
   <div id="demo-banner" class="banner" hidden>
@@ -161,7 +184,6 @@
             </label>
           </div>
         </details>
-        <p id="response-problems" class="hint error" role="status" hidden></p>
       </section>
 
       <section id="factors-card" class="card" aria-labelledby="h-factors">
@@ -279,6 +301,8 @@
                   data-hint="Main effects in a standard array of 4 to 81 runs, and at three levels each numeric factor's square; interactions are aliased with them. A categorical factor stays at its two levels.">Taguchi orthogonal array</option>
                 <option value="dsd" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="40"
                   data-hint="Three levels in 2k+1 runs (2k+3 for odd k); main effects clear of interactions and quadratics.">Definitive screening (DSD)</option>
+                <option value="omars" data-options="budget n_replicates" data-min-factors="3" data-max-factors="5"
+                  data-hint="Three levels, with main effects clear of interactions and squares as a definitive screening design has them, in the number of runs you choose above its own: the extra runs sharpen the squares and the interactions. The search takes up to a minute at five factors.">OMARS (three levels, runs you choose)</option>
                 <option value="box_behnken" data-options="n_center_points n_replicates n_blocks" data-min-factors="3" data-max-factors="7" selected
                   data-hint="Response surface with every run inside the factor ranges and none at the corners.">Box-Behnken</option>
                 <option value="ccd" data-options="n_center_points alpha n_replicates n_blocks" data-min-factors="2" data-max-factors="7"
@@ -287,8 +311,12 @@
                   data-hint="Best estimates of the chosen model's coefficients for a fixed number of runs.">D-optimal</option>
                 <option value="i_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
                   data-hint="Most precise predictions, on average over the factor space, for a fixed number of runs. The search takes longest of the designs here: up to 20 s at six factors.">I-optimal</option>
+                <option value="a_optimal" data-options="budget model_type n_replicates n_blocks" data-min-factors="2" data-max-factors="6"
+                  data-hint="Smallest average variance of the chosen model's coefficients for a fixed number of runs: each coefficient counts the same, where a D-optimal design lets one be known well at another's cost.">A-optimal</option>
                 <option value="maximin_lhs" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
+                <option value="sobol" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
+                  data-hint="Runs laid through the ranges by a Sobol sequence, made for no model: quick at any size, and more runs added later fall between the first. Evenest at 8, 16, 32 or 64 runs.">Space-filling (Sobol sequence)</option>
                 <option value="given" data-options="" data-min-factors="1" data-max-factors="40" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
@@ -304,6 +332,7 @@
             </label>
           </div>
           <p id="design-hint" class="hint"></p>
+          <p id="level-designs" class="hint level-more" hidden></p>
 
           <div class="row" id="options">
             <label data-option="n_center_points"><span class="term" data-term="center-points">Center points</span>
@@ -497,6 +526,7 @@
           <div class="actions">
             <button type="button" id="to-learn" class="primary" hidden>See what the results say</button>
             <button type="button" id="download" class="button">Download workbook (.xlsx)</button>
+            <button type="button" id="csv" class="button">Download run sheet (.csv)</button>
             <button type="button" id="notebook" class="button">Download notebook (.ipynb)</button>
             <button type="button" id="report-view" class="button">View the report</button>
             <button type="button" id="report" class="button">Download report (.html)</button>
@@ -549,6 +579,9 @@
         <!-- Past bootstrap.MAX_INTERACTION_FACTORS factors: why the models with every interaction are not offered. -->
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
+        <!-- The terms of the model the results support (bootstrap.simpler_model): proposed when asked, fitted when accepted. -->
+        <p id="simplify" class="hint" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
+          <span id="simplify-words" role="status"></span> <button type="button" class="link" id="simplify-apply" hidden>Fit these terms</button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
           <div id="term-list"></div>
@@ -692,6 +725,35 @@
   </div>
 
   <!-- Every design that can learn the study's aim, side by side on the book's nine measures. -->
+  <!-- A table of the reader's own (import.js): read by bootstrap.read_table, made a study by bootstrap.import_study. -->
+  <dialog id="import-dialog" class="sheet import" aria-labelledby="h-import">
+    <div class="sheet__head">
+      <h2 id="h-import">Analyse data you have</h2>
+      <button type="button" id="import-close" class="link" aria-label="Close">✕</button>
+    </div>
+    <p>A design you ran elsewhere, or the records of a process: a table with a line of headings and a run on each
+      line below it. It is read here, in your browser, and goes nowhere.</p>
+    <div class="import-source">
+      <label class="button import-choose">Choose a .csv or .xlsx file
+        <input type="file" id="import-file" accept=".csv,.tsv,.txt,.xlsx" class="visually-hidden"></label>
+      <label for="import-text">or paste the table here</label>
+      <textarea id="import-text" rows="5" spellcheck="false" autocomplete="off" placeholder="Temp (degC),Pressure (bar),Yield (%)&#10;150,1,61.2&#10;200,1,66.0&#10;150,3,55.1&#10;200,3,60.4"></textarea>
+      <button type="button" id="import-read" class="button">Read the pasted table</button>
+    </div>
+    <p id="import-status" class="hint" role="status"></p>
+    <div id="import-columns" hidden>
+      <label id="import-sheet-choice" hidden>Sheet <select id="import-sheet"></select></label>
+      <label>Name of the study <input id="import-title" type="text" maxlength="200" autocomplete="off"></label>
+      <div class="scroll">
+        <table class="data import-table">
+          <thead><tr><th scope="col">Column</th><th scope="col">It is</th><th scope="col">Name</th><th scope="col">Units</th><th scope="col">Range</th></tr></thead>
+          <tbody id="import-rows"></tbody>
+        </table>
+      </div>
+      <p id="import-problems" class="hint error" role="status" hidden></p>
+      <button type="button" id="import-open" class="button">Open as a study</button>
+    </div>
+  </dialog>
   <dialog id="compare-dialog" class="sheet" aria-labelledby="h-compare">
     <div class="sheet__head">
       <h2 id="h-compare">The designs compared in detail</h2>

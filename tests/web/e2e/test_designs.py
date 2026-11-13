@@ -13,6 +13,7 @@ import pytest
 from tests.web._support import ALL_DESIGNS, FACTORS, factors_named
 from tests.web.e2e._page import (
     calls,
+    candidates_done,
     choose,
     generate,
     headers,
@@ -22,6 +23,7 @@ from tests.web.e2e._page import (
     run_sheet,
     set_factors,
     status,
+    type_limit,
 )
 
 
@@ -134,3 +136,36 @@ def test_the_design_plan_picked_is_taken_as_made_and_its_settings_make_another(b
     page.click("#generate")
     page.wait_for_function("window.__pi.count('api_make_design') === 1 && window.__pi.idle()")
     assert calls(page, "api_make_design")[0]["payload"]["n_center_points"] == 4
+
+
+# --------------------------------------------------------------------------- the designs chosen by name
+def test_an_omars_design_opens_four_runs_above_a_screening_design_and_says_what_it_takes(blank_page):
+    page = blank_page
+    choose(page, design_type="omars")
+    assert page.input_value("#budget") == "13", "a definitive screening design in three factors has nine"
+    assert page.text_content("#budget-hint") == (
+        "A definitive screening design has 9 runs here. An OMARS design has an odd number: the largest within the "
+        "number you give is made, from 11."
+    )
+    generate(page, design_type="omars", budget=16)
+    assert calls(page, "api_make_design")[-1]["payload"]["budget"] == 16
+    assert "15 runs" in page.text_content("#design-summary"), "the largest odd number of runs within 16"
+
+
+def test_a_sobol_design_is_made_practised_on_and_analysed(blank_page):
+    page = blank_page
+    generate(page, design_type="sobol", budget=16)
+    assert "The 16 runs follow a Sobol sequence" in page.text_content("#design-summary")
+    practise(page)
+    reveal(page, "#analysis")
+    assert page.locator("#findings li").count() > 0
+
+
+def test_an_a_optimal_design_keeps_its_runs_inside_the_limits(blank_page):
+    page = blank_page
+    type_limit(page, "T + 25 * P <= 250")
+    candidates_done(page)
+    option = page.locator('#design-type option[value="a_optimal"]')
+    assert not option.evaluate("(o) => o.disabled"), "an optimal design takes limits on the settings"
+    generate(page, design_type="a_optimal")
+    assert "Every run is inside your limits on the settings." in page.text_content("#design-summary")

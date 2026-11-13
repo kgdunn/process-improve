@@ -12,7 +12,7 @@ export function nTerms(k, model) {
 }
 
 /** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
-export const SPACE_FILLING = ["maximin_lhs"];
+export const SPACE_FILLING = ["maximin_lhs", "sobol"];
 
 /** Runs a factor in a space-filling design, unless the reader gives a number; mirrors bootstrap.SPACE_FILLING_RUNS. */
 export const SPACE_FILLING_RUNS = 10;
@@ -21,8 +21,21 @@ export const SPACE_FILLING_RUNS = 10;
  * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
  * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
  */
-export const defaultBudget = (designType, k, model) =>
-  SPACE_FILLING.includes(designType) ? SPACE_FILLING_RUNS * k : nTerms(k, model) + SPARE_RUNS;
+export const defaultBudget = (designType, k, model) => {
+  if (SPACE_FILLING.includes(designType)) return SPACE_FILLING_RUNS * k;
+  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nTerms(k, model) + SPARE_RUNS;
+};
+
+/** The runs of a definitive screening design in k factors: a foldover of a conference matrix and a center run. */
+export const screeningRuns = (k) => (k % 2 === 0 ? 2 * k + 1 : 2 * k + 3);
+
+/** The runs an OMARS design opens with above a definitive screening design's; mirrors bootstrap.OMARS_EXTRA_RUNS. */
+export const OMARS_EXTRA_RUNS = 4;
+
+/** What the Runs box says of an OMARS design: it has an odd number of runs, and the fewest it takes. */
+export const omarsHint = (k) =>
+  `A definitive screening design has ${screeningRuns(k)} runs here. An OMARS design has an odd number: the largest ` +
+  `within the number you give is made, from ${screeningRuns(k) + 2}.`;
 
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
@@ -509,6 +522,37 @@ export function splitResults(names, byName, key = "responses") {
   const out = { [key]: byName[first] ?? [] };
   if (more.length) out[`more_${key}`] = Object.fromEntries(more.map((name) => [name, byName[name] ?? []]));
   return out;
+}
+
+/**
+ * Each response's results as its model is fitted to them: a run set aside from a response's fit has no result for
+ * it. ``setAside`` holds, for a response's column, the places on the run sheet of the runs set aside.
+ */
+export function fittedResults(results, setAside = {}) {
+  return Object.fromEntries(
+    Object.entries(results).map(([name, values]) => {
+      const aside = new Set(setAside[name] ?? []);
+      return [name, values.map((value, i) => (aside.has(i) ? null : value))];
+    }),
+  );
+}
+
+/** A response's runs set aside, kept to those the run sheet has a result for: a run with none is only still to do. */
+export const asideOf = (setAside, results, name) => (setAside[name] ?? []).filter((i) => (results[name]?.[i] ?? null) !== null);
+
+/** One more run set aside from a response's fit, or one put back: the places set aside, in order. */
+export function toggleAside(setAside, name, place) {
+  const now = new Set(setAside[name] ?? []);
+  if (now.has(place)) now.delete(place);
+  else now.add(place);
+  return { ...setAside, [name]: [...now].sort((a, b) => a - b) };
+}
+
+/** What Learn says of the runs set aside from the fit it shows, by their run order: "" for none. */
+export function asideWords(runs) {
+  if (!runs.length) return "";
+  const one = runs.length === 1;
+  return `Run${one ? "" : "s"} ${listNames(runs.map(String))} ${one ? "is" : "are"} set aside: the model is fitted without ${one ? "it" : "them"}.`;
 }
 
 /** The reverse of splitResults: each response's results by its column, from the first's list and the others'. */
@@ -1040,7 +1084,76 @@ export const TITLES = {
   true_ternary: "True response over the blends",
   cox: "Fitted response along each Cox direction",
   levels: "The runs at each level",
+  surface_3d: "Fitted response surface, in three dimensions",
+  perturbation: "Each factor's effect on the prediction",
+  main_effects: "Average result at each setting",
+  interaction: "Interaction of the two factors",
+  cube: "Predictions at the corners",
+  normal_probability: "Residuals against the normal distribution",
+  residuals_order: "Residuals in the order the runs were made",
+  prediction_variance: "Where the predictions are least certain",
 };
+
+/**
+ * One cell of a CSV file: a number as it is, text in quotes where it holds a comma, a quote or a line break. Text a
+ * spreadsheet would run as a formula (it starts with =, +, - or @) is given a leading apostrophe, so it stays text.
+ */
+function csvCell(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return String(value);
+  const text = /^[=+\-@]/.test(String(value)) ? `'${value}` : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/** A table as CSV text (RFC 4180): its headings, then a line for each row, each ended by a line break. */
+export const csvOf = (columns, rows) => [columns, ...rows].map((row) => `${row.map(csvCell).join(",")}\r\n`).join("");
+
+/**
+ * The run sheet as CSV: its columns as the page lists them, each response's column holding the results the page
+ * has, a blank for a run still to do.
+ */
+export function runSheetCsv(design, results) {
+  const at = Object.fromEntries(Object.keys(results).map((name) => [name, design.columns.indexOf(name)]));
+  const rows = design.rows.map((row, i) => {
+    const filled = [...row];
+    for (const [name, values] of Object.entries(results)) if (at[name] >= 0) filled[at[name]] = values[i] ?? null;
+    return filled;
+  });
+  return csvOf(design.columns, rows);
+}
+
+/** What a call to Python is answered with when the reader stopped it. */
+export const STOPPED = "Stopped, as you asked: nothing was changed.";
+
+/**
+ * What the search for a simpler model found (``found``, as api_simpler_model gives it), in a sentence: the terms the
+ * results support, the fitted terms left out, and any brought in. ``fmt`` writes a number as the tables do.
+ */
+export function simplerWords(found, fmt) {
+  if (!found.kept.length) return "No term of the model stands out from the noise: the results support none of them.";
+  if (!found.changed) return "The results support every term of the model as it is.";
+  const without = found.dropped.length ? `, without ${listNames(found.dropped)}` : "";
+  const more = found.added.length ? `, and with ${listNames(found.added)}` : "";
+  return (
+    `The results support ${listNames(found.kept)}${without}${more}. Adjusted R² would be ${fmt(found.adjusted_r_squared)}. ` +
+    "Terms picked from the results look surer afterwards than they are: confirm them with new runs."
+  );
+}
+
+/** The charts under "More charts", in their order: what the factors do, then whether to trust the model. */
+export const MORE_CHARTS = [
+  "perturbation",
+  "main_effects",
+  "interaction",
+  "surface_3d",
+  "cube",
+  "normal_probability",
+  "residuals_order",
+  "prediction_variance",
+];
+
+/** How the caption of a response surface says which two factors it is drawn over. */
+export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "the two factors with the largest main effects");
 
 /** What each chart shows and how to read it; some name the factors drawn. */
 export const CAPTIONS = {
@@ -1049,14 +1162,14 @@ export const CAPTIONS = {
    * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
    * in their own units).
    */
-  contour: (pair, { shaded = false, held = [], factors = [] } = {}) => {
+  contour: (pair, { shaded = false, held = [], factors = [], chosen = false } = {}) => {
     const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
     const others = held.length
       ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
         "the ranges cannot be run"
       : ", with the others at their center";
     const grey = shaded ? "; grey: settings outside your limits" : "";
-    return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}; the dots are the runs.`;
+    return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
   },
   true_contour: "The process the results were simulated from, on the same scale.",
   /** With the best blend found, a star marks it (``starred``). */
@@ -1076,6 +1189,23 @@ export const CAPTIONS = {
   levels:
     "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
     "within a level is the noise a difference between the levels is judged against.",
+  surface_3d: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
+  perturbation:
+    "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
+    "factor that matters; a bent one has an optimum inside its range.",
+  main_effects:
+    "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
+    "these are your results.",
+  interaction: (pair) =>
+    `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
+    `are not parallel say the effect of ${pair[1]} depends on ${pair[0]}.`,
+  cube: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
+  normal_probability:
+    "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again.",
+  residuals_order: "A drift or a step says something changed while the runs were made, which the model does not know of.",
+  prediction_variance:
+    "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
+    "the runs are, not on their results: predictions are firmest where it is lowest.",
 };
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
@@ -1452,7 +1582,7 @@ export const NOTE_LENGTH = 80;
 export const EXPRESSION_LENGTH = 500;
 
 /** The designs that keep every run inside limits on the settings; mirrors bootstrap.REGION_DESIGNS. */
-export const REGION_DESIGNS = ["d_optimal", "i_optimal"];
+export const REGION_DESIGNS = ["d_optimal", "i_optimal", "a_optimal"];
 
 /**
  * What a reader may type or paste in a limit for an operator, and the operator a limit is written with;

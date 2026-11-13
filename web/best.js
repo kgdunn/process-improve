@@ -334,13 +334,14 @@ export function weighingSentence(best) {
  * The caption of the response surface drawn through the best settings: the factors not drawn are held at their
  * best settings, and a star marks the settings when both factors drawn are in the model.
  */
-export function bestContourCaption(pair, { shaded = false, held = [], factors = [], starred = false } = {}) {
+export function bestContourCaption(pair, { shaded = false, held = [], factors = [], starred = false, chosen = false } = {}) {
   const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
   const at = (h) => (typeof h.value === "string" ? `${h.name} at ${h.value}` : `${h.name} at ${withUnit(h.value, units[h.name])}`);
   const others = held.length ? `, with ${listed(held.map(at))}, ${held.length === 1 ? "its best setting" : "their best settings"}` : "";
   const grey = shaded ? "; grey: settings outside your limits" : "";
   const star = starred ? "; the star marks the best settings" : "";
-  return `Drawn over ${pair.join(" and ")}, the two factors with the largest main effects${others}${grey}${star}; the dots are the runs.`;
+  const which = chosen ? "the two factors you chose" : "the two factors with the largest main effects"; // logic.pairWords
+  return `Drawn over ${pair.join(" and ")}, ${which}${others}${grey}${star}; the dots are the runs.`;
 }
 
 // ---------------------------------------------------------------- the run sheet's confirmation runs

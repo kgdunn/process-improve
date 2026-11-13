@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import re
 
-from tests.web._support import FACTORS, correlated_study, fill_workbook
+from tests.web._support import FACTORS, correlated_study, factors_named, fill_workbook
 from tests.web.e2e._page import (
     calls,
     choose,
@@ -192,7 +192,7 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(b
     assert status(page)[1] == "ok"
     terms = ["T", "I", "F", "T·I", "T·F", "I·F", "T²", "I²", "F²"]
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", *terms]
-    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert anova == [*terms, "Residual"]
     page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length === 4")
     assert "over T and I" in page.locator("#charts figcaption").first.text_content()
@@ -205,7 +205,7 @@ def test_a_blocked_design_shows_each_run_s_block_and_fits_the_blocks(blank_page)
     assert calls(page, "api_make_design")[-1]["payload"]["n_blocks"] == 2
     practise(page)
     assert "Block 1" in [row[0] for row in coefficient_rows(page)]
-    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
     code = page.text_content("#py-analyse code")
@@ -262,3 +262,135 @@ def test_a_design_that_cannot_fit_the_aim_is_analysed_as_designed(blank_page):
     page = blank_page
     generate(page, design_type="fractional_factorial")
     assert page.input_value("#model") == "", "a two-level design cannot tell the squares apart"
+
+
+# --------------------------------------------------------------------------- what the results say, and each run
+def test_learn_opens_on_what_the_results_say_in_sentences(page):
+    findings = page.locator("#findings li").all_text_contents()
+    assert findings[0] == "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average."
+    assert page.locator("#analysis h3").first.text_content() == "What the results say"
+    assert page.locator("#findings").evaluate(
+        "(list) => list.compareDocumentPosition(document.querySelector('#analysis .equation')) & 4"
+    )
+
+
+def test_each_run_is_listed_as_the_model_sees_it_under_a_heading_to_open(page):
+    box = page.locator("#diagnostics")
+    assert box.locator("summary").text_content() == "Each run, as the model sees it"
+    assert not box.evaluate("(d) => d.open"), "no run of the worked example is one to look at again"
+    box.locator("summary").click()
+    assert box.locator("tbody tr").count() == 15
+    heads = box.locator("thead th").all_text_contents()
+    assert heads == [
+        "Run",
+        "Fitted",
+        "Residual",
+        "In standard deviations",
+        "Leverage",
+        "Cook's distance",
+        "Look again",
+        "Set aside",
+    ]
+
+
+# --------------------------------------------------------------------------- a simpler model, proposed and accepted
+def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
+    """The worked example's process has five terms and its model nine: the search proposes the five."""
+    assert page.text_content("#simplify-words") == ""
+    assert page.is_hidden("#simplify-apply"), "nothing is proposed until the reader asks"
+    page.click("#simplify-ask")
+    page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
+    said = page.text_content("#simplify-words")
+    assert said.startswith(
+        "The results support T, P, F, T·P and F², without T·F, P·F, T² and P². Adjusted R² would be "
+    )
+    assert len(coefficient_rows(page)) == 10, "the model is fitted as it was until the reader accepts"
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#simplify-apply")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "F²"]
+    assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
+    assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
+
+
+def test_a_model_that_uses_every_run_is_not_simplified_and_the_page_says_why(blank_page):
+    page = blank_page
+    set_factors(page, factors_named(*"AB"))  # four runs, and four coefficients with the interaction
+    generate(page, design_type="full_factorial", n_center_points=0)
+    enter_results(page, {i: 50 + (i * 7) % 11 for i in range(4)})
+    settled(page)
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function(
+        "document.querySelector('#simplify-words').textContent.startsWith('The model uses every run')"
+    )
+    assert page.is_hidden("#simplify-apply")
+
+
+# --------------------------------------------------------------------------- a run set aside from the fit
+def set_aside(page, run: int) -> None:
+    """Open the runs' table and set a run aside, by its run order; wait for the model to be fitted without it."""
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    if not page.locator("#diagnostics").evaluate("(box) => box.open"):
+        page.click("#diagnostics > summary")
+    page.click(f'#diagnostics button[aria-label="Set run {run} aside from this fit"]')
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+
+
+def test_a_run_set_aside_keeps_its_result_and_the_model_is_fitted_without_it(page):
+    set_aside(page, 5)
+    assert page.text_content("#aside-runs").startswith("Run 5 is set aside: the model is fitted without it.")
+    sent = calls(page, "api_analyze_runs")[-1]["payload"]
+    place = next(i for i, row in enumerate(sent["rows"]) if row[sent["columns"].index("Run order")] == 5)
+    assert sent["responses"][place] is None, "Python fits the model without it"
+    assert page.locator(f'#design-table input[data-index="{place}"]').input_value() != "", "the run sheet keeps it"
+    assert "14 completed runs" in page.text_content("#analysis")
+    assert "Still to run" not in page.text_content("#analysis"), "a run set aside is not one still to do"
+    assert page.locator("#diagnostics tbody tr").count() == 14
+
+
+def test_a_run_set_aside_is_put_back(page):
+    set_aside(page, 5)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#aside-runs button")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    assert page.locator("#aside-runs").count() == 0
+    assert "15 completed runs" in page.text_content("#analysis")
+    assert None not in calls(page, "api_analyze_runs")[-1]["payload"]["responses"]
+
+
+def test_a_run_set_aside_is_kept_with_the_study(blank_page):
+    """The study is saved with it, in the format that holds it, and a later visit fits the model without it still."""
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=4)
+    practise(page)
+    settled(page)
+    reveal(page, "#analysis")
+    set_aside(page, 3)
+    page.wait_for_function("window.__pi.idle()")
+    page.wait_for_timeout(600)  # the study is saved a moment after its last change
+    page.reload()
+    page.wait_for_selector("#aside-runs")
+    assert page.text_content("#aside-runs").startswith("Run 3 is set aside: ")
+    assert "11 completed runs" in page.text_content("#analysis")
+
+
+def test_results_simulated_afresh_set_no_run_aside(blank_page):
+    """Every result is new, so none of the runs set aside from the old ones stays out of the fit."""
+    page = blank_page
+    generate(page, design_type="full_factorial", n_center_points=4)
+    practise(page)
+    settled(page)
+    reveal(page, "#analysis")
+    set_aside(page, 3)
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    reveal(page, "#reroll")
+    page.click("#reroll")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+    reveal(page, "#analysis")
+    assert page.locator("#aside-runs").count() == 0
+    assert "12 completed runs" in page.text_content("#analysis")

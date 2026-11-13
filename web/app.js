@@ -97,6 +97,14 @@ import {
   AXIAL_DISTANCE,
   BLOCK,
   CAPTIONS,
+  MORE_CHARTS,
+  simplerWords,
+  runSheetCsv,
+  asideOf,
+  asideWords,
+  fittedResults,
+  toggleAside,
+  STOPPED,
   CATEGORICAL,
   CATEGORICAL_DESIGNS,
   COMPARISON_TESTS,
@@ -120,6 +128,7 @@ import {
   SPARE_FOR_NOISE,
   SPARE_RUNS,
   SPACE_FILLING,
+  omarsHint,
   SPACE_FILLING_RUNS,
   defaultBudget,
   TITLES,
@@ -225,6 +234,7 @@ import {
   withUnits,
 } from "./logic.js";
 import {
+  CAMPAIGN_VERSION,
   AIMS,
   BOOK_PARAM,
   EXAMPLE_PARAM,
@@ -270,6 +280,8 @@ import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
+import { LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "./levels.js";
+import { installImport, openedWords } from "./import.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -283,6 +295,8 @@ const BOOK_PAGES = {
   ccd: `${BOOK}/response-surface-methods#doe-central-composite-designs`,
   d_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
   i_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  a_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  omars: `${BOOK}/omars-designs#doe-omars-designs`,
   simplex_lattice: `${BOOK}/mixture-experiments#doe-mixture-designs`,
   simplex_centroid: `${BOOK}/mixture-experiments#doe-mixture-designs`,
   extreme_vertices: `${BOOK}/mixture-experiments#doe-mixture-designs`,
@@ -292,43 +306,86 @@ const BOOK_PAGES = {
 };
 
 const $ = (sel) => document.querySelector(sel);
-const worker = new Worker("worker.js", { type: "module" });
-
 // ---------------------------------------------------------------- worker RPC
 let nextId = 0;
-const pending = new Map(); // each call waiting for its reply, by its id: the entry point, and who waits
+const pending = new Map(); // each call waiting for its reply, by its id: the entry point, who waits, and since when
 
 /** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
 let pythonErrors = [];
 
-worker.onmessage = ({ data }) => {
-  if (data.status) {
-    if (pythonFailure) return;
-    setStatus(data.status, data.state);
-    pythonSaid = statusTicket;
-    return;
-  }
-  const { fn, resolve } = pending.get(data.id);
-  pending.delete(data.id);
-  const reply = JSON.parse(data.reply);
-  if (!reply.ok) pythonErrors = keepError(pythonErrors, `${fn}: ${reply.error}`);
-  resolve(reply);
-};
-
-// worker.js itself did not load or run: nothing will answer, so say so rather than wait.
-worker.onerror = (event) => {
-  event.preventDefault();
-  pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
-};
+/**
+ * Start the worker that runs Python. The page has one at a time: stopPython ends it and starts another, and a
+ * message from one that was ended is not this page's any more.
+ */
+function startWorker() {
+  const made = new Worker("worker.js", { type: "module" });
+  made.onmessage = ({ data }) => {
+    if (made !== worker) return;
+    if (data.status) {
+      if (pythonFailure) return;
+      if (data.state === "ok") made.started = true; // it says it is ready: a call it has now can be stopped
+      setStatus(data.status, data.state);
+      pythonSaid = statusTicket;
+      return;
+    }
+    const waiting = pending.get(data.id);
+    if (!waiting) return; // stopped before its reply came
+    pending.delete(data.id);
+    showStop();
+    const reply = JSON.parse(data.reply);
+    if (!reply.ok) pythonErrors = keepError(pythonErrors, `${waiting.fn}: ${reply.error}`);
+    waiting.resolve(reply);
+  };
+  // worker.js itself did not load or run: nothing will answer, so say so rather than wait.
+  made.onerror = (event) => {
+    event.preventDefault();
+    if (made === worker) pythonFailed(`Could not start Python: ${event.message || "worker.js did not load"}`);
+  };
+  return made;
+}
+let worker = startWorker();
 
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
 function call(fn, payload = {}) {
   if (pythonFailure) return Promise.resolve({ ok: false, error: pythonFailure, warnings: [] });
   const id = nextId++;
   return new Promise((resolve) => {
-    pending.set(id, { fn, resolve });
+    pending.set(id, { fn, resolve, since: Date.now() });
     worker.postMessage({ id, fn, payload: JSON.stringify(payload) });
+    showStop();
   });
+}
+
+/** How long Python may take over a call before the page offers to stop it, in milliseconds. */
+const STOP_AFTER = 2500;
+let stopTimer = null;
+
+/**
+ * Offer to stop Python once a call has waited STOP_AFTER, and take the offer away when nothing waits. Python
+ * starting is not a call to stop, the first time or after a stop: the offer waits until this worker has started.
+ */
+function showStop() {
+  clearTimeout(stopTimer);
+  const oldest = Math.min(...[...pending.values()].map((waiting) => waiting.since));
+  const wait = pending.size && worker.started ? STOP_AFTER - (Date.now() - oldest) : Infinity;
+  $("#stop").hidden = wait > 0;
+  if (wait > 0 && wait !== Infinity) stopTimer = setTimeout(showStop, wait);
+}
+
+/**
+ * Stop what Python is doing: a search the reader does not want to wait for. A worker cannot be interrupted, so
+ * this one is ended and another started, which loads Python again from the browser's copy; every call that was
+ * waiting is answered as stopped, and the page's later calls wait for the new worker as they did for the first.
+ */
+function stopPython() {
+  if (!pending.size || pythonFailure) return;
+  const waiting = [...pending.values()];
+  pending.clear();
+  worker.terminate();
+  worker = startWorker();
+  showStop();
+  setStatus("Stopped. Python is starting again...", "busy");
+  for (const { resolve } of waiting) resolve({ ok: false, error: STOPPED, warnings: [], stopped: true });
 }
 
 /**
@@ -437,6 +494,12 @@ const state = {
   simulation: null, // what api_simulate returned: the true process, its noise and seed
   practising: false, // the reader chose to practise with simulated results
   analysis: null,
+  contourPair: null, // the two factors the reader chose to draw the response surface over, or null: the largest two
+  moreCharts: false, // whether "More charts" is open
+  setAside: {}, // for a response's column, the places on the run sheet of the runs its fit goes without
+  simpler: null, // the terms the search for a simpler model proposed for the analysis on show, or null
+  plots: null, // what api_plots last returned, and the request it answered: drawn again at another reading level
+  chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
@@ -492,6 +555,15 @@ const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[
 const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, modelOf(name)]));
 
 /** The results and their sources as Python takes them: the first response's alone, as always, and the others' beside. */
+/** Each response's results as its model is fitted to them: without the runs set aside from its fit. */
+const fitted = () => fittedResults(state.results, state.setAside);
+
+/** The runs set aside from a response's fit that have a result, as places on the run sheet. */
+const asideRuns = (name = state.shown) => asideOf(state.setAside, state.results, name);
+
+/** A run's number in the order the runs were made, from its place on the run sheet. */
+const runOrderOf = (place) => state.design.rows[place]?.[state.design.columns.indexOf("Run order")] ?? place + 1;
+
 const sentResults = () => ({ ...splitResults(resultNames(), state.results), ...splitResults(resultNames(), state.marks, "sources") });
 
 /** Each run's curve as Python and a saved study take them, when the study reads one. */
@@ -1474,9 +1546,12 @@ function refreshDesign() {
   const spread = SPACE_FILLING.includes(option.value);
   const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
   if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  const omars = option.value === "omars";
   $("#budget-hint").textContent = spread
     ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
-    : `The model has ${p} coefficients.`;
+    : omars
+      ? omarsHint(k)
+      : `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;
@@ -1870,6 +1945,7 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   $("#share-out").hidden = true;
   state.results = noResults(resultNames(), design.rows.length);
   state.marks = noResults(resultNames(), design.rows.length);
+  state.setAside = {};
   state.curves = null;
   state.curve = { fit: null, problem: null, target: null }; // the fit of the curves before goes with them
   state.shown = resultNames()[0];
@@ -2095,6 +2171,7 @@ function candidateList(c, current) {
     for (const r of fitting) {
       const tr = el("tr", "", "");
       tr.dataset.design = r.design_type;
+      tr.dataset.level = levelOf(`design:${r.design_type}`);
       const name = el("td", "", "");
       const label = el("label", "", "");
       const radio = el("input", "", "");
@@ -2234,7 +2311,9 @@ function markPicked() {
     const on = tr.dataset.design === chosen;
     tr.setAttribute("aria-selected", String(on));
     tr.querySelector("input").checked = on;
+    tr.classList.toggle("in-use", on); // the study's own design is listed at every level
   }
+  showLevelDesigns();
 }
 
 /**
@@ -2570,6 +2649,7 @@ function renderRuns() {
     const name = input.dataset.response;
     state.results[name][i] = input.value === "" ? null : Number(input.value);
     state.marks[name][i] = input.value === "" ? null : "entered";
+    backInTheFit(name, i);
     input.classList.remove("sim");
     resultsChanged();
   };
@@ -2684,6 +2764,7 @@ function pasteResults(e) {
   for (const { index, name, value } of placed.values) {
     state.results[name][index] = value;
     state.marks[name][index] = "entered";
+    backInTheFit(name, index);
     const box = $("#design-table").querySelector(`input[data-index="${index}"][data-response="${CSS.escape(name)}"]`);
     box.value = String(value);
     box.classList.remove("sim");
@@ -2800,6 +2881,7 @@ async function simulateResults() {
   const more = Object.fromEntries(Object.entries(reply.result.more ?? {}).map(([name, one]) => [name, one.responses]));
   state.results = joinResults(names, [...reply.result.responses], more);
   state.marks = Object.fromEntries(names.map((name) => [name, state.results[name].map(() => "simulated")]));
+  state.setAside = {}; // every result is new
   renderRuns();
   renderTruth();
   showResultsCode();
@@ -2839,6 +2921,13 @@ async function downloadWorkbook() {
   const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.xlsx`);
+}
+
+/** The run sheet with its results as a CSV file, for any spreadsheet or program: made here, without Python. */
+function downloadCsv() {
+  if (!state.design) return;
+  const text = runSheetCsv(state.design, state.results);
+  download(new Blob([text], { type: "text/csv" }), `${state.design.spec.design_type}-${runCount()}-runs.csv`);
 }
 
 /** Hand the reader a file, as a download. */
@@ -2920,7 +3009,7 @@ const REPORT_STEPS = ["design", "run", "analyse", "best", "balance"];
 const NOT_REPORTED = "[hidden], button:not(.term), input, select, textarea, details.python, .actions, figure.chart";
 
 /** The attributes a report's copy keeps: those that say how a cell spans, where a link goes, and how a part looks. */
-const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan"]);
+const REPORTED_ATTRIBUTES = new Set(["class", "href", "colspan", "rowspan", "open"]);
 
 /**
  * A part of the page as a report holds it, as HTML: a copy without what NOT_REPORTED names, a table's heading that
@@ -2931,6 +3020,7 @@ function reportCopy(node) {
   const copy = node.cloneNode(true);
   for (const word of copy.querySelectorAll("th button, .term")) word.replaceWith(word.textContent);
   for (const part of copy.querySelectorAll(NOT_REPORTED)) part.remove();
+  for (const box of copy.querySelectorAll("details")) box.setAttribute("open", ""); // paper has no heading to press
   for (const part of [copy, ...copy.querySelectorAll("*")]) {
     for (const { name } of [...part.attributes]) if (!REPORTED_ATTRIBUTES.has(name)) part.removeAttribute(name);
   }
@@ -3175,6 +3265,7 @@ async function readUpload(file) {
   const names = resultNames();
   state.results = joinResults(names, r.responses, r.more_responses);
   state.marks = joinResults(names, r.sources, r.more_sources);
+  state.setAside = {};
   state.curves = r.curves ?? null;
   state.shown = names[0];
   state.simulation = null;
@@ -3245,7 +3336,7 @@ function clearAnalysis() {
 function analysisRequest(name = state.shown) {
   return {
     ...held(),
-    ...splitResults(resultNames(), state.results),
+    ...splitResults(resultNames(), fitted()),
     model: modelOf(name),
     truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
     ...(several() ? { response: name } : {}),
@@ -3339,7 +3430,8 @@ function renderAnalysis(reply) {
   if (!reply.ok) {
     setStatus("The results could not be analysed.", "error");
     showBoxCox(null);
-    out.replaceChildren(el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
+    out.replaceChildren(...asideParts(), el("p", "error", reply.error), ...warningList(reply.warnings), reportResult());
+    showSimpler(false);
     $("#charts").hidden = true;
     $("#py-analyse").hidden = true;
     clearBest();
@@ -3352,14 +3444,17 @@ function renderAnalysis(reply) {
   setStatus("Analysis complete.");
   analysisSaid = statusTicket;
   // The terms fitted, which the design can estimate, from the runs that have a result.
-  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete(), shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
+  showPython("analyse", analyseCode(r.formula ?? r.model, designComplete() && !asideRuns().length, shownSpec(), vif ? fittedFormula(r.coefficients) : null, comparedOf(r)));
   const mixture = isMixture(r.spec?.design_type);
   $("#transform-choice").hidden = mixture; // a mixture's responses are analysed as measured
+  showSimpler(!mixture); // a mixture's model is chosen by name
   $("#transform").value = r.transform ?? "";
   showBoxCox(boxCoxSentence(r.box_cox, responseWords(shownSpec()).label));
   const ratio = r.coefficients.some((c) => c.ratio !== undefined); // on the log scale, a main effect is a ratio
   const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
   const parts = [
+    ...asideParts(),
+    ...findingParts(r.findings),
     ...comparisonParts(r),
     el("p", "equation", r.equation),
     said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
@@ -3446,8 +3541,127 @@ function renderAnalysis(reply) {
       ),
     );
   }
-  parts.push(...spreadParts(r.spread));
+  parts.push(...spreadParts(r.spread), ...diagnosticParts(r.diagnostics, r.transform));
   out.replaceChildren(...parts);
+}
+
+/** Offer the search for a simpler model, or take it away; what an earlier search found goes with the analysis it was of. */
+function showSimpler(offered) {
+  $("#simplify").hidden = !offered;
+  $("#simplify-words").textContent = "";
+  $("#simplify-apply").hidden = true;
+  state.simpler = null;
+}
+
+/** Search for the terms of the fitted model the results support, and say them; the reader fits them, or not. */
+async function askSimpler() {
+  const mine = ticket;
+  $("#simplify-apply").hidden = true;
+  $("#simplify-words").textContent = "Searching...";
+  const reply = await call("api_simpler_model", analysisRequest());
+  if (mine !== ticket) return; // the analysis it was asked of is gone
+  if (!reply.ok) {
+    $("#simplify-words").textContent = reply.error;
+    return;
+  }
+  state.simpler = reply.result.terms;
+  $("#simplify-words").textContent = simplerWords(reply.result, fmt);
+  $("#simplify-apply").hidden = !reply.result.changed || !reply.result.terms.length;
+}
+
+/** Fit the terms the search proposed: they are ticked in the list of terms, as if the reader had ticked them. */
+function fitSimpler() {
+  if (!state.simpler?.length) return;
+  setModel({ terms: state.simpler });
+  $("#term-list").dispatchEvent(new Event("change"));
+}
+
+/** A result typed or pasted again is a new result: its run is no longer set aside from that response's fit. */
+function backInTheFit(name, place) {
+  if (state.setAside[name]?.includes(place)) state.setAside = toggleAside(state.setAside, name, place);
+}
+
+/**
+ * Set a run aside from the fit Learn shows, or put it back, and fit the model again. The button pressed goes with
+ * the analysis it was in, so the focus moves to what the page now says of the runs set aside, or to the runs' table.
+ */
+async function setRunAside(place) {
+  state.setAside = toggleAside(state.setAside, state.shown, place);
+  scheduleSave();
+  showResultsCode();
+  await analyseRuns();
+  ($("#analysis .aside-runs button") ?? $("#analysis details.diagnostics > summary"))?.focus();
+}
+
+/**
+ * The runs set aside from the fit on show, in a sentence, each with a button that puts it back: said above
+ * everything else, since every number below is the model's without them.
+ */
+function asideParts() {
+  const places = asideRuns();
+  if (!places.length) return [];
+  const note = el("p", "aside-runs", `${asideWords(places.map(runOrderOf))} `);
+  note.id = "aside-runs";
+  for (const place of places) {
+    const back = el("button", "link", `Put run ${runOrderOf(place)} back`);
+    back.type = "button";
+    back.dataset.place = place;
+    back.onclick = () => setRunAside(place);
+    note.append(back, " ");
+  }
+  return [note];
+}
+
+/** What the analysis found, in sentences Python wrote from its numbers: the same results give the same words. */
+function findingParts(findings) {
+  if (!findings?.length) return [];
+  const list = el("ul", "findings", "");
+  list.id = "findings";
+  list.append(...findings.map((sentence) => el("li", "", sentence)));
+  return [el("h3", "", "What the results say"), list];
+}
+
+/**
+ * Each run as the fitted model sees it, under a heading the reader opens: open already when a run is one to look
+ * at again. On a transform's scale the fitted values and residuals are on that scale, which the hint says.
+ */
+function diagnosticParts(diagnostics, transform) {
+  if (!diagnostics?.length) return [];
+  const unusual = diagnostics.filter((d) => d.unusual);
+  const box = el("details", "diagnostics", "");
+  box.id = "diagnostics";
+  box.dataset.level = levelOf("table:diagnostics");
+  box.classList.toggle("in-use", unusual.length > 0); // a run to look at again is said at every level
+  box.open = unusual.length > 0;
+  box.append(
+    el("summary", "", unusual.length ? `Each run, as the model sees it (${unusual.length} to look at again)` : "Each run, as the model sees it"),
+    said(
+      "hint",
+      "A residual is the result less what the model fits there" +
+        (transform ? ", on the scale the model is fitted on" : "") +
+        "; in standard deviations it is judged with the run itself left out of the fit. Leverage is how much the run " +
+        "alone decides its own fitted value, from 0 to 1, and Cook's distance how far the whole model moves without it.",
+    ),
+    table(
+      ["Run", "Fitted", "Residual", "In standard deviations", "Leverage", "Cook's distance", "Look again"],
+      diagnostics.map((d) => [d.run, fmt(d.fitted), fmt(d.residual), fmt(d.studentized), fmt(d.leverage), fmt(d.cooks), d.unusual ? "yes" : ""]),
+      { Residual: "residuals" },
+    ),
+  );
+  // Each run can be set aside from this fit: its result stays on the run sheet, and the model is fitted without it.
+  const order = state.design.columns.indexOf("Run order");
+  box.querySelector("thead tr").append(el("th", "", "Set aside"));
+  box.querySelectorAll("tbody tr").forEach((tr, i) => {
+    const place = state.design.rows.findIndex((row) => row[order] === diagnostics[i].run);
+    const aside = el("button", "link", "Set aside");
+    aside.type = "button";
+    aside.setAttribute("aria-label", `Set run ${diagnostics[i].run} aside from this fit`);
+    aside.onclick = () => setRunAside(place);
+    const cell = el("td", "", "");
+    if (place >= 0) cell.append(aside);
+    tr.append(cell);
+  });
+  return [box];
 }
 
 /**
@@ -3784,7 +3998,9 @@ function comparisonNotes(r) {
  * Run tab counts them, and a line says how a run with some of its results is fitted: for the responses it has.
  */
 function fitLines(r) {
-  if (!several()) return fitStatistics(r.summary, r.n_completed, r.pending_runs);
+  const aside = new Set(asideRuns().map(runOrderOf));
+  const pending = r.pending_runs.filter((run) => !aside.has(run));
+  if (!several()) return fitStatistics(r.summary, r.n_completed, pending);
   const names = resultNames();
   const confirming = new Set(confirmationRows(state.design));
   const complete = completeRuns(state.results, names).filter((ok, i) => ok && !confirming.has(i)).length;
@@ -3792,7 +4008,7 @@ function fitLines(r) {
   const runs = partialRuns(state.results, names)
     .filter((i) => !confirming.has(i))
     .map((i) => state.design.rows[i][order] ?? i + 1);
-  const lines = fitStatistics(r.summary, complete, r.pending_runs);
+  const lines = fitStatistics(r.summary, complete, pending);
   if (runs.length) lines.splice(1, 0, partialSentence(runs, wordsOf(state.shown).label, r.n_completed));
   return lines;
 }
@@ -4035,7 +4251,12 @@ function coefficientCard(analysis, simulated) {
 }
 
 /** Draw the coefficient chart, then the library's plots for the same analysis. */
+/** One more each time the charts are drawn: a drawing still on its way when another starts stops where it is. */
+let chartTicket = 0;
+
 async function drawCharts(request, mine, given = null) {
+  const drawing = ++chartTicket;
+  const overtaken = () => mine !== ticket || drawing !== chartTicket;
   const charts = $("#charts");
   charts.hidden = false;
   const simulated = Boolean(request.truth);
@@ -4044,7 +4265,7 @@ async function drawCharts(request, mine, given = null) {
   await coefficients.show(coefficientView());
 
   const plots = given ?? (await libraryPlots(request, mine));
-  if (mine !== ticket) return;
+  if (overtaken()) return;
   const version = plots?.plotly_js ?? state.plotlyJs;
   if (!version) {
     coefficients.card.append(el("p", "hint", "The charts could not be drawn here; the tables above hold the numbers."));
@@ -4054,7 +4275,7 @@ async function drawCharts(request, mine, given = null) {
   try {
     await coefficients.show(coefficientView(), version);
     await drawBestChart();
-    if (!plots) return;
+    if (!plots || overtaken()) return;
     const figures = Object.fromEntries(Object.entries(plots.figures).map(([k, v]) => [k, JSON.parse(v)]));
     if (figures.true_contour) shareContourScale(figures.contour, figures.true_contour);
     // A mixture's best blend is starred on its triangle, or where its Cox traces, drawn through it, cross.
@@ -4072,22 +4293,101 @@ async function drawCharts(request, mine, given = null) {
     if (cox) figures.cox = () => coxFigure(cox, { ...words, best: blend && cox.through === "best" ? blend.predicted : null });
     const levels = state.analysis?.comparison;
     if (levels) figures.levels = () => levelsFigure(levels, comparisonWords());
+    const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
+    limits.chosen = Boolean(plots.contour_chosen);
+    const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
+    const captioned = (key) => {
+      const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
+      return chartCard(key, caption);
+    };
     for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
-      const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
-      const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
-      const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
-      const card = chartCard(key, caption);
+      const card = captioned(key);
+      if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
       charts.append(card.card);
       await draw(card.plot, figures[key], version);
+      if (overtaken()) return;
     }
+    state.plots = plots; // drawn again, from these, when the reading level changes
+    state.chartRequest = request;
+    const drawable = MORE_CHARTS.filter((key) => figures[key]);
+    const more = drawable.filter((key) => levelOf(`chart:${key}`) <= pageLevel());
+    const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map((key) => levelOf(`chart:${key}`)), "chart");
+    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
 
+/** The charts in three dimensions, which need more height to be read. */
+const SOLID_CHARTS = new Set(["surface_3d", "cube"]);
+
+/**
+ * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
+ * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
+ */
+function moreCharts(keys, figures, captioned, version, beyond = "") {
+  const box = el("details", "more-charts", "");
+  box.id = "more-charts";
+  box.append(el("summary", "", `More charts (${keys.length})`));
+  if (beyond) box.append(levelNote(beyond));
+  const grid = el("div", "charts", "");
+  box.append(grid);
+  box.open = state.moreCharts;
+  let shown = false;
+  const show = async () => {
+    if (!box.open || shown) return;
+    shown = true;
+    for (const key of keys) {
+      const card = captioned(key);
+      card.card.dataset.chart = key;
+      grid.append(card.card);
+      await draw(card.plot, figures[key], version, SOLID_CHARTS.has(key) ? 420 : 340);
+    }
+  };
+  box.addEventListener("toggle", () => {
+    state.moreCharts = box.open;
+    show();
+  });
+  show();
+  return box;
+}
+
+/** The two factors the response surface is drawn over, for the reader to change: the charts are then drawn again. */
+function contourPicker(plots) {
+  const row = el("p", "hint contour-picker", "");
+  const pick = (at) => {
+    const select = el("select", "", "");
+    select.id = `contour-factor-${at + 1}`;
+    select.setAttribute("aria-label", `${at ? "Second" : "First"} factor the response surface is drawn over`);
+    for (const name of plots.axes) select.append(new Option(name, name));
+    select.value = plots.contour_factors[at];
+    return select;
+  };
+  const selects = [pick(0), pick(1)];
+  selects.forEach((select, at) => {
+    select.onchange = () => {
+      const other = selects[1 - at];
+      if (other.value === select.value) other.value = plots.contour_factors[at]; // the two change places
+      state.contourPair = selects.map((s) => s.value);
+      const request = analysisRequest();
+      // The boxes are drawn again with the charts: the one changed keeps the focus.
+      drawCharts(state.best?.coded ? { ...request, best: state.best.coded } : request, ticket).then(() => $(`#${select.id}`)?.focus());
+    };
+  });
+  row.append("Draw it over ", selects[0], " and ", selects[1]);
+  return row;
+}
+
 async function libraryPlots(request, mine) {
-  const reply = await call("api_plots", request);
+  // The reader's choice of the surface's two factors holds while the study has both; a refusal forgets it.
+  const names = state.design.spec.factors.map((f) => f.name);
+  const pair = state.contourPair?.every((name) => names.includes(name)) ? state.contourPair : null;
+  let reply = await call("api_plots", pair ? { ...request, contour_factors: pair } : request);
+  if (!reply.ok && pair && !reply.stopped) {
+    state.contourPair = null;
+    reply = await call("api_plots", request);
+  }
   if (mine === ticket && [analysisSaid, pythonSaid].includes(statusTicket)) {
     setStatus(reply.ok ? "Analysis complete." : `Charts: ${reply.error}`, reply.ok ? "ok" : "error");
   }
@@ -4370,7 +4670,7 @@ async function findBalance() {
     return;
   }
   const mine = ++balanceTicket;
-  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName(), goals: sentGoals() });
+  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
   if (mine !== balanceTicket) return;
   renderBalance(reply);
   if (state.whatIf) renderWhatIf(); // the balanced settings it comes back to have moved
@@ -4590,7 +4890,7 @@ async function findWhatIf() {
     return;
   }
   const mine = ++whatIfTicket;
-  const reply = await call("api_predictors", { ...held(), ...splitResults(resultNames(), state.results), models: modelsByName() });
+  const reply = await call("api_predictors", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName() });
   if (mine !== whatIfTicket) return;
   showWhatIf(reply.ok ? reply.result : null);
 }
@@ -5182,6 +5482,7 @@ async function showBuiltExample() {
   const [name] = resultNames(); // the worked example measures one response
   state.results = { [name]: [...example.simulation.responses] };
   state.marks = { [name]: example.simulation.responses.map(() => "simulated") };
+  state.setAside = {};
   state.plotlyJs = example.plots.plotly_js;
   renderRuns();
   renderTruth();
@@ -5442,7 +5743,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, state.scenarios),
+    v: studyFormat(spec, state.scenarios, keptAside()),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -5453,8 +5754,15 @@ function currentCampaign() {
     ...(more.length && Object.keys(sentGoals()).length ? { goals: sentGoals() } : {}),
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
+    ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
     ...sentCurves(),
   };
+}
+
+/** The runs set aside as a study keeps them: for each response with some, those that have a result. */
+function keptAside() {
+  const kept = resultNames().map((name) => [name, asideRuns(name)]);
+  return Object.fromEntries(kept.filter(([, runs]) => runs.length));
 }
 
 let saveTimer = null;
@@ -5689,6 +5997,7 @@ async function openCampaign(c, record, message) {
   const names = resultNames();
   state.results = joinResults(names, [...c.responses], structuredClone(c.more_responses ?? {}));
   state.marks = joinResults(names, [...c.sources], structuredClone(c.more_sources ?? {}));
+  state.setAside = structuredClone(c.set_aside ?? {});
   state.curves = c.curves ? structuredClone(c.curves) : null;
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
@@ -5728,6 +6037,12 @@ async function openCampaign(c, record, message) {
     () => (state.campaign?.id === mine ? analyseRuns() : null),
     () => {},
   );
+}
+
+/** Open the study Python made of the reader's own table (import.js), saved here as a study of its own. */
+async function openImported(made) {
+  const c = checkCampaign({ v: CAMPAIGN_VERSION, ...made.campaign });
+  await openCampaign(c, newCampaign(false), openedWords(c.design.n_runs, made.left_out.length));
 }
 
 /** Resolve to the studies saved in this browser, or to none if the browser has not answered in a moment. */
@@ -5920,7 +6235,8 @@ function hidePython(key) {
 /** Show the run's code: the simulation while every result is as simulated, else the results on the page. */
 function showResultsCode() {
   const simulated = state.simulation && allSimulated();
-  showPython("run", resultsCode(state.design, state.results, simulated ? state.simulation : null));
+  // The code holds the results the models are fitted to: a run set aside has none, as on the page.
+  showPython("run", resultsCode(state.design, fitted(), simulated ? state.simulation : null));
 }
 
 /**
@@ -6033,6 +6349,57 @@ function fillBody(t, rows) {
   t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
 }
 
+// ---------------------------------------------------------------- reading level
+/** The reading level the page shows: 1 Beginner, 2 Intermediate, 3 Adventurous (levels.js). */
+const pageLevel = () => readLevel(document.documentElement.dataset.level ?? null);
+
+/** A sentence on what the level leaves out of a list, with a button that shows the page at every level. */
+function levelNote(words) {
+  const note = el("p", "hint level-more", `${words}. `);
+  const all = el("button", "", "Show them");
+  all.type = "button";
+  all.onclick = () => setLevel(LEVELS.length);
+  note.append(all);
+  return note;
+}
+
+/**
+ * List the designs of the page's level in the design list, and say how many more a higher level has. The design the
+ * plan holds stays listed whatever the level; "Runs as given" is listed by the study that has such runs, not here.
+ */
+function showLevelDesigns() {
+  const select = $("#design-type");
+  const hidden = [];
+  for (const option of select.options) {
+    if (option.value === "given") continue;
+    const level = levelOf(`design:${option.value}`);
+    option.hidden = level > pageLevel() && option.value !== select.value;
+    if (option.hidden) hidden.push(level);
+  }
+  for (const group of select.querySelectorAll("optgroup")) group.hidden = [...group.children].every((o) => o.hidden);
+  const note = $("#level-designs");
+  note.hidden = !hidden.length;
+  if (hidden.length) note.replaceChildren(...levelNote(moreWords(hidden, "design")).childNodes);
+}
+
+/** Show the page at a level, and keep the choice where the concept map keeps its own. */
+function setLevel(level, keep = true) {
+  document.documentElement.dataset.level = level;
+  for (const radio of document.querySelectorAll('#level input[name="level"]')) radio.checked = Number(radio.value) === level;
+  if (keep) {
+    try {
+      localStorage.setItem(LEVEL_KEY, String(level));
+    } catch {
+      /* storage refused: the level holds for this visit */
+    }
+  }
+  showLevelDesigns();
+  if (state.plots && !$("#charts").hidden) drawCharts(state.chartRequest, ticket, state.plots); // its charts follow
+}
+
+$("#level").onchange = (event) => setLevel(Number(event.target.value));
+$("#design-type").addEventListener("change", showLevelDesigns);
+
 // ---------------------------------------------------------------- colour mode
 const MODE_KEY = "factorial-mode";
 const MODE_NAMES = { auto: "the system's", light: "light", dark: "dark" };
@@ -6070,6 +6437,7 @@ systemDark.addEventListener("change", () => {
   if (document.documentElement.dataset.mode === "auto") redrawAll(); // the charts follow the system
 });
 applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.documentElement.dataset.mode : "auto");
+setLevel(pageLevel(), false);
 
 // ---------------------------------------------------------------- wiring
 installTerms(GLOSSARY);
@@ -6228,6 +6596,7 @@ $("#balance-reset").onclick = () => {
 };
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
+$("#csv").onclick = downloadCsv;
 $("#curve-use").onclick = useCurves;
 $("#curve-target-find").onclick = findTarget;
 $("#curve-clear").onclick = () => setCurve(null, null);
@@ -6261,6 +6630,10 @@ $("#term-list").onchange = () => {
   scheduleAnalysis(); // a moment after the last tick, as for typed results
   scheduleSave();
 };
+installImport({ call, open: openImported });
+$("#stop").onclick = stopPython;
+$("#simplify-ask").onclick = askSimpler;
+$("#simplify-apply").onclick = fitSimpler;
 $("#term-first").onchange = showTermAdder;
 $("#term-second").onchange = showTermAdder;
 $("#add-term").onclick = addNamedTerm;

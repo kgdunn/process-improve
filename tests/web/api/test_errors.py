@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import ast
 import base64
+import io
 import json
 import re
+import zipfile
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -34,6 +36,14 @@ def _make(**change: object) -> Callable[[Example], dict]:
 def _runs(**change: object) -> Callable[[Example], dict]:
     """Build a request about the runs the page holds, with the simulated results, changed."""
     return lambda ex: {**ex["held"], "responses": ex["simulated"]["responses"], **change}
+
+
+def _zipped(size: int) -> str:
+    """Return a zip file of one part of ``size`` zero bytes, in base64: small as sent, whatever it unpacks to."""
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w", zipfile.ZIP_DEFLATED) as packed:
+        packed.writestr("xl/sharedStrings.xml", b"\0" * size)
+    return base64.b64encode(held.getvalue()).decode()
 
 
 def _spec(**change: object) -> Callable[[Example], dict]:
@@ -781,6 +791,131 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_plots",
         _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
         "The page sent a best blend this page did not write.",
+    ),
+    "a blocked design's model to simplify": (
+        "api_simpler_model",
+        lambda ex: {
+            **ex["held"],
+            "spec": {**ex["held"]["spec"], "options": {**ex["held"]["spec"].get("options", {}), "n_blocks": 3}},
+            "responses": ex["simulated"]["responses"],
+        },
+        (
+            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
+            "choose this study's terms yourself, under Terms you choose."
+        ),
+    ),
+    "a model that uses every run, to simplify": (  # ten coefficients, and ten runs with a result
+        "api_simpler_model",
+        lambda ex: {**ex["held"], "responses": [*ex["simulated"]["responses"][:10], *[None] * 5]},
+        (
+            "The model uses every run, so none is left to compare a simpler model with: "
+            "judge the effects by Lenth's method, in the table of effects."
+        ),
+    ),
+    "an OMARS design of too few runs": (
+        "api_make_design",
+        lambda _: {"design_type": "omars", "factors": FACTORS, "budget": 9},
+        "An OMARS design in 3 factors has 11 to 41 runs on this page.",
+    ),
+    "no table to read": (
+        "api_read_table",
+        lambda _: {"text": "  "},
+        "There is no table to read: paste one, or choose a .csv or .xlsx file.",
+    ),
+    "a table of headings alone": (
+        "api_read_table",
+        lambda _: {"text": "A,B,y\n1,2,3\n"},
+        "The table needs a line of headings and at least two runs below it.",
+    ),
+    "a table too large to read": (
+        "api_read_table",
+        lambda _: {"text": "A,B\n" + "1,2\n" * 600_000},
+        "The table is larger than this page reads: 2 MB at most.",
+    ),
+    "a file too large to read": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": "A" * 2_800_000},
+        "The file is larger than this page reads: 2 MB at most.",
+    ),
+    "a file that is no workbook": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": "bm90IGEgd29ya2Jvb2s="},
+        "The file could not be read as an Excel workbook (.xlsx).",
+    ),
+    "a quote never closed": (
+        "api_read_table",
+        lambda _: {"text": 'A,B,y\n1,"2,3\n' + "4,5,6\n" * 30_000},
+        "The table could not be split into columns: look for a quote that is opened and never closed.",
+    ),
+    "a workbook that unpacks to far more than it weighs": (
+        "api_read_table",
+        lambda _: {"xlsx_base64": _zipped(60_000_000)},
+        "The workbook unpacks to more than this page reads: 50 MB.",
+    ),
+    "a table of too many columns": (
+        "api_read_table",
+        lambda _: {"text": ",".join(f"c{i}" for i in range(61)) + "\n" + ("1," * 61 + "\n") * 2 + ("2," * 61 + "\n")},
+        "The table has 61 columns; this page reads 60 at most.",
+    ),
+    "a table of too many runs": (
+        "api_read_table",
+        lambda _: {"text": "A,B\n" + "".join(f"{i},{i % 3}\n" for i in range(2001))},
+        "The table has 2001 runs; a study holds 2000 at most.",
+    ),
+    "two columns of one heading": (
+        "api_read_table",
+        lambda _: {"text": "A,A,y\n1,2,3\n2,3,4\n3,4,5\n"},
+        "Two columns share the heading A: give each column its own.",
+    ),
+    "a table the page did not read": (
+        "api_import_study",
+        lambda _: {"columns": [{"role": "factor"}], "rows": [[1, 2], [3, 4]]},
+        "The page sent a table this page did not read.",
+    ),
+    "a table with no response chosen": (
+        "api_import_study",
+        lambda _: {"columns": [{"role": "factor", "name": "A"}, {"role": "ignore"}], "rows": [[1, 2], [2, 4], [1, 5]]},
+        "A study needs at least one factor and one response: choose which columns they are.",
+    ),
+    "a table whose runs lack a factor's setting": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [None, 4], [None, 5]],
+        },
+        "Fewer than two runs have a setting for every factor: leave out a factor with blanks.",
+    ),
+    "a factor at one setting": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [1, 4], [1, 5]],
+        },
+        "A has one setting in every run, so these runs say nothing of it: leave it out.",
+    ),
+    "a factor of too many labels": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "Lot"}, {"role": "response", "name": "y"}],
+            "rows": [[f"lot {i}", i] for i in range(9)],
+        },
+        (
+            "Lot has 9 different labels, and a categorical factor has 2 to 8 levels: "
+            "leave it out, or make its column numbers."
+        ),
+    ),
+    "a response of text": (
+        "api_import_study",
+        lambda _: {
+            "columns": [{"role": "factor", "name": "A"}, {"role": "response", "name": "y"}],
+            "rows": [[1, 2], [2, "high"], [1, 5]],
+        },
+        "The response y holds text in some runs: a response is a number.",
+    ),
+    "a surface over one factor twice": (
+        "api_plots",
+        _runs(contour_factors=["T", "T"]),
+        "A response surface is drawn over two different factors of ['T', 'P', 'F'].",
     ),
     "a surface held at best settings the page did not write": (
         "api_plots",

@@ -843,13 +843,13 @@ describe("a curve each run gives", () => {
     return { ...data, curves: [[0, 1.2, 1.5], [0, null, 1.1], null, null] };
   };
 
-  test("is kept with the study, in the latest format, and only a study that measures one has it", () => {
+  test("is kept with the study, in the format that holds it, and only a study that measures one has it", () => {
     const checked = checkCampaign(withCurves());
     assert.deepEqual(checked.design.spec.curve, curve);
     assert.deepEqual(checked.curves, withCurves().curves);
     assert.equal(checked.v, CURVE_FORMAT);
     assert.equal(CURVE_FORMAT, WHAT_IF_FORMAT + 1, "later than any an earlier page reads");
-    assert.equal(CAMPAIGN_VERSION, CURVE_FORMAT);
+    assert.ok(CAMPAIGN_VERSION >= CURVE_FORMAT, "the page reads it");
     assert.equal(checkCampaign(campaign()).curves, undefined);
     const unread = withCurves();
     delete unread.curves;

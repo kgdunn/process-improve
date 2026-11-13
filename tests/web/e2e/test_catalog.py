@@ -340,7 +340,7 @@ def test_a_blocked_design_opens_in_factorial_in_its_blocks(blocked_context, site
     column = headers(page).index("Block")
     assert sorted({run[column] for run in run_sheet(page)}) == ["1", "2"]
     assert page.get_attribute("#workspace", "data-phase") == "learn", "the source's results, analysed"
-    anova = page.locator("#analysis table").last.locator("tbody tr td:first-child").all_text_contents()
+    anova = page.locator("#analysis > .scroll table").last.locator("tbody tr td:first-child").all_text_contents()
     assert "Block" in anova
     assert "The blocks are fitted as a fixed effect" in page.text_content("#analysis")
 

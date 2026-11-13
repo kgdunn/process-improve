@@ -23,6 +23,8 @@ HERE = Path(__file__).parent
 #: Each suite, by name, so ``--affected-since`` sends a change to one of them here.
 SUITES = (
     "logic.test.mjs",
+    "levels.test.mjs",
+    "import.test.mjs",
     "charts.test.mjs",
     "python.test.mjs",
     "best.test.mjs",

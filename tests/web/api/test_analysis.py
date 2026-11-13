@@ -35,6 +35,118 @@ def test_the_worked_example_recovers_the_true_process(api, held, simulated):
     assert analysis["model"] == "quadratic"
 
 
+# --------------------------------------------------------------------------- what the results say, in sentences
+def test_the_findings_say_what_the_worked_example_found(api, held, simulated):
+    findings = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})["findings"]
+    assert findings == [
+        "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average.",
+        "That is more than the 2 % you said is worth finding.",
+        "Also real: P (lowers it), F (raises it).",
+        "The effect of T depends on P: read the two together, not one at a time.",
+        "Yield curves over F: its best setting may lie inside the range, not at an end.",
+        "The model explains 99% of the variation in Yield, and about 82% in runs it has not seen.",
+    ]
+
+
+def test_the_same_results_give_the_same_words(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    assert api.ok("api_analyze_runs", request)["findings"] == api.ok("api_analyze_runs", request)["findings"]
+
+
+def test_a_saturated_design_s_findings_rest_on_lenth_s_method(api):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    beyond = [e["term"] for e in analysis["lenth"]["effects"] if e["active_ME"]]
+    assert beyond, "the scenario has effects that stand out"
+    largest = max(beyond, key=lambda t: abs(next(e["effect"] for e in analysis["lenth"]["effects"] if e["term"] == t)))
+    assert analysis["findings"][0].startswith(f"{largest} matters most: ")
+    assert analysis["findings"][-1].endswith("the effects are judged by Lenth's method.")
+    assert analysis["diagnostics"] is None, "no run is left over to judge the others with"
+
+
+def test_on_the_log_scale_an_effect_is_said_as_a_ratio(api, held, simulated):
+    spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
+    request = {**held, "spec": spec, "responses": simulated["responses"], "model": "main_effects"}
+    findings = api.ok("api_analyze_runs", request)["findings"]
+    assert findings[0] == "T matters most: raising T from 150 to 200 degC multiplies Yield by 1.14, on average."
+    assert not any("worth finding" in sentence for sentence in findings), "that change is in percent, not a ratio"
+
+
+def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simulated):
+    """Run 5 is 25 % too high. The limit is the outlier test's, so no run of the results as simulated is marked."""
+    request = {**held, "responses": simulated["responses"]}
+    assert not any(d["unusual"] for d in api.ok("api_analyze_runs", request)["diagnostics"])
+    request["model"] = "main_effects"  # which leaves runs enough to judge one against the others
+    responses = list(simulated["responses"])
+    responses[4] += 25
+    analysis = api.ok("api_analyze_runs", {**request, "responses": responses})
+    assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [
+        held["rows"][4][held["columns"].index("Run order")]
+    ]
+    assert analysis["findings"][-1].endswith("far from what the model expects: check before trusting the fit.")
+
+
+def test_each_run_has_its_leverage_and_they_sum_to_the_number_of_coefficients(api, held, simulated):
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})
+    assert len(analysis["diagnostics"]) == 15
+    assert sum(d["leverage"] for d in analysis["diagnostics"]) == pytest.approx(len(analysis["coefficients"]))
+
+
+def test_a_factor_that_acts_through_its_square_or_an_interaction_is_not_lost_in_the_noise(api, held):
+    """P's own main effect is nothing, yet P decides the yield through its square and through T: P matters most."""
+    at = {name: held["columns"].index(name) for name in ("T", "P", "F")}
+    rng = np.random.default_rng(7)
+    responses = []
+    for row in held["rows"]:
+        t, p, f = (row[at["T"]] - 175) / 25, row[at["P"]] - 2, (row[at["F"]] - 15) / 5
+        responses.append(float(60 + 0.4 * f + 9 * t * p - 12 * p * p + rng.normal(0, 0.05)))
+    findings = api.ok("api_analyze_runs", {**held, "responses": responses})["findings"]
+    assert findings[0] == "P matters most, though Yield does not rise or fall steadily with it: see how below."
+    assert not any(f.startswith("Not told apart from the noise") and "P" in f for f in findings)
+    assert "The effect of T depends on P: read the two together, not one at a time." in findings
+    assert "Yield curves over P: its best setting may lie inside the range, not at an end." in findings
+    assert any(f.startswith("The model explains more than 99% of the variation") for f in findings), "not 100%"
+
+
+def test_nothing_real_is_said_plainly(api, held):
+    """Results that are noise alone: no factor is named as mattering."""
+    noise = np.random.default_rng(3).normal(60, 1, len(held["rows"])).round(2).tolist()
+    findings = api.ok("api_analyze_runs", {**held, "responses": noise, "model": "main_effects"})["findings"]
+    assert findings[0] == "No factor's effect on Yield stands out from the noise."
+
+
+# --------------------------------------------------------------------------- a simpler model, proposed
+def test_the_simpler_model_keeps_the_terms_of_the_process_the_results_came_from(api, held, simulated):
+    """The reactor process has five terms, and the quadratic model nine: the search keeps the five."""
+    request = {**held, "responses": simulated["responses"]}
+    proposed = api.ok("api_simpler_model", request)
+    truth = {t["term"] for t in simulated["truth"] if t["term"] != "Intercept" and t["coefficient"]}
+    assert proposed["kept"] == ["T", "P", "F", "T·P", "F²"]
+    assert {":".join(t) if len(set(t)) > 1 or len(t) == 1 else f"I({t[0]} ** 2)" for t in proposed["terms"]} == truth
+    assert proposed["dropped"] == ["T·F", "P·F", "T²", "P²"]
+    assert (proposed["added"], proposed["changed"], proposed["within"]) == ([], True, "quadratic")
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+    assert len(fitted["coefficients"]) == 6, "the page fits the terms as proposed, with the intercept"
+
+
+def test_terms_the_reader_chose_are_searched_within_the_smallest_standard_model_that_holds_them(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    mains = api.ok("api_simpler_model", {**request, "model": {"terms": [["T"], ["P"], ["F"]]}})
+    assert mains["within"] == "main_effects"
+    pairs = api.ok("api_simpler_model", {**request, "model": {"terms": [["T"], ["P"], ["F"], ["T", "P"], ["T", "F"]]}})
+    assert (pairs["within"], pairs["dropped"]) == ("interactions", ["T·F"])
+
+
+def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    terms = api.ok("api_simpler_model", request)["terms"]
+    again = api.ok("api_simpler_model", {**request, "model": {"terms": terms}})
+    assert (again["changed"], again["dropped"], again["added"], again["terms"]) == (False, [], [], terms)
+
+
 def test_true_values_are_what_each_coefficient_estimates(api, held, simulated):
     """In a Box-Behnken design every term is estimated on its own, so the true values are the process's."""
     request = {**held, "responses": simulated["responses"], "truth": simulated["truth"]}

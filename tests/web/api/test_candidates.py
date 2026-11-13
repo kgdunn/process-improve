@@ -125,7 +125,7 @@ def test_a_design_the_factor_count_rules_out_is_left_out_with_its_range(api, boo
     assert {"fractional_factorial", "dsd"} <= set(left)
     made = {m["design_type"] for m in listed["made"]}
     assert not made & set(left), "a design is either made or left out"
-    offered = set(api.ok("api_catalogue")["designs"]) - set(bootstrap.SPACE_FILLING)
+    offered = set(api.ok("api_catalogue")["designs"]) - {*bootstrap.SPACE_FILLING, *bootstrap.CHOSEN_BY_NAME}
     assert made | set(left) == offered, "and every design for a model the page offers is one"
 
 

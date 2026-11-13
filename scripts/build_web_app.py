@@ -75,6 +75,8 @@ APP_FILES = (
     "glossary.js",
     "terms.js",
     "dialogs.js",
+    "levels.js",
+    "import.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
@@ -212,7 +214,7 @@ BOOK = "https://learnche.org/pid/"
 #: The name ``?example=`` gives the worked example (``WORKED`` in ``web/campaign.js``), which no other may take.
 WORKED = "worked"
 #: The latest campaign format the page reads (``CAMPAIGN_VERSION`` in ``web/campaign.js``).
-CAMPAIGN_VERSION = 6
+CAMPAIGN_VERSION = 7
 #: The format of a study of one factor (``ONE_FACTOR_FORMAT`` in ``web/campaign.js``): a page from before it could
 #: not analyse one, and refuses it in a sentence. A study of more factors keeps format 1.
 ONE_FACTOR_FORMAT = 2
@@ -228,6 +230,9 @@ WHAT_IF_FORMAT = 5
 #: The format of a study that reads a curve on each run (``CURVE_FORMAT`` in ``web/campaign.js``), which a page of
 #: an earlier format would drop on its next save. No example the build makes reads one.
 CURVE_FORMAT = 6
+#: The format of a study with runs set aside from a fit (``SET_ASIDE_FORMAT`` in ``web/campaign.js``), which a page
+#: of an earlier format would drop on its next save. No example the build makes sets one aside.
+SET_ASIDE_FORMAT = 7
 #: The most factors a study of format 3 or earlier holds (``FEW_FACTORS`` in ``web/campaign.js``).
 FEW_FACTORS = 12
 
@@ -434,6 +439,10 @@ def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     if spec["design_type"] not in designs:
         return None, "the page does not make this kind of design"
     options = dict(spec["options"])
+    if "budget" in designs[spec["design_type"]]["options"] and "budget" not in options:
+        # The page makes such a design in the number of runs its reader chooses, and opens on its own number:
+        # the library's design of no stated size is another design, so its runs are opened as they are.
+        return None, "the page makes this design in a number of runs you choose"
     if "array" in spec:  # an orthogonal array, all its columns: the page makes it when it takes every column
         info = designs[spec["design_type"]]
         if not info["min_factors"] <= len(record["factors"]) <= info["max_factors"]:

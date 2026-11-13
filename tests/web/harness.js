@@ -9,6 +9,17 @@
 // Otherwise the page's own worker runs, Pyodide and all, and is only watched.
 
 (() => {
+  // The tests see the whole page: the reading level (web/levels.js) is set to its highest once a tab, so a test of
+  // the levels can clear or change it and load the page again. The concept map keeps its level under the same key,
+  // and its tests are of a first visit, so a tab that opens on the map is left alone.
+  try {
+    if (!location.pathname.includes("/map/") && !sessionStorage.getItem("pi-level-seeded")) {
+      sessionStorage.setItem("pi-level-seeded", "1");
+      localStorage.setItem("factorial-map-level", "3");
+    }
+  } catch {
+    /* storage refused: the page's own default */
+  }
   const post = Worker.prototype.postMessage; // the browser's own, before Worker is replaced below
   const pi = {
     calls: [], // {fn, payload} for each call, in the order the page made it, with its seeds' stand-ins
@@ -118,12 +129,15 @@
     }
 
     emit(data) {
+      if (this.ended) return; // as a worker the page ended says nothing more
       const event = new MessageEvent("message", { data });
       this.onmessage?.(event);
       this.dispatchEvent(event);
     }
 
-    terminate() {}
+    terminate() {
+      this.ended = true;
+    }
   }
 
   /** The page's own worker, watched: calls and replies are recorded on their way past. */

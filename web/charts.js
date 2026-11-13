@@ -94,6 +94,12 @@ export function pageLayout(layout, height, colours = palette()) {
     restyled.xaxis.constrain = "domain";
     restyled.yaxis.constrain = "domain";
   }
+  if (layout.scene) {
+    // A chart in three dimensions has its axes in a scene of its own, and needs no room for the flat ones.
+    const { xaxis, yaxis, zaxis } = layout.scene;
+    restyled.scene = { ...layout.scene, xaxis: axis(xaxis), yaxis: axis(yaxis), zaxis: axis(zaxis) };
+    restyled.margin = { l: 0, r: 0, t: 0, b: 0 };
+  }
   delete restyled.width;
   delete restyled.title;
   return restyled;

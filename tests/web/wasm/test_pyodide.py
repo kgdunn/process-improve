@@ -28,8 +28,9 @@ from tests.web._support import (
     run_sheet,
 )
 
-#: Each design type at three and at six factors: the page's defaults otherwise.
-CASES = [(design_type, k) for design_type in ALL_DESIGNS for k in (3, 6)]
+#: Each design type at three and at six factors, or at the most the page makes it for: the page's defaults otherwise.
+MOST_FACTORS = {"omars": 5}
+CASES = [(design_type, k) for design_type in ALL_DESIGNS for k in (3, MOST_FACTORS.get(design_type, 6))]
 
 #: A factor whose two levels are labels.
 SUPPLIER = {"name": "Supplier", "low": "A", "high": "B", "units": ""}

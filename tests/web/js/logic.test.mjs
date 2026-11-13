@@ -24,6 +24,15 @@ import {
   shareText,
   withBounds,
   CAPTIONS,
+  MORE_CHARTS,
+  simplerWords,
+  csvOf,
+  runSheetCsv,
+  asideOf,
+  asideWords,
+  fittedResults,
+  toggleAside,
+  TITLES,
   CATEGORICAL,
   MODES,
   NUMERIC,
@@ -407,8 +416,61 @@ describe("words and numbers", () => {
     assert.equal(escape(12), "12");
   });
 
+  test("a run set aside from a response's fit has no result for it, and keeps it for the others", () => {
+    const results = { y: [1, 2, 3], cost: [4, 5, 6] };
+    assert.deepEqual(fittedResults(results, { y: [1] }), { y: [1, null, 3], cost: [4, 5, 6] });
+    assert.deepEqual(fittedResults(results), results);
+    assert.deepEqual(results.y, [1, 2, 3], "the run sheet keeps its result");
+  });
+
+  test("a run is set aside and put back, and one with no result is only still to do", () => {
+    let aside = toggleAside({}, "y", 2);
+    aside = toggleAside(aside, "y", 0);
+    assert.deepEqual(aside, { y: [0, 2] });
+    assert.deepEqual(toggleAside(aside, "y", 2), { y: [0] });
+    assert.deepEqual(asideOf(aside, { y: [1, 2, null] }, "y"), [0], "run 3 has no result to set aside");
+    assert.deepEqual(asideOf(aside, { y: [1, 2, 3] }, "cost"), []);
+  });
+
+  test("the runs set aside are said by their run order", () => {
+    assert.equal(asideWords([]), "");
+    assert.equal(asideWords([5]), "Run 5 is set aside: the model is fitted without it.");
+    assert.equal(asideWords([3, 5]), "Runs 3 and 5 are set aside: the model is fitted without them.");
+  });
+
+  test("a table is written as CSV, its text quoted where it must be and never run as a formula", () => {
+    const text = csvOf(["Run", "Supplier", "note", "y"], [[1, "A, old", 'said "hot"', 61.5], [2, "=SUM(A1)", "-low", null]]);
+    assert.equal(text, 'Run,Supplier,note,y\r\n1,"A, old","said ""hot""",61.5\r\n2,\'=SUM(A1),\'-low,\r\n');
+    assert.equal(csvOf(["T"], [[-1.5]]), "T\r\n-1.5\r\n", "a negative number stays a number");
+  });
+
+  test("the run sheet's CSV holds each result the page has, and a blank for a run still to do", () => {
+    const design = { columns: ["Run order", "T", "y", "cost"], rows: [[1, 150, null, null], [2, 200, null, null]] };
+    assert.equal(runSheetCsv(design, { y: [61.5, null], cost: [3, 4] }), "Run order,T,y,cost\r\n1,150,61.5,3\r\n2,200,,4\r\n");
+  });
+
+  test("the search for a simpler model is said in a sentence", () => {
+    const fmt = (v) => v.toFixed(2);
+    const found = { kept: ["T", "P", "T·P"], dropped: ["F"], added: [], changed: true, adjusted_r_squared: 0.9777 };
+    assert.equal(
+      simplerWords(found, fmt),
+      "The results support T, P and T·P, without F. Adjusted R² would be 0.98. Terms picked from the results look surer " +
+        "afterwards than they are: confirm them with new runs.",
+    );
+    assert.match(simplerWords({ ...found, added: ["F²"] }, fmt), /without F, and with F²\. /);
+    assert.equal(simplerWords({ ...found, dropped: [], changed: false }, fmt), "The results support every term of the model as it is.");
+    assert.match(simplerWords({ ...found, kept: [] }, fmt), /^No term of the model stands out from the noise/);
+  });
+
   test("the captions name the factors drawn", () => {
-    assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors/);
+    assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
+    assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
+    for (const key of MORE_CHARTS) {
+      assert.ok(TITLES[key], `${key} has a heading`);
+      const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](["T", "P"]) : CAPTIONS[key];
+      assert.match(caption, /\.$/, `${key} has a caption`);
+    }
+    assert.match(CAPTIONS.interaction(["T", "P"]), /the effect of P depends on T/);
   });
 
   test("a mixture's captions say what the star marks once the best blend is found", () => {

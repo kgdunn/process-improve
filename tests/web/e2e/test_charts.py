@@ -11,7 +11,16 @@ import re
 import pytest
 
 from tests.web._support import factors_named
-from tests.web.e2e._page import enter_results, first_paint_done, generate, reveal, set_factors, status, type_results
+from tests.web.e2e._page import (
+    calls,
+    enter_results,
+    first_paint_done,
+    generate,
+    reveal,
+    set_factors,
+    status,
+    type_results,
+)
 
 TITLES = ["Coefficients", "Fitted response surface", "True response surface", "Residuals against fitted values"]
 
@@ -168,3 +177,55 @@ def test_charts_drawn_while_learn_was_hidden_fit_its_width(blank_page):
          return chart <= card.clientWidth && chart >= 0.8 * card.clientWidth;
        })"""
     page.wait_for_function(fitted, timeout=5_000)  # Plotly fits a chart a moment after it is asked to
+
+
+# --------------------------------------------------------------------------- more charts, and the surface's factors
+MORE_TITLES = [
+    "Each factor's effect on the prediction",
+    "Average result at each setting",
+    "Interaction of the two factors",
+    "Fitted response surface, in three dimensions",
+    "Predictions at the corners",
+    "Residuals against the normal distribution",
+    "Residuals in the order the runs were made",
+    "Where the predictions are least certain",
+]
+
+
+def open_more(page) -> None:
+    """Open "More charts" and wait until each of its charts is drawn."""
+    page.click("#more-charts > summary")
+    page.wait_for_function(
+        "(n) => document.querySelectorAll('#more-charts .js-plotly-plot').length === n", arg=len(MORE_TITLES)
+    )
+
+
+def test_more_charts_are_drawn_when_their_heading_is_opened(page):
+    assert page.text_content("#more-charts > summary") == "More charts (8)"
+    assert page.locator("#more-charts figure").count() == 0, "a chart drawn while hidden has no width to fit"
+    open_more(page)
+    assert page.locator("#more-charts figure h3").all_text_contents() == MORE_TITLES
+    assert all(caption.endswith(".") for caption in page.locator("#more-charts figcaption").all_text_contents())
+    kinds = [traces[0]["type"] for traces in plots(page, "#more-charts")]
+    assert kinds == ["scatter", "scatter", "scatter", "surface", "scatter3d", "scatter", "scatter", "contour"]
+
+
+def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
+    open_more(page)
+    plotted = page.evaluate("window.__pi.count('api_plots')")
+    page.select_option("#contour-factor-2", "F")
+    page.wait_for_function(f"window.__pi.count('api_plots') > {plotted} && window.__pi.idle()")
+    page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
+    assert calls(page, "api_plots")[-1]["payload"]["contour_factors"] == ["T", "F"]
+    assert "over T and F, the two factors you chose" in page.locator("#charts figcaption").first.text_content()
+    assert page.locator("#more-charts").evaluate("(box) => box.open"), "it stays open as the charts are drawn again"
+    page.wait_for_function(
+        "(n) => document.querySelectorAll('#more-charts .js-plotly-plot').length === n", arg=len(MORE_TITLES)
+    )
+
+
+def test_choosing_the_factor_the_other_box_holds_makes_the_two_change_places(page):
+    page.select_option("#contour-factor-1", "P")
+    page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["P", "T"]

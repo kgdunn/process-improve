@@ -233,7 +233,7 @@ def test_replicates_chosen_for_one_design_do_not_carry_over_to_the_next_one_load
 
 def test_two_labels_make_a_factor_categorical_and_leave_the_two_level_designs(page):
     set_factors(page, [*factors_named("A", "B"), {"name": "Supplier", "low": "old", "high": "new", "units": ""}])
-    numeric = ["dsd", "box_behnken", "ccd", "d_optimal", "i_optimal", "maximin_lhs"]
+    numeric = ["dsd", "omars", "box_behnken", "ccd", "d_optimal", "i_optimal", "a_optimal", "maximin_lhs", "sobol"]
     assert disabled_designs(page) == [*numeric, "simplex_lattice", "simplex_centroid", "extreme_vertices"]
     assert page.text_content("#design-hint") == (
         "Box-Behnken needs numeric factors, and Supplier is categorical: choose a full factorial, fractional "

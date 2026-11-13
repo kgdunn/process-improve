@@ -71,7 +71,7 @@ TABLETS = [{"viewport": {"width": width, "height": 1000}} for width in (1024, 82
 
 
 @pytest.mark.parametrize("context_options", TABLETS, ids=lambda options: f"{options['viewport']['width']}px")
-def test_wider_than_a_phone_the_three_ways_in_share_one_row(fresh_page):
+def test_wider_than_a_phone_the_ways_in_share_one_row(fresh_page):
     """A narrower row sets the buttons smaller; in a wide font a label takes two lines, and the button stays."""
     fresh_page.add_style_tag(content=WIDE_FONT)
     boxes = hero_boxes(fresh_page)
@@ -81,16 +81,16 @@ def test_wider_than_a_phone_the_three_ways_in_share_one_row(fresh_page):
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
-def test_on_a_desktop_the_three_ways_in_keep_their_full_size(fresh_page):
+def test_on_a_desktop_the_ways_in_keep_their_full_size(fresh_page):
     sizes = fresh_page.eval_on_selector_all(".hero__action", "all => all.map((b) => getComputedStyle(b).fontSize)")
-    assert sizes == ["16.8px"] * 3, "1.05rem"
+    assert sizes == ["16.8px"] * 4, "1.05rem"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
-def test_on_a_phone_the_three_ways_in_stack_at_full_width(fresh_page):
+def test_on_a_phone_the_ways_in_stack_at_full_width(fresh_page):
     boxes = hero_boxes(fresh_page)
     assert boxes == sorted(boxes, key=lambda b: b["y"]), "a new study first"
-    assert len({round(b["y"]) for b in boxes}) == 3, "one under the other"
+    assert len({round(b["y"]) for b in boxes}) == 4, "one under the other"
     assert {round(b["width"]) for b in boxes} == {round(box(fresh_page, ".hero")["width"])}
 
 

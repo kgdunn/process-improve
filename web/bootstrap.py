@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import t as t_distribution
 
 from process_improve.experiments import (
     DesignRegion,
@@ -182,6 +183,18 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 3,
         "max_factors": MAX_FACTORS,
     },
+    "omars": {
+        "label": "OMARS (three levels, runs you choose)",
+        "hint": (
+            "Three levels, with main effects clear of interactions and squares as a definitive screening design "
+            "has them, in the number of runs you choose above its own: the extra runs sharpen the squares and the "
+            "interactions. The search takes up to a minute at five factors."
+        ),
+        "model": "main_effects",
+        "options": ["budget", "n_replicates"],
+        "min_factors": 3,
+        "max_factors": 5,
+    },
     "box_behnken": {
         "label": "Box-Behnken",
         "hint": "Response surface with every run inside the factor ranges and none at the corners.",
@@ -217,6 +230,17 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 6,
     },
+    "a_optimal": {
+        "label": "A-optimal",
+        "hint": (
+            "Smallest average variance of the chosen model's coefficients for a fixed number of runs: each "
+            "coefficient counts the same, where a D-optimal design lets one be known well at another's cost."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 6,
+    },
     "maximin_lhs": {
         "label": "Space-filling (Latin hypercube)",
         "hint": (
@@ -228,16 +252,40 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 8,
     },
+    "sobol": {
+        "label": "Space-filling (Sobol sequence)",
+        "hint": (
+            "Runs laid through the ranges by a Sobol sequence, made for no model: quick at any size, and more runs "
+            "added later fall between the first. Evenest at 8, 16, 32 or 64 runs."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 8,
+    },
 }
 
+#: The library's MaxPro design is not offered: its search ends at slightly other settings under WebAssembly than
+#: natively, so the Python the page shows would not make the page's own run sheet.
 #: The space-filling designs (``designs_space_filling.py``): their runs spread through the ranges for no model in
 #: particular, so the comparison of designs for a model leaves them out, and Learn analyses one with the model the
 #: study aims to learn. A maximin Latin hypercube keeps each factor's settings apart as well as the runs.
-SPACE_FILLING = ("maximin_lhs",)
+SPACE_FILLING = ("maximin_lhs", "sobol")
+
+#: Designs the reader chooses from the design list, which the comparison of designs for a model does not make:
+#: an OMARS design's search is too long to run on every change of the brief, and an A-optimal design would be a
+#: third optimal design to search for beside the two compared.
+CHOSEN_BY_NAME = ("omars", "a_optimal")
+
+#: The runs an OMARS design has above a definitive screening design's own, unless the reader gives a number.
+OMARS_EXTRA_RUNS = 4
 
 #: Runs a factor in a space-filling design, unless the reader gives a number: the usual start for a model fitted
 #: to a computer experiment (Loeppky, Sacks and Welch 2009), and the library's default (logic.js mirrors it).
 SPACE_FILLING_RUNS = 10
+
+#: The most runs an OMARS design has on this page: past them its search takes minutes under WebAssembly.
+MAX_OMARS_RUNS = 41
 
 #: The most runs a space-filling design has on this page, as the Runs box allows.
 MAX_SPACE_FILLING_RUNS = 200
@@ -417,7 +465,7 @@ BOX_COX_POWERS = {"log": 0.0, "sqrt": 0.5, "inverse": -1.0}
 MAX_CONSTRAINTS = 8
 
 #: The designs that keep every run inside limits on the settings: they choose their runs among candidates inside.
-REGION_DESIGNS = ("d_optimal", "i_optimal")
+REGION_DESIGNS = ("d_optimal", "i_optimal", "a_optimal")
 
 #: The most characters of a limit's note, which the page shows beside it and never reads.
 NOTE_LENGTH = 80
@@ -1422,7 +1470,7 @@ def make_design(spec: dict) -> dict:
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if design_type in SPACE_FILLING:
-        facts["notes"].insert(0, _spread_sentence(kwargs["budget"]))
+        facts["notes"].insert(0, _spread_sentence(design_type, kwargs["budget"]))
     if region is not None:
         if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
@@ -2148,6 +2196,8 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     """
     if design_type in SPACE_FILLING:
         return _space_filling_runs(spec, k)
+    if design_type == "omars":
+        return _omars_runs(spec, k)
     budget = spec.get("budget")
     n_terms = _n_terms(k, model_type)
     if budget and int(budget) < n_terms:
@@ -2172,6 +2222,24 @@ def _space_filling_runs(spec: dict, k: int) -> int:
     return int(runs)
 
 
+def _omars_runs(spec: dict, k: int) -> int:
+    """Read an OMARS design's runs: :data:`OMARS_EXTRA_RUNS` above a definitive screening design's, unless given.
+
+    The design is a foldover and a center run, so it has an odd number of runs: the library makes the largest
+    such design within the number given. Its fewest is two above the definitive screening design's, the first
+    that leaves a run to judge the main effects and squares with; the definitive screening design itself is
+    the smallest OMARS design, and has its own place in the design list.
+    """
+    own = 2 * k + 1 if k % 2 == 0 else 2 * k + 3  # a definitive screening design's runs
+    budget = spec.get("budget")
+    if budget is None or budget in ("", 0):
+        return own + OMARS_EXTRA_RUNS
+    runs = _number(budget)
+    if runs is None or runs != int(runs) or not own + 2 <= runs <= MAX_OMARS_RUNS:
+        raise ValueError(f"An OMARS design in {k} factors has {own + 2} to {MAX_OMARS_RUNS} runs on this page.")
+    return int(runs)
+
+
 def _round_spread(runs: pd.DataFrame, factors: list[Factor], budget: int) -> None:
     """Round a space-filling design's settings, in place, to what can be set: to a tenth of their step, or finer.
 
@@ -2185,8 +2253,13 @@ def _round_spread(runs: pd.DataFrame, factors: list[Factor], budget: int) -> Non
         runs[f.name] = runs[f.name].astype(float).round(decimals) + 0.0  # -0.0 reads 0
 
 
-def _spread_sentence(runs: int) -> str:
-    """Say how a maximin Latin hypercube spreads its runs: every factor's settings, and the runs among themselves."""
+def _spread_sentence(design_type: str, runs: int) -> str:
+    """Say how a space-filling design spreads its runs: every factor's settings, and the runs among themselves."""
+    if design_type == "sobol":
+        return (
+            f"The {runs} runs follow a Sobol sequence, which fills the ranges evenly however many factors are "
+            "read together; runs added later from the same sequence fall between these."
+        )
     return (
         f"Each factor takes {runs} different settings, evenly spaced across its range, and the runs are placed so "
         "the nearest two are as far apart as the search could make them."
@@ -2700,6 +2773,7 @@ def _analysis(
     if comparison and comparison["difference"] and truth:  # a two-level factor's coefficient is half its difference
         true = next((c.get("true_value") for c in coefficients if c["term"] == names[0]), None)
         comparison["difference"]["true"] = None if true is None else 2 * true
+    diagnostics = _diagnostics(coded, y_done, fit["formula"], order, int(out["model_summary"]["df_residual"]))
     terms = _model_terms(model, names, categorical)
     if spec["design_type"] == "taguchi" and not any(":" in term for term in terms):
         # A model with interactions has the alias chains' note instead.
@@ -2725,7 +2799,225 @@ def _analysis(
         "transform": transform,
         "box_cox": _box_cox_hint(coded, raw[done].reset_index(drop=True).rename(response), fit, transform),
         "spread": _spread(_coded(runs, factors)[done].reset_index(drop=True), raw[done].to_numpy(float), spec, order),
+        "diagnostics": diagnostics,
+        "findings": _findings(spec, coefficients, out["model_summary"], lenth, out.get("lack_of_fit"), diagnostics),
     }
+
+
+#: The chance of calling some run of a study unusual when none is: the outlier test's level, shared over the runs.
+UNUSUAL_AT = 0.05
+
+#: A factor whose variance inflation factor is past this moved with the others too closely to be judged alone.
+TANGLED_VIF = 10.0
+
+#: The level an effect is judged real at, where the runs leave a measure of the noise to judge it with.
+REAL_AT = 0.05
+
+
+def _diagnostics(
+    coded: pd.DataFrame, y: pd.Series, formula: str, order: list[int] | None, residual_df: int
+) -> list[dict[str, Any]] | None:
+    """Return what the fitted model says of each run: its fitted value, residual, leverage and Cook's distance.
+
+    None when the model uses every run (no ``residual_df``): there is then no residual to judge.
+
+    ``studentized`` is the residual in standard deviations, with the run itself left out of the fit that
+    estimates them. It follows Student's t when the run is like the others, so ``unusual`` marks a run past
+    the t value that one of the study's runs in :data:`UNUSUAL_AT` would pass by chance (the Bonferroni outlier
+    test): a fixed limit of 3 would mark runs of a small study that are nothing out of the way. Each run is named
+    by its place in the order the runs were made, and the values are on the model's scale.
+    """
+    if residual_df < 1:
+        return None
+    with warnings.catch_warnings():
+        # Its tests of the residuals as a whole, which the page does not show, warn when the runs are few.
+        warnings.simplefilter("ignore")
+        found = analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
+    found = found["residual_diagnostics"]
+
+    def finite(value: float | None) -> float | None:
+        return float(value) if value is not None and math.isfinite(value) else None
+
+    n = len(y)
+    limit = float(t_distribution.ppf(1 - UNUSUAL_AT / (2 * n), residual_df - 1)) if residual_df > 1 else math.inf
+    rows = []
+    for i in range(n):
+        studentized = finite(found["externally_studentized_residuals"][i])
+        rows.append(
+            {
+                "run": order[i] if order else i + 1,
+                "fitted": finite(found["fitted_values"][i]),
+                "residual": finite(found["residuals"][i]),
+                "studentized": studentized,
+                "leverage": finite(found["leverage"][i]),
+                "cooks": finite(found["cooks_distance"][i]),
+                "unusual": studentized is not None and abs(studentized) > limit,
+            }
+        )
+    return rows
+
+
+def _real(coefficient: dict, beyond_margin: dict[str, bool]) -> bool | None:
+    """Say whether an effect stands out from the noise: by its p-value, else by Lenth's margin; None when untested."""
+    p = coefficient.get("p_value")
+    if p is not None and math.isfinite(p):
+        return p < REAL_AT
+    return beyond_margin.get(coefficient["term"])
+
+
+def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
+    """Write what a factor does to the response from its low setting to its high one, on average over the others."""
+    label, units = _response_words(spec)
+    transform = _transform_of(spec)
+    name, change = factor["name"], 2 * coefficient["coefficient"]
+    up = change > 0
+    if transform == "log":
+        amount = (
+            f" {'multiplies' if up else 'divides'} {label} by {max(coefficient['ratio'], 1 / coefficient['ratio']):.3g}"
+        )
+    elif transform is None:
+        amount = f" {'raises' if up else 'lowers'} {label} by {abs(change):.3g}{f' {units}' if units else ''}"
+    else:  # on another scale the change in the response's units depends on where the others are set
+        amount = f" {'raises' if up else 'lowers'} {label}"
+    if _categorical(factor):
+        return f"changing {name} from {factor['low']} to {factor['high']}{amount}"
+    span = f"{factor['low']:.4g} to {factor['high']:.4g}{' ' + factor['units'] if factor['units'] else ''}"
+    return f"raising {name} from {span}{amount}"
+
+
+def _share_words(share: float) -> str:
+    """Write a share as a whole percentage; one that would round up to 100% and is not all of it as more than 99%."""
+    return "more than 99%" if 0.995 <= share < 1 else f"{share:.0%}"
+
+
+def _fit_findings(
+    label: str, summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
+) -> list[str]:
+    """Say how well the model fits, whether a term may be missing, and which runs to look at again."""
+    said: list[str] = []
+    if summary["df_residual"] > 0:
+        fit = f"The model explains {_share_words(summary['r_squared'])} of the variation in {label}"
+        predicted = summary.get("r_squared_pred")
+        seen = "." if predicted is None else f", and about {_share_words(max(predicted, 0))} in runs it has not seen."
+        said.append(fit + seen)
+    else:
+        said.append(
+            "The model uses every run, so none is left to measure the noise with: "
+            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
+        )
+    if lack_of_fit and lack_of_fit.get("significant"):
+        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
+    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
+    if unusual:
+        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
+        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
+    return said
+
+
+#: A fitted term that is a factor's square, as the library names it: ``I(T ** 2)``.
+_SQUARE = re.compile(r"I\((.+) \*\* 2\)")
+
+
+def _factors_of(term: str) -> list[str]:
+    """Name the factors a fitted term holds: one for a main effect or a square, two or three for an interaction."""
+    squared = _SQUARE.fullmatch(term)
+    return [squared[1]] if squared else term.split(":")
+
+
+def _swing(term: str, coefficient: float) -> float:
+    """Return how far a term moves the response over the factors' ranges: a square from the center to an end."""
+    return abs(coefficient) if _SQUARE.fullmatch(term) else 2 * abs(coefficient)
+
+
+def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[str]:
+    """Say which factor matters most, and by how much when it moves the response steadily across its range.
+
+    A factor may matter most through its square or an interaction while its own main effect is nothing to speak
+    of: the response then does not rise or fall steadily with it, and no one amount says what it does.
+    """
+    label, units = _response_words(spec)
+    if not judged.get(first):
+        return [f"{first} matters most, though {label} does not rise or fall steadily with it: see how below."]
+    said = [f"{first} matters most: {_effect_words(by_term[first], simple[first], spec)}, on average."]
+    worth = (spec.get("response_info") or {}).get("smallest_change")
+    if worth and _transform_of(spec) is None:
+        change = abs(2 * by_term[first]["coefficient"])
+        than = "more than" if change > worth else "less than" if change < worth else "the same as"
+        said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
+    return said
+
+
+def _shape_findings(label: str, judged: dict, simple: dict) -> list[str]:
+    """Say which effects depend on another factor, and over which factors the response curves."""
+    said = []
+    for term, is_real in judged.items():
+        named = _factors_of(term)
+        if not is_real or not set(named) <= set(simple):
+            continue
+        if _SQUARE.fullmatch(term):
+            said.append(f"{label} curves over {named[0]}: its best setting may lie inside the range, not at an end.")
+        elif len(named) == len("ab"):
+            said.append(f"The effect of {named[0]} depends on {named[1]}: read the two together, not one at a time.")
+    return said
+
+
+def _findings(
+    spec: dict,
+    coefficients: list[dict],
+    summary: dict,
+    lenth: dict | None,
+    lack_of_fit: dict | None,
+    diagnostics: list[dict] | None,
+) -> list[str]:
+    """Say in plain sentences what the analysis found, from its numbers alone: the same results give the same words.
+
+    Which factor matters most and by how much, which others are real and which cannot be told from the noise,
+    which effects depend on another factor, where the response curves, how well the model fits, and which runs
+    to look at again. A factor matters through any term that holds it, so one whose square or interaction is
+    real is never said to be lost in the noise, and the factor that matters most is the one whose largest real
+    term moves the response furthest. A factor of three levels or more has no one effect, and is left to its table.
+    """
+    label, _ = _response_words(spec)
+    simple = {f["name"]: f for f in spec["factors"] if not _several(f)}
+    beyond = {e["term"]: bool(e["active_ME"]) for e in (lenth or {}).get("effects", [])}
+    judged = {c["term"]: _real(c, beyond) for c in coefficients if c.get("coefficient") is not None}
+    by_term = {c["term"]: c for c in coefficients}
+    mains = [name for name in simple if judged.get(name) is not None]
+    # How far each factor's largest real term moves the response, and all of its real terms together, which
+    # settles a tie: none for a factor no real term holds.
+    reach: dict[str, float] = {}
+    total: dict[str, float] = {}
+    for term, is_real in judged.items():
+        if is_real and term != "Intercept":
+            swing = _swing(term, by_term[term]["coefficient"])
+            for name in (n for n in _factors_of(term) if n in simple):
+                reach[name] = max(reach.get(name, 0.0), swing)
+                total[name] = total.get(name, 0.0) + swing
+    ranked = sorted(reach, key=lambda name: (-reach[name], -total[name]))
+    said: list[str] = []
+    if ranked:
+        first, *others = ranked
+        said += _leading_finding(first, by_term, judged, simple, spec)
+        steady = [n for n in others if judged.get(n)]
+        if steady:
+            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in steady]
+            said.append(f"Also real: {', '.join(ways)}.")
+    elif mains:
+        said.append(f"No factor's effect on {label} stands out from the noise.")
+    tangled = [n for n in mains if n not in reach and (by_term[n].get("vif") or 0) > TANGLED_VIF]
+    quiet = [n for n in mains if n not in reach and n not in tangled]
+    if ranked and quiet:
+        said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
+    if tangled:
+        said.append(
+            f"{_listed(tangled)} moved together with other factors in these runs, so the runs cannot judge "
+            f"{'it' if len(tangled) == 1 else 'any of them'} alone."
+        )
+    return [
+        *said,
+        *_shape_findings(label, judged, simple),
+        *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics),
+    ]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:
@@ -4304,6 +4596,368 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
         c["true_value"] = expected.get(c["term"])
 
 
+# --------------------------------------------------------------------------- a table of the reader's own
+#: The most a table of the reader's own may hold: its text or file in bytes, and its columns. Its rows are a
+#: study's, :data:`MAX_GIVEN_RUNS`.
+MAX_TABLE_BYTES = 2_000_000
+MAX_TABLE_COLUMNS = 60
+
+#: The most a workbook may unpack to: it is a zip file, and its size as sent says little of its size in memory.
+MAX_UNPACKED_BYTES = 50_000_000
+
+#: A numeric column at this many settings or fewer looks set by a design, not measured.
+FEW_SETTINGS = 5
+
+#: Cells a spreadsheet or a logger writes for "no value".
+_BLANK_CELLS = {"", "na", "n/a", "nan", "null", "none", "-", "--", "?"}
+
+#: Headings of columns that number or date the runs: no factor and no response.
+_BOOKKEEPING = re.compile(r"(?i)^(run|runs|std|standard|order|run ?order|std ?order|id|index|no\.?|#|obs\w*|date)$")
+
+#: A heading that ends in its units: "Temp (degC)" or "Yield [%]".
+_WITH_UNITS = re.compile(r"^(.*?)\s*[\(\[]\s*([^\)\]]{1,32})\s*[\)\]]\s*$")
+
+#: How strongly two factors must move together before the page says so, and before it says they cannot be separated.
+MOVED_TOGETHER = 0.7
+NOT_SEPARABLE = 0.95
+
+
+def _cell(value: object, *, decimal_comma: bool = False) -> float | str | None:
+    """Read one cell of a table: a finite number, a label, or None for a blank. Nothing in it is ever evaluated."""
+    if value is None or isinstance(value, bool):
+        return None if value is None else str(value)
+    if isinstance(value, (int, float)):
+        try:
+            return float(value) if math.isfinite(value) else None
+        except OverflowError:  # a whole number past what a float holds: no setting and no result
+            return None
+    text = str(value).strip()
+    if text.lower() in _BLANK_CELLS:
+        return None
+    if decimal_comma and re.fullmatch(r"[-+]?\d+,\d+", text):
+        text = text.replace(",", ".")
+    number = _number(text) if re.fullmatch(r"[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", text) else None
+    return number if number is not None else text[:64]
+
+
+def _csv_cells(text: str) -> list[list[float | str | None]]:
+    """Read delimited text: commas, semicolons, tabs or bars, found from its first lines; a decimal comma where
+    the columns are not split by commas.
+    """
+    import csv  # noqa: PLC0415 - only a reader's own table needs it
+
+    sample = "\n".join(text.splitlines()[:20])
+    delimiter = max(",;\t|", key=sample.count) if sample else ","
+    try:
+        rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    except csv.Error as err:
+        raise ValueError(
+            "The table could not be split into columns: look for a quote that is opened and never closed."
+        ) from err
+    return [[_cell(value, decimal_comma=delimiter != ",") for value in row] for row in rows]
+
+
+def _xlsx_cells(data: bytes, sheet: object) -> tuple[list[list[float | str | None]], list[str], str]:
+    """Read one sheet of a workbook, the first unless named: its cells' values, never its formulas."""
+    import zipfile  # noqa: PLC0415
+
+    from openpyxl import load_workbook  # noqa: PLC0415 - loaded with the page's own workbook
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as packed:
+            unpacked = sum(part.file_size for part in packed.infolist())
+    except Exception as err:
+        raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+    # A workbook is a zip file, and a small one can unpack to gigabytes, which would end Python.
+    if unpacked > MAX_UNPACKED_BYTES:
+        raise ValueError(f"The workbook unpacks to more than this page reads: {MAX_UNPACKED_BYTES // 1_000_000} MB.")
+    try:
+        book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception as err:
+        raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+    names = [str(name) for name in book.sheetnames]
+    name = sheet if isinstance(sheet, str) and sheet in names else names[0]
+    rows = []
+    for i, row in enumerate(book[name].iter_rows(values_only=True)):
+        if i > MAX_GIVEN_RUNS + 50:  # blank lines above the heading are few
+            break
+        rows.append([_cell(value) for value in row[: MAX_TABLE_COLUMNS + 1]])
+    return rows, names, name
+
+
+def _table_of(request: dict) -> tuple[list[str], list[list[float | str | None]], list[str], str | None]:
+    """Read the table a reader gave, as text or as a workbook: its headings, its rows, and the workbook's sheets.
+
+    The first line that holds anything is the headings. Lines and columns with nothing in them are left out.
+    """
+    text, encoded = request.get("text"), request.get("xlsx_base64")
+    sheets: list[str] = []
+    sheet: str | None = None
+    if isinstance(encoded, str) and encoded:
+        if len(encoded) > MAX_TABLE_BYTES * 4 // 3 + 4:
+            raise ValueError(f"The file is larger than this page reads: {MAX_TABLE_BYTES // 1_000_000} MB at most.")
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except ValueError as err:
+            raise ValueError("The file could not be read as an Excel workbook (.xlsx).") from err
+        cells, sheets, sheet = _xlsx_cells(data, request.get("sheet"))
+    elif isinstance(text, str) and text.strip():
+        if len(text.encode()) > MAX_TABLE_BYTES:
+            raise ValueError(f"The table is larger than this page reads: {MAX_TABLE_BYTES // 1_000_000} MB at most.")
+        cells = _csv_cells(text)
+    else:
+        raise ValueError("There is no table to read: paste one, or choose a .csv or .xlsx file.")
+    cells = [row for row in cells if any(value is not None for value in row)]
+    if len(cells) < 3:
+        raise ValueError("The table needs a line of headings and at least two runs below it.")
+    width = max(len(row) for row in cells)
+    cells = [[*row, *[None] * (width - len(row))] for row in cells]
+    keep = [j for j in range(width) if any(row[j] is not None for row in cells[1:])]
+    if len(keep) > MAX_TABLE_COLUMNS:
+        raise ValueError(f"The table has {len(keep)} columns; this page reads {MAX_TABLE_COLUMNS} at most.")
+    if len(cells) - 1 > MAX_GIVEN_RUNS:
+        raise ValueError(f"The table has {len(cells) - 1} runs; a study holds {MAX_GIVEN_RUNS} at most.")
+    headings = [str(cells[0][j]) if cells[0][j] is not None else f"Column {j + 1}" for j in keep]
+    headings = [_plain_number(h) for h in headings]
+    if len(set(headings)) != len(headings):
+        twice = sorted({h for h in headings if headings.count(h) > 1})
+        raise ValueError(f"Two columns share the heading {_listed(twice)}: give each column its own.")
+    return headings, [[row[j] for j in keep] for row in cells[1:]], sheets, sheet
+
+
+def _plain_number(heading: str) -> str:
+    """Write a heading a spreadsheet read as a number, such as 2024.0, as it was typed."""
+    return heading[:-2] if re.fullmatch(r"\d+\.0", heading) else heading
+
+
+def _column(heading: str, values: list[float | str | None]) -> dict[str, Any]:
+    """Describe one column of a table: what it holds, and the name and units its heading gives a factor or response."""
+    there = [v for v in values if v is not None]
+    numbers = [v for v in there if isinstance(v, float)]
+    kind = "number" if there and len(numbers) == len(there) else "text" if there else "empty"
+    with_units = _WITH_UNITS.match(heading)
+    words, units = (with_units[1], with_units[2]) if with_units and with_units[1] else (heading, "")
+    distinct = list(dict.fromkeys(there))
+    return {
+        "heading": heading,
+        "name": suggest_identifier(words),
+        "label": words[:64],
+        "units": units,
+        "kind": kind,
+        "filled": len(there),
+        "settings": len(distinct),
+        "low": min(numbers) if kind == "number" else None,
+        "high": max(numbers) if kind == "number" else None,
+        "levels": [str(v) for v in distinct[: MAX_LEVELS + 1]] if kind == "text" else None,
+    }
+
+
+def _guess_roles(columns: list[dict[str, Any]]) -> None:
+    """Guess what each column of a table is: a factor, a response, or neither. The reader changes any of them.
+
+    A column of one setting, of numbers or dates of the runs, or of more labels than a factor has levels, is
+    neither. Numbers at a few settings were set, so they are a factor, and labels at a few are a categorical
+    one. Numbers at many settings were measured: in a table that looks designed (two columns or more at a few
+    settings, or one beside a result or two) they are responses; in a table where nothing was set, as a
+    plant's records are, the last is the response and the others are factors.
+    """
+    kept = [c for c in columns if c["settings"] > 1 and not _BOOKKEEPING.match(c["label"])]
+    measured = [c for c in kept if c["kind"] == "number" and c["settings"] > FEW_SETTINGS]
+    few = [c for c in kept if c["settings"] <= FEW_SETTINGS and (c["kind"] == "number" or c["settings"] <= MAX_LEVELS)]
+    # One column at a few settings among many that were measured is a shift or a line in a plant's records, not
+    # a design: a design sets two columns or more, or one beside a result or two.
+    designed = len(few) > 1 or (len(few) == 1 and len(measured) <= 2)
+    for c in columns:
+        if c["settings"] < 2 or _BOOKKEEPING.match(c["label"]):
+            c["role"] = "ignore"
+        elif c["kind"] == "text":
+            c["role"] = "factor" if c["settings"] <= MAX_LEVELS else "ignore"
+        elif c["settings"] <= FEW_SETTINGS:
+            c["role"] = "factor"
+        else:
+            c["role"] = "response" if designed or c is measured[-1] else "factor"
+    numbers = [c for c in columns if c["role"] == "factor" and c["kind"] == "number"]
+    if numbers and not any(c["role"] == "response" for c in columns):
+        numbers[-1]["role"] = "response"  # a table's results are most often its last column
+    responses = [c for c in columns if c["role"] == "response"]
+    for c in responses[MAX_RESPONSES:]:
+        c["role"] = "ignore"
+    factors = [c for c in columns if c["role"] == "factor"]
+    for c in factors[MAX_FACTORS:]:
+        c["role"] = "ignore"
+
+
+def read_table(request: dict) -> dict:
+    """Read a table of the reader's own, pasted or in a .csv or .xlsx file, and guess what each column is.
+
+    ``text`` holds delimited text, or ``xlsx_base64`` a workbook with the ``sheet`` to read (its first without).
+    The reply holds the headings and the rows as read, each cell a number, a label or null, and for each column
+    what :func:`_column` says of it with a guessed ``role`` (see :func:`_guess_roles`): the page shows them for
+    the reader to correct, and sends them back to :func:`import_study`. Nothing in the table is evaluated.
+    """
+    headings, rows, sheets, sheet = _table_of(request)
+    columns = [_column(heading, [row[j] for row in rows]) for j, heading in enumerate(headings)]
+    _guess_roles(columns)
+    return {"columns": columns, "rows": rows, "n_rows": len(rows), "sheets": sheets, "sheet": sheet}
+
+
+def _sent_table(request: dict) -> tuple[list[dict], list[list]]:
+    """Check the table the page sends back with the reader's choices: the columns as read, and their rows."""
+    columns, rows = request.get("columns"), request.get("rows")
+    if (
+        not isinstance(columns, list)
+        or not isinstance(rows, list)
+        or not 0 < len(columns) <= MAX_TABLE_COLUMNS
+        or not 1 < len(rows) <= MAX_GIVEN_RUNS
+        or not all(isinstance(c, dict) and c.get("role") in ("factor", "response", "ignore") for c in columns)
+        or not all(isinstance(row, list) and len(row) == len(columns) for row in rows)
+        or not all(value is None or isinstance(value, (int, float, str)) for row in rows for value in row)
+    ):
+        raise ValueError("The page sent a table this page did not read.")
+    return columns, [[_cell(value) for value in row] for row in rows]
+
+
+def _imported_factor(column: dict, values: list) -> dict[str, Any]:
+    """Make a factor of a column the reader chose: numeric over the range of its settings, or categorical."""
+    name = str(column.get("name") or "").strip()
+    there = [v for v in values if v is not None]
+    if all(isinstance(v, float) for v in there):
+        low, high = _number(column.get("low")), _number(column.get("high"))
+        low, high = (min(there) if low is None else low), (max(there) if high is None else high)
+        if not low < high:
+            raise ValueError(f"{name} has one setting in every run, so these runs say nothing of it: leave it out.")
+        return {"name": name, "type": "numeric", "low": low, "high": high, "units": str(column.get("units") or "")[:32]}
+    levels = list(dict.fromkeys(str(v) if not isinstance(v, float) else f"{v:g}" for v in there))
+    if not 2 <= len(levels) <= MAX_LEVELS:
+        raise ValueError(
+            f"{name} has {len(levels)} different labels, and a categorical factor has 2 to {MAX_LEVELS} levels: "
+            "leave it out, or make its column numbers."
+        )
+    return {"name": name, "type": "categorical", "levels": levels}
+
+
+def _moved_together(coded: pd.DataFrame) -> list[str]:
+    """Say which factors moved together in the runs, strongest first: their effects are then hard to tell apart."""
+    names = [name for name in coded.columns if coded[name].std() > 0]
+    if len(names) < 2:
+        return []
+    r = coded[names].corr().to_numpy()
+    pairs = sorted(
+        ((abs(r[i, j]), names[i], names[j]) for i in range(len(names)) for j in range(i + 1, len(names))), reverse=True
+    )
+    pairs = [(size, a, b) for size, a, b in pairs if size >= MOVED_TOGETHER]
+    said = [
+        f"{a} and {b} moved together in these runs (correlation {_correlation_words(size)}): "
+        + (
+            "their effects cannot be told apart."
+            if size >= NOT_SEPARABLE
+            else "their effects are known less precisely than either alone would be."
+        )
+        for size, a, b in pairs[:5]
+    ]
+    if len(pairs) > len(said):
+        said.append(f"{len(pairs) - len(said)} more pairs of factors moved together.")
+    return said
+
+
+def _correlation_words(size: float) -> str:
+    """Write the size of a correlation to two decimals, and one that would round to 1 as above 0.99."""
+    return f"{size:.2f}" if size < 0.995 else "above 0.99"
+
+
+def import_study(request: dict) -> dict:
+    """Make a study of a table of the reader's own: its factors and responses as chosen, its runs as given.
+
+    ``columns`` and ``rows`` are what :func:`read_table` returned, each column with the ``role`` the reader
+    left it, and for a factor or a response the ``name``, ``units`` and (a numeric factor) the ``low`` and
+    ``high`` they gave. A run with no setting for some factor is left out, and ``left_out`` lists those by
+    their line in the table. The design is :data:`GIVEN`, made by :func:`_given_design`, so everything the
+    page does with a design's runs it does with these.
+
+    ``campaign`` is the study as the page opens one (``checkCampaign`` in campaign.js): the design, and each
+    response's results with their sources. The design's notes say what the runs can and cannot show: which
+    factors moved together (see :func:`_moved_together`), and, when the factors were not set at a few levels,
+    that the runs were not planned as an experiment.
+    """
+    columns, rows = _sent_table(request)
+    at = {id(c): j for j, c in enumerate(columns)}
+    chosen = [c for c in columns if c["role"] == "factor"]
+    measured = [c for c in columns if c["role"] == "response"]
+    if not chosen or not measured:
+        raise ValueError("A study needs at least one factor and one response: choose which columns they are.")
+    kept = [i for i, row in enumerate(rows) if all(row[at[id(c)]] is not None for c in chosen)]
+    if len(kept) < 2:
+        raise ValueError("Fewer than two runs have a setting for every factor: leave out a factor with blanks.")
+    factors = [_imported_factor(c, [rows[i][at[id(c)]] for i in kept]) for c in chosen]
+    if text := next((c for c in measured if any(isinstance(rows[i][at[id(c)]], str) for i in kept)), None):
+        raise ValueError(f"The response {text.get('name')} holds text in some runs: a response is a number.")
+    spec = {
+        "design_type": GIVEN,
+        "factors": factors,
+        "responses": [
+            {
+                "name": str(c.get("name") or "").strip(),
+                "label": c.get("label"),
+                "units": c.get("units"),
+                "goal": "learn",
+            }
+            for c in measured
+        ],
+        "runs": [
+            [
+                rows[i][at[id(c)]] if f["type"] == "numeric" else _level_label(rows[i][at[id(c)]])
+                for c, f in zip(chosen, factors, strict=True)
+            ]
+            for i in kept
+        ],
+    }
+    design = _given_design(spec)
+    stored = design["spec"]
+    settings = pd.DataFrame(spec["runs"], columns=[f["name"] for f in factors])
+    notes = _moved_together(
+        _coded(settings, stored["factors"])[[f["name"] for f in stored["factors"] if not _several(f)]]
+    )
+    planned = all(settings[f["name"]].nunique() <= FEW_SETTINGS for f in factors if f["type"] == "numeric")
+    if not planned:
+        notes.append(
+            "These runs were not set out as an experiment: an effect found in them may belong to something else "
+            "that changed at the same time. Confirm what matters with runs you plan."
+        )
+    left_out = [i + 2 for i in range(len(rows)) if i not in set(kept)]  # its line in the table, under the headings
+    if left_out:
+        notes.append(
+            f"{len(left_out)} of the table's {len(rows)} runs had no setting for some factor, and were left out."
+        )
+    design["facts"]["notes"] = [*design["facts"]["notes"], *notes]
+    results = {str(c.get("name") or "").strip(): [rows[i][at[id(c)]] for i in kept] for c in measured}
+    first, *others = [r["name"] for r in _responses(stored)]
+    sources = {name: ["entered" if v is not None else None for v in values] for name, values in results.items()}
+    return {
+        "campaign": {
+            "title": str(request.get("title") or "")[:200],
+            "design": {
+                key: design[key] for key in ("spec", "columns", "rows", "model", "n_runs", "facts", "outside_range")
+            },
+            "responses": results[first],
+            "sources": sources[first],
+            **(
+                {"more_responses": {n: results[n] for n in others}, "more_sources": {n: sources[n] for n in others}}
+                if others
+                else {}
+            ),
+            # Runs that were not planned seldom hold a surface's worth of settings: Learn starts on the main effects.
+            "model": "" if planned else "main_effects",
+        },
+        "left_out": left_out,
+        "notes": notes,
+    }
+
+
+def _level_label(value: float | str | None) -> str:
+    """Write a categorical factor's setting as its level's label: a number as a spreadsheet shows it."""
+    return f"{value:g}" if isinstance(value, float) else str(value)
+
+
 def read_workbook(request: dict) -> dict:
     """Read an uploaded workbook into the runs, responses and sources the page holds.
 
@@ -4451,6 +5105,52 @@ def _contour_pair(coefficients: list[dict], names: list[str]) -> list[str]:
     return sorted(names, key=lambda n: -size.get(n, 0.0))[:2]
 
 
+#: The most settings of a factor the runs are averaged at, for the plots of the runs' averages. A factor at more
+#: settings, as in a rotatable central composite design, has settings only a run or two were made at.
+MAX_AVERAGED_SETTINGS = 3
+
+
+def _chosen_pair(raw: object, axes: list[str]) -> list[str] | None:
+    """Return the two factors the reader chose to draw the response surface over, or None when they chose none."""
+    if raw is None:
+        return None
+    if not (isinstance(raw, list) and len(raw) == 2 and raw[0] != raw[1] and all(name in axes for name in raw)):
+        raise ValueError(f"A response surface is drawn over two different factors of {axes}.")
+    return list(raw)
+
+
+def _more_charts(
+    spec: dict, axes: list[str], pair: list[str], settings: dict[str, int], transform: str | None, residual_df: int
+) -> dict[str, tuple[str, str | None, list[str], bool]]:
+    """List the page's further charts this study can draw, each as the library's plot, its scale and its factors.
+
+    ``settings`` counts the settings each factor of ``axes`` was run at. The last item of each says whether the
+    chart is drawn over the response surface's two factors, and so takes the surface's shading and held values.
+    """
+    surface = len(pair) > 1
+    charts: dict[str, tuple[str, str | None, list[str], bool]] = {}
+    if surface:
+        charts["surface_3d"] = ("surface_3d", transform, pair, True)
+    # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
+    # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
+    if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]}:
+        charts["prediction_variance"] = ("prediction_variance", None, pair, True)
+    charts["perturbation"] = ("perturbation", transform, axes, False)
+    # Averages of the runs at each setting say something only where runs share settings: three settings or fewer.
+    few = [name for name in axes if settings[name] <= MAX_AVERAGED_SETTINGS]
+    if few:
+        charts["main_effects"] = ("main_effects", transform, few, False)
+    if surface and set(pair) <= set(few):
+        charts["interaction"] = ("interaction", transform, pair, False)
+    corners = sorted(axes, key=lambda n: (n not in pair, axes.index(n)))[:3]  # the pair drawn, and the next factor
+    if len(corners) == len("xyz") and transform is None:  # the library prints the corners on the model's scale
+        charts["cube"] = ("cube_plot", None, corners, False)
+    if residual_df > 0:
+        charts["normal_probability"] = ("normal_probability", transform, [], False)
+        charts["residuals_order"] = ("residuals_vs_order", transform, [], False)
+    return charts
+
+
 def plots(request: dict) -> dict:
     """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
 
@@ -4459,6 +5159,15 @@ def plots(request: dict) -> dict:
     results were simulated; the residuals against the fitted values; and, for a
     saturated two-level design, the half-normal plot of the effects with Lenth's
     margins. Each figure is JSON text, for Plotly.js at the version ``plotly_js`` names.
+
+    ``contour_factors`` in the request names the two factors to draw the surface over
+    instead (``contour_chosen`` says so, and ``axes`` lists the factors to choose from).
+    Beside those, the page's further charts: the same surface in three dimensions and the
+    variance of a prediction over it; each factor's effect on the prediction with the others
+    at their centre (``perturbation``); the runs' averages at each setting (``main_effects``)
+    and at each pair of settings of the surface's two factors (``interaction``), for factors
+    at three settings or fewer; the predictions at the corners of three factors (``cube``);
+    and the residuals against the normal distribution and against the order of the runs.
 
     With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
     when the centre of the ranges cannot be run either, the other factors are held at a
@@ -4493,14 +5202,15 @@ def plots(request: dict) -> dict:
     rows = coded.assign(**{response: y}).to_dict("records")
     # A factor of several levels is no axis: the surface holds it at its average level, its contrasts at 0.
     axes = [f["name"] for f in spec["factors"] if not _several(f)]
-    pair = _contour_pair(out["coefficients"], axes)
+    chosen = _chosen_pair(request.get("contour_factors"), axes)
+    pair = chosen or _contour_pair(out["coefficients"], axes)
     shading, held = _shading(spec, pair)
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    def draw(kind: str, results: dict, scale: str | None, **options: Any) -> str:  # noqa: ANN401
+    def draw(kind: str, results: dict, scale: str | None, drawn: list[str] = pair, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, pair, scale), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -4519,14 +5229,90 @@ def plots(request: dict) -> dict:
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
+    settings = {name: coded[name].round(6).nunique() for name in axes}
+    residual_df = fit["out"]["model_summary"]["df_residual"]
+    for key, (kind, scale, drawn, on_surface) in _more_charts(
+        spec, axes, pair, settings, transform, residual_df
+    ).items():
+        options = {"factors_to_plot": drawn} if drawn else {}
+        figures[key] = draw(kind, out, scale, drawn, **options, **(shading if on_surface else {}))
     return {
         "figures": figures,
         "contour_factors": pair,
+        "contour_chosen": chosen is not None,
+        "axes": axes,
         "shaded": "region" in shading,
         "held": held,
         "held_best": best is not None,
         "plotly_js": get_plotlyjs_version(),
     }
+
+
+def simpler_model(request: dict) -> dict:
+    """Propose the terms of the fitted model that the results support, for the reader to accept or not.
+
+    The search is the library's stepwise selection, scored by AICc and keeping effect heredity: an
+    interaction stays only with both its main effects. It
+    searches the terms of the standard model ``within``. ``terms`` holds what it keeps, as the page ticks them
+    (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it leaves
+    out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
+    Nothing is fitted for the reader here: the page puts the terms in its list when the reader asks.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
+    spec = _for_response(spec, request.get("response"))
+    names = [f["name"] for f in spec["factors"]]
+    # shortcut: the search knows a term by its factors, not a block's or a level's contrast; upgrade when the
+    # library's selection keeps a factor's contrasts together and the blocks in every model.
+    if _mixture(spec) or _blocked(spec) or any(_several(f) for f in spec["factors"]):
+        raise ValueError(
+            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
+            "choose this study's terms yourself, under Terms you choose."
+        )
+    categorical = _categorical_names(spec)
+    model = _checked_model(request.get("model") or spec["model"], names, categorical)
+    fitted, columns = _fitted_model(model, spec)
+    runs = _design_runs(every_run)
+    response = spec["response"]
+    y = pd.to_numeric(runs[response], errors="coerce")
+    done = y.notna().to_numpy()
+    coded = _design_frame(runs, spec, columns)[done].reset_index(drop=True)
+    y = y[done].reset_index(drop=True).rename(response)
+    with _listening():
+        fit = _fit_estimable(coded, y, fitted, columns, categorical)
+        if fit["out"]["model_summary"]["df_residual"] < 1:
+            raise ValueError(
+                "The model uses every run, so none is left to compare a simpler model with: "
+                "judge the effects by Lenth's method, in the table of effects."
+            )
+        before = [c["term"] for c in fit["out"]["coefficients"] if c["term"] != "Intercept"]
+        # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
+        # smallest that holds them all, so a term they took out can come back when the results call for it.
+        within = model if isinstance(model, str) else _standard_model_of(before)
+        chosen = analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
+    kept = chosen["model_selection"]["selected_terms"]
+    return {
+        "terms": [_page_term(term) for term in kept],
+        "kept": [_pretty(term) for term in kept],
+        "dropped": [_pretty(term) for term in before if term not in kept],
+        "added": [_pretty(term) for term in kept if term not in before],
+        "changed": set(kept) != set(before),
+        "within": within,
+        "adjusted_r_squared": chosen["model_selection"]["r_squared_adj"],
+    }
+
+
+def _standard_model_of(terms: list[str]) -> str:
+    """Name the smallest standard model that holds every one of some fitted terms."""
+    if any(term.startswith("I(") for term in terms):
+        return "quadratic"
+    return "interactions" if any(":" in term for term in terms) else "main_effects"
+
+
+def _page_term(term: str) -> list[str]:
+    """Write a fitted term as the page ticks it: a factor's name once, an interaction's names, a square's twice."""
+    squared = _SQUARE.fullmatch(term)
+    return [squared[1], squared[1]] if squared else term.split(":")
 
 
 def _held_at_best(raw: object, spec: dict, pair: list[str]) -> tuple[dict[str, float], list[dict[str, Any]]] | None:
@@ -4620,7 +5406,126 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
         title("yaxis", _with_units("Residual", scale_units))
     elif kind == "half_normal":
         title("yaxis", _with_units("|Effect|", scale_units))
+    else:
+        _dressed_more(figure, kind, spec, pair, transform)
     return figure
+
+
+def _setting_words(factor: dict, coded: float) -> str:
+    """Write a coded setting in the factor's own units, or as its level."""
+    if _categorical(factor):
+        return _level_at(factor, coded)
+    return f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.4g}"
+
+
+#: The three settings most designs run a factor at, as the plots of every factor at once name them.
+SETTING_WORDS = {-1.0: "Low", 0.0: "Middle", 1.0: "High"}
+
+
+def _titled(layout: dict, axis: str, text: str, **more: Any) -> None:  # noqa: ANN401
+    """Title an axis of a figure's layout, keeping what the library set on it."""
+    layout[axis] = {**layout.get(axis, {}), "title": {"text": text}, **more}
+
+
+def _factor_axis(factor: dict) -> dict[str, Any]:
+    """Return a coded axis named for a factor with its units, ticked at its own settings."""
+    return {"title": {"text": _with_units(factor["name"], factor["units"])}, **_ticks(factor)}
+
+
+def _dress_surface_3d(figure: dict, w: dict) -> None:
+    response = {"title": {"text": _with_units(w["label"], w["units"])}}
+    for trace in figure["data"]:
+        if w["transform"] is not None:
+            z = np.asarray(trace["z"], float).tolist()
+            trace["z"] = [[_put_back(v, w["transform"]) for v in row] for row in z]
+        trace["colorbar"] = response
+    x, y = (_factor_axis(f) for f in w["drawn"])
+    figure["layout"]["scene"] = {"xaxis": x, "yaxis": y, "zaxis": response}
+
+
+def _dress_cube(figure: dict, w: dict) -> None:
+    x, y, z = (_factor_axis(f) for f in w["drawn"])
+    figure["layout"].update(scene={"xaxis": x, "yaxis": y, "zaxis": z}, showlegend=False)
+    for trace in figure["data"]:  # the edges are the cube; the corners carry the numbers, and no line joins them
+        if trace.get("name") == "Edges":
+            trace["mode"], trace["line"] = "lines", {"color": "#8a8f98", "width": 3}
+        else:
+            trace["mode"] = "markers+text"
+
+
+def _dress_prediction_variance(figure: dict, w: dict) -> None:
+    for axis, factor in zip(("xaxis", "yaxis"), w["drawn"], strict=True):
+        figure["layout"][axis] = _factor_axis(factor)
+    for trace in figure["data"]:  # the variance's contours; the shading of a region's limits has no scale
+        if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
+            trace["colorbar"] = {"title": {"text": "Relative variance"}}
+
+
+def _dress_perturbation(figure: dict, w: dict) -> None:
+    for trace in figure["data"]:
+        trace["y"] = [_put_back(v, w["transform"]) for v in np.asarray(trace["y"], float).tolist()]
+    _titled(figure["layout"], "xaxis", "Each factor's setting", tickvals=[-1, 0, 1], ticktext=["Low", "Center", "High"])
+    _titled(figure["layout"], "yaxis", _with_units(f"Predicted {w['label']}", w["units"]))
+
+
+def _dress_main_effects(figure: dict, w: dict) -> None:
+    layout = figure["layout"]
+    for trace in figure["data"]:
+        trace["x"] = [SETTING_WORDS.get(float(v), v) for v in trace["x"]]
+    for note in layout.get("annotations", []):
+        note["text"] = note["text"].replace("Grand Mean", "All runs")
+    _titled(layout, "xaxis", "Setting", categoryorder="array", categoryarray=list(SETTING_WORDS.values()))
+    _titled(layout, "yaxis", _with_units(f"Average {w['scaled']}", w["scale_units"]))
+
+
+def _dress_interaction(figure: dict, w: dict) -> None:
+    lines, across = w["drawn"]
+    for trace in figure["data"]:
+        trace["x"] = [_setting_words(across, float(v)) for v in trace["x"]]
+        trace["name"] = f"{lines['name']} = {_setting_words(lines, float(trace['name'].rsplit('=', 1)[1]))}"
+    _titled(figure["layout"], "xaxis", _with_units(across["name"], across["units"]), type="category")
+    _titled(figure["layout"], "yaxis", _with_units(f"Average {w['scaled']}", w["scale_units"]))
+
+
+def _dress_residuals(axis_title: str) -> Callable[[dict, dict], None]:
+    def dress(figure: dict, w: dict) -> None:
+        _titled(figure["layout"], "xaxis", axis_title)
+        _titled(figure["layout"], "yaxis", _with_units("Residual", w["scale_units"]))
+        figure["layout"]["showlegend"] = False
+
+    return dress
+
+
+#: How each of the page's further charts is put in the reader's words, by the library's name for the plot.
+_DRESS_MORE: dict[str, Callable[[dict, dict], None]] = {
+    "surface_3d": _dress_surface_3d,
+    "cube_plot": _dress_cube,
+    "prediction_variance": _dress_prediction_variance,
+    "perturbation": _dress_perturbation,
+    "main_effects": _dress_main_effects,
+    "interaction": _dress_interaction,
+    "normal_probability": _dress_residuals("Expected, were the residuals normally distributed"),
+    "residuals_vs_order": _dress_residuals("Run, in the order made"),
+}
+
+#: The charts with a line per factor or setting: their legend sits above the plot, off the axis title.
+_LEGEND_ABOVE = {"perturbation", "main_effects", "interaction"}
+
+
+def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transform: str | None) -> None:
+    """Title the page's further charts in the reader's words and units, as :func:`_dressed` does the first ones.
+
+    ``drawn`` names the factors the figure draws, in its order. A prediction on a ``transform``'s scale is put
+    back in the response's units; the runs' averages and the residuals stay on that scale, and are named on it.
+    """
+    label, units = _response_words(spec)
+    scaled, scale_units = (_scale_words(label, transform), "") if transform else (label, units)
+    factors = {f["name"]: f for f in spec["factors"]}
+    words = {"label": label, "units": units, "scaled": scaled, "scale_units": scale_units, "transform": transform}
+    figure.setdefault("data", [])
+    _DRESS_MORE[kind](figure, {**words, "drawn": [factors[name] for name in drawn]})
+    if kind in _LEGEND_ABOVE:
+        figure["layout"].update(legend={"y": 1.02, "yanchor": "bottom"}, margin={"t": 40})
 
 
 # --------------------------------------------------------------------------- the pictures of a mixture
@@ -5074,8 +5979,8 @@ def compare_plan(request: dict) -> dict:
     # The study's seed, so a design taken from the comparison keeps it.
     seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
     for design_type in DESIGNS:
-        if design_type in SPACE_FILLING:
-            continue  # made for no model, so not one to compare on a model
+        if design_type in SPACE_FILLING or design_type in CHOSEN_BY_NAME:
+            continue  # made for no model, so not one to compare on a model; or made only when chosen
         why = _left_out(design_type, k, labelled=labelled, limited=bool(limits), several=bool(_several_names(factors)))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})
@@ -8366,9 +9271,24 @@ def api_workbook(payload: str) -> str:
     return _reply(workbook, payload)
 
 
+def api_simpler_model(payload: str) -> str:
+    """JSON wrapper around :func:`simpler_model`."""
+    return _reply(simpler_model, payload)
+
+
 def api_plots(payload: str) -> str:
     """JSON wrapper around :func:`plots`."""
     return _reply(plots, payload)
+
+
+def api_read_table(payload: str) -> str:
+    """JSON wrapper around :func:`read_table`."""
+    return _reply(read_table, payload)
+
+
+def api_import_study(payload: str) -> str:
+    """JSON wrapper around :func:`import_study`."""
+    return _reply(import_study, payload)
 
 
 def api_read_workbook(payload: str) -> str:

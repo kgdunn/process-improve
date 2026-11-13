@@ -65,6 +65,8 @@ APP_SOURCES = (
     "glossary.js",
     "terms.js",
     "dialogs.js",
+    "levels.js",
+    "import.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
@@ -107,15 +109,18 @@ ALL_DESIGNS = (
     "plackett_burman",
     "taguchi",
     "dsd",
+    "omars",
     "box_behnken",
     "ccd",
     "d_optimal",
     "i_optimal",
+    "a_optimal",
     "maximin_lhs",
+    "sobol",
 )
 
 #: The designs the book has no page on: the page shows their hint without a link to it.
-NO_BOOK_PAGE = frozenset({"taguchi", "maximin_lhs"})
+NO_BOOK_PAGE = frozenset({"taguchi", "maximin_lhs", "sobol"})
 #: Every mixture design the page offers, kept apart from ``ALL_DESIGNS`` as ``bootstrap.MIXTURES`` is from
 #: ``DESIGNS``: its factors are the components of a blend. ``api/test_mixture.py`` checks it against ``MIXTURES``.
 ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")
