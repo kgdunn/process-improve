@@ -148,9 +148,12 @@ describe("what the footer says of the copy", () => {
 });
 
 // ---------------------------------------------------------------- installOffline, visit after visit
-/** The page's own files a visit loads, as the browser's record of the visit lists them, and those its worker loads. */
-const LOADED = ["app.js", "style.css", `wheels/${manifest.wheel}`, "api/feedback"].map((file) => SCOPE + file);
-const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "manifest.webmanifest", "app.js", "style.css"].map((file) => SCOPE + file);
+/**
+ * The page's own files a visit loads, as the browser's record of the visit lists them: one of them asked for and
+ * refused, as an optional file is. SHELL is what the copy then holds of the app: what opens the page, and the rest.
+ */
+const LOADED = ["app.js", "style.css", "manifest.webmanifest", "book/absent.json", `wheels/${manifest.wheel}`, "api/feedback"].map((file) => SCOPE + file);
+const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "app.js", "style.css", "manifest.webmanifest"].map((file) => SCOPE + file);
 
 /** Every address a visit may ask for, each with some text; runtime.json and the lock file with their own. */
 const everything = () => ({
@@ -203,7 +206,9 @@ class Browser {
         getRegistration: async () => browser.worker && { unregister: async () => void (browser.worker = null) },
       },
     });
-    globalThis.performance.getEntriesByType = (type) => (type === "resource" ? LOADED.map((name) => ({ name })) : []);
+    // The browser notes how each request was answered: the file the server refused is known as such.
+    const record = LOADED.map((name) => ({ name, responseStatus: name.endsWith("absent.json") ? 404 : 200 }));
+    globalThis.performance.getEntriesByType = (type) => (type === "resource" ? record : []);
     await installOffline({ manifest: build, started, box: page.box });
     return page;
   }
@@ -224,7 +229,7 @@ describe("a first visit", () => {
 
   test("copies what Python started from and the page's own files, and says the page opens without a network", () => {
     assert.deepEqual(browser.caches.held(KEPT).sort(), [...START].sort());
-    assert.deepEqual(browser.caches.held(APP).sort(), [...SHELL].sort(), "the wheel's folder and a reader's report are not the page's files");
+    assert.deepEqual(browser.caches.held(APP).sort(), [...SHELL].sort(), "not the wheel's folder, a reader's report, or a file the server refused");
     assert.deepEqual(page.seen, ["Factorial opens on this device without a network: a copy of it is kept here."]);
     assert.deepEqual([page.box.hidden, page.keep.hidden, page.remove.hidden], [false, false, false]);
     assert.equal(page.keep.textContent, "Keep its charts and workbooks too (about 12 MB)");
@@ -319,6 +324,16 @@ describe("a copy that cannot be finished", () => {
     await page.keep.onclick();
     assert.deepEqual(page.seen.slice(1), ["Keeping a copy of Factorial...", "Factorial opens on this device without a network: a copy of it is kept here."]);
     assert.equal(browser.worker.script, "sw.js");
+  });
+
+  test("for want of a file the page opens with says so, where one it merely loaded is left out", async () => {
+    const browser = new Browser();
+    browser.network.files.delete(`${SCOPE}style.css`); // gone since the visit loaded it
+    assert.match((await browser.visit()).said.textContent, /^Factorial opens on this device/);
+    assert.ok(!browser.caches.held(APP).includes(`${SCOPE}style.css`));
+    const without = new Browser();
+    without.network.files.delete(`${SCOPE}worker.js`);
+    assert.equal((await without.visit()).said.textContent, `The copy of Factorial on this device is not whole: Request failed: ${SCOPE}worker.js`);
   });
 
   test("of the charts and workbooks keeps the page's copy, and Try again tries the whole of it", async () => {

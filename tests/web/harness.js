@@ -189,6 +189,13 @@
       this.fns.set(message.id, message.fn);
       super.postMessage(message);
     }
+
+    /** A worker the page ends (Stop) answers nothing more: the calls it had are no longer in flight. */
+    terminate() {
+      pi.pending -= this.fns.size;
+      this.fns.clear();
+      super.terminate();
+    }
   }
 
   window.Worker = window.__piTransport === "native" ? NativeWorker : WatchedWorker;

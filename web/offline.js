@@ -130,11 +130,16 @@ export function copyWords(state, { reason = "", exact = true } = {}) {
   }[state];
 }
 
-/** Copy the addresses a cache lacks into it. A file the browser has just loaded comes from its own cache. */
-async function copyInto(name, addresses) {
+/**
+ * Copy the addresses a cache lacks into it. A file the browser has just loaded comes from its own cache. One that
+ * cannot be had fails the copy, unless the copy can do without it (`needed` false): it is then left out.
+ */
+async function copyInto(name, addresses, { needed = true } = {}) {
   const cache = await caches.open(name);
   for (const address of addresses) {
-    if (!(await cache.match(address, { ignoreVary: true }))) await cache.add(address);
+    if (await cache.match(address, { ignoreVary: true })) continue;
+    const added = cache.add(address);
+    await (needed ? added : added.catch(() => {}));
   }
 }
 
@@ -154,15 +159,20 @@ async function prune(scope, now) {
   for (const request of await cache.keys()) if (stale(request.url, scope, now)) await cache.delete(request);
 }
 
-/** The app's own files a page needs to open: itself, what this visit loaded of the app, and what its worker loads. */
-function shell(scope) {
-  const loaded = performance
+/** The app's own files no page opens without: the page itself, and what starts Python in its worker. */
+const opening = (scope) => ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json"].map((file) => scope + file);
+
+/**
+ * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,
+ * its pictures. The record also holds what was asked for and refused. A browser that notes how each request was
+ * answered has those left out here; in any other, each file is copied if it can be had.
+ */
+const alsoLoaded = (scope) =>
+  performance
     .getEntriesByType("resource")
+    .filter((entry) => (entry.responseStatus ?? 200) === 200)
     .map((entry) => entry.name)
     .filter((address) => address.startsWith(scope) && !/\/(wheels\/[0-9a-f]{16}|api)\//.test(address));
-  const named = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "manifest.webmanifest"];
-  return [...new Set([...named.map((file) => scope + file), ...loaded])];
-}
 
 /** The reader's wish for no copy; a browser that refuses storage keeps none, and the page asks nothing of it. */
 function wishesNone() {
@@ -249,7 +259,8 @@ export async function installOffline({ manifest, started, box }) {
     try {
       const files = await listed();
       await copyInto(KEPT, files.start);
-      await copyInto(APP, shell(scope));
+      await copyInto(APP, opening(scope));
+      await copyInto(APP, alsoLoaded(scope), { needed: false });
       await prune(scope, files.now);
       await navigator.serviceWorker.register("sw.js");
       if (what === "whole" && files.later) await copyInto(KEPT, files.later);
