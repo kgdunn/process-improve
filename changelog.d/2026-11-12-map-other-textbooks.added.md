@@ -1,5 +1,5 @@
 - The concept map (factori.al/map) can show what two other textbooks also state. A switch above the map turns it on:
-  a link takes the colour of the book that also states it (Book B or Book M), a link all three books state is the
-  heaviest, a ring marks a term they also cover, and the links and terms of this book alone step back. Beside the
-  switch, a tap on "Book B", "Book M" or "All 3" hides or shows that colour. A term's card, and a link read out below
-  the map, name the books that have it.
+  the kinds of term keep their shapes and give up their colours, and a colour then says who states a link or covers a
+  term: this book alone, Book B too, Book M too, or all three, whose links are the heaviest. Beside the switch, a tap on
+  "This book", "Book B", "Book M" or "All 3" fades or shows those links and terms. A term's card, and a link read out
+  below the map, name the books that have it.

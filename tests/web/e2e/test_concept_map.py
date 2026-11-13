@@ -869,8 +869,8 @@ def test_a_term_s_book_link_goes_to_the_sentence_it_quotes(context, site):
 
 # ---------- the other textbooks read against the graph
 # What each other textbook also has, worked out as map.js does: a link by its own list; a term by its own list or by
-# any link it is on. The page names a textbook by a letter, and draws it by its number, or as "all" where every one of
-# two or more textbooks has the item.
+# any link it is on. The page names a textbook by a letter, and draws it by its number, as "all" where every one of
+# two or more textbooks has the item, or as "own" where this book alone has it.
 BOOK_NAME = {"reviewed_text_1": "Book B", "reviewed_text_2": "Book M"}
 
 
@@ -885,6 +885,8 @@ def _backing(graph: dict[str, Any]) -> tuple[list[str], dict[int, list[str]], di
 
 
 def _drawn_as(books: list[str], mine: list[str]) -> str:
+    if not mine:
+        return "own"
     return "all" if len(mine) == len(books) > 1 else str(books.index(mine[0]))
 
 
@@ -908,22 +910,27 @@ TWO_OTHERS = _two_others(GRAPH)
 # The class each link and term carries for its textbooks; and how one of each kind is drawn.
 BACKED = """() => { const cy = window.conceptMap.cy;
   const kind = (el, stem) => (el.classes().find((c) => c.startsWith(stem + '-')) || '').slice(stem.length + 1);
-  const pairs = (els, stem) => Object.fromEntries(els.filter((e) => kind(e, stem)).map((e) => [e.id(), kind(e, stem)]));
+  const pairs = (els, stem) => Object.fromEntries(els.map((e) => [e.id(), kind(e, stem)]));
   return { links: pairs(cy.edges('.link'), 'also'), terms: pairs(cy.nodes('.term'), 'book') }; }"""
 HOW_DRAWN = """() => { const cy = window.conceptMap.cy;
-  const colour = (name) => { const i = document.createElement('i'); i.style.color = `var(${name})`;
+  const shade = (value) => { const i = document.createElement('i'); i.style.color = value;
     document.body.append(i); const c = getComputedStyle(i).color.replace(/\\s/g, ''); i.remove(); return c; };
-  const has = (el, stem) => el.classes().some((c) => c.startsWith(stem));
-  const bare = (v) => v.replace(/\\s/g, '');
-  const line = (e) => e && { colour: bare(e.style('line-color')), opacity: Number(e.style('line-opacity')),
-    width: parseFloat(e.style('width')) };
-  const ring = (n) => n && { colour: bare(n.style('border-color')), width: parseFloat(n.style('border-width')) };
+  const colour = (name) => shade(`var(${name})`);
+  const line = (e) => e && { colour: shade(e.style('line-color')), opacity: Number(e.style('line-opacity')),
+    width: parseFloat(e.style('width')), shown: Number(e.style('opacity')) };
+  const fam = (n) => n.classes().find((c) => c.startsWith('fam-')).slice(4);
+  const term = (n) => n && { fill: shade(n.style('background-color')), kind: colour(`--map-${fam(n)}`),
+    shown: Number(n.style('opacity')) };
   const links = cy.edges('.link').filter((e) => !e.hasClass('hl') && !e.hasClass('cross'));
   const terms = cy.nodes('.term').filter((n) => !n.hasClass('sel') && !n.hasClass('held'));
-  return { book2: colour('--map-book2'), book3: colour('--map-book3'), fg: colour('--fg'),
-    plain: line(links.filter((e) => !has(e, 'also-'))[0]), first: line(links.filter('.also-0')[0]),
+  const icon = document.querySelector('#legend button[aria-pressed="true"]');
+  return { book2: colour('--map-book2'), book3: colour('--map-book3'), fg: colour('--fg'), muted: colour('--muted'),
+    plain: line(links.filter('.also-own')[0]), first: line(links.filter('.also-0')[0]),
     second: line(links.filter('.also-1')[0]), all: line(links.filter('.also-all')[0]),
-    bare: ring(terms.filter((n) => !has(n, 'book-'))[0]), ringed: ring(terms.filter('.book-0')[0]) }; }"""
+    picked: line(cy.edges('.link.hl.also-own')[0]),
+    alone: term(terms.filter('.book-own')[0]), covered: term(terms.filter('.book-0')[0]),
+    icon: { fill: shade(icon.querySelector('path').getAttribute('fill')),
+      kind: colour(`--map-${icon.dataset.fam}`) } }; }"""
 
 
 def _open_with(context: Any, site: str, which: str) -> tuple[dict[str, Any], Any]:  # noqa: ANN401 - Playwright objects
@@ -934,27 +941,36 @@ def _open_with(context: Any, site: str, which: str) -> tuple[dict[str, Any], Any
     return graph, _open(context, site)
 
 
+def _a_term_of_both(graph: dict[str, Any], links: dict[int, list[str]]) -> tuple[str, int]:
+    """Return a term with a link another textbook states and a link of this book alone, and the first of those links."""
+    for n in graph["nodes"]:
+        mine = [i for i, e in enumerate(graph["edges"]) if n["id"] in (e["source"], e["target"])]
+        if any(links[i] for i in mine) and not all(links[i] for i in mine):
+            return n["id"], next(i for i in mine if links[i])
+    raise AssertionError("no term has both kinds of link")
+
+
 @pytest.mark.parametrize("which", ["as copied", "two others"])
-def test_other_textbooks_colours_their_links_and_rings_their_terms(context, site, which):
+def test_other_textbooks_colour_who_states_a_link_and_who_covers_a_term(context, site, which):
     graph, page = _open_with(context, site, which)
     books, links, terms = _backing(graph)
     assert books, "the graph names the other textbooks read against it"
-    names = [BOOK_NAME[b] for b in books] + ([f"All {len(books) + 1}"] if len(books) > 1 else [])
+    names = ["This book"] + [BOOK_NAME[b] for b in books] + ([f"All {len(books) + 1}"] if len(books) > 1 else [])
     assert page.is_visible("#books")
     assert not page.is_checked("#others"), "the map opens as the book alone"
     assert [t.strip() for t in page.locator("#bookkey button").all_text_contents()] == names
     assert page.locator("#bookkey button:disabled").count() == len(names), "the names wait for the switch"
     backed = page.evaluate(BACKED)
-    assert backed["links"] == {f"l{i}": _drawn_as(books, mine) for i, mine in links.items() if mine}
-    assert backed["terms"] == {i: _drawn_as(books, mine) for i, mine in terms.items() if mine}
+    assert backed["links"] == {f"l{i}": _drawn_as(books, mine) for i, mine in links.items()}
+    assert backed["terms"] == {i: _drawn_as(books, mine) for i, mine in terms.items()}
     # A term with a link another textbook states: its card names the textbooks whether or not they are shown.
-    link = next(i for i, mine in links.items() if mine)
-    term = graph["edges"][link]["source"]
+    term, link = _a_term_of_both(graph, links)
     _go(page, term)
     assert page.text_content("#card .map-backed") == f"Also in {_in_books(terms[term])}"
     off = page.evaluate(HOW_DRAWN)
     assert off["first"]["colour"] == off["plain"]["colour"], "until asked for, every link is drawn alike"
-    assert off["ringed"]["width"] == 0
+    assert off["covered"]["fill"] == off["covered"]["kind"], "and a term has the colour of its kind"
+    assert off["icon"]["fill"] == off["icon"]["kind"], "as its shape has above the map"
     read = """(id) => { window.conceptMap.cy.getElementById(id).emit('mouseover');
       return document.querySelector('#striptext').textContent; }"""
     assert "also in" not in page.evaluate(read, f"l{link}")
@@ -965,8 +981,11 @@ def test_other_textbooks_colours_their_links_and_rings_their_terms(context, site
     assert on["first"]["colour"] == on["book2"], "a link the first of them states, in its colour"
     assert on["first"]["opacity"] > on["plain"]["opacity"], "the links of this book alone step back"
     assert on["first"]["width"] > on["plain"]["width"]
-    assert (on["ringed"]["colour"], on["ringed"]["width"] > 0) == (on["book2"], True), "a ring on a term it also covers"
-    assert on["bare"]["width"] == 0
+    assert on["plain"]["colour"] == on["muted"], "in a neutral"
+    assert on["picked"]["colour"] == on["muted"], "the selected term's too: colour now says who states a link"
+    assert on["covered"]["fill"] == on["book2"], "a term the first of them covers, in its colour"
+    assert on["alone"]["fill"] == on["muted"], "and a term of this book alone in the neutral"
+    assert on["icon"]["fill"] == on["muted"] != on["icon"]["kind"], "the kinds keep their shapes, not their colours"
     if len(books) > 1:
         assert on["second"]["colour"] == on["book3"]
         assert on["all"]["colour"] == on["fg"], "a link every textbook states"
@@ -976,28 +995,32 @@ def test_other_textbooks_colours_their_links_and_rings_their_terms(context, site
 
 
 @pytest.mark.parametrize("which", ["as copied", "two others"])
-def test_a_tap_on_a_textbook_s_name_hides_its_colour_and_the_choices_are_kept(context, site, which):
+def test_a_tap_on_a_name_fades_its_links_and_terms_and_the_choices_are_kept(context, site, which):
     graph, page = _open_with(context, site, which)
-    books, links, _ = _backing(graph)
-    term = graph["edges"][next(i for i, mine in links.items() if mine)]["source"]
-    _go(page, term)
-    page.click("#books .switch")
+    books = list(graph["sources"])
+    page.click("#books .switch")  # no term is selected, so nothing is dimmed for being far from one
     on = page.evaluate(HOW_DRAWN)
+    assert (on["first"]["shown"], on["plain"]["shown"], on["covered"]["shown"]) == (1, 1, 1)
     first = '#bookkey button[data-book="0"]'
     page.click(first)
     assert page.get_attribute(first, "aria-pressed") == "false"
-    hidden = page.evaluate(HOW_DRAWN)
-    assert hidden["first"]["colour"] == hidden["plain"]["colour"], "its links are drawn as this book's own"
-    assert hidden["ringed"]["width"] == 0
+    faded = page.evaluate(HOW_DRAWN)
+    assert faded["first"]["shown"] < 0.2 > faded["covered"]["shown"], "its links and its terms are faded"
+    assert (faded["plain"]["shown"], faded["alone"]["shown"]) == (1, 1), "this book's own are not"
     if len(books) > 1:
-        assert (hidden["second"]["colour"], hidden["all"]["colour"]) == (on["book3"], on["fg"])
+        assert (faded["second"]["colour"], faded["all"]["colour"]) == (on["book3"], on["fg"])
+        assert (faded["second"]["shown"], faded["all"]["shown"]) == (1, 1)
     page.reload()
-    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    page.wait_for_function("() => window.conceptMap && window.conceptMap.cy.edges('.link').length")
     assert page.is_checked("#others")
     assert page.get_attribute(first, "aria-pressed") == "false"
+    assert page.evaluate(HOW_DRAWN)["first"]["shown"] < 0.2, "a reload keeps both choices"
     page.click(first)
-    _go(page, term)
-    assert page.evaluate(HOW_DRAWN)["first"]["colour"] == on["book2"], "and a second tap shows it again"
+    assert page.evaluate(HOW_DRAWN)["first"]["shown"] == 1, "and a second tap shows them again"
+    page.click('#bookkey button[data-book="own"]')
+    alone = page.evaluate(HOW_DRAWN)
+    assert alone["plain"]["shown"] < 0.2, "this book's own links can be faded too, leaving what the others also state"
+    assert alone["first"]["shown"] == 1
 
 
 @pytest.mark.parametrize(
@@ -1021,4 +1044,4 @@ def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(cont
     assert rows["key"]["right"] <= rows["width"] - 16 + 0.5, "the row ends inside the page's side margin"
     assert rows["scroll"] == rows["width"], "and the page does not scroll sideways"
     if rows["width"] >= 360:  # a narrower phone wraps the row, as it does the kinds
-        assert max(rows["middles"]) - min(rows["middles"]) < 3, "the switch and the three names on one line"
+        assert max(rows["middles"]) - min(rows["middles"]) < 3, "the switch and the four names on one line"
