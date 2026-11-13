@@ -9,7 +9,7 @@ import { STOP_AFTER, pythonLine } from "../../../web/worker-rpc.js";
 /** A line to stand-in workers: what each was sent, what the hooks were told, and a clock moved by hand. */
 function line() {
   const workers = [];
-  const told = { status: [], stoppable: [], refusals: [], crashes: [], stopped: 0 };
+  const told = { status: [], stoppable: [], refusals: [], crashes: [], stopped: 0, warm: [] };
   const clock = { now: 0, timers: [] };
   const python = pythonLine({
     make() {
@@ -22,6 +22,7 @@ function line() {
     onRefusal: (fn, error) => told.refusals.push([fn, error]),
     onCrash: (message) => told.crashes.push(message),
     onStopped: () => (told.stopped += 1),
+    onWarm: (runtime) => told.warm.push(runtime),
     now: () => clock.now,
     setTimer: (run, wait) => clock.timers.push({ run, at: clock.now + wait }) - 1,
     clearTimer: (id) => id !== null && (clock.timers[id] = null),
@@ -135,6 +136,24 @@ describe("the line to Python", () => {
     assert.deepEqual(await python.call("api_make_design"), { ok: false, error: "Could not start Python: offline", warnings: [] });
     assert.equal(workers[0].sent.length, 1, "nothing more is posted");
     assert.equal(python.stop(), false);
+  });
+
+  test("what a model is fitted with coming in, or not, is told to the page, and is no reply to a call", async () => {
+    const { python, workers, told, reply } = line();
+    const asked = python.call("api_analyze_runs");
+    const runtime = { python: "3.14.2", packages: { statsmodels: "0.14.6" }, pyodide: "314.0.7" };
+    workers[0].onmessage({ data: { warmed: runtime } });
+    workers[0].onmessage({ data: { warmed: false } });
+    assert.deepEqual(told.warm, [runtime, false]);
+    assert.equal(workers[0].sent.length, 1, "the call still waits for its own reply");
+    reply(workers[0], 0, { ok: true, result: {}, warnings: [] });
+    assert.equal((await asked).ok, true);
+  });
+
+  test("a page that asks nothing of it hears a worker warm up without a hook for it", () => {
+    const worker = { postMessage() {}, terminate() {} };
+    pythonLine({ make: () => worker, onStatus() {}, onStoppable() {}, onRefusal() {}, onCrash() {}, onStopped() {} });
+    assert.doesNotThrow(() => worker.onmessage({ data: { warmed: false } }));
   });
 
   test("a worker that did not load is told to the page", () => {

@@ -383,12 +383,16 @@ def test_a_build_that_cannot_resolve_them_goes_on_without_and_says_so(build_scri
     assert "note: built without the exact files of the packages installed on demand" in capsys.readouterr().out
 
 
-def test_the_build_resolves_what_the_worker_installs_on_demand_at_the_pins_the_page_has(build_script):
-    block = re.search(r"const onDemand = .*?\n\}\);", source("worker.js"), re.DOTALL)
-    assert block, "the worker's table of what it installs on demand"
-    pins = build_script.on_demand_pins("7.1.0")
-    assert set(re.findall(r"^  (\w+): \{", block[0], re.MULTILINE)) == set(pins)
-    assert pins == {"openpyxl": json.loads(source("runtime.json"))["micropip"], "plotly": ["plotly==7.1.0"]}
+def test_the_build_resolves_what_the_worker_installs_from_pypi_at_the_pins_the_page_has(build_script, node):
+    """The worker's table (``onDemand`` in web/python-boot.js) holds a package's pins where PyPI has the package."""
+    runtime = json.loads(source("runtime.json"))
+    (table,) = javascript(node, source("python-boot.js"), [("onDemand", [runtime, {"plotly": "7.1.0"}])])
+    from_pypi = {name: entry["pins"] for name, entry in table.items() if "pins" in entry}
+    assert from_pypi == build_script.on_demand_pins("7.1.0")
+    assert from_pypi == {"openpyxl": runtime["micropip"], "plotly": ["plotly==7.1.0"]}
+    # What a model is fitted with is of the Pyodide release, whose folder holds its files: nothing to resolve.
+    fitted_with = [entry["exact"] for entry in table.values() if "pins" not in entry]
+    assert fitted_with == [{"packages": runtime["fitting"], "wheels": []}] * 4
 
 
 def test_the_manifest_holds_the_exact_files_the_build_resolved(build_script, tmp_path, monkeypatch):

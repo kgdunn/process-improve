@@ -17,9 +17,11 @@ export const STOP_AFTER = 2500;
  * ``onStatus(text, state)`` for a note from the worker on how far it has got; ``onStoppable(offered)`` when a call
  * has waited STOP_AFTER, or none waits any more; ``onRefusal(fn, error)`` for a call Python refused;
  * ``onCrash(message)`` when the worker itself did not load or run; ``onStopped()`` once a worker is ended, before
- * its calls are answered. ``now``, ``setTimer`` and ``clearTimer`` are the clock, for a test to hold.
+ * its calls are answered; ``onWarm(runtime)`` when a worker has what a model is fitted with, which start-up leaves
+ * out: ``runtime`` is what Python then runs on, or false if the worker could not get it unasked. ``now``,
+ * ``setTimer`` and ``clearTimer`` are the clock, for a test to hold.
  */
-export function pythonLine({ make, onStatus, onStoppable, onRefusal, onCrash, onStopped, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function pythonLine({ make, onStatus, onStoppable, onRefusal, onCrash, onStopped, onWarm = () => {}, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   let nextId = 0;
   const pending = new Map(); // each call waiting for its reply, by its id: the entry point, who waits, and since when
   let failure = null; // why Python cannot answer, once it cannot: every call is then answered with it
@@ -45,6 +47,10 @@ export function pythonLine({ make, onStatus, onStoppable, onRefusal, onCrash, on
       if (data.status) {
         if (data.state === "ok") made.started = true; // it says it is ready: a call it has now can be stopped
         onStatus(data.status, data.state);
+        return;
+      }
+      if ("warmed" in data) {
+        onWarm(data.warmed);
         return;
       }
       const waiting = pending.get(data.id);

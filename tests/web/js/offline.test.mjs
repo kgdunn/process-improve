@@ -27,7 +27,7 @@ const lock = {
     unused: { file_name: "unused.whl", depends: [] },
   },
 };
-const runtime = { pyodide: "314.0.7", distribution: "pyc", packages: ["pandas"], micropip: ["openpyxl==3.1.5", "et-xmlfile==2.0.0"] };
+const runtime = { pyodide: "314.0.7", distribution: "pyc", packages: ["pandas"], fitting: ["scikit-learn"], micropip: ["openpyxl==3.1.5", "et-xmlfile==2.0.0"] };
 const FOLDER = "0123456789abcdef";
 const manifest = {
   wheel: `${FOLDER}/process_improve-2.5.0-py3-none-any.whl`,
@@ -55,10 +55,11 @@ describe("the files the copy is made of", () => {
     assert.throws(() => pyodideFiles(lock, ["pandas", "polars"]), /no package polars/);
   });
 
-  test("Python starts from the release with its start-up packages, the wheel and the page's own Python", () => {
+  test("Python starts from, and fits a model with, the release's packages, the wheel and the page's own Python", () => {
     assert.deepEqual(START.slice(0, 5), ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"].map((file) => RELEASE + file));
     assert.deepEqual(START.slice(5).sort(), [
-      ...["dateutil.whl", "numpy.whl", "pandas.whl", "six.whl"].map((file) => RELEASE + file),
+      // sklearn.whl is what a model is fitted with: start-up leaves it out, and a page with no network fits with it
+      ...["dateutil.whl", "numpy.whl", "pandas.whl", "six.whl", "sklearn.whl"].map((file) => RELEASE + file),
       `${SCOPE}wheels/${FOLDER}/bootstrap.zip`,
       `${SCOPE}wheels/${FOLDER}/process_improve-2.5.0-py3-none-any.whl`,
     ]);

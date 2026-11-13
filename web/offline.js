@@ -4,11 +4,12 @@
 // the copy holds: it makes the copy, drops what earlier builds left in it, says in the page's footer what is kept,
 // and removes it.
 //
-// 1. Once Python has started, the worker is registered and what this visit loaded is copied: the page's own files,
-//    the Pyodide release with its packages, the wheel. The browser has just fetched them all, so the copy costs no
-//    download. The worker serves a page from its next visit on, never one that is open: a first visit starts
-//    Python and makes its copy with no worker in its way, and from the next visit on the worker keeps the copy up
-//    with each build as its files pass. A browser that registers no worker is asked to keep nothing.
+// 1. Once Python has started, and has fetched what a model is fitted with, the worker is registered and what this
+//    visit loaded is copied: the page's own files, the Pyodide release with its packages, the wheel. The browser
+//    has just fetched them all, so the copy costs no download. The worker serves a page from its next visit on,
+//    never one that is open: a first visit starts Python and makes its copy with no worker in its way, and from
+//    the next visit on the worker keeps the copy up with each build as its files pass. A browser that registers
+//    no worker is asked to keep nothing.
 // 2. Charts and workbooks need plotly, openpyxl and Plotly.js, which start-up leaves out. A reader who wants the
 //    whole page without a network asks for them with the button; a reader who never asks downloads none of it
 //    until a chart or a workbook is first made.
@@ -64,10 +65,16 @@ export function pyodideFiles(lock, packages) {
   return ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json", ...wheels.values()];
 }
 
-/** The files Python starts from: the Pyodide release with the packages start-up loads, the wheel, the page's Python. */
+/** The packages of the Pyodide release every visit loads: those Python starts with, and those a model is fitted with. */
+const loaded = (runtime) => [...runtime.packages, ...runtime.fitting];
+
+/**
+ * The files Python starts from and fits a model with: the Pyodide release with the packages every visit loads, the
+ * wheel, the page's Python. A page that opens without a network designs and analyses there.
+ */
 export function startFiles({ scope, lock, runtime, manifest }) {
   const python = [manifest.wheel, manifest.glue].filter(Boolean).map((file) => `${scope}wheels/${file}`);
-  return [...pyodideFiles(lock, runtime.packages).map((file) => pyodideAt(runtime) + file), ...python];
+  return [...pyodideFiles(lock, loaded(runtime)).map((file) => pyodideAt(runtime) + file), ...python];
 }
 
 /**
@@ -79,7 +86,7 @@ export function startFiles({ scope, lock, runtime, manifest }) {
 export function laterFiles({ lock, runtime, manifest }) {
   if (!manifest.on_demand || !manifest.plotly_js) return null;
   const groups = Object.values(manifest.on_demand);
-  const started = new Set(pyodideFiles(lock, runtime.packages));
+  const started = new Set(pyodideFiles(lock, loaded(runtime)));
   const packages = pyodideFiles(lock, groups.flatMap((group) => group.packages)).filter((file) => !started.has(file));
   return [
     ...packages.map((file) => pyodideAt(runtime) + file),
@@ -227,8 +234,9 @@ const read = async (address, options) => (await fetch(address, options)).json();
  * Keep the copy and have the service worker serve it, saying in `box` what is kept.
  *
  * `manifest` is the build's wheels/manifest.json, or {} for a plain preview of web/, which keeps no copy: its
- * files change under the reader's hands. `started` resolves once Python has. `box` holds the words and the two
- * buttons, and takes the keyboard when a button pressed goes.
+ * files change under the reader's hands. `started` resolves once Python has started and has fetched what a model
+ * is fitted with, and rejects if it cannot start. `box` holds the words and the two buttons, and takes the keyboard
+ * when a button pressed goes.
  */
 export async function installOffline({ manifest, started, box }) {
   if (!globalThis.navigator?.serviceWorker || !globalThis.caches || !manifest.wheel) return;
@@ -254,7 +262,7 @@ export async function installOffline({ manifest, started, box }) {
     if (within) [keep, remove, box].find((part) => !part.hidden).focus();
   };
 
-  /** The files of this build's copy, listed once Python has started: the browser then has each of them at hand. */
+  /** The files of this build's copy, listed once Python has them all: the browser then has each of them at hand. */
   async function listed() {
     await started;
     const runtime = await read("runtime.json", { cache: "no-store" });

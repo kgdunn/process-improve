@@ -220,7 +220,7 @@ uv run python scripts/build_web_app.py --out site --serve</code></pre>
   const [runtime, built] = await Promise.all([read("runtime.json"), read("wheels/manifest.json")]);
   if (runtime) {
     put("stack-pyodide", `Pyodide ${runtime.pyodide}`);
-    put("stack-packages", runtime.packages.join(", "));
+    put("stack-packages", [...runtime.packages, ...runtime.fitting].join(", "));
     put("stack-pypi", [...runtime.micropip, ...(built?.plotly ? [`plotly==${built.plotly}`] : ["plotly"])].join(", "));
   }
   const wheel = built?.wheel?.match(/process_improve-([^-]+)-/)?.[1];

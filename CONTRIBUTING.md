@@ -250,9 +250,11 @@ When you change the app, the tests move with it:
 - A new package the page loads into Pyodide: in `web/runtime.json` only, which
   `web/python-boot.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
-  A package that only some calls need stays out of start-up: the call imports it with
-  `_installed(...)` in `bootstrap.py`, and `onDemand` in `web/worker.js` says what to
-  install when a call first lacks it (`tests/web/api/test_on_demand.py`).
+  A package that only some calls need stays out of start-up: the name it is imported by
+  goes in `ON_DEMAND` in `bootstrap.py`, and `onDemand` in `web/python-boot.js` says what to
+  install when a call first lacks it (`tests/web/api/test_on_demand.py`). A call that stops
+  on the missing import is answered with `needs`, wherever the import is; the worker installs
+  the package and makes the call again.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new example the book links to (`https://factori.al/?book=<name>`): an entry in
@@ -261,16 +263,22 @@ When you change the app, the tests move with it:
   printed in the book, so keep it once published: the book checks every name it uses
   against `book/index.json` on factori.al.
 
-The page starts Python in a worker (`web/python-boot.js`), and three choices keep that
+The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
 start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode
 already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,
 for the Python `web/runtime.json` names: uv fetches that interpreter, and a build that
 cannot get it still works, starts more slowly, and fails the smoke tests, so it is not
 deployed. openpyxl and plotly are installed when a call first needs them, from the exact
 files the build resolved for them (`on_demand` in its manifest: PyPI is asked once, as the
-build runs), so the page asks no package index and every visit installs the same files. A
-change to any of the three is measured, not assumed: time the start in a browser before and
-after.
+build runs), so the page asks no package index and every visit installs the same files.
+statsmodels and scikit-learn, which a model is fitted with, are left out of the start too
+(`fitting` in `web/runtime.json`): the page is ready once a design can be made, the worker
+fetches the two in the background as soon as it is, and a fit that comes sooner waits for
+that same install. So no step of designing may import either one. A step that did would not
+fail on the page, it would wait, and only a test sees that:
+`tests/web/api/test_browser_safe.py` runs a visit that ends with a run sheet with both
+refused. A change to any of the four is measured, not assumed: time the start in a browser
+before and after.
 
 A copy of the built app is kept in the reader's browser, so it opens without a network.
 `web/offline.js` makes the copy from the build's own lists of files, drops what earlier
@@ -450,6 +458,19 @@ estimator's public surface updates that file in the same change:
   docstring gives the source's label with its citation. A retired name is not
   reused for something else: a caller still reading it would get other
   numbers with no error.
+
+## Adding a public name to the experiments package
+
+`process_improve.experiments` imports each public name from its module when the name is
+first asked for (PEP 562), not when the package is imported, and `process_improve` does the
+same for the five names it offers. Making a design then loads neither statsmodels nor
+scikit-learn, which only a fit needs, and the browser app is ready before either is
+fetched. A new public name goes in three places in `experiments/__init__.py`: the import
+under `TYPE_CHECKING`, for a type checker; `_WHERE`, which is what runs; and `__all__`.
+`tests/test_lazy_imports.py` fails until the three agree, and fails if making a design
+starts to load either package. A module that a design needs imports neither at its top:
+what both it and the fitting code share lives in a module of its own, as the formula
+checks do in `experiments/_formula.py`.
 
 ## Adding new methods to PCA / PLS
 

@@ -4,9 +4,11 @@
 //                   [<the build's manifest>]
 //
 // It starts Python as the page's worker does (web/python-boot.js and web/worker.js): the Pyodide release with the
-// packages web/runtime.json names, from the folder of the release it names; the wheel with deps=False; then the
-// page's Python, imported as the module bootstrap. A call that says it lacks a package start-up leaves out has the
-// package installed and is made again. It prints {"ready": <process-improve version>, "python": <its version>,
+// packages web/runtime.json names for the start, from the folder of the release it names; the wheel with
+// deps=False; then the page's Python, imported as the module bootstrap. A call that says it lacks a package
+// start-up leaves out has the package installed, by the worker's own table of them, and is made again: what a
+// model is fitted with, too, which the worker fetches unasked once the page is ready and this runner does not.
+// It prints {"ready": <process-improve version>, "python": <its version>,
 // "bytecode": <whether the wheel and the page's Python were loaded from the build's bytecode>}, then answers each
 // line on stdin, {"fn", "payload"}, with the JSON text the entry point returns, on one line; an exception comes
 // back as worker.js sends one, {"ok": false, "error"}. What Pyodide and Python print goes to stderr, so stdout
@@ -19,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // The worker's own way of installing a package and of answering a call that lacks one.
 const boot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../web/python-boot.js");
-const { answer, install, installExact } = await import(pathToFileURL(boot).href);
+const { answer, install, onDemand, provider } = await import(pathToFileURL(boot).href);
 
 const [pyodideDir, runtimePath, wheelPath, gluePath, manifestPath] = process.argv.slice(2);
 const runtime = JSON.parse(fs.readFileSync(runtimePath, "utf8"));
@@ -51,17 +53,12 @@ else pyodide.FS.writeFile(`${site}/bootstrap.py`, packed);
 pyodide.runPython("import importlib; importlib.invalidate_caches()");
 const glue = pyodide.pyimport("bootstrap");
 
-// What the page's worker installs when a call first needs it, as it installs it (onDemand and provide in
-// web/worker.js): the exact files the build resolved, or else the pins, through the package index. `installed`
-// lists the packages as they are asked for, so a test can see what a call needed.
-const onDemand = { openpyxl: runtime.micropip, plotly: [manifest.plotly ? `plotly==${manifest.plotly}` : "plotly"] };
-const installed = [];
-async function provide(name) {
-  if (!onDemand[name]) throw new Error(`Python needs ${name}, which the page does not install.`);
-  const exact = manifest.on_demand?.[name];
-  await (exact ? installExact(pyodide, exact) : install(pyodide, onDemand[name]));
-  installed.push(name);
-}
+// What the page's worker installs when a call first needs it, as it installs it (onDemand and provider in
+// web/python-boot.js): the exact files the build resolved, or else the pins, through the package index. `asked`
+// lists the modules as Python says it lacks them, so a test can see what a call needed.
+const provide = provider(pyodide, glue, onDemand(runtime, manifest), aside);
+const asked = [];
+const providing = (name) => (asked.push(name), provide(name));
 
 // Whether a module was loaded from bytecode the build made: its header is this Python's, and says the bytecode
 // is never checked against its source (PEP 552), as the build writes it.
@@ -88,8 +85,8 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   const { fn, payload } = JSON.parse(line);
   let reply;
   try {
-    // "installed" is the runner's own question: the packages it has installed for the calls so far.
-    reply = fn === "installed" ? JSON.stringify(installed) : await answer(glue[fn], payload, provide);
+    // "installed" is the runner's own question: the modules it has installed something for, for the calls so far.
+    reply = fn === "installed" ? JSON.stringify([...new Set(asked)]) : await answer(glue[fn], payload, providing);
   } catch (err) {
     reply = JSON.stringify({ ok: false, error: String(err.message || err) });
   }

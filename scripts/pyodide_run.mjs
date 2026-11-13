@@ -38,7 +38,7 @@ const pyodide = await loadPyodide({
   packageCacheDir: folder,
   packageBaseUrl: `https://cdn.jsdelivr.net/pyodide/v${runtime.pyodide}/${runtime.distribution}/`,
 });
-await pyodide.loadPackage([...runtime.packages, "pytest"], { messageCallback: () => {} });
+await pyodide.loadPackage([...runtime.packages, ...runtime.fitting, "pytest"], { messageCallback: () => {} });
 pyodide.FS.mkdirTree("/repo");
 pyodide.FS.mount(pyodide.FS.filesystems.NODEFS, { root: repo }, "/repo");
 const wheel = path.basename(wheelPath);

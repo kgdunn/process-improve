@@ -103,7 +103,7 @@ def distribution(runtime: dict, npm: Path | None = None) -> Path:
     _kept(folder / "pyodide-lock.json", f"{cdn}pyodide-lock.json", lambda path: _info(path) == interpreter)
     _kept(folder / "python_stdlib.zip", f"{cdn}python_stdlib.zip", _is_zip)
     lock = json.loads((folder / "pyodide-lock.json").read_text(encoding="utf-8"))
-    for entry in needed(lock, runtime["packages"]):
+    for entry in needed(lock, [*runtime["packages"], *runtime["fitting"]]):
         digest = entry["sha256"]
         _kept(
             folder / entry["file_name"],

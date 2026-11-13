@@ -380,6 +380,11 @@ const python = pythonLine({
   onRefusal: (fn, error) => (pythonErrors = keepError(pythonErrors, `${fn}: ${error}`)),
   onCrash: (message) => pythonFailed(`Could not start Python: ${message || "worker.js did not load"}`),
   onStopped: () => setStatus("Stopped. Python is starting again...", "busy"),
+  // What a model is fitted with came after the start, so the catalogue named what Python ran on without it.
+  onWarm(runtime) {
+    if (runtime) state.runtime = runtime;
+    resolveWarm();
+  },
 });
 
 /** Call a Python ``api_*`` function; resolves to its decoded {ok, result|error, warnings}. */
@@ -528,6 +533,14 @@ const whenReady = new Promise((resolve, reject) => {
   rejectReady = reject;
 });
 whenReady.catch(() => {}); // a failure is shown in the status line, whoever waits for it
+let resolveWarm;
+/**
+ * Resolves once the worker has what a model is fitted with, or says it could not get it: start-up leaves that out,
+ * and the worker fetches it once the page is ready (worker.js).
+ */
+const whenWarm = new Promise((resolve) => {
+  resolveWarm = resolve;
+});
 
 /** The runs as the Python side expects them back. */
 const held = () => ({ spec: state.design.spec, columns: state.design.columns, rows: state.design.rows });
@@ -6817,10 +6830,11 @@ showScenarioHint();
 refreshDesign();
 renderStudyBar();
 // The build's manifest names the Plotly.js the charts are drawn with, and says whether a copy of the page is kept
-// on this device for use without a network: one is, of a built app, once Python has started.
-readManifest().then((manifest) =>
-  installOffline({ manifest, started: whenReady, box: $("#offline") }),
-);
+// on this device for use without a network: one is, of a built app, once Python has started and the worker has
+// fetched what a model is fitted with. The browser then has every file of the copy at hand.
+const whenLoaded = Promise.all([whenReady, whenWarm]);
+whenLoaded.catch(() => {}); // Python did not start: the status line says so
+readManifest().then((manifest) => installOffline({ manifest, started: whenLoaded, box: $("#offline") }));
 start();
 loadFields();
 

@@ -80,7 +80,7 @@ class Runner:
 
     def __getattr__(self, fn: str) -> Callable[[str], str]:
         """Return a call to ``fn`` under Pyodide, taking and returning JSON text as the page's worker does."""
-        if not fn.startswith("api_"):
+        if not fn.startswith("api_") and fn != "warm":  # the page's entry points, and the worker's own warm-up
             raise AttributeError(fn)
 
         def call(payload: str) -> str:

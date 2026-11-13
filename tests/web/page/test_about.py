@@ -38,13 +38,20 @@ def test_every_link_into_the_repository_names_a_path_that_exists():
 
 
 def test_each_function_it_says_python_answers_with_is_one_bootstrap_calls():
-    """The worker's functions, a study of one factor's tests among them, are each imported by ``web/bootstrap.py``."""
+    """The worker's functions, a study of one factor's tests among them, are each one ``web/bootstrap.py`` uses.
+
+    It imports most by name. Those that fit a model it takes from the experiments package as it calls them
+    (``doe.analyze_experiment``): imported by name they would load statsmodels as the page starts.
+    """
     bullet = re.search(r"<li><strong>A Web Worker runs Python\.</strong>(.+?)</li>", about())[1]
     named = set(re.findall(r"<code>(\w+)</code>", bullet))
     assert {"analyze_experiment", "bartlett_test", "kruskal_wallis_test"} <= named
-    tree = ast.parse(source("bootstrap.py"))
-    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
-    assert named <= imported, named - imported
+    nodes = list(ast.walk(ast.parse(source("bootstrap.py"))))
+    imported = {alias.name for node in nodes if isinstance(node, ast.ImportFrom) for alias in node.names}
+    attributes = [node for node in nodes if isinstance(node, ast.Attribute)]
+    of_the_package = {node.attr for node in attributes if ast.unparse(node.value) == "doe"}
+    assert {"analyze_experiment", "analyze_functional_experiment"} <= of_the_package
+    assert named <= imported | of_the_package, named - imported - of_the_package
 
 
 def test_what_it_says_the_server_keeps_is_what_the_server_is_configured_to_keep():
@@ -98,7 +105,8 @@ def test_the_addresses_it_says_to_change_for_a_closed_network_are_in_the_files_i
     assert "cdn.jsdelivr.net/pyodide" in source("python-boot.js")
     assert "cdn.jsdelivr.net/npm/plotly.js" in source("charts.js")
     # The worker installs what the manifest lists under on_demand, from the addresses it gives.
-    assert "python.manifest.on_demand?.[name]" in source("worker.js")
+    assert "exact: manifest.on_demand?.openpyxl" in source("python-boot.js")
+    assert "exact: manifest.on_demand?.plotly" in source("python-boot.js")
     assert '"on_demand": exact_files(' in source_of("scripts/build_web_app.py")
     for file in ("offline.js", "sw.js"):  # the copy for use without a network reads the first two addresses there
         assert f"<code>web/{file}</code>" in text

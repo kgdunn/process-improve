@@ -71,16 +71,28 @@ def test_the_app_s_own_python_is_loaded_from_the_bytecode_the_build_made(pyodide
     assert pyodide.module.bytecode == {"wheel": True, "glue": True}
 
 
-def test_a_design_and_its_analysis_install_nothing_and_a_workbook_installs_openpyxl(pyodide):
-    """Start-up leaves openpyxl out: a visit that makes a run sheet and analyses it never downloads it."""
+def test_a_design_installs_nothing_its_analysis_what_a_model_is_fitted_with_and_a_workbook_openpyxl(pyodide):
+    """Start-up leaves all three out: each comes when a call first lacks it, and the call is made again."""
     before = pyodide.module.installed()
     design = pyodide.ok("api_make_design", {"design_type": "full_factorial", "factors": factors_named(*"ABC")})
+    assert pyodide.ok("api_candidates", {"factors": factors_named(*"ABC"), "model": "interactions"})["made"]
+    assert pyodide.module.installed() == before, "a design, and the comparison of designs, with what Python starts with"
     request = {**held_of(design), "responses": known(run_sheet(design)).tolist()}
-    assert pyodide.ok("api_analyze_runs", request)["coefficients"]
+    assert pyodide.ok("api_analyze_runs", request)["coefficients"], "made again once what it lacked was installed"
     pyodide.ok("api_best_settings", {**request, "goal": "maximize"})
-    assert pyodide.module.installed() == before
+    fitted = pyodide.module.installed()
+    assert {"statsmodels", "sklearn"} & set(fitted), "the first fit asked for what a model is fitted with"
+    assert "openpyxl" in before or "openpyxl" not in fitted, "and for nothing a workbook needs"
     assert workbook_of(pyodide, design), "the call that lacked openpyxl is made again once it is installed"
     assert "openpyxl" in pyodide.module.installed()
+
+
+def test_the_worker_s_warm_up_names_statsmodels_among_what_the_page_runs_on(pyodide):
+    """The catalogue may come before statsmodels is in; the warm-up, which the worker makes once it is, names it."""
+    warmed = pyodide.ok("warm")
+    assert set(warmed["packages"]) == {"numpy", "pandas", "scipy", "statsmodels"}
+    assert warmed["pyodide"] == RUNTIME["pyodide"]
+    assert pyodide.ok("api_catalogue")["runtime"] == warmed, "and from then on the catalogue says the same"
 
 
 @pytest.mark.parametrize(("design_type", "k"), CASES)

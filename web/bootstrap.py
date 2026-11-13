@@ -25,6 +25,8 @@ import base64
 import contextlib
 import functools
 import importlib
+import importlib.abc
+import importlib.util
 import io
 import itertools
 import json
@@ -44,13 +46,12 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t as t_distribution
 
+from process_improve import experiments as doe
 from process_improve.experiments import (
     DesignRegion,
     Factor,
     NotSeparableError,
     TrueProcess,
-    analyze_experiment,
-    analyze_functional_experiment,
     augment_design,
     compare_designs,
     constraint_through_cuts,
@@ -61,7 +62,7 @@ from process_improve.experiments import (
     signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
-from process_improve.experiments._lm import suggest_identifier
+from process_improve.experiments._formula import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
@@ -695,22 +696,72 @@ def _clean(value: object) -> object:
     return value
 
 
-class _Needs(Exception):  # noqa: N818 - a request to the worker, not an error for the reader
-    """A call needs a package that start-up leaves out: the worker installs it, then makes the call again."""
+#: The packages start-up leaves out, by the name each is imported by: what a workbook and a chart are made with, and
+#: what a model is fitted with, statsmodels and scikit-learn and the two packages only they bring with them. A visit
+#: that makes a run sheet and no more waits for none of them. The worker installs each when a call first lacks it
+#: (``onDemand`` in ``web/python-boot.js``), and what a model is fitted with as soon as the page is ready
+#: (``web/worker.js``).
+ON_DEMAND = ("openpyxl", "plotly", "statsmodels", "sklearn", "joblib", "threadpoolctl")
+
+
+def _absent(package: str) -> bool:
+    """Say whether a package cannot be imported as Python now stands."""
+    try:
+        return importlib.util.find_spec(package) is None
+    except ImportError:  # a finder may say so itself, as Pyodide's does of a package of its release
+        return True
+
+
+class _NotYet(importlib.abc.MetaPathFinder):
+    """Refuse a package of :data:`ON_DEMAND` until the worker says it is in.
+
+    A package's files are in place before it can be imported: the browser unpacks it, then loads its compiled
+    modules one at a time, and other calls are answered in between. An import in that gap finds the files, fails
+    on a module half loaded, and leaves the package broken for the rest of the visit. So a package that is absent
+    as this file is imported is refused, as one that is not there, until the worker has finished installing it
+    (:func:`installed`). A call that imports it sooner is answered with ``needs``, like any other that lacks it:
+    the worker waits for its own install, and makes the call again. Where every package is there from the start,
+    as under the tests' own Python, nothing is refused.
+    """
+
+    def __init__(self, packages: Iterable[str]) -> None:
+        self.waiting = {package for package in packages if _absent(package)}
+
+    def find_spec(self, fullname: str, path: object = None, target: object = None) -> None:  # noqa: ARG002
+        """Raise, as Python does for a module that is not there, for any module of a package still waited for."""
+        if fullname.partition(".")[0] in self.waiting:
+            raise ModuleNotFoundError(f"No module named {fullname!r}", name=fullname)
+
+
+_NOT_YET = _NotYet(ON_DEMAND)
+sys.meta_path.insert(0, _NOT_YET)
+
+
+def installed(packages: str) -> None:
+    """Take the worker's word that these packages are in, each by the name it is imported by, as a JSON list."""
+    _NOT_YET.waiting.difference_update(json.loads(packages))
+
+
+def _lacking(error: BaseException) -> str | None:
+    """Name the package of :data:`ON_DEMAND` that a call stopped for want of; None for any other error.
+
+    Python raises the same error wherever the import is: in this file, or in a module of the library that is
+    imported when a call first needs it. A package that is there, while something it imports is not, is an error
+    like any other: the worker has nothing to install for it.
+    """
+    if not isinstance(error, ModuleNotFoundError):
+        return None
+    package = (error.name or "").partition(".")[0]
+    return package if package in ON_DEMAND else None
 
 
 def _installed(package: str) -> ModuleType:
-    """Import a package the page installs when a call first needs it: openpyxl for a workbook, plotly for a chart.
+    """Import a package of :data:`ON_DEMAND` before code that needs it but would not say so in Python's own way.
 
-    Start-up leaves them out (``onDemand`` in ``web/worker.js``), so a visit that makes a run sheet and no more
-    never downloads them. A call that finds one missing ends here, with :class:`_Needs`.
+    pandas, for one, reports a missing openpyxl in words of its own, and the library draws no chart without plotly.
+    Imported here first, a missing package ends the call as :func:`_lacking` reads it.
     """
-    try:
-        return importlib.import_module(package)
-    except ModuleNotFoundError as missing:
-        if missing.name != package:
-            raise  # the package is there, and something it imports is not: an error like any other
-        raise _Needs(package) from None
+    return importlib.import_module(package)
 
 
 def _reply(fn: Callable[[dict], dict], payload: str) -> str:
@@ -719,17 +770,17 @@ def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     Whatever the library warned about during the call travels with the reply as
     ``warnings``, so the page can show it rather than leave it in the console. An error
     nothing here expected comes back in one line, its type and message: the page shows
-    the error as it is, and a traceback is no sentence for a reader. A call that needs a package start-up leaves
+    the error as it is, and a traceback is no sentence for a reader. A call that lacks a package start-up leaves
     out says so in ``needs``, for the worker and not for the reader: it installs the package and calls again.
     """
     with _listening() as heard:
         try:
             reply: dict[str, Any] = {"ok": True, "result": _clean(fn(_request(payload)))}
-        except _Needs as lacking:
-            return json.dumps({"ok": False, "needs": str(lacking)})
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
+            if needs := _lacking(exc):
+                return json.dumps({"ok": False, "needs": needs})
             reply = {"ok": False, "error": f"Python stopped with {type(exc).__name__}: {exc}"}
     reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
     return json.dumps(reply)
@@ -2870,7 +2921,7 @@ def _diagnostics(
     with warnings.catch_warnings():
         # Its tests of the residuals as a whole, which the page does not show, warn when the runs are few.
         warnings.simplefilter("ignore")
-        found = analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
+        found = doe.analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
     found = found["residual_diagnostics"]
 
     def finite(value: float | None) -> float | None:
@@ -3079,7 +3130,7 @@ def _box_cox_hint(coded: pd.DataFrame, raw: pd.Series, fit: dict, transform: str
         return None
     try:
         with _listening():
-            found = analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
+            found = doe.analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
     except (ValueError, np.linalg.LinAlgError):
         return None
     found = found.get("box_cox") or {}
@@ -3690,7 +3741,8 @@ def _mixture_analysis(
 def _mixture_fit(blends: pd.DataFrame, y: pd.Series, model: str, analyses: list[str] | None = None) -> dict:
     """Fit a Scheffé model to blends, refusing one the runs cannot estimate in full."""
     with _listening() as heard:
-        out = analyze_experiment(blends, y, model=model, analysis_type=analyses or MIXTURE_ANALYSES, coding="actual")
+        wanted = analyses or MIXTURE_ANALYSES
+        out = doe.analyze_experiment(blends, y, model=model, analysis_type=wanted, coding="actual")
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
@@ -3756,7 +3808,7 @@ def _fit_estimable(
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
-        out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+        out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     chains: dict[str, list[str]] = {}
     labels: dict[str, str] = {}
     not_estimable: list[str] = []
@@ -3770,7 +3822,7 @@ def _fit_estimable(
         kept = [term for term in _fitted_terms(out, names) if term not in dropped]
         if dropped and kept:
             formula = _formula(kept, names, blocked=blocked)
-            out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+            out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     else:
         _relay(heard)
     summary = out["model_summary"]
@@ -3897,7 +3949,7 @@ def _saturated(
                 "be tested. Add runs, or fit fewer terms."
             )
         ]
-    lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+    lenth = doe.analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
     lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
     notes = [
         (
@@ -4627,7 +4679,7 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
     """
     mean = TrueProcess(truth, sigma=1.0).mean(coded)
     with _listening():
-        noiseless = analyze_experiment(
+        noiseless = doe.analyze_experiment(
             coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients", coding="actual"
         )
     # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
@@ -5228,7 +5280,7 @@ def plots(request: dict) -> dict:
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
         fit = _fit_estimable(coded, y, fitted, columns, categorical)
-        out = analyze_experiment(
+        out = doe.analyze_experiment(
             coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
         )
     rows = coded.assign(**{response: y}).to_dict("records")
@@ -5259,7 +5311,7 @@ def plots(request: dict) -> dict:
     if fit["out"]["model_summary"]["df_residual"] > 0:
         figures["residuals"] = draw("residuals_vs_fitted", out, transform)
     if fit["lenth"]:
-        effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
+        effects = doe.analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
     more = _more_charts(spec, axes, pair, coded, transform, fit["out"]["model_summary"]["df_residual"])
     for key, drawn in more.items():
@@ -5319,7 +5371,7 @@ def simpler_model(request: dict) -> dict:
         # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
         # smallest that holds them all, so a term they took out can come back when the results call for it.
         within = model if isinstance(model, str) else _standard_model_of(before)
-        chosen = analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
+        chosen = doe.analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
     kept = chosen["model_selection"]["selected_terms"]
     return {
         "terms": [_page_term(term) for term in kept],
@@ -6404,7 +6456,9 @@ def candidates(request: dict) -> dict:
         with _listening() as heard:
             try:
                 design = make_design(item["spec"])
-            except Exception as exc:  # noqa: BLE001 - one design that cannot be made leaves the others to compare
+            except Exception as exc:  # one design that cannot be made leaves the others to compare
+                if _lacking(exc):
+                    raise  # no fault of the design: the worker installs the package, and calls again
                 notes.append(f"{item['label']} could not be made: {exc}")
                 continue
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
@@ -8682,7 +8736,7 @@ def functional(request: dict) -> dict:
         # which terms the runs can estimate depends on the runs alone, so any one number per run decides it
         stand_in = pd.Series(np.nanmean(values[done], axis=1), name="curve")
         fit = _fit_estimable(coded, stand_in, model, columns, categorical)
-        result = analyze_functional_experiment(coded, curves, model=fit["formula"])
+        result = doe.analyze_functional_experiment(coded, curves, model=fit["formula"])
         drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
         maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
     kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
@@ -8960,7 +9014,9 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
         )
     try:
         from process_improve.experiments.next_step import recommend_next_step  # noqa: PLC0415 - not in older releases
-    except ImportError:
+    except ImportError as missing:
+        if _lacking(missing):
+            raise  # not an older release: the worker installs the package, and calls again
         return "This version of process-improve cannot say what the results call for yet."
     response = spec["response"]
     # A transformed response's step is judged on its model's scale, as the analysis fits it, its target there too.
@@ -9491,3 +9547,21 @@ def api_functional(payload: str) -> str:
 def api_outside_limits(payload: str) -> str:
     """JSON wrapper around :func:`outside_limits`."""
     return _reply(outside_limits, payload)
+
+
+# --------------------------------------------------------------------------- for the worker, which no page calls
+def _fitting(_: dict) -> dict:
+    """Import the library's analysis code, and name what the page then runs on (see :func:`_runtime`)."""
+    importlib.import_module("process_improve.experiments.analysis")
+    return _runtime()
+
+
+def warm(payload: str = "{}") -> str:
+    """Make ready what a first analysis needs, and say what the page then runs on.
+
+    Start-up leaves out the packages a model is fitted with (:data:`ON_DEMAND`), so the page is ready as soon as a
+    design can be made. The worker fetches them once it is, and then calls this: the library's analysis code is
+    imported here, so a first fit waits for nothing, and the reply names statsmodels beside the packages the
+    catalogue found at the start, for a report to name.
+    """
+    return _reply(_fitting, payload)

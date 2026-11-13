@@ -44,6 +44,16 @@ def headings(report: Any) -> list[str]:  # noqa: ANN401
     return report.locator("h2").all_text_contents()
 
 
+def test_the_report_names_what_a_model_was_fitted_with_once_the_worker_has_fetched_it(page):
+    """Start-up leaves statsmodels out, so the catalogue names what Python ran on then; the worker says the rest."""
+    runtime = {"python": "3.14.2", "packages": {"numpy": "2.4.6", "statsmodels": "0.14.6"}, "pyodide": "314.0.7"}
+    page.evaluate("(runtime) => window.__pi.warmed(runtime)", runtime)
+    said = "Python 3.14.2 in Pyodide 314.0.7, with numpy 2.4.6 and statsmodels 0.14.6"
+    assert stamp(opened(page, download_report(page)[1]))["On"] == said
+    page.evaluate("window.__pi.warmed(false)")  # a worker started again that could not fetch it changes nothing
+    assert stamp(opened(page, download_report(page)[1]))["On"] == said
+
+
 def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(page, first_paint):
     name, html = download_report(page)
     assert name == "box_behnken-15-runs-report.html"

@@ -38,7 +38,80 @@ export async function installExact(pyodide, { packages, wheels }) {
   if (packages.length) await pyodide.loadPackage(packages);
   const lacking = packages.filter((name) => !pyodide.loadedPackages[name]); // a failed download is only logged
   if (lacking.length) throw new Error(`${lacking.join(", ")} could not be loaded from the Pyodide release`);
-  await install(pyodide, wheels, { deps: false });
+  if (wheels.length) await install(pyodide, wheels, { deps: false });
+}
+
+/**
+ * What start-up leaves out, since designing an experiment needs none of it: for each module Python may say a call
+ * lacks (bootstrap.py's ON_DEMAND), what is installed for it, and what the status line calls it and says it is for.
+ *
+ * - openpyxl comes with the first workbook, written or read, and plotly with the first chart, at the release the
+ *   build drew the worked example with. A build resolves these pins to exact files (its manifest's on_demand),
+ *   which are installed as they are; the pins themselves are resolved through the package index by a plain preview
+ *   of web/, which has no manifest, and by a build that could not ask PyPI.
+ * - statsmodels and scikit-learn are what a model is fitted with (runtime.json's `fitting`): packages of the
+ *   Pyodide release, a third of what the page downloads. They are loaded together, with joblib and threadpoolctl,
+ *   which the release loads for scikit-learn, whichever of the four modules a call lacks first.
+ */
+export function onDemand(runtime, manifest) {
+  const plotly = manifest.plotly ? `plotly==${manifest.plotly}` : "plotly";
+  const fits = { what: runtime.fitting.join(" and "), purpose: "fitting models", exact: { packages: runtime.fitting, wheels: [] } };
+  return {
+    openpyxl: { what: "openpyxl", purpose: "Excel workbooks", exact: manifest.on_demand?.openpyxl, pins: runtime.micropip },
+    plotly: { what: "plotly", purpose: "the charts", exact: manifest.on_demand?.plotly, pins: [plotly] },
+    statsmodels: fits,
+    sklearn: fits,
+    joblib: fits,
+    threadpoolctl: fits,
+  };
+}
+
+/**
+ * Return `provide(name, { quiet })`, which installs what `table` holds for the module `name` and resolves when it
+ * is there. An entry is installed once, however many calls find it missing at the same time and whichever of its
+ * modules they name; one that could not be installed is tried again by the next call that needs it.
+ *
+ * `say(status, state)` is told as start-up tells it, once a call waits for the install: it ends its own note, since
+ * the page may say nothing more after it (the first chart may be the curves' fit). An install nothing waits for is
+ * quiet: the worker's own, made in the background once the page is ready. A call that then needs it joins the same
+ * install, and from there on it is said.
+ *
+ * Python refuses to import any of these packages until it is told that one is in (bootstrap.py's _NotYet): a
+ * package's files are unpacked before its compiled modules are loaded, and a call answered in that gap would
+ * import it half loaded. So once an entry is in, `glue.installed` is told the modules it holds, and then
+ * `installed(entry)` is called, both before any call that waited for the entry is made again.
+ */
+export function provider(pyodide, glue, table, say, installed = () => {}) {
+  const installs = new Map(); // by entry: its install, whether it is in, and whether a call waits for it
+  const modulesOf = (entry) => Object.keys(table).filter((name) => table[name] === entry);
+  return function provide(name, { quiet = false } = {}) {
+    const wanted = table[name];
+    if (!wanted) return Promise.reject(new Error(`Python needs ${name}, which this page does not install.`));
+    let going = installs.get(wanted);
+    if (!going) {
+      going = { there: false, aloud: false };
+      going.done = (async () => {
+        try {
+          await (wanted.exact ? installExact(pyodide, wanted.exact) : install(pyodide, wanted.pins));
+        } catch (err) {
+          installs.delete(wanted); // the next call that needs it tries the install again
+          const reason = `Could not install ${wanted.what}: ${oneLine(err)}`;
+          if (going.aloud) say(reason, "error");
+          throw new Error(reason); // what the call is answered with, too
+        }
+        going.there = true;
+        glue.installed(JSON.stringify(modulesOf(wanted)));
+        if (going.aloud) say(`Installed ${wanted.what} for ${wanted.purpose}.`, "ok");
+        installed(wanted);
+      })();
+      installs.set(wanted, going);
+    }
+    if (!quiet && !going.aloud && !going.there) {
+      going.aloud = true;
+      say(`Installing ${wanted.what} for ${wanted.purpose}...`, "busy");
+    }
+    return going.done;
+  };
 }
 
 /**
@@ -46,10 +119,12 @@ export async function installExact(pyodide, { packages, wheels }) {
  *
  * `root` is the address of the folder that holds runtime.json and wheels/, and `say(status)` is told how far the
  * start has got. runtime.json names the Pyodide release, the folder of it on the CDN, and the packages loaded
- * from it; the wasm tests and CI read the same file. The build writes wheels/manifest.json, which names the wheel
- * built from its commit; without one (web/ served as it is) the wheel is PyPI's release.
+ * from it: `packages` at the start, and `fitting` when a model is first fitted, or at the start too for a page
+ * that fits from its first step (`fitting: true`). The wasm tests and CI read the same file. The build writes
+ * wheels/manifest.json, which names the wheel built from its commit; without one (web/ served as it is) the wheel
+ * is PyPI's release.
  */
-export async function startPython(root, say) {
+export async function startPython(root, say, { fitting = false } = {}) {
   const runtime = await read(new URL("runtime.json", root));
   const manifest = await read(new URL("wheels/manifest.json", root)).catch(() => ({}));
   say("Loading Python and its packages...");
@@ -58,7 +133,8 @@ export async function startPython(root, say) {
   const indexURL = `https://cdn.jsdelivr.net/pyodide/v${runtime.pyodide}/${runtime.distribution}/`;
   const { loadPyodide } = await import(`${indexURL}pyodide.mjs`); // here, so a refused download stops the start
   // Named here, the packages download while the interpreter starts, not after it.
-  const pyodide = await loadPyodide({ indexURL, packages: runtime.packages });
+  const packages = fitting ? [...runtime.packages, ...runtime.fitting] : runtime.packages;
+  const pyodide = await loadPyodide({ indexURL, packages });
   say("Installing process-improve...");
   // deps: false, since every package the page runs is loaded above, from the Pyodide release, or installed when a
   // call first needs it, pinned: micropip must not fetch an unpinned dependency of its own, and the release need

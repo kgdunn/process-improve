@@ -8,6 +8,7 @@ or a reader would see one design's settings and generate another's.
 
 from __future__ import annotations
 
+import json
 import re
 
 import pandas as pd
@@ -592,6 +593,14 @@ def test_the_worker_answers_every_entry_point_bootstrap_defines_and_nothing_else
     assert all(ENTRY_POINT.match(name) for name in entry_points)
     for private in ("_reply", "make_design", "json", "api_", "api_plots.__call__", "__import__"):
         assert not ENTRY_POINT.match(private), private
+
+
+def test_the_worker_installs_something_for_each_package_python_may_say_it_lacks(bootstrap, node):
+    """Python asks by the name a package is imported by; a name the worker's table lacks would end the call."""
+    runtime = json.loads(source("runtime.json"))
+    (table,) = javascript(node, source("python-boot.js"), [("onDemand", [runtime, {}])])
+    assert sorted(table) == sorted(bootstrap.ON_DEMAND)
+    assert all(entry["what"] and entry["purpose"] for entry in table.values()), "each is named in the status line"
 
 
 # --------------------------------------------------------------------------- the page's own elements
