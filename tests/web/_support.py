@@ -68,6 +68,8 @@ APP_SOURCES = (
     "levels.js",
     "import.js",
     "worker-rpc.js",
+    "offline.js",
+    "sw.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.

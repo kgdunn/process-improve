@@ -69,6 +69,7 @@
   <link rel="modulepreload" href="levels.js">
   <link rel="modulepreload" href="import.js">
   <link rel="modulepreload" href="worker-rpc.js">
+  <link rel="modulepreload" href="offline.js">
   <link rel="modulepreload" href="feedback.js">
 </head>
 <body>
@@ -827,6 +828,12 @@
       Everything here runs in your browser tab, nothing on our server: read <a href="about.html">how Factorial works</a>
       and <a href="map/">how its ideas link</a>.
       Something wrong or missing? Send us <button type="button" class="link" data-feedback="general">Feedback</button>.</p>
+    <!-- What is kept on this device for use without a network (offline.js), once there is a copy to speak of. -->
+    <p id="offline" hidden>
+      <span></span>
+      <button type="button" class="link" id="offline-keep" hidden></button>
+      <button type="button" class="link" id="offline-remove" hidden>Remove the copy</button>
+    </p>
   </footer>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -208,6 +208,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
         "wheel": wheel,
         "glue": glue,
         "bytecode": None,
+        "service_worker": True,
         "commit": build_script.commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
@@ -312,16 +313,17 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
 
 def test_the_page_reads_only_what_the_manifest_holds():
     """The worker installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there,
-    and a report from the Feedback dialog names the commit.
+    and a report from the Feedback dialog names the commit; the copy kept for use without a network follows
+    ``service_worker``. ``bytecode`` is for a reader of the manifest, and for the tests.
     """
     read = {
         name
-        for file in ("worker.js", "python-boot.js")
-        for name in re.findall(r"(?<![/\w])manifest\.(\w+)", source(file))
+        for file in ("worker.js", "python-boot.js", "offline.js")
+        for name in re.findall(r"(?<![/\w\"])manifest\.(\w+)", source(file))
     }
-    for names in re.findall(r"const \{ ([^}]+) \} = await res\.json\(\)", source("app.js")):
+    for names in re.findall(r"const \{ ([^}]+) \} = manifest;", source("app.js")):
         read |= {name.split(":")[0].strip() for name in names.split(",")}
-    assert read == {"wheel", "glue", "plotly", "plotly_js", "commit"}
+    assert read == {"wheel", "glue", "plotly", "plotly_js", "commit", "service_worker"}
 
 
 # --------------------------------------------------------------------------- the book's examples

@@ -269,6 +269,14 @@ cannot get it still works, starts more slowly, and fails the smoke tests, so it 
 deployed. openpyxl and plotly are installed when a call first needs them. A change to
 any of the three is measured, not assumed: time the start in a browser before and after.
 
+A service worker, `web/sw.js`, keeps a copy of the built app in the reader's browser, so it
+opens without a network (`web/offline.js` fills the copy and says what is kept). It holds no
+list of files: a file whose address names its version is served from the copy, and the app's
+own files come from the network whenever it answers. A new address the page loads from needs
+its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows; the live
+tier opens the built app without a network (`tests/web/live/test_offline.py`). The other
+browser tests run without the worker: a request it answers passes by Playwright's routes.
+
 One build is served in two places: https://factori.al/, the app's address, and GitHub
 Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests
 passed to both (`deploy-factorial` sends it to factori.al's server over SSH) and runs the

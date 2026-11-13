@@ -27,6 +27,7 @@ SUITES = (
     "import.test.mjs",
     "worker-rpc.test.mjs",
     "python-boot.test.mjs",
+    "offline.test.mjs",
     "charts.test.mjs",
     "python.test.mjs",
     "best.test.mjs",

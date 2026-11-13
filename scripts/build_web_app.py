@@ -85,6 +85,8 @@ APP_FILES = (
     "levels.js",
     "import.js",
     "worker-rpc.js",
+    "offline.js",
+    "sw.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
@@ -1959,11 +1961,15 @@ def write_books(folder: Path, data: dict[str, Any]) -> None:
         (folder / "books" / key / "index.html").write_text(page, encoding="utf-8")
 
 
-def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
+def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web", *, service_worker: bool = True) -> str:
     """Copy the app, a wheel freshly built in ``dist``, the book's examples and the worked example into ``out_dir``.
 
     The wheel and the archive of the page's own Python share a folder named by the digest of both. Return the
     wheel's name. ``demo.json`` is written last, so its presence says the app is complete.
+
+    ``service_worker`` is what the manifest tells the page to do about ``web/sw.js``, which keeps a copy of the
+    page on the reader's device for use without a network. Without it, a page that has the worker retires it and
+    deletes its copies at the reader's next visit: the way out, should a worker ever serve a page wrongly.
     """
     shutil.rmtree(out_dir, ignore_errors=True)
     (out_dir / "wheels").mkdir(parents=True)
@@ -1982,6 +1988,7 @@ def assemble(out_dir: Path, dist: Path = ROOT / "dist" / "web") -> str:
         "wheel": f"{folder}/{wheel.name}",
         "glue": f"{folder}/{glue.name}",
         "bytecode": python if all(compiled) else None,  # the Python the app's own modules are compiled for
+        "service_worker": service_worker,
         "commit": commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
@@ -1999,9 +2006,14 @@ def main() -> None:
     parser.add_argument("-o", "--out", type=Path, default=ROOT / "dist" / "web-app", help="output directory")
     parser.add_argument("--serve", action="store_true", help="serve the result over HTTP afterwards")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--no-service-worker",
+        action="store_true",
+        help="build an app that retires the service worker, and the copy it keeps, in every reader's browser",
+    )
     args = parser.parse_args()
 
-    wheel = assemble(args.out)
+    wheel = assemble(args.out, service_worker=not args.no_service_worker)
     print(f"Assembled {args.out} with {wheel}")
     if args.serve:
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(args.out))

@@ -287,6 +287,7 @@ import { closeOnBackdrop } from "./dialogs.js";
 import { LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
+import { installOffline } from "./offline.js";
 import { installFeedback, keepError } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
@@ -6300,13 +6301,16 @@ async function readManifest() {
   try {
     const res = await fetch("wheels/manifest.json", { cache: "no-store" });
     if (res.ok) {
-      const { plotly_js: plotlyJs, commit } = await res.json();
+      const manifest = await res.json();
+      const { plotly_js: plotlyJs, commit } = manifest;
       state.plotlyJs ??= plotlyJs ?? null;
       state.commit = commit ?? null;
+      return manifest;
     }
   } catch {
     /* a plain local preview has no manifest */
   }
+  return {};
 }
 
 // ---------------------------------------------------------------- rendering helpers
@@ -6768,7 +6772,11 @@ showResponse();
 showScenarioHint();
 refreshDesign();
 renderStudyBar();
-readManifest();
+// The build's manifest names the Plotly.js the charts are drawn with, and says whether a copy of the page is kept
+// on this device for use without a network: one is, of a built app, once Python has started.
+readManifest().then((manifest) =>
+  installOffline({ manifest, started: whenReady, keepPackages: () => call("keep_packages"), box: $("#offline") }),
+);
 start();
 loadFields();
 

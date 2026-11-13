@@ -65,6 +65,12 @@
       <li><strong>Your studies</strong> are saved in this browser's IndexedDB as you work, every one of them, and a
         brief not yet made into a run sheet is kept in its local storage. Clearing this site's data in the browser
         deletes them: <a href="#h-file">the study file</a> keeps a copy elsewhere.</li>
+      <li><strong>A copy of Factorial itself</strong> is kept in this browser too, by a
+        <a href="https://developer.mozilla.org/docs/Web/API/Service_Worker_API" target="_blank" rel="noopener">service
+        worker</a> (<code>web/sw.js</code>), so the page opens without a network: its own files, Python and its
+        packages. The foot of the page says what is kept, and has two buttons: one adds the charts and the workbooks,
+        which is a download of about 12 MB; the other removes the copy. With a network, the page's own files always
+        come from factori.al, so the copy is never shown in place of a newer page.</li>
       <li><strong>A link to a study</strong> holds the study itself, compressed, after the <code>#</code>. A browser
         does not send that part of an address to any server: the link travels only where you paste it.</li>
       <li><strong>The workbook and the notebook</strong> (<code>.xlsx</code> and <code>.ipynb</code>) are written in
@@ -159,8 +165,9 @@
       <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">github.com/kgdunn/process-improve</a><span id="stack-commit"></span>.
       To check what it does with your data, these are the places to read:</p>
     <ul>
-      <li><a href="https://github.com/kgdunn/process-improve/tree/main/web" target="_blank" rel="noopener"><code>web/</code></a>: the page, and
-        <code>worker.js</code> and <code>python-boot.js</code>, which start Python;</li>
+      <li><a href="https://github.com/kgdunn/process-improve/tree/main/web" target="_blank" rel="noopener"><code>web/</code></a>: the page,
+        <code>worker.js</code> and <code>python-boot.js</code>, which start Python, and <code>sw.js</code>, which keeps
+        the copy for use without a network;</li>
       <li><a href="https://github.com/kgdunn/process-improve/blob/main/web/bootstrap.py" target="_blank" rel="noopener"><code>web/bootstrap.py</code></a>:
         every call the page makes into Python;</li>
       <li><a href="https://github.com/kgdunn/process-improve/blob/main/scripts/build_web_app.py" target="_blank" rel="noopener"><code>scripts/build_web_app.py</code></a>:

@@ -67,9 +67,20 @@ function provide(python, name) {
 // The page calls only the api_* entry points bootstrap.py defines; nothing else in the module answers.
 const ENTRY_POINT = /^api_[a-z_]+$/;
 
+// The one call that is no entry point: every package a call might need, installed now. The page asks for it when a
+// reader wants the whole page kept for use without a network (offline.js), and the service worker keeps what the
+// installs download.
+const KEEP_PACKAGES = "keep_packages";
+
 self.onmessage = async ({ data: { id, fn, payload } }) => {
   try {
     const refused = new Error(`${JSON.stringify(fn)} is not one of the page's entry points.`);
+    if (fn === KEEP_PACKAGES) {
+      const python = await ready;
+      for (const name of Object.keys(onDemand(python))) await provide(python, name);
+      self.postMessage({ id, reply: JSON.stringify({ ok: true, result: {}, warnings: [] }) });
+      return;
+    }
     if (!ENTRY_POINT.test(fn)) throw refused;
     const python = await ready;
     const entry = python.glue[fn];

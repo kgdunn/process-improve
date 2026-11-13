@@ -19,6 +19,7 @@ let loading = null;
 export function loadPlotly(version) {
   loading ??= new Promise((resolve, reject) => {
     const script = document.createElement("script");
+    script.crossOrigin = "anonymous"; // a response the service worker can read, and so keep (sw.js)
     script.src = CDN(version);
     script.onload = () => resolve(window.Plotly);
     script.onerror = () => {
