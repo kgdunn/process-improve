@@ -60,7 +60,8 @@ Usage, and nothing else. Caddy writes one line per request to
 `/var/log/caddy/factorial-access.log`: the time, the path, the status, the browser's
 `User-Agent`, and the page that linked here. The reader's address is cut to its network
 before the line is written (the first 24 bits of IPv4, 48 of IPv6), and lines are kept for
-90 days. There are no cookies, no tracking script and no database. A design shared by link
+366 days, so a year can be set beside the one before. There are no cookies, no tracking script
+and no database. A design shared by link
 travels after the `#`, which a browser never sends, so no design reaches the log.
 
 So that usage can be followed for longer than the log is kept, a daily job adds each finished
@@ -76,7 +77,7 @@ keyed hash of it in memory for a day.
 ```bash
 sudo factorial-usage                        # the last 28 days, a row a day
 sudo factorial-usage --days 90 --by week    # a row a week
-sudo factorial-usage --days 365 --by month  # a row a month, from the kept counts
+sudo factorial-usage --days 366 --by month  # a year, a row a month
 ```
 
 Each page has a column: the app (Home), the concept map (Map), the design catalog's pages

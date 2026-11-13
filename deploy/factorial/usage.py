@@ -2,7 +2,7 @@
 """Count how factori.al is used, from Caddy's access log: no cookies, no tracking script, no database.
 
 The log has one line per request, written with the reader's address cut to its network
-(``factorial.caddy``), and kept for 90 days. From it, for each day (UTC), the report counts:
+(``factorial.caddy``), and kept for 366 days. From it, for each day (UTC), the report counts:
 
     pages      each page loaded in a browser: the app (Home), the concept map (Map), the pages
                of the design catalog (Catalog), the multivariate page, About, and any other page
@@ -16,9 +16,9 @@ Robots, link-preview fetchers and the deploy's own checks (headless Chromium, Py
 are not readers. Run it on the server, as a user that can read the log:
 
     sudo factorial-usage                        # the last 28 days, a row a day
-    sudo factorial-usage --days 365 --by month  # a year, a row a month
+    sudo factorial-usage --days 366 --by month  # a year, a row a month
 
-The log forgets a day after 90 days, so ``--keep`` adds each finished day's counts, and nothing
+The log forgets a day after 366 days, so ``--keep`` adds each finished day's counts, and nothing
 else, to a file of its own (``/var/lib/factorial/usage.csv``). A daily job that ``setup.sh``
 installs runs it, and the report reads the file for the days the log no longer holds.
 """
