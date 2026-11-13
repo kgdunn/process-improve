@@ -3590,7 +3590,7 @@ async function setRunAside(place) {
   scheduleSave();
   showResultsCode();
   await analyseRuns();
-  ($("#aside-runs button") ?? $("#diagnostics > summary"))?.focus();
+  ($("#analysis .aside-runs button") ?? $("#analysis details.diagnostics > summary"))?.focus();
 }
 
 /**
