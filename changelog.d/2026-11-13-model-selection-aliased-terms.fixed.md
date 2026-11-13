@@ -7,10 +7,12 @@
   model kept every square and every main effect. Now:
   - A candidate that adds nothing to the intercept and the blocks is no candidate: an interaction
     confounded with the blocks, or the square of a factor run at two levels.
-  - Where the candidates are aliased with each other, the search is run twice and the better
-    result kept: from none, where the first of an aliased pair to enter is the one whose main
-    effects are in, and from the candidates the runs estimate together, those named first, which
-    finds an interaction one of whose main effects does nothing. `direction` says which was kept.
+  - Where the candidates are aliased with each other, or the runs estimate one only in part (an
+    interaction of two categories whose levels never all meet), the search is run twice and the
+    better result kept: from none, where the first of an aliased pair to enter is the one whose
+    main effects are in, and from the candidates the runs estimate together, those named first,
+    which finds an interaction one of whose main effects does nothing. `direction` says which
+    was kept.
   - Of two moves that score the same, the one that leaves the term named first in the model is
     taken, so a result does not depend on the rounding of a score.
   - A factor of `True` and `False` is a category, as patsy reads it, and has no square.
@@ -21,5 +23,8 @@
     levels (`P:x + Q:x`), lacked a column whenever the first was left out, and the terms chosen
     turned on the order of the levels.
 
-  Results are unchanged where the runs estimate every candidate term and no term of a formula is
-  coded by the terms beside it.
+  - `n_terms` counts the coefficients the selected model estimates: beside a mixture's components
+    a category was counted one too many.
+
+  Results are unchanged where the runs estimate every candidate term in full, no term of a
+  formula is coded by the terms beside it, and no two moves score exactly the same.

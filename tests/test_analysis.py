@@ -1234,6 +1234,106 @@ class TestModelSelection:
             found[truth] = (ms["model_selection"]["selected_terms"], ms["model_selection"]["direction"])
         assert found == {"A and A:B": (["A", "B", "A:B"], "backward"), "C, D and C:D": (["C", "D", "C:D"], "forward")}
 
+    def test_a_term_written_before_the_terms_it_contains_joins_the_start_all_the_same(self) -> None:
+        """``y ~ A:B + A:C + B:C + A + B + C``: taken in the order written, no interaction had its parents yet.
+
+        The backward search then began from the main effects alone, and an interaction of two factors that do
+        nothing alone never came in: no term was selected where the same formula, main effects first, kept five.
+        """
+        from process_improve.experiments._analyses.model_selection import _formula_terms, _Scorer
+
+        rng = np.random.default_rng(1)
+        runs = pd.DataFrame({"A": np.tile([-1.0, 1.0], 15), "B": rng.normal(size=30)})
+        runs["C"] = runs.B + 0.1 * rng.normal(size=30)
+        y = pd.Series(10 * runs.A * (runs.B - runs.C) + rng.normal(0, 0.1, 30), name="y")
+        codes = [("A", "B"), ("A", "C"), ("B", "C"), ("A",), ("B",), ("C",)]
+        score = _Scorer(runs.assign(y=y), y.to_numpy(), _formula_terms(codes), "aicc")
+        assert score.together() == {"A", "B", "C", "A:B", "A:C", "B:C"}, "every one, whatever the order they come in"
+        chosen = {
+            order: analyze_experiment(runs, y, model=formula, analysis_type="model_selection")["model_selection"]
+            for order, formula in (
+                ("first", "y ~ A + B + C + A:B + A:C + B:C"),
+                ("last", "y ~ A:B + A:C + B:C + A + B + C"),
+            )
+        }
+        assert (
+            set(chosen["last"]["selected_terms"])
+            == set(chosen["first"]["selected_terms"])
+            == {"A", "B", "C", "A:B", "A:C"}
+        )
+        assert chosen["last"]["criterion_value"] == pytest.approx(chosen["first"]["criterion_value"])
+
+    def test_candidates_the_runs_estimate_only_in_part_are_searched_from_both_ends(self) -> None:
+        """An interaction of two categories, one of whose cells has no run, adds to the model and is not whole.
+
+        Counted as estimated because it added something, it sent the search backward alone, to a model that
+        scored worse than the one the forward search finds.
+        """
+        from process_improve.experiments._analyses import model_selection as ms
+
+        rng = np.random.default_rng(5)
+        n = int(rng.integers(24, 40))
+        runs = pd.DataFrame(rng.choice([-1.0, 0.0, 1.0], size=(n, 2)), columns=list("AB"))
+        runs["P"] = rng.choice(list("pqr"), n)
+        runs["Q"] = rng.choice(list("uv"), n)
+        runs.loc[(runs.P == "r") & (runs.Q == "v"), "Q"] = "u"  # no run of P = r with Q = v
+        by_p = runs.P.map({"p": 0.0, "q": 2.0, "r": -1.0})
+        y = (
+            5
+            + 2 * runs.A * rng.choice([0, 1])
+            + by_p * rng.choice([0, 1])
+            + 2 * runs.A * (runs.Q == "u") * rng.choice([0, 1])
+        )
+        runs["y"] = y + rng.normal(0, 0.4, n)
+        terms = ms._candidate_terms(list("ABPQ"), "interactions", categorical=["P", "Q"])
+        score = ms._Scorer(runs, runs.y.to_numpy(), terms, "aicc")
+        assert score.together() == {term.name for term in score.terms}, "each candidate adds to those before it"
+        assert not score.in_full, "and one of them is not all there"
+        forward, backward = ms._stepwise(score, frozenset()), ms._stepwise(score, score.together())
+        assert forward[1] < backward[1] - 1, "here the forward search finds the better model"
+        assert ms._search(score) == (*forward, "forward")
+        whole = ms._Scorer(runs, runs.y.to_numpy(), ms._candidate_terms(list("AB"), "interactions"), "aicc")
+        assert whole.in_full, "two numeric factors, their runs spread: every candidate in full, and backward alone"
+        assert ms._search(whole)[2] == "backward"
+
+    def test_of_two_results_that_score_the_same_the_model_of_fewer_terms_is_kept(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _search, _Term
+
+        class Scored:
+            """A scorer of three candidates of which two are estimated together, and whose scores are given."""
+
+            in_full = True
+
+            def __init__(self, of_the_two: float) -> None:
+                self.terms = [_Term("A", frozenset()), _Term("B", frozenset()), _Term("C", frozenset())]
+                self.scores = {frozenset(): 9.0, frozenset({"A"}): 5.0, frozenset({"B", "C"}): of_the_two}
+
+            def together(self) -> frozenset[str]:
+                return frozenset({"B", "C"})
+
+            def __call__(self, included: frozenset[str]) -> float:
+                return self.scores.get(included, 99.0)
+
+        assert _search(Scored(5.0)) == (frozenset({"A"}), 5.0, "forward"), "one term for the two, at the same score"
+        assert _search(Scored(4.0)) == (frozenset({"B", "C"}), 4.0, "backward"), "the lower score, though of more terms"
+
+    def test_the_terms_counted_are_the_coefficients_the_model_estimates(self) -> None:
+        """Beside a mixture's components patsy gives a category a column for each level: one more than is estimated."""
+        blends = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)]
+        runs = pd.DataFrame(blends * 3, columns=["x1", "x2", "x3"])
+        runs["P"] = np.repeat(list("pqr"), 7)
+        shift = runs.P.map({"p": 0.0, "q": 3.0, "r": -3.0})
+        y = 10 * runs.x1 + 6 * runs.x2 + 8 * runs.x3 + 12 * runs.x1 * runs.x2 + shift
+        y = pd.Series(y + np.random.default_rng(3).normal(0, 0.1, len(runs)), name="y")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = "y ~ -1 + x1 + x2 + x3 + P + x1:x2"
+            ms = analyze_experiment(runs, y, model=model, analysis_type="model_selection")["model_selection"]
+            again = analyze_experiment(runs, y, model=ms["selected_formula"], analysis_type="coefficients")
+        assert ms["n_terms"] == 6, "three components, two contrasts of the category, and the blend of x1 with x2"
+        assert ms["n_terms"] == again["model_summary"]["n_terms"]
+        assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
+
     def test_squares_aliased_with_each_other_do_not_cost_the_search_an_interaction(self) -> None:
         """A two-level factorial with centre runs has one square to estimate, whichever factor it is named for.
 

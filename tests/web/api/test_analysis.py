@@ -227,86 +227,33 @@ def test_an_interaction_the_blocks_took_is_not_proposed_back(api):
     assert len(proposed["dropped"]) == 8, "the three other main effects and the five interactions fitted"
 
 
-#: Batches within suppliers: batch 1 of one supplier has nothing to do with batch 1 of another.
-SUPPLIER = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
-BATCH = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
-NESTED = {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+def test_a_model_with_one_factor_nested_in_another_is_not_searched(api):
+    """Batches within suppliers: batch 1 of one supplier has nothing to do with batch 1 of another.
 
-
-def _nested_study(api, batch_effect: dict[str, float]) -> dict:
-    """Return three runs of each batch of each supplier, the batches differing within a supplier as given."""
-    spec = {"design_type": "full_factorial", "factors": [SUPPLIER, BATCH], "n_center_points": 0, "n_replicates": 3}
+    Searched within the interactions model, the nested term needed Batch's own main effect, and the page proposed
+    adding it: the crossed model the reader had left on purpose. Searched over its own terms, the model could not
+    be given to the library as the page fits it. So the page says it proposes none, and fits what the reader chose.
+    """
+    supplier = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    batch = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
+    spec = {"design_type": "full_factorial", "factors": [supplier, batch], "n_center_points": 0, "n_replicates": 3}
     design = api.ok("api_make_design", spec)
-    assert design["n_runs"] == 18
-    supplier = {"X": 0.0, "Y": 5.0, "Z": -5.0}
+    of_supplier, within = {"X": 0.0, "Y": 5.0, "Z": -5.0}, {"X": 3.0, "Y": -2.0, "Z": 0.5}
 
     def process(run: dict) -> float:
         sign = 1 if run["Batch"] == "first" else -1
-        return 40 + supplier[run["Supplier"]] + sign * batch_effect[run["Supplier"]]
+        return 40 + of_supplier[run["Supplier"]] + sign * within[run["Supplier"]]
 
-    return {**held_of(design), "responses": _results(design, process), "model": NESTED}
-
-
-def test_a_factor_nested_in_another_is_searched_as_nested(api):
-    """No standard model holds a nested term, so the search is over the model's own terms.
-
-    Searched within the interactions model, the nested term needed Batch's own main effect, and the page proposed
-    adding it: the crossed model the reader had left on purpose, where a batch means the same at every supplier.
-    """
-    request = _nested_study(api, {"X": 3.0, "Y": -2.0, "Z": 0.5})
-    proposed = api.ok("api_simpler_model", request)
-    assert proposed["kept"] == ["Supplier", "Supplier·Batch"]
-    assert (proposed["added"], proposed["dropped"], proposed["changed"]) == ([], [], False)
-    assert proposed["within"] is None, "its own terms, and no standard model"
-    assert proposed["terms"] == NESTED["terms"], "as the page ticks them"
-    fitted = api.ok("api_analyze_runs", request)
-    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
-
-
-def test_a_nested_term_the_results_do_not_support_is_dropped_and_the_factor_it_is_in_stays(api):
-    request = _nested_study(api, {"X": 0.0, "Y": 0.0, "Z": 0.0})
-    proposed = api.ok("api_simpler_model", request)
-    assert (proposed["kept"], proposed["dropped"], proposed["added"]) == (["Supplier"], ["Supplier·Batch"], [])
-    assert proposed["within"] is None, "searched over its own terms: within a standard model, Batch could come in"
-    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
-    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
-
-
-SHIFT = {"name": "Shift", "type": "categorical", "levels": ["day", "night"]}
-
-
-@pytest.mark.parametrize(
-    ("factors", "terms", "process"),
-    [
-        (  # T acts in the second batch only
-            [SUPPLIER, BATCH, FACTORS[0]],
-            [["Supplier"], ["Supplier", "T"], ["Batch", "T"]],
-            lambda run: 3 * (run["T"] - 175) / 25 * (run["Batch"] == "second"),
-        ),
-        (  # the second batch differs at night only
-            [SUPPLIER, BATCH, SHIFT],
-            [["Supplier"], ["Supplier", "Batch"], ["Shift"], ["Batch", "Shift"]],
-            lambda run: 3.0 * (run["Batch"] == "second" and run["Shift"] == "night"),
-        ),
-    ],
-    ids=["a two-level factor with a number", "two two-level factors"],
-)
-def test_a_term_without_the_terms_below_it_is_scored_as_the_page_fits_it(api, factors, terms, process):
-    """Beside a nested term, a model may hold ``Batch·T`` with neither Batch nor T: the product of their columns.
-
-    Given Batch as labels, the library fitted T's slope within each batch, which is another model, and the
-    page said what the adjusted R² "would be" for a model it then did not fit: 0.9995 said, 0.88 fitted.
-    """
-    spec = {"design_type": "full_factorial", "factors": factors, "n_center_points": 0, "n_replicates": 2}
-    design = api.ok("api_make_design", spec)
-    of_supplier = {"X": 0.0, "Y": 5.0, "Z": -5.0}
-    responses = _results(design, lambda run: 40 + of_supplier[run["Supplier"]] + process(run))
-    request = {**held_of(design), "responses": responses, "model": {"terms": terms}}
-    proposed = api.ok("api_simpler_model", request)
-    assert proposed["within"] is None
-    assert proposed["added"] == []
-    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
-    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+    request = {**held_of(design), "responses": _results(design, process)}
+    for terms in ([["Supplier"], ["Supplier", "Batch"]], [["Batch"], ["Supplier", "Batch"]]):
+        nested = {**request, "model": {"terms": terms}}
+        assert api.ok("api_analyze_runs", nested)["summary"]["r_squared_adj"] > 0.99, "the model itself is fitted"
+        assert api.error("api_simpler_model", nested) == (
+            "The page proposes no simpler model where one factor is nested in another: "
+            "take terms out, or add them, in the list of terms."
+        )
+    crossed = {**request, "model": {"terms": [["Supplier"], ["Batch"], ["Supplier", "Batch"]]}}
+    assert api.ok("api_simpler_model", crossed)["within"] == "interactions", "the crossed model is searched as ever"
 
 
 def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):

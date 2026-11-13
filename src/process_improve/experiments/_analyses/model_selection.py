@@ -24,17 +24,20 @@ screening or supersaturated design.
 
 Between the two lie the designs whose runs are enough but whose candidates are
 aliased with each other, as ``A:B`` and ``C:D`` are in a half fraction run twice, or
-the squares of a two-level factorial with centre runs. Started from all of them,
-neither of an aliased pair could leave, since the model fits as well without either
-one. So the search is run twice, and the better result kept: forward from none, where
-the first of an aliased pair to enter is the one whose main effects are in; and
-backward from the candidates the runs estimate together, those named first, which
-finds an interaction one of whose main effects is not active, as forward cannot.
+the squares of a two-level factorial with centre runs; and those where the runs
+estimate a candidate only in part, as an interaction of two categories whose levels
+never all meet. Started from all of them, neither of an aliased pair could leave,
+since the model fits as well without either one. So the search is run twice, and the
+better result kept: forward from none, where the first of an aliased pair to enter is
+the one whose main effects are in; and backward from the candidates the runs estimate
+together, those named first, which finds an interaction one of whose main effects is
+not active, as forward cannot.
 
 A candidate that adds nothing to what every model holds is no candidate: an
 interaction confounded with the blocks, or the square of a factor run at two levels,
 which is the intercept again. Of two moves that score the same, the search takes the
-one named first, so the result does not depend on rounding.
+one that leaves the term named first in the model, so the result does not depend on
+rounding.
 
 A Scheffe mixture model has no intercept, since the components sum to 1: every
 linear blending term stays in, and the search chooses among the non-linear blending
@@ -193,6 +196,12 @@ class _Scorer:
         told = {name for name, span in columns.items() if self._rank([*self._fixed, *span]) > always}
         self.terms = [_Term(t.name, t.parents & told) for t in terms if t.name in told]
         self._columns = {t.name: columns[t.name] for t in self.terms}
+        # Coded together, the terms have as many columns as coefficients: where the runs give them all, the
+        # candidates are estimable in full, and not only in part (a category's level some runs never meet).
+        kept = [*fixed, *(t.name for t in self.terms)]
+        together = dmatrix(" + ".join(kept if intercept else ["-1", *kept]) or "1", design_df)
+        every = [*self._fixed, *itertools.chain.from_iterable(self._columns.values())]
+        self.in_full = self._rank(every) == together.shape[1]
 
     def _rank(self, columns: Sequence[int]) -> int:
         """Rank of some columns of the model matrix: how many coefficients the runs can estimate of them."""
@@ -201,17 +210,26 @@ class _Scorer:
     def together(self) -> frozenset[str] | None:
         """Return the candidates the runs estimate together, those named first; None where they leave no runs over.
 
-        Each candidate in turn is taken if its parents were and it adds to what the runs estimate of the terms
-        before it. One that adds nothing is aliased with those: it waits for one of them to leave. The model
-        of the terms taken must leave two residual degrees of freedom, or a search cannot start from it.
+        Each candidate is taken, in the order given and once its parents are, if it adds to what the runs
+        estimate of the terms taken before it. One that adds nothing is aliased with those: it waits for one
+        of them to leave, and whatever needs it waits with it. A term named before its parents is come back
+        to once the others have had their turn. The model of the terms taken must leave two residual degrees
+        of freedom, or no search can start from it.
         """
         held, rank = list(self._fixed), self._rank(self._fixed)
         taken: set[str] = set()
-        for term in self.terms:
-            with_it = [*held, *self._columns[term.name]]
-            if term.parents <= taken and (added := self._rank(with_it)) > rank:
-                held, rank = with_it, added
-                taken.add(term.name)
+        waiting, turned_away = list(self.terms), 0
+        while len(waiting) != turned_away:  # until a turn through those left decides none of them
+            turned_away, late = len(waiting), []
+            for term in waiting:
+                if not term.parents <= taken:
+                    late.append(term)
+                    continue
+                with_it = [*held, *self._columns[term.name]]
+                if (added := self._rank(with_it)) > rank:
+                    held, rank = with_it, added
+                    taken.add(term.name)
+            waiting = late
         return frozenset(taken) if self._n - rank >= 2 else None
 
     def __call__(self, included: frozenset[str]) -> float:
@@ -264,14 +282,15 @@ def _stepwise(score: _Scorer, start: frozenset[str]) -> tuple[frozenset[str], fl
 def _search(score: _Scorer) -> tuple[frozenset[str], float, str]:
     """Search backward from the candidates the runs estimate together, and forward from none unless those are all.
 
-    Too few runs for a backward start leave the forward search alone. Where both are run, the lower score is
-    kept, and of two that score the same the model of fewer terms.
+    Backward alone is for candidates the runs estimate every one of, in full. Too few runs for a backward start
+    leave the forward search alone. Where both are run, the lower score is kept, and of two that score the same
+    the model of fewer terms.
     """
     start = score.together()
     found = []
     if start is not None:
         found.append((*_stepwise(score, start), "backward"))
-    if start is None or len(start) < len(score.terms):
+    if start is None or len(start) < len(score.terms) or not score.in_full:
         found.append((*_stepwise(score, frozenset()), "forward"))
     lowest = min(value for _, value, _ in found)
     return min((result for result in found if result[1] <= lowest + _SAME_SCORE), key=lambda result: len(result[0]))
@@ -359,8 +378,9 @@ def _run_model_selection(
         statistics of the selected model. ``selected_terms`` holds the terms chosen, and
         the linear blending terms of a mixture model; the blocks are not among them, and
         ``selected_formula`` names them as a formula given to ``analyze_experiment``
-        does, by the ``Block`` column. ``n_terms`` counts the selected model's columns,
-        intercept and blocks included, as ``model_summary`` does.
+        does, by the ``Block`` column. ``n_terms`` counts the coefficients the selected
+        model estimates, intercept and blocks included, as ``model_summary`` does: its
+        rank, since patsy gives a category beside a mixture's components a column more.
     """
     if criterion not in _CRITERIA:
         raise ValueError(f"criterion must be one of {', '.join(_CRITERIA)}; got {criterion!r}.")
@@ -395,6 +415,6 @@ def _run_model_selection(
         "direction": direction,
         "r_squared": float(fit.rsquared),
         "r_squared_adj": float(fit.rsquared_adj),
-        "n_terms": len(fit.params),
+        "n_terms": int(np.linalg.matrix_rank(fit.model.exog)),
     }
     return {"model_selection": result}

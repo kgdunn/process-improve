@@ -479,11 +479,12 @@ def test_a_factor_of_several_levels_is_kept_whole_in_the_simpler_model(fresh_pag
 PICKED = "The terms of this model were picked from these same results"
 
 
-def test_a_nested_model_is_simplified_as_nested_and_the_crossed_one_is_not_proposed(fresh_page):
+def test_a_nested_model_is_not_proposed_back_as_the_crossed_one(fresh_page):
     """Batches within suppliers: the reader takes Batch's own effect out, and the page does not propose it back.
 
     Batch 1 of one supplier has nothing to do with batch 1 of another. Searched within the interactions model, as
-    it was, the nested term needed Batch's main effect, and the page said the results supported adding it.
+    it was, the nested term needed Batch's main effect, and the page said the results supported adding it. The
+    page now says it proposes no simpler model for such a one, and leaves the reader's model as it is.
     """
     page = fresh_page
     supplier = {"name": "Supplier", "levels": ["X", "Y", "Z"]}
@@ -516,9 +517,13 @@ def test_a_nested_model_is_simplified_as_nested_and_the_crossed_one_is_not_propo
     reveal(page, "#simplify")
     page.click("#simplify-ask")
     page.wait_for_function("!['', 'Searching...'].includes(document.querySelector('#simplify-words').textContent)")
-    assert page.text_content("#simplify-words") == "The results support every term of the model as it is."
-    assert page.is_hidden("#simplify-apply"), "nothing to change, and no Batch to add"
+    assert page.text_content("#simplify-words") == (
+        "The page proposes no simpler model where one factor is nested in another: "
+        "take terms out, or add them, in the list of terms."
+    )
+    assert page.is_hidden("#simplify-apply"), "nothing to accept, and no Batch to add"
     assert calls(page, "api_simpler_model")[-1]["payload"]["model"] == {"terms": [["Supplier"], ["Supplier", "Batch"]]}
+    assert terms_fitted(page) == sorted(nested), "the model the reader chose is the model still fitted"
 
 
 def simplified(page) -> None:

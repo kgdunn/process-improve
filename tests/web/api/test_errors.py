@@ -797,6 +797,14 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _mixed(),
         "A mixture's model is chosen by name, under Model: the page proposes no simpler one.",
     ),
+    "a model with one factor nested in another, to simplify": (
+        "api_simpler_model",
+        lambda ex: ex["nested"],
+        (
+            "The page proposes no simpler model where one factor is nested in another: "
+            "take terms out, or add them, in the list of terms."
+        ),
+    ),
     "a model that uses every run, to simplify": (  # ten coefficients, and ten runs with a result
         "api_simpler_model",
         lambda ex: {**ex["held"], "responses": [*ex["simulated"]["responses"][:10], *[None] * 5]},
@@ -1427,8 +1435,16 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
 def example(worked_example: dict[str, Any], api) -> Example:
     """Return the worked example with its workbook, a 9-run DSD that cannot fit the quadratic model, and a mixture.
 
-    The mixture is a simplex lattice in three components, with results simulated from a blend.
+    The mixture is a simplex lattice in three components, with results simulated from a blend. ``nested`` is a
+    study of batches within suppliers, three runs of each, with the model that says so.
     """
+    supplier = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    batch = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
+    within = {"design_type": "full_factorial", "factors": [supplier, batch], "n_center_points": 0, "n_replicates": 3}
+    batches = api.ok("api_make_design", within)
+    nested = {key: batches[key] for key in ("spec", "columns", "rows")}
+    nested |= {"responses": [40.0 + (7 * run) % 5 for run in range(batches["n_runs"])]}
+    nested |= {"model": {"terms": [["Supplier"], ["Supplier", "Batch"]]}}
     dsd = api.ok("api_make_design", {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1})
     lattice = api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": COMPONENTS})
     mixture = {key: lattice[key] for key in ("spec", "columns", "rows")}
@@ -1438,6 +1454,7 @@ def example(worked_example: dict[str, Any], api) -> Example:
         "workbook": workbook_of(api, worked_example["design"]),
         "dsd": {key: dsd[key] for key in ("spec", "columns", "rows")},
         "mixture": {**mixture, "responses": responses},
+        "nested": nested,
     }
 
 

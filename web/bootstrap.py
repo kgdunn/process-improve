@@ -5334,10 +5334,14 @@ def simpler_model(request: dict) -> dict:
     The search is the library's stepwise selection, scored by AICc and keeping effect heredity: an
     interaction stays only with both its main effects. A categorical factor is kept or dropped whole, every
     level with it, and the blocks of a blocked design are in every model the search scores. It
-    searches the terms of the standard model ``within``, or the model's own terms where one factor is nested in
-    another (``within`` is then None: see :func:`_model_to_search`). ``terms`` holds what it keeps, as the page
-    ticks them (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it
-    leaves out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
+    searches the terms of the standard model ``within``. ``terms`` holds what it keeps, as the page ticks them
+    (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it leaves
+    out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
+
+    A model with one factor nested in another is not searched. A standard model crosses every pair of its
+    factors, so within one the search proposes the crossed model back; and the model's own terms cannot be
+    given to the library as the page fits them, since the page codes a factor by its levels in one term and by
+    its contrasts in another (:func:`_nested`), which a formula over the factors' labels cannot say.
     Nothing is fitted for the reader here: the page puts the terms in its list when the reader asks.
     """
     spec = _checked_spec(request.get("spec") or {})
@@ -5363,9 +5367,16 @@ def simpler_model(request: dict) -> dict:
                 "judge the effects by Lenth's method, in the table of effects."
             )
         before = _factor_terms(_fitted_terms(fit["out"], columns), spec)
-        within, asked = _model_to_search(model, before, spec)
-        searched = _searched_frame(runs, spec, own_terms=within is None)[done].reset_index(drop=True)
-        chosen = doe.analyze_experiment(searched, y, model=asked, analysis_type="model_selection", coding="actual")
+        if _nested(before, spec):
+            raise ValueError(
+                "The page proposes no simpler model where one factor is nested in another: "
+                "take terms out, or add them, in the list of terms."
+            )
+        # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
+        # smallest that holds them all, so a term they took out can come back when the results call for it.
+        within = model if isinstance(model, str) else _standard_model_of(before)
+        searched = _searched_frame(runs, spec)[done].reset_index(drop=True)
+        chosen = doe.analyze_experiment(searched, y, model=within, analysis_type="model_selection", coding="actual")
     kept = chosen["model_selection"]["selected_terms"]
     return {
         "terms": [_page_term(term) for term in kept],
@@ -5378,36 +5389,17 @@ def simpler_model(request: dict) -> dict:
     }
 
 
-def _model_to_search(model: str | list[str], before: list[str], spec: dict) -> tuple[str | None, str]:
-    """Return the standard model the search is within, if any, and the model the library is asked to search.
-
-    The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
-    smallest that holds them all, so a term they took out can come back when the results call for it. A
-    standard model crosses every pair of its factors, so a model with one factor nested in another is in none
-    of them. It is searched over its own terms, written as a formula: there the nested term needs only the
-    factor it is nested in, and no main effect the reader left out on purpose is proposed back.
-    """
-    if _nested(before, spec):
-        return None, _formula(before, [f["name"] for f in spec["factors"]], blocked=_blocked(spec))
-    within = model if isinstance(model, str) else _standard_model_of(before)
-    return within, within
-
-
-def _searched_frame(runs: pd.DataFrame, spec: dict, *, own_terms: bool) -> pd.DataFrame:
+def _searched_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
     """Return the runs as the search for a simpler model reads them: a column for each factor, and each run's block.
 
-    A numeric factor is coded as the analysis codes it. A categorical factor of three levels or more is its
-    levels' labels, where the analysis fits a column for each contrast: the library then knows it for a
-    category, keeps or drops all its contrasts together, and searches no square of it.
-
-    A categorical factor of two levels is its labels too in a standard model, where every term has the terms
-    below it. A model searched over its ``own_terms`` may hold a term without them, which the page fits as the
-    product of the factors' -1/+1 columns (:func:`_nested`), and the library, given labels, would fit as an
-    effect within each level. There the factor is its -1/+1 column, so the model scored is the model fitted.
+    A numeric factor is coded as the analysis codes it. A categorical factor is its levels' labels, where the
+    analysis fits a column for each contrast: the library then knows it for a category, keeps or drops all its
+    contrasts together, and searches no square of it. In a standard model every term has the terms below it,
+    and there the library's columns for the labels span what the page's own columns do.
     """
     frame = _coded(runs, spec["factors"])
     for f in spec["factors"]:
-        if _several(f) or (_categorical(f) and not own_terms):
+        if _categorical(f):
             levels = _levels_of(f)
             frame[f["name"]] = [levels[i] for i in _level_indices(runs, f)]
     if _blocked(spec):
