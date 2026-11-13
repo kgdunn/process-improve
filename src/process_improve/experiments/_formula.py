@@ -3,7 +3,7 @@
 
 Nothing here fits a model, so nothing here needs statsmodels: a design is generated, scored and augmented with
 this module alone, and the fitting code in :mod:`process_improve.experiments._lm` loads statsmodels when a
-model is first fitted (#1235). ``_lm`` offers every name of this module too, as it always has.
+model is first fitted (#1235).
 """
 
 from __future__ import annotations

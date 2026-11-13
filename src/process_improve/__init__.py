@@ -29,9 +29,10 @@ visualization
 
 from __future__ import annotations
 
-import importlib
+import sys
 from typing import TYPE_CHECKING, Any
 
+from process_improve import _lazy
 from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
 if TYPE_CHECKING:
@@ -60,36 +61,15 @@ _LAZY_NAMES = {
     "MCUVScaler": "process_improve.multivariate.methods",
 }
 
-#: The subpackages, each an attribute of the package once it is asked for, as when the package imported them itself.
-_SUBPACKAGES = frozenset(
-    {
-        "batch",
-        "bivariate",
-        "chemistry",
-        "experiments",
-        "monitoring",
-        "multivariate",
-        "regression",
-        "sensory",
-        "simulation",
-        "univariate",
-        "visualization",
-        "workbench",
-    }
-)
 
-
-def __getattr__(name: str) -> Any:  # noqa: ANN401 - a class, a function or a subpackage
-    """Import one of the package's lazy names, or a subpackage, the first time it is asked for."""
+def __getattr__(name: str) -> Any:  # noqa: ANN401 - a class, a function, a subpackage or a module
+    """Import one of the package's lazy names, or one of its modules, the first time it is asked for."""
     if name in _LAZY_NAMES:
-        value = getattr(importlib.import_module(_LAZY_NAMES[name]), name)
+        value = getattr(_lazy.load(_LAZY_NAMES[name]), name)
         globals()[name] = value  # found in the package itself from here on
         return value
-    if name in _SUBPACKAGES:
-        return importlib.import_module(f"{__name__}.{name}")
-    message = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(message)
+    return _lazy.submodule(__name__, name)
 
 
 def __dir__() -> list[str]:
-    return sorted({*globals(), *_LAZY_NAMES, *_SUBPACKAGES})
+    return _lazy.listing(sys.modules[__name__], _LAZY_NAMES)

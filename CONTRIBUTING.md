@@ -472,6 +472,17 @@ starts to load either package. A module that a design needs imports neither at i
 what both it and the fitting code share lives in a module of its own, as the formula
 checks do in `experiments/_formula.py`.
 
+The two packages still look as they did when they imported everything themselves, and
+`process_improve/_lazy.py` is what keeps that: a module is an attribute of its package
+without an import of its own (`experiments.models.lm`), and a name is imported under one
+lock, so several threads may ask at once. That lock asks one thing of the library: no module
+takes a name from either package at its top (`from process_improve.experiments import
+Factor`). It imports from the module that holds the name (`from
+process_improve.experiments.factor import Factor`), as every module does now, or inside the
+function that needs it. A module that asked the package would wait for the lock while
+holding its own import lock, which the thread ahead of it may need; the same test file
+fails on one that does.
+
 ## Adding new methods to PCA / PLS
 
 1. Add the method to the class. The implementation is split across focused

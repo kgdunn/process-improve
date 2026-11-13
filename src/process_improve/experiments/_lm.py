@@ -2,7 +2,8 @@
 """Fitting a linear model to an experiment: :func:`lm`, the :class:`Model` it returns, and its summary.
 
 The helpers that read, check and rewrite a formula live in :mod:`process_improve.experiments._formula`, which
-needs no statsmodels; they are offered from here too, as they always were.
+needs no statsmodels. The ones this module uses are importable from here still; the rest are imported from
+there.
 """
 
 from __future__ import annotations

@@ -9,10 +9,11 @@ are in :data:`_WHERE`; the imports under ``TYPE_CHECKING`` say the same to a typ
 
 from __future__ import annotations
 
-import importlib
 import sys
 import types
 from typing import TYPE_CHECKING, Any
+
+from process_improve import _lazy
 
 if TYPE_CHECKING:
     from process_improve.experiments._moment_aberration import (
@@ -185,18 +186,21 @@ class _Package(types.ModuleType):
 sys.modules[__name__].__class__ = _Package
 
 
-def __getattr__(name: str) -> Any:  # noqa: ANN401 - a class or a function of the package
-    """Import the module that holds one of the package's public names, the first time the name is asked for."""
+def __getattr__(name: str) -> Any:  # noqa: ANN401 - a class, a function or a module of the package
+    """Import the module that holds one of the package's public names, the first time the name is asked for.
+
+    Any other module of the package is its attribute too, as when the package imported them all:
+    ``experiments.models.lm``.
+    """
     if name in _MODULE_OF:
-        value = getattr(importlib.import_module(f"{__name__}.{_MODULE_OF[name]}"), name)
+        value = getattr(_lazy.load(f"{__name__}.{_MODULE_OF[name]}"), name)
         globals()[name] = value  # found in the package itself from here on
         return value
-    message = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(message)
+    return _lazy.submodule(__name__, name)
 
 
 def __dir__() -> list[str]:
-    return sorted({*globals(), *_MODULE_OF})
+    return _lazy.listing(sys.modules[__name__], _MODULE_OF)
 
 
 __all__ = [
