@@ -132,6 +132,15 @@ describe("what the footer says of the copy", () => {
     for (const state of ["copying", "keeping"]) assert.deepEqual([copyWords(state).keep, copyWords(state).remove], [null, false]);
   });
 
+  test("a copy says what it takes of the device's storage, where the browser says", () => {
+    assert.equal(copyWords("opens", { size: 170 }).said, "Factorial opens on this device without a network: a copy of it, about 170 MB, is kept here.");
+    assert.equal(
+      copyWords("whole", { size: 190 }).said,
+      "Factorial opens and works on this device without a network: a copy of it, about 190 MB, is kept here, with its charts and workbooks.",
+    );
+    assert.equal(copyWords("none", { size: 10 }).said, "Factorial keeps no copy of itself on this device.");
+  });
+
   test("a copy that could not be finished says why, and can be tried again or removed", () => {
     const words = copyWords("failed", { reason: "Request failed: numpy.whl" });
     assert.equal(words.said, "The copy of Factorial on this device is not whole: Request failed: numpy.whl");
@@ -191,7 +200,7 @@ class Browser {
   }
 
   /** Open the page and run installOffline to its end; return the footer as the visit leaves it. */
-  async visit({ build = manifest, started = Promise.resolve(), serviceWorkers = true } = {}) {
+  async visit({ build = manifest, started = Promise.resolve(), serviceWorkers = true, usage = null } = {}) {
     const browser = this;
     const page = footer();
     const set = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
@@ -206,6 +215,7 @@ class Browser {
       browser.worker = { script, after: browser.downloaded().length };
     };
     set("navigator", {
+      ...(usage === null ? {} : { storage: { estimate: async () => ({ usage }) } }), // a browser may not say
       serviceWorker: serviceWorkers && {
         register,
         getRegistration: async () => browser.worker && { unregister: async () => void (browser.worker = null) },
@@ -247,6 +257,11 @@ describe("a first visit", () => {
 
   test("downloads nothing of the charts and workbooks", () => {
     assert.ok(!LATER.some((address) => browser.network.asked.includes(address)));
+  });
+
+  test("says what the copy takes of the device's storage, to the nearest ten MB, in a browser that says", async () => {
+    const page = await new Browser().visit({ usage: 169_400_000 });
+    assert.equal(page.said.textContent, "Factorial opens on this device without a network: a copy of it, about 170 MB, is kept here.");
   });
 
   test("is followed by visits that copy nothing again", async () => {

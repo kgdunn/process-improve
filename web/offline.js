@@ -113,10 +113,12 @@ const TRY_AGAIN = "Try again";
 /**
  * What the footer says of the copy in each state, and the buttons it offers: `keep` holds the words of the button
  * that keeps more, or none, and `remove` says whether the copy can be removed. `exact` says whether the build names
- * the files of the charts and workbooks: only then can they be kept for certain, and the button offered.
+ * the files of the charts and workbooks: only then can they be kept for certain, and the button offered. `size` is
+ * what the copy takes of the device's storage, in MB, where the browser says: the copy is made unasked, so a
+ * reader is told what it costs beside the button that removes it.
  */
-export function copyWords(state, { reason = "", exact = true } = {}) {
-  const kept = "a copy of it is kept here";
+export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
+  const kept = size ? `a copy of it, about ${size} MB, is kept here` : "a copy of it is kept here";
   return {
     none: { said: "Factorial keeps no copy of itself on this device.", keep: KEEP_PAGE, remove: false },
     copying: { said: "Keeping a copy of Factorial...", keep: null, remove: false },
@@ -152,6 +154,16 @@ async function holds(name, addresses) {
     if (!(await cache.match(address, { ignoreVary: true }))) return false;
   }
   return true;
+}
+
+/** What this site keeps on the device, in MB to the nearest ten, as the browser estimates it; null where it says nothing. */
+async function megabytesKept() {
+  try {
+    const { usage } = await navigator.storage.estimate();
+    return usage ? Math.round(usage / 1e7) * 10 : null;
+  } catch {
+    return null; // a browser without the estimate, or one that refuses it
+  }
 }
 
 /** Drop the kept files of earlier builds and releases, which `now` names the successors of. */
@@ -220,8 +232,8 @@ export async function installOffline({ manifest, started, box }) {
   let wanted = "page"; // what was last asked for, which "Try again" tries: the page's copy, or the whole of it
   let busy = false; // one thing at a time is done to the copy
 
-  const show = (state, reason) => {
-    const words = copyWords(state, { reason, exact });
+  const show = (state, { reason, size } = {}) => {
+    const words = copyWords(state, { reason, exact, size });
     const within = box.contains(document.activeElement); // the button pressed may be about to go
     box.dataset.state = state;
     said.textContent = words.said;
@@ -242,10 +254,11 @@ export async function installOffline({ manifest, started, box }) {
     return { start: startFiles({ scope, lock, runtime, manifest }), later, now: loadedNow(runtime, manifest) };
   }
 
-  /** Say what the copy holds, as the copy itself has it. */
+  /** Say what the copy holds, as the copy itself has it, and what it takes of the device's storage. */
   async function say({ start, later }) {
     const opens = (await holds(KEPT, start)) && (await holds(APP, [scope]));
-    show(!opens ? "none" : later && (await holds(KEPT, later)) ? "whole" : "opens");
+    const state = !opens ? "none" : later && (await holds(KEPT, later)) ? "whole" : "opens";
+    show(state, { size: await megabytesKept() });
   }
 
   /**
@@ -276,7 +289,8 @@ export async function installOffline({ manifest, started, box }) {
       // No worker though the reader asked for a copy, a full disk, no network for a file, or Python did not start.
       // Unasked, it is said only of a copy that is there: with none, the reader was promised nothing.
       const copies = await caches.keys().catch(() => []);
-      if (meanwhile || copies.some((name) => name.startsWith("factorial-"))) show("failed", String(err?.message || err));
+      const reason = String(err?.message || err);
+      if (meanwhile || copies.some((name) => name.startsWith("factorial-"))) show("failed", { reason });
     } finally {
       busy = false;
     }
