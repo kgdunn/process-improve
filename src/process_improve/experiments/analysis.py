@@ -1052,12 +1052,15 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
 
 
 def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
-    """Return the terms of a formula analysed as a mixture model, less the blocks; None for any other model.
+    """Return the terms of a formula over mixture components that holds the constant, less the blocks; else None.
 
-    model_selection searches them as it does a Scheffe model's: not as the interactions model,
-    whose intercept the blends already make up (#1129). It leaves the blocks out of every model.
+    That is a formula analysed as a mixture model, or one without an intercept over mixture
+    components beside process factors. model_selection searches them as it does a Scheffe
+    model's: not as the interactions model, whose intercept the blends already make up
+    (#1129, #1169). It leaves the blocks out of every model.
     """
-    if not fit.mixture or fit.model in SCHEFFE_MODELS:
+    components = _mixture_components(fit.df, fit.factor_cols)
+    if fit.model in SCHEFFE_MODELS or not (fit.mixture or (components and spans_constant(fit.ols))):
         return None
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
     return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
@@ -1128,6 +1131,7 @@ def _handlers(
             fit.factor_cols,
             model=fit.searched_model or fit.model,
             mixture_terms=_mixture_formula_terms(fit),
+            components=_mixture_components(fit.df, fit.factor_cols) or None,
         ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),

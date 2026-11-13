@@ -24,7 +24,11 @@ otherwise, as in a screening or supersaturated design.
 A Scheffe mixture model has no intercept, since the components sum to 1: every
 linear blending term stays in, and the search chooses among the non-linear blending
 terms (``x1:x2``, and ``x1:x2:x3`` for the special cubic). A formula analysed as a
-mixture model is searched the same way, over its own terms.
+mixture model is searched the same way, over its own terms. So are mixture components
+beside process factors: a formula over them without an intercept is searched over its
+own terms, and a standard model is the mixture-process model of that order
+(:func:`~process_improve.experiments.designs_mixture_process.mixture_process_model`),
+whose process main effects enter through the products ``x1:T``.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
+from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from patsy import dmatrix
 
 from process_improve.experiments._analyses.mixture import spans_constant
@@ -43,6 +48,11 @@ from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
     SCHEFFE_MODELS,
     cubic_difference_term,
+)
+from process_improve.experiments.designs_mixture_process import (
+    PROCESS_MODELS,
+    ReducedRankFormula,
+    mixture_process_model,
 )
 
 _CRITERIA = ("aicc", "aic", "bic")
@@ -80,6 +90,35 @@ def _candidate_terms(factors: list[str], model: str | None, *, square_heredity: 
     return terms
 
 
+def _mixture_process_terms(
+    components: list[str], process: list[str], model: str, categorical: list[str]
+) -> list[_Term]:
+    """Terms the search may use on mixture-process data: the mixture-process ``model`` less its linear blending terms.
+
+    They are searched free of heredity, as a Scheffe model's are: a process main effect enters
+    through the products ``x_i:z_k``, so ``z_k:z_l`` and ``I(z_k ** 2)`` have no term ``z_k`` to need.
+    """
+    levels = dict.fromkeys(categorical, ())  # only which factors are categorical matters here: they have no square
+    terms = mixture_process_model(components, process, model, levels).terms
+    return [_Term(name, frozenset()) for name in (":".join(a.code for a in t) for t in terms) if name not in components]
+
+
+def _reduced_rank(formula: str, data: pd.DataFrame) -> str:
+    """Return ``formula``, which has no intercept, with each categorical column of ``data`` coded in ``L - 1`` columns.
+
+    Patsy would give a categorical factor a column for every level wherever the term below it
+    is missing, and those columns would add up to ones the blends already span.
+    analyze_experiment codes the factors beside mixture components the same way (see
+    :class:`~process_improve.experiments.designs_mixture_process.ReducedRankFormula`).
+    """
+    return ReducedRankFormula(formula, _categorical(data))
+
+
+def _categorical(data: pd.DataFrame) -> list[str]:
+    """Return the columns of ``data`` that patsy treats as categorical: booleans and text."""
+    return [c for c in data.columns if is_bool_dtype(data[c]) or not is_numeric_dtype(data[c])]
+
+
 class _Scorer:
     """Score subsets of terms from one model matrix, built once by patsy.
 
@@ -95,9 +134,10 @@ class _Scorer:
         criterion: str,
         fixed: list[str] | None = None,
     ) -> None:
-        names = [*(fixed or []), *(t.name for t in terms)]
-        prefix = "-1 + " if fixed else ""
-        full = dmatrix(prefix + " + ".join(names), design_df, return_type="dataframe")
+        names = " + ".join([*(fixed or []), *(t.name for t in terms)])
+        full = dmatrix(
+            _reduced_rank(f"-1 + {names}", design_df) if fixed else names, design_df, return_type="dataframe"
+        )
         self._x = full.to_numpy(dtype=float)
         slices = full.design_info.term_name_slices
         positions = np.arange(self._x.shape[1])
@@ -181,6 +221,7 @@ def _run_model_selection(
     model: str | None = None,
     criterion: str = "aicc",
     mixture_terms: list[str] | None = None,
+    components: list[str] | None = None,
 ) -> dict[str, Any]:
     """Select the terms of ``model`` that the data support, by stepwise search with heredity.
 
@@ -200,9 +241,14 @@ def _run_model_selection(
     criterion : str
         ``"aicc"`` (default), ``"aic"`` or ``"bic"``.
     mixture_terms : list[str] or None
-        The terms of ``model``, a formula analysed as a mixture model, or None for any
-        other model. As in a Scheffé model, its linear blending terms (the factors) all
-        stay in, and the search chooses among the others.
+        The terms of ``model``, a formula analysed as a mixture model or a formula over
+        ``components`` that holds the constant without an intercept, or None for any other
+        model. As in a Scheffé model, its linear blending terms (the components) all stay
+        in, and the search chooses among the others.
+    components : list[str] or None
+        The mixture components, when ``factor_cols`` holds them beside process factors;
+        None otherwise. A standard model is then searched as the mixture-process model of
+        that order, without an intercept: its linear blending terms stay in.
 
     Returns
     -------
@@ -215,12 +261,16 @@ def _run_model_selection(
     if criterion not in _CRITERIA:
         raise ValueError(f"criterion must be one of {', '.join(_CRITERIA)}; got {criterion!r}.")
     searchable = ("main_effects", "interactions", "quadratic", *SCHEFFE_MODELS)
+    searched = model if mixture_terms is not None or model in searchable else "interactions"
+    linear = components or factor_cols
     if mixture_terms is not None:
-        searched = model
-        fixed = [t for t in mixture_terms if t in factor_cols]
-        terms = [_Term(t, frozenset()) for t in mixture_terms if t not in factor_cols]
+        fixed = [t for t in mixture_terms if t in linear]
+        terms = [_Term(t, frozenset()) for t in mixture_terms if t not in linear]
+    elif components and searched in PROCESS_MODELS:
+        process = [f for f in factor_cols if f not in components]
+        fixed = list(components)
+        terms = _mixture_process_terms(components, process, searched, _categorical(design_df[process]))
     else:
-        searched = model if model in searchable else "interactions"
         fixed = list(factor_cols) if searched in SCHEFFE_MODELS else []
         terms = _candidate_terms(factor_cols, searched)
     mixture = bool(fixed)
@@ -233,10 +283,11 @@ def _run_model_selection(
         formula = f"{response_col} ~ -1 + {' + '.join([*fixed, *names])}"
     else:
         formula = f"{response_col} ~ {' + '.join(names)}" if names else f"{response_col} ~ 1"
-    fit = smf.ols(formula, data=data).fit()
+    coded = _reduced_rank(formula, data) if mixture else formula
+    fit = smf.ols(coded, data=data).fit()
     if not fit.k_constant and spans_constant(fit):
         # As analyze_experiment does: statsmodels misses the constant of blends rounded for printing.
-        fit = smf.ols(formula, data=data, hasconst=True).fit()
+        fit = smf.ols(coded, data=data, hasconst=True).fit()
     result: dict[str, Any] = {
         "selected_formula": formula,
         "selected_terms": [*fixed, *names],
