@@ -972,12 +972,136 @@ class TestModelSelection:
         assert strong["model_selection"]["selected_terms"] == ["A", "B", "I(B ** 2)"]
         assert _proposed_terms(x, "y", ["A", "B"], "quadratic") == ["A", "I(B ** 2)"]
 
-    def test_a_formula_model_is_searched_as_interactions_with_a_note(self) -> None:
-        ms = analyze_experiment(
-            _three_factor_data(), response_column="y", model="A + B + A:B", analysis_type="model_selection"
-        )["model_selection"]
-        assert ms["candidate_model"] == "interactions"
-        assert "searched as 'interactions'" in ms["note"]
+    @staticmethod
+    def _three_level_runs(seed: int = 11) -> tuple[pd.DataFrame, np.random.Generator]:
+        """Return a 3^2 factorial run twice, and a generator for its noise."""
+        runs = pd.DataFrame(list(itertools.product([-1.0, 0.0, 1.0], repeat=2)) * 2, columns=list("AB"))
+        return runs, np.random.default_rng(seed)
+
+    def test_a_formula_is_searched_over_its_own_terms(self) -> None:
+        """A square the formula has is one the search may keep: searched as 'interactions', it had none (#1229)."""
+        x, rng = self._three_level_runs()
+        y = pd.Series(10 + 2 * x.A - 3 * x.A**2 + rng.normal(0, 0.2, len(x)), name="y")
+        model = "y ~ A + B + A:B + I(A ** 2)"
+        ms = analyze_experiment(x, y, model=model, analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "I(A ** 2)"]
+        assert ms["selected_formula"] == "y ~ A + I(A ** 2)"
+        assert ms["candidate_model"] == model
+        assert "note" not in ms
+        named = analyze_experiment(x, y, model="quadratic", analysis_type="model_selection")["model_selection"]
+        assert named["selected_terms"] == ms["selected_terms"], "the named model, searched over the same terms and more"
+
+    def test_a_formula_search_brings_in_no_term_the_formula_leaves_out(self) -> None:
+        x, rng = self._three_level_runs()
+        y = pd.Series(10 + 2 * x.A - 3 * x.A**2 + 4 * x.B**2 + rng.normal(0, 0.2, len(x)), name="y")
+        ms = analyze_experiment(x, y, model="A + B + I(A ** 2)", analysis_type="model_selection")["model_selection"]
+        assert set(ms["selected_terms"]) <= {"A", "B", "I(A ** 2)"}, "B's square is real, and not the formula's"
+        assert {"A", "I(A ** 2)"} <= set(ms["selected_terms"])
+
+    def test_a_formula_term_stays_while_a_term_that_contains_it_is_in(self) -> None:
+        """An interaction and no main effects: heredity keeps both, as in a named model."""
+        x, rng = self._three_level_runs()
+        y = pd.Series(10 + 3 * x.A * x.B + rng.normal(0, 0.2, len(x)), name="y")
+        ms = analyze_experiment(x, y, model="A + B + A:B", analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "B", "A:B"]
+
+    def test_each_term_of_a_formula_needs_the_terms_of_the_formula_inside_it(self) -> None:
+        from process_improve.experiments._analyses.model_selection import _formula_terms
+
+        codes = [("A",), ("B",), ("C",), ("A", "B"), ("A", "B", "C"), ("I(A ** 2)",), ("I(D ** 2)",), ("np.log(B)",)]
+        needs = {term.name: sorted(term.parents) for term in _formula_terms(codes)}
+        assert needs == {
+            "A": [],
+            "B": [],
+            "C": [],
+            "A:B": ["A", "B"],
+            "A:B:C": ["A", "A:B", "B", "C"],  # A:C and B:C are not the formula's, so they are not needed
+            "I(A ** 2)": ["A"],
+            "I(D ** 2)": [],  # the formula has no D to need
+            "np.log(B)": [],  # not a whole power of a column: another term than B
+        }
+
+    def test_a_formula_without_an_intercept_is_searched_without_one(self) -> None:
+        x, rng = self._three_level_runs()
+        y = pd.Series(2 * x.A + rng.normal(0, 0.2, len(x)), name="y")
+        ms = analyze_experiment(x, y, model="y ~ -1 + A + B", analysis_type="model_selection")["model_selection"]
+        assert ms["selected_formula"] == "y ~ -1 + A"
+        assert ms["n_terms"] == 1
+
+    @staticmethod
+    def _blocked_runs() -> tuple[pd.DataFrame, pd.Series]:
+        """Return a 2^3 run in each of two blocks that differ by ten, with effects of A and C."""
+        runs = pd.DataFrame(list(itertools.product([-1.0, 1.0], repeat=3)) * 2, columns=list("ABC"))
+        runs["Block"] = [1] * 8 + [2] * 8
+        noise = np.random.default_rng(5).normal(0, 0.3, len(runs))
+        y = 20 + 3 * runs.A - 2 * runs.C + np.where(runs.Block == 1, 5.0, -5.0) + noise
+        return runs, pd.Series(y, name="y")
+
+    @pytest.mark.parametrize(
+        ("model", "blocks"),
+        [("interactions", "Block"), ("y ~ A + B + C + A:B + Block", "Block"), ("y ~ A + B + C + C(Block)", "C(Block)")],
+    )
+    def test_the_blocks_are_in_every_model_the_search_scores(self, model: str, blocks: str) -> None:
+        """Left out, as they were, ten units of block difference go to the residual and hide A and C (#1229)."""
+        runs, y = self._blocked_runs()
+        ms = analyze_experiment(runs, y, model=model, analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "C"], "the terms chosen: the blocks are kept, not chosen"
+        assert ms["selected_formula"] == f"y ~ {blocks} + A + C"
+        assert ms["n_terms"] == 4, "the intercept, one block contrast, A and C"
+        assert ms["r_squared_adj"] > 0.99
+        # The formula is one analyze_experiment takes: it names the Block column, not the contrasts fitted for it.
+        again = analyze_experiment(runs, y, model=ms["selected_formula"], analysis_type="coefficients")
+        assert again["model_summary"]["r_squared_adj"] == pytest.approx(ms["r_squared_adj"])
+
+    def test_without_the_blocks_the_search_would_have_lost_an_effect(self) -> None:
+        """What the blocks are kept for: the same runs, searched with the block differences left in the residual."""
+        from process_improve.experiments._analyses.model_selection import _run_model_selection
+
+        runs, y = self._blocked_runs()
+        data = runs.assign(y=y, Block1=np.where(runs.Block == 1, 1.0, -1.0))
+        kept = _run_model_selection(data, "y", list("ABC"), "interactions", blocks=["Block1"])["model_selection"]
+        left_out = _run_model_selection(data, "y", list("ABC"), "interactions")["model_selection"]
+        assert kept["selected_terms"] == ["A", "C"]
+        assert left_out["r_squared_adj"] < 0.5 < kept["r_squared_adj"]
+        assert kept["selected_formula"] == "y ~ Block + A + C"
+
+    def test_a_categorical_factor_enters_whole_and_has_no_square(self) -> None:
+        """Three levels are two contrasts, kept or dropped together; a category has no square to search (#1229)."""
+        levels = list(itertools.product([-1.0, 0.0, 1.0], ["p", "q", "r"])) * 2
+        runs = pd.DataFrame(levels, columns=["A", "Cat"])
+        rng = np.random.default_rng(7)
+        shift = runs.Cat.map({"p": 0.0, "q": 4.0, "r": -4.0})
+        y = pd.Series(10 + 2 * runs.A - 3 * runs.A**2 + shift + rng.normal(0, 0.2, len(runs)), name="y")
+        ms = analyze_experiment(runs, y, model="quadratic", analysis_type="model_selection")["model_selection"]
+        assert ms["selected_terms"] == ["A", "Cat", "I(A ** 2)"]
+        assert ms["n_terms"] == 5, "the intercept, A, the category's two contrasts, and A squared"
+        idle = pd.Series(10 + 2 * runs.A + rng.normal(0, 0.2, len(runs)), name="y")
+        without = analyze_experiment(runs, idle, model="quadratic", analysis_type="model_selection")["model_selection"]
+        assert without["selected_terms"] == ["A"], "both contrasts leave together"
+
+    def test_a_formula_that_opens_with_minus_one_keeps_no_intercept_when_its_blocks_are_added(self) -> None:
+        """The block contrasts go in front of the formula, and patsy reads ``Block1 + -1 + x`` with an intercept."""
+        blends = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5), (1 / 3, 1 / 3, 1 / 3)]
+        runs = pd.DataFrame(blends * 2, columns=["x1", "x2", "x3"])
+        runs["Block"] = [1] * 7 + [2] * 7
+        rng = np.random.default_rng(9)
+        y = 10 * runs.x1 + 6 * runs.x2 + 8 * runs.x3 + 12 * runs.x1 * runs.x2 + np.where(runs.Block == 1, 3.0, -3.0)
+        y = pd.Series(y + rng.normal(0, 0.1, len(runs)), name="y")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # the fit with an intercept was rank-deficient, and warned of it
+            out = analyze_experiment(
+                runs,
+                y,
+                model="y ~ -1 + x1 + x2 + x3 + x1:x2 + Block",
+                analysis_type=["coefficients", "model_selection"],
+            )
+        fitted = [c["term"] for c in out["coefficients"]]
+        assert fitted == ["Block1", "x1", "x2", "x3", "x1:x2"], "no intercept, as the formula asked"
+        by_term = {c["term"]: c["coefficient"] for c in out["coefficients"]}
+        assert by_term["x1:x2"] == pytest.approx(12, abs=0.6)
+        assert by_term["Block1"] == pytest.approx(3, abs=0.1)
+        assert out["model_selection"]["selected_formula"].startswith("y ~ -1 + ")
+        assert "Block" in out["model_selection"]["selected_formula"]
 
     def test_unknown_criterion(self) -> None:
         from process_improve.experiments._analyses.model_selection import _run_model_selection

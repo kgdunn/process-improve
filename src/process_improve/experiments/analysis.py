@@ -59,7 +59,7 @@ from process_improve.experiments._analyses.mixture import (
     run_mixture_significance,
     spans_constant,
 )
-from process_improve.experiments._analyses.model_selection import _run_model_selection
+from process_improve.experiments._analyses.model_selection import _Formula, _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
     _joint_inference,
     _run_anova,
@@ -619,7 +619,10 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
                     stacklevel=user_stacklevel(),
                 )
             return df, formula, ()
-        rhs = " + ".join(term for term in terms if term != BLOCK_COL)
+        # The contrasts go in front, and patsy reads "Block1 + -1 + x" as a model with an intercept: a formula
+        # that opens with -1 says so with 0, which drops the intercept wherever it stands.
+        kept = ["0" if term.replace(" ", "") == "-1" else term for term in terms if term != BLOCK_COL]
+        rhs = " + ".join(kept)
 
     levels = block_levels(df[BLOCK_COL])
     df = df.copy()
@@ -1050,16 +1053,34 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
-def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
-    """Return the terms of a formula analysed as a mixture model, less the blocks; None for any other model.
+def _searched_formula(fit: _Fit) -> _Formula | None:
+    """Return an explicit formula as model_selection searches it, less its blocks; None for a named model.
 
-    model_selection searches them as it does a Scheffe model's: not as the interactions model,
-    whose intercept the blends already make up (#1129). It leaves the blocks out of every model.
+    The search is over the formula's own terms: a term the formula has, a square among them, is one the search
+    may keep, and no other comes in. One analysed as a mixture model is searched as a Scheffe model is: not as
+    the interactions model, whose intercept the blends already make up (#1129).
     """
-    if not fit.mixture or fit.model in SCHEFFE_MODELS:
+    if fit.model in _NAMED_MODELS:
         return None
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
-    return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
+    own = [t for t in terms if t.factors and not _references(t.name(), BLOCK_COL)]
+    return _Formula(
+        [tuple(factor.name() for factor in t.factors) for t in own],
+        mixture=fit.mixture,
+        intercept=any(not t.factors for t in terms),
+    )
+
+
+def _block_terms(fit: _Fit) -> list[str]:
+    """Return the terms that fit the blocks, which model_selection keeps in every model it scores.
+
+    They are the contrast columns :func:`_add_block_term` made, or else the terms of an explicit formula that
+    name the block column themselves (``C(Block)``).
+    """
+    if fit.blocks or fit.model in _NAMED_MODELS:
+        return list(fit.blocks)
+    terms = ModelDesc.from_formula(fit.model).rhs_termlist
+    return [t.name() for t in terms if t.factors and _references(t.name(), BLOCK_COL)]
 
 
 def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
@@ -1126,7 +1147,8 @@ def _handlers(
             fit.response_col,
             fit.factor_cols,
             model=fit.searched_model or fit.model,
-            mixture_terms=_mixture_formula_terms(fit),
+            formula=_searched_formula(fit),
+            blocks=_block_terms(fit),
         ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),
