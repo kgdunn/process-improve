@@ -152,13 +152,14 @@ def compile_bytecode(tree: Path, python: str) -> bool:
     Bytecode is read only by the minor version of Python that wrote it, so uv provides that interpreter; a
     browser that runs another one ignores the bytecode and compiles the source, as before. The bytecode is marked
     never to be checked against its source (PEP 552): an install changes the source's dates, and the two are made
-    here together. Without the interpreter (uv could not fetch it), the app is built without bytecode, and the
-    manifest says so.
+    here together. It is compiled as Python runs it without ``-O``, as the browser does, whatever ``PYTHONOPTIMIZE``
+    says where the build runs: bytecode of another level has another name, which the browser would not read.
+    Without the interpreter (uv could not fetch it), the app is built without bytecode, and the manifest says so.
     """
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit("uv not found on PATH; see https://docs.astral.sh/uv/")
-    module = ["-m", "compileall", "-q", "--invalidation-mode", "unchecked-hash"]
+    module = ["-m", "compileall", "-q", "-o", "0", "--invalidation-mode", "unchecked-hash"]
     paths = ["-s", str(tree), "-p", SITE_PACKAGES.format(python=python), str(tree)]
     done = subprocess.run(  # noqa: S603
         [uv, "run", "--no-project", "--python", python, "python", *module, *paths],

@@ -280,8 +280,13 @@ def test_the_browser_s_copy_of_the_wheel_leaves_out_what_the_page_never_reads(bu
 
 
 @pytest.mark.slow
-def test_the_wheel_s_bytecode_is_listed_in_it_and_never_checked_against_its_source(build_script, tmp_path):
-    """Compiled by the Python the page runs, which uv provides; skipped where uv cannot provide it."""
+def test_the_wheel_s_bytecode_is_listed_in_it_and_never_checked_against_its_source(build_script, tmp_path, monkeypatch):
+    """Compiled by the Python the page runs, which uv provides; skipped where uv cannot provide it.
+
+    The build may run where ``PYTHONOPTIMIZE`` is set, as one row of CI does: the bytecode is the browser's all the
+    same, which runs Python without ``-O`` and reads no ``.opt-1.pyc``.
+    """
+    monkeypatch.setenv("PYTHONOPTIMIZE", "1")
     python = build_script.runtime()["python"]
     wheel = tmp_path / "pkg-1.0-py3-none-any.whl"
     _stand_in_wheel(wheel, build_script.NOT_FOR_THE_PAGE)

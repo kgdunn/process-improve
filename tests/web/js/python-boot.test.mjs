@@ -59,8 +59,9 @@ describe("a call to Python", () => {
     assert.equal(calls.length, 1);
   });
 
-  test("is not read for what it lacks when its reply is long: a result may hold the word", async () => {
-    const long = JSON.stringify({ ok: true, result: { needs: "plotly", rows: Array(200).fill(0) }, warnings: [] });
+  test("is not read for what it lacks when its reply is long: only Python's short reply says so", async () => {
+    // A megabyte of charts is not parsed a second time to look for the word: were it read, this reply would ask.
+    const long = JSON.stringify({ ok: true, needs: "plotly", result: { rows: Array(200).fill(0) }, warnings: [] });
     const provide = async () => assert.fail("nothing is lacking");
     assert.equal(await answer(() => long, "{}", provide), long);
   });

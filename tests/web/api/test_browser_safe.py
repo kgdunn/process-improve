@@ -41,7 +41,8 @@ import bootstrap
 
 def call(fn, payload):
     reply = json.loads(getattr(bootstrap, fn)(json.dumps(payload)))
-    assert reply["ok"], (fn, reply["error"])
+    if not reply["ok"]:  # no assert: one row of CI runs Python with -O, which leaves asserts out
+        raise SystemExit(f"{fn}: {reply['error']}")
     return reply["result"]
 
 
@@ -70,7 +71,8 @@ call("api_compare", {"model": plan["model"], "designs": made})
 
 # The browser's copy of the wheel leaves out the reference catalogue's sources (NOT_FOR_THE_PAGE in
 # scripts/build_web_app.py). One module reads them, and the page's Python must never load it.
-assert "process_improve.experiments.reference_catalogue" not in sys.modules
+if "process_improve.experiments.reference_catalogue" in sys.modules:
+    raise SystemExit("the page's Python loaded the reference catalogue, which the browser's wheel leaves out")
 """
 
 
