@@ -200,9 +200,14 @@ class Browser {
     set("fetch", this.network.fetch);
     set("caches", this.caches);
     set("localStorage", { getItem: (key) => this.notes.get(key) ?? null, setItem: (key, value) => this.notes.set(key, value), removeItem: (key) => this.notes.delete(key) });
+    // A browser has service workers, has none (false), or has them and refuses to register one ("refused").
+    const register = async (script) => {
+      if (serviceWorkers === "refused") throw new Error("The operation is insecure.");
+      browser.worker = { script, after: browser.downloaded().length };
+    };
     set("navigator", {
       serviceWorker: serviceWorkers && {
-        register: async (script) => void (browser.worker = { script, after: browser.network.asked.length }),
+        register,
         getRegistration: async () => browser.worker && { unregister: async () => void (browser.worker = null) },
       },
     });
@@ -235,9 +240,8 @@ describe("a first visit", () => {
     assert.equal(page.keep.textContent, "Keep its charts and workbooks too (about 12 MB)");
   });
 
-  test("registers the worker once the copy is made, so Python starts with no worker in its way", () => {
-    assert.equal(browser.worker.script, "sw.js");
-    assert.equal(browser.worker.after, browser.network.asked.length, "nothing was copied after it");
+  test("registers the worker before it copies anything, so no copy is made that no worker could serve", () => {
+    assert.deepEqual([browser.worker.script, browser.worker.after], ["sw.js", 0]);
     assert.ok(START.every((address) => browser.network.asked.includes(address)));
   });
 
@@ -313,17 +317,24 @@ describe("a copy the browser has lost part of", () => {
 });
 
 describe("a copy that cannot be finished", () => {
-  test("says why, registers no worker to serve it, and is whole once tried again with the file there", async () => {
+  test("says why, and is whole once tried again with the file there", async () => {
     const browser = new Browser();
     browser.network.files.delete(`${RELEASE}numpy.whl`);
     const page = await browser.visit();
     assert.equal(page.said.textContent, `The copy of Factorial on this device is not whole: Request failed: ${RELEASE}numpy.whl`);
     assert.deepEqual([page.keep.textContent, page.keep.hidden, page.remove.hidden], ["Try again", false, false]);
-    assert.equal(browser.worker, null);
     browser.network.files.set(`${RELEASE}numpy.whl`, "numpy");
     await page.keep.onclick();
     assert.deepEqual(page.seen.slice(1), ["Keeping a copy of Factorial...", "Factorial opens on this device without a network: a copy of it is kept here."]);
+  });
+
+  test("can be removed, with the worker that was to serve it", async () => {
+    const browser = new Browser();
+    browser.network.files.delete(`${RELEASE}numpy.whl`);
+    const page = await browser.visit();
     assert.equal(browser.worker.script, "sw.js");
+    await page.remove.onclick();
+    assert.deepEqual([await browser.caches.keys(), browser.worker], [[], null]);
   });
 
   test("for want of a file the page opens with says so, where one it merely loaded is left out", async () => {
@@ -450,5 +461,11 @@ describe("a page that keeps no copy", () => {
     const browser = new Browser();
     const page = await browser.visit({ serviceWorkers: false });
     assert.deepEqual([page.box.hidden, browser.network.asked], [true, []]);
+  });
+
+  test("is one in a browser that refuses to register a worker: nothing is copied, and nothing said unasked", async () => {
+    const browser = new Browser();
+    const page = await browser.visit({ serviceWorkers: "refused" });
+    assert.deepEqual([page.box.hidden, await browser.caches.keys(), browser.downloaded()], [true, [], []]);
   });
 });

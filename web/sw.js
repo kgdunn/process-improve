@@ -11,7 +11,9 @@
 // - Any other request, and any that is not a GET, is left alone: the feedback form's among them.
 //
 // What the copy holds is the page's business (offline.js): it makes the copy, drops what earlier builds left in
-// it, and removes it. This worker only adds to a copy that is there, so one removed stays removed.
+// it, and removes it. This worker only adds to a copy that is there, so one removed stays removed. And it serves a
+// page from the page's next visit on: it never takes over a page that is open, so the visit that registers it
+// loads, and makes its copy, with no worker in its way.
 //
 // The way out, should this worker ever serve a page wrongly, is a build made with --no-service-worker
 // (scripts/build_web_app.py): it puts sw-retire.js at this address, which the browser fetches at the reader's next
@@ -105,7 +107,6 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
           if (name.startsWith("factorial-") && name !== KEPT && name !== APP) await caches.delete(name);
         }
         await Promise.all([caches.open(KEPT), caches.open(APP)]); // the copies, which keep() adds to while they last
-        await self.clients.claim(); // the page that registered this worker is served by it from here on
       })(),
     );
   });

@@ -84,10 +84,11 @@ async function running(files = { [WASM]: "wasm", [APP_JS]: "app, as deployed", [
 }
 
 describe("the worker, taking over", () => {
-  test("waits for no page to close, and serves the page that registered it", async () => {
+  test("waits for no page of an earlier version to close, and takes over no page that is open", async () => {
     const { self, fire } = await running();
     await fire("install");
-    assert.ok(self.skipped && self.claimed);
+    assert.ok(self.skipped, "a later version of the worker replaces the one before at once");
+    assert.equal(self.claimed, undefined, "the visit that registers it loads, and copies, with no worker in its way");
   });
 
   test("makes its two copies, and deletes the copies an earlier version of it named", async () => {

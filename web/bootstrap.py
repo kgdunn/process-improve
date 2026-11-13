@@ -5178,11 +5178,9 @@ def _more_charts(
         "cube": corners if len(corners) == len("xyz") and transform is None else None,
         "normal_probability": [] if residual_df > 0 else None,
         "residuals_order": [] if residual_df > 0 else None,
-        # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
-        # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
-        "prediction_variance": (
-            pair if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]} else None
-        ),
+        # shortcut: the library's plot reads the fitted formula with patsy, which calls a factor named I where the
+        # formula squares one; upgrade when the plot takes the model's terms (#1229, item 2).
+        "prediction_variance": pair if surface and "I" not in {f["name"] for f in spec["factors"]} else None,
     }
     return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 

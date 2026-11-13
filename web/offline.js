@@ -4,10 +4,11 @@
 // the copy holds: it makes the copy, drops what earlier builds left in it, says in the page's footer what is kept,
 // and removes it.
 //
-// 1. Once Python has started, what this visit loaded is copied: the page's own files, the Pyodide release with its
-//    packages, the wheel. The browser has just fetched them all, so the copy costs no download. The worker is
-//    registered when the copy is made, so a first visit starts Python with no worker in its way, and from the next
-//    visit on the worker keeps the copy up with each build as its files pass.
+// 1. Once Python has started, the worker is registered and what this visit loaded is copied: the page's own files,
+//    the Pyodide release with its packages, the wheel. The browser has just fetched them all, so the copy costs no
+//    download. The worker serves a page from its next visit on, never one that is open: a first visit starts
+//    Python and makes its copy with no worker in its way, and from the next visit on the worker keeps the copy up
+//    with each build as its files pass. A browser that registers no worker is asked to keep nothing.
 // 2. Charts and workbooks need plotly, openpyxl and Plotly.js, which start-up leaves out. A reader who wants the
 //    whole page without a network asks for them with the button; a reader who never asks downloads none of it
 //    until a chart or a workbook is first made.
@@ -249,8 +250,10 @@ export async function installOffline({ manifest, started, box }) {
 
   /**
    * Keep the page's copy ("page"), or its charts and workbooks too ("whole"), and say what is then kept. The
-   * page's copy comes first either way: what it lacks is added, what earlier builds left is dropped, and the
-   * worker is registered to serve it. `meanwhile` is the state shown while it is done, or none.
+   * worker is registered first, so a browser that refuses one is asked to keep nothing: a copy with no worker to
+   * serve it is of no use. Then the page's copy: what it lacks is added, and what earlier builds left is dropped.
+   * `meanwhile` is the state shown while it is done; without one the reader asked for nothing, and a browser that
+   * registers no worker is told nothing.
    */
   async function run(what, meanwhile) {
     if (busy) return;
@@ -258,15 +261,20 @@ export async function installOffline({ manifest, started, box }) {
     if (meanwhile) show(meanwhile);
     try {
       const files = await listed();
+      const served = await navigator.serviceWorker.register("sw.js").then(
+        () => true,
+        (refused) => (meanwhile ? Promise.reject(refused) : false),
+      );
+      if (!served) return;
       await copyInto(KEPT, files.start);
       await copyInto(APP, opening(scope));
       await copyInto(APP, alsoLoaded(scope), { needed: false });
       await prune(scope, files.now);
-      await navigator.serviceWorker.register("sw.js");
       if (what === "whole" && files.later) await copyInto(KEPT, files.later);
       await say(files);
     } catch (err) {
-      show("failed", String(err?.message || err)); // a full disk, no network for a file, or Python did not start
+      // No worker though the reader asked for a copy, a full disk, no network for a file, or Python did not start.
+      show("failed", String(err?.message || err));
     } finally {
       busy = false;
     }

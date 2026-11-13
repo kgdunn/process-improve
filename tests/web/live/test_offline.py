@@ -1,7 +1,7 @@
 """The built app without a network: it opens from the copy the page keeps, and with the whole copy it works.
 
-Once Python has started, a first visit copies what it loaded (the page's own files, the Pyodide release with its
-packages, the wheel) and registers ``sw.js`` to serve the copy. The reader asks for the charts and workbooks too,
+Once Python has started, a first visit registers ``sw.js`` and copies what it loaded: the page's own files, the
+Pyodide release with its packages, the wheel. The reader asks for the charts and workbooks too,
 which need plotly, openpyxl and Plotly.js. Then the network goes: the page opens again, Python starts from the
 copy, and a design is made, analysed, drawn and written to a workbook.
 
@@ -81,7 +81,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         page.goto(app_url)
         started(page)
         said(page, "Factorial opens on this device without a network")
-        assert page.evaluate(REGISTERED), "the worker is registered once the copy is made"
+        assert page.evaluate(REGISTERED)
         page.click("#offline-keep")
         said(page, "Factorial opens and works on this device", timeout=300_000)
         assert page.is_hidden("#offline-keep"), "nothing more to keep"
@@ -117,7 +117,7 @@ def test_the_whole_copy_is_whole_whatever_the_visit_had_installed_before_it_was_
         page.click("#offline-remove")
         said(page, "Factorial keeps no copy of itself on this device.")
         a_study_with_its_charts_and_its_workbook(page)  # installed with no copy to keep them in
-        assert page.evaluate(COPIES) == [], "a page the worker still serves does not bring the copies back"
+        assert page.evaluate(COPIES) == [], "nothing is kept that the reader removed"
 
         page.click("#offline-keep")  # "Keep a copy, to open it without a network"
         said(page, "Factorial opens on this device without a network")

@@ -9,4 +9,5 @@
   `fds_plot`, `power_curve`) given a blocked fit leaves the fit's block contrasts out of its model
   and is drawn for the factors' terms, as `evaluate_design` scores a design whose model leaves its
   blocks out; it used to stop with `formula references unknown name(s) ['Block1']`. A factor that is
-  itself named `Block1` stays in the model. (#1229)
+  itself named `Block1` stays in the model. factori.al draws the prediction-variance chart of a
+  blocked study with it. (#1229)
