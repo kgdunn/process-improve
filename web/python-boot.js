@@ -29,14 +29,39 @@ export async function install(pyodide, requirements, { deps = true } = {}) {
   }
 }
 
+/** A package's name as a lock file's keys compare: lower case, with one kind of separator. */
+const normal = (name) => name.toLowerCase().replace(/[-_.]+/g, "-");
+
+/** A Pyodide release's lock file entry for each of these packages and for all each depends on, those named first. */
+export function lockEntries(lock, packages) {
+  const entries = new Map(Object.entries(lock.packages).map(([name, entry]) => [normal(name), entry]));
+  const found = new Map();
+  const todo = packages.map(normal);
+  for (let at = 0; at < todo.length; at += 1) {
+    const name = todo[at];
+    if (found.has(name)) continue;
+    const entry = entries.get(name);
+    if (!entry) throw new Error(`Pyodide's lock file has no package ${name}`);
+    found.set(name, entry);
+    todo.push(...entry.depends.map(normal));
+  }
+  return [...found.values()];
+}
+
 /**
  * Install what the build resolved to exact files (exact_files in scripts/build_web_app.py): packages of the Pyodide
  * release, loaded from it by name, and wheels from the addresses the build found for them. Nothing is resolved
  * here, so no package index is asked and every visit installs the same files.
+ *
+ * Each package is asked for by name with all it depends on, as the release's lock file lists them. Pyodide loads
+ * them unasked, but installs a package although one it depends on could not be downloaded, which it only logs,
+ * and never looks again at what a loaded package depends on. Named, a package that is missing fails the install
+ * here, and the next try asks for it again.
  */
 export async function installExact(pyodide, { packages, wheels }) {
-  if (packages.length) await pyodide.loadPackage(packages);
-  const lacking = packages.filter((name) => !pyodide.loadedPackages[name]); // a failed download is only logged
+  const names = lockEntries(pyodide.lockfile, packages).map((entry) => entry.name);
+  if (names.length) await pyodide.loadPackage(names);
+  const lacking = names.filter((name) => !pyodide.loadedPackages[name]);
   if (lacking.length) throw new Error(`${lacking.join(", ")} could not be loaded from the Pyodide release`);
   if (wheels.length) await install(pyodide, wheels, { deps: false });
 }

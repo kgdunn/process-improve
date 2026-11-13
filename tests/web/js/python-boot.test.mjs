@@ -76,20 +76,39 @@ describe("a call to Python", () => {
   });
 });
 
+/** A release's lock file, as far as these tests go: each package's name as Pyodide loads it, and what it depends on. */
+const LOCK = {
+  packages: {
+    narwhals: { name: "narwhals", depends: [] },
+    packaging: { name: "packaging", depends: [] },
+    numpy: { name: "numpy", depends: [] },
+    patsy: { name: "patsy", depends: ["numpy"] },
+    statsmodels: { name: "statsmodels", depends: ["numpy", "patsy", "packaging"] },
+    "scikit-learn": { name: "scikit-learn", depends: ["numpy", "joblib", "threadpoolctl"] },
+    joblib: { name: "joblib", depends: [] },
+    threadpoolctl: { name: "threadpoolctl", depends: [] },
+  },
+};
+
+/** What a model is fitted with, and all of it that the release's lock file says those two need. */
+const FITTING = ["statsmodels", "scikit-learn", "numpy", "patsy", "packaging", "joblib", "threadpoolctl"];
+
 /**
  * A stand-in for Pyodide that notes what it is asked to load and to install. `fails` names a package of the release
- * that does not load; `gate` is waited for before anything is in; and while `refused` holds a reason, micropip
- * installs nothing and gives it.
+ * that does not load, which Pyodide only logs: every other package asked for is loaded all the same. `gate` is
+ * waited for before anything is in; and while `refused` holds a reason, micropip installs nothing and gives it.
  */
 function standIn(fails = null, gate = Promise.resolve()) {
   const asked = [];
   const pyodide = {
+    lockfile: LOCK,
     loadedPackages: {},
+    fails,
     refused: null,
     async loadPackage(names) {
       asked.push(["from the release", names]);
       await gate;
-      for (const name of names) if (name !== fails) this.loadedPackages[name] = "default channel";
+      for (const name of names) if (name !== this.fails) this.loadedPackages[name] = "default channel";
     },
     toPy: (value) => ({ value, destroy() {} }),
     pyimport: () => ({
@@ -132,8 +151,27 @@ describe("what the build resolved to exact files", () => {
 
   test("with no wheel to install, asks micropip for nothing", async () => {
     const { pyodide, asked } = standIn();
-    await installExact(pyodide, { packages: ["statsmodels"], wheels: [] });
-    assert.deepEqual(asked, [["from the release", ["statsmodels"]]]);
+    await installExact(pyodide, { packages: ["patsy"], wheels: [] });
+    assert.deepEqual(asked, [["from the release", ["patsy", "numpy"]]]);
+  });
+
+  test("asks by name for all a package depends on, those named first and each once", async () => {
+    const { pyodide, asked } = standIn();
+    await installExact(pyodide, { packages: ["statsmodels", "scikit_learn"], wheels: [] });
+    assert.deepEqual(asked, [["from the release", FITTING]]);
+  });
+
+  test("a package another depends on that did not load is an error, though Pyodide loaded the other", async () => {
+    const { pyodide } = standIn("joblib");
+    const fitting = { packages: ["statsmodels", "scikit-learn"], wheels: [] };
+    await assert.rejects(installExact(pyodide, fitting), /^Error: joblib could not be loaded from the Pyodide release$/);
+    assert.ok(pyodide.loadedPackages["scikit-learn"], "which is why the two that were asked for cannot be all that is checked");
+  });
+
+  test("a package the release's lock file does not have is an error", async () => {
+    const { pyodide, asked } = standIn();
+    await assert.rejects(installExact(pyodide, { packages: ["polars"], wheels: [] }), /lock file has no package polars/);
+    assert.deepEqual(asked, []);
   });
 });
 
@@ -207,7 +245,7 @@ describe("providing a package a call lacks", () => {
     const { provide, asked, said } = providing();
     await Promise.all([provide("statsmodels"), provide("sklearn"), provide("statsmodels")]);
     await provide("sklearn");
-    assert.deepEqual(asked, [["from the release", RUNTIME.fitting]]);
+    assert.deepEqual(asked, [["from the release", FITTING]]);
     assert.deepEqual(said, [
       ["Installing statsmodels and scikit-learn for fitting models...", "busy"],
       ["Installed statsmodels and scikit-learn for fitting models.", "ok"],
@@ -217,7 +255,7 @@ describe("providing a package a call lacks", () => {
   test("says nothing of an install nothing waits for, the worker's own once the page is ready", async () => {
     const { provide, asked, said, reported, table } = providing();
     await provide("statsmodels", { quiet: true });
-    assert.deepEqual(asked, [["from the release", RUNTIME.fitting]]);
+    assert.deepEqual(asked, [["from the release", FITTING]]);
     assert.deepEqual(said, []);
     assert.deepEqual(reported, [table.statsmodels]);
     await provide("sklearn");
@@ -280,10 +318,21 @@ describe("providing a package a call lacks", () => {
     const { provide, pyodide, asked, said } = providing({ fails: "scikit-learn" });
     await assert.rejects(provide("statsmodels", { quiet: true }), /Could not install statsmodels and scikit-learn: scikit-learn could not be loaded/);
     assert.deepEqual(said, []);
-    pyodide.loadedPackages["scikit-learn"] = "default channel"; // the network is back
+    pyodide.fails = null; // the network is back
     await provide("statsmodels");
     assert.equal(asked.length, 2);
     assert.deepEqual(said.map(([, state]) => state), ["busy", "ok"]);
+  });
+
+  test("one of whose packages did not load is not said to Python to be in, and the next call asks for that package again", async () => {
+    const { provide, pyodide, asked, told } = providing({ fails: "joblib" });
+    await assert.rejects(provide("sklearn"), /Could not install statsmodels and scikit-learn: joblib could not be loaded/);
+    assert.deepEqual(told, [], "Python still refuses scikit-learn, which would fail for want of joblib at every fit");
+    pyodide.fails = null; // the network is back
+    await provide("sklearn");
+    assert.ok(asked.at(-1)[1].includes("joblib"), "asked for by name: Pyodide does not look again at what a loaded package needs");
+    assert.ok(pyodide.loadedPackages.joblib);
+    assert.deepEqual(told, [["statsmodels", "sklearn", "joblib", "threadpoolctl"]]);
   });
 
   test("refuses a module the page installs nothing for", async () => {

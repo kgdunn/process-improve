@@ -66,7 +66,7 @@ describe("the files the copy is made of", () => {
   });
 
   test("the charts and workbooks add what the build resolved, with the release's packages they need, and Plotly.js", () => {
-    assert.deepEqual(LATER, [`${RELEASE}packaging.whl`, `${RELEASE}narwhals.whl`, OPENPYXL, ET_XMLFILE, PLOTLY, PLOTLY_JS]);
+    assert.deepEqual(LATER, [`${RELEASE}narwhals.whl`, `${RELEASE}packaging.whl`, OPENPYXL, ET_XMLFILE, PLOTLY, PLOTLY_JS]);
     assert.ok(!LATER.some((file) => START.includes(file)), "nothing Python started from is listed again");
   });
 

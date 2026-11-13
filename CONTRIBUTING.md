@@ -278,7 +278,11 @@ that same install. So no step of designing may import either one. A step that di
 fail on the page, it would wait, and only a test sees that:
 `tests/web/api/test_browser_safe.py` runs a visit that ends with a run sheet with both
 refused. A change to any of the four is measured, not assumed: time the start in a browser
-before and after.
+before and after. And it is run under the wasm and live tiers before it is pushed: only
+real Pyodide shows which packages a package brings with it (patsy needs `packaging`, which
+the release lists under statsmodels), and that a package's files are in place before it
+can be imported, which is why the page's Python refuses one the worker has not finished
+installing (`_NotYet` in `web/bootstrap.py`).
 
 A copy of the built app is kept in the reader's browser, so it opens without a network.
 `web/offline.js` makes the copy from the build's own lists of files, drops what earlier
@@ -289,8 +293,12 @@ app's own files come from the network whenever it answers. A new address the pag
 needs its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows.
 Both files run under Node.js against a stand-in for the browser (`offline.test.mjs` and
 `sw.test.mjs` in `tests/web/js`), visit after visit; the live tier opens the built app without
-a network (`tests/web/live/test_offline.py`). The other browser tests run without the worker:
-a request it answers passes by Playwright's routes.
+a network (`tests/web/live/test_offline.py`). The stand-in does what a browser does, which is
+not always what the specification says: Chromium makes a cache when one is only looked up by
+its name, and the stand-in did not until a removed copy came back that way. When the live
+tier finds what the stand-in let pass, the stand-in is changed first, so that the test fails
+under Node.js before the code is fixed. The other browser tests run without the worker: a
+request it answers passes by Playwright's routes.
 
 One build is served in two places: https://factori.al/, the app's address, and GitHub
 Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests

@@ -23,6 +23,8 @@
 // Nothing here touches the document or the browser until installOffline is called, so tests/web/js reads the lists
 // and the words under Node.js, and runs installOffline against a stand-in for the browser.
 
+import { lockEntries } from "./python-boot.js";
+
 /**
  * The copies' names, as sw.js has them (tests/web/page/test_offline.py keeps the two in step), and the mark that
  * the page has made a copy: an empty cache, made before the copies and removed before them. The worker adds
@@ -43,26 +45,13 @@ const PYPI_FILES = "files.pythonhosted.org";
 const releaseOf = (runtime) => `v${runtime.pyodide}/${runtime.distribution}`;
 const pyodideAt = (runtime) => `${PYODIDE}${releaseOf(runtime)}/`;
 
-/** A package's name as a lock file's keys compare: lower case, with one kind of separator. */
-const normal = (name) => name.toLowerCase().replace(/[-_.]+/g, "-");
-
 /**
  * The files of a Pyodide release that a page with these packages loads: the interpreter, its standard library,
  * the lock file, and the wheel of each package and of all it depends on, as the lock file lists them.
  */
 export function pyodideFiles(lock, packages) {
-  const entries = new Map(Object.entries(lock.packages).map(([name, entry]) => [normal(name), entry]));
-  const wheels = new Map();
-  const todo = packages.map(normal);
-  while (todo.length) {
-    const name = todo.pop();
-    if (wheels.has(name)) continue;
-    const entry = entries.get(name);
-    if (!entry) throw new Error(`Pyodide's lock file has no package ${name}`);
-    wheels.set(name, entry.file_name);
-    todo.push(...entry.depends.map(normal));
-  }
-  return ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json", ...wheels.values()];
+  const wheels = lockEntries(lock, packages).map((entry) => entry.file_name);
+  return ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json", ...wheels];
 }
 
 /** The packages of the Pyodide release every visit loads: those Python starts with, and those a model is fitted with. */
