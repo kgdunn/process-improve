@@ -117,11 +117,10 @@ ALL_DESIGNS = (
     "a_optimal",
     "maximin_lhs",
     "sobol",
-    "maxpro",
 )
 
 #: The designs the book has no page on: the page shows their hint without a link to it.
-NO_BOOK_PAGE = frozenset({"taguchi", "maximin_lhs", "sobol", "maxpro"})
+NO_BOOK_PAGE = frozenset({"taguchi", "maximin_lhs", "sobol"})
 #: Every mixture design the page offers, kept apart from ``ALL_DESIGNS`` as ``bootstrap.MIXTURES`` is from
 #: ``DESIGNS``: its factors are the components of a blend. ``api/test_mixture.py`` checks it against ``MIXTURES``.
 ALL_MIXTURES = ("simplex_lattice", "simplex_centroid", "extreme_vertices")

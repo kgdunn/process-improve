@@ -263,23 +263,14 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 8,
     },
-    "maxpro": {
-        "label": "Space-filling (MaxPro)",
-        "hint": (
-            "Runs spread through the ranges, made for no model, so that they stay spread when only some of the "
-            "factors turn out to matter. For a study where few of many factors are expected to be active."
-        ),
-        "model": "quadratic",
-        "options": ["budget", "n_replicates", "n_blocks"],
-        "min_factors": 2,
-        "max_factors": 8,
-    },
 }
 
+#: The library's MaxPro design is not offered: its search ends at slightly other settings under WebAssembly than
+#: natively, so the Python the page shows would not make the page's own run sheet.
 #: The space-filling designs (``designs_space_filling.py``): their runs spread through the ranges for no model in
 #: particular, so the comparison of designs for a model leaves them out, and Learn analyses one with the model the
 #: study aims to learn. A maximin Latin hypercube keeps each factor's settings apart as well as the runs.
-SPACE_FILLING = ("maximin_lhs", "sobol", "maxpro")
+SPACE_FILLING = ("maximin_lhs", "sobol")
 
 #: Designs the reader chooses from the design list, which the comparison of designs for a model does not make:
 #: an OMARS design's search is too long to run on every change of the brief, and an A-optimal design would be a
@@ -2268,11 +2259,6 @@ def _spread_sentence(design_type: str, runs: int) -> str:
         return (
             f"The {runs} runs follow a Sobol sequence, which fills the ranges evenly however many factors are "
             "read together; runs added later from the same sequence fall between these."
-        )
-    if design_type == "maxpro":
-        return (
-            f"Each factor takes {runs} different settings, and the runs are placed to stay spread in every "
-            "group of the factors, so the design still fills the space of the few that turn out to matter."
         )
     return (
         f"Each factor takes {runs} different settings, evenly spaced across its range, and the runs are placed so "

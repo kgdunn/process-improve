@@ -29,7 +29,6 @@ export const FEATURES = {
   "design:a_optimal": { level: 3, term: "a_optimal" },
   "design:maximin_lhs": { level: 3, because: "made for no model, which the optimal designs lead up to" },
   "design:sobol": { level: 3, because: "made for no model, as the Latin hypercube is" },
-  "design:maxpro": { level: 3, because: "made for no model, as the Latin hypercube is" },
   "design:simplex_lattice": { level: 3, term: "mixture_design" },
   "design:simplex_centroid": { level: 3, term: "mixture_design" },
   "design:extreme_vertices": { level: 3, term: "mixture_design" },

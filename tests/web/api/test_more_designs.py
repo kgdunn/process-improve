@@ -1,15 +1,13 @@
-"""The designs chosen by name from the design list: Sobol and MaxPro space-filling designs, A-optimal and OMARS.
+"""The designs chosen by name from the design list: a Sobol space-filling design, A-optimal and OMARS.
 
-The space-filling ones are made for no model, as the Latin hypercube is. An A-optimal design is made for a model
+The Sobol design is made for no model, as the Latin hypercube is. An A-optimal design is made for a model
 and inside limits on the settings, as the other optimal designs are. An OMARS design has the three levels and the
 clear main effects of a definitive screening design, in a number of runs the reader chooses above its own.
-None of the four is in the comparison of designs for a model: the first two fit no model's comparison, and the
+None of the three is in the comparison of designs for a model: the first fits no model's comparison, and the
 others are searched for only when chosen.
 """
 
 from __future__ import annotations
-
-import pytest
 
 from tests.web._support import FACTORS, factors_named, held_of
 
@@ -19,15 +17,9 @@ def made(api, **spec: object) -> dict:
     return api.ok("api_make_design", {"factors": FACTORS, **spec})
 
 
-@pytest.mark.parametrize(
-    ("design_type", "said"),
-    [
-        ("sobol", "The 16 runs follow a Sobol sequence, which fills the ranges evenly"),
-        ("maxpro", "Each factor takes 16 different settings, and the runs are placed to stay spread in every group"),
-    ],
-)
-def test_a_space_filling_design_spreads_its_runs_and_says_how(api, design_type, said):
-    design = made(api, design_type=design_type, budget=16)
+def test_a_sobol_design_spreads_its_runs_and_says_how(api):
+    said = "The 16 runs follow a Sobol sequence, which fills the ranges evenly"
+    design = made(api, design_type="sobol", budget=16)
     assert design["n_runs"] == 16
     assert design["facts"]["notes"][0].startswith(said)
     at = design["columns"].index("T")
@@ -37,9 +29,8 @@ def test_a_space_filling_design_spreads_its_runs_and_says_how(api, design_type, 
     assert design["outside_range"] == []
 
 
-@pytest.mark.parametrize("design_type", ["sobol", "maxpro"])
-def test_a_space_filling_design_opens_on_ten_runs_a_factor_and_learn_fits_the_aim(api, design_type):
-    design = made(api, design_type=design_type, aim="interactions")
+def test_a_sobol_design_opens_on_ten_runs_a_factor_and_learn_fits_the_aim(api):
+    design = made(api, design_type="sobol", aim="interactions")
     assert (design["n_runs"], design["model"]) == (30, "interactions")
     held = held_of(design)
     responses = api.ok("api_simulate", {**held, "seed": 1})["responses"]

@@ -12,7 +12,7 @@ export function nTerms(k, model) {
 }
 
 /** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
-export const SPACE_FILLING = ["maximin_lhs", "sobol", "maxpro"];
+export const SPACE_FILLING = ["maximin_lhs", "sobol"];
 
 /** Runs a factor in a space-filling design, unless the reader gives a number; mirrors bootstrap.SPACE_FILLING_RUNS. */
 export const SPACE_FILLING_RUNS = 10;

@@ -60,7 +60,7 @@ def test_each_level_adds_designs_and_says_how_many_more_there_are(blank_page):
     page.click("#level-designs button")
     page.wait_for_function("document.documentElement.dataset.level === '3'")
     assert page.locator("#level-designs").is_hidden()
-    assert len(listed_designs(page)) == 17, "every design for factors with ranges, and the three mixtures"
+    assert len(listed_designs(page)) == 16, "every design for factors with ranges, and the three mixtures"
 
 
 def test_the_choice_is_kept_under_the_concept_map_s_key(blank_page):

@@ -112,7 +112,7 @@ function constraintLines(limits) {
 }
 
 /** The space-filling designs, whose settings the page rounds as the reader can set them; mirrors bootstrap.SPACE_FILLING. */
-export const SPACE_FILLING = ["maximin_lhs", "sobol", "maxpro"];
+export const SPACE_FILLING = ["maximin_lhs", "sobol"];
 
 /**
  * The lines that round a space-filling design's settings as the page lists them (bootstrap._round_spread): each to

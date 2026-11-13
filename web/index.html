@@ -316,8 +316,6 @@
                   data-hint="Runs spread evenly through the ranges, made for no model: each factor takes as many different settings as there are runs. For mapping a response whose shape is unknown, or for a machine-learning model.">Space-filling (Latin hypercube)</option>
                 <option value="sobol" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
                   data-hint="Runs laid through the ranges by a Sobol sequence, made for no model: quick at any size, and more runs added later fall between the first. Evenest at 8, 16, 32 or 64 runs.">Space-filling (Sobol sequence)</option>
-                <option value="maxpro" data-options="budget n_replicates n_blocks" data-min-factors="2" data-max-factors="8"
-                  data-hint="Runs spread through the ranges, made for no model, so that they stay spread when only some of the factors turn out to matter. For a study where few of many factors are expected to be active.">Space-filling (MaxPro)</option>
                 <option value="given" data-options="" data-min-factors="1" data-max-factors="40" hidden
                   data-hint="The runs of a design you have already, such as one a book prints: the page takes them as they are.">Runs as given</option>
                 <!-- Mirrors bootstrap.MIXTURES: the factors are the components of a blend, each a proportion. -->
