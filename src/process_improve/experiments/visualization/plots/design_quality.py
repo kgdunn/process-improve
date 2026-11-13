@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from patsy import ModelDesc
 
+from process_improve.experiments._formula import real_names
 from process_improve.experiments.compare import _correlations, _largest_second_order_r
 from process_improve.experiments.designs_utils import BLOCK_COL, RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
@@ -29,6 +30,7 @@ from process_improve.experiments.evaluate import (
     _EvalContext,
     _EvalRequest,
     _is_intercept_col,
+    _stand_in_factors,
     evaluate_design,
 )
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
@@ -110,12 +112,19 @@ def _without_block_contrasts(rhs: str, factors: list[str]) -> str:
 
 
 def design_context(df: pd.DataFrame, factors: list[str], model: str) -> _EvalContext:
-    """Build the model matrix and ``(X'X)^-1`` for *model*; raise when it is not estimable."""
+    """Build the model matrix and ``(X'X)^-1`` for *model*; raise when it is not estimable.
+
+    A factor named ``I`` or ``C`` hides patsy's own ``I()`` and ``C()`` in a formula, the fitted one of
+    ``analysis_results`` among them. The matrix is built with such a factor under a stand-in name, as
+    :func:`~process_improve.experiments.evaluate_design` builds it. The context's ``factor_names`` are then the
+    names its ``design_info`` takes, in the order of *factors*, and :func:`term_names` reads its columns back.
+    """
+    fit_df, fit_factors, fit_model, _, _ = _stand_in_factors(df, factors, model, "", [])
     ctx = _build_context(
         _EvalRequest(
-            design_df=df,
-            factor_names=factors,
-            model=model,
+            design_df=fit_df,
+            factor_names=fit_factors,
+            model=fit_model,
             generators=None,
             defining_relation=None,
             resolution=None,
@@ -130,6 +139,12 @@ def design_context(df: pd.DataFrame, factors: list[str], model: str) -> _EvalCon
             "(for example 'main_effects' or 'interactions'), or add runs."
         )
     return ctx
+
+
+def term_names(ctx: _EvalContext, factors: list[str]) -> list[str]:
+    """Name the columns of a :func:`design_context` by the factors' own names, undoing any stand-in."""
+    stand_ins = {name: used for name, used in zip(factors, ctx.factor_names, strict=True) if name != used}
+    return real_names(ctx.column_names, stand_ins)
 
 
 # ---------------------------------------------------------------------------
@@ -378,7 +393,7 @@ class PowerCurvePlot(BasePlot):
             ctx = design_context(df, factors, model)
             assert ctx.XtX_inv is not None  # design_context raises when singular
             groups: dict[float, list[str]] = {}
-            for j, name in enumerate(ctx.column_names):
+            for j, name in enumerate(term_names(ctx, factors)):
                 if not _is_intercept_col(name):
                     groups.setdefault(round(float(ctx.XtX_inv[j, j]), 10), []).append(name)
             return {
