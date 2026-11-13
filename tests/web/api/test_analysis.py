@@ -116,6 +116,14 @@ def test_the_simpler_model_keeps_the_terms_of_the_process_the_results_came_from(
     assert len(fitted["coefficients"]) == 6, "the page fits the terms as proposed, with the intercept"
 
 
+def test_terms_the_reader_chose_are_searched_within_the_smallest_standard_model_that_holds_them(api, held, simulated):
+    request = {**held, "responses": simulated["responses"]}
+    mains = api.ok("api_simpler_model", {**request, "model": {"terms": [["T"], ["P"], ["F"]]}})
+    assert mains["within"] == "main_effects"
+    pairs = api.ok("api_simpler_model", {**request, "model": {"terms": [["T"], ["P"], ["F"], ["T", "P"], ["T", "F"]]}})
+    assert (pairs["within"], pairs["dropped"]) == ("interactions", ["T·F"])
+
+
 def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
     request = {**held, "responses": simulated["responses"]}
     terms = api.ok("api_simpler_model", request)["terms"]

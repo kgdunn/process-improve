@@ -1063,6 +1063,9 @@ export const TITLES = {
   prediction_variance: "Where the predictions are least certain",
 };
 
+/** What a call to Python is answered with when the reader stopped it. */
+export const STOPPED = "Stopped, as you asked: nothing was changed.";
+
 /**
  * What the search for a simpler model found (``found``, as api_simpler_model gives it), in a sentence: the terms the
  * results support, the fitted terms left out, and any brought in. ``fmt`` writes a number as the tables do.

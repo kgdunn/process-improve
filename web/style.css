@@ -1726,3 +1726,7 @@ dialog.import { width: min(860px, 100vw - 32px); }
   .level-switch { gap: 4px; }
   .level-switch span { padding-left: 7px; padding-right: 7px; font-size: 0.82rem; }
 }
+
+/* Stop, in the status line: offered once Python has taken a while over a call. */
+.status__stop { margin-left: auto; padding: 2px 10px; }
+@media (pointer: coarse) { .status__stop { min-height: 44px; padding: 0 14px; } }

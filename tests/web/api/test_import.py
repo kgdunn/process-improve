@@ -161,3 +161,63 @@ def test_the_reader_s_choices_are_the_study_s(api):
     spec = study(api, table)["campaign"]["design"]["spec"]
     assert spec["factors"][0] == {"name": "T", "low": 100.0, "high": 250.0, "units": "degC"}
     assert [f["name"] for f in spec["factors"]] == ["T", "Pressure"]
+
+
+# --------------------------------------------------------------------------- the edges of a table
+def workbook(rows: list[list]) -> str:
+    """Return a workbook of one sheet holding ``rows``, in base64 as the page sends a file."""
+    openpyxl = pytest.importorskip("openpyxl")
+    book = openpyxl.Workbook()
+    for row in rows:
+        book.active.append(row)
+    held = io.BytesIO()
+    book.save(held)
+    return base64.b64encode(held.getvalue()).decode()
+
+
+def test_a_workbook_longer_than_a_study_is_read_no_further_than_it_needs_to_be_refused(api):
+    rows = [["A", "y"], *[[i % 2, i] for i in range(2100)]]
+    said = api.error("api_read_table", {"xlsx_base64": workbook(rows)})
+    assert said == "The table has 2050 runs; a study holds 2000 at most.", "read just past what a study holds"
+
+
+def test_a_file_that_is_not_base64_is_refused_as_no_workbook(api):
+    assert api.error("api_read_table", {"xlsx_base64": "not base64!"}) == (
+        "The file could not be read as an Excel workbook (.xlsx)."
+    )
+
+
+def test_more_measured_columns_than_a_study_s_responses_are_left_out(api):
+    """Seven measured columns beside two that were set: the first five are responses, as a study has at most."""
+    head = "A,B," + ",".join(f"y{j}" for j in range(7))
+    lines = [
+        f"{a},{b}," + ",".join(str(10 * j + a + b / 7 + 0.3 * i) for j in range(7))
+        for i, (a, b) in enumerate([(1, 10), (2, 10), (1, 20), (2, 20)] * 2)
+    ]
+    guessed = roles(api.ok("api_read_table", {"text": head + "\n" + "\n".join(lines)}))
+    assert [guessed[f"y{j}"] for j in range(7)] == ["response"] * 5 + ["ignore"] * 2
+
+
+def test_more_columns_that_were_set_than_a_study_s_factors_are_left_out(api):
+    head = ",".join(f"x{j}" for j in range(42)) + ",y"
+    lines = [",".join(str((i >> (j % 5)) & 1) for j in range(42)) + f",{50 + 1.7 * i}" for i in range(32)]
+    guessed = roles(api.ok("api_read_table", {"text": head + "\n" + "\n".join(lines)}))
+    assert list(guessed.values()).count("factor") == 40, "a study has 40 factors at most"
+    assert (guessed["x40"], guessed["x41"], guessed["y"]) == ("ignore", "ignore", "response")
+
+
+def test_one_factor_has_no_other_to_move_with(api):
+    made = study(api, api.ok("api_read_table", {"text": "A,y\n1,5\n2,6.1\n1,5.2\n2,6.3\n"}))
+    assert made["notes"] == []
+
+
+def test_many_pairs_that_moved_together_are_counted_past_the_strongest_five(api):
+    """Four factors that all follow one another make six pairs: five are named, and the sixth counted."""
+    rng = np.random.default_rng(2)
+    base = rng.normal(0, 1, 30)
+    columns = [base + rng.normal(0, 0.05, 30) for _ in range(4)]
+    y = base + rng.normal(0, 0.1, 30)
+    text = "a,b,c,d,y\n" + "\n".join(",".join(f"{c[i]:.4f}" for c in [*columns, y]) for i in range(30))
+    notes = study(api, api.ok("api_read_table", {"text": text}))["notes"]
+    assert sum("moved together in these runs" in note for note in notes) == 5
+    assert "1 more pairs of factors moved together." in notes

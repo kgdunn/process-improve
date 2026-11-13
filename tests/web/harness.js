@@ -129,12 +129,15 @@
     }
 
     emit(data) {
+      if (this.ended) return; // as a worker the page ended says nothing more
       const event = new MessageEvent("message", { data });
       this.onmessage?.(event);
       this.dispatchEvent(event);
     }
 
-    terminate() {}
+    terminate() {
+      this.ended = true;
+    }
   }
 
   /** The page's own worker, watched: calls and replies are recorded on their way past. */
