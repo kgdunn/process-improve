@@ -26,6 +26,8 @@ import {
   CAPTIONS,
   MORE_CHARTS,
   simplerWords,
+  csvOf,
+  runSheetCsv,
   asideOf,
   asideWords,
   fittedResults,
@@ -434,6 +436,17 @@ describe("words and numbers", () => {
     assert.equal(asideWords([]), "");
     assert.equal(asideWords([5]), "Run 5 is set aside: the model is fitted without it.");
     assert.equal(asideWords([3, 5]), "Runs 3 and 5 are set aside: the model is fitted without them.");
+  });
+
+  test("a table is written as CSV, its text quoted where it must be and never run as a formula", () => {
+    const text = csvOf(["Run", "Supplier", "note", "y"], [[1, "A, old", 'said "hot"', 61.5], [2, "=SUM(A1)", "-low", null]]);
+    assert.equal(text, 'Run,Supplier,note,y\r\n1,"A, old","said ""hot""",61.5\r\n2,\'=SUM(A1),\'-low,\r\n');
+    assert.equal(csvOf(["T"], [[-1.5]]), "T\r\n-1.5\r\n", "a negative number stays a number");
+  });
+
+  test("the run sheet's CSV holds each result the page has, and a blank for a run still to do", () => {
+    const design = { columns: ["Run order", "T", "y", "cost"], rows: [[1, 150, null, null], [2, 200, null, null]] };
+    assert.equal(runSheetCsv(design, { y: [61.5, null], cost: [3, 4] }), "Run order,T,y,cost\r\n1,150,61.5,3\r\n2,200,,4\r\n");
   });
 
   test("the search for a simpler model is said in a sentence", () => {

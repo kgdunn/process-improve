@@ -1094,6 +1094,34 @@ export const TITLES = {
   prediction_variance: "Where the predictions are least certain",
 };
 
+/**
+ * One cell of a CSV file: a number as it is, text in quotes where it holds a comma, a quote or a line break. Text a
+ * spreadsheet would run as a formula (it starts with =, +, - or @) is given a leading apostrophe, so it stays text.
+ */
+function csvCell(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return String(value);
+  const text = /^[=+\-@]/.test(String(value)) ? `'${value}` : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/** A table as CSV text (RFC 4180): its headings, then a line for each row, each ended by a line break. */
+export const csvOf = (columns, rows) => [columns, ...rows].map((row) => `${row.map(csvCell).join(",")}\r\n`).join("");
+
+/**
+ * The run sheet as CSV: its columns as the page lists them, each response's column holding the results the page
+ * has, a blank for a run still to do.
+ */
+export function runSheetCsv(design, results) {
+  const at = Object.fromEntries(Object.keys(results).map((name) => [name, design.columns.indexOf(name)]));
+  const rows = design.rows.map((row, i) => {
+    const filled = [...row];
+    for (const [name, values] of Object.entries(results)) if (at[name] >= 0) filled[at[name]] = values[i] ?? null;
+    return filled;
+  });
+  return csvOf(design.columns, rows);
+}
+
 /** What a call to Python is answered with when the reader stopped it. */
 export const STOPPED = "Stopped, as you asked: nothing was changed.";
 

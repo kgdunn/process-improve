@@ -6,7 +6,9 @@ run still to do sorts last either way.
 
 from __future__ import annotations
 
-from tests.web.e2e._page import run_sheet, sort_by, type_results
+from pathlib import Path
+
+from tests.web.e2e._page import reveal, run_sheet, sort_by, type_results
 
 
 def sorted_on(page) -> dict[str, str]:
@@ -59,3 +61,18 @@ def test_a_typed_result_survives_a_sort(page):
     type_results(page, {3: "123.5"})
     sort_by(page, "Yield")
     assert run_sheet(page)[-1][-1] == "123.5", "the largest result, sorted last"
+
+
+def test_the_run_sheet_downloads_as_csv_with_its_results(page):
+    """Made in the page, without Python: the columns as listed, a line a run, each result in its response's column."""
+    reveal(page, "#csv")
+    asked = page.evaluate("window.__pi.calls.length")
+    with page.expect_download() as caught:
+        page.click("#csv")
+    saved = caught.value
+    assert saved.suggested_filename == "box_behnken-15-runs.csv"
+    lines = Path(saved.path()).read_bytes().decode().split("\r\n")
+    assert lines[0] == "Std order,Run order,T,P,F,Yield"
+    assert len(lines) == 17, "the headings, fifteen runs, and the last line's end"
+    assert all(line.split(",")[-1] for line in lines[1:16]), "every run has its result"
+    assert page.evaluate("window.__pi.calls.length") == asked, "Python is not asked"

@@ -99,6 +99,7 @@ import {
   CAPTIONS,
   MORE_CHARTS,
   simplerWords,
+  runSheetCsv,
   asideOf,
   asideWords,
   fittedResults,
@@ -2916,6 +2917,13 @@ async function downloadWorkbook() {
   const bytes = Uint8Array.from(atob(reply.result.xlsx_base64), (c) => c.charCodeAt(0));
   const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.xlsx`);
+}
+
+/** The run sheet with its results as a CSV file, for any spreadsheet or program: made here, without Python. */
+function downloadCsv() {
+  if (!state.design) return;
+  const text = runSheetCsv(state.design, state.results);
+  download(new Blob([text], { type: "text/csv" }), `${state.design.spec.design_type}-${runCount()}-runs.csv`);
 }
 
 /** Hand the reader a file, as a download. */
@@ -6568,6 +6576,7 @@ $("#balance-reset").onclick = () => {
 };
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
+$("#csv").onclick = downloadCsv;
 $("#curve-use").onclick = useCurves;
 $("#curve-target-find").onclick = findTarget;
 $("#curve-clear").onclick = () => setCurve(null, null);
