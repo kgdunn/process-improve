@@ -159515,8 +159515,8 @@
       "quote": "Figure 7F.1. Normal plots of root mean square components"
      },
      "check": {
-      "manual": "the effects a normal plot of the 26 signed standardized components labels; the library's normal plot (Lenth's effects) is for two-level factorials and has no single-degree-of-freedom components of a 3^k; the components are column sqrt(8) of Table 7G.1",
-      "cause": "library_gap"
+      "manual": "the effects a normal plot of the 26 signed standardized components labels; the library's yates_table_3k returns the components and their normal scores, and its five largest and five smallest are these (it reproduces), but no check kind reads them; the components are column sqrt(8) of Table 7G.1",
+      "cause": "check_gap"
      }
     },
     {
@@ -159529,8 +159529,8 @@
       "quote": "(b) logged data x 100"
      },
      "check": {
-      "manual": "the effects a normal plot of the 26 signed standardized components labels; the library's normal plot (Lenth's effects) is for two-level factorials and has no single-degree-of-freedom components of a 3^k; the components are column sqrt(8) of Table 7G.2",
-      "cause": "library_gap"
+      "manual": "the effects a normal plot of the 26 signed standardized components labels; the library's yates_table_3k returns the components and their normal scores, but no check kind reads them, and it agrees only in part: 1 and 122 are its two largest and 2 and 3 its two smallest, but it puts 133 (x1 x3², -12.50 on y x 100) third from the bottom; the components are column sqrt(8) of Table 7G.2",
+      "cause": "check_gap"
      }
     },
     {
@@ -159571,8 +159571,8 @@
       "quote": "Table 7G.1, column (2)"
      },
      "check": {
-      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table is for two-level factorials only, and column (4) and the effects are checked by regression on the orthogonal polynomial columns",
-      "cause": "library_gap"
+      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table_3k returns this column (it reproduces), but no check kind reads it; column (4) and the effects are checked by regression on the orthogonal polynomial columns",
+      "cause": "check_gap"
      }
     },
     {
@@ -159613,8 +159613,8 @@
       "quote": "Table 7G.1, column (3)"
      },
      "check": {
-      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table is for two-level factorials only, and column (4) and the effects are checked by regression on the orthogonal polynomial columns",
-      "cause": "library_gap"
+      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table_3k returns this column (it reproduces), but no check kind reads it; column (4) and the effects are checked by regression on the orthogonal polynomial columns",
+      "cause": "check_gap"
      }
     },
     {
@@ -161422,8 +161422,8 @@
       "quote": "Table 7G.2, column (2)"
      },
      "check": {
-      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table is for two-level factorials only, and column (4) and the effects are checked by regression on the orthogonal polynomial columns",
-      "cause": "library_gap"
+      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table_3k returns this column (it reproduces), but no check kind reads it; column (4) and the effects are checked by regression on the orthogonal polynomial columns",
+      "cause": "check_gap"
      }
     },
     {
@@ -161464,8 +161464,8 @@
       "quote": "Table 7G.2, column (3)"
      },
      "check": {
-      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table is for two-level factorials only, and column (4) and the effects are checked by regression on the orthogonal polynomial columns",
-      "cause": "library_gap"
+      "manual": "an intermediate column of Yates' algorithm for a 3^k factorial (the operations (0) w1 + w2 + w3, (i) w3 - w1 and (i²) w1 - 2w2 + w3 applied once or twice); the library's yates_table_3k returns this column (it reproduces), but no check kind reads it; column (4) and the effects are checked by regression on the orthogonal polynomial columns",
+      "cause": "check_gap"
      }
     },
     {

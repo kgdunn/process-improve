@@ -71,7 +71,8 @@ def interaction_components(data: pd.DataFrame, response: str, factors: Sequence[
     ------
     ValueError
         If the response or a factor is not a column, a factor is named twice or does not have
-        exactly three settings, or the response is missing or not finite in a run.
+        exactly three settings, the response is named as a factor, or the response is missing or
+        not finite in a run.
 
     Examples
     --------
@@ -113,6 +114,9 @@ def _levels(data: pd.DataFrame, response: str, names: list[str]) -> tuple[np.nda
     missing = [c for c in [response, *names] if c not in data.columns]
     if missing or len(set(names)) != len(names) or not names:
         msg = f"interaction_components needs the response and distinct factors as columns; missing {missing}."
+        raise ValueError(msg)
+    if response in names:
+        msg = f"The response {response!r} cannot also be a factor."
         raise ValueError(msg)
     y = pd.to_numeric(data[response], errors="coerce").to_numpy(dtype=float)
     if not np.all(np.isfinite(y)):
