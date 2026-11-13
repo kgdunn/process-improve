@@ -19,10 +19,8 @@ def paste(page, text: str) -> None:
     page.fill("#import-text", text)
     page.click("#import-read")
     page.wait_for_function(
-        page.wait_for_function(
-            "!document.querySelector('#import-columns').hidden"
-            " || document.querySelector('#import-status').classList.contains('error')"
-        )
+        "!document.querySelector('#import-columns').hidden"
+        " || document.querySelector('#import-status').classList.contains('error')"
     )
 
 

@@ -47,8 +47,9 @@ BUDGET = {
     "a new run sheet": 136,  # with the footer's words on Feedback
     "practising": 150,
     # With the best settings for its goal, which add some 55 words, and the what-if panel, some 23: its hint, and its
-    # warning that the best settings lie beyond the runs.
-    "the worked example's analysis": 310,
+    # warning that the best settings lie beyond the runs. With "What the results say", some 70: the sentences a
+    # reader would else have to work out of the tables below them.
+    "the worked example's analysis": 415,
     "the comparison in detail": 175,
 }
 

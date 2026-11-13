@@ -131,6 +131,7 @@ def test_every_link_to_the_book_is_extensionless_and_one_the_page_checked():
     """The book is served without ``.html``; every link the page makes names a page and anchor that exist."""
     checked = {
         "omars-designs#doe-omars-metric-choice",
+        "omars-designs#doe-omars-designs",
         "comparing-design-families#doe-omnibus-comparison",
         "full-factorial-designs/using-two-levels-for-two-or-more-factors#doe-two-level-factorials",
         "fractional-factorial-designs/design-resolution#doe-design-resolution",

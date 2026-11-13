@@ -802,6 +802,11 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
             "judge the effects by Lenth's method, in the table of effects."
         ),
     ),
+    "an OMARS design of too few runs": (
+        "api_make_design",
+        lambda _: {"design_type": "omars", "factors": FACTORS, "budget": 9},
+        "An OMARS design in 3 factors has 11 to 41 runs on this page.",
+    ),
     "no table to read": (
         "api_read_table",
         lambda _: {"text": "  "},

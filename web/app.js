@@ -122,6 +122,7 @@ import {
   SPARE_FOR_NOISE,
   SPARE_RUNS,
   SPACE_FILLING,
+  omarsHint,
   SPACE_FILLING_RUNS,
   defaultBudget,
   TITLES,
@@ -288,6 +289,8 @@ const BOOK_PAGES = {
   ccd: `${BOOK}/response-surface-methods#doe-central-composite-designs`,
   d_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
   i_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  a_optimal: `${BOOK}/optimal-designs#doe-optimal-designs`,
+  omars: `${BOOK}/omars-designs#doe-omars-designs`,
   simplex_lattice: `${BOOK}/mixture-experiments#doe-mixture-designs`,
   simplex_centroid: `${BOOK}/mixture-experiments#doe-mixture-designs`,
   extreme_vertices: `${BOOK}/mixture-experiments#doe-mixture-designs`,
@@ -1484,9 +1487,12 @@ function refreshDesign() {
   const spread = SPACE_FILLING.includes(option.value);
   const p = nTerms(k, spread ? OPTIMAL_MODEL[currentAim()] : $("#model_type").value);
   if (!budgetEdited) $("#budget").value = defaultBudget(option.value, k, $("#model_type").value);
+  const omars = option.value === "omars";
   $("#budget-hint").textContent = spread
     ? `${SPACE_FILLING_RUNS} runs a factor is the usual start; Learn fits the model of your aim, which has ${p} coefficients.`
-    : `The model has ${p} coefficients.`;
+    : omars
+      ? omarsHint(k)
+      : `The model has ${p} coefficients.`;
 
   const hint = $("#design-hint");
   const one = labelled.length === 1;

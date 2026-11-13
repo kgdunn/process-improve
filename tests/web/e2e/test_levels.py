@@ -53,14 +53,14 @@ def test_each_level_adds_designs_and_says_how_many_more_there_are(blank_page):
     held = page.input_value("#design-type")
     assert set(listed_designs(page)) == {"full_factorial", held}, "the first design, and the one the plan holds"
     assert re.fullmatch(
-        r"\d more designs at Intermediate, \d at Adventurous\. Show them", page.text_content("#level-designs")
+        r"\d+ more designs at Intermediate, \d+ at Adventurous\. Show them", page.text_content("#level-designs")
     )
     set_level(page, 2)
-    assert re.fullmatch(r"\d more designs at Adventurous\. Show them", page.text_content("#level-designs"))
+    assert re.fullmatch(r"\d+ more designs at Adventurous\. Show them", page.text_content("#level-designs"))
     page.click("#level-designs button")
     page.wait_for_function("document.documentElement.dataset.level === '3'")
     assert page.locator("#level-designs").is_hidden()
-    assert len(listed_designs(page)) == 13
+    assert len(listed_designs(page)) == 17, "every design for factors with ranges, and the three mixtures"
 
 
 def test_the_choice_is_kept_under_the_concept_map_s_key(blank_page):

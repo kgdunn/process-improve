@@ -312,13 +312,21 @@ def test_a_blocked_design_lists_each_run_s_block_one_block_after_another(api):
     assert note.endswith("T·P·F is confounded with the blocks, so the analysis leaves it out.")
 
 
-@pytest.mark.parametrize("design_type", ALL_DESIGNS)
+#: The designs the page makes in blocks: all but OMARS, whose foldover the library does not split.
+BLOCKED_DESIGNS = [design_type for design_type in ALL_DESIGNS if design_type != "omars"]
+
+
+@pytest.mark.parametrize("design_type", BLOCKED_DESIGNS)
 def test_every_design_can_be_made_in_blocks(api, design_type):
     # A fraction or a Taguchi array in three factors has four runs, and any split of four runs in two confounds a
     # main effect.
     factors = SIX[:4] if design_type in ("fractional_factorial", "taguchi") else FACTORS
     result = api.ok("api_make_design", {"design_type": design_type, "factors": factors, "budget": 14, "n_blocks": 2})
     assert sorted(set(run_sheet(result)["Block"])) == [1, 2]
+
+
+def test_the_designs_made_in_blocks_are_those_whose_options_say_so(bootstrap):
+    assert [d for d, info in bootstrap.DESIGNS.items() if "n_blocks" in info["options"]] == BLOCKED_DESIGNS
 
 
 def test_a_split_that_would_confound_a_main_effect_is_refused_in_the_library_s_words(api):

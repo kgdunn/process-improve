@@ -183,6 +183,18 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 3,
         "max_factors": MAX_FACTORS,
     },
+    "omars": {
+        "label": "OMARS (three levels, runs you choose)",
+        "hint": (
+            "Three levels, with main effects clear of interactions and squares as a definitive screening design "
+            "has them, in the number of runs you choose above its own: the extra runs sharpen the squares and the "
+            "interactions. The search takes up to a minute at five factors."
+        ),
+        "model": "main_effects",
+        "options": ["budget", "n_replicates"],
+        "min_factors": 3,
+        "max_factors": 5,
+    },
     "box_behnken": {
         "label": "Box-Behnken",
         "hint": "Response surface with every run inside the factor ranges and none at the corners.",
@@ -218,6 +230,17 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 6,
     },
+    "a_optimal": {
+        "label": "A-optimal",
+        "hint": (
+            "Smallest average variance of the chosen model's coefficients for a fixed number of runs: each "
+            "coefficient counts the same, where a D-optimal design lets one be known well at another's cost."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "model_type", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 6,
+    },
     "maximin_lhs": {
         "label": "Space-filling (Latin hypercube)",
         "hint": (
@@ -229,16 +252,49 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "min_factors": 2,
         "max_factors": 8,
     },
+    "sobol": {
+        "label": "Space-filling (Sobol sequence)",
+        "hint": (
+            "Runs laid through the ranges by a Sobol sequence, made for no model: quick at any size, and more runs "
+            "added later fall between the first. Evenest at 8, 16, 32 or 64 runs."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 8,
+    },
+    "maxpro": {
+        "label": "Space-filling (MaxPro)",
+        "hint": (
+            "Runs spread through the ranges, made for no model, so that they stay spread when only some of the "
+            "factors turn out to matter. For a study where few of many factors are expected to be active."
+        ),
+        "model": "quadratic",
+        "options": ["budget", "n_replicates", "n_blocks"],
+        "min_factors": 2,
+        "max_factors": 8,
+    },
 }
 
 #: The space-filling designs (``designs_space_filling.py``): their runs spread through the ranges for no model in
 #: particular, so the comparison of designs for a model leaves them out, and Learn analyses one with the model the
 #: study aims to learn. A maximin Latin hypercube keeps each factor's settings apart as well as the runs.
-SPACE_FILLING = ("maximin_lhs",)
+SPACE_FILLING = ("maximin_lhs", "sobol", "maxpro")
+
+#: Designs the reader chooses from the design list, which the comparison of designs for a model does not make:
+#: an OMARS design's search is too long to run on every change of the brief, and an A-optimal design would be a
+#: third optimal design to search for beside the two compared.
+CHOSEN_BY_NAME = ("omars", "a_optimal")
+
+#: The runs an OMARS design has above a definitive screening design's own, unless the reader gives a number.
+OMARS_EXTRA_RUNS = 4
 
 #: Runs a factor in a space-filling design, unless the reader gives a number: the usual start for a model fitted
 #: to a computer experiment (Loeppky, Sacks and Welch 2009), and the library's default (logic.js mirrors it).
 SPACE_FILLING_RUNS = 10
+
+#: The most runs an OMARS design has on this page: past them its search takes minutes under WebAssembly.
+MAX_OMARS_RUNS = 41
 
 #: The most runs a space-filling design has on this page, as the Runs box allows.
 MAX_SPACE_FILLING_RUNS = 200
@@ -418,7 +474,7 @@ BOX_COX_POWERS = {"log": 0.0, "sqrt": 0.5, "inverse": -1.0}
 MAX_CONSTRAINTS = 8
 
 #: The designs that keep every run inside limits on the settings: they choose their runs among candidates inside.
-REGION_DESIGNS = ("d_optimal", "i_optimal")
+REGION_DESIGNS = ("d_optimal", "i_optimal", "a_optimal")
 
 #: The most characters of a limit's note, which the page shows beside it and never reads.
 NOTE_LENGTH = 80
@@ -1423,7 +1479,7 @@ def make_design(spec: dict) -> dict:
     if array := (result.metadata or {}).get("orthogonal_array"):
         facts["notes"].insert(0, _array_sentence(array, stored["model"]))
     if design_type in SPACE_FILLING:
-        facts["notes"].insert(0, _spread_sentence(kwargs["budget"]))
+        facts["notes"].insert(0, _spread_sentence(design_type, kwargs["budget"]))
     if region is not None:
         if not region.feasible(coded[region.names].to_numpy(dtype=float)).all():
             raise RuntimeError("The design has a run outside the limits on the settings, which it must not have.")
@@ -2149,6 +2205,8 @@ def _budget(spec: dict, design_type: str, k: int, model_type: str | None) -> int
     """
     if design_type in SPACE_FILLING:
         return _space_filling_runs(spec, k)
+    if design_type == "omars":
+        return _omars_runs(spec, k)
     budget = spec.get("budget")
     n_terms = _n_terms(k, model_type)
     if budget and int(budget) < n_terms:
@@ -2173,6 +2231,24 @@ def _space_filling_runs(spec: dict, k: int) -> int:
     return int(runs)
 
 
+def _omars_runs(spec: dict, k: int) -> int:
+    """Read an OMARS design's runs: :data:`OMARS_EXTRA_RUNS` above a definitive screening design's, unless given.
+
+    The design is a foldover and a center run, so it has an odd number of runs: the library makes the largest
+    such design within the number given. Its fewest is two above the definitive screening design's, the first
+    that leaves a run to judge the main effects and squares with; the definitive screening design itself is
+    the smallest OMARS design, and has its own place in the design list.
+    """
+    own = 2 * k + 1 if k % 2 == 0 else 2 * k + 3  # a definitive screening design's runs
+    budget = spec.get("budget")
+    if budget is None or budget in ("", 0):
+        return own + OMARS_EXTRA_RUNS
+    runs = _number(budget)
+    if runs is None or runs != int(runs) or not own + 2 <= runs <= MAX_OMARS_RUNS:
+        raise ValueError(f"An OMARS design in {k} factors has {own + 2} to {MAX_OMARS_RUNS} runs on this page.")
+    return int(runs)
+
+
 def _round_spread(runs: pd.DataFrame, factors: list[Factor], budget: int) -> None:
     """Round a space-filling design's settings, in place, to what can be set: to a tenth of their step, or finer.
 
@@ -2186,8 +2262,18 @@ def _round_spread(runs: pd.DataFrame, factors: list[Factor], budget: int) -> Non
         runs[f.name] = runs[f.name].astype(float).round(decimals) + 0.0  # -0.0 reads 0
 
 
-def _spread_sentence(runs: int) -> str:
-    """Say how a maximin Latin hypercube spreads its runs: every factor's settings, and the runs among themselves."""
+def _spread_sentence(design_type: str, runs: int) -> str:
+    """Say how a space-filling design spreads its runs: every factor's settings, and the runs among themselves."""
+    if design_type == "sobol":
+        return (
+            f"The {runs} runs follow a Sobol sequence, which fills the ranges evenly however many factors are "
+            "read together; runs added later from the same sequence fall between these."
+        )
+    if design_type == "maxpro":
+        return (
+            f"Each factor takes {runs} different settings, and the runs are placed to stay spread in every "
+            "group of the factors, so the design still fills the space of the few that turn out to matter."
+        )
     return (
         f"Each factor takes {runs} different settings, evenly spaced across its range, and the runs are placed so "
         "the nearest two are as far apart as the search could make them."
@@ -5830,8 +5916,8 @@ def compare_plan(request: dict) -> dict:
     # The study's seed, so a design taken from the comparison keeps it.
     seeded = {"random_state": request["random_state"]} if "random_state" in request else {}
     for design_type in DESIGNS:
-        if design_type in SPACE_FILLING:
-            continue  # made for no model, so not one to compare on a model
+        if design_type in SPACE_FILLING or design_type in CHOSEN_BY_NAME:
+            continue  # made for no model, so not one to compare on a model; or made only when chosen
         why = _left_out(design_type, k, labelled=labelled, limited=bool(limits), several=bool(_several_names(factors)))
         if why:
             left_out.append({"design_type": design_type, "label": COMPARE_LABELS[design_type], **why})

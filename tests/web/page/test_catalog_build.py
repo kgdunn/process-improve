@@ -147,12 +147,12 @@ def test_a_published_design_the_library_regenerates_opens_with_its_results(index
 
 
 def test_a_design_the_page_does_not_make_opens_with_its_runs_as_given(index, details):
-    """The page makes no OMARS design: Factorial opens the library's runs as they are, in their order."""
+    """The page makes an OMARS design in the runs its reader chooses: the library's own runs open as they are."""
     design, detail = _design(index, "lib-omars-k4"), details["lib-omars-k4"]
     assert (design["open"], design["regenerable"]) == (True, None)
     assert (detail["opens_as"], detail["unmade"], detail["closed"]) == (
         "given",
-        "the page does not make this kind of design",
+        "the page makes this design in a number of runs you choose",
         "",
     )
     campaign = detail["campaign"]

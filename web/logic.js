@@ -12,7 +12,7 @@ export function nTerms(k, model) {
 }
 
 /** The space-filling designs, made for no model; mirrors bootstrap.SPACE_FILLING. */
-export const SPACE_FILLING = ["maximin_lhs"];
+export const SPACE_FILLING = ["maximin_lhs", "sobol", "maxpro"];
 
 /** Runs a factor in a space-filling design, unless the reader gives a number; mirrors bootstrap.SPACE_FILLING_RUNS. */
 export const SPACE_FILLING_RUNS = 10;
@@ -21,8 +21,21 @@ export const SPACE_FILLING_RUNS = 10;
  * The runs a design that takes a number of runs opens with, as bootstrap.py gives them: SPACE_FILLING_RUNS a factor
  * for a space-filling design, else the coefficients of the model it is made for and SPARE_RUNS more.
  */
-export const defaultBudget = (designType, k, model) =>
-  SPACE_FILLING.includes(designType) ? SPACE_FILLING_RUNS * k : nTerms(k, model) + SPARE_RUNS;
+export const defaultBudget = (designType, k, model) => {
+  if (SPACE_FILLING.includes(designType)) return SPACE_FILLING_RUNS * k;
+  return designType === "omars" ? screeningRuns(k) + OMARS_EXTRA_RUNS : nTerms(k, model) + SPARE_RUNS;
+};
+
+/** The runs of a definitive screening design in k factors: a foldover of a conference matrix and a center run. */
+export const screeningRuns = (k) => (k % 2 === 0 ? 2 * k + 1 : 2 * k + 3);
+
+/** The runs an OMARS design opens with above a definitive screening design's; mirrors bootstrap.OMARS_EXTRA_RUNS. */
+export const OMARS_EXTRA_RUNS = 4;
+
+/** What the Runs box says of an OMARS design: it has an odd number of runs, and the fewest it takes. */
+export const omarsHint = (k) =>
+  `A definitive screening design has ${screeningRuns(k)} runs here. An OMARS design has an odd number: the largest ` +
+  `within the number you give is made, from ${screeningRuns(k) + 2}.`;
 
 /** The resolution a fraction in k factors opens on: IV, or III when three factors allow no more. */
 export const defaultResolution = (k) => Math.max(3, Math.min(4, k));
@@ -1504,7 +1517,7 @@ export const NOTE_LENGTH = 80;
 export const EXPRESSION_LENGTH = 500;
 
 /** The designs that keep every run inside limits on the settings; mirrors bootstrap.REGION_DESIGNS. */
-export const REGION_DESIGNS = ["d_optimal", "i_optimal"];
+export const REGION_DESIGNS = ["d_optimal", "i_optimal", "a_optimal"];
 
 /**
  * What a reader may type or paste in a limit for an operator, and the operator a limit is written with;

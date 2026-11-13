@@ -436,6 +436,10 @@ def generated_campaign(record: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     if spec["design_type"] not in designs:
         return None, "the page does not make this kind of design"
     options = dict(spec["options"])
+    if "budget" in designs[spec["design_type"]]["options"] and "budget" not in options:
+        # The page makes such a design in the number of runs its reader chooses, and opens on its own number:
+        # the library's design of no stated size is another design, so its runs are opened as they are.
+        return None, "the page makes this design in a number of runs you choose"
     if "array" in spec:  # an orthogonal array, all its columns: the page makes it when it takes every column
         info = designs[spec["design_type"]]
         if not info["min_factors"] <= len(record["factors"]) <= info["max_factors"]:
