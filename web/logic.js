@@ -1202,6 +1202,17 @@ const FINDINGS = {
 export const findingWords = (findings, response) =>
   (findings ?? []).filter((finding) => finding.kind in FINDINGS).map((finding) => FINDINGS[finding.kind](finding, response));
 
+/** A model's chosen terms as one text, whatever order they or their factors were ticked in. */
+export const termsKey = (terms) => JSON.stringify(terms.map((term) => [...term].sort()).sort());
+
+/**
+ * What Learn says, after what the results say, of a model whose terms the search for a simpler one picked from
+ * the results it is fitted to: every p-value and interval below it was computed as if the terms had been chosen
+ * before the runs were made.
+ */
+export const PICKED_WORDS =
+  "The terms of this model were picked from these same results, by the search for a simpler model, so its p-values and intervals look surer than they are: confirm the model with new runs.";
+
 /** What a call to Python is answered with when the reader stopped it. */
 export const STOPPED = "Stopped, as you asked: nothing was changed.";
 

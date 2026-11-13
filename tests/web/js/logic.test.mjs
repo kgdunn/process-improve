@@ -29,6 +29,8 @@ import {
   chartHeight,
   chartLevel,
   simplerWords,
+  termsKey,
+  PICKED_WORDS,
   findingWords,
   csvOf,
   runSheetCsv,
@@ -510,6 +512,14 @@ describe("words and numbers", () => {
     assert.match(simplerWords({ ...found, added: ["F²"] }, fmt), /without F, and with F²\. /);
     assert.equal(simplerWords({ ...found, dropped: [], changed: false }, fmt), "The results support every term of the model as it is.");
     assert.match(simplerWords({ ...found, kept: [] }, fmt), /^No term of the model stands out from the noise/);
+  });
+
+  test("terms picked from the results are known again by what they are, whatever order they were ticked in", () => {
+    const picked = termsKey([["T"], ["P"], ["T", "P"], ["F", "F"]]);
+    assert.equal(termsKey([["F", "F"], ["P", "T"], ["P"], ["T"]]), picked);
+    assert.notEqual(termsKey([["T"], ["P"], ["T", "P"]]), picked, "a term fewer is the reader's own choice");
+    assert.notEqual(termsKey([["T"], ["P"], ["T", "F"], ["F", "F"]]), picked);
+    assert.match(PICKED_WORDS, /^The terms of this model were picked from these same results/);
   });
 
   test("the captions name the factors drawn", () => {

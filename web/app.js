@@ -103,6 +103,8 @@ import {
   chartLevel,
   correlationWords,
   THE_BLOCKS,
+  termsKey,
+  PICKED_WORDS,
   simplerWords,
   findingWords,
   runSheetCsv,
@@ -546,7 +548,7 @@ const runCount = () => state.design?.rows.length ?? 0;
 const modelOf = (name) => (name === state.shown ? modelChoice() : (state.models[name] ?? ""));
 
 /** Each response's model, by its column, as a study keeps them. */
-const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, modelOf(name)]));
+const modelsByName = () => Object.fromEntries(resultNames().map((name) => [name, asked(modelOf(name))]));
 
 /** Each response's results as its model is fitted to them: without the runs set aside from its fit. */
 const fitted = () => fittedResults(state.results, state.setAside);
@@ -857,7 +859,7 @@ function responseNamed(tr) {
   state.design = { ...d, columns: insert(d.columns, name), rows: d.rows.map((row) => insert(row, null)) };
   state.results[name] = d.rows.map(() => null);
   state.marks[name] = d.rows.map(() => null);
-  state.models[name] = modelOf(resultNames()[0]);
+  state.models[name] = asked(modelOf(resultNames()[0]));
   const practice = anyResult(state.results) && allSimulatedBut(name);
   responseChanged();
   renderBadges();
@@ -1363,9 +1365,10 @@ function showRenamed({ spec, simulation, ...design }, names) {
   clearBalance();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
-  if ($("#model").value === CHOSEN_TERMS) renderTermList(renameTerms(tickedTerms(), names));
+  const sameTerms = (model) => ({ ...model, terms: renameTerms(model.terms, names) }); // picked or not, as they were
+  if ($("#model").value === CHOSEN_TERMS) setModel(sameTerms(modelChoice()));
   for (const [name, model] of Object.entries(state.models)) {
-    if (model && typeof model === "object") state.models[name] = { terms: renameTerms(model.terms, names) }; // each response's terms
+    if (model && typeof model === "object") state.models[name] = sameTerms(model); // each response's terms
   }
   const renamed = (settings) => Object.fromEntries(Object.entries(settings).map(([factor, v]) => [names[factor] ?? factor, v]));
   state.scenarios = state.scenarios.map((s) => ({ ...s, settings: renamed(s.settings) }));
@@ -2964,12 +2967,12 @@ async function downloadWorkbook() {
   const [first, ...more] = resultNames();
   // Each response's model, unless it is the one the design was made for, is kept in the workbook, so the results are
   // analysed the same way when it comes back.
-  const models = Object.fromEntries(more.map((name) => [name, modelOf(name)]).filter(([, model]) => model));
+  const models = Object.fromEntries(more.map((name) => [name, asked(modelOf(name))]).filter(([, model]) => model));
   const reply = await call("api_workbook", {
     ...held(),
     ...sentResults(),
     simulated: someSimulated() ? state.simulation : null,
-    model: modelOf(first),
+    model: asked(modelOf(first)),
     ...(Object.keys(models).length ? { models } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...sentCurves(),
@@ -3398,7 +3401,7 @@ function analysisRequest(name = state.shown) {
   return {
     ...held(),
     ...splitResults(resultNames(), fitted()),
-    model: modelOf(name),
+    model: asked(modelOf(name)),
     truth: state.marks[name]?.includes("simulated") ? (processOf(name)?.truth ?? null) : null,
     ...(several() ? { response: name } : {}),
     ...chosenControl(),
@@ -3516,7 +3519,7 @@ function renderAnalysis(reply) {
   const scale = r.transform ? `In coded units, fitted to ${r.equation.split(" = ")[0]}.` : "In coded units.";
   const parts = [
     ...asideParts(),
-    ...findingParts(r.findings),
+    ...findingParts(r.findings, Boolean(modelChoice().picked)),
     ...comparisonParts(r),
     el("p", "equation", r.equation),
     said("hint", mixture ? "In proportions: each component's share of the blend." : scale),
@@ -3634,7 +3637,7 @@ async function askSimpler() {
 /** Fit the terms the search proposed: they are ticked in the list of terms, as if the reader had ticked them. */
 function fitSimpler() {
   if (!state.simpler?.length) return;
-  setModel({ terms: state.simpler });
+  setModel({ terms: state.simpler, picked: true });
   $("#term-list").dispatchEvent(new Event("change"));
 }
 
@@ -3674,13 +3677,17 @@ function asideParts() {
   return [note];
 }
 
-/** What the analysis found, each finding of Python's in a sentence: the same results give the same words. */
-function findingParts(findings) {
+/**
+ * What the analysis found, each finding of Python's in a sentence: the same results give the same words. A model
+ * whose terms were ``picked`` from these results says so last, since it bears on all that is said before it.
+ */
+function findingParts(findings, picked) {
   const sentences = findingWords(findings, responseWords(shownSpec()));
-  if (!sentences.length) return [];
+  if (!sentences.length && !picked) return [];
   const list = el("ul", "findings", "");
   list.id = "findings";
   list.append(...sentences.map((sentence) => el("li", "", sentence)));
+  if (picked) list.append(el("li", "picked", PICKED_WORDS));
   return [el("h3", "", "What the results say"), list];
 }
 
@@ -4159,9 +4166,19 @@ async function showAnalysisOf(name) {
 let modelBefore = ""; // the model chosen before the reader asked to tick terms: where the list starts
 
 /** The model the reader asks for: "" for the model the design was made for, a named model, or the ticked terms. */
+/**
+ * The model Learn fits for the response on show: a named one, or the terms ticked. Terms the search for a simpler
+ * model picked from the results are marked so (``picked``) while the list holds exactly them, and the mark is
+ * kept with the study: a reader who changes the terms has chosen them, and the mark goes.
+ */
 function modelChoice() {
-  return $("#model").value === CHOSEN_TERMS ? { terms: tickedTerms() } : $("#model").value;
+  if ($("#model").value !== CHOSEN_TERMS) return $("#model").value;
+  const terms = tickedTerms();
+  return $("#term-list").dataset.picked === termsKey(terms) ? { terms, picked: true } : { terms };
 }
+
+/** A model as Python takes it: its name, or its terms. That the terms were picked from the results is the page's to say. */
+const asked = (model) => (model && typeof model === "object" ? { terms: model.terms } : model);
 
 const tickedTerms = () => [...document.querySelectorAll("#term-list input:checked")].map((b) => JSON.parse(b.value));
 
@@ -4223,9 +4240,11 @@ function startTermList() {
 
 /** Put a model into the analysis: a named one, "" for the design's own, or {terms} to tick. */
 function setModel(model) {
+  delete $("#term-list").dataset.picked;
   if (model && typeof model === "object") {
     models.choose(CHOSEN_TERMS);
     renderTermList(model.terms);
+    if (model.picked) $("#term-list").dataset.picked = termsKey(model.terms);
   } else {
     models.choose(model);
     if (model === CHOSEN_TERMS) startTermList();
@@ -5106,7 +5125,7 @@ async function findCurve() {
 }
 
 /** What Python fits the curves from: the runs, their curves, and the model Learn fits. */
-const curveRequest = () => ({ ...held(), ...sentResults(), ...sentCurves(), model: modelChoice() });
+const curveRequest = () => ({ ...held(), ...sentResults(), ...sentCurves(), model: asked(modelChoice()) });
 
 /** Draw the curve at the panel's settings (best.js curveAt), with its bands and any target; or say why there is none. */
 function renderCurve(at) {

@@ -20,6 +20,7 @@ from tests.web.e2e._page import (
     headers,
     practise,
     reveal,
+    saved_studies,
     set_factors,
     settled,
     status,
@@ -312,6 +313,57 @@ def test_a_simpler_model_is_proposed_when_asked_and_fitted_when_accepted(page):
     assert [row[0] for row in coefficient_rows(page)] == ["Intercept", "T", "P", "F", "T·P", "F²"]
     assert page.text_content("#simplify-words") == "", "the proposal was of the analysis before"
     assert page.locator("#term-list input:checked").count() == 5, "ticked in the list, for the reader to change"
+
+
+PICKED = "The terms of this model were picked from these same results"
+
+
+def simplified(page) -> None:
+    """Ask for a simpler model and fit the terms proposed; wait for the model fitted with them."""
+    reveal(page, "#simplify")
+    page.click("#simplify-ask")
+    page.wait_for_function("document.querySelector('#simplify-words').textContent.startsWith('The results support')")
+    before = page.evaluate("window.__pi.count('api_analyze_runs')")
+    page.click("#simplify-apply")
+    page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+    settled(page)
+
+
+def test_a_model_of_terms_picked_from_its_results_says_so_until_the_reader_chooses_the_terms(page):
+    """Its p-values were computed as if the terms had been chosen before the runs: Learn says so after its findings."""
+    assert page.locator("#findings li.picked").count() == 0
+    simplified(page)
+    assert page.locator("#findings li").last.text_content().startswith(PICKED)
+    assert calls(page, "api_analyze_runs")[-1]["payload"]["model"] == {
+        "terms": [["T"], ["P"], ["F"], ["T", "P"], ["F", "F"]]
+    }, "Python is asked for the terms: that they were picked is the page's to say"
+    at = page.evaluate("[...document.querySelectorAll('#term-list input')].findLastIndex((box) => box.checked)")
+    box = page.locator("#term-list input").nth(at)
+
+    def fitted_after(change) -> None:
+        before = page.evaluate("window.__pi.count('api_analyze_runs')")
+        change()
+        page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
+        settled(page)
+
+    fitted_after(box.uncheck)
+    assert page.locator("#findings li.picked").count() == 0, "the reader chose these terms"
+    fitted_after(box.check)
+    assert page.locator("#findings li.picked").count() == 1, "and these are the search's again"
+
+
+def test_terms_picked_from_the_results_are_kept_so_with_the_study(blank_page):
+    page = blank_page
+    generate(page, design_type="box_behnken")
+    practise(page)
+    settled(page)
+    simplified(page)
+    assert page.locator("#findings li.picked").count() == 1
+    saved = saved_studies(page, lambda studies: bool(studies) and studies[0]["model"].get("picked") is True)
+    assert saved[0]["model"]["picked"] is True
+    page.reload()
+    page.wait_for_selector("#findings li.picked", state="attached")
+    assert page.locator("#findings li.picked").text_content().startswith(PICKED)
 
 
 def test_a_model_that_uses_every_run_is_not_simplified_and_the_page_says_why(blank_page):
