@@ -8,6 +8,7 @@ the page would show at Beginner what the map teaches at Adventurous.
 from __future__ import annotations
 
 import json
+import re
 
 from tests.web._support import WEB, javascript, page, source
 
@@ -25,6 +26,18 @@ def test_each_part_s_level_is_its_term_s_in_the_concept_map(node):
         if "term" in info:
             assert info["term"] in levels, f"{feature} names a term the map does not have"
             assert info["level"] == levels[info["term"]], feature
+
+
+def test_each_part_index_html_tags_has_the_level_levels_js_gives_it(node):
+    """A part in the page from its first paint names its feature and carries its level: the two must agree."""
+    tagged = re.findall(r'data-feature="([^"]+)" data-level="(\d)"', source("index.html"))
+    assert len(tagged) == source("index.html").count("data-level="), "every level in the page names its feature"
+    known = features(node)
+    assert {feature: int(level) for feature, level in tagged} == {
+        feature: known[feature]["level"] for feature, _ in tagged
+    }
+    static = {key for key in known if key.split(":")[0] in {"option", "panel", "action"}}
+    assert static == {feature for feature, _ in tagged}, "each such part of levels.js is tagged in the page"
 
 
 def test_every_design_on_the_page_has_a_level(node, bootstrap):

@@ -282,7 +282,7 @@ import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
-import { LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "./levels.js";
+import { LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installFeedback, keepError } from "./feedback.js";
@@ -309,6 +309,55 @@ const BOOK_PAGES = {
 };
 
 const $ = (sel) => document.querySelector(sel);
+
+/**
+ * A <select> that lists only some of its options at a time: the designs of the reader's level, the models a run
+ * sheet takes. An <option> cannot be hidden in every browser, since Safari lists it all the same, as a phone's own
+ * picker does, so an option the page leaves out is taken out of the list, and put back in its place when it is
+ * wanted. Every option the select has, as index.html lists them, is kept here: what is said of an option, and
+ * whether it can be chosen, is read and set on these. The list starts with the options index.html does not hide.
+ */
+function listing(select) {
+  const every = [...select.options].map((option) => ({ option, group: option.closest("optgroup") }));
+  const first = new Set(every.filter(({ option }) => !option.hidden).map(({ option }) => option));
+  for (const { option } of every) option.hidden = false; // from here an option is listed or it is not
+  let offered = (option) => first.has(option);
+
+  /** Make the list again: the options offered, and the one chosen whatever the rule says of it. */
+  function list(chosen) {
+    const rows = []; // the list's own lines, in order: an option, or a group of them
+    for (const { option, group } of every) {
+      if (!offered(option) && option.value !== chosen) continue;
+      if (!group) rows.push(option);
+      else if (rows.includes(group)) group.append(option);
+      else {
+        group.replaceChildren(option);
+        rows.push(group);
+      }
+    }
+    select.replaceChildren(...rows);
+    select.value = chosen;
+  }
+  list(select.value);
+  return {
+    /** Every option the select has, listed now or not. */
+    options: every.map(({ option }) => option),
+    /** The option of a value, listed now or not. */
+    option: (value) => every.find(({ option }) => option.value === value)?.option,
+    /** List the options `rule` offers, with `chosen` as the choice: the choice is listed whatever the rule says. */
+    show(rule, chosen = select.value) {
+      offered = rule;
+      list(chosen);
+    },
+    /** Choose an option, listing it if the rule leaves it out. */
+    choose: list,
+    /** The options the list leaves out as it stands. */
+    leftOut: () => every.filter(({ option }) => !option.isConnected).map(({ option }) => option),
+  };
+}
+const designs = listing($("#design-type"));
+const models = listing($("#model"));
+const scenarios = listing($("#scenario"));
 // ---------------------------------------------------------------- the line to Python
 /** The last Python errors, newest last, each with the entry point it came from: a report of a problem carries them. */
 let pythonErrors = [];
@@ -732,6 +781,7 @@ let responsesUnready = false;
  * each number it knows, the line that says the first one sizes the design, the room left for more, and problems.
  */
 function showResponse() {
+  showInUse();
   const rows = responseRows();
   for (const tr of rows) {
     const aimed = box(tr, "goal").value === "target";
@@ -1373,16 +1423,17 @@ let budgetEdited = false;
 let resolutionEdited = false;
 let designChosen = false; // the reader chose the design, or a study opened with one; else Design picks it
 
+const alsoListed = new Set(); // the designs listed whatever the level: runs as given, once a study has had some
+
 /** What a design type is, as the design list says under it. */
-const designHint = (designType) =>
-  [...$("#design-type").options].find((o) => o.value === designType)?.dataset.hint ?? "";
+const designHint = (designType) => designs.option(designType)?.dataset.hint ?? "";
 
 /** The glossary's entry for each kind of term power is reckoned for. */
 const KIND_TERMS = { main: "main-effect", interaction: "interaction", quadratic: "square" };
 
 /** A design type's name as the design list gives it. */
 function designLabel(designType) {
-  const option = [...$("#design-type").options].find((o) => o.value === designType);
+  const option = designs.option(designType);
   return option ? option.textContent.trim() : designType;
 }
 
@@ -1401,8 +1452,8 @@ function setForm(spec) {
 /** Put a design's type and settings into the plan, leaving the brief as it is. */
 function setDesignForm(spec) {
   // Runs as given are in the list once a study of given runs is open, so the reader can make them again.
-  if (spec.design_type === GIVEN) $(`#design-type option[value="${GIVEN}"]`).hidden = false;
-  $("#design-type").value = spec.design_type;
+  if (spec.design_type === GIVEN) alsoListed.add(GIVEN);
+  showLevelDesigns(spec.design_type);
   const options = spec.options || spec;
   if (options.n_center_points !== undefined) $("#n_center_points").value = options.n_center_points;
   if (typeof options.alpha === "number") {
@@ -1441,6 +1492,7 @@ function setDesignForm(spec) {
  * point, and an optimal design's runs follow its model unless the reader set them.
  */
 function refreshDesign() {
+  showInUse();
   const k = factorCount();
   const full = factorRows().length >= MAX_FACTORS; // the add buttons stop at the most factors a study has, and say so
   for (const id of ["#add-factor", "#add-categorical"]) $(id).disabled = full;
@@ -1454,7 +1506,7 @@ function refreshDesign() {
   const limited = hasLimits();
   const outsideLimits = (option) => limited && !REGION_DESIGNS.includes(option.value) && option.value !== GIVEN;
   showComponents();
-  for (const option of select.options) {
+  for (const option of designs.options) {
     option.disabled =
       k < Number(option.dataset.minFactors) ||
       k > Number(option.dataset.maxFactors) ||
@@ -1671,7 +1723,7 @@ function pickCell(runs) {
   if (!design) return;
   designChosen = true;
   if (design.design_type === "full_factorial") {
-    $("#design-type").value = design.design_type;
+    showLevelDesigns(design.design_type);
     refreshDesign();
     $("#design-type").focus(); // the grid goes with the fraction: the focus stays on the choice it made
     return;
@@ -2210,7 +2262,7 @@ function levelPlan(c, current) {
 /** Make the design of one factor with this many runs at each level, as the reader picked from the plan. */
 function pickLevelRuns(n) {
   designChosen = true;
-  $("#design-type").value = "full_factorial";
+  showLevelDesigns("full_factorial");
   $("#n_center_points").value = 0;
   $("#n_replicates").value = n;
   refreshDesign();
@@ -2636,6 +2688,7 @@ function renderCurves() {
   $("#curve-clear").hidden = !curve;
   $("#curve-status").textContent = curve ? curvesSaid(curve, state.curves) : "";
   if (curve) box.open = true;
+  showInUse();
 }
 
 /** The reader's words for the curve and for the points along it, as a study keeps them: each left out when blank. */
@@ -2723,13 +2776,13 @@ function showChoicesFor(design) {
   const mixture = isMixture(design.spec.design_type);
   // Past MAX_INTERACTION_FACTORS factors, Learn offers no model with every two-factor interaction, and says why.
   const k = design.spec.factors.length;
-  for (const option of $("#model").options) option.disabled = screensOnly(k) && INTERACTION_MODELS.includes(option.value);
+  for (const option of models.options) option.disabled = screensOnly(k) && INTERACTION_MODELS.includes(option.value);
   $("#model-many").textContent = screeningSentence(k, "learn");
   $("#model-many").hidden = !screensOnly(k);
-  for (const [id, fallback] of [["#scenario", mixture ? "blend" : "reactor"], ["#model", ""]]) {
-    const select = $(id);
-    for (const option of select.options) option.hidden = option.value !== "" && mixture !== ("mixture" in option.dataset);
-    if (select.selectedOptions[0]?.hidden || select.selectedOptions[0]?.disabled) select.value = fallback;
+  const taken = (option) => option.value === "" || mixture === ("mixture" in option.dataset);
+  for (const [list, id, fallback] of [[scenarios, "#scenario", mixture ? "blend" : "reactor"], [models, "#model", ""]]) {
+    const chosen = list.option($(id).value);
+    list.show(taken, chosen && taken(chosen) && !chosen.disabled ? chosen.value : fallback);
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
   $("#truth-units").textContent = `In ${mixture ? "proportions" : "coded units"}. The analysis estimates these coefficients from the noisy results.`;
@@ -4103,10 +4156,10 @@ function startTermList() {
 /** Put a model into the analysis: a named one, "" for the design's own, or {terms} to tick. */
 function setModel(model) {
   if (model && typeof model === "object") {
-    $("#model").value = CHOSEN_TERMS;
+    models.choose(CHOSEN_TERMS);
     renderTermList(model.terms);
   } else {
-    $("#model").value = model;
+    models.choose(model);
     if (model === CHOSEN_TERMS) startTermList();
   }
   $("#terms").hidden = $("#model").value !== CHOSEN_TERMS;
@@ -5408,7 +5461,7 @@ async function showBuiltExample() {
   studyTicket += 1;
   $("#campaign-banner").hidden = true;
   setForm(example.inputs.design);
-  $("#scenario").value = example.inputs.scenario;
+  scenarios.choose(example.inputs.scenario);
   $("#sigma").value = example.inputs.sigma;
   showScenarioHint();
   showDesign(example.design, [], { save: false });
@@ -5467,7 +5520,7 @@ async function runExample() {
   flushSave();
   studyTicket += 1;
   setForm(example.design);
-  $("#scenario").value = example.scenario;
+  scenarios.choose(example.scenario);
   $("#sigma").value = example.sigma;
   setModel(example.model);
   showScenarioHint();
@@ -5642,7 +5695,7 @@ function restoreDraft(draft) {
   $("#response-known").open = Boolean(f.typical || f.noise || f.smallest_change);
   showResponse();
   if (draft.design) {
-    $("#design-type").value = draft.design;
+    showLevelDesigns(draft.design);
     designChosen = true;
   }
   $("#factors tbody").replaceChildren();
@@ -5948,7 +6001,7 @@ async function openCampaign(c, record, message) {
   state.picked = null;
   clearDraft();
   const { scenario, sigma, seed: kept } = c.simulate;
-  if (scenario && [...$("#scenario").options].some((o) => o.value === scenario)) $("#scenario").value = scenario;
+  if (scenario && scenarios.option(scenario)) scenarios.choose(scenario);
   if (sigma) $("#sigma").value = sigma;
   if (kept !== null) seed = kept;
   showScenarioHint();
@@ -6301,22 +6354,34 @@ function levelNote(words) {
 }
 
 /**
- * List the designs of the page's level in the design list, and say how many more a higher level has. The design the
- * plan holds stays listed whatever the level; "Runs as given" is listed by the study that has such runs, not here.
+ * List the designs of the page's level in the design list, with ``chosen`` as the plan's design, and say how many
+ * more a higher level has. The plan's design is listed whatever the level; "Runs as given" is listed once a study
+ * has had such runs.
  */
-function showLevelDesigns() {
-  const select = $("#design-type");
-  const hidden = [];
-  for (const option of select.options) {
-    if (option.value === "given") continue;
-    const level = levelOf(`design:${option.value}`);
-    option.hidden = level > pageLevel() && option.value !== select.value;
-    if (option.hidden) hidden.push(level);
-  }
-  for (const group of select.querySelectorAll("optgroup")) group.hidden = [...group.children].every((o) => o.hidden);
+function showLevelDesigns(chosen = $("#design-type").value) {
+  designs.show((option) => designListed(option.value, pageLevel(), { also: [...alsoListed] }), chosen);
+  const left = designs.leftOut().filter((option) => option.value !== GIVEN);
   const note = $("#level-designs");
-  note.hidden = !hidden.length;
-  if (hidden.length) note.replaceChildren(...levelNote(moreWords(hidden, "design")).childNodes);
+  note.hidden = !left.length;
+  if (left.length) {
+    const levels = left.map((option) => levelOf(`design:${option.value}`));
+    note.replaceChildren(...levelNote(moreWords(levels, "design")).childNodes);
+  }
+}
+
+/**
+ * Keep on the page, whatever its level, each part the study on it uses: its blocks, its limits on the settings, its
+ * later responses, its curves. A level leaves a part off the page until a study has use for it, and never after:
+ * the page's own rule (style.css) shows a part marked in-use at every level.
+ */
+function showInUse() {
+  const used = {
+    '[data-feature="option:blocks"]': Number($("#n_blocks").value) > 1,
+    "#limits": hasLimits(),
+    "#more-responses": responseRows().length > 1,
+    "#curves": Boolean(state.design?.spec?.curve),
+  };
+  for (const [part, on] of Object.entries(used)) $(part).classList.toggle("in-use", on);
 }
 
 /** Show the page at a level, and keep the choice where the concept map keeps its own. */
@@ -6335,7 +6400,7 @@ function setLevel(level, keep = true) {
 }
 
 $("#level").onchange = (event) => setLevel(Number(event.target.value));
-$("#design-type").addEventListener("change", showLevelDesigns);
+$("#design-type").addEventListener("change", () => showLevelDesigns());
 
 // ---------------------------------------------------------------- colour mode
 const MODE_KEY = "factorial-mode";
@@ -6480,6 +6545,7 @@ $("#trade-off-table").addEventListener("click", (e) => {
 });
 $("#n_levels").onchange = markStale;
 for (const id of ["#n_center_points", "#n_replicates", "#n_blocks"]) $(id).addEventListener("input", markStale);
+$("#n_blocks").addEventListener("input", showInUse);
 for (const id of ["#design-type", "#n_center_points", "#n_replicates"]) $(id).addEventListener("input", markLevelRuns);
 $("#generate").onclick = async () => {
   // While practising, the new runs are simulated from the same process, noise and seed, so the true process

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { DEFAULT_LEVEL, FEATURES, LEVELS, LEVEL_KEY, levelOf, moreWords, readLevel } from "../../../web/levels.js";
+import { DEFAULT_LEVEL, FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "../../../web/levels.js";
 
 describe("the reading level", () => {
   test("there are the concept map's three levels, under its key", () => {
@@ -27,6 +27,25 @@ describe("the reading level", () => {
   test("a part no level names is on every page", () => {
     assert.equal(levelOf("table:of-no-level"), 1);
     assert.equal(levelOf("design:d_optimal"), 3);
+  });
+
+  test("the list of designs offers those of the level and of the levels below it", () => {
+    assert.ok(designListed("full_factorial", 1));
+    assert.ok(!designListed("ccd", 1));
+    assert.ok(designListed("ccd", 2) && designListed("ccd", 3));
+    assert.ok(!designListed("d_optimal", 2));
+  });
+
+  test("the design the plan holds is listed at every level, and no other is for that", () => {
+    assert.ok(designListed("d_optimal", 1, { chosen: "d_optimal" }));
+    assert.ok(!designListed("i_optimal", 1, { chosen: "d_optimal" }));
+  });
+
+  test("runs as given are a design no level offers: a study that has them lists them", () => {
+    for (const level of [1, 2, 3]) assert.ok(!designListed("given", level));
+    assert.ok(designListed("given", 1, { also: ["given"] }));
+    assert.ok(designListed("given", 2, { chosen: "given" }));
+    assert.ok(!designListed("a design the page does not have", 3));
   });
 
   test("what a level leaves out is said where the list is", () => {

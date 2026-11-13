@@ -14,7 +14,8 @@ export const DEFAULT_LEVEL = 2;
 /**
  * Each part of the page that a level brings, but for the charts, whose levels are in logic.CHARTS: with the term
  * of the concept map (map/graph.json) whose level it takes. tests/web/page/test_levels.py keeps the two in step. A
- * part with no term of its own names why in `because`.
+ * part with no term of its own names why in `because`. A part that is in index.html from the first paint carries
+ * its key there as data-feature, beside its level, and the same test checks the two agree.
  */
 export const FEATURES = {
   "design:full_factorial": { level: 1, term: "full_factorial" },
@@ -35,10 +36,26 @@ export const FEATURES = {
   "design:extreme_vertices": { level: 3, term: "mixture_design" },
   "action:simplify": { level: 2, because: "choosing a model's terms from the results, past fitting the model as designed" },
   "table:diagnostics": { level: 2, because: "leverage and Cook's distance, past the residuals a beginner reads" },
+  "option:blocks": { level: 2, term: "blocking" },
+  "panel:limits": { level: 2, term: "constraint" },
+  "action:add-response": { level: 2, term: "multiple_responses" },
+  "action:compare": { level: 2, because: "nine measures of each design, past its runs and the model it fits" },
+  "panel:curves": { level: 2, because: "a response that is a whole curve at each run, past one number a run" },
 };
 
 /** The level that first shows a part of the page: 1 for a part every level has. */
 export const levelOf = (feature) => FEATURES[feature]?.level ?? 1;
+
+/**
+ * Whether the list of designs offers a design at a level: a design of that level or of one below, the design the
+ * plan holds, whatever its level, and any design a study has called for besides (runs as given, which no level
+ * offers, once a study of given runs has been open).
+ */
+export function designListed(designType, level, { chosen = null, also = [] } = {}) {
+  if (designType === chosen || also.includes(designType)) return true;
+  const feature = FEATURES[`design:${designType}`];
+  return Boolean(feature) && feature.level <= level;
+}
 
 /** The level a stored choice names, or the first visit's when there is none or it is not a level. */
 export function readLevel(stored) {

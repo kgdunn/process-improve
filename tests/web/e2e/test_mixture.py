@@ -91,8 +91,11 @@ def test_a_simplex_lattice_is_made_simulated_and_drawn_over_its_triangle(fresh_p
     )
     assert types[1] == ["scatterternary", "scatterternary"], "the fitted response over the blends, and the runs"
     assert page.locator("#charts .views button").all_text_contents() == ["Estimates"], "no Pareto plot"
-    shown = page.locator("#model option:not([hidden])").all_text_contents()
-    assert shown == ["As designed", "Linear blending", "Quadratic blending", "Special cubic blending"]
+    shown = page.locator("#model option").all_text_contents()
+    assert shown == ["As designed", "Linear blending", "Quadratic blending", "Special cubic blending"], (
+        "the models a mixture takes, and no other in the list: an option cannot be hidden in every browser"
+    )
+    assert page.locator("#scenario option").all_text_contents() == ["A synergy and an antagonism"]
 
 
 def test_a_model_the_lattice_cannot_estimate_is_refused_saying_why(fresh_page):

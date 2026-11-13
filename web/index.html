@@ -190,7 +190,7 @@
           </tbody>
         </table>
         <p id="response-problems" class="hint error" role="status" hidden></p>
-        <p class="add-factors">
+        <p class="add-factors" id="more-responses" data-feature="action:add-response" data-level="2">
           <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
           <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
         </p>
@@ -225,7 +225,7 @@
           <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
-        <details id="limits" class="known limits">
+        <details id="limits" class="known limits" data-feature="panel:limits" data-level="2">
           <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>
           <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
             component its lower and upper proportions instead.</p>
@@ -306,7 +306,7 @@
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
           <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>
-          <button type="button" id="compare" class="link" disabled>Compare them in detail</button>
+          <button type="button" id="compare" class="link" data-feature="action:compare" data-level="2" disabled>Compare them in detail</button>
         </p>
 
         <div id="design-card" class="design-card">
@@ -396,7 +396,7 @@
             <label data-option="n_replicates"><span class="term" data-term="replicates">Replicates</span>
               <input id="n_replicates" type="number" min="1" max="10" value="1">
             </label>
-            <label data-option="n_blocks"><span class="term" data-term="blocks">Blocks</span>
+            <label data-option="n_blocks" data-feature="option:blocks" data-level="2"><span class="term" data-term="blocks">Blocks</span>
               <input id="n_blocks" type="number" min="1" max="8" value="1">
             </label>
             <label data-option="model_type">Model to design for
@@ -528,7 +528,7 @@
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
-          <details id="curves" class="curves">
+          <details id="curves" class="curves" data-feature="panel:curves" data-level="2">
             <summary>Each run gives a curve</summary>
             <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves
               from a spreadsheet: a first row of the points along the curve, then a row for each run, in the run
@@ -605,7 +605,7 @@
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
         <!-- The terms of the model the results support (bootstrap.simpler_model): proposed when asked, fitted when accepted. -->
-        <p id="simplify" class="hint" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
+        <p id="simplify" class="hint" data-feature="action:simplify" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
           <span id="simplify-words" role="status"></span> <button type="button" class="link" id="simplify-apply" hidden>Fit these terms</button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
