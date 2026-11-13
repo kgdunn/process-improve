@@ -80,7 +80,7 @@ from process_improve.experiments._analyses.split_plot import (
     sum_coding_env,
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
-from process_improve.experiments._lm import (
+from process_improve.experiments._formula import (
     block_levels,
     real_names,
     stand_ins_for,
@@ -391,7 +391,7 @@ def _stand_in_factors(
     """Put each factor whose name the model calls under a stand-in name, as the response is (#986).
 
     A factor named ``I`` hides patsy's ``I()`` in every square term, and one named ``C`` hides
-    ``C()`` (see :func:`~process_improve.experiments._lm.stand_ins_for`); a factor the model only
+    ``C()`` (see :func:`~process_improve.experiments._formula.stand_ins_for`); a factor the model only
     names keeps its name. Returns the data, the model and the factor columns under the stand-ins,
     and each real name mapped to its stand-in, through which the results are read back.
     """

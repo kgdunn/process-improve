@@ -34,10 +34,11 @@ from patsy import dmatrix
 from process_improve._random import check_random_state
 from process_improve._warnings import user_stacklevel
 from process_improve.experiments._blocking import confounding_blocks, exchange_blocks, is_regular_two_level
-from process_improve.experiments._lm import (
+from process_improve.experiments._formula import (
     real_names,
     stand_ins_for,
     validate_contrast_levels,
+    validate_formula_is_safe,
     validate_identifiers_are_safe,
     with_stand_ins,
 )
@@ -51,7 +52,6 @@ from process_improve.experiments.evaluate import (
     evaluate_design,
 )
 from process_improve.experiments.factor import FactorType
-from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.experiments.region import DesignRegion
 
 if TYPE_CHECKING:
@@ -726,7 +726,7 @@ def _model_matrix(rhs: str, frame: pd.DataFrame) -> pd.DataFrame:
     """Return patsy's model matrix of ``rhs`` over ``frame``, with the terms under the factors' own names.
 
     A factor whose name the formula calls, as ``I`` in a square term, is fitted under a stand-in
-    name (see :func:`~process_improve.experiments._lm.stand_ins_for`, #986).
+    name (see :func:`~process_improve.experiments._formula.stand_ins_for`, #986).
     """
     validate_contrast_levels(rhs, frame)
     stand_ins = stand_ins_for(rhs, frame.columns)

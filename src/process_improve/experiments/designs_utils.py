@@ -11,7 +11,6 @@ import pandas as pd
 from patsy.util import SortAnythingKey
 
 from process_improve._random import check_random_state
-from process_improve.experiments._analyses._shared import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments._blocking import (
     Blocking,
     ccd_blocks,
@@ -24,6 +23,16 @@ from process_improve.experiments.structures import Column, Expt, c, gather
 if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
 
+
+#: The design column that names each run's block. Blocks enter a model as sum-coded
+#: (deviation) contrast columns: with two blocks the contrast is a -1/+1 column, which
+#: aliases exactly with the interaction it is confounded with, and setting every
+#: contrast to zero predicts the average over the blocks.
+BLOCK_COL = "Block"
+
+#: The design column that names each run's whole plot in a split-plot design. Runs in one
+#: whole plot share its hard-to-change factor settings, and so share that whole plot's error.
+WHOLE_PLOT_COL = "WholePlot"
 
 #: Columns that ``build_design_result`` adds to a design, so no factor may use these names:
 #: ``RunOrder`` on every design, ``Block`` on a blocked one and ``WholePlot`` on a split-plot one.

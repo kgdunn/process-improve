@@ -18,7 +18,7 @@ import statsmodels.formula.api as smf
 from scipy import stats
 from statsmodels.stats.anova import anova_lm
 
-from process_improve.experiments._lm import validate_contrast_levels, validate_formula_is_safe
+from process_improve.experiments._formula import validate_contrast_levels, validate_formula_is_safe
 
 __all__ = ["estimate_missing", "tukey_nonadditivity"]
 

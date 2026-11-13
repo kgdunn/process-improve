@@ -21,9 +21,8 @@ import numpy as np
 import pandas as pd
 from patsy import ModelDesc
 
-from process_improve.experiments._analyses._shared import BLOCK_COL
 from process_improve.experiments.compare import _correlations, _largest_second_order_r
-from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
+from process_improve.experiments.designs_utils import BLOCK_COL, RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _build_context,
     _coefficient_power,

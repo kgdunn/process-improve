@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog, minimize, nnls
 
-from process_improve.experiments._lm import suggest_identifier
+from process_improve.experiments._formula import suggest_identifier
 from process_improve.experiments._region_geometry import round_significant
 from process_improve.experiments.designs_constrained import rename_factors
 from process_improve.experiments.factor import Constraint, Factor, FactorType

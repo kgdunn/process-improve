@@ -27,8 +27,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from process_improve.experiments._analyses._shared import BLOCK_COL
 from process_improve.experiments._analyses.lack_of_fit import pure_error
+from process_improve.experiments.designs_utils import BLOCK_COL
 from process_improve.experiments.optimization import _FLAT_EIGENVALUE_TOL, _eigen_by_size, _surface_shape
 
 

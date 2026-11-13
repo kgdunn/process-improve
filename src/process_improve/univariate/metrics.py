@@ -7,14 +7,26 @@ from typing import TYPE_CHECKING, Any, Literal, NoReturn
 import numpy as np
 import pandas as pd
 from scipy.stats import shapiro, t
-from sklearn.utils import Bunch
 
 from process_improve._warnings import user_stacklevel
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from sklearn.utils import Bunch
+
 __eps = np.finfo(np.float32).eps
+
+
+def _bunch(**fields: Any) -> Bunch:  # noqa: ANN401 - the fields of a result, whatever each holds
+    """Return scikit-learn's ``Bunch`` of these fields, importing scikit-learn when one is first built.
+
+    The design generators import this module for its checks and tests of significance, and need no
+    scikit-learn: imported here, it is not loaded before a function that returns a ``Bunch`` is called (#1235).
+    """
+    from sklearn.utils import Bunch  # noqa: PLC0415 - see the docstring
+
+    return Bunch(**fields)
 
 
 def _check_probability(name: str, value: float) -> None:
@@ -947,7 +959,7 @@ def holm_bonferroni(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05
     p = np.asarray(p_values, dtype=float).ravel()
     m = p.size
     if m == 0:
-        return Bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
+        return _bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
 
     order = np.argsort(p)
     p_sorted = p[order]
@@ -958,7 +970,7 @@ def holm_bonferroni(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05
 
     p_adjusted = np.empty(m)
     p_adjusted[order] = adjusted_sorted
-    return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
+    return _bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
 
 
 def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05) -> Bunch:
@@ -998,7 +1010,7 @@ def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0
     p = np.asarray(p_values, dtype=float).ravel()
     m = p.size
     if m == 0:
-        return Bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
+        return _bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
 
     order = np.argsort(p)
     p_sorted = p[order]
@@ -1011,7 +1023,7 @@ def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0
 
     p_adjusted = np.empty(m)
     p_adjusted[order] = adjusted_sorted
-    return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
+    return _bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
 
 
 def _relative_spread(spread: float, center: float) -> float:
@@ -1316,7 +1328,7 @@ def tietjen_moore_test(
     )
 
     # A small statistic indicates that the removed points really are outliers.
-    return Bunch(
+    return _bunch(
         statistic=observed,
         critical_value=critical_value,
         reject=observed < critical_value,
@@ -1373,7 +1385,7 @@ def distribution_fit(
     # where the latter form can forward loc/scale positionally to the raw cdf.
     ks_statistic, ks_pvalue = scipy_stats.kstest(a, dist(*parameters).cdf)
 
-    return Bunch(
+    return _bunch(
         distribution=distribution,
         parameters=parameters,
         ks_statistic=float(ks_statistic),
