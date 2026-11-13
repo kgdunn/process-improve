@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.web._support import ALL_DESIGNS, FACTORS, factors_named
+from tests.web._support import ALL_DESIGNS, CORRELATED_RUNS, FACTORS, factors_named
 from tests.web.e2e._page import (
     calls,
     candidates_done,
@@ -22,6 +22,7 @@ from tests.web.e2e._page import (
     reveal,
     run_sheet,
     set_factors,
+    settled,
     status,
     type_limit,
 )
@@ -169,3 +170,71 @@ def test_an_a_optimal_design_keeps_its_runs_inside_the_limits(blank_page):
     assert not option.evaluate("(o) => o.disabled"), "an optimal design takes limits on the settings"
     generate(page, design_type="a_optimal")
     assert "Every run is inside your limits on the settings." in page.text_content("#design-summary")
+
+
+# --------------------------------------------------------------------------- the correlation map of the study's runs
+def open_the_map(page) -> None:
+    """Open "Which terms these runs tell apart" under the design, and wait for its words."""
+    reveal(page, "#correlation")
+    page.click("#correlation > summary")
+    page.wait_for_function(
+        "document.querySelector('#correlation-words p') "
+        "&& !document.querySelector('#correlation-words p').textContent.startsWith('Reading')"
+    )
+
+
+def test_the_map_of_a_fraction_says_which_main_effects_are_aliased_and_draws_them(blank_page):
+    page = blank_page
+    generate(page, design_type="fractional_factorial", resolution=3, n_center_points=0)
+    assert page.evaluate("window.__pi.count('api_correlations')") == 0, "Python is asked when the reader opens it"
+    open_the_map(page)
+    said = page.locator("#correlation-words p").all_text_contents()
+    assert said[0] == "T is aliased with P·F, which the model leaves out (|r| = 1): an effect of P·F shows as T's."
+    assert len(said) == 3
+    rows = page.locator("#correlation-pairs tbody tr")
+    assert rows.count() == 3
+    assert rows.first.locator("td").all_text_contents() == ["T", "P·F", "1.00", "left out of the model"]
+    page.wait_for_selector("#correlation-plot.js-plotly-plot")
+    labels = page.locator("#correlation-plot").evaluate("(plot) => plot.data[0].x")
+    assert labels[:3] == ["T", "P", "F"]
+    assert "T·P" in labels
+
+
+def test_the_map_follows_the_design_while_it_is_open_and_is_asked_for_once_a_design(blank_page):
+    page = blank_page
+    generate(page, design_type="fractional_factorial", resolution=3, n_center_points=0)
+    open_the_map(page)
+    generate(page, design_type="full_factorial")
+    page.wait_for_function("window.__pi.count('api_correlations') === 2 && window.__pi.idle()")
+    clear = "No term of the model moves with another over these runs, or with a term the model leaves out"
+    assert page.locator("#correlation-words p").all_text_contents() == [f"{clear}: each is estimated on its own."]
+    assert page.locator("#correlation-pairs tr").count() == 0
+    page.click("#correlation > summary")
+    page.click("#correlation > summary")
+    assert page.evaluate("window.__pi.count('api_correlations')") == 2, "the same runs are not read again"
+
+
+def test_a_table_of_the_reader_s_own_shows_which_factors_moved_together(fresh_page):
+    """Where the map earns its place: runs nobody designed, whose factors moved as the process did."""
+    page = fresh_page
+    page.click("#import-data")
+    table = "A,B,C,y\n" + "".join(f"{a},{b},{c},{10 + a + c}\n" for a, b, c in CORRELATED_RUNS)
+    page.fill("#import-text", table)
+    page.click("#import-read")
+    page.wait_for_function("!document.querySelector('#import-columns').hidden")
+    page.click("#import-open")
+    page.wait_for_function("document.querySelector('#workspace').dataset.phase === 'learn'")
+    settled(page)
+    open_the_map(page)
+    assert (
+        page.locator("#correlation-words p")
+        .first.text_content()
+        .startswith("A and B move together over these runs (|r| = 0.94), so each is known less precisely")
+    )
+
+
+def test_a_mixture_has_no_map_of_its_terms(fresh_page):
+    page = fresh_page
+    set_factors(page, [{"name": name} for name in ("Water", "Oil", "Wax")])
+    generate(page, design_type="simplex_lattice")
+    assert page.locator("#correlation").is_hidden(), "its components sum to one, and move together by design"

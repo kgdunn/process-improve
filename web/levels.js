@@ -40,6 +40,7 @@ export const FEATURES = {
   "panel:limits": { level: 2, term: "constraint" },
   "action:add-response": { level: 2, term: "multiple_responses" },
   "action:compare": { level: 2, because: "nine measures of each design, past its runs and the model it fits" },
+  "panel:correlation": { level: 2, term: "confounding" },
   "panel:curves": { level: 2, because: "a response that is a whole curve at each run, past one number a run" },
 };
 

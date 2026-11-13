@@ -9,6 +9,7 @@ import {
   TRANSFORM_WORDS,
   boxCoxSentence,
   categoricalFactor,
+  correlationWords,
   isSeveral,
   levelsOf,
   alsoRuledOut,
@@ -1686,5 +1687,43 @@ describe("curves pasted from a spreadsheet", () => {
     const fit = (kept) => ({ runs: 15, components: kept.map((k) => ({ kept: k })) });
     assert.match(curveSaid(fit([true, false])), /^From 15 runs' curves, the model follows one shape in how they differ\./);
     assert.match(curveSaid(fit([true, true, false])), /follows 2 shapes/);
+  });
+});
+
+describe("what the correlation map of a study's runs says", () => {
+  const found = (pairs, count = pairs.length) => ({ pairs, n_pairs: count, together_from: 0.7, inseparable_from: 0.95 });
+  const shown = (term) => term.replace(":", "·");
+
+  test("runs that tell every term of the model apart say so in one sentence", () => {
+    assert.deepEqual(correlationWords(found([])), [
+      "No term of the model moves with another over these runs, or with a term the model leaves out: each is estimated on its own.",
+    ]);
+  });
+
+  test("a term aliased with one the model leaves out takes its effect", () => {
+    const [said] = correlationWords(found([{ a: "A", b: "B:C", r: 1, both: false }]), shown);
+    assert.equal(said, "A is aliased with B·C, which the model leaves out (|r| = 1): an effect of B·C shows as A's.");
+  });
+
+  test("a term partly aliased has its estimate shifted, and the size is given to two decimals", () => {
+    const [said] = correlationWords(found([{ a: "A", b: "B:C", r: 1 / 3, both: false }]), shown);
+    assert.equal(said, "A is partly aliased with B·C, which the model leaves out (|r| = 0.33): an effect of B·C shifts the estimate of A.");
+  });
+
+  test("two terms of the model that move together are each known less precisely, or cannot both be held", () => {
+    const [partly] = correlationWords(found([{ a: "T", b: "P", r: 0.82, both: true }]));
+    assert.equal(partly, "T and P move together over these runs (|r| = 0.82), so each is known less precisely than it would be alone.");
+    const [whole] = correlationWords(found([{ a: "T", b: "P", r: 0.97, both: true }]));
+    assert.equal(whole, "T and P cannot be told apart over these runs (|r| = 0.97): the model can hold one of them, not both.");
+    const [little] = correlationWords(found([{ a: "T²", b: "P²", r: 0.3, both: true }]));
+    assert.equal(little, "T² and P² move together a little over these runs (|r| = 0.30), so each is known a little less precisely than it would be alone.");
+  });
+
+  test("the three largest pairs are said, and the rest are counted", () => {
+    const pairs = ["B:C", "B:D", "C:D", "C:E"].map((b) => ({ a: "A", b, r: 0.33, both: false }));
+    const said = correlationWords(found(pairs, 495));
+    assert.equal(said.length, 4);
+    assert.equal(said.at(-1), "492 more pairs move together as far; the table lists the largest.");
+    assert.equal(correlationWords(found(pairs, 4)).at(-1), "1 more pair moves together as far; the table lists the largest.");
   });
 });

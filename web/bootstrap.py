@@ -6170,6 +6170,63 @@ def compare(request: dict) -> dict:
     return result
 
 
+#: The pairs of terms the correlation map lists in words: those correlated this far or more, and this many at most.
+PARTLY_TOGETHER = 0.3
+MOST_PAIRS = 12
+
+
+def correlations(request: dict) -> dict:
+    """Return how far each pair of the runs' terms moves together: the comparison's correlation map, for one study.
+
+    The terms are the main effects, the squares and the two-factor interactions, and the number for a pair is the
+    absolute correlation between their columns over the runs, as ``compare_designs`` reckons it: 0 for a pair the
+    runs tell apart in full, 1 for a pair they cannot tell apart at all. ``terms`` and ``matrix`` are the map; a
+    term that does not vary in the runs has no correlation.
+
+    ``pairs`` lists the pairs that matter to the model the design estimates (``model``): two of its terms, which
+    are then known less precisely (``both``), or one of its terms with a term it leaves out, whose effect would
+    show as the model's term (aliasing). A pair of terms the model leaves out says nothing of it, and is not
+    listed. The pairs are those at :data:`PARTLY_TOGETHER` or above, the largest first and :data:`MOST_PAIRS` at
+    most, each ``{a, b, r, both}`` with the model's term as ``a``; ``n_pairs`` counts them all. The page's words
+    turn on two correlations: a pair at ``together_from`` or above moves together, and one at ``inseparable_from``
+    or above cannot be told apart; below the first, a pair moves together a little. The runs are the ones the page
+    holds: a design made here, or runs as given, such as a table of the reader's own.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    if _mixture(spec):
+        raise ValueError("A mixture's components sum to one, so they move together by design: no map is drawn.")
+    if any(_several(f) for f in spec["factors"]):
+        raise ValueError("This map is for factors with ranges or of two levels, not for one of three levels or more.")
+    names = [f["name"] for f in spec["factors"]]
+    if not 2 <= len(names) <= MAX_INTERACTION_FACTORS:
+        raise ValueError(
+            f"This map is drawn for 2 to {MAX_INTERACTION_FACTORS} factors, and the study has {len(names)}."
+        )
+    coded = _coded(_runs_frame(request, spec), spec["factors"])
+    with _listening():
+        (frame,) = compare_designs({"runs": coded}).correlations.values()
+    r, terms = frame.to_numpy(), list(frame.index)
+    estimated = set(_model_terms(spec["model"], names, _categorical_names(spec)))
+    together = []
+    for i, j in itertools.combinations(range(len(terms)), 2):
+        inside = [terms[i] in estimated, terms[j] in estimated]
+        if r[i, j] >= PARTLY_TOGETHER and any(inside):  # false for a term that does not vary: it has no correlation
+            a, b = (terms[i], terms[j]) if inside[0] else (terms[j], terms[i])
+            together.append({"a": a, "b": b, "r": float(r[i, j]), "both": all(inside)})
+    # The largest first; pairs equal to six decimals stay in the map's order, under WebAssembly's rounding as natively.
+    together.sort(key=lambda pair: -round(pair["r"], 6))
+    return {
+        "terms": terms,
+        "matrix": r.tolist(),
+        "k": len(names),
+        "model": spec["model"],
+        "pairs": together[:MOST_PAIRS],
+        "n_pairs": len(together),
+        "together_from": MOVED_TOGETHER,
+        "inseparable_from": NOT_SEPARABLE,
+    }
+
+
 def _powers(request: dict) -> dict[str, Any]:
     """Score designs with a categorical factor of three levels or more: their runs, spare runs, and power.
 
@@ -9335,6 +9392,11 @@ def api_compare(payload: str) -> str:
 def api_candidates(payload: str) -> str:
     """JSON wrapper around :func:`candidates`."""
     return _reply(candidates, payload)
+
+
+def api_correlations(payload: str) -> str:
+    """JSON wrapper around :func:`correlations`."""
+    return _reply(correlations, payload)
 
 
 def api_relabel(payload: str) -> str:

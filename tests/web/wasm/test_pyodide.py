@@ -141,6 +141,18 @@ def test_blocks_labels_replicates_and_chosen_terms_agree_with_native_python(pyod
     assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
 
 
+def test_the_correlation_map_of_a_design_agrees_with_native_python(pyodide, api):
+    """A Plackett-Burman design in seven factors: the same pairs, in the same order, though all are of one size."""
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG")}
+    under, native = (python.ok("api_make_design", spec) for python in (pyodide, api))
+    got, want = pyodide.ok("api_correlations", held_of(under)), api.ok("api_correlations", held_of(native))
+    assert (got["terms"], got["n_pairs"]) == (want["terms"], want["n_pairs"])
+    assert [(p["a"], p["b"], p["both"]) for p in got["pairs"]] == [(p["a"], p["b"], p["both"]) for p in want["pairs"]]
+    np.testing.assert_allclose(
+        np.array(got["matrix"], dtype=float), np.array(want["matrix"], dtype=float), atol=1e-9, equal_nan=True
+    )
+
+
 def test_an_axial_distance_typed_as_a_number_places_the_runs_as_native_python_does(pyodide, api):
     spec = {"design_type": "ccd", "factors": FACTORS[:2], "n_center_points": 3, "alpha": 1.4}
     under, native = (python.ok("api_make_design", spec) for python in (pyodide, api))

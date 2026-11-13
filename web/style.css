@@ -1698,6 +1698,12 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 
 /* What the analysis found, in sentences; and each run as the model sees it. */
 .findings { margin: 4px 0 12px; padding-left: 1.2em; display: grid; gap: 4px; max-width: 72ch; }
+.correlation { margin: 10px 0 0; }
+.correlation #correlation-words p { margin: 6px 0; }
+.correlation .plot { max-width: 34rem; }
+#correlation-pairs th { padding: 4px 10px; }
+#correlation-pairs th, #correlation-pairs td { text-align: left; }
+#correlation-pairs th:nth-child(3), #correlation-pairs td:nth-child(3) { text-align: right; }
 .diagnostics { margin: 16px 0 0; }
 .diagnostics > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 @media (pointer: coarse) {

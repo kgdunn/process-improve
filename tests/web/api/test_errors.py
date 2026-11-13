@@ -1412,6 +1412,21 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _workbook(_curve_sheet(lambda _: pd.DataFrame({0: [0.0], 1: [1.0], 2: [2.0]}))),
         "The Curves sheet has 1 rows for 15 runs.",
     ),
+    "correlation map: a mixture": (
+        "api_correlations",
+        _mixed(),
+        "A mixture's components sum to one, so they move together by design: no map is drawn.",
+    ),
+    "correlation map: a factor of three levels": (
+        "api_correlations",
+        _spec(factors=[*FACTORS[:2], {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]}]),
+        "This map is for factors with ranges or of two levels, not for one of three levels or more.",
+    ),
+    "correlation map: more factors than the page models the interactions of": (
+        "api_correlations",
+        lambda _: _screening(13),
+        "This map is drawn for 2 to 12 factors, and the study has 13.",
+    ),
 }
 
 

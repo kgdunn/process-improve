@@ -101,6 +101,7 @@ import {
   MORE_CHARTS,
   chartHeight,
   chartLevel,
+  correlationWords,
   simplerWords,
   findingWords,
   runSheetCsv,
@@ -119,6 +120,7 @@ import {
   GOALS,
   INTERACTION_MODELS,
   MAX_FACTORS,
+  MAX_INTERACTION_FACTORS,
   MAX_LEVEL_RUNS,
   MAX_REPLICATES,
   MAX_RESPONSES,
@@ -1982,8 +1984,69 @@ function renderDesign(warnings = state.designWarnings ?? []) {
   parts.push(...warningList(warnings));
   $("#design-summary").replaceChildren(...parts);
   $("#design-out").hidden = false;
+  offerCorrelation();
   markStale();
 }
+
+// ---------------------------------------------------------------- the correlation map of the study's runs
+/** Whether the map is drawn for a design: 2 to MAX_INTERACTION_FACTORS factors, with ranges or of two levels. */
+const mapped = ({ design_type: designType, factors }) =>
+  !isMixture(designType) && !factors.some(isSeveral) && factors.length >= 2 && factors.length <= MAX_INTERACTION_FACTORS;
+
+/** Offer the map for the design on the page; an open one follows the design, whose runs may have changed. */
+function offerCorrelation() {
+  const box = $("#correlation");
+  box.hidden = !state.design || !mapped(state.design.spec);
+  if (!box.hidden && box.open) showCorrelation();
+}
+
+/** List the pairs the words speak of, largest first: the model's term, the term it moves with, and how far. */
+function renderPairs({ pairs }) {
+  const table = $("#correlation-pairs");
+  table.replaceChildren();
+  if (!pairs.length) return;
+  const head = table.createTHead().insertRow();
+  for (const heading of ["A term of the model", "Moves with", "|r|", "Which is"]) head.append(el("th", "", heading));
+  const body = table.createTBody();
+  for (const { a, b, r, both } of pairs) {
+    const row = body.insertRow();
+    row.append(el("td", "", prettyTerm(a)), el("td", "", prettyTerm(b)), el("td", "num", r.toFixed(2)));
+    row.append(el("td", "", both ? "in the model too" : "left out of the model"));
+  }
+}
+
+/**
+ * Show how far the terms of the study's runs move together. Python is asked when the reader opens the panel, so a
+ * study whose reader never opens it pays nothing for it. The sentences and the table of the largest pairs say what
+ * the map draws; the map itself needs Plotly.js, which the page of a plain preview has no version of.
+ */
+async function showCorrelation() {
+  const design = state.design;
+  const box = $("#correlation");
+  const key = JSON.stringify([design.spec.model, design.columns, design.rows]);
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  const words = $("#correlation-words");
+  words.replaceChildren(el("p", "hint", "Reading the runs..."));
+  const reply = await call("api_correlations", held());
+  if (box.dataset.key !== key) return; // the design changed meanwhile, and its own map is on its way
+  if (!reply.ok) {
+    delete box.dataset.key; // asked again when the panel is next opened
+    words.replaceChildren(el("p", "hint error", reply.error));
+    $("#correlation-plot").replaceChildren();
+    $("#correlation-pairs").replaceChildren();
+    return;
+  }
+  const found = reply.result;
+  words.replaceChildren(...correlationWords(found, prettyTerm).map((sentence) => el("p", "", sentence)));
+  renderPairs(found);
+  if (state.plotlyJs) {
+    await draw($("#correlation-plot"), () => correlationFigure(found.terms, found.matrix, found.k), state.plotlyJs, 360);
+  }
+}
+$("#correlation").addEventListener("toggle", () => {
+  if ($("#correlation").open) showCorrelation();
+});
 
 // ---------------------------------------------------------------- the designs that can learn the brief
 /** How long the brief rests before its designs are made and scored: a pause in the typing. */

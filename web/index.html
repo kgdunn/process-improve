@@ -483,6 +483,15 @@
           </div>
           <div id="design-out" hidden>
             <div id="design-summary"></div>
+            <!-- The correlation map of the study's own runs: asked of Python, and drawn, when the reader opens it. -->
+            <details id="correlation" class="known correlation" data-feature="panel:correlation" data-level="2" hidden>
+              <summary>Which terms these runs tell apart</summary>
+              <p class="hint">How far each pair of terms moves together over the runs, from 0, told apart in full, to 1,
+                not at all: the main effects, the squares and the two-factor interactions.</p>
+              <div id="correlation-words" role="status"></div>
+              <div id="correlation-plot" class="plot"></div>
+              <div class="scroll"><table id="correlation-pairs" class="data"></table></div>
+            </details>
           </div>
           <div class="tabs" role="tablist" aria-label="Where the results come from">
             <button type="button" role="tab" id="tab-real" aria-selected="true" aria-controls="panel-real">Enter results</button>
