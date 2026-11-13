@@ -63,18 +63,20 @@ def test_an_analysis_dropped_for_a_new_study_does_not_leave_the_status_line_busy
 
 
 def test_the_coefficients_are_listed_most_significant_first_each_between_the_ends_of_its_interval(page, first_paint):
-    """What the runs are surest of heads the table, and each row reads low end, estimate, high end."""
+    """What the runs are surest of heads the table, the intercept comes last, and each row reads low, estimate, high."""
     fitted = first_paint["analysis"]["coefficients"]
     table = page.locator("#analysis table").first
     assert coefficient_heads(page)[:6] == COEFFICIENT_HEADS
     rows = coefficient_rows(page)
-    assert [row[0] for row in rows] == [c["label"] for c in sorted(fitted, key=lambda c: c["p_value"])]
-    assert [row[0] for row in rows] != [c["label"] for c in fitted], "which is not the order of the model"
+    terms = [c for c in fitted if c["term"] != "Intercept"]
+    assert [row[0] for row in rows] == [*(c["label"] for c in sorted(terms, key=lambda c: c["p_value"])), "Intercept"]
+    assert min(c["p_value"] for c in fitted) == next(c["p_value"] for c in fitted if c["term"] == "Intercept"), (
+        "last, though nothing is more significant"
+    )
+    hint = table.locator("xpath=../preceding-sibling::p[1]")
+    assert hint.text_content() == "The most significant first, the intercept last."
     said = table.locator("thead th").evaluate_all("(ths) => ths.map((th) => th.ariaSort)")
-    sorts = dict(zip(coefficient_heads(page), said, strict=True))
-    assert sorts["p-value"] == "ascending", "the heading says the rows are in its order"
-    assert set(sorts.values()) == {"ascending", "none"}
-    assert sum(value == "ascending" for value in sorts.values()) == 1
+    assert set(said) == {"none"}, "no heading claims an order the intercept would break"
     for _, low, estimate, high, *_ in rows:
         assert float(low) <= float(estimate) <= float(high)
     looks = (
@@ -89,10 +91,10 @@ def test_the_coefficients_are_listed_most_significant_first_each_between_the_end
     assert bold >= 700 > plain, "and the estimate between them stands out"
 
     table.locator("thead button.sort", has_text="p-value").click()
-    assert coefficient_rows(page)[0][0] == rows[-1][0], "pressed, the heading turns the order round"
+    assert [row[0] for row in coefficient_rows(page)][-1] == max(fitted, key=lambda c: c["p_value"])["label"]
     table.locator("thead button.sort", has_text="Term").click()
     by_name = [row[0] for row in coefficient_rows(page)]
-    assert by_name[:2] == ["F", "F²"], "and any other heading sorts by its own column, as in every table"
+    assert by_name[:2] == ["F", "F²"], "any heading sorts by its own column, as in every table"
     assert sorted(by_name) == sorted(row[0] for row in rows)
 
 

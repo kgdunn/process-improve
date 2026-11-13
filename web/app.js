@@ -3542,6 +3542,7 @@ function renderAnalysis(reply) {
     ...noteList(r.notes),
     ...warningList(reply.warnings),
     el("h3", "", "Coefficients"),
+    said("hint", "The most significant first, the intercept last."),
     ...coefficientsTable(r.coefficients, { ratio, vif, simulated }),
   ];
   if (r.lenth) {
@@ -6401,8 +6402,9 @@ function table(columns, rows, terms = {}, { sortedBy = null, looks = {} } = {}) 
 /**
  * The table of a fit's coefficients, and under it the button that saves it as a file.
  *
- * - The most significant comes first (logic.bySignificance), and the heading of the p-values says the rows are in
- *   their order: a reader sorts by any other column as in every table.
+ * - The most significant comes first and the intercept last (logic.bySignificance), which the line above the table
+ *   says. No heading is marked as the one the rows are sorted on: the intercept, last whatever its p-value, would
+ *   make that untrue. A reader sorts by any column as in every table.
  * - Each estimate stands between the ends of its 95% interval, the low end on its left and the high end on its
  *   right, so the three read in the order of their size. The ends are dimmed and the estimate is bold.
  * - The file is the table as it is shown, its rows in the order the reader left them in, with each number in full:
@@ -6437,10 +6439,7 @@ function coefficientsTable(coefficients, { ratio, vif, simulated }) {
       VIF: "vif",
       "True value": "true-value",
     },
-    {
-      sortedBy: listed.some((c) => c.p_value !== null && c.p_value !== undefined) ? "p-value" : null,
-      looks: { "95% low": "dim", Coefficient: "strong", "95% high": "dim" },
-    },
+    { looks: { "95% low": "dim", Coefficient: "strong", "95% high": "dim" } },
   );
   const save = el("button", "button", "Download this table (.csv)");
   save.type = "button";

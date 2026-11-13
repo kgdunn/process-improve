@@ -1752,13 +1752,18 @@ describe("what the correlation map of a study's runs says", () => {
 });
 
 describe("the order of a fit's coefficients in their table", () => {
-  const row = (label, coefficient, std_error, p_value) => ({ label, coefficient, std_error, p_value });
+  const row = (label, coefficient, std_error, p_value) => ({ term: label, label, coefficient, std_error, p_value });
   const labels = (rows) => bySignificance(rows).map((c) => c.label);
 
-  test("is by p-value, the smallest first, whatever order the model has them in", () => {
+  test("is by p-value, the smallest first, whatever order the model has them in, and the intercept last", () => {
     const rows = [row("Intercept", 60, 0.5, 1e-9), row("T", 0.2, 0.3, 0.52), row("P", -3.4, 0.3, 0.0002), row("T·P", 1.5, 0.4, 0.016)];
-    assert.deepEqual(labels(rows), ["Intercept", "P", "T·P", "T"]);
+    assert.deepEqual(labels(rows), ["P", "T·P", "T", "Intercept"], "last, though the most significant of all");
     assert.deepEqual(rows.map((c) => c.label), ["Intercept", "T", "P", "T·P"], "the rows given are left as they were");
+  });
+
+  test("puts the intercept last when no coefficient has a p-value", () => {
+    const saturated = [row("Intercept", 60, null, null), row("T", 4, null, null)];
+    assert.deepEqual(labels(saturated), ["T", "Intercept"]);
   });
 
   test("of p-values too small to tell apart, is by the size of the estimate against its standard error", () => {
@@ -1767,8 +1772,8 @@ describe("the order of a fit's coefficients in their table", () => {
   });
 
   test("puts a coefficient with no p-value after the rest, and leaves such rows in the model's order", () => {
-    const saturated = [row("Intercept", 60, null, null), row("T", 4, null, null), row("P", -3, null, null)];
-    assert.deepEqual(labels(saturated), ["Intercept", "T", "P"]);
+    const saturated = [row("A", 60, null, null), row("T", 4, null, null), row("P", -3, null, null)];
+    assert.deepEqual(labels(saturated), ["A", "T", "P"]);
     assert.deepEqual(labels([row("T", 4, null, undefined), row("P", -3, 0.3, 0.01), row("F", 2, null, null)]), ["P", "T", "F"]);
   });
 
