@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from tests.web.e2e._page import calls, enter_results, generate, practise, reveal, settled
+from tests.web.e2e.test_responses import add_response
 
 
 def set_level(page, level: int) -> None:
@@ -61,6 +62,66 @@ def test_each_level_adds_designs_and_says_how_many_more_there_are(blank_page):
     page.wait_for_function("document.documentElement.dataset.level === '3'")
     assert page.locator("#level-designs").is_hidden()
     assert len(listed_designs(page)) == 16, "every design for factors with ranges, and the three mixtures"
+
+
+def test_a_design_above_the_level_is_not_in_the_list_at_all(blank_page):
+    """Left out, not hidden: a browser that shows a hidden option (Safari, a phone's own picker) has none to show."""
+    page = blank_page
+    set_level(page, 2)
+    in_the_list = page.locator("#design-type option").evaluate_all("(options) => options.map((o) => o.value)")
+    assert "d_optimal" not in in_the_list
+    assert "given" not in in_the_list, "no study of given runs is open"
+    assert "simplex_lattice" not in in_the_list
+    assert page.locator("#design-type optgroup").count() == 0, "a group with no design of this level is left out too"
+    set_level(page, 3)
+    assert page.locator("#design-type optgroup option").count() == 3, "the mixtures, back under their heading"
+    order = page.locator("#design-type option").evaluate_all("(options) => options.map((o) => o.value)")
+    assert order.index("box_behnken") < order.index("d_optimal") < order.index("simplex_lattice"), "in their order"
+
+
+#: The parts of the page a level brings, each with the level that first shows it.
+BLOCKS, LIMITS, MORE_RESPONSES, COMPARE, CURVES = (
+    '[data-feature="option:blocks"]',
+    "#limits",
+    "#more-responses",
+    "#compare",
+    "#curves",
+)
+
+
+def on_the_page(page, *parts: str) -> list[bool]:
+    """Say of each part whether the reader sees it, in the phase that holds it."""
+    seen = []
+    for part in parts:
+        reveal(page, part)
+        seen.append(page.locator(part).is_visible())
+    return seen
+
+
+def test_a_beginner_s_page_leaves_out_what_a_first_study_does_not_need(blank_page):
+    """Blocks, limits on the settings, a second response, the comparison in detail and curves come at Intermediate.
+
+    A first visit opens at Intermediate, so it has them all, as it had before the page had levels.
+    """
+    page = blank_page
+    generate(page, design_type="full_factorial")
+    set_level(page, 1)
+    assert on_the_page(page, BLOCKS, LIMITS, MORE_RESPONSES, COMPARE, CURVES) == [False] * 5
+    set_level(page, 2)
+    assert on_the_page(page, BLOCKS, LIMITS, MORE_RESPONSES, COMPARE, CURVES) == [True] * 5
+
+
+def test_a_part_the_study_uses_stays_on_the_page_at_every_level(blank_page):
+    """A study made in blocks, with a second response, keeps both in view for a beginner: nothing in use is hidden."""
+    page = blank_page
+    add_response(page, "Cost", "$/kg", "minimize")
+    generate(page, design_type="full_factorial", n_blocks=2)
+    set_level(page, 1)
+    assert on_the_page(page, BLOCKS, MORE_RESPONSES) == [True, True]
+    assert on_the_page(page, LIMITS, COMPARE) == [False, False], "the study has no limits, and compares nothing"
+    reveal(page, "#n_blocks")
+    page.fill("#n_blocks", "1")
+    assert on_the_page(page, BLOCKS) == [False], "no longer in use, so the level decides"
 
 
 def test_the_choice_is_kept_under_the_concept_map_s_key(blank_page):

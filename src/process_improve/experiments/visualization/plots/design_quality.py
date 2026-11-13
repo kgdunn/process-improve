@@ -19,15 +19,18 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from patsy import ModelDesc
 
+from process_improve.experiments._formula import real_names
 from process_improve.experiments.compare import _correlations, _largest_second_order_r
-from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
+from process_improve.experiments.designs_utils import BLOCK_COL, RESERVED_COLUMN_NAMES
 from process_improve.experiments.evaluate import (
     _build_context,
     _coefficient_power,
     _EvalContext,
     _EvalRequest,
     _is_intercept_col,
+    _stand_in_factors,
     evaluate_design,
 )
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
@@ -43,6 +46,10 @@ from process_improve.visualization.types import AnnotationType, MarkType
 
 #: Bookkeeping columns of a generated design, which are not factors.
 _RUN_COLUMNS = RESERVED_COLUMN_NAMES
+
+#: A block contrast as ``analyze_experiment`` names it in a fitted formula: ``Block1`` to ``Block{b-1}``, with
+#: underscores after it while a column of the design has that name already.
+_BLOCK_CONTRAST = re.compile(rf"{BLOCK_COL}\d+_*")
 
 
 # ---------------------------------------------------------------------------
@@ -69,12 +76,18 @@ def design_model(plot: BasePlot, df: pd.DataFrame, factors: list[str]) -> str:
     ``"main_effects"`` that the design can estimate (``"quadratic"`` only when every
     quantitative factor has at least three distinct settings). The plot reports the
     model in its metadata.
+
+    A blocked fit's formula holds its block contrasts (``Block1``, ...), which are columns of
+    the fit and not of the design. They are left out: the plot is drawn for the factors' terms,
+    as :func:`~process_improve.experiments.evaluate_design` scores a design whose model
+    leaves its blocks out.
     """
     if plot.model:
         return plot.model
     formula = plot.analysis_results.get("model_summary", {}).get("formula", "")
     if "~" in formula:
-        return formula.split("~", 1)[1].strip()
+        rhs = formula.split("~", 1)[1].strip()
+        return _without_block_contrasts(rhs, factors) if _BLOCK_CONTRAST.search(rhs) else rhs
     numeric = [f for f in factors if pd.api.types.is_numeric_dtype(df[f])]
     ladder = ["interactions", "main_effects"]
     if numeric and all(df[f].nunique() >= 3 for f in numeric):
@@ -86,13 +99,32 @@ def design_model(plot: BasePlot, df: pd.DataFrame, factors: list[str]) -> str:
     return ladder[-1]
 
 
+def _without_block_contrasts(rhs: str, factors: list[str]) -> str:
+    """Write a fitted model's right-hand side without its block contrasts, keeping what it says of the intercept.
+
+    A factor may itself be named as a contrast is (``Block1``): it stays, and the contrast, which the fit then
+    named ``Block1_``, goes.
+    """
+    terms = ModelDesc.from_formula(rhs).rhs_termlist
+    names = [term.name() for term in terms if term.factors]
+    kept = [name for name in names if name in factors or not _BLOCK_CONTRAST.fullmatch(name)]
+    return " + ".join(kept if any(not term.factors for term in terms) else ["0", *kept])
+
+
 def design_context(df: pd.DataFrame, factors: list[str], model: str) -> _EvalContext:
-    """Build the model matrix and ``(X'X)^-1`` for *model*; raise when it is not estimable."""
+    """Build the model matrix and ``(X'X)^-1`` for *model*; raise when it is not estimable.
+
+    A factor named ``I`` or ``C`` hides patsy's own ``I()`` and ``C()`` in a formula, the fitted one of
+    ``analysis_results`` among them. The matrix is built with such a factor under a stand-in name, as
+    :func:`~process_improve.experiments.evaluate_design` builds it. The context's ``factor_names`` are then the
+    names its ``design_info`` takes, in the order of *factors*, and :func:`term_names` reads its columns back.
+    """
+    fit_df, fit_factors, fit_model, _, _ = _stand_in_factors(df, factors, model, "", [])
     ctx = _build_context(
         _EvalRequest(
-            design_df=df,
-            factor_names=factors,
-            model=model,
+            design_df=fit_df,
+            factor_names=fit_factors,
+            model=fit_model,
             generators=None,
             defining_relation=None,
             resolution=None,
@@ -107,6 +139,12 @@ def design_context(df: pd.DataFrame, factors: list[str], model: str) -> _EvalCon
             "(for example 'main_effects' or 'interactions'), or add runs."
         )
     return ctx
+
+
+def term_names(ctx: _EvalContext, factors: list[str]) -> list[str]:
+    """Name the columns of a :func:`design_context` by the factors' own names, undoing any stand-in."""
+    stand_ins = {name: used for name, used in zip(factors, ctx.factor_names, strict=True) if name != used}
+    return real_names(ctx.column_names, stand_ins)
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +393,7 @@ class PowerCurvePlot(BasePlot):
             ctx = design_context(df, factors, model)
             assert ctx.XtX_inv is not None  # design_context raises when singular
             groups: dict[float, list[str]] = {}
-            for j, name in enumerate(ctx.column_names):
+            for j, name in enumerate(term_names(ctx, factors)):
                 if not _is_intercept_col(name):
                     groups.setdefault(round(float(ctx.XtX_inv[j, j]), 10), []).append(name)
             return {

@@ -60,7 +60,7 @@ def test_a_three_level_array_is_made_simulated_and_analysed_for_its_main_effects
         row.locator("td").first.text_content()
         for row in page.locator("#analysis table").first.locator("tbody tr").all()
     ]
-    assert terms == ["Intercept", "T", "P", "F", "T²", "P²", "F²"]
+    assert sorted(terms) == sorted(["Intercept", "T", "P", "F", "T²", "P²", "F²"])
     assert "True value" in headers(page, "#analysis table"), "each estimate beside the simulated process's"
 
 

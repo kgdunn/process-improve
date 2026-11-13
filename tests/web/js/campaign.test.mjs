@@ -464,6 +464,16 @@ describe("a campaign of several responses", () => {
     return c;
   }
 
+  test("terms picked from the results stay marked so in a study and in its link, and nothing else rides along", async () => {
+    const c = three();
+    c.model = { terms: [["T"], ["T", "Supplier"]], picked: true };
+    c.more_models.Purity = { terms: [["T"]], picked: "yes", note: "not a mark this page knows" };
+    const back = await unpackCampaign(await packCampaign(c));
+    assert.deepEqual(back.model, { terms: [["T"], ["T", "Supplier"]], picked: true });
+    assert.deepEqual(back.more_models.Purity, { terms: [["T"]] });
+    assert.equal(back.v, checkCampaign(three()).v, "the study's format is the one it had: an earlier page reads the terms");
+  });
+
   test("a link carries every response's results and model, checked", async () => {
     const back = await unpackCampaign(await packCampaign(three()));
     assert.deepEqual(back.design.spec.responses, three().design.spec.responses);

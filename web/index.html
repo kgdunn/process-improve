@@ -45,6 +45,33 @@
   <meta property="og:image:alt" content="Factorial: a two-level factorial in three factors, drawn as a cube seen down its diagonal with its centre run, beside the words: design, run and learn from your experiments.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
+  <!-- Python comes from this address, and is the longest wait of a visit: the connection to it is opened while
+       the page loads, before the worker asks for its first file. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <!-- Every module of the page, asked for at once, not as each import is read: app.js and all it imports.
+       tests/web/page/test_build.py keeps the list in step with the imports. -->
+  <link rel="modulepreload" href="app.js">
+  <link rel="modulepreload" href="charts.js">
+  <link rel="modulepreload" href="best.js">
+  <link rel="modulepreload" href="logic.js">
+  <link rel="modulepreload" href="campaign.js">
+  <link rel="modulepreload" href="study-file.js">
+  <link rel="modulepreload" href="report.js">
+  <link rel="modulepreload" href="limits.js">
+  <link rel="modulepreload" href="corners.js">
+  <link rel="modulepreload" href="picture.js">
+  <link rel="modulepreload" href="field-chart.js">
+  <link rel="modulepreload" href="python.js">
+  <link rel="modulepreload" href="store.js">
+  <link rel="modulepreload" href="glossary.js">
+  <link rel="modulepreload" href="terms.js">
+  <link rel="modulepreload" href="dialogs.js">
+  <link rel="modulepreload" href="levels.js">
+  <link rel="modulepreload" href="import.js">
+  <link rel="modulepreload" href="worker-rpc.js">
+  <link rel="modulepreload" href="offline.js">
+  <link rel="modulepreload" href="python-boot.js">
+  <link rel="modulepreload" href="feedback.js">
 </head>
 <body>
 <a class="skip-link" href="#workspace">Skip to the study</a>
@@ -165,7 +192,7 @@
           </tbody>
         </table>
         <p id="response-problems" class="hint error" role="status" hidden></p>
-        <p class="add-factors">
+        <p class="add-factors" id="more-responses" data-feature="action:add-response" data-level="2">
           <button type="button" id="add-response" class="link">+ Add <span class="term" data-term="response">response</span></button>
           <span id="responses-full" class="hint" hidden>A study measures at most 5 responses.</span>
         </p>
@@ -200,7 +227,7 @@
           <span id="factors-full" class="hint" hidden>A study has at most 40 factors.</span>
         </p>
         <!-- The limits on the settings (limits.js): closed until a study has some, so a first visit reads no more. -->
-        <details id="limits" class="known limits">
+        <details id="limits" class="known limits" data-feature="panel:limits" data-level="2">
           <summary>Settings you cannot run <span class="hint">(constraints)</span> <span id="limits-count" class="badge" hidden></span></summary>
           <p id="limits-mixture" class="hint" hidden>A mixture takes no limits on the settings on this page: give each
             component its lower and upper proportions instead.</p>
@@ -281,7 +308,7 @@
         <div id="candidates" class="candidates" aria-live="polite" hidden></div>
         <p class="actions">
           <button type="button" id="search" class="button" hidden>Search for the optimal designs</button>
-          <button type="button" id="compare" class="link" disabled>Compare them in detail</button>
+          <button type="button" id="compare" class="link" data-feature="action:compare" data-level="2" disabled>Compare them in detail</button>
         </p>
 
         <div id="design-card" class="design-card">
@@ -371,7 +398,7 @@
             <label data-option="n_replicates"><span class="term" data-term="replicates">Replicates</span>
               <input id="n_replicates" type="number" min="1" max="10" value="1">
             </label>
-            <label data-option="n_blocks"><span class="term" data-term="blocks">Blocks</span>
+            <label data-option="n_blocks" data-feature="option:blocks" data-level="2"><span class="term" data-term="blocks">Blocks</span>
               <input id="n_blocks" type="number" min="1" max="8" value="1">
             </label>
             <label data-option="model_type">Model to design for
@@ -458,6 +485,15 @@
           </div>
           <div id="design-out" hidden>
             <div id="design-summary"></div>
+            <!-- The correlation map of the study's own runs: asked of Python, and drawn, when the reader opens it. -->
+            <details id="correlation" class="known correlation" data-feature="panel:correlation" data-level="2" hidden>
+              <summary>Which terms these runs tell apart</summary>
+              <p class="hint">How far each pair of terms moves together over the runs, from 0, told apart in full, to 1,
+                not at all: the main effects, the squares and the two-factor interactions.</p>
+              <div id="correlation-words" role="status"></div>
+              <div id="correlation-plot" class="plot"></div>
+              <div class="scroll"><table id="correlation-pairs" class="data"></table></div>
+            </details>
           </div>
           <div class="tabs" role="tablist" aria-label="Where the results come from">
             <button type="button" role="tab" id="tab-real" aria-selected="true" aria-controls="panel-real">Enter results</button>
@@ -503,7 +539,7 @@
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
-          <details id="curves" class="curves">
+          <details id="curves" class="curves" data-feature="panel:curves" data-level="2">
             <summary>Each run gives a curve</summary>
             <p class="hint">When each run gives a curve, such as a colour over time or a spectrum, paste the curves
               from a spreadsheet: a first row of the points along the curve, then a row for each run, in the run
@@ -580,7 +616,7 @@
         <p id="model-many" class="hint" hidden></p>
         <p id="box-cox" class="hint" hidden><span id="box-cox-words"></span> <button type="button" class="link" id="box-cox-apply"></button></p>
         <!-- The terms of the model the results support (bootstrap.simpler_model): proposed when asked, fitted when accepted. -->
-        <p id="simplify" class="hint" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
+        <p id="simplify" class="hint" data-feature="action:simplify" data-level="2" hidden><button type="button" class="link" id="simplify-ask">Simplify the model</button>
           <span id="simplify-words" role="status"></span> <button type="button" class="link" id="simplify-apply" hidden>Fit these terms</button></p>
         <fieldset id="terms" class="terms" hidden>
           <legend><button type="button" class="term" data-term="model-terms">Terms in the model</button></legend>
@@ -793,6 +829,12 @@
       Everything here runs in your browser tab, nothing on our server: read <a href="about.html">how Factorial works</a>
       and <a href="map/">how its ideas link</a>.
       Something wrong or missing? Send us <button type="button" class="link" data-feedback="general">Feedback</button>.</p>
+    <!-- What is kept on this device for use without a network (offline.js), once there is a copy to speak of. -->
+    <p id="offline" hidden tabindex="-1">
+      <span role="status"></span>
+      <button type="button" class="link" id="offline-keep" hidden></button>
+      <button type="button" class="link" id="offline-remove" hidden>Remove the copy</button>
+    </p>
   </footer>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -1,6 +1,9 @@
 {
-  "about": "What web/worker.js loads into Pyodide: the release, the packages it loads from that release, and the PyPI packages micropip installs, each pinned. worker.js, the wasm tests and CI all read this file.",
+  "about": "What the page's workers load into Pyodide (web/python-boot.js): the release; the folder of it on the CDN, where pyc is the release with its Python compiled to bytecode already; the Python that release runs, which the build compiles the app's own Python for; the packages loaded from the release at the start (packaging among them, which patsy imports and the release does not list as its dependency); the packages of the release a model is fitted with, which the designed-experiments page loads once it is ready, or when a call first needs them; and the PyPI packages micropip installs, each pinned. The workers, the wasm tests, the build and CI all read this file.",
   "pyodide": "314.0.7",
-  "packages": ["micropip", "numpy", "pandas", "scipy", "statsmodels", "scikit-learn", "patsy", "pydantic", "pyyaml", "tqdm"],
+  "distribution": "pyc",
+  "python": "3.14",
+  "packages": ["micropip", "numpy", "pandas", "scipy", "patsy", "packaging", "pydantic", "pyyaml", "tqdm"],
+  "fitting": ["statsmodels", "scikit-learn"],
   "micropip": ["openpyxl==3.1.5", "et-xmlfile==2.0.0"]
 }

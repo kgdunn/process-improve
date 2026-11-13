@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments import DesignRegion, Factor
+from process_improve.experiments import DesignRegion, Factor, generate_design
 from process_improve.experiments._desirability import (
     composite_desirability,
     desirability_maximize,
@@ -1013,6 +1013,35 @@ class TestPredictionVariancePlot:
         )
         spec = plot.to_spec()
         assert spec.plot_type == "prediction_variance"
+
+    def test_a_blocked_fit_is_drawn_for_its_factors_terms(self) -> None:
+        """The fit's block contrasts are no columns of the design: the plot leaves them out, and is drawn (#1229)."""
+        factors = [Factor(name=name, low=-1, high=1) for name in "ABC"]
+        design = generate_design(factors, "full_factorial", n_blocks=2, random_state=1).design
+        runs = design.assign(y=10 + 2 * design["A"] - design["B"] + 0.5 * (design["Block"] == 2))
+        fit = analyze_experiment(runs, response_column="y", analysis_type="coefficients", model="main_effects")
+        assert "Block1" in fit["model_summary"]["formula"], "the fit holds a contrast for its blocks"
+        plot = create_plot(
+            "prediction_variance", analysis_results=fit, design_data=runs.to_dict("records"), response_column="y"
+        )
+        spec = plot.to_spec()
+        assert spec.metadata["model"] == "A + B + C"
+        unblocked = create_plot(
+            "prediction_variance", design_data=runs.to_dict("records"), response_column="y", model="A + B + C"
+        )
+        assert spec.panels[0].layers[0].style["z_matrix"] == unblocked.to_spec().panels[0].layers[0].style["z_matrix"]
+
+    def test_a_factor_named_as_a_block_contrast_stays_and_the_contrast_goes(self) -> None:
+        """The fit names its contrast ``Block1_`` when a factor is ``Block1``: the factor stays, the contrast goes."""
+        factors = [Factor(name=name, low=-1, high=1) for name in ("A", "Block1", "C")]
+        design = generate_design(factors, "full_factorial", n_blocks=2, random_state=1).design
+        runs = design.assign(y=10 + 2 * design["A"] - design["Block1"] + 0.5 * (design["Block"] == 2))
+        fit = analyze_experiment(runs, response_column="y", analysis_type="coefficients", model="main_effects")
+        assert "Block1_" in fit["model_summary"]["formula"], "the contrast made way for the factor's name"
+        plot = create_plot(
+            "prediction_variance", analysis_results=fit, design_data=runs.to_dict("records"), response_column="y"
+        )
+        assert plot.to_spec().metadata["model"] == "A + Block1 + C"
 
 
 # ---------------------------------------------------------------------------
@@ -2720,3 +2749,97 @@ class TestFactorNameInference:
             response_column="y",
         )
         assert plot._get_factor_names() == ["A"]
+
+
+# ---------------------------------------------------------------------------
+# Three-dimensional plots in Plotly: the scene's axes, and what a wireframe draws
+# ---------------------------------------------------------------------------
+
+
+class TestThreeDimensionalPlotly:
+    def test_a_cube_titles_the_scene_s_axes_with_its_factors(self, coefficients_3f: list) -> None:
+        """A 3D trace reads its axes from layout.scene; a title in layout.xaxis is never drawn."""
+        plot = create_plot(
+            "cube_plot", analysis_results={"coefficients": coefficients_3f}, factors_to_plot=["A", "B", "C"]
+        )
+        scene = plot.to_plotly()["layout"]["scene"]
+        assert [scene[axis]["title"]["text"] for axis in ("xaxis", "yaxis", "zaxis")] == ["A", "B", "C"]
+
+    def test_a_surface_titles_its_response_axis_too(self, quadratic_coefficients: list) -> None:
+        plot = create_plot(
+            "surface_3d", analysis_results={"coefficients": quadratic_coefficients}, factors_to_plot=["A", "B"]
+        )
+        scene = plot.to_plotly()["layout"]["scene"]
+        assert [scene[axis]["title"]["text"] for axis in ("xaxis", "yaxis", "zaxis")] == ["A", "B", "Response"]
+
+    def test_a_cube_s_edges_are_lines_and_its_corners_are_points_with_their_values(self, coefficients_3f: list) -> None:
+        """No line joins the corners in the order they are listed, across the cube."""
+        plot = create_plot(
+            "cube_plot", analysis_results={"coefficients": coefficients_3f}, factors_to_plot=["A", "B", "C"]
+        )
+        edges, corners = plot.to_plotly()["data"]
+        assert (edges["name"], edges["mode"]) == ("Edges", "lines")
+        assert edges["line"]["width"] == 3
+        assert edges["line"]["color"] != "#E5E7EB", "seen on a white page"
+        assert (corners["name"], corners["mode"]) == ("Vertices", "markers+text")
+        assert corners["marker"]["size"] == 8
+        assert len(corners["text"]) == 8
+
+    def test_a_corner_s_value_is_written_to_four_significant_figures(self) -> None:
+        coefficients = [{"term": "Intercept", "coefficient": 1234.5678}, {"term": "A", "coefficient": 0.001234}]
+        plot = create_plot(
+            "cube_plot", analysis_results={"coefficients": coefficients}, factors_to_plot=["A", "B", "C"]
+        )
+        texts = {vertex["text"] for vertex in plot.to_spec().panels[0].layers[1].data}
+        assert texts == {"1235"}
+        small = [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 0.00123456}]
+        plot = create_plot("cube_plot", analysis_results={"coefficients": small}, factors_to_plot=["A", "B", "C"])
+        assert {vertex["text"] for vertex in plot.to_spec().panels[0].layers[1].data} == {"-0.001235", "0.001235"}
+
+    @pytest.mark.parametrize(
+        ("value", "written"),
+        [
+            (12345.6, "12350"),
+            (1234567.0, "1235000"),
+            (0.0000123456, "0.00001235"),
+            (85.0, "85"),
+            (-0.5, "-0.5"),
+            (0.0, "0"),
+        ],
+    )
+    def test_a_corner_s_value_is_written_in_full_never_with_an_exponent(self, value: float, written: str) -> None:
+        plot = create_plot(
+            "cube_plot",
+            analysis_results={"coefficients": [{"term": "Intercept", "coefficient": value}]},
+            factors_to_plot=["A", "B", "C"],
+        )
+        assert {vertex["text"] for vertex in plot.to_spec().panels[0].layers[1].data} == {written}
+
+    def test_a_wireframe_layer_that_says_nothing_of_its_style_draws_lines_and_points(self) -> None:
+        from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
+        from process_improve.visualization.spec import ChartSpec, Encoding, LayerSpec, PanelSpec
+        from process_improve.visualization.types import MarkType
+
+        rows = [{"x": 0.0, "y": 0.0, "z": 0.0}, {"x": 1.0, "y": 1.0, "z": 1.0}]
+        layer = LayerSpec(
+            mark=MarkType.wireframe, data=rows, x=Encoding(field="x"), y=Encoding(field="y"), z=Encoding(field="z")
+        )
+        figure = PlotlyAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+        assert figure["data"][0]["mode"] == "lines+markers", "no row has text to write"
+
+    def test_a_wireframe_layer_with_neither_lines_nor_points_nor_text_draws_none(self) -> None:
+        """Plotly refuses an empty mode: its word for a trace that draws nothing is ``none``."""
+        from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
+        from process_improve.visualization.spec import ChartSpec, Encoding, LayerSpec, PanelSpec
+        from process_improve.visualization.types import MarkType
+
+        layer = LayerSpec(
+            mark=MarkType.wireframe,
+            data=[{"x": 0.0, "y": 0.0, "z": 0.0}],
+            x=Encoding(field="x"),
+            y=Encoding(field="y"),
+            z=Encoding(field="z"),
+            style={"width": 0, "size": 0},
+        )
+        figure = PlotlyAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+        assert figure["data"][0]["mode"] == "none"

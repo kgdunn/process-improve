@@ -8,7 +8,9 @@ import {
   AXIAL_DISTANCE,
   TRANSFORM_WORDS,
   boxCoxSentence,
+  bySignificance,
   categoricalFactor,
+  correlationWords,
   isSeveral,
   levelsOf,
   alsoRuledOut,
@@ -25,7 +27,12 @@ import {
   withBounds,
   CAPTIONS,
   MORE_CHARTS,
+  chartHeight,
+  chartLevel,
   simplerWords,
+  termsKey,
+  PICKED_WORDS,
+  findingWords,
   csvOf,
   runSheetCsv,
   asideOf,
@@ -435,7 +442,9 @@ describe("words and numbers", () => {
   test("the runs set aside are said by their run order", () => {
     assert.equal(asideWords([]), "");
     assert.equal(asideWords([5]), "Run 5 is set aside: the model is fitted without it.");
-    assert.equal(asideWords([3, 5]), "Runs 3 and 5 are set aside: the model is fitted without them.");
+    assert.ok(asideWords([3, 5]).startsWith("Runs 3 and 5 are set aside: the model is fitted without them. "));
+    assert.ok(asideWords([3, 5]).endsWith("set a run aside for a reason you know of, not for its residual alone."), "said from the second run");
+    assert.ok(!asideWords([5]).includes("afresh"), "one run set aside needs no such word");
   });
 
   test("a table is written as CSV, its text quoted where it must be and never run as a formula", () => {
@@ -447,6 +456,50 @@ describe("words and numbers", () => {
   test("the run sheet's CSV holds each result the page has, and a blank for a run still to do", () => {
     const design = { columns: ["Run order", "T", "y", "cost"], rows: [[1, 150, null, null], [2, 200, null, null]] };
     assert.equal(runSheetCsv(design, { y: [61.5, null], cost: [3, 4] }), "Run order,T,y,cost\r\n1,150,61.5,3\r\n2,200,,4\r\n");
+  });
+
+  test("each finding of Python's is said in a sentence about the response", () => {
+    const leads = { kind: "leads", factor: "T", categorical: false, low: 150, high: 200, factor_units: "degC", up: true, change: 7.9 };
+    const found = [
+      leads,
+      { kind: "worth", than: "more", worth: 2 },
+      { kind: "also", factors: [{ name: "P", up: false }, { name: "F", up: true }] },
+      { kind: "depends", factor: "T", on: "P" },
+      { kind: "curves", factor: "F" },
+      { kind: "fit", explained: 0.9869, unseen: 0.8217 },
+    ];
+    assert.deepEqual(findingWords(found, { label: "Yield", units: "%" }), [
+      "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average.",
+      "That is more than the 2 % you said is worth finding.",
+      "Also real: P (lowers it), F (raises it).",
+      "The effect of T depends on P: read the two together, not one at a time.",
+      "Yield curves over F: its best setting may lie inside the range, not at an end.",
+      "The model explains 99% of the variation in Yield, and about 82% in runs it has not seen.",
+    ]);
+    const say = (finding, response = { label: "y", units: "" }) => findingWords([finding], response)[0];
+    const { change, ...direction } = leads;
+    assert.equal(say({ ...direction, ratio: 1.1437, up: false }), "T matters most: raising T from 150 to 200 degC divides y by 1.14, on average.");
+    assert.equal(say(direction), "T matters most: raising T from 150 to 200 degC raises y, on average.", "on a scale with no one amount");
+    assert.equal(
+      say({ kind: "leads", factor: "Supplier", categorical: true, low: "old", high: "new", factor_units: "", up: false, change: 1234.5 }),
+      "Supplier matters most: changing Supplier from old to new lowers y by 1230, on average.",
+    );
+    assert.equal(say({ kind: "leads_unsteadily", factor: "P" }), "P matters most, though y does not rise or fall steadily with it: see how below.");
+    assert.equal(say({ kind: "worth", than: "less", worth: 0.25 }, { label: "y", units: "g/L" }), "That is less than the 0.25 g/L you said is worth finding.");
+    assert.equal(say({ kind: "worth", than: "same", worth: 2 }), "That is the same as the 2 you said is worth finding.");
+    assert.equal(say({ kind: "none" }), "No factor's effect on y stands out from the noise.");
+    assert.equal(say({ kind: "quiet", factors: ["D", "E"] }), "Not told apart from the noise: D, E.");
+    assert.equal(say({ kind: "tangled", factors: ["T", "P"] }), "T and P moved together with other factors in these runs, so the runs cannot judge any of them alone.");
+    assert.equal(say({ kind: "tangled", factors: ["T"] }), "T moved together with other factors in these runs, so the runs cannot judge it alone.");
+    assert.equal(say({ kind: "fit", explained: 0.9961, unseen: null }), "The model explains more than 99% of the variation in y.");
+    assert.equal(say({ kind: "fit", explained: 1, unseen: 0 }), "The model explains 100% of the variation in y, and about 0% in runs it has not seen.");
+    assert.match(say({ kind: "saturated", lenth: true }), /the effects are judged by Lenth's method\.$/);
+    assert.match(say({ kind: "saturated", lenth: false }), /no effect can be tested\.$/);
+    assert.equal(say({ kind: "lack_of_fit" }), "The repeated runs agree more closely than the model fits them: a term may be missing.");
+    assert.equal(say({ kind: "unusual", runs: [5] }), "Run 5's result is far from what the model expects: check before trusting the fit.");
+    assert.equal(say({ kind: "unusual", runs: [3, 5] }), "The results of runs 3, 5 are far from what the model expects: check before trusting the fit.");
+    assert.deepEqual(findingWords([{ kind: "of-a-later-page" }, { kind: "none" }], { label: "y", units: "" }), ["No factor's effect on y stands out from the noise."]);
+    assert.deepEqual(findingWords(undefined, { label: "y", units: "" }), []);
   });
 
   test("the search for a simpler model is said in a sentence", () => {
@@ -462,9 +515,20 @@ describe("words and numbers", () => {
     assert.match(simplerWords({ ...found, kept: [] }, fmt), /^No term of the model stands out from the noise/);
   });
 
+  test("terms picked from the results are known again by what they are, whatever order they were ticked in", () => {
+    const picked = termsKey([["T"], ["P"], ["T", "P"], ["F", "F"]]);
+    assert.equal(termsKey([["F", "F"], ["P", "T"], ["P"], ["T"]]), picked);
+    assert.notEqual(termsKey([["T"], ["P"], ["T", "P"]]), picked, "a term fewer is the reader's own choice");
+    assert.notEqual(termsKey([["T"], ["P"], ["T", "F"], ["F", "F"]]), picked);
+    assert.match(PICKED_WORDS, /^The terms of this model were picked from these same results/);
+  });
+
   test("the captions name the factors drawn", () => {
     assert.match(CAPTIONS.contour(["T", "P"]), /over T and P, the two factors with the largest main effects/);
     assert.match(CAPTIONS.contour(["F", "T"], { chosen: true }), /over F and T, the two factors you chose/);
+    assert.equal(chartLevel("contour"), 1, "the first charts are every level's");
+    assert.deepEqual([chartLevel("perturbation"), chartLevel("prediction_variance")], [2, 3]);
+    assert.deepEqual([chartHeight("contour"), chartHeight("cube")], [340, 420]);
     for (const key of MORE_CHARTS) {
       assert.ok(TITLES[key], `${key} has a heading`);
       const caption = typeof CAPTIONS[key] === "function" ? CAPTIONS[key](["T", "P"]) : CAPTIONS[key];
@@ -1636,5 +1700,84 @@ describe("curves pasted from a spreadsheet", () => {
     const fit = (kept) => ({ runs: 15, components: kept.map((k) => ({ kept: k })) });
     assert.match(curveSaid(fit([true, false])), /^From 15 runs' curves, the model follows one shape in how they differ\./);
     assert.match(curveSaid(fit([true, true, false])), /follows 2 shapes/);
+  });
+});
+
+describe("what the correlation map of a study's runs says", () => {
+  const found = (pairs, count = pairs.length) => ({ pairs, n_pairs: count, listed_from: 0.3, together_from: 0.7, inseparable_from: 0.95 });
+  const shown = (term) => term.replace(":", "·");
+
+  test("runs with no pair to list say how far a pair would have to move to be listed, and claim no more", () => {
+    assert.deepEqual(correlationWords(found([])), [
+      "Over these runs no term of the model moves with another, or with a term the model leaves out, as far as |r| = 0.3.",
+    ]);
+  });
+
+  test("a term aliased with one the model leaves out takes its effect", () => {
+    const [said] = correlationWords(found([{ a: "A", b: "B:C", r: 1, both: false }]), shown);
+    assert.equal(said, "A is aliased with B·C, which the model leaves out (|r| = 1): an effect of B·C shows as A's.");
+    const [nearly] = correlationWords(found([{ a: "A", b: "B:C", r: 0.96, both: false }]), shown);
+    assert.equal(nearly, "A is nearly aliased with B·C, which the model leaves out (|r| = 0.96): almost all of an effect of B·C shows as A's.");
+  });
+
+  test("a term of the model that moves with the blocks is said as a pair of the model's own", () => {
+    const blocks = (r) => correlationWords(found([{ a: "T:P", b: "Block", r, both: true, blocks: true }]), shown)[0];
+    assert.equal(blocks(1), "T·P and the blocks cannot be told apart over these runs (|r| = 1): the model can hold one of them, not both.");
+    assert.equal(blocks(0.5), "T·P and the blocks move together a little over these runs (|r| = 0.50), so each is known a little less precisely than it would be alone.");
+  });
+
+  test("a term partly aliased has its estimate shifted, and the size is given to two decimals", () => {
+    const [said] = correlationWords(found([{ a: "A", b: "B:C", r: 1 / 3, both: false }]), shown);
+    assert.equal(said, "A is partly aliased with B·C, which the model leaves out (|r| = 0.33): an effect of B·C shifts the estimate of A.");
+  });
+
+  test("two terms of the model that move together are each known less precisely, or cannot both be held", () => {
+    const [partly] = correlationWords(found([{ a: "T", b: "P", r: 0.82, both: true }]));
+    assert.equal(partly, "T and P move together over these runs (|r| = 0.82), so each is known less precisely than it would be alone.");
+    const [nearly] = correlationWords(found([{ a: "T", b: "P", r: 0.97, both: true }]));
+    assert.equal(nearly, "T and P can hardly be told apart over these runs (|r| = 0.97): with both in the model, neither is known precisely.");
+    const [whole] = correlationWords(found([{ a: "T", b: "P", r: 0.9999, both: true }]));
+    assert.equal(whole, "T and P cannot be told apart over these runs (|r| = 1): the model can hold one of them, not both.", "one column to the runs, and only then");
+    const [little] = correlationWords(found([{ a: "T²", b: "P²", r: 0.3, both: true }]));
+    assert.equal(little, "T² and P² move together a little over these runs (|r| = 0.30), so each is known a little less precisely than it would be alone.");
+  });
+
+  test("the three largest pairs are said, and the rest are counted", () => {
+    const pairs = ["B:C", "B:D", "C:D", "C:E"].map((b) => ({ a: "A", b, r: 0.33, both: false }));
+    const said = correlationWords(found(pairs, 495));
+    assert.equal(said.length, 4);
+    assert.equal(said.at(-1), "492 more pairs move together as far; the table lists the largest.");
+    assert.equal(correlationWords(found(pairs, 4)).at(-1), "1 more pair moves together as far; the table lists the largest.");
+  });
+});
+
+describe("the order of a fit's coefficients in their table", () => {
+  const row = (label, coefficient, std_error, p_value) => ({ term: label, label, coefficient, std_error, p_value });
+  const labels = (rows) => bySignificance(rows).map((c) => c.label);
+
+  test("is by p-value, the smallest first, whatever order the model has them in, and the intercept last", () => {
+    const rows = [row("Intercept", 60, 0.5, 1e-9), row("T", 0.2, 0.3, 0.52), row("P", -3.4, 0.3, 0.0002), row("T·P", 1.5, 0.4, 0.016)];
+    assert.deepEqual(labels(rows), ["P", "T·P", "T", "Intercept"], "last, though the most significant of all");
+    assert.deepEqual(rows.map((c) => c.label), ["Intercept", "T", "P", "T·P"], "the rows given are left as they were");
+  });
+
+  test("puts the intercept last when no coefficient has a p-value", () => {
+    const saturated = [row("Intercept", 60, null, null), row("T", 4, null, null)];
+    assert.deepEqual(labels(saturated), ["T", "Intercept"]);
+  });
+
+  test("of p-values too small to tell apart, is by the size of the estimate against its standard error", () => {
+    const rows = [row("A", 3, 0.1, 0), row("B", -9, 0.1, 0), row("C", 6, 0.1, 0)];
+    assert.deepEqual(labels(rows), ["B", "C", "A"]);
+  });
+
+  test("puts a coefficient with no p-value after the rest, and leaves such rows in the model's order", () => {
+    const saturated = [row("A", 60, null, null), row("T", 4, null, null), row("P", -3, null, null)];
+    assert.deepEqual(labels(saturated), ["A", "T", "P"]);
+    assert.deepEqual(labels([row("T", 4, null, undefined), row("P", -3, 0.3, 0.01), row("F", 2, null, null)]), ["P", "T", "F"]);
+  });
+
+  test("leaves rows with one p-value and no standard error to speak of in the order given", () => {
+    assert.deepEqual(labels([row("A", 1, 0, 0.5), row("B", 2, 0, 0.5)]), ["A", "B"]);
   });
 });

@@ -8,17 +8,21 @@ when the results were simulated, each coefficient carries the true value of what
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, fill_workbook, held_of, quadratic, run_sheet, workbook_of
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def analyse(api, spec: dict, model: str = "") -> dict:
     """Generate a design, fill its workbook with the ``quadratic`` response, and return the analysis reply."""
     design = api.ok("api_make_design", spec)
-    return api.reply("api_analyze", {"xlsx_base64": fill_workbook(design["xlsx_base64"], quadratic), "model": model})
+    return api.reply("api_analyze", {"xlsx_base64": fill_workbook(workbook_of(api, design), quadratic), "model": model})
 
 
 def by_label(result: dict) -> dict:
@@ -35,20 +39,33 @@ def test_the_worked_example_recovers_the_true_process(api, held, simulated):
     assert analysis["model"] == "quadratic"
 
 
-# --------------------------------------------------------------------------- what the results say, in sentences
-def test_the_findings_say_what_the_worked_example_found(api, held, simulated):
+# --------------------------------------------------------------------------- what the results say
+def kinds(findings: list[dict]) -> list[str]:
+    """Name the kind of each finding, in the order the page says them."""
+    return [f["kind"] for f in findings]
+
+
+def test_the_findings_are_what_the_worked_example_found(api, held, simulated):
+    """Python finds; the page writes the sentences (logic.findingWords, in tests/web/js/logic.test.mjs)."""
     findings = api.ok("api_analyze_runs", {**held, "responses": simulated["responses"]})["findings"]
-    assert findings == [
-        "T matters most: raising T from 150 to 200 degC raises Yield by 7.9 %, on average.",
-        "That is more than the 2 % you said is worth finding.",
-        "Also real: P (lowers it), F (raises it).",
-        "The effect of T depends on P: read the two together, not one at a time.",
-        "Yield curves over F: its best setting may lie inside the range, not at an end.",
-        "The model explains 99% of the variation in Yield, and about 82% in runs it has not seen.",
-    ]
+    assert kinds(findings) == ["leads", "worth", "also", "depends", "curves", "fit"]
+    leads, worth, also, depends, curves, fit = findings
+    assert {key: leads[key] for key in ("factor", "categorical", "low", "high", "factor_units", "up")} == {
+        "factor": "T",
+        "categorical": False,
+        "low": 150,
+        "high": 200,
+        "factor_units": "degC",
+        "up": True,
+    }
+    assert leads["change"] == pytest.approx(7.9)
+    assert (worth["than"], worth["worth"]) == ("more", 2)
+    assert also["factors"] == [{"name": "P", "up": False}, {"name": "F", "up": True}]
+    assert (depends["factor"], depends["on"], curves["factor"]) == ("T", "P", "F")
+    assert (round(fit["explained"], 2), round(fit["unseen"], 2)) == (0.99, 0.82)
 
 
-def test_the_same_results_give_the_same_words(api, held, simulated):
+def test_the_same_results_give_the_same_findings(api, held, simulated):
     request = {**held, "responses": simulated["responses"]}
     assert api.ok("api_analyze_runs", request)["findings"] == api.ok("api_analyze_runs", request)["findings"]
 
@@ -61,17 +78,18 @@ def test_a_saturated_design_s_findings_rest_on_lenth_s_method(api):
     beyond = [e["term"] for e in analysis["lenth"]["effects"] if e["active_ME"]]
     assert beyond, "the scenario has effects that stand out"
     largest = max(beyond, key=lambda t: abs(next(e["effect"] for e in analysis["lenth"]["effects"] if e["term"] == t)))
-    assert analysis["findings"][0].startswith(f"{largest} matters most: ")
-    assert analysis["findings"][-1].endswith("the effects are judged by Lenth's method.")
+    assert (analysis["findings"][0]["kind"], analysis["findings"][0]["factor"]) == ("leads", largest)
+    assert analysis["findings"][-1] == {"kind": "saturated", "lenth": True}
     assert analysis["diagnostics"] is None, "no run is left over to judge the others with"
 
 
-def test_on_the_log_scale_an_effect_is_said_as_a_ratio(api, held, simulated):
+def test_on_the_log_scale_an_effect_is_a_ratio(api, held, simulated):
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
     request = {**held, "spec": spec, "responses": simulated["responses"], "model": "main_effects"}
     findings = api.ok("api_analyze_runs", request)["findings"]
-    assert findings[0] == "T matters most: raising T from 150 to 200 degC multiplies Yield by 1.14, on average."
-    assert not any("worth finding" in sentence for sentence in findings), "that change is in percent, not a ratio"
+    assert findings[0]["ratio"] == pytest.approx(1.14, abs=0.005)
+    assert "change" not in findings[0], "that change is a ratio, not an amount in percent"
+    assert "worth" not in kinds(findings), "so it is not set against the change worth finding"
 
 
 def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simulated):
@@ -82,10 +100,9 @@ def test_a_result_far_from_the_others_is_a_run_to_look_at_again(api, held, simul
     responses = list(simulated["responses"])
     responses[4] += 25
     analysis = api.ok("api_analyze_runs", {**request, "responses": responses})
-    assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [
-        held["rows"][4][held["columns"].index("Run order")]
-    ]
-    assert analysis["findings"][-1].endswith("far from what the model expects: check before trusting the fit.")
+    run = held["rows"][4][held["columns"].index("Run order")]
+    assert [d["run"] for d in analysis["diagnostics"] if d["unusual"]] == [run]
+    assert analysis["findings"][-1] == {"kind": "unusual", "runs": [run]}
 
 
 def test_each_run_has_its_leverage_and_they_sum_to_the_number_of_coefficients(api, held, simulated):
@@ -103,18 +120,19 @@ def test_a_factor_that_acts_through_its_square_or_an_interaction_is_not_lost_in_
         t, p, f = (row[at["T"]] - 175) / 25, row[at["P"]] - 2, (row[at["F"]] - 15) / 5
         responses.append(float(60 + 0.4 * f + 9 * t * p - 12 * p * p + rng.normal(0, 0.05)))
     findings = api.ok("api_analyze_runs", {**held, "responses": responses})["findings"]
-    assert findings[0] == "P matters most, though Yield does not rise or fall steadily with it: see how below."
-    assert not any(f.startswith("Not told apart from the noise") and "P" in f for f in findings)
-    assert "The effect of T depends on P: read the two together, not one at a time." in findings
-    assert "Yield curves over P: its best setting may lie inside the range, not at an end." in findings
-    assert any(f.startswith("The model explains more than 99% of the variation") for f in findings), "not 100%"
+    assert findings[0] == {"kind": "leads_unsteadily", "factor": "P"}
+    assert not [f for f in findings if f["kind"] == "quiet" and "P" in f["factors"]]
+    assert {"kind": "depends", "factor": "T", "on": "P"} in findings
+    assert {"kind": "curves", "factor": "P"} in findings
+    (fit,) = [f for f in findings if f["kind"] == "fit"]
+    assert 0.995 <= fit["explained"] < 1, "which the page says as more than 99%, not as 100%"
 
 
-def test_nothing_real_is_said_plainly(api, held):
+def test_nothing_real_is_found_plainly(api, held):
     """Results that are noise alone: no factor is named as mattering."""
     noise = np.random.default_rng(3).normal(60, 1, len(held["rows"])).round(2).tolist()
     findings = api.ok("api_analyze_runs", {**held, "responses": noise, "model": "main_effects"})["findings"]
-    assert findings[0] == "No factor's effect on Yield stands out from the noise."
+    assert findings[0] == {"kind": "none"}
 
 
 # --------------------------------------------------------------------------- a simpler model, proposed
@@ -138,6 +156,104 @@ def test_terms_the_reader_chose_are_searched_within_the_smallest_standard_model_
     assert mains["within"] == "main_effects"
     pairs = api.ok("api_simpler_model", {**request, "model": {"terms": [["T"], ["P"], ["F"], ["T", "P"], ["T", "F"]]}})
     assert (pairs["within"], pairs["dropped"]) == ("interactions", ["T·F"])
+
+
+def _results(design: dict, of_a_run: Callable[[dict], float], seed: int = 3) -> list[float]:
+    """Return a result for each run of a design: what ``of_a_run`` makes of its settings, with a little noise."""
+    noise = np.random.default_rng(seed).normal(0, 0.1, design["n_runs"])
+    rows = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+    return [float(of_a_run(row) + e) for row, e in zip(rows, noise, strict=True)]
+
+
+def test_a_blocked_design_s_model_is_simplified_with_its_blocks_kept(api):
+    """Ten units between blocks, left in the residual, would hide every effect: the search keeps the blocks in."""
+    design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 3})
+    between = {1: 5.0, 2: -5.0, 3: 0.0}
+
+    def process(run: dict) -> float:
+        t = (run["T"] - 175) / 25
+        return 60 + 4 * t - 3 * t**2 + between[int(run["Block"])]
+
+    request = {**held_of(design), "responses": _results(design, process)}
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["kept"] == ["T", "T²"], "the process's own terms; the blocks are kept, not chosen"
+    assert proposed["terms"] == [["T"], ["T", "T"]]
+    assert set(proposed["dropped"]) == {"P", "F", "T·P", "T·F", "P·F", "P²", "F²"}, "no block among them"
+    assert (proposed["added"], proposed["within"]) == ([], "quadratic")
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert [c["label"] for c in fitted["coefficients"]] == ["Intercept", "Block 1", "Block 2", "T", "T²"]
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+    assert proposed["adjusted_r_squared"] > 0.99
+
+
+def test_a_factor_of_several_levels_is_kept_or_dropped_whole(api):
+    """Its levels are two columns of the model, and one term of the search: both stay, or neither."""
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    spec = {"design_type": "full_factorial", "factors": [*FACTORS[:2], catalyst], "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    by_level = {"X": 0.0, "Y": 6.0, "Z": -6.0}
+    with_it = _results(design, lambda run: 50 + 3 * (run["T"] - 175) / 25 + by_level[run["Catalyst"]])
+    request = {**held_of(design), "responses": with_it}
+    proposed = api.ok("api_simpler_model", request)
+    assert proposed["kept"] == ["T", "Catalyst"]
+    assert proposed["terms"] == [["T"], ["Catalyst"]], "as the page ticks them: the factor, not its levels"
+    assert proposed["dropped"] == ["P", "T·P", "T·Catalyst", "P·Catalyst"], "each named once, by its factors"
+    fitted = api.ok("api_analyze_runs", {**request, "model": {"terms": proposed["terms"]}})
+    assert [c["label"] for c in fitted["coefficients"]] == ["Intercept", "T", "Catalyst[X]", "Catalyst[Y]"]
+    assert fitted["summary"]["r_squared_adj"] == pytest.approx(proposed["adjusted_r_squared"])
+
+    without_it = _results(design, lambda run: 50 + 3 * (run["T"] - 175) / 25)
+    proposed = api.ok("api_simpler_model", {**held_of(design), "responses": without_it})
+    assert proposed["kept"] == ["T"], "both its levels' columns leave together"
+
+
+def test_an_interaction_the_blocks_took_is_not_proposed_back(api):
+    """A 2^4 in four blocks gives C·D to the blocks. The fit leaves it out, and so does the search.
+
+    Searched as a candidate, C·D could not be told from the blocks, cost nothing to keep, and held C and D in the
+    model with it: the page proposed adding a term its own fit had just said the runs cannot estimate.
+    """
+    factors = [{"name": name, "low": 0, "high": 10} for name in "ABCD"]
+    spec = {"design_type": "full_factorial", "factors": factors, "n_blocks": 4, "n_center_points": 0}
+    design = api.ok("api_make_design", spec)
+    responses = _results(design, lambda run: 10 + 0.8 * run["A"], seed=7)
+    request = {**held_of(design), "responses": responses, "model": "interactions"}
+    fitted = api.ok("api_analyze_runs", request)
+    estimated = [c["label"] for c in fitted["coefficients"]]
+    (taken,) = [pair for pair in ("A·B", "A·C", "A·D", "B·C", "B·D", "C·D") if pair not in estimated]
+    proposed = api.ok("api_simpler_model", request)
+    assert (proposed["kept"], proposed["added"]) == (["A"], [])
+    assert taken not in proposed["dropped"], "it was not in the model to be dropped"
+    assert len(proposed["dropped"]) == 8, "the three other main effects and the five interactions fitted"
+
+
+def test_a_model_with_one_factor_nested_in_another_is_not_searched(api):
+    """Batches within suppliers: batch 1 of one supplier has nothing to do with batch 1 of another.
+
+    Searched within the interactions model, the nested term needed Batch's own main effect, and the page proposed
+    adding it: the crossed model the reader had left on purpose. Searched over its own terms, the model could not
+    be given to the library as the page fits it. So the page says it proposes none, and fits what the reader chose.
+    """
+    supplier = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    batch = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
+    spec = {"design_type": "full_factorial", "factors": [supplier, batch], "n_center_points": 0, "n_replicates": 3}
+    design = api.ok("api_make_design", spec)
+    of_supplier, within = {"X": 0.0, "Y": 5.0, "Z": -5.0}, {"X": 3.0, "Y": -2.0, "Z": 0.5}
+
+    def process(run: dict) -> float:
+        sign = 1 if run["Batch"] == "first" else -1
+        return 40 + of_supplier[run["Supplier"]] + sign * within[run["Supplier"]]
+
+    request = {**held_of(design), "responses": _results(design, process)}
+    for terms in ([["Supplier"], ["Supplier", "Batch"]], [["Batch"], ["Supplier", "Batch"]]):
+        nested = {**request, "model": {"terms": terms}}
+        assert api.ok("api_analyze_runs", nested)["summary"]["r_squared_adj"] > 0.99, "the model itself is fitted"
+        assert api.error("api_simpler_model", nested) == (
+            "The page proposes no simpler model where one factor is nested in another: "
+            "take terms out, or add them, in the list of terms."
+        )
+    crossed = {**request, "model": {"terms": [["Supplier"], ["Batch"], ["Supplier", "Batch"]]}}
+    assert api.ok("api_simpler_model", crossed)["within"] == "interactions", "the crossed model is searched as ever"
 
 
 def test_a_model_with_nothing_to_drop_is_said_to_be_as_simple_as_it_gets(api, held, simulated):
@@ -246,12 +362,16 @@ def test_a_box_behnken_design_with_a_factor_named_i_is_made_analysed_and_drawn(a
     contour, contour_x = (json.loads(c["figures"]["contour"]) for c in (charts, charts_x))
     assert contour["layout"]["yaxis"]["title"]["text"] == "I (bar)"
     np.testing.assert_allclose(contour["data"][0]["z"], contour_x["data"][0]["z"])
+    # The prediction variance is of the fitted formula too, whose squares call I(): once there was no such chart.
+    variance, variance_x = (json.loads(c["figures"]["prediction_variance"]) for c in (charts, charts_x))
+    assert variance["layout"]["yaxis"]["title"]["text"] == "I (bar)"
+    np.testing.assert_allclose(variance["data"][0]["z"], variance_x["data"][0]["z"])
 
 
 # --------------------------------------------------------------------------- what the fit can and cannot estimate
 def test_too_few_runs_says_how_many_are_needed(api):
     design = api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS})
-    xlsx = fill_workbook(design["xlsx_base64"], quadratic, blank_rows=tuple(range(8)))
+    xlsx = fill_workbook(workbook_of(api, design), quadratic, blank_rows=tuple(range(8)))
     assert "10 coefficients" in api.error("api_analyze", {"xlsx_base64": xlsx, "model": "quadratic"})
 
 
@@ -329,7 +449,7 @@ def test_a_saturated_fit_has_no_predicted_r_squared(api):
 def test_lenth_margins_are_not_called_wide_with_seven_effects(api):
     spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
     design = api.ok("api_make_design", spec)
-    workbook = fill_workbook(design["xlsx_base64"], lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
+    workbook = fill_workbook(workbook_of(api, design), lambda runs: (10 + 3 * runs["A"] - 2 * runs["C"]).to_numpy())
     result = api.ok("api_analyze", {"xlsx_base64": workbook, "model": "main_effects"})
     assert len(result["lenth"]["effects"]) == 7
     assert not any("margins are wide" in note for note in result["notes"])
@@ -397,6 +517,21 @@ def test_too_few_results_for_the_model_are_reported_in_the_page_s_words(api, hel
         "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete. "
         "Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
     )
+
+
+def test_too_few_results_name_the_runs_set_aside_apart_from_those_still_to_do(api, held, simulated):
+    """A run set aside comes with no result, as a run still to do does: the page says which it set aside."""
+    request = {**held, "responses": [None] * 8 + simulated["responses"][8:], "model": "quadratic"}
+    needs = "The quadratic model has 10 coefficients, so it needs at least 10 completed runs, and 7 are complete."
+    assert api.error("api_analyze_runs", {**request, "set_aside": [2, 5]}) == (
+        f"{needs} Still to run: 1, 3, 4, 6, 7, 8. Set aside: 2, 5."
+    )
+    assert api.error("api_analyze_runs", {**request, "set_aside": list(range(1, 9))}) == (
+        f"{needs} Set aside: 1, 2, 3, 4, 5, 6, 7, 8."
+    )
+    assert api.error("api_analyze_runs", {**request, "set_aside": "2"}) == (
+        f"{needs} Still to run: 1, 2, 3, 4, 5, 6, 7, 8."
+    ), "a list is read, and nothing else"
 
 
 # --------------------------------------------------------------------------- blocks

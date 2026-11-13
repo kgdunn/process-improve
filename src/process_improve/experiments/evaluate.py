@@ -36,13 +36,13 @@ from scipy import stats
 
 from process_improve._random import check_random_state
 from process_improve._warnings import user_stacklevel
-from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
-from process_improve.experiments._lm import (
+from process_improve.experiments._formula import (
     block_levels,
     named_levels,
     real_names,
     stand_ins_for,
     validate_contrast_levels,
+    validate_formula_is_safe,
     validate_identifiers_are_safe,
     with_stand_ins,
 )
@@ -50,9 +50,8 @@ from process_improve.experiments._moment_aberration import NotTwoLevelError, mom
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs, scheffe_model
 from process_improve.experiments.designs_mixture_process import ReducedRank, category_levels, mixture_process_model
 from process_improve.experiments.designs_three_level import MODULUS
-from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES, WHOLE_PLOT_COL
 from process_improve.experiments.factor import DesignResult, FactorType
-from process_improve.experiments.models import validate_formula_is_safe
 from process_improve.experiments.region import DesignRegion
 from process_improve.experiments.true_process import _canonical
 
@@ -306,7 +305,7 @@ def _stand_in_factors(
     """Put each factor whose name the model calls under a stand-in name, so ``I`` and ``C`` are names a factor can have.
 
     A factor named ``I`` hides patsy's ``I()`` in every square term, and one named ``C`` hides
-    ``C()`` (see :func:`~process_improve.experiments._lm.stand_ins_for`); the squares the alias
+    ``C()`` (see :func:`~process_improve.experiments._formula.stand_ins_for`); the squares the alias
     matrix adds call ``I()`` as well. Returns the design, the factor names, the model and the
     region under the stand-ins, and each real name mapped to its stand-in, through which the
     results are read back (#986). ``words`` are the design's generators and defining relation.

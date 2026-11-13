@@ -214,7 +214,9 @@ none skips its setup; a change to the changelog, a tool, the Sphinx docs or a te
   latest release (`tools/check_web_runtime.py`). When npm has a newer Pyodide, that workflow
   runs the wasm and live tiers on it and says in its summary whether moving the pin is safe.
 - `tests/web/wasm` (`--wasm`): the app's Python under Pyodide in Node.js, asked what
-  native Python is asked; the answers must agree.
+  native Python is asked; the answers must agree. Node.js runs Pyodide's npm package with
+  the folder of the release the page loads beside it (`distribution` in `web/runtime.json`),
+  which `tests/web/_pyodide.py` fetches and checks against that folder's lock file.
 
 To run them locally:
 
@@ -246,8 +248,13 @@ When you change the app, the tests move with it:
   one phase at a time (Design, Run or Learn): a test shows the phase that holds what it types
   into or clicks first, with `reveal` in `tests/web/e2e/_page.py`, as a reader presses its tab.
 - A new package the page loads into Pyodide: in `web/runtime.json` only, which
-  `web/worker.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
+  `web/python-boot.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
+  A package that only some calls need stays out of start-up: the name it is imported by
+  goes in `ON_DEMAND` in `bootstrap.py`, and `onDemand` in `web/python-boot.js` says what to
+  install when a call first lacks it (`tests/web/api/test_on_demand.py`). A call that stops
+  on the missing import is answered with `needs`, wherever the import is; the worker installs
+  the package and makes the call again.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
 - A new example the book links to (`https://factori.al/?book=<name>`): an entry in
@@ -255,6 +262,43 @@ When you change the app, the tests move with it:
   the numbers the book prints for it; the suite fails until there is one. Its name is
   printed in the book, so keep it once published: the book checks every name it uses
   against `book/index.json` on factori.al.
+
+The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
+start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode
+already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,
+for the Python `web/runtime.json` names: uv fetches that interpreter, and a build that
+cannot get it still works, starts more slowly, and fails the smoke tests, so it is not
+deployed. openpyxl and plotly are installed when a call first needs them, from the exact
+files the build resolved for them (`on_demand` in its manifest: PyPI is asked once, as the
+build runs), so the page asks no package index and every visit installs the same files.
+statsmodels and scikit-learn, which a model is fitted with, are left out of the start too
+(`fitting` in `web/runtime.json`): the page is ready once a design can be made, the worker
+fetches the two in the background as soon as it is, and a fit that comes sooner waits for
+that same install. So no step of designing may import either one. A step that did would not
+fail on the page, it would wait, and only a test sees that:
+`tests/web/api/test_browser_safe.py` runs a visit that ends with a run sheet with both
+refused. A change to any of the four is measured, not assumed: time the start in a browser
+before and after. And it is run under the wasm and live tiers before it is pushed: only
+real Pyodide shows which packages a package brings with it (patsy needs `packaging`, which
+the release lists under statsmodels), and that a package's files are in place before it
+can be imported, which is why the page's Python refuses one the worker has not finished
+installing (`_NotYet` in `web/bootstrap.py`).
+
+A copy of the built app is kept in the reader's browser, so it opens without a network.
+`web/offline.js` makes the copy from the build's own lists of files, drops what earlier
+builds left in it, and says in the footer what it holds by reading the copy, never a note of
+what was once copied. A service worker, `web/sw.js`, serves it. The worker holds no list of
+files and reads none: a file whose address names its version is served from the copy, and the
+app's own files come from the network whenever it answers. A new address the page loads from
+needs its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows.
+Both files run under Node.js against a stand-in for the browser (`offline.test.mjs` and
+`sw.test.mjs` in `tests/web/js`), visit after visit; the live tier opens the built app without
+a network (`tests/web/live/test_offline.py`). The stand-in does what a browser does, which is
+not always what the specification says: Chromium makes a cache when one is only looked up by
+its name, and the stand-in did not until a removed copy came back that way. When the live
+tier finds what the stand-in let pass, the stand-in is changed first, so that the test fails
+under Node.js before the code is fixed. The other browser tests run without the worker: a
+request it answers passes by Playwright's routes.
 
 One build is served in two places: https://factori.al/, the app's address, and GitHub
 Pages at `/app`. On each push to `main`, `docs.yml` publishes the build the smoke tests
@@ -422,6 +466,37 @@ estimator's public surface updates that file in the same change:
   docstring gives the source's label with its citation. A retired name is not
   reused for something else: a caller still reading it would get other
   numbers with no error.
+
+## Adding a public name to the experiments package
+
+`process_improve.experiments` imports each public name from its module when the name is
+first asked for (PEP 562), not when the package is imported, and `process_improve` does the
+same for the five names it offers. Making a design then loads neither statsmodels nor
+scikit-learn, which only a fit needs, and the browser app is ready before either is
+fetched. A new public name goes in three places in `experiments/__init__.py`: the import
+under `TYPE_CHECKING`, for a type checker; `_WHERE`, which is what runs; and `__all__`.
+`tests/test_lazy_imports.py` fails until the three agree, and fails if making a design
+starts to load either package. A module that a design needs imports neither at its top:
+what both it and the fitting code share lives in a module of its own, as the formula
+checks do in `experiments/_formula.py`.
+
+The two packages still look as they did when they imported everything themselves, and
+`process_improve/_lazy.py` is what keeps that: a module is an attribute of its package
+without an import of its own (`experiments.models.lm`), and a name is imported under one
+lock, so several threads may ask a package at once. The lock does not cover an `import`
+statement that runs in another thread at that moment, which `_lazy.py` says where it is
+made. It asks one thing of the library: no module takes a name from either package at its
+top (`from process_improve.experiments import Factor`). It imports from the module that
+holds the name (`from process_improve.experiments.factor import Factor`), as every module
+does now, or inside the function that needs it. A module that asked the package would wait
+for the lock while holding its own import lock, which the thread ahead of it may need; the
+same test file fails on one that does.
+
+A module of the package that needs an optional extra (`mcp_server`) is listed by `dir()`
+like any other, and is no attribute where the extra is missing: `help()` and
+`inspect.getmembers()` ask for every name listed, and take no other answer than
+`AttributeError`. The error names what is missing, and `from process_improve import
+mcp_server` raises the module's own `ImportError`.
 
 ## Adding new methods to PCA / PLS
 

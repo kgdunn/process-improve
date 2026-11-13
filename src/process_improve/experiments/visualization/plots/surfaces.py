@@ -826,15 +826,15 @@ class PredictionVariancePlot(BasePlot):
         y_axis = np.linspace(-_extent(self, factor_y), _extent(self, factor_y), n_grid)
         gx, gy = np.meshgrid(x_axis, y_axis)
         points: dict[str, Any] = {}
-        for f in factors:
+        for f, column in zip(factors, ctx.factor_names, strict=True):  # the model's name for f: see design_context
             if f == factor_x:
-                points[f] = gx.ravel()
+                points[column] = gx.ravel()
             elif f == factor_y:
-                points[f] = gy.ravel()
+                points[column] = gy.ravel()
             elif pd.api.types.is_numeric_dtype(df[f]):
-                points[f] = np.full(gx.size, float(self.hold_values.get(f, 0.0)))
+                points[column] = np.full(gx.size, float(self.hold_values.get(f, 0.0)))
             else:
-                points[f] = np.full(gx.size, self.hold_values.get(f, df[f].iloc[0]), dtype=object)
+                points[column] = np.full(gx.size, self.hold_values.get(f, df[f].iloc[0]), dtype=object)
         (expanded,) = build_design_matrices([ctx.design_info], pd.DataFrame(points), return_type="matrix")
         spv = ctx.N * _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
         z_matrix = spv.reshape(n_grid, n_grid).tolist()

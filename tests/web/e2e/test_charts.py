@@ -229,3 +229,17 @@ def test_choosing_the_factor_the_other_box_holds_makes_the_two_change_places(pag
     page.select_option("#contour-factor-1", "P")
     page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
     assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["P", "T"]
+
+
+def test_a_button_takes_the_reader_s_choice_of_factors_back_to_the_two_largest(page):
+    assert page.locator("#contour-largest").count() == 0, "nothing is chosen, so there is nothing to take back"
+    page.select_option("#contour-factor-2", "F")
+    page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
+    plotted = page.evaluate("window.__pi.count('api_plots')")
+    page.click("#contour-largest")
+    page.wait_for_function(f"window.__pi.count('api_plots') > {plotted} && window.__pi.idle()")
+    page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('largest main effects')")
+    assert "contour_factors" not in calls(page, "api_plots")[-1]["payload"]
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
+    assert page.locator("#contour-largest").count() == 0
+    page.wait_for_function("document.activeElement.id === 'contour-factor-1'")  # the button went with the choice

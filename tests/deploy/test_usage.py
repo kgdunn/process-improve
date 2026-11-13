@@ -100,8 +100,31 @@ def test_readers_are_distinct_networks_and_browsers():
     assert len(seen.readers) == 3
 
 
-def test_python_started_is_the_page_fetching_bootstrap_py():
-    seen = day(logged("/"), logged("/bootstrap.py"), logged("/bootstrap.py", PHONE), logged("/bootstrap.py", HEADLESS))
+#: What a fetch from the page's worker, from the page itself and from the multivariate page's worker says it came from.
+FROM_THE_WORKER, FROM_THE_PAGE, FROM_THE_MVA_WORKER = (
+    "https://factori.al/worker.js",
+    "https://factori.al/",
+    "https://factori.al/mva/worker.js",
+)
+
+
+def test_python_started_is_the_page_s_worker_reading_runtime_json():
+    """A build ships the page's Python in an archive kept for a year: a returning browser no longer asks for it.
+
+    The worker reads runtime.json past every cache each time it starts Python, so that is what is counted. The page
+    reads the file too, for the copy it keeps, and so does the multivariate page's worker: neither is a start here.
+    """
+    seen = day(
+        logged("/"),
+        logged("/runtime.json", referer=FROM_THE_WORKER),
+        logged("/runtime.json", PHONE, referer=FROM_THE_WORKER),
+        logged("/runtime.json", HEADLESS, referer=FROM_THE_WORKER),  # the deploy's own check
+        logged("/runtime.json", referer=FROM_THE_PAGE),
+        logged("/runtime.json", referer=FROM_THE_MVA_WORKER),
+        logged("/runtime.json"),  # no Referer at all: not the worker
+        logged("/bootstrap.py", referer=FROM_THE_WORKER),  # an older build's worker read this too, after runtime.json
+        logged("/wheels/0123456789abcdef/bootstrap.zip", referer=FROM_THE_WORKER),
+    )
     assert seen.python == 2
 
 
@@ -139,7 +162,7 @@ def test_the_report_has_a_row_for_every_day_and_the_periods_totals():
     days, referrers = usage.tally(
         [
             logged("/", when="2026-10-11T09:00", referer="https://learnche.org/pid/contents"),
-            logged("/bootstrap.py", when="2026-10-11T09:01"),
+            logged("/runtime.json", when="2026-10-11T09:01", referer=FROM_THE_WORKER),
             logged("/", when="2026-10-12T09:00"),  # the same reader the next day
             logged("/", PHONE, when="2026-10-12T10:00"),
             logged("/catalog/", PHONE, when="2026-10-12T10:05"),  # the same reader, in the catalog

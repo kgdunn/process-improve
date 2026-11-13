@@ -35,8 +35,6 @@ from process_improve._warnings import user_stacklevel
 # importers such as ``tests/test_sec09`` reaching for ``_run_residual_diagnostics``)
 # keep working unchanged.
 from process_improve.experiments._analyses._shared import (
-    BLOCK_COL,
-    WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
     _no_intercept_note,
@@ -61,7 +59,7 @@ from process_improve.experiments._analyses.mixture import (
     run_mixture_significance,
     spans_constant,
 )
-from process_improve.experiments._analyses.model_selection import _run_model_selection
+from process_improve.experiments._analyses.model_selection import _Formula, _run_model_selection
 from process_improve.experiments._analyses.ols_extractors import (
     _joint_inference,
     _run_anova,
@@ -80,7 +78,7 @@ from process_improve.experiments._analyses.split_plot import (
     sum_coding_env,
 )
 from process_improve.experiments._analyses.transforms import transform_response, validate_transform
-from process_improve.experiments._lm import (
+from process_improve.experiments._formula import (
     block_levels,
     real_names,
     stand_ins_for,
@@ -91,6 +89,7 @@ from process_improve.experiments._lm import (
 )
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.designs_mixture_process import ReducedRankFormula
+from process_improve.experiments.designs_utils import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 logger = logging.getLogger(__name__)
@@ -391,7 +390,7 @@ def _stand_in_factors(
     """Put each factor whose name the model calls under a stand-in name, as the response is (#986).
 
     A factor named ``I`` hides patsy's ``I()`` in every square term, and one named ``C`` hides
-    ``C()`` (see :func:`~process_improve.experiments._lm.stand_ins_for`); a factor the model only
+    ``C()`` (see :func:`~process_improve.experiments._formula.stand_ins_for`); a factor the model only
     names keeps its name. Returns the data, the model and the factor columns under the stand-ins,
     and each real name mapped to its stand-in, through which the results are read back.
     """
@@ -620,7 +619,10 @@ def _add_block_term(df: pd.DataFrame, formula: str, model: str) -> tuple[pd.Data
                     stacklevel=user_stacklevel(),
                 )
             return df, formula, ()
-        rhs = " + ".join(term for term in terms if term != BLOCK_COL)
+        # The contrasts go in front, and patsy reads "Block1 + -1 + x" as a model with an intercept: a formula
+        # that opens with -1 says so with 0, which drops the intercept wherever it stands.
+        kept = ["0" if term.replace(" ", "") == "-1" else term for term in terms if term != BLOCK_COL]
+        rhs = " + ".join(kept)
 
     levels = block_levels(df[BLOCK_COL])
     df = df.copy()
@@ -1051,16 +1053,36 @@ def _mixture_handlers(fit: _Fit) -> dict[str, Callable[[], dict[str, Any]]]:
     }
 
 
-def _mixture_formula_terms(fit: _Fit) -> list[str] | None:
-    """Return the terms of a formula analysed as a mixture model, less the blocks; None for any other model.
+def _searched_formula(fit: _Fit) -> _Formula | None:
+    """Return an explicit formula as model_selection searches it, less its blocks; None for a named model.
 
-    model_selection searches them as it does a Scheffe model's: not as the interactions model,
-    whose intercept the blends already make up (#1129). It leaves the blocks out of every model.
+    The search is over the formula's own terms: a term the formula has, a square among them, is one the search
+    may keep, and no other comes in. One analysed as a mixture model is searched as a Scheffe model is: not as
+    the interactions model, whose intercept the blends already make up (#1129).
     """
-    if not fit.mixture or fit.model in SCHEFFE_MODELS:
+    if fit.model in _NAMED_MODELS:
         return None
     terms = ModelDesc.from_formula(fit.model).rhs_termlist
-    return [t.name() for t in terms if not _references(t.name(), BLOCK_COL)]
+    own = [t for t in terms if t.factors and not _references(t.name(), BLOCK_COL)]
+    return _Formula(
+        [tuple(factor.name() for factor in t.factors) for t in own],
+        mixture=fit.mixture,
+        intercept=any(not t.factors for t in terms),
+    )
+
+
+def _block_terms(fit: _Fit) -> list[str]:
+    """Return the terms that fit the blocks, which model_selection keeps in every model it scores.
+
+    They are the contrast columns :func:`_add_block_term` made, and the terms of an explicit formula that name
+    the block column themselves (``C(Block)``, ``Block:A``). The formula's own ``Block`` term is not among the
+    second where the contrasts stand in its place.
+    """
+    if fit.model in _NAMED_MODELS:
+        return list(fit.blocks)
+    terms = ModelDesc.from_formula(fit.model).rhs_termlist
+    own = [t.name() for t in terms if t.factors and _references(t.name(), BLOCK_COL)]
+    return [*fit.blocks, *(name for name in own if not (fit.blocks and name == BLOCK_COL))]
 
 
 def _in_blocks(points: pd.DataFrame, fit: _Fit) -> pd.DataFrame:
@@ -1127,7 +1149,8 @@ def _handlers(
             fit.response_col,
             fit.factor_cols,
             model=fit.searched_model or fit.model,
-            mixture_terms=_mixture_formula_terms(fit),
+            formula=_searched_formula(fit),
+            blocks=_block_terms(fit),
         ),
         "box_cox": box_cox,
         "lenth_method": lambda: _effects(fit, lenth=True),

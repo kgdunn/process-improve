@@ -15,7 +15,16 @@ import numpy as np
 import pytest
 
 from process_improve.experiments import TrueProcess
-from tests.web._support import FACTORS, coded, edit_workbook, factors_named, fill_workbook, held_of, run_sheet
+from tests.web._support import (
+    FACTORS,
+    coded,
+    edit_workbook,
+    factors_named,
+    fill_workbook,
+    held_of,
+    run_sheet,
+    workbook_of,
+)
 from tests.web.api.test_balance import TWO, results_of
 from tests.web.api.test_best_settings import CONFIRMATION, best_of, confirmed, setting
 from tests.web.api.test_errors import SUPPLIED
@@ -59,7 +68,7 @@ def test_a_blank_label_is_named_by_its_run_not_as_nan(api, blank):
 def test_a_mixture_workbook_without_a_component_is_refused(api):
     """A component's column deleted from the Runs sheet in Excel is named in the refusal."""
     design = lattice(api)
-    filled = fill_workbook(design["xlsx_base64"], lambda runs: 10 + 5 * runs["A"])
+    filled = fill_workbook(workbook_of(api, design), lambda runs: 10 + 5 * runs["A"])
     book = edit_workbook(filled, lambda sheets: sheets["Runs"].pop("B"))
     assert api.error("api_analyze", {"xlsx_base64": book}) == "The Runs sheet is missing column(s): B."
 
@@ -72,6 +81,9 @@ def test_a_mixture_needs_a_completed_run_per_coefficient(api):
         "The quadratic blending model has 6 coefficients, so it needs at least 6 completed runs, and 5 are complete. "
         "Still to run: 6, 7."
     )
+    request = {**held, "responses": [1.0, 2.0, 3.0, 4.0, 5.0, None, None], "set_aside": [7]}
+    aside = api.error("api_analyze_runs", request)
+    assert aside.endswith("and 5 are complete. Still to run: 6. Set aside: 7."), "a run set aside is named apart"
 
 
 def test_a_mixture_sent_back_with_limits_on_its_settings_is_refused(api):

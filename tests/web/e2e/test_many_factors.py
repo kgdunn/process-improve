@@ -46,9 +46,9 @@ def disabled(page, selector: str) -> list[str]:
 
 
 def coefficients(page) -> list[str]:
-    """Return the terms of the coefficients table Learn shows, the intercept first."""
+    """Return the terms of the coefficients table Learn shows, by name: the table lists them by significance."""
     table = page.locator("#analysis table").first
-    return [row.locator("td").first.text_content() for row in table.locator("tbody tr").all()]
+    return sorted(row.locator("td").first.text_content() for row in table.locator("tbody tr").all())
 
 
 @pytest.mark.parametrize("k", MANY)
@@ -81,7 +81,7 @@ def test_a_screening_design_of_many_factors_is_briefed_made_and_analysed(fresh_p
     assert page.text_content("#model-many").startswith(
         "Past 12 factors, Learn fits the main effects, or the terms you choose:"
     )
-    assert coefficients(page) == ["Intercept", *(f["name"] for f in factors(k))]
+    assert coefficients(page) == sorted(["Intercept", *(f["name"] for f in factors(k))])
     saved = saved_studies(page, lambda studies: bool(studies) and len(studies[0]["design"]["spec"]["factors"]) == k)
     assert saved[0]["v"] == 4, "saved in the format an earlier Factorial refuses as a later one's"
 

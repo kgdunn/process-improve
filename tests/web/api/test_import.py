@@ -108,8 +108,14 @@ def test_a_designed_table_becomes_a_study_learn_analyses(api):
     assert (spec["response"], spec["response_info"]["units"]) == ("Yield", "%")
     assert (campaign["title"], campaign["model"], made["left_out"]) == ("Trials in March", "", [])
     assert campaign["sources"] == ["entered"] * 16
-    findings = analysed(api, campaign)["findings"]
-    assert findings[0].startswith("Pressure matters most: raising Pressure from 1 to 3 bar lowers Yield by ")
+    leads = analysed(api, campaign)["findings"][0]
+    assert (leads["kind"], leads["factor"], leads["up"], leads["low"], leads["high"]) == (
+        "leads",
+        "Pressure",
+        False,
+        1,
+        3,
+    )
 
 
 def test_records_say_what_they_cannot_show(api):

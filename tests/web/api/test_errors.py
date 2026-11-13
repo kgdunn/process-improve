@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic
+from tests.web._support import FACTORS, WEB, edit_workbook, factors_named, fill_workbook, quadratic, workbook_of
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -55,7 +55,7 @@ def _workbook(edit: Callable[[dict], object], **request: object) -> Callable[[Ex
     """Build an upload of the worked example's workbook, filled in and then changed as a reader could in Excel."""
 
     def payload(ex: Example) -> dict:
-        filled = fill_workbook(ex["design"]["xlsx_base64"], quadratic)
+        filled = fill_workbook(ex["workbook"], quadratic)
         return {"xlsx_base64": edit_workbook(filled, edit), **request}
 
     return payload
@@ -792,16 +792,17 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _mixed(best={"A": 0.5, "B": 0.6, "C": 0.0}),
         "The page sent a best blend this page did not write.",
     ),
-    "a blocked design's model to simplify": (
+    "a mixture's model to simplify": (
         "api_simpler_model",
-        lambda ex: {
-            **ex["held"],
-            "spec": {**ex["held"]["spec"], "options": {**ex["held"]["spec"].get("options", {}), "n_blocks": 3}},
-            "responses": ex["simulated"]["responses"],
-        },
+        _mixed(),
+        "A mixture's model is chosen by name, under Model: the page proposes no simpler one.",
+    ),
+    "a model with one factor nested in another, to simplify": (
+        "api_simpler_model",
+        lambda ex: ex["nested"],
         (
-            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
-            "choose this study's terms yourself, under Terms you choose."
+            "The page proposes no simpler model where one factor is nested in another: "
+            "take terms out, or add them, in the list of terms."
         ),
     ),
     "a model that uses every run, to simplify": (  # ten coefficients, and ten runs with a result
@@ -1412,23 +1413,48 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         _workbook(_curve_sheet(lambda _: pd.DataFrame({0: [0.0], 1: [1.0], 2: [2.0]}))),
         "The Curves sheet has 1 rows for 15 runs.",
     ),
+    "correlation map: a mixture": (
+        "api_correlations",
+        _mixed(),
+        "A mixture's components sum to one, so they move together by design: no map is drawn.",
+    ),
+    "correlation map: a factor of three levels": (
+        "api_correlations",
+        _spec(factors=[*FACTORS[:2], {"name": "S", "type": "categorical", "levels": ["A", "B", "C"]}]),
+        "This map is for factors with ranges or of two levels, not for one of three levels or more.",
+    ),
+    "correlation map: more factors than the page models the interactions of": (
+        "api_correlations",
+        lambda _: _screening(13),
+        "This map is drawn for 2 to 12 factors, and the study has 13.",
+    ),
 }
 
 
 @pytest.fixture(scope="module")
 def example(worked_example: dict[str, Any], api) -> Example:
-    """Return the worked example, a 9-run DSD that cannot fit the quadratic model whatever its results, and a mixture.
+    """Return the worked example with its workbook, a 9-run DSD that cannot fit the quadratic model, and a mixture.
 
-    The mixture is a simplex lattice in three components, with results simulated from a blend.
+    The mixture is a simplex lattice in three components, with results simulated from a blend. ``nested`` is a
+    study of batches within suppliers, three runs of each, with the model that says so.
     """
+    supplier = {"name": "Supplier", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    batch = {"name": "Batch", "type": "categorical", "levels": ["first", "second"]}
+    within = {"design_type": "full_factorial", "factors": [supplier, batch], "n_center_points": 0, "n_replicates": 3}
+    batches = api.ok("api_make_design", within)
+    nested = {key: batches[key] for key in ("spec", "columns", "rows")}
+    nested |= {"responses": [40.0 + (7 * run) % 5 for run in range(batches["n_runs"])]}
+    nested |= {"model": {"terms": [["Supplier"], ["Supplier", "Batch"]]}}
     dsd = api.ok("api_make_design", {"design_type": "dsd", "factors": FACTORS, "n_center_points": 1})
     lattice = api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": COMPONENTS})
     mixture = {key: lattice[key] for key in ("spec", "columns", "rows")}
     responses = api.ok("api_simulate", mixture)["responses"]
     return {
         **worked_example,
+        "workbook": workbook_of(api, worked_example["design"]),
         "dsd": {key: dsd[key] for key in ("spec", "columns", "rows")},
         "mixture": {**mixture, "responses": responses},
+        "nested": nested,
     }
 
 

@@ -1,0 +1,85 @@
+"""Stop, against the page's own worker: Pyodide ended in the middle of a search, and started again.
+
+``tests/web/e2e/test_stop.py`` holds a reply back from a stand-in worker. Here the worker is real: the search for
+the optimal designs of a brief of six factors, with squares in its model, takes Pyodide long enough for Stop to be
+offered (about fifteen seconds where five or seven factors take about four, which a fast machine could finish before
+Stop is offered at all), and ending it ends Python itself. The page starts Python again from what the browser kept,
+a chart is drawn (plotly is installed anew, as the first time), and the same search is stopped as it was the first
+time.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from tests.web._browser import BOOT_TIMEOUT, Console
+from tests.web._support import factors_named
+from tests.web.e2e._page import choose, reveal, set_aim, set_factors, settled
+from tests.web.live.test_live import started
+
+READY = "document.querySelector('#status .status__text').textContent.startsWith('Ready')"
+
+#: Press Stop in the same moment the page offers it. Found visible and then pressed, in two trips to the browser,
+#: Stop could be withdrawn in between: a call that ends takes the offer away, and on a busy machine the page's offer
+#: and the search's reply can come one straight after the other. Run as the offer is made, the press always lands
+#: while the call still waits, which is what a reader pressing Stop sees.
+STOP_ONCE_OFFERED = """() => {
+  window.__stopPressed = false;
+  const stop = document.querySelector('#stop');
+  const offered = new MutationObserver(() => {
+    if (stop.hidden) return;
+    offered.disconnect();
+    stop.click();
+    window.__stopPressed = true;
+  });
+  offered.observe(stop, { attributes: true, attributeFilter: ['hidden'] });
+}"""
+
+
+def search_and_stop(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
+    """Ask for the optimal designs of the brief as well, and stop the search once Stop is offered.
+
+    Stop is offered when a call has waited a while, which this one does: Python is then ended, and started again.
+    """
+    listed = "!document.querySelector('#candidates').hasAttribute('aria-busy') && window.__pi.idle()"
+    page.wait_for_function(listed, timeout=180_000)
+    set_aim(page, "main_quadratic")  # a model with squares: its optimal designs wait until the reader asks
+    page.wait_for_function(listed, timeout=180_000)
+    reveal(page, "#search")
+    assert page.is_hidden("#stop"), "no call waits yet"
+    page.evaluate(STOP_ONCE_OFFERED)  # set before the search, so the offer cannot be missed
+    page.click("#search")
+    page.wait_for_function("window.__stopPressed", timeout=60_000)
+    page.wait_for_function("document.querySelector('#stop').hidden")
+    # The search is answered as stopped, where its designs would have been listed: the status line has by then
+    # moved on to the Python that is starting.
+    page.wait_for_function("document.querySelector('#candidates').textContent.includes('Stopped, as you asked')")
+    page.wait_for_function(READY, timeout=BOOT_TIMEOUT)  # a new worker, and Python in it
+
+
+def test_a_real_search_is_stopped_and_python_starts_again_and_again(own_context, app_url):
+    console = Console()
+    page = own_context.new_page()
+    console.watch(page)
+    page.goto(app_url)
+    started(page)
+    set_factors(page, factors_named(*"ABCDEF"))
+    search_and_stop(page)
+
+    set_aim(page, "main_effects")
+    choose(page, design_type="fractional_factorial")
+    reveal(page, "#generate")
+    page.click("#generate")
+    settled(page, timeout=180_000)  # the Python that followed answers, once it has listed the brief's designs again
+    reveal(page, "#panel-simulate")
+    page.click("#tab-simulate")
+    page.click("#simulate")  # results to practise on, analysed
+    settled(page, timeout=180_000)
+    reveal(page, "#charts")
+    page.wait_for_function(
+        "document.querySelectorAll('#charts .js-plotly-plot').length >= 2", timeout=180_000
+    )  # it lacked plotly, as the first did, and installed it for its first chart
+
+    reveal(page, "#factors")  # back to the brief: the same search is asked for again
+    search_and_stop(page)  # and the worker that followed is ended as the first was
+    assert not console.unexpected(), console.unexpected()

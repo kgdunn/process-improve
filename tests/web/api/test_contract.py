@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, held_of, source
+from tests.web._support import FACTORS, correlated_study, held_of, source
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -124,7 +124,7 @@ READS: dict[str, list[str]] = {
         "lack_of_fit.p_value: number?",
         "lack_of_fit.df_pure_error: int",
         "spread: dict?",
-        "findings[]: str",
+        "findings[].kind: str",
         "diagnostics[].run: int",
         "diagnostics[].fitted: number",
         "diagnostics[].residual: number",
@@ -209,6 +209,20 @@ READS: dict[str, list[str]] = {
         "changed: bool",
         "within: str",
         "adjusted_r_squared: number",
+    ],
+    "correlation map": [
+        "terms[]: str",
+        "matrix[]: list",
+        "k: int",
+        "pairs[].a: str",
+        "pairs[].b: str",
+        "pairs[].r: number",
+        "pairs[].both: bool",
+        "pairs[].blocks: bool",
+        "n_pairs: int",
+        "listed_from: number",
+        "together_from: number",
+        "inseparable_from: number",
     ],
     "charts": [
         "plotly_js: str",
@@ -814,6 +828,7 @@ ENTRY_POINTS = {
     "table read": "api_read_table",
     "table made a study": "api_import_study",
     "simpler model": "api_simpler_model",
+    "correlation map": "api_correlations",
     "charts": "api_plots",
     "charts through the best settings": "api_plots",
     "best settings": "api_best_settings",
@@ -1148,6 +1163,7 @@ def reply(api, worked_example: dict[str, Any]) -> Callable[[str], dict]:
         "table read": lambda: {"text": TABLE},
         "table made a study": lambda: table_read(api),
         "simpler model": lambda: analysed,
+        "correlation map": lambda: held_of(api.ok("api_make_design", correlated_study())),
         "charts": lambda: analysed,
         "charts through the best settings": through_best,
         "best settings": lambda: analysed,

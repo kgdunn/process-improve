@@ -24,6 +24,9 @@ import ast
 import base64
 import contextlib
 import functools
+import importlib
+import importlib.abc
+import importlib.util
 import io
 import itertools
 import json
@@ -37,19 +40,18 @@ import sys
 import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 from scipy.stats import t as t_distribution
 
+from process_improve import experiments as doe
 from process_improve.experiments import (
     DesignRegion,
     Factor,
     NotSeparableError,
     TrueProcess,
-    analyze_experiment,
-    analyze_functional_experiment,
     augment_design,
     compare_designs,
     constraint_through_cuts,
@@ -60,7 +62,7 @@ from process_improve.experiments import (
     signal_to_noise,
 )
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
-from process_improve.experiments._lm import suggest_identifier
+from process_improve.experiments._formula import suggest_identifier
 from process_improve.experiments._orthogonal_arrays import orthogonal_array
 from process_improve.experiments.compare import MODELS as COMPARISON_MODELS
 from process_improve.experiments.design_measures import estimable_models, model_matrix
@@ -83,6 +85,7 @@ from process_improve.univariate import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
+    from types import ModuleType
 
 SPEC_SHEET = "_pi_design"
 RUN_SHEET = "Runs"
@@ -693,13 +696,82 @@ def _clean(value: object) -> object:
     return value
 
 
+#: The packages start-up leaves out, by the name each is imported by: what a workbook and a chart are made with, and
+#: what a model is fitted with, statsmodels and scikit-learn and the two packages only they bring with them. A visit
+#: that makes a run sheet and no more waits for none of them. The worker installs each when a call first lacks it
+#: (``onDemand`` in ``web/python-boot.js``), and what a model is fitted with as soon as the page is ready
+#: (``web/worker.js``).
+ON_DEMAND = ("openpyxl", "plotly", "statsmodels", "sklearn", "joblib", "threadpoolctl")
+
+
+def _absent(package: str) -> bool:
+    """Say whether a package cannot be imported as Python now stands."""
+    try:
+        return importlib.util.find_spec(package) is None
+    except ImportError:  # a finder may say so itself, as Pyodide's does of a package of its release
+        return True
+
+
+class _NotYet(importlib.abc.MetaPathFinder):
+    """Refuse a package of :data:`ON_DEMAND` until the worker says it is in.
+
+    A package's files are in place before it can be imported: the browser unpacks it, then loads its compiled
+    modules one at a time, and other calls are answered in between. An import in that gap finds the files, fails
+    on a module half loaded, and leaves the package broken for the rest of the visit. So a package that is absent
+    as this file is imported is refused, as one that is not there, until the worker has finished installing it
+    (:func:`installed`). A call that imports it sooner is answered with ``needs``, like any other that lacks it:
+    the worker waits for its own install, and makes the call again. Where every package is there from the start,
+    as under the tests' own Python, nothing is refused.
+    """
+
+    def __init__(self, packages: Iterable[str]) -> None:
+        self.waiting = {package for package in packages if _absent(package)}
+
+    def find_spec(self, fullname: str, path: object = None, target: object = None) -> None:  # noqa: ARG002
+        """Raise, as Python does for a module that is not there, for any module of a package still waited for."""
+        if fullname.partition(".")[0] in self.waiting:
+            raise ModuleNotFoundError(f"No module named {fullname!r}", name=fullname)
+
+
+_NOT_YET = _NotYet(ON_DEMAND)
+sys.meta_path.insert(0, _NOT_YET)
+
+
+def installed(packages: str) -> None:
+    """Take the worker's word that these packages are in, each by the name it is imported by, as a JSON list."""
+    _NOT_YET.waiting.difference_update(json.loads(packages))
+
+
+def _lacking(error: BaseException) -> str | None:
+    """Name the package of :data:`ON_DEMAND` that a call stopped for want of; None for any other error.
+
+    Python raises the same error wherever the import is: in this file, or in a module of the library that is
+    imported when a call first needs it. A package that is there, while something it imports is not, is an error
+    like any other: the worker has nothing to install for it.
+    """
+    if not isinstance(error, ModuleNotFoundError):
+        return None
+    package = (error.name or "").partition(".")[0]
+    return package if package in ON_DEMAND else None
+
+
+def _installed(package: str) -> ModuleType:
+    """Import a package of :data:`ON_DEMAND` before code that needs it but would not say so in Python's own way.
+
+    pandas, for one, reports a missing openpyxl in words of its own, and the library draws no chart without plotly.
+    Imported here first, a missing package ends the call as :func:`_lacking` reads it.
+    """
+    return importlib.import_module(package)
+
+
 def _reply(fn: Callable[[dict], dict], payload: str) -> str:
     """Run ``fn`` on the decoded payload; report errors as data, not exceptions.
 
     Whatever the library warned about during the call travels with the reply as
     ``warnings``, so the page can show it rather than leave it in the console. An error
     nothing here expected comes back in one line, its type and message: the page shows
-    the error as it is, and a traceback is no sentence for a reader.
+    the error as it is, and a traceback is no sentence for a reader. A call that lacks a package start-up leaves
+    out says so in ``needs``, for the worker and not for the reader: it installs the package and calls again.
     """
     with _listening() as heard:
         try:
@@ -707,6 +779,8 @@ def _reply(fn: Callable[[dict], dict], payload: str) -> str:
         except (ValueError, KeyError, TypeError) as exc:
             reply = {"ok": False, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001 - anything else still reaches the reader as one line
+            if needs := _lacking(exc):
+                return json.dumps({"ok": False, "needs": needs})
             reply = {"ok": False, "error": f"Python stopped with {type(exc).__name__}: {exc}"}
     reply["warnings"] = list(dict.fromkeys(_LOG_PREFIX.sub("", message) for message in heard))
     return json.dumps(reply)
@@ -1425,10 +1499,10 @@ def catalogue(_: dict) -> dict:
 
 
 def make_design(spec: dict) -> dict:
-    """Generate a design and return its runs plus a ready-to-download workbook.
+    """Generate a design and return its runs, in randomised order and in the factors' own units.
 
-    The workbook lists the runs in randomised order, in the factors' own units,
-    with an empty response column for the reader to fill in.
+    Each response has an empty column for the reader to fill in. The workbook of the runs is written when the
+    reader asks for it (:func:`workbook`), so making a design needs nothing that reads or writes one.
     """
     design_type = spec.get("design_type", "")
     if design_type == GIVEN:
@@ -1483,7 +1557,6 @@ def make_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -1592,7 +1665,6 @@ def _given_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -1714,7 +1786,6 @@ def _mixture_design(spec: dict) -> dict:
         "model": stored["model"],
         "facts": facts,
         "spec": stored,
-        "xlsx_base64": _to_workbook(runs, stored),
     }
 
 
@@ -2619,6 +2690,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
     The Curves sheet has a row per run, in the run sheet's order and with its run order, and a column per
     point along the curve, headed by its value. The workbook holds no time of day, so one study gives one file.
     """
+    _installed("openpyxl")
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         runs.to_excel(xl, sheet_name=RUN_SHEET, index=False)
@@ -2634,6 +2706,7 @@ def _to_workbook(runs: pd.DataFrame, spec: dict, curves: np.ndarray | None = Non
 
 
 def _read_workbook(data: bytes) -> tuple[pd.DataFrame, dict, pd.DataFrame | None]:
+    _installed("openpyxl")
     try:
         sheets = pd.read_excel(io.BytesIO(data), sheet_name=None, engine="openpyxl")
     except Exception as exc:  # openpyxl raises several unrelated types on a bad file
@@ -2688,19 +2761,35 @@ def analyze(request: dict) -> dict:
     return _analysis(runs, spec, request.get("model") or spec.get("analysis_model") or spec["model"])
 
 
+def _runs_lacking(pending: list[int], aside: Collection[int]) -> str:
+    """Say which runs a fit lacks, by their run order: those still to do, and those the reader set aside."""
+    waiting = [run for run in pending if run not in aside]
+    held = [run for run in pending if run in aside]
+    still = f" Still to run: {', '.join(map(str, waiting))}." if waiting else ""
+    return f"{still} Set aside: {', '.join(map(str, held))}." if held else still
+
+
 def _analysis(
-    runs: pd.DataFrame, spec: dict, model: str, truth: list[dict] | None = None, *, control: object = None
+    runs: pd.DataFrame,
+    spec: dict,
+    model: str,
+    truth: list[dict] | None = None,
+    *,
+    control: object = None,
+    aside: Collection[int] = (),
 ) -> dict:
     """Fit the model to the completed runs of a run sheet, from a workbook or from the page.
 
     With the true process the results were simulated from, each coefficient also
     carries the true value of what it estimates (see :func:`_add_true_values`). A study of
     one categorical factor of three levels or more compares each level with ``control``,
-    one of its levels, the first unless named (see :func:`_comparison`).
+    one of its levels, the first unless named (see :func:`_comparison`). ``aside`` holds the
+    run orders the reader set aside from this fit: they come without a result, as runs still
+    to do, and a refusal for too few runs names them apart.
     """
     runs = _design_runs(runs)
     if _mixture(spec):
-        return _mixture_analysis(runs, spec, model, truth)
+        return _mixture_analysis(runs, spec, model, truth, aside)
     response = spec["response"]
     factors = spec["factors"]
     names = [f["name"] for f in factors]
@@ -2723,8 +2812,8 @@ def _analysis(
         complete = int(done.sum())
         raise ValueError(
             f"The {name} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
-            f"Still to run: {', '.join(map(str, pending))}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete."
+            f"{_runs_lacking(pending, aside)}"
         )
 
     y_done = y[done].reset_index(drop=True).rename(response)
@@ -2832,7 +2921,7 @@ def _diagnostics(
     with warnings.catch_warnings():
         # Its tests of the residuals as a whole, which the page does not show, warn when the runs are few.
         warnings.simplefilter("ignore")
-        found = analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
+        found = doe.analyze_experiment(coded, y, model=formula, analysis_type="residual_diagnostics", coding="actual")
     found = found["residual_diagnostics"]
 
     def finite(value: float | None) -> float | None:
@@ -2865,53 +2954,48 @@ def _real(coefficient: dict, beyond_margin: dict[str, bool]) -> bool | None:
     return beyond_margin.get(coefficient["term"])
 
 
-def _effect_words(coefficient: dict, factor: dict, spec: dict) -> str:
-    """Write what a factor does to the response from its low setting to its high one, on average over the others."""
-    label, units = _response_words(spec)
+def _effect(coefficient: dict, factor: dict, spec: dict) -> dict[str, Any]:
+    """Return what a factor does to the response from its low setting to its high one, on average over the others.
+
+    ``up`` says whether the response rises. ``change`` is by how much, in the response's units; on the log scale
+    ``ratio`` is the factor it is multiplied or divided by instead; on another scale the change in the
+    response's units depends on where the other factors are set, and neither is given.
+    """
     transform = _transform_of(spec)
-    name, change = factor["name"], 2 * coefficient["coefficient"]
-    up = change > 0
+    change = 2 * coefficient["coefficient"]
+    effect: dict[str, Any] = {
+        "factor": factor["name"],
+        "categorical": _categorical(factor),
+        "low": factor["low"],
+        "high": factor["high"],
+        "factor_units": factor.get("units") or "",
+        "up": change > 0,
+    }
     if transform == "log":
-        amount = (
-            f" {'multiplies' if up else 'divides'} {label} by {max(coefficient['ratio'], 1 / coefficient['ratio']):.3g}"
-        )
+        effect["ratio"] = max(coefficient["ratio"], 1 / coefficient["ratio"])
     elif transform is None:
-        amount = f" {'raises' if up else 'lowers'} {label} by {abs(change):.3g}{f' {units}' if units else ''}"
-    else:  # on another scale the change in the response's units depends on where the others are set
-        amount = f" {'raises' if up else 'lowers'} {label}"
-    if _categorical(factor):
-        return f"changing {name} from {factor['low']} to {factor['high']}{amount}"
-    span = f"{factor['low']:.4g} to {factor['high']:.4g}{' ' + factor['units'] if factor['units'] else ''}"
-    return f"raising {name} from {span}{amount}"
-
-
-def _share_words(share: float) -> str:
-    """Write a share as a whole percentage; one that would round up to 100% and is not all of it as more than 99%."""
-    return "more than 99%" if 0.995 <= share < 1 else f"{share:.0%}"
+        effect["change"] = abs(change)
+    return effect
 
 
 def _fit_findings(
-    label: str, summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
-) -> list[str]:
-    """Say how well the model fits, whether a term may be missing, and which runs to look at again."""
-    said: list[str] = []
+    summary: dict, lenth: dict | None, lack_of_fit: dict | None, diagnostics: list[dict] | None
+) -> list[dict[str, Any]]:
+    """Find how well the model fits, whether a term may be missing, and which runs to look at again."""
+    found: list[dict[str, Any]] = []
     if summary["df_residual"] > 0:
-        fit = f"The model explains {_share_words(summary['r_squared'])} of the variation in {label}"
-        predicted = summary.get("r_squared_pred")
-        seen = "." if predicted is None else f", and about {_share_words(max(predicted, 0))} in runs it has not seen."
-        said.append(fit + seen)
-    else:
-        said.append(
-            "The model uses every run, so none is left to measure the noise with: "
-            + ("the effects are judged by Lenth's method." if lenth else "no effect can be tested.")
+        unseen = summary.get("r_squared_pred")
+        found.append(
+            {"kind": "fit", "explained": summary["r_squared"], "unseen": None if unseen is None else max(unseen, 0)}
         )
+    else:
+        found.append({"kind": "saturated", "lenth": bool(lenth)})
     if lack_of_fit and lack_of_fit.get("significant"):
-        said.append("The repeated runs agree more closely than the model fits them: a term may be missing.")
-    unusual = [str(d["run"]) for d in diagnostics or [] if d["unusual"]]
+        found.append({"kind": "lack_of_fit"})
+    unusual = [d["run"] for d in diagnostics or [] if d["unusual"]]
     if unusual:
-        runs = f"Run {unusual[0]}'s result is" if len(unusual) == 1 else f"The results of runs {', '.join(unusual)} are"
-        said.append(f"{runs} far from what the model expects: check before trusting the fit.")
-    return said
+        found.append({"kind": "unusual", "runs": unusual})
+    return found
 
 
 #: A fitted term that is a factor's square, as the library names it: ``I(T ** 2)``.
@@ -2929,36 +3013,40 @@ def _swing(term: str, coefficient: float) -> float:
     return abs(coefficient) if _SQUARE.fullmatch(term) else 2 * abs(coefficient)
 
 
-def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[str]:
-    """Say which factor matters most, and by how much when it moves the response steadily across its range.
+def _leading_finding(first: str, by_term: dict, judged: dict, simple: dict, spec: dict) -> list[dict[str, Any]]:
+    """Find which factor matters most, and by how much when it moves the response steadily across its range.
 
     A factor may matter most through its square or an interaction while its own main effect is nothing to speak
     of: the response then does not rise or fall steadily with it, and no one amount says what it does.
     """
-    label, units = _response_words(spec)
     if not judged.get(first):
-        return [f"{first} matters most, though {label} does not rise or fall steadily with it: see how below."]
-    said = [f"{first} matters most: {_effect_words(by_term[first], simple[first], spec)}, on average."]
+        return [{"kind": "leads_unsteadily", "factor": first}]
+    found: list[dict[str, Any]] = [{"kind": "leads", **_effect(by_term[first], simple[first], spec)}]
     worth = (spec.get("response_info") or {}).get("smallest_change")
     if worth and _transform_of(spec) is None:
         change = abs(2 * by_term[first]["coefficient"])
-        than = "more than" if change > worth else "less than" if change < worth else "the same as"
-        said.append(f"That is {than} the {worth:.3g}{f' {units}' if units else ''} you said is worth finding.")
-    return said
+        found.append(
+            {
+                "kind": "worth",
+                "than": "more" if change > worth else "less" if change < worth else "same",
+                "worth": worth,
+            }
+        )
+    return found
 
 
-def _shape_findings(label: str, judged: dict, simple: dict) -> list[str]:
-    """Say which effects depend on another factor, and over which factors the response curves."""
-    said = []
+def _shape_findings(judged: dict, simple: dict) -> list[dict[str, Any]]:
+    """Find which effects depend on another factor, and over which factors the response curves."""
+    found: list[dict[str, Any]] = []
     for term, is_real in judged.items():
         named = _factors_of(term)
         if not is_real or not set(named) <= set(simple):
             continue
         if _SQUARE.fullmatch(term):
-            said.append(f"{label} curves over {named[0]}: its best setting may lie inside the range, not at an end.")
+            found.append({"kind": "curves", "factor": named[0]})
         elif len(named) == len("ab"):
-            said.append(f"The effect of {named[0]} depends on {named[1]}: read the two together, not one at a time.")
-    return said
+            found.append({"kind": "depends", "factor": named[0], "on": named[1]})
+    return found
 
 
 def _findings(
@@ -2968,16 +3056,21 @@ def _findings(
     lenth: dict | None,
     lack_of_fit: dict | None,
     diagnostics: list[dict] | None,
-) -> list[str]:
-    """Say in plain sentences what the analysis found, from its numbers alone: the same results give the same words.
+) -> list[dict[str, Any]]:
+    """Find what the analysis says, from its numbers alone, for the page to write in sentences (logic.findingWords).
 
-    Which factor matters most and by how much, which others are real and which cannot be told from the noise,
-    which effects depend on another factor, where the response curves, how well the model fits, and which runs
-    to look at again. A factor matters through any term that holds it, so one whose square or interaction is
-    real is never said to be lost in the noise, and the factor that matters most is the one whose largest real
-    term moves the response furthest. A factor of three levels or more has no one effect, and is left to its table.
+    Each finding is ``{"kind": ..., ...}``, in the order the page says them: which factor matters most and by
+    how much (``leads``, or ``leads_unsteadily``; then ``worth``, against the change the reader said is worth
+    finding), which others are real (``also``) or that none is (``none``), which cannot be told from the noise
+    (``quiet``) or from each other (``tangled``), which effects depend on another factor (``depends``), where the
+    response curves (``curves``), how well the model fits (``fit``, or ``saturated``), whether a term may be
+    missing (``lack_of_fit``), and which runs to look at again (``unusual``). The same results give the same
+    findings.
+
+    A factor matters through any term that holds it, so one whose square or interaction is real is never
+    lost in the noise, and the factor that matters most is the one whose largest real term moves the response
+    furthest. A factor of three levels or more has no one effect, and is left to its table.
     """
-    label, _ = _response_words(spec)
     simple = {f["name"]: f for f in spec["factors"] if not _several(f)}
     beyond = {e["term"]: bool(e["active_ME"]) for e in (lenth or {}).get("effects", [])}
     judged = {c["term"]: _real(c, beyond) for c in coefficients if c.get("coefficient") is not None}
@@ -2994,30 +3087,22 @@ def _findings(
                 reach[name] = max(reach.get(name, 0.0), swing)
                 total[name] = total.get(name, 0.0) + swing
     ranked = sorted(reach, key=lambda name: (-reach[name], -total[name]))
-    said: list[str] = []
+    found: list[dict[str, Any]] = []
     if ranked:
         first, *others = ranked
-        said += _leading_finding(first, by_term, judged, simple, spec)
-        steady = [n for n in others if judged.get(n)]
+        found += _leading_finding(first, by_term, judged, simple, spec)
+        steady = [{"name": n, "up": by_term[n]["coefficient"] > 0} for n in others if judged.get(n)]
         if steady:
-            ways = [f"{n} ({'raises' if by_term[n]['coefficient'] > 0 else 'lowers'} it)" for n in steady]
-            said.append(f"Also real: {', '.join(ways)}.")
+            found.append({"kind": "also", "factors": steady})
     elif mains:
-        said.append(f"No factor's effect on {label} stands out from the noise.")
+        found.append({"kind": "none"})
     tangled = [n for n in mains if n not in reach and (by_term[n].get("vif") or 0) > TANGLED_VIF]
     quiet = [n for n in mains if n not in reach and n not in tangled]
     if ranked and quiet:
-        said.append(f"Not told apart from the noise: {', '.join(quiet)}.")
+        found.append({"kind": "quiet", "factors": quiet})
     if tangled:
-        said.append(
-            f"{_listed(tangled)} moved together with other factors in these runs, so the runs cannot judge "
-            f"{'it' if len(tangled) == 1 else 'any of them'} alone."
-        )
-    return [
-        *said,
-        *_shape_findings(label, judged, simple),
-        *_fit_findings(label, summary, lenth, lack_of_fit, diagnostics),
-    ]
+        found.append({"kind": "tangled", "factors": tangled})
+    return [*found, *_shape_findings(judged, simple), *_fit_findings(summary, lenth, lack_of_fit, diagnostics)]
 
 
 def _compared_as_measured(spec: dict, transform: str | None) -> list[str]:
@@ -3045,7 +3130,7 @@ def _box_cox_hint(coded: pd.DataFrame, raw: pd.Series, fit: dict, transform: str
         return None
     try:
         with _listening():
-            found = analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
+            found = doe.analyze_experiment(coded, raw, model=fit["formula"], analysis_type="box_cox", coding="actual")
     except (ValueError, np.linalg.LinAlgError):
         return None
     found = found.get("box_cox") or {}
@@ -3585,7 +3670,9 @@ MIXTURE_NOTES = [
 ]
 
 
-def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list[dict] | None = None) -> dict:
+def _mixture_analysis(
+    runs: pd.DataFrame, spec: dict, model: object, truth: list[dict] | None = None, aside: Collection[int] = ()
+) -> dict:
     """Fit a Scheffé model to a mixture's completed runs, in their proportions, which are not coded.
 
     The mixture ANOVA tests the linear blending terms together, whether the components blend
@@ -3608,8 +3695,8 @@ def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list
         complete = int(done.sum())
         raise ValueError(
             f"The {_model_name(model)} model has {n_terms} coefficients, so it needs at least {n_terms} "
-            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete. "
-            f"Still to run: {', '.join(map(str, pending))}."
+            f"completed runs, and {complete} {'is' if complete == 1 else 'are'} complete."
+            f"{_runs_lacking(pending, aside)}"
         )
     blends = runs.loc[done, names].astype(float).reset_index(drop=True)
     out = _mixture_fit(blends, y[done].reset_index(drop=True).rename(response), model)
@@ -3654,7 +3741,8 @@ def _mixture_analysis(runs: pd.DataFrame, spec: dict, model: object, truth: list
 def _mixture_fit(blends: pd.DataFrame, y: pd.Series, model: str, analyses: list[str] | None = None) -> dict:
     """Fit a Scheffé model to blends, refusing one the runs cannot estimate in full."""
     with _listening() as heard:
-        out = analyze_experiment(blends, y, model=model, analysis_type=analyses or MIXTURE_ANALYSES, coding="actual")
+        wanted = analyses or MIXTURE_ANALYSES
+        out = doe.analyze_experiment(blends, y, model=model, analysis_type=wanted, coding="actual")
     summary = out["model_summary"]
     if summary["rank_deficient"]:
         raise ValueError(
@@ -3720,7 +3808,7 @@ def _fit_estimable(
     blocked = BLOCK in coded.columns and len(set(coded[BLOCK])) > 1
     formula, early = _first_formula(coded, model, names, categorical, blocked=blocked)
     with _listening() as heard:
-        out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+        out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     chains: dict[str, list[str]] = {}
     labels: dict[str, str] = {}
     not_estimable: list[str] = []
@@ -3734,7 +3822,7 @@ def _fit_estimable(
         kept = [term for term in _fitted_terms(out, names) if term not in dropped]
         if dropped and kept:
             formula = _formula(kept, names, blocked=blocked)
-            out = analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
+            out = doe.analyze_experiment(coded, y, model=formula, analysis_type=ANALYSES, coding="actual")
     else:
         _relay(heard)
     summary = out["model_summary"]
@@ -3861,7 +3949,7 @@ def _saturated(
                 "be tested. Add runs, or fit fewer terms."
             )
         ]
-    lenth = analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
+    lenth = doe.analyze_experiment(coded, y, model=formula, analysis_type="lenth_method")["lenth_method"]
     lenth["effects"] = [{**e, "label": labels.get(e["term"], _pretty(e["term"]))} for e in lenth["effects"]]
     notes = [
         (
@@ -4559,12 +4647,16 @@ def analyze_runs(request: dict) -> dict:
     ``truth``, the process the results were simulated from, adds each coefficient's true value.
     ``response`` names the response to analyse, by its column; the first without it. Each response
     is fitted to the runs that have its result, so a run with some of its results in counts for those.
+    ``set_aside`` lists the run orders the reader set aside from this fit, which come with no result:
+    a refusal for too few runs then says which runs are set aside, and which are still to do.
     """
     spec = _checked_spec(request.get("spec") or {})
     runs, _ = _on_model_scale(_runs_frame(request, spec), spec)  # the spec as sent: the reply gives it back
     spec = _for_response(spec, request.get("response"))
     model = request.get("model") or spec["model"]
-    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"))
+    sent = request.get("set_aside")
+    aside = {run for run in sent if isinstance(run, int)} if isinstance(sent, list) else set()
+    return _analysis(runs, spec, model, request.get("truth"), control=request.get("control"), aside=aside)
 
 
 def _true_coefficients(truth: list[dict], names: list[str]) -> dict[str, float]:
@@ -4587,7 +4679,7 @@ def _add_true_values(coefficients: list[dict], coded: pd.DataFrame, formula: str
     """
     mean = TrueProcess(truth, sigma=1.0).mean(coded)
     with _listening():
-        noiseless = analyze_experiment(
+        noiseless = doe.analyze_experiment(
             coded, pd.Series(mean, name="y"), model=formula, analysis_type="coefficients", coding="actual"
         )
     # Rounded to drop the rounding error of a fit with no noise (a true zero reads 1e-14).
@@ -4661,8 +4753,7 @@ def _xlsx_cells(data: bytes, sheet: object) -> tuple[list[list[float | str | Non
     """Read one sheet of a workbook, the first unless named: its cells' values, never its formulas."""
     import zipfile  # noqa: PLC0415
 
-    from openpyxl import load_workbook  # noqa: PLC0415 - loaded with the page's own workbook
-
+    load_workbook = _installed("openpyxl").load_workbook
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as packed:
             unpacked = sum(part.file_size for part in packed.infolist())
@@ -5120,35 +5211,28 @@ def _chosen_pair(raw: object, axes: list[str]) -> list[str] | None:
 
 
 def _more_charts(
-    spec: dict, axes: list[str], pair: list[str], settings: dict[str, int], transform: str | None, residual_df: int
-) -> dict[str, tuple[str, str | None, list[str], bool]]:
-    """List the page's further charts this study can draw, each as the library's plot, its scale and its factors.
+    spec: dict, axes: list[str], pair: list[str], coded: pd.DataFrame, transform: str | None, residual_df: int
+) -> dict[str, list[str]]:
+    """List the page's further charts this study can draw (see :data:`MORE_CHARTS`), each with the factors it draws.
 
-    ``settings`` counts the settings each factor of ``axes`` was run at. The last item of each says whether the
-    chart is drawn over the response surface's two factors, and so takes the surface's shading and held values.
+    ``coded`` holds the runs fitted, a column a factor of ``axes``. A chart of the residuals draws no factor.
     """
     surface = len(pair) > 1
-    charts: dict[str, tuple[str, str | None, list[str], bool]] = {}
-    if surface:
-        charts["surface_3d"] = ("surface_3d", transform, pair, True)
-    # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
-    # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
-    if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]}:
-        charts["prediction_variance"] = ("prediction_variance", None, pair, True)
-    charts["perturbation"] = ("perturbation", transform, axes, False)
     # Averages of the runs at each setting say something only where runs share settings: three settings or fewer.
-    few = [name for name in axes if settings[name] <= MAX_AVERAGED_SETTINGS]
-    if few:
-        charts["main_effects"] = ("main_effects", transform, few, False)
-    if surface and set(pair) <= set(few):
-        charts["interaction"] = ("interaction", transform, pair, False)
+    few = [name for name in axes if coded[name].round(6).nunique() <= MAX_AVERAGED_SETTINGS]
     corners = sorted(axes, key=lambda n: (n not in pair, axes.index(n)))[:3]  # the pair drawn, and the next factor
-    if len(corners) == len("xyz") and transform is None:  # the library prints the corners on the model's scale
-        charts["cube"] = ("cube_plot", None, corners, False)
-    if residual_df > 0:
-        charts["normal_probability"] = ("normal_probability", transform, [], False)
-        charts["residuals_order"] = ("residuals_vs_order", transform, [], False)
-    return charts
+    drawn = {
+        "perturbation": axes,
+        "main_effects": few or None,
+        "interaction": pair if surface and set(pair) <= set(few) else None,
+        "surface_3d": pair if surface else None,
+        # The library prints the corners on the model's scale, so a transformed fit has no cube.
+        "cube": corners if len(corners) == len("xyz") and transform is None else None,
+        "normal_probability": [] if residual_df > 0 else None,
+        "residuals_order": [] if residual_df > 0 else None,
+        "prediction_variance": pair if surface else None,
+    }
+    return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 
 
 def plots(request: dict) -> dict:
@@ -5173,9 +5257,7 @@ def plots(request: dict) -> dict:
     when the centre of the ranges cannot be run either, the other factors are held at a
     central setting that can, which ``held`` lists in their own units.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
-    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
-
+    plotly = _installed("plotly")  # before the library's charts, which import it
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     spec = _checked_spec(request.get("spec") or {})
@@ -5196,7 +5278,7 @@ def plots(request: dict) -> dict:
     y = y[done].reset_index(drop=True).rename(response)
     with _listening():
         fit = _fit_estimable(coded, y, fitted, columns, categorical)
-        out = analyze_experiment(
+        out = doe.analyze_experiment(
             coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
         )
     rows = coded.assign(**{response: y}).to_dict("records")
@@ -5210,7 +5292,7 @@ def plots(request: dict) -> dict:
 
     def draw(kind: str, results: dict, scale: str | None, drawn: list[str] = pair, **options: Any) -> str:  # noqa: ANN401
         figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=PlotlyJSONEncoder)
+        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=plotly.utils.PlotlyJSONEncoder)
 
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -5227,15 +5309,13 @@ def plots(request: dict) -> dict:
     if fit["out"]["model_summary"]["df_residual"] > 0:
         figures["residuals"] = draw("residuals_vs_fitted", out, transform)
     if fit["lenth"]:
-        effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
+        effects = doe.analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
-    settings = {name: coded[name].round(6).nunique() for name in axes}
-    residual_df = fit["out"]["model_summary"]["df_residual"]
-    for key, (kind, scale, drawn, on_surface) in _more_charts(
-        spec, axes, pair, settings, transform, residual_df
-    ).items():
-        options = {"factors_to_plot": drawn} if drawn else {}
-        figures[key] = draw(kind, out, scale, drawn, **options, **(shading if on_surface else {}))
+    more = _more_charts(spec, axes, pair, coded, transform, fit["out"]["model_summary"]["df_residual"])
+    for key, drawn in more.items():
+        chart = MORE_CHARTS[key]
+        options = {**({"factors_to_plot": drawn} if drawn else {}), **(shading if chart.on_surface else {})}
+        figures[key] = draw(chart.plot, out, transform if chart.scaled else None, drawn, **options)
     return {
         "figures": figures,
         "contour_factors": pair,
@@ -5244,7 +5324,7 @@ def plots(request: dict) -> dict:
         "shaded": "region" in shading,
         "held": held,
         "held_best": best is not None,
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
 
 
@@ -5252,23 +5332,24 @@ def simpler_model(request: dict) -> dict:
     """Propose the terms of the fitted model that the results support, for the reader to accept or not.
 
     The search is the library's stepwise selection, scored by AICc and keeping effect heredity: an
-    interaction stays only with both its main effects. It
+    interaction stays only with both its main effects. A categorical factor is kept or dropped whole, every
+    level with it, and the blocks of a blocked design are in every model the search scores. It
     searches the terms of the standard model ``within``. ``terms`` holds what it keeps, as the page ticks them
     (see :func:`_chosen_terms`); ``kept`` names them as the tables do, ``dropped`` the fitted terms it leaves
     out and ``added`` those it brings in, and ``changed`` says whether they differ from the model fitted.
+
+    A model with one factor nested in another is not searched. A standard model crosses every pair of its
+    factors, so within one the search proposes the crossed model back; and the model's own terms cannot be
+    given to the library as the page fits them, since the page codes a factor by its levels in one term and by
+    its contrasts in another (:func:`_nested`), which a formula over the factors' labels cannot say.
     Nothing is fitted for the reader here: the page puts the terms in its list when the reader asks.
     """
     spec = _checked_spec(request.get("spec") or {})
     every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
     spec = _for_response(spec, request.get("response"))
     names = [f["name"] for f in spec["factors"]]
-    # shortcut: the search knows a term by its factors, not a block's or a level's contrast; upgrade when the
-    # library's selection keeps a factor's contrasts together and the blocks in every model.
-    if _mixture(spec) or _blocked(spec) or any(_several(f) for f in spec["factors"]):
-        raise ValueError(
-            "The page simplifies a model of numeric and two-level factors, in runs that are not blocked: "
-            "choose this study's terms yourself, under Terms you choose."
-        )
+    if _mixture(spec):
+        raise ValueError("A mixture's model is chosen by name, under Model: the page proposes no simpler one.")
     categorical = _categorical_names(spec)
     model = _checked_model(request.get("model") or spec["model"], names, categorical)
     fitted, columns = _fitted_model(model, spec)
@@ -5285,11 +5366,17 @@ def simpler_model(request: dict) -> dict:
                 "The model uses every run, so none is left to compare a simpler model with: "
                 "judge the effects by Lenth's method, in the table of effects."
             )
-        before = [c["term"] for c in fit["out"]["coefficients"] if c["term"] != "Intercept"]
+        before = _factor_terms(_fitted_terms(fit["out"], columns), spec)
+        if _nested(before, spec):
+            raise ValueError(
+                "The page proposes no simpler model where one factor is nested in another: "
+                "take terms out, or add them, in the list of terms."
+            )
         # The library searches the terms of a standard model: the one fitted, or for terms the reader chose the
         # smallest that holds them all, so a term they took out can come back when the results call for it.
         within = model if isinstance(model, str) else _standard_model_of(before)
-        chosen = analyze_experiment(coded, y, model=within, analysis_type="model_selection", coding="actual")
+        searched = _searched_frame(runs, spec)[done].reset_index(drop=True)
+        chosen = doe.analyze_experiment(searched, y, model=within, analysis_type="model_selection", coding="actual")
     kept = chosen["model_selection"]["selected_terms"]
     return {
         "terms": [_page_term(term) for term in kept],
@@ -5300,6 +5387,43 @@ def simpler_model(request: dict) -> dict:
         "within": within,
         "adjusted_r_squared": chosen["model_selection"]["r_squared_adj"],
     }
+
+
+def _searched_frame(runs: pd.DataFrame, spec: dict) -> pd.DataFrame:
+    """Return the runs as the search for a simpler model reads them: a column for each factor, and each run's block.
+
+    A numeric factor is coded as the analysis codes it. A categorical factor is its levels' labels, where the
+    analysis fits a column for each contrast: the library then knows it for a category, keeps or drops all its
+    contrasts together, and searches no square of it. In a standard model every term has the terms below it,
+    and there the library's columns for the labels span what the page's own columns do.
+    """
+    frame = _coded(runs, spec["factors"])
+    for f in spec["factors"]:
+        if _categorical(f):
+            levels = _levels_of(f)
+            frame[f["name"]] = [levels[i] for i in _level_indices(runs, f)]
+    if _blocked(spec):
+        frame[BLOCK] = runs[BLOCK].to_numpy()
+    return frame
+
+
+def _factor_terms(terms: list[str], spec: dict) -> list[str]:
+    """Name fitted terms by their factors, each once: a term over a level's column of a factor is the factor's.
+
+    The analysis fits a categorical factor of several levels as a column for each contrast, or for each level
+    where another factor is nested in it; the search, and the list the reader ticks, know the factor.
+    """
+    owner = {
+        column: f["name"]
+        for f in spec["factors"]
+        if _categorical(f)
+        for column in (*_contrast_names(f), *_indicator_names(f))
+    }
+    named = [
+        term if term.startswith("I(") else ":".join(dict.fromkeys(owner.get(part, part) for part in term.split(":")))
+        for term in terms
+    ]
+    return list(dict.fromkeys(named))
 
 
 def _standard_model_of(terms: list[str]) -> str:
@@ -5446,11 +5570,6 @@ def _dress_surface_3d(figure: dict, w: dict) -> None:
 def _dress_cube(figure: dict, w: dict) -> None:
     x, y, z = (_factor_axis(f) for f in w["drawn"])
     figure["layout"].update(scene={"xaxis": x, "yaxis": y, "zaxis": z}, showlegend=False)
-    for trace in figure["data"]:  # the edges are the cube; the corners carry the numbers, and no line joins them
-        if trace.get("name") == "Edges":
-            trace["mode"], trace["line"] = "lines", {"color": "#8a8f98", "width": 3}
-        else:
-            trace["mode"] = "markers+text"
 
 
 def _dress_prediction_variance(figure: dict, w: dict) -> None:
@@ -5496,20 +5615,39 @@ def _dress_residuals(axis_title: str) -> Callable[[dict, dict], None]:
     return dress
 
 
-#: How each of the page's further charts is put in the reader's words, by the library's name for the plot.
-_DRESS_MORE: dict[str, Callable[[dict, dict], None]] = {
-    "surface_3d": _dress_surface_3d,
-    "cube_plot": _dress_cube,
-    "prediction_variance": _dress_prediction_variance,
-    "perturbation": _dress_perturbation,
-    "main_effects": _dress_main_effects,
-    "interaction": _dress_interaction,
-    "normal_probability": _dress_residuals("Expected, were the residuals normally distributed"),
-    "residuals_vs_order": _dress_residuals("Run, in the order made"),
+class _Chart(NamedTuple):
+    """One of the page's further charts: the library's plot, and how the page draws it.
+
+    ``plot`` is the library's name for the plot; ``dress`` puts its figure in the reader's words; ``scaled`` says
+    it shows the response, and so follows a transform's scale; ``on_surface`` that it is drawn over the response
+    surface's two factors, with the surface's shading and held values; ``legend_above`` that it has a line per
+    factor or setting, whose legend sits above the plot, off the axis title.
+    """
+
+    plot: str
+    dress: Callable[[dict, dict], None]
+    scaled: bool = True
+    on_surface: bool = False
+    legend_above: bool = False
+
+
+#: The charts under "More charts", in the page's order, by the key the page knows each by: logic.js's CHARTS
+#: holds each one's heading, caption and reading level, and tests/web/page/test_parity.py keeps the two in step.
+MORE_CHARTS: dict[str, _Chart] = {
+    "perturbation": _Chart("perturbation", _dress_perturbation, legend_above=True),
+    "main_effects": _Chart("main_effects", _dress_main_effects, legend_above=True),
+    "interaction": _Chart("interaction", _dress_interaction, legend_above=True),
+    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
+    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
+    "normal_probability": _Chart(
+        "normal_probability", _dress_residuals("Expected, were the residuals normally distributed")
+    ),
+    "residuals_order": _Chart("residuals_vs_order", _dress_residuals("Run, in the order made")),
+    "prediction_variance": _Chart("prediction_variance", _dress_prediction_variance, scaled=False, on_surface=True),
 }
 
-#: The charts with a line per factor or setting: their legend sits above the plot, off the axis title.
-_LEGEND_ABOVE = {"perturbation", "main_effects", "interaction"}
+#: Each further chart by the library's name for its plot, as a figure's dressing knows it.
+_BY_PLOT = {chart.plot: chart for chart in MORE_CHARTS.values()}
 
 
 def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transform: str | None) -> None:
@@ -5523,8 +5661,8 @@ def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transfo
     factors = {f["name"]: f for f in spec["factors"]}
     words = {"label": label, "units": units, "scaled": scaled, "scale_units": scale_units, "transform": transform}
     figure.setdefault("data", [])
-    _DRESS_MORE[kind](figure, {**words, "drawn": [factors[name] for name in drawn]})
-    if kind in _LEGEND_ABOVE:
+    _BY_PLOT[kind].dress(figure, {**words, "drawn": [factors[name] for name in drawn]})
+    if _BY_PLOT[kind].legend_above:
         figure["layout"].update(legend={"y": 1.02, "yanchor": "bottom"}, margin={"t": 40})
 
 
@@ -5550,9 +5688,7 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
     stars the blend on the triangle, and the Cox directions go through the best blend instead (see
     :func:`_cox_through`), so they cross at its prediction, where the page puts the star.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
-    from plotly.utils import PlotlyJSONEncoder  # noqa: PLC0415
-
+    plotly = _installed("plotly")  # before the library's charts, which import it
     from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
 
     names = [f["name"] for f in spec["factors"]]
@@ -5574,14 +5710,14 @@ def _mixture_plots(request: dict, spec: dict) -> dict:
         rows = blends.assign(**{response: y}).to_dict("records")
         figure = create_plot("residuals_vs_fitted", analysis_results=out, design_data=rows, response_column=response)
         dressed = _dressed(figure.to_plotly(), "residuals_vs_fitted", spec, [])
-        figures["residuals"] = json.dumps(dressed, cls=PlotlyJSONEncoder)
+        figures["residuals"] = json.dumps(dressed, cls=plotly.utils.PlotlyJSONEncoder)
     reply: dict[str, Any] = {
         "figures": figures,
         "contour_factors": [],
         "shaded": False,
         "held": [],
         "held_best": best is not None,
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
     if len(names) == 3:
         reply["ternary"] = _ternary(spec, blends, y, fitted, true)
@@ -6143,6 +6279,97 @@ def compare(request: dict) -> dict:
     return result
 
 
+#: The pairs of terms the correlation map lists in words: those correlated this far or more, and this many at most.
+PARTLY_TOGETHER = 0.3
+MOST_PAIRS = 12
+
+
+def _moved_with_blocks(coded: pd.DataFrame, blocks: pd.Series, terms: list[str]) -> dict[str, float]:
+    """Return how far each term moves with the blocks: the correlation of its column with its own means by block.
+
+    0 for a term the blocks balance, and 1 for one that differs only between blocks, which the runs cannot tell
+    from a difference between the blocks. A term that does not vary in the runs has no correlation: it is left out.
+    """
+    moved = {}
+    for term in terms:
+        column = coded[list(_parts(term))].prod(axis=1)
+        centred = column - column.mean()
+        total = float((centred**2).sum())
+        if total > ALIAS_TOLERANCE:
+            between = centred.groupby(blocks.to_numpy()).transform("mean")
+            moved[term] = math.sqrt(float((between**2).sum()) / total)
+    return moved
+
+
+def correlations(request: dict) -> dict:
+    """Return how far each pair of the runs' terms moves together: the comparison's correlation map, for one study.
+
+    The terms are the main effects, the squares and the two-factor interactions, and the number for a pair is the
+    absolute correlation between their columns over the runs, as ``compare_designs`` reckons it: 0 for a pair the
+    runs tell apart in full, 1 for a pair they cannot tell apart at all. ``terms`` and ``matrix`` are the map; a
+    term that does not vary in the runs has no correlation.
+
+    ``pairs`` lists the pairs that matter to the model the design estimates (``model``): two of its terms, which
+    are then known less precisely (``both``), or one of its terms with a term it leaves out, whose effect would
+    show as the model's term (aliasing). A pair of terms the model leaves out says nothing of it, and is not
+    listed. In a blocked design a term of the model may move with the blocks, which the fit holds too: such a pair
+    has ``blocks`` set, and its size is the term's correlation with its own means by block; the map itself draws
+    the factors' terms only. The pairs are those at ``listed_from`` (:data:`PARTLY_TOGETHER`) or above, the largest
+    first and :data:`MOST_PAIRS` at most, each ``{a, b, r, both, blocks}`` with the model's term as ``a``;
+    ``n_pairs`` counts them all. The page's words turn on two more correlations: a pair at ``together_from`` or
+    above moves together, and one at ``inseparable_from`` or above can hardly be told apart; below the first, a
+    pair moves together a little.
+
+    The runs are the ones a model is fitted to: a design made here, or runs as given, such as a table of the
+    reader's own, without the confirmation runs, which no fit uses.
+    """
+    spec = _checked_spec(request.get("spec") or {})
+    if _mixture(spec):
+        raise ValueError("A mixture's components sum to one, so they move together by design: no map is drawn.")
+    if any(_several(f) for f in spec["factors"]):
+        raise ValueError("This map is for factors with ranges or of two levels, not for one of three levels or more.")
+    names = [f["name"] for f in spec["factors"]]
+    if not 2 <= len(names) <= MAX_INTERACTION_FACTORS:
+        raise ValueError(
+            f"This map is drawn for 2 to {MAX_INTERACTION_FACTORS} factors, and the study has {len(names)}."
+        )
+    runs = _design_runs(_runs_frame(request, spec))
+    coded = _coded(runs, spec["factors"])
+    with _listening():
+        (frame,) = compare_designs({"runs": coded}).correlations.values()
+    r, terms = frame.to_numpy(), list(frame.index)
+    categorical = _categorical_names(spec)
+    estimated = set(_model_terms(spec["model"], names, categorical))
+    together = []
+    for i, j in itertools.combinations(range(len(terms)), 2):
+        inside = [terms[i] in estimated, terms[j] in estimated]
+        if r[i, j] >= PARTLY_TOGETHER and any(inside):  # false for a term that does not vary: it has no correlation
+            a, b = (terms[i], terms[j]) if inside[0] else (terms[j], terms[i])
+            together.append({"a": a, "b": b, "r": float(r[i, j]), "both": all(inside), "blocks": False})
+    if _blocked(spec):
+        in_model = [term for term in terms if term in estimated]
+        # A term that takes one value in each block is confounded with the blocks, whatever the center runs add:
+        # the design's own note says so and every fit leaves it out, so here it is one column with them.
+        gone = _confounded_with_blocks(coded.assign(**{BLOCK: runs[BLOCK].to_numpy()}), in_model, categorical)
+        for term, moved in _moved_with_blocks(coded, runs[BLOCK], in_model).items():
+            size = 1.0 if term in gone else moved
+            if size >= PARTLY_TOGETHER:
+                together.append({"a": term, "b": BLOCK, "r": size, "both": True, "blocks": True})
+    # The largest first; pairs equal to six decimals stay in the map's order, under WebAssembly's rounding as natively.
+    together.sort(key=lambda pair: -round(pair["r"], 6))
+    return {
+        "terms": terms,
+        "matrix": r.tolist(),
+        "k": len(names),
+        "model": spec["model"],
+        "pairs": together[:MOST_PAIRS],
+        "n_pairs": len(together),
+        "listed_from": PARTLY_TOGETHER,
+        "together_from": MOVED_TOGETHER,
+        "inseparable_from": NOT_SEPARABLE,
+    }
+
+
 def _powers(request: dict) -> dict[str, Any]:
     """Score designs with a categorical factor of three levels or more: their runs, spare runs, and power.
 
@@ -6271,10 +6498,11 @@ def candidates(request: dict) -> dict:
         with _listening() as heard:
             try:
                 design = make_design(item["spec"])
-            except Exception as exc:  # noqa: BLE001 - one design that cannot be made leaves the others to compare
+            except Exception as exc:  # one design that cannot be made leaves the others to compare
+                if _lacking(exc):
+                    raise  # no fault of the design: the worker installs the package, and calls again
                 notes.append(f"{item['label']} could not be made: {exc}")
                 continue
-        design.pop("xlsx_base64", None)
         made.append({**item, "design": design, "warnings": list(dict.fromkeys(heard))})
     if not made and not waiting:
         raise ValueError("None of the designs this page offers can be made for these factors.")
@@ -8527,7 +8755,7 @@ def functional(request: dict) -> dict:
     its level in ``held``. shortcut: the search ignores the limits on the settings; keep to them there
     once a study with both limits and curves needs it.
     """
-    from plotly.offline import get_plotlyjs_version  # noqa: PLC0415 - plotly is installed for the first chart
+    plotly = _installed("plotly")
     from scipy import stats  # noqa: PLC0415 - scipy is loaded with the library
 
     spec = _checked_spec(request.get("spec") or {})
@@ -8550,7 +8778,7 @@ def functional(request: dict) -> dict:
         # which terms the runs can estimate depends on the runs alone, so any one number per run decides it
         stand_in = pd.Series(np.nanmean(values[done], axis=1), name="curve")
         fit = _fit_estimable(coded, stand_in, model, columns, categorical)
-        result = analyze_functional_experiment(coded, curves, model=fit["formula"])
+        result = doe.analyze_functional_experiment(coded, curves, model=fit["formula"])
         drawn = grid if grid.size <= CURVE_DRAWN else np.linspace(grid[0], grid[-1], CURVE_DRAWN)
         maps = result.curve_maps(grid=drawn, n_bootstrap=CURVE_REPLICATES, random_state=0)
     kept = [i for i, term in enumerate(maps["terms"]) if not _block_contrast(term, columns)]
@@ -8575,7 +8803,7 @@ def functional(request: dict) -> dict:
             for name, row in result.components.iterrows()
         ],
         "notes": fit["notes"],
-        "plotly_js": get_plotlyjs_version(),
+        "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
     if request.get("target") is not None:
         reply["match"] = _matched(result, request, spec, grid.size)
@@ -8828,7 +9056,9 @@ def _next_step(request: dict, whole: dict) -> dict[str, Any] | str | None:
         )
     try:
         from process_improve.experiments.next_step import recommend_next_step  # noqa: PLC0415 - not in older releases
-    except ImportError:
+    except ImportError as missing:
+        if _lacking(missing):
+            raise  # not an older release: the worker installs the package, and calls again
         return "This version of process-improve cannot say what the results call for yet."
     response = spec["response"]
     # A transformed response's step is judged on its model's scale, as the analysis fits it, its target there too.
@@ -8947,7 +9177,7 @@ def add_runs(request: dict) -> dict:
     in block 1, and a confirmation run in no block. The study is then a design of runs as given (its
     ``design_type`` is ``given``), estimating the largest model its runs estimate in full, and its notes
     say what was added and what the design now separates. The reply is a design as :func:`make_design`
-    returns it, less its workbook, with ``added``, the number of runs added.
+    returns it, with ``added``, the number of runs added.
     """
     kind = request.get("kind")
     if kind not in EXTENSIONS and kind != RECOMMENDED:
@@ -9311,6 +9541,11 @@ def api_candidates(payload: str) -> str:
     return _reply(candidates, payload)
 
 
+def api_correlations(payload: str) -> str:
+    """JSON wrapper around :func:`correlations`."""
+    return _reply(correlations, payload)
+
+
 def api_relabel(payload: str) -> str:
     """JSON wrapper around :func:`relabel`."""
     return _reply(relabel, payload)
@@ -9354,3 +9589,21 @@ def api_functional(payload: str) -> str:
 def api_outside_limits(payload: str) -> str:
     """JSON wrapper around :func:`outside_limits`."""
     return _reply(outside_limits, payload)
+
+
+# --------------------------------------------------------------------------- for the worker, which no page calls
+def _fitting(_: dict) -> dict:
+    """Import the library's analysis code, and name what the page then runs on (see :func:`_runtime`)."""
+    importlib.import_module("process_improve.experiments.analysis")
+    return _runtime()
+
+
+def warm(payload: str = "{}") -> str:
+    """Make ready what a first analysis needs, and say what the page then runs on.
+
+    Start-up leaves out the packages a model is fitted with (:data:`ON_DEMAND`), so the page is ready as soon as a
+    design can be made. The worker fetches them once it is, and then calls this: the library's analysis code is
+    imported here, so a first fit waits for nothing, and the reply names statsmodels beside the packages the
+    catalogue found at the start, for a report to name.
+    """
+    return _reply(_fitting, payload)

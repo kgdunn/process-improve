@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import itertools
 
+import numpy as np
+
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _evaluate_model
 from process_improve.visualization.colors import DOE_PALETTE
@@ -21,14 +23,20 @@ from process_improve.visualization.spec import (
 from process_improve.visualization.types import MarkType
 
 
+def _four_figures(value: float) -> str:
+    """Write a number to four significant figures, in full: ``12350`` and ``0.00001235``, never ``1.235e+04``."""
+    return np.format_float_positional(float(f"{value:.4g}"), trim="-")
+
+
 @register_plot("cube_plot")
 class CubePlot(BasePlot):
     """Cube plot for 3-factor designs.
 
     Displays a 3D cube with predicted response values at each of the
-    8 vertices (2^3 = 8 corners).  The cube wireframe is drawn with
-    :class:`MarkType.wireframe` (``go.Scatter3d`` in Plotly,
-    ``scatter3D`` in ECharts).
+    8 vertices (2^3 = 8 corners), written to four significant figures.
+    The cube is two :class:`MarkType.wireframe` layers (``go.Scatter3d``
+    in Plotly, ``scatter3D`` in ECharts): its twelve edges, drawn as
+    lines, and its corners, drawn as points with their values.
 
     Data sources
     ------------
@@ -64,7 +72,7 @@ class CubePlot(BasePlot):
                     "x": float(x),
                     "y": float(y),
                     "z": float(z),
-                    "text": f"{val:.2f}",
+                    "text": _four_figures(val),
                     "value": val,
                 }
             )
@@ -115,8 +123,8 @@ class CubePlot(BasePlot):
             y=Encoding(field="y"),
             z=Encoding(field="z"),
             name="Edges",
-            color=DOE_PALETTE["grid"],
-            style={"width": 1, "size": 0},
+            color=DOE_PALETTE["neutral"],  # the grid's own grey is all but invisible on a white page
+            style={"width": 3, "size": 0},
         )
 
         panel = PanelSpec(

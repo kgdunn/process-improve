@@ -27,10 +27,18 @@ visualization
 (c) Kevin Dunn, 2010-2026. MIT License.
 """
 
-from process_improve.monitoring.control_charts import ControlChart
-from process_improve.monitoring.metrics import calculate_cpk
-from process_improve.multivariate.methods import PCA, PLS, MCUVScaler
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING, Any
+
+from process_improve import _lazy
 from process_improve.tool_spec import execute_tool_call, get_tool_specs
+
+if TYPE_CHECKING:
+    from process_improve.monitoring.control_charts import ControlChart
+    from process_improve.monitoring.metrics import calculate_cpk
+    from process_improve.multivariate.methods import PCA, PLS, MCUVScaler
 
 __all__ = [
     "PCA",
@@ -41,3 +49,27 @@ __all__ = [
     "execute_tool_call",
     "get_tool_specs",
 ]
+
+#: The names this package offers from its subpackages, and where each lives. They are imported when first asked
+#: for (PEP 562), not when the package is: ``import process_improve`` then loads neither scikit-learn nor
+#: statsmodels, which only some of the subpackages need (#1235).
+_LAZY_NAMES = {
+    "ControlChart": "process_improve.monitoring.control_charts",
+    "calculate_cpk": "process_improve.monitoring.metrics",
+    "PCA": "process_improve.multivariate.methods",
+    "PLS": "process_improve.multivariate.methods",
+    "MCUVScaler": "process_improve.multivariate.methods",
+}
+
+
+def __getattr__(name: str) -> Any:  # noqa: ANN401 - a class, a function, a subpackage or a module
+    """Import one of the package's lazy names, or one of its modules, the first time it is asked for."""
+    if name in _LAZY_NAMES:
+        value = getattr(_lazy.load(_LAZY_NAMES[name]), name)
+        globals()[name] = value  # found in the package itself from here on
+        return value
+    return _lazy.submodule(__name__, name)
+
+
+def __dir__() -> list[str]:
+    return _lazy.listing(sys.modules[__name__], _LAZY_NAMES)

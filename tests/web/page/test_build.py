@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import io
 import json
 import re
+import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -89,19 +92,40 @@ def _local(references: list[str]) -> set[str]:
 
 
 def test_every_file_the_page_loads_is_published(build_script):
-    """What index.html, app.js and worker.js load must be copied by the build, or written by it.
+    """What index.html, app.js, the worker and the module that starts Python load must be copied by the build, or
+    written by it.
 
     feedback.js imports the screenshot's module only when a reader asks for a screenshot: it is published all the same.
     """
     loaded = _local(re.findall(r'(?:href|src)="([^"]+)"', source("index.html")))
-    loaded |= _local(re.findall(r'from "\./([^"]+)"', source("app.js")))
     for name in ("app.js", "worker.js"):
-        loaded |= _local(re.findall(r'(?:fetch|new Worker)\("([^"]+)"', source(name)))
+        loaded |= _local(re.findall(r'from "\./([^"]+)"', source(name)))
+    loaded |= _local(re.findall(r'(?:fetch|new Worker)\("([^"]+)"', source("app.js")))
+    for name in ("worker.js", "python-boot.js"):  # each names a file by its address beside the worker
+        loaded |= _local(re.findall(r'new URL\("([\w./-]+\.\w+)", \w+\)', source(name)))
     loaded |= _local(re.findall(r'import\("\./([^"]+)"\)', source("feedback.js")))
-    assert {"style.css", "app.js", "worker.js", "bootstrap.py", "demo.json"} <= loaded, "the search found the loads"
+    started = {"worker.js", "python-boot.js", "bootstrap.py", "runtime.json"}
+    assert {"style.css", "app.js", "demo.json"} | started <= loaded, "the search found the loads"
     assert "vendor/modern-screenshot.mjs" in loaded
     assert loaded - BUILT - CATALOG_WRITES <= set(build_script.APP_FILES)
     assert all((WEB / name).is_file() for name in build_script.APP_FILES)
+
+
+def _with_its_imports(name: str, found: list[str] | None = None) -> list[str]:
+    """Return a module of the page and every module it imports, however far down, each once."""
+    found = [] if found is None else found
+    if name not in found:
+        found.append(name)
+        for imported in re.findall(r'from "\./([\w.-]+)"', source(name)):
+            _with_its_imports(imported, found)
+    return found
+
+
+def test_the_page_asks_for_every_module_it_imports_at_once():
+    """index.html preloads app.js and all it imports, so no module waits for the one that imports it to be read."""
+    preloaded = re.findall(r'<link rel="modulepreload" href="([^"]+)">', source("index.html"))
+    assert sorted(preloaded) == sorted(_with_its_imports("app.js")), "each module the page imports, and no other"
+    assert len(preloaded) == len(set(preloaded))
 
 
 def test_every_file_of_the_app_selects_these_tests(build_script):
@@ -136,8 +160,23 @@ def _stand_in_reproduction(out: Path) -> None:
     (out / "catalog" / "reproduction.json").write_text("{}", encoding="utf-8")
 
 
+def _refused(_name: str, _release: str) -> dict:
+    """Stand in for PyPI where a test's build must not ask it."""
+    raise OSError("no network in this test")
+
+
+def _no_bytecode(build_script, monkeypatch) -> None:
+    """Leave the app's Python as it is: a stand-in wheel is no zip, and compiling asks uv for another Python.
+
+    The build asks nothing of the network either: PyPI is refused, so the manifest holds no exact files.
+    """
+    monkeypatch.setattr(build_script, "for_the_browser", lambda _wheel, _python: False)
+    monkeypatch.setattr(build_script, "compile_bytecode", lambda _tree, _python: False)
+    monkeypatch.setattr(build_script, "_pypi_release", _refused)
+
+
 def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_path, monkeypatch):
-    """The page, the wheel in a folder of its own under wheels/, the manifest naming it, and the worked example."""
+    """The page, its Python in a folder of its own under wheels/, the manifest naming it, and the worked example."""
     from importlib.metadata import version
 
     get_plotlyjs_version = pytest.importorskip(
@@ -150,6 +189,7 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
         return wheel
 
     monkeypatch.setattr(build_script, "build_wheel", fake_wheel)
+    _no_bytecode(build_script, monkeypatch)
     monkeypatch.setattr(build_script, "worked_example", lambda: {"the": "worked example"})
     monkeypatch.setattr(build_script, "book_example", lambda entry: {"name": entry["name"], "title": "", "book": ""})
     monkeypatch.setattr(build_script, "published_example", lambda entry: {"name": entry["name"], "title": ""})
@@ -157,22 +197,31 @@ def test_assemble_lays_out_what_the_page_and_its_worker_read(build_script, tmp_p
     monkeypatch.setattr(build_script, "write_reproduction", _stand_in_reproduction)
     out = tmp_path / "app"
     (out / "stale").mkdir(parents=True)
-    assert build_script.assemble(out) == "process_improve-9.9.9-py3-none-any.whl"
+    assert build_script.assemble(out, dist=tmp_path) == "process_improve-9.9.9-py3-none-any.whl"
 
     published = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()}
-    wheel = f"{hashlib.sha256(b'a wheel').hexdigest()[:16]}/process_improve-9.9.9-py3-none-any.whl"
+    packed = (tmp_path / build_script.GLUE).read_bytes()
+    folder = hashlib.sha256(b"a wheel" + packed).hexdigest()[:16]
+    wheel, glue = f"{folder}/process_improve-9.9.9-py3-none-any.whl", f"{folder}/{build_script.GLUE}"
+    with zipfile.ZipFile(io.BytesIO(packed)) as archive:
+        assert archive.read("bootstrap.py") == (WEB / "bootstrap.py").read_bytes(), "the page's Python, as it is"
     examples = [*build_script.book_examples(), *build_script.published_examples()]
     book = {"book/index.json", *(f"book/{entry['name']}.json" for entry in examples)}
     catalog = {"catalog/index.json", "catalog/detail/generated.json", "catalog/reproduction.json"}
-    assert published == {*build_script.APP_FILES, *BUILT, *book, *catalog, f"wheels/{wheel}"}, "and nothing from before"
+    python = {f"wheels/{wheel}", f"wheels/{glue}"}
+    assert published == {*build_script.APP_FILES, *BUILT, *book, *catalog, *python}, "and nothing from before"
     for name in build_script.APP_FILES:
         assert (out / name).read_bytes() == (WEB / name).read_bytes(), name
     manifest = json.loads((out / "wheels" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest == {
         "wheel": wheel,
+        "glue": glue,
+        "bytecode": None,
+        "service_worker": True,
         "commit": build_script.commit(),
         "plotly": version("plotly"),
         "plotly_js": get_plotlyjs_version(),
+        "on_demand": None,
     }
     assert json.loads((out / "demo.json").read_text(encoding="utf-8")) == {"the": "worked example"}
 
@@ -184,23 +233,87 @@ def _assemble_around(build_script, out: Path, wheel: bytes, monkeypatch) -> dict
     built.parent.mkdir(exist_ok=True)
     built.write_bytes(wheel)
     monkeypatch.setattr(build_script, "build_wheel", lambda _dist: built)
+    _no_bytecode(build_script, monkeypatch)
     monkeypatch.setattr(build_script, "worked_example", dict)
     monkeypatch.setattr(build_script, "write_book", lambda _out: None)
     monkeypatch.setattr(build_script, "write_catalog", lambda _out: None)
     monkeypatch.setattr(build_script, "write_reproduction", lambda _out: None)
-    build_script.assemble(out)
+    build_script.assemble(out, dist=built.parent)
     return json.loads((out / "wheels" / "manifest.json").read_text(encoding="utf-8"))
 
 
-def test_each_build_s_wheel_has_a_url_of_its_own(build_script, tmp_path, monkeypatch):
-    """A browser never installs a wheel it cached from an earlier deploy beside a newer ``bootstrap.py``."""
+def test_each_build_s_python_has_a_url_of_its_own(build_script, tmp_path, monkeypatch):
+    """A browser keeps the wheel and the page's Python for good, so neither may change at an address it has seen."""
     published = []
     for wheel in (b"one build", b"the next build"):
         manifest = _assemble_around(build_script, tmp_path / "app", wheel, monkeypatch)
         assert (tmp_path / "app" / "wheels" / manifest["wheel"]).read_bytes() == wheel
         assert Path(manifest["wheel"]).name == "process_improve-9.9.9-py3-none-any.whl", "micropip reads the name"
+        assert Path(manifest["glue"]).parent == Path(manifest["wheel"]).parent, "one folder, named by both"
         published.append(manifest["wheel"])
     assert published[0] != published[1]
+
+
+def test_a_change_to_the_page_s_python_alone_moves_both_to_a_new_address(build_script, tmp_path, monkeypatch):
+    """The wheel a browser kept is never run beside a ``bootstrap.py`` of another build."""
+    before = _assemble_around(build_script, tmp_path / "app", b"a wheel", monkeypatch)
+    changed = tmp_path / "web"
+    shutil.copytree(WEB, changed)
+    with (changed / "bootstrap.py").open("a", encoding="utf-8") as glue:
+        glue.write("# changed\n")
+    monkeypatch.setattr(build_script, "WEB_SRC", changed)
+    after = _assemble_around(build_script, tmp_path / "app", b"a wheel", monkeypatch)
+    assert Path(before["wheel"]).parent != Path(after["wheel"]).parent
+
+
+def _stand_in_wheel(path: Path, left_out: str) -> None:
+    """Write a small wheel: a module, a file of data it keeps, and one in the folder the browser's copy leaves out."""
+    files = {"pkg/__init__.py": "ANSWER = 42\n", "pkg/data/kept.csv": "1,2\n", f"{left_out}/big.json": "{}\n"}
+    record = "".join(f"{name},,\n" for name in [*files, "pkg-1.0.dist-info/RECORD"])
+    with zipfile.ZipFile(path, "w") as packed:
+        for name, text in {**files, "pkg-1.0.dist-info/RECORD": record}.items():
+            packed.writestr(name, text)
+
+
+def test_the_browser_s_copy_of_the_wheel_leaves_out_what_the_page_never_reads(build_script, tmp_path, monkeypatch):
+    """The catalogue's sources stay out, the rest stays in, and the wheel's RECORD lists what it then holds."""
+    monkeypatch.setattr(build_script, "compile_bytecode", lambda _tree, _python: False)
+    wheel = tmp_path / "pkg-1.0-py3-none-any.whl"
+    _stand_in_wheel(wheel, build_script.NOT_FOR_THE_PAGE)
+    assert not build_script.for_the_browser(wheel, "3.14"), "no bytecode was made"
+    with zipfile.ZipFile(wheel) as packed:
+        names = packed.namelist()
+        record = packed.read("pkg-1.0.dist-info/RECORD").decode().splitlines()
+    assert names == ["pkg/__init__.py", "pkg/data/kept.csv", "pkg-1.0.dist-info/RECORD"]
+    assert record == ["pkg/__init__.py,,", "pkg/data/kept.csv,,", "pkg-1.0.dist-info/RECORD,,"]
+    assert (ROOT / "src" / build_script.NOT_FOR_THE_PAGE).is_dir(), "the folder the package keeps them in"
+
+
+@pytest.mark.slow
+def test_the_wheel_s_bytecode_is_listed_in_it_and_never_checked_against_its_source(build_script, tmp_path, monkeypatch):
+    """Compiled by the Python the page runs, which uv provides; skipped where uv cannot provide it.
+
+    The build may run where ``PYTHONOPTIMIZE`` is set, as one row of CI does: the bytecode is the browser's all the
+    same, which runs Python without ``-O`` and reads no ``.opt-1.pyc``.
+    """
+    monkeypatch.setenv("PYTHONOPTIMIZE", "1")
+    python = build_script.runtime()["python"]
+    wheel = tmp_path / "pkg-1.0-py3-none-any.whl"
+    _stand_in_wheel(wheel, build_script.NOT_FOR_THE_PAGE)
+    if not build_script.for_the_browser(wheel, python):
+        pytest.skip(f"uv could not provide Python {python} here")
+    compiled_name = f"pkg/__pycache__/__init__.cpython-{python.replace('.', '')}.pyc"
+    with zipfile.ZipFile(wheel) as packed:
+        names = packed.namelist()
+        compiled = packed.read(compiled_name)
+        record = packed.read("pkg-1.0.dist-info/RECORD").decode()
+    assert names[-1] == "pkg-1.0.dist-info/RECORD", "a wheel lists its .dist-info folder last"
+    assert int.from_bytes(compiled[4:8], "little") == 0b01, "hash-based, and not to be checked (PEP 552)"
+    assert f"{compiled_name},sha256=" in record
+    again = tmp_path / "again.whl"
+    _stand_in_wheel(again, build_script.NOT_FOR_THE_PAGE)
+    assert build_script.for_the_browser(again, python)
+    assert again.read_bytes() == wheel.read_bytes(), "the same wheel gives the same copy, so the same address"
 
 
 def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_path, monkeypatch):
@@ -213,14 +326,102 @@ def test_the_manifest_names_the_commit_the_app_was_built_from(build_script, tmp_
     )
 
 
+# --------------------------------------------------------------------------- the packages installed on demand
+def _release(files: list[str], requires: list[str] | None = None) -> dict:
+    """Return PyPI's record of a release, as far as the build reads it."""
+    urls = [{"filename": name, "url": f"https://files.pythonhosted.org/packages/ab/cd/{name}"} for name in files]
+    return {"urls": urls, "info": {"requires_dist": requires}}
+
+
+#: PyPI's records of the releases the page installs on demand, with the kinds of requirement a release lists.
+RELEASES = {
+    ("openpyxl", "3.1.5"): _release(["openpyxl-3.1.5.tar.gz", "openpyxl-3.1.5-py2.py3-none-any.whl"], ["et-xmlfile"]),
+    ("et-xmlfile", "2.0.0"): _release(["et_xmlfile-2.0.0-py3-none-any.whl"]),
+    ("plotly", "7.1.0"): _release(
+        ["plotly-7.1.0-py3-none-any.whl", "plotly-7.1.0.tar.gz"],
+        [
+            "narwhals>=1.15.1",
+            "packaging",
+            'kaleido>=1.1.0; extra == "kaleido"',
+            'tzdata; sys_platform == "win32"',
+            'typing_extensions; python_version < "3.11"',
+        ],
+    ),
+}
+PINS = {"openpyxl": ["openpyxl==3.1.5", "et-xmlfile==2.0.0"], "plotly": ["plotly==7.1.0"]}
+
+
+def test_the_packages_installed_on_demand_are_resolved_to_exact_files(build_script, monkeypatch):
+    """Each pin's wheel by its address, and what the wheels need of the Pyodide release, for the browser's Python."""
+    monkeypatch.setattr(build_script, "_pypi_release", lambda name, release: RELEASES[name, release])
+    at = "https://files.pythonhosted.org/packages/ab/cd/"
+    assert build_script.exact_files(PINS, "3.14") == {
+        "openpyxl": {
+            "packages": [],
+            "wheels": [f"{at}openpyxl-3.1.5-py2.py3-none-any.whl", f"{at}et_xmlfile-2.0.0-py3-none-any.whl"],
+        },
+        "plotly": {"packages": ["narwhals", "packaging"], "wheels": [f"{at}plotly-7.1.0-py3-none-any.whl"]},
+    }
+    old = build_script.exact_files({"plotly": ["plotly==7.1.0"]}, "3.10")
+    assert old["plotly"]["packages"] == ["narwhals", "packaging", "typing-extensions"], "read for the Python named"
+
+
+@pytest.mark.parametrize(
+    ("pins", "pypi"),
+    [
+        (PINS, _refused),
+        ({"plotly": ["plotly"]}, RELEASES.get),  # no pin to ask PyPI about
+        (
+            {"plotly": ["plotly==7.1.0"]},
+            lambda *_: _release(["plotly-7.1.0-cp314-linux_x86_64.whl"]),
+        ),  # no wheel for it
+    ],
+)
+def test_a_build_that_cannot_resolve_them_goes_on_without_and_says_so(build_script, monkeypatch, capsys, pins, pypi):
+    monkeypatch.setattr(build_script, "_pypi_release", pypi)
+    assert build_script.exact_files(pins, "3.14") is None
+    assert "note: built without the exact files of the packages installed on demand" in capsys.readouterr().out
+
+
+def test_the_build_resolves_what_the_worker_installs_from_pypi_at_the_pins_the_page_has(build_script, node):
+    """The worker's table (``onDemand`` in web/python-boot.js) holds a package's pins where PyPI has the package."""
+    runtime = json.loads(source("runtime.json"))
+    (table,) = javascript(node, source("python-boot.js"), [("onDemand", [runtime, {"plotly": "7.1.0"}])])
+    from_pypi = {name: entry["pins"] for name, entry in table.items() if "pins" in entry}
+    assert from_pypi == build_script.on_demand_pins("7.1.0")
+    assert from_pypi == {"openpyxl": runtime["micropip"], "plotly": ["plotly==7.1.0"]}
+    # What a model is fitted with is of the Pyodide release, whose folder holds its files: nothing to resolve.
+    fitted_with = [entry["exact"] for entry in table.values() if "pins" not in entry]
+    assert fitted_with == [{"packages": runtime["fitting"], "wheels": []}] * 4
+
+
+def test_the_manifest_holds_the_exact_files_the_build_resolved(build_script, tmp_path, monkeypatch):
+    manifest = _assemble_around(build_script, tmp_path / "app", b"a wheel", monkeypatch)
+    assert manifest["on_demand"] is None, "PyPI could not be asked"
+    monkeypatch.setattr(build_script, "exact_files", lambda pins, python: {"pins": pins, "python": python})
+    built = tmp_path / "again" / "app"
+    built.parent.mkdir()
+    again = _assemble_around(build_script, built, b"a wheel", monkeypatch)
+    from importlib.metadata import version
+
+    python = json.loads(source("runtime.json"))["python"]
+    assert again["on_demand"] == {"pins": build_script.on_demand_pins(version("plotly")), "python": python}
+
+
 def test_the_page_reads_only_what_the_manifest_holds():
-    """worker.js installs the wheel and the plotly release named there; app.js draws with the Plotly.js named there,
-    and a report from the Feedback dialog names the commit.
+    """The worker installs the wheel and the plotly release named there, from the exact files in ``on_demand`` when
+    the build resolved them; app.js draws with the Plotly.js named there, and a report from the Feedback dialog
+    names the commit; the copy kept for use without a network follows ``service_worker``. ``bytecode`` is for a
+    reader of the manifest, and for the tests.
     """
-    read = set(re.findall(r"const \{ (\w+)(?:: \w+)? \} = await manifest", source("worker.js")))
-    for names in re.findall(r"const \{ ([^}]+) \} = await res\.json\(\)", source("app.js")):
+    read = {
+        name
+        for file in ("worker.js", "python-boot.js", "offline.js")
+        for name in re.findall(r"(?<![/\w\"])manifest\.(\w+)", source(file))
+    }
+    for names in re.findall(r"const \{ ([^}]+) \} = manifest;", source("app.js")):
         read |= {name.split(":")[0].strip() for name in names.split(",")}
-    assert read == {"wheel", "plotly", "plotly_js", "commit"}
+    assert read == {"wheel", "glue", "plotly", "plotly_js", "on_demand", "commit", "service_worker"}
 
 
 # --------------------------------------------------------------------------- the book's examples

@@ -15,7 +15,7 @@ def test_the_footer_opens_it_with_the_versions_this_copy_loads(page, plotly_js):
     page.wait_for_url("**/about.html")
     page.wait_for_function("document.querySelector('#stack-pyodide').textContent.startsWith('Pyodide ')")
     assert page.text_content("#stack-pyodide") == f"Pyodide {runtime['pyodide']}"
-    assert page.text_content("#stack-packages") == ", ".join(runtime["packages"])
+    assert page.text_content("#stack-packages") == ", ".join([*runtime["packages"], *runtime["fitting"]])
     assert page.text_content("#stack-plotly-js") == f"Plotly.js {plotly_js[0]}"
     assert page.text_content("#stack-pypi").startswith(", ".join(runtime["micropip"]))
     page.click("text=Back to Factorial")

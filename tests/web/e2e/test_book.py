@@ -24,8 +24,10 @@ def open_example(context, site: str, name: str) -> object:
 
 def coefficients(page) -> dict[str, str]:
     """Read the coefficient table: each term's label and its coefficient, as the page shows them."""
-    rows = page.locator("#analysis table").first.locator("tbody tr").all()
-    return {cells[0]: cells[1] for cells in (row.locator("td").all_text_contents() for row in rows)}
+    table = page.locator("#analysis table").first
+    at = table.locator("thead th button.sort").all_text_contents().index("Coefficient")
+    rows = (row.locator("td").all_text_contents() for row in table.locator("tbody tr").all())
+    return {cells[0]: cells[at] for cells in rows}
 
 
 def saved(page, count: int) -> None:

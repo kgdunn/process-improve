@@ -32,7 +32,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import Bunch
 
 from process_improve._random import check_random_state
-from process_improve.experiments._lm import (
+from process_improve.experiments._formula import (
     real_names,
     stand_ins_for,
     validate_contrast_levels,
@@ -69,7 +69,7 @@ def _sum_coded_rhs(factors: list[str], model: str) -> tuple[str, dict[str, str]]
     model : str
         ``"main_effects"``, ``"interactions"`` (every two-way interaction as well), or a
         right-hand side to use verbatim. The right-hand side goes through
-        :func:`~process_improve.experiments._lm.validate_formula_is_safe` either way.
+        :func:`~process_improve.experiments._formula.validate_formula_is_safe` either way.
 
     Returns
     -------

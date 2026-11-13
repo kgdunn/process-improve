@@ -549,7 +549,14 @@ class TestSafeExecuteToolCall:
         assert workers, "expected the worker process that was starting"
         for worker in workers:
             worker.join(timeout=5)
+            # The pool's own thread joins the worker it finds dead, and may be the one to reap it. Until that
+            # thread has noted the exit code, multiprocessing reads "already reaped" as "still running": for a
+            # few milliseconds is_alive() is true of a worker that is gone (seen on Python 3.11, once in 100).
+            deadline = time.monotonic() + 5
+            while worker.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.01)
             assert not worker.is_alive(), "a worker that did not start in time is still alive"
+            assert worker.exitcode, "and it was ended, not left to finish"
 
     @_skip_if_not_linux
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")

@@ -47,10 +47,9 @@ import pandas as pd
 from scipy.optimize import minimize
 
 from process_improve._random import check_random_state
-from process_improve.experiments._analyses._shared import WHOLE_PLOT_COL
 from process_improve.experiments._region_geometry import MAX_VERTICES
 from process_improve.experiments._uniform_sampling import _TOL, _Inequality
-from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES
+from process_improve.experiments.designs_utils import RESERVED_COLUMN_NAMES, WHOLE_PLOT_COL
 from process_improve.experiments.evaluate import _coefficient_power, _random_effects_information
 from process_improve.experiments.factor import DesignResult, Factor, FactorType
 from process_improve.experiments.region import DesignRegion

@@ -23,7 +23,7 @@ import pandas as pd
 import patsy
 from scipy import stats
 
-from process_improve.experiments._lm import validate_formula_is_safe
+from process_improve.experiments._formula import validate_formula_is_safe
 from process_improve.univariate.metrics import _check_probability
 
 

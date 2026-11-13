@@ -10,23 +10,29 @@ of chosen terms and an axial distance typed as a number.
 
 from __future__ import annotations
 
+import json
 import re
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tests.web._build import wheel
+from tests.web._build import manifest, wheel
 from tests.web._support import (
     ALL_DESIGNS,
     FACTORS,
+    WEB,
     coded,
     factors_named,
     fill_workbook,
     generate_all,
     held_of,
     run_sheet,
+    workbook_of,
 )
+
+#: What the page loads into Pyodide, and the Python that release runs.
+RUNTIME = json.loads((WEB / "runtime.json").read_text(encoding="utf-8"))
 
 #: Each design type at three and at six factors, or at the most the page makes it for: the page's defaults otherwise.
 MOST_FACTORS = {"omars": 5}
@@ -53,6 +59,42 @@ def test_python_under_pyodide_runs_the_app_s_own_wheel(pyodide, web_app, tmp_pat
     assert pyodide.module.version == version
 
 
+def test_the_app_s_own_python_is_loaded_from_the_bytecode_the_build_made(pyodide, web_app, tmp_path):
+    """The build compiled the wheel and ``bootstrap.py`` for the Python Pyodide runs, so the start compiles neither.
+
+    A build that could not compile them (uv could not provide that Python) names no bytecode in its manifest, and
+    fails here: the app would work, and start two to three seconds slower at every visit.
+    """
+    compiled_for = manifest(web_app, tmp_path).get("bytecode")
+    assert compiled_for == RUNTIME["python"], "the build made no bytecode for the Python that web/runtime.json names"
+    assert pyodide.module.python.startswith(f"{compiled_for}."), "Pyodide runs another Python than runtime.json names"
+    assert pyodide.module.bytecode == {"wheel": True, "glue": True}
+
+
+def test_a_design_installs_nothing_its_analysis_what_a_model_is_fitted_with_and_a_workbook_openpyxl(pyodide):
+    """Start-up leaves all three out: each comes when a call first lacks it, and the call is made again."""
+    before = pyodide.module.installed()
+    design = pyodide.ok("api_make_design", {"design_type": "full_factorial", "factors": factors_named(*"ABC")})
+    assert pyodide.ok("api_candidates", {"factors": factors_named(*"ABC"), "model": "interactions"})["made"]
+    assert pyodide.module.installed() == before, "a design, and the comparison of designs, with what Python starts with"
+    request = {**held_of(design), "responses": known(run_sheet(design)).tolist()}
+    assert pyodide.ok("api_analyze_runs", request)["coefficients"], "made again once what it lacked was installed"
+    pyodide.ok("api_best_settings", {**request, "goal": "maximize"})
+    fitted = pyodide.module.installed()
+    assert {"statsmodels", "sklearn"} & set(fitted), "the first fit asked for what a model is fitted with"
+    assert "openpyxl" in before or "openpyxl" not in fitted, "and for nothing a workbook needs"
+    assert workbook_of(pyodide, design), "the call that lacked openpyxl is made again once it is installed"
+    assert "openpyxl" in pyodide.module.installed()
+
+
+def test_the_worker_s_warm_up_names_statsmodels_among_what_the_page_runs_on(pyodide):
+    """The catalogue may come before statsmodels is in; the warm-up, which the worker makes once it is, names it."""
+    warmed = pyodide.ok("warm")
+    assert set(warmed["packages"]) == {"numpy", "pandas", "scipy", "statsmodels"}
+    assert warmed["pyodide"] == RUNTIME["pyodide"]
+    assert pyodide.ok("api_catalogue")["runtime"] == warmed, "and from then on the catalogue says the same"
+
+
 @pytest.mark.parametrize(("design_type", "k"), CASES)
 def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, design_type, k):
     spec = {"design_type": design_type, "factors": factors_named(*"ABCDEF"[:k])}
@@ -61,7 +103,7 @@ def test_each_design_and_its_analysis_agree_with_native_python(pyodide, api, des
     np.testing.assert_allclose(numbers(under["rows"]), numbers(native["rows"]), atol=1e-9)
     assert under["facts"] == native["facts"]
 
-    workbook = {"xlsx_base64": fill_workbook(under["xlsx_base64"], known)}
+    workbook = {"xlsx_base64": fill_workbook(workbook_of(pyodide, under), known)}
     fitted, expected = pyodide.ok("api_analyze", workbook), api.ok("api_analyze", workbook)
     assert [c["term"] for c in fitted["coefficients"]] == [c["term"] for c in expected["coefficients"]]
     for got, want in zip(fitted["coefficients"], expected["coefficients"], strict=True):
@@ -109,6 +151,43 @@ def test_blocks_labels_replicates_and_chosen_terms_agree_with_native_python(pyod
         assert got["coefficient"] == pytest.approx(want["coefficient"], rel=1e-6, abs=1e-9), got["label"]
     assert [(a["source"], a["df"]) for a in fitted["anova"]] == [(a["source"], a["df"]) for a in expected["anova"]]
     assert fitted["summary"]["r_squared"] == pytest.approx(expected["summary"]["r_squared"], rel=1e-9)
+
+
+def test_the_simpler_model_proposed_for_blocks_and_levels_is_native_python_s(pyodide, api):
+    """A blocked study, and a factor of three levels: the search keeps the blocks in and the factor whole.
+
+    The results are far from any tie between two models, so the last bits of Pyodide's numerics pick no other.
+    """
+    blocked = {"design_type": "box_behnken", "factors": FACTORS, "n_blocks": 3}
+    catalyst = {"name": "Catalyst", "type": "categorical", "levels": ["X", "Y", "Z"]}
+    levels = {"design_type": "full_factorial", "factors": [*FACTORS[:2], catalyst], "n_center_points": 0}
+    between, by_level = {1: 5.0, 2: -5.0, 3: 0.0}, {"X": 0.0, "Y": 6.0, "Z": -6.0}
+    processes = {
+        "blocked": (blocked, lambda t, run: 60 + 4 * t - 3 * t**2 + between[int(run["Block"])]),
+        "levels": (levels, lambda t, run: 50 + 3 * t + by_level[run["Catalyst"]]),
+    }
+    for name, (spec, process) in processes.items():
+        design = pyodide.ok("api_make_design", spec)
+        runs = [dict(zip(design["columns"], row, strict=True)) for row in design["rows"]]
+        noise = np.random.default_rng(3).normal(0, 0.1, len(runs))
+        y = [float(process((run["T"] - 175) / 25, run) + e) for run, e in zip(runs, noise, strict=True)]
+        request = {**held_of(design), "responses": y}
+        under, native = pyodide.ok("api_simpler_model", request), api.ok("api_simpler_model", request)
+        assert (under["terms"], under["kept"], under["dropped"]) == (native["terms"], native["kept"], native["dropped"])
+        assert under["adjusted_r_squared"] == pytest.approx(native["adjusted_r_squared"], rel=1e-9), name
+        assert under["kept"] == {"blocked": ["T", "T²"], "levels": ["T", "Catalyst"]}[name]
+
+
+def test_the_correlation_map_of_a_design_agrees_with_native_python(pyodide, api):
+    """A Plackett-Burman design in seven factors: the same pairs, in the same order, though all are of one size."""
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG")}
+    under, native = (python.ok("api_make_design", spec) for python in (pyodide, api))
+    got, want = pyodide.ok("api_correlations", held_of(under)), api.ok("api_correlations", held_of(native))
+    assert (got["terms"], got["n_pairs"]) == (want["terms"], want["n_pairs"])
+    assert [(p["a"], p["b"], p["both"]) for p in got["pairs"]] == [(p["a"], p["b"], p["both"]) for p in want["pairs"]]
+    np.testing.assert_allclose(
+        np.array(got["matrix"], dtype=float), np.array(want["matrix"], dtype=float), atol=1e-9, equal_nan=True
+    )
 
 
 def test_an_axial_distance_typed_as_a_number_places_the_runs_as_native_python_does(pyodide, api):

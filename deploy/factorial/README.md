@@ -20,6 +20,40 @@ files on the server that ran the old kgdunn/factorial app, behind the same Caddy
 - The last five builds stay on the server. **Actions → Factorial: roll back → Run workflow**
   switches back to the one before, or to a commit you name.
 
+## The copy a reader's browser keeps
+
+The app registers a service worker, [`web/sw.js`](../../web/sw.js), which serves a copy of the
+page kept in the reader's browser, so it opens without a network. The worker holds no list of
+files and no version, and reads none: the app's own files come from this server whenever it
+answers, so a deploy or a roll back reaches a reader at their next visit as before, and only
+files whose address names their version (the wheel's folder, Pyodide's release) are served from
+the copy. The page itself makes the copy and drops what earlier builds left in it
+([`web/offline.js`](../../web/offline.js)).
+
+Should the worker ever serve a page wrongly, there is a way out that needs no fix to it. Build
+the app with `--no-service-worker` and deploy that build:
+
+```bash
+uv run python scripts/build_web_app.py -o site --no-service-worker
+```
+
+Its `sw.js` is [`web/sw-retire.js`](../../web/sw-retire.js). A browser that has the worker asks
+for `sw.js` again at the reader's next visit, whatever the page's own code does, and gets that
+one: it deletes the copies and unregisters. The build's `wheels/manifest.json` says
+`"service_worker": false`, so the page registers none again. A later build without the flag
+brings the worker back. A roll back to a build from before the worker existed leaves a reader's
+worker in place and harmless: it goes on fetching the app's files from the server.
+
+The build asks PyPI once for the exact files of the packages the page installs on demand (plotly,
+openpyxl), and writes their addresses into the manifest: the page then installs those files, and
+asks no package index. A build that cannot reach PyPI says so and goes on without them; its page
+installs the same pins through the index, and offers no copy of the charts and workbooks.
+
+[`factorial.caddy`](factorial.caddy) sends everything under `wheels/<digest>/` with a year's
+`Cache-Control`, since that folder's address changes with its contents. A server set up before
+that rule covered the page's own Python as well as the wheel serves it correctly all the same,
+revalidated at each visit: run `setup.sh` again, and reload Caddy, to install the rule.
+
 ## What the server keeps
 
 Usage, and nothing else. Caddy writes one line per request to

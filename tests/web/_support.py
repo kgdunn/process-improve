@@ -67,6 +67,10 @@ APP_SOURCES = (
     "dialogs.js",
     "levels.js",
     "import.js",
+    "worker-rpc.js",
+    "offline.js",
+    "sw.js",
+    "sw-retire.js",
     "feedback.js",
     "vendor/modern-screenshot.mjs",
     # The concept map, at map/: its page, its module, the graph it draws (built in pid-book) and Cytoscape.
@@ -76,6 +80,7 @@ APP_SOURCES = (
     "vendor/cytoscape.mjs",
     "map/og-card.png",
     "worker.js",
+    "python-boot.js",
     "bootstrap.py",
     "runtime.json",
     "favicon.svg",
@@ -213,6 +218,11 @@ class Api:
 def held_of(design: dict) -> dict:
     """Return what the page holds of a generated design, and sends back with every later call."""
     return {"spec": design["spec"], "columns": design["columns"], "rows": design["rows"]}
+
+
+def workbook_of(api: Api, design: dict) -> str:
+    """Return a design's workbook, base64-encoded, with no results yet: what the page downloads for the reader."""
+    return api.ok("api_workbook", held_of(design))["xlsx_base64"]
 
 
 def generate_all(

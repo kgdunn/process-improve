@@ -213,6 +213,30 @@ def test_each_response_keeps_its_own_model(fresh_page):
     assert saved[0]["more_models"]["Cost"] == "main_effects"
 
 
+def test_each_response_keeps_the_two_factors_its_surface_is_drawn_over(fresh_page):
+    """Each response has its own largest effects, so a choice made for one says nothing of another's surface."""
+    page = fresh_page
+    three_responses(page)
+    practise(page)
+    reveal(page, "#charts")
+    page.wait_for_selector("#contour-factor-2")
+    first, second = (page.input_value(f"#contour-factor-{at}") for at in (1, 2))
+    (other,) = {"T", "P", "F"} - {first, second}
+    plotted = page.evaluate("window.__pi.count('api_plots')")
+    page.select_option("#contour-factor-2", other)
+    page.wait_for_function(f"window.__pi.count('api_plots') > {plotted} && window.__pi.idle()")
+    assert calls(page, "api_plots")[-1]["payload"]["contour_factors"] == [first, other]
+
+    def drawn_for(label: str) -> dict:
+        before = page.evaluate("window.__pi.count('api_plots')")
+        pick(page, label)
+        page.wait_for_function(f"window.__pi.count('api_plots') > {before} && window.__pi.idle()")
+        return calls(page, "api_plots")[-1]["payload"]
+
+    assert "contour_factors" not in drawn_for("Cost"), "the cost's surface is drawn over its own two largest"
+    assert drawn_for("Yield")["contour_factors"] == [first, other], "and the yield keeps the reader's choice"
+
+
 def test_a_run_with_some_of_its_results_is_fitted_for_the_responses_it_has(fresh_page):
     page = fresh_page
     three_responses(page)

@@ -316,7 +316,11 @@ function transforms(value, names) {
   return out;
 }
 
-/** The model to analyse with: "" (the design's own), a named model, or {terms}, each a list of factor names. */
+/**
+ * The model to analyse with: "" (the design's own), a named model, or {terms}, each a list of factor names. Terms
+ * the search for a simpler model picked from the study's results are marked ``picked``, so a later visit says so
+ * still; a page from before the mark reads the terms and leaves it out.
+ */
 export function checkModel(value, factorNames) {
   if (typeof value === "string") {
     if (!MODELS.includes(value)) refuse(`the model ${JSON.stringify(value).slice(0, 40)} is unknown`);
@@ -328,7 +332,7 @@ export function checkModel(value, factorNames) {
     if (names.length < 1 || !names.every((n) => factorNames.includes(n))) refuse("a term names a factor the design lacks");
     return [...names];
   });
-  return { terms };
+  return value.picked === true ? { terms, picked: true } : { terms };
 }
 
 /** What the design is, as Python described it when it was made: its center runs and a sentence per fact. */
@@ -453,7 +457,6 @@ function studySource(data) {
   return { cite: text(data.cite, "its source's citation", 500), where: text(data.where ?? "", "where its source prints it"), url, catalog, printed };
 }
 
-/** One response's results and their sources: a number or a blank per run, and where each came from. */
 /**
  * The runs set aside from each response's fit: for a response's column, the places on the run sheet (from 0) of the
  * runs its model is fitted without. Their results stay on the run sheet. A response with none set aside is left out.
@@ -472,6 +475,7 @@ function setAside(data, names, n) {
   return out;
 }
 
+/** One response's results and their sources: a number or a blank per run, and where each came from. */
 function results(values, marks, n) {
   const responses = values === undefined ? Array(n).fill(null) : list(values, "the results", n);
   if (responses.length !== n || !responses.every((v) => v === null || isFiniteNumber(v))) refuse("its results are not one number, or a blank, per run");

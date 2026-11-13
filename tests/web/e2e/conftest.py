@@ -208,7 +208,12 @@ def open_context(  # noqa: PLR0913 - a fixture's arguments are the fixtures it n
         )
         context.route(f"{site}wheels/manifest.json", lambda route: route.fulfill(json={"plotly_js": version}))
         context.route(
-            re.compile(r"/plotly\.min\.js$"), lambda route: route.fulfill(body=script, content_type="text/javascript")
+            re.compile(r"/plotly\.min\.js$"),
+            lambda route: route.fulfill(
+                body=script,
+                content_type="text/javascript",
+                headers={"access-control-allow-origin": "*"},  # as the CDN answers a script asked for across origins
+            ),
         )
         context.on("page", console.watch)
         if request.config.getoption("--e2e-artifacts"):

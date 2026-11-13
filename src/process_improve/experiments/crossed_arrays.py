@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments._analyses._shared import BLOCK_COL, WHOLE_PLOT_COL
+from process_improve.experiments.designs_utils import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments.factor import DesignResult
 
 if TYPE_CHECKING:

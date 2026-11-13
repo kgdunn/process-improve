@@ -1,0 +1,663 @@
+# (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
+"""Reading, checking and rewriting a model formula: what the design generators and the fits both need of one.
+
+Nothing here fits a model, so nothing here needs statsmodels: a design is generated, scored and augmented with
+this module alone, and the fitting code in :mod:`process_improve.experiments._lm` loads statsmodels when a
+model is first fitted (#1235).
+"""
+
+from __future__ import annotations
+
+import ast
+import itertools
+import keyword
+import re
+from collections.abc import Iterable, Mapping
+from typing import Any, TypeVar, cast
+
+import pandas as pd
+from patsy.categorical import CategoricalSniffer
+from patsy.missing import NAAction
+
+
+class UnsafeFormulaError(ValueError):
+    """Raised when a model formula contains tokens outside the safe Wilkinson subset.
+
+    Patsy and statsmodels evaluate each formula term as a Python expression, so a
+    formula coming from an untrusted source (for example the ``fit_linear_model``
+    MCP tool) is a code-execution vector. :func:`validate_formula_is_safe` rejects
+    anything that is not a plain Wilkinson formula over known data columns before it
+    ever reaches patsy.
+    """
+
+
+# Characters permitted in a safe Wilkinson formula: column-name characters,
+# whitespace, and the structural operators (~ + - * : ^) plus grouping parens.
+# Notably excluded: quotes, '.', ',', '[', ']', '=', '!', '@', '%', backslash -
+# i.e. everything needed to build a Python expression, attribute access, string
+# literal, or function-call argument list.
+_FORMULA_ALLOWED_CHARS = re.compile(r"^[A-Za-z0-9_ \t\r\n~+\-*:^()]*$")
+_FORMULA_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$")
+
+# Patsy transform helpers that wrap an arithmetic expression without naming a
+# data column: ``I(...)`` (identity / "as-is") and ``Q(...)`` (quote a name).
+_TRANSFORM_FUNCS = frozenset({"I", "Q"})
+
+# Patsy categorical-contrast helpers. These are pure (they only re-code a
+# categorical column into contrast columns), so they are safe to allow inside a
+# formula. ``C(col)`` and ``C(col, Sum)`` / ``Treatment`` / ``Poly`` etc. let a
+# caller specify explicit contrasts for a categorical factor. Their arguments
+# are restricted (see ``_check_categorical_arg``) to data columns, other
+# contrast helpers, and literals; never arbitrary calls.
+_CATEGORICAL_FUNCS = frozenset({"C", "Treatment", "Sum", "Diff", "Helmert", "Poly"})
+
+# Curated allowlist of numpy callables permitted inside a formula when
+# ``allow_numpy=True``. These are pure, element-wise math transforms. We do NOT
+# allow arbitrary ``np.<anything>`` because numpy also exposes dangerous I/O such
+# as ``np.load`` (which deserialises pickles) and ``np.fromfile``.
+_NUMPY_ALLOWED_FUNCS = frozenset(
+    {
+        "log",
+        "log10",
+        "log2",
+        "log1p",
+        "exp",
+        "expm1",
+        "sqrt",
+        "cbrt",
+        "square",
+        "power",
+        "reciprocal",
+        "sign",
+        "abs",
+        "absolute",
+        "sin",
+        "cos",
+        "tan",
+        "arcsin",
+        "arccos",
+        "arctan",
+        "sinh",
+        "cosh",
+        "tanh",
+    }
+)
+
+
+def validate_identifier_is_safe(name: object) -> None:
+    """Reject a column / response name that is not a plain Python identifier.
+
+    User-supplied names (``design_matrix`` dict keys, ``response_column``) are
+    interpolated into a patsy formula, so a name such as ``"A); import os; ("``
+    is an injection vector. We require a bare identifier and forbid dunders.
+
+    Parameters
+    ----------
+    name:
+        The candidate column or response name.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If *name* is not a string, contains ``__``, or is not a plain identifier.
+    """
+    if not isinstance(name, str):
+        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}. Try {suggest_identifier(name)!r}.")
+    if "__" in name:
+        raise UnsafeFormulaError(
+            f"name {name!r} may not contain '__' (dunder access is forbidden). Try {suggest_identifier(name)!r}."
+        )
+    if not _IDENTIFIER_RE.match(name):
+        raise UnsafeFormulaError(
+            f"name {name!r} is not a plain identifier; only letters, digits and '_' are allowed "
+            f"(and it may not start with a digit). Try {suggest_identifier(name)!r}."
+        )
+
+
+def validate_identifiers_are_safe(names: Iterable[object]) -> None:
+    """Apply :func:`validate_identifier_is_safe` to each name, and refuse all the unsafe ones in one error.
+
+    The error maps each refused name to a :func:`suggest_identifier` suggestion. A suggestion that another
+    name already has gains ``_2``, ``_3``, ..., so the map can go straight into ``DataFrame.rename``.
+
+    Parameters
+    ----------
+    names : Iterable[object]
+        The candidate column or factor names.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If any name is not a plain identifier.
+    """
+    names = list(names)
+    refused = []
+    for name in names:
+        try:
+            validate_identifier_is_safe(name)
+        except UnsafeFormulaError:
+            refused.append(name)
+    if not refused:
+        return
+    taken = {str(name) for name in names}
+    renames = {}
+    for name in refused:
+        renames[name] = _unused_name(suggest_identifier(name), taken)
+        taken.add(renames[name])
+    raise UnsafeFormulaError(
+        f"{refused!r} cannot go in a model formula: a name there is letters, digits and '_', does not start "
+        f"with a digit and does not hold '__'. Rename them, for example with .rename(columns={renames!r})."
+    )
+
+
+def _unused_name(stem: str, taken: set[str]) -> str:
+    """Return *stem*, or the first of ``stem_2``, ``stem_3``, ... that is not in *taken*."""
+    new, count = stem, 1
+    while new in taken:
+        count += 1
+        new = f"{stem.rstrip('_')}_{count}"
+    return new
+
+
+#: Symbols that column names often hold, as words, so that a suggested name keeps their meaning.
+_SYMBOL_WORDS = {"%": "pct", "°": "deg", "#": "num"}
+
+
+def suggest_identifier(name: object) -> str:
+    """Suggest a name close to *name* that :func:`validate_identifier_is_safe` and Python both accept.
+
+    ``%``, ``°`` and ``#`` become ``pct``, ``deg`` and ``num``. Each run of other characters that a name
+    cannot hold becomes one ``_``, and an ``_`` at either end is removed. A name that then does not start
+    with a letter gets an ``x`` in front, and a Python keyword gets an ``_`` after it.
+
+    Parameters
+    ----------
+    name : object
+        The refused name. A name that is not a string is read as its ``str``.
+
+    Returns
+    -------
+    str
+        The suggested name.
+
+    Examples
+    --------
+    >>> [suggest_identifier(name) for name in ["Water %", "Temp (°C)", "2nd stage", "lambda", 0]]
+    ['Water_pct', 'Temp_deg_C', 'x2nd_stage', 'lambda_', 'x0']
+    """
+    text = str(name)
+    for symbol, word in _SYMBOL_WORDS.items():
+        text = text.replace(symbol, f" {word} ")
+    # The guard's \w takes "²", which Python does not, and Python takes "·", which \w does not: keep neither.
+    kept = "".join(char if _IDENTIFIER_RE.match(f"x{char}") and f"x{char}".isidentifier() else " " for char in text)
+    text = re.sub(r"[ _]+", "_", kept).strip("_")
+    if not _IDENTIFIER_RE.match(text):  # empty, or it starts with a digit or a letter outside A-Z
+        text = f"x{text}"
+    return f"{text}_" if keyword.iskeyword(text) else text
+
+
+def validate_formula_is_safe(
+    formula: str,
+    allowed_names: Iterable[str],
+    *,
+    allow_transforms: bool = False,
+    allow_numpy: bool = False,
+) -> None:
+    """Reject a model ``formula`` that is not a safe Wilkinson formula over *allowed_names*.
+
+    This is the guard for untrusted callers (e.g. the ``fit_linear_model`` tool).
+    Patsy evaluates every formula term as a Python expression with builtins and
+    numpy in scope, so a string such as ``y ~ I(__import__('os').system('id'))``
+    would execute arbitrary code.
+
+    By default only a plain Wilkinson formula is allowed:
+
+    * identifiers that name an actual data column,
+    * the operators ``~ + - * : ^`` and grouping parentheses,
+    * integer literals (for powers like ``(A + B)**2``) and whitespace.
+
+    Any quote, dot, comma, dunder, or unknown identifier (``np``, ``I``,
+    ``__import__``, ...) is rejected.
+
+    The optional flags relax this for trusted-but-still-validated callers. They
+    switch on an AST-based check that admits a curated set of transforms while
+    still rejecting attribute access, string literals, dunders, and any call
+    other than the allowlisted ones:
+
+    * ``allow_transforms`` - permit ``I(...)`` / ``Q(...)`` wrapping arithmetic
+      over data columns (e.g. the ``quadratic`` shorthand's ``I(A ** 2)``).
+    * ``allow_numpy`` - additionally permit a curated allowlist of element-wise
+      numpy calls such as ``np.log(A)`` or ``np.power(A, 2)``.
+
+    Parameters
+    ----------
+    formula:
+        The model formula in Wilkinson notation, e.g. ``"y ~ A*B"``.
+    allowed_names:
+        The legal identifier names, i.e. the columns present in the data.
+    allow_transforms:
+        If true, permit ``I(...)`` / ``Q(...)`` transforms of column arithmetic.
+    allow_numpy:
+        If true, permit a curated allowlist of element-wise ``np.<func>`` calls.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If *formula* is not a string, contains a ``__`` dunder, or references a
+        token / construct outside the permitted subset; or if a column has the name
+        of a function the formula calls, such as ``I`` in ``I(P ** 2)``.
+    """
+    if not isinstance(formula, str):
+        raise UnsafeFormulaError(f"formula must be a string, got {type(formula).__name__}.")
+    if "__" in formula:
+        raise UnsafeFormulaError("formula may not contain '__' (dunder access is forbidden).")
+
+    allowed = {str(name) for name in allowed_names}
+
+    if not allow_transforms and not allow_numpy:
+        # Strict plain-Wilkinson path (unchanged behaviour).
+        if not _FORMULA_ALLOWED_CHARS.match(formula):
+            forbidden = sorted({c for c in formula if not _FORMULA_ALLOWED_CHARS.match(c)})
+            raise UnsafeFormulaError(f"formula contains forbidden characters: {forbidden}.")
+        unknown = sorted({tok for tok in _FORMULA_IDENTIFIER.findall(formula) if tok not in allowed})
+        if unknown:
+            raise UnsafeFormulaError(
+                f"formula references unknown name(s) {unknown}; only data columns are allowed: {sorted(allowed)}."
+            )
+        return
+
+    _validate_formula_ast(formula, allowed, allow_numpy=allow_numpy)
+
+
+def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool) -> None:
+    """AST-based validation of a formula that may contain ``I()``/``np`` transforms.
+
+    Each side of the ``~`` is parsed as a Python expression and walked against a
+    strict node allowlist. The interaction operator ``:`` is rewritten to ``*``
+    so the side parses (the two are structurally equivalent for our purposes).
+    """
+    sides = formula.split("~")
+    if len(sides) > 2:
+        raise UnsafeFormulaError("formula may contain at most one '~'.")
+
+    for side in sides:
+        # ``:`` (interaction) and ``^`` are patsy structural operators; map ``:``
+        # to ``*`` so the side is parseable Python. ``^`` already parses (BitXor).
+        expr = side.replace(":", "*").strip()
+        if not expr:
+            continue
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except SyntaxError as exc:
+            raise UnsafeFormulaError(f"formula side {side.strip()!r} is not a valid expression.") from exc
+        _check_formula_node(tree.body, allowed, allow_numpy=allow_numpy)
+        _check_no_column_hides_a_call(tree, allowed)
+
+
+def _called_names(tree: ast.AST) -> list[ast.Name]:
+    """Return the names a parsed formula side calls: ``I`` in ``I(A ** 2)``, ``np``, and ``Sum`` in ``C(A, Sum)``."""
+    called = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func.value if isinstance(node.func, ast.Attribute) else node.func  # np.log(A) calls np
+        if isinstance(func, ast.Name):
+            called.append(func)
+        if isinstance(node.func, ast.Name) and node.func.id == "C":  # the contrast in C(A, Sum) is called too
+            called += [arg for arg in node.args[1:] if isinstance(arg, ast.Name)]
+    return called
+
+
+def _check_no_column_hides_a_call(tree: ast.AST, columns: set[str]) -> None:
+    """Refuse a column that has the name of a function the formula calls.
+
+    Patsy looks a name up in the data before its own functions, so a column named ``I``
+    turns every ``I(P ** 2)`` into a call of the column, and a column named ``C`` does the
+    same to ``C(A, Sum)``. Each fails with "'Series' object is not callable". The library's
+    own entry points fit such a column under a stand-in name (:func:`stand_ins_for`).
+    """
+    hidden = sorted({node.id for node in _called_names(tree)} & columns)
+    if hidden:
+        renames = {name: _unused_name(f"{name}_", columns) for name in hidden}
+        raise UnsafeFormulaError(
+            f"The formula calls {', '.join(f'{name}()' for name in hidden)}, and a column has the same name, "
+            f"which patsy finds first and tries to call. Rename the column, for example with "
+            f".rename(columns={renames!r})."
+        )
+
+
+def _parsed_side(side: str) -> ast.Expression | None:
+    """Parse one side of a formula as Python, or return None when it does not parse.
+
+    ``:`` becomes ``*`` as in :func:`_validate_formula_ast`, and the side is parsed in parentheses, so it may
+    start with a space or run over lines. Every name keeps its place in ``side``, one byte on in its first line.
+    """
+    try:
+        return ast.parse(f"({side.replace(':', '*')})".encode(), mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+
+
+def stand_ins_for(formula: str, columns: Iterable[str]) -> dict[str, str]:
+    """Map each column whose name *formula* calls to a name no column has: ``I`` to ``I_``, or ``I_2`` if that is taken.
+
+    Patsy finds a column before its own function of the same name (see :func:`_check_no_column_hides_a_call`).
+    The model is fitted with the column under its stand-in (:func:`with_stand_ins`), and the results are
+    reported under its real name (:func:`real_names`), so a factor can be named ``I`` in a model with squares,
+    or ``C`` in one with contrasts. A column the formula only names, as ``I`` in ``y ~ I + P``, keeps its name.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or one side of it. One that does not parse maps nothing, and
+        :func:`validate_formula_is_safe` then refuses it.
+    columns : Iterable[str]
+        The names of the data columns.
+
+    Returns
+    -------
+    dict[str, str]
+        Each hidden column's name, mapped to its stand-in; empty when the formula hides none.
+    """
+    if not isinstance(formula, str):
+        return {}
+    taken = {str(name) for name in columns}
+    called = {node.id for side in formula.split("~") if (tree := _parsed_side(side)) for node in _called_names(tree)}
+    stand_ins = {}
+    for name in sorted(called & taken):
+        stand_ins[name] = _unused_name(f"{name}_", taken)
+        taken.add(stand_ins[name])
+    return stand_ins
+
+
+def with_stand_ins(formula: str, stand_ins: Mapping[str, str]) -> str:
+    """Write *formula* with each column in *stand_ins* under its stand-in; the functions it calls keep their names.
+
+    ``y ~ I + I(I ** 2)`` with ``{"I": "I_"}`` becomes ``y ~ I_ + I(I_ ** 2)``.
+    """
+    if not stand_ins:
+        return formula
+    return "~".join(_side_with_stand_ins(side, stand_ins) for side in formula.split("~"))
+
+
+def _side_with_stand_ins(side: str, stand_ins: Mapping[str, str]) -> str:
+    """Write one side of a formula with each column in *stand_ins* under its stand-in (see :func:`with_stand_ins`)."""
+    tree = _parsed_side(side)
+    if tree is None:
+        return side
+    called = {id(node) for node in _called_names(tree)}
+    text = side.encode()  # the parser counts columns in bytes
+    starts = list(itertools.accumulate((len(line) + 1 for line in text.split(b"\n")), initial=0))
+    columns = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in called]
+    for node in sorted(columns, key=lambda node: (node.lineno, node.col_offset), reverse=True):
+        if node.id in stand_ins and node.end_lineno is not None and node.end_col_offset is not None:
+            start = starts[node.lineno - 1] + node.col_offset - (node.lineno == 1)  # less the "(" around the side
+            end = starts[node.end_lineno - 1] + node.end_col_offset - (node.end_lineno == 1)
+            text = text[:start] + stand_ins[node.id].encode() + text[end:]
+    return text.decode()
+
+
+_Value = TypeVar("_Value")
+
+
+def real_names(value: _Value, stand_ins: Mapping[str, str]) -> _Value:
+    """Return *value* with each stand-in of *stand_ins* read as the name it stands for.
+
+    A stand-in is replaced where it stands as a name of its own, so ``I(I_ ** 2)`` reads
+    ``I(I ** 2)`` and ``I_:P`` reads ``I:P``. A column really named ``I_`` keeps its name, since a
+    stand-in is a name that no column has (:func:`stand_ins_for`), and so does a level label
+    after patsy's ``[T.``.
+
+    Parameters
+    ----------
+    value : str, dict, list or tuple
+        The results: strings, and dicts, lists and tuples of them, nested to any depth. Keys are
+        read as well as values; anything else is returned as it is.
+    stand_ins : Mapping[str, str]
+        Each real name, mapped to its stand-in.
+
+    Returns
+    -------
+    str, dict, list or tuple
+        The same structure, under the real names.
+    """
+    if not stand_ins:
+        return value
+    real = {stand_in: name for name, stand_in in stand_ins.items()}
+    pattern = re.compile(rf"(?<![\w.])({'|'.join(map(re.escape, real))})(?!\w)")
+
+    def read(item: object) -> object:
+        if isinstance(item, str):
+            return pattern.sub(lambda match: real[match.group(1)], item)
+        if isinstance(item, dict):
+            return {read(key): read(entry) for key, entry in item.items()}
+        if type(item) is list:
+            return [read(entry) for entry in item]
+        if type(item) is tuple:
+            return tuple(read(entry) for entry in item)
+        return item
+
+    return cast("_Value", read(value))
+
+
+def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Recursively validate a single AST node from a formula expression."""
+    if isinstance(node, ast.BinOp):
+        if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.BitXor)):
+            raise UnsafeFormulaError(f"operator {type(node.op).__name__} is not allowed in a formula.")
+        _check_formula_node(node.left, allowed, allow_numpy=allow_numpy)
+        _check_formula_node(node.right, allowed, allow_numpy=allow_numpy)
+        return
+
+    if isinstance(node, ast.UnaryOp):
+        if not isinstance(node.op, (ast.UAdd, ast.USub)):
+            raise UnsafeFormulaError(f"unary operator {type(node.op).__name__} is not allowed in a formula.")
+        _check_formula_node(node.operand, allowed, allow_numpy=allow_numpy)
+        return
+
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            raise UnsafeFormulaError(f"literal {node.value!r} is not allowed in a formula.")
+        return
+
+    if isinstance(node, ast.Name):
+        if node.id not in allowed:
+            raise UnsafeFormulaError(
+                f"formula references unknown name(s) [{node.id!r}]; only data columns are allowed: {sorted(allowed)}."
+            )
+        return
+
+    if isinstance(node, ast.Call):
+        _check_formula_call(node, allowed, allow_numpy=allow_numpy)
+        return
+
+    raise UnsafeFormulaError(f"construct {type(node).__name__} is not allowed in a formula.")
+
+
+def _check_formula_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate a call node: ``I()``/``Q()``, a categorical contrast, or ``np.<func>``."""
+    func = node.func
+
+    # Categorical-contrast helpers (C, Treatment, Sum, ...) have their own arg
+    # rules (bare contrast names, literals, keyword reference levels).
+    if isinstance(func, ast.Name) and func.id in _CATEGORICAL_FUNCS:
+        _check_categorical_call(node, allowed, allow_numpy=allow_numpy)
+        return
+
+    if node.keywords:
+        raise UnsafeFormulaError("keyword arguments are not allowed in a formula call.")
+
+    if isinstance(func, ast.Name) and func.id in _TRANSFORM_FUNCS:
+        pass
+    elif allow_numpy and isinstance(func, ast.Attribute):
+        base = func.value
+        if not (isinstance(base, ast.Name) and base.id == "np"):
+            raise UnsafeFormulaError("only 'np.<func>' attribute calls are allowed in a formula.")
+        if func.attr not in _NUMPY_ALLOWED_FUNCS:
+            raise UnsafeFormulaError(
+                f"numpy function 'np.{func.attr}' is not in the allowed set {sorted(_NUMPY_ALLOWED_FUNCS)}."
+            )
+    else:
+        raise UnsafeFormulaError(
+            "only I()/Q(), categorical contrasts C()/Treatment()/Sum()/Diff()/Helmert()/Poly() "
+            "(and, when enabled, np.<func>()) calls are allowed in a formula."
+        )
+
+    for arg in node.args:
+        if isinstance(arg, ast.Starred):
+            raise UnsafeFormulaError("starred arguments are not allowed in a formula call.")
+        _check_formula_node(arg, allowed, allow_numpy=allow_numpy)
+
+
+def _check_categorical_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate a categorical-contrast call: ``C()``/``Treatment()``/``Sum()``/..."""
+    for arg in node.args:
+        if isinstance(arg, ast.Starred):
+            raise UnsafeFormulaError("starred arguments are not allowed in a formula call.")
+        _check_categorical_arg(arg, allowed, allow_numpy=allow_numpy)
+    for kw in node.keywords:
+        if kw.arg is None:
+            raise UnsafeFormulaError("**kwargs are not allowed in a formula call.")
+        _check_literal_or_container(kw.value)
+
+
+def _check_categorical_arg(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate one argument of a categorical-contrast call (``C``/``Treatment``/...).
+
+    Permitted: a data-column name, a bare contrast helper name (``Sum``), a
+    nested contrast call (``Treatment(reference="A")``), or a literal / list of
+    literals (reference levels, polynomial degree).
+    """
+    # A bare contrast-helper name used as the contrast argument, e.g. C(f, Sum).
+    if isinstance(node, ast.Name) and node.id in _CATEGORICAL_FUNCS:
+        return
+    # A nested contrast call, e.g. C(f, Treatment(reference="A")).
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _CATEGORICAL_FUNCS:
+        _check_formula_call(node, allowed, allow_numpy=allow_numpy)
+        return
+    # A literal reference level / degree, or a list/tuple of them.
+    if isinstance(node, (ast.Constant, ast.List, ast.Tuple)):
+        _check_literal_or_container(node)
+        return
+    # Otherwise it must be an ordinary allowed node (a data column, I()/Q(), ...).
+    _check_formula_node(node, allowed, allow_numpy=allow_numpy)
+
+
+def _check_literal_or_container(node: ast.AST) -> None:
+    """Allow only string / numeric literals, or lists / tuples of them."""
+    if isinstance(node, (ast.List, ast.Tuple)):
+        for element in node.elts:
+            _check_literal_or_container(element)
+        return
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if not isinstance(value, bool) and isinstance(value, (str, int, float)):
+            return
+    raise UnsafeFormulaError("categorical-contrast arguments must be column names, contrast helpers, or literals.")
+
+
+#: The contrasts that name a level of their factor, and the keyword that names it.
+_LEVEL_ARGUMENTS = {"Treatment": "reference", "Sum": "omit"}
+
+
+def validate_contrast_levels(formula: str, data: pd.DataFrame) -> None:
+    """Refuse a contrast that names a level its column does not have, where patsy would, but naming the levels.
+
+    ``C(Block, Treatment('1'))`` asks for the level ``'1'``, a string, and a ``Block`` column of integers
+    has the level ``1``: patsy fails with "specified level '1' not found". This raises the same failure
+    for the reference level of ``Treatment`` and the omitted level of ``Sum``, with the column's levels and
+    a spelling that works. Patsy reads an integer that is not a level as the position of one
+    (``Treatment(0)`` is the first level), so an integer is refused only past the last position, and
+    where a level is spelled as the integer but the position picks another: of the labels ``'1'``,
+    ``'2'`` and ``'3'``, ``Treatment(1)`` is ``'2'``.
+
+    Parameters
+    ----------
+    formula : str
+        The model formula, or its right-hand side, as :func:`validate_formula_is_safe` passed it.
+    data : DataFrame
+        The data the formula is fitted on.
+
+    Raises
+    ------
+    ValueError
+        If a contrast names a level that its column does not have.
+    """
+    for side in formula.split("~"):
+        tree = _parsed_side(side)
+        for node in ast.walk(tree) if tree else ():
+            named = _named_level(node)
+            if named is None or named[0] not in data.columns:
+                continue
+            column, contrast, level = named
+            sniffer = CategoricalSniffer(NAAction())  # the levels as patsy finds them
+            sniffer.sniff(data[column])
+            levels = list(sniffer.levels_contrast()[0])
+            spelling = next((value for value in levels if str(value) == str(level)), None)
+            at = levels[level] if isinstance(level, int) and -len(levels) <= level < len(levels) else None
+            if not levels or level in levels or (at is not None and spelling in (None, at)):
+                continue
+            reading = "" if at is None else f"; patsy would read {level!r} as a position, the level {at!r}"
+            raise ValueError(
+                f"{ast.unparse(node)} asks for the level {level!r}, which column {column!r} does not have: its "
+                f"levels are {levels!r}{reading}. Write the level as the column holds it, as in "
+                f"C({column}, {contrast}({levels[0] if spelling is None else spelling!r}))."
+            )
+
+
+def named_levels(formula: str, column: str) -> list[tuple[str, object]]:
+    """Return the contrast and the level of each ``C(column, Treatment(level))`` or ``Sum(level)`` in *formula*."""
+    found = []
+    for side in formula.split("~"):
+        tree = _parsed_side(side)
+        for node in ast.walk(tree) if tree else ():
+            named = _named_level(node)
+            if named is not None and named[0] == column:
+                found.append(named[1:])
+    return found
+
+
+def block_levels(blocks: pd.Series) -> list[Any]:
+    """Return the blocks in the order they are coded: numbers by value, so block 10 follows block 9, labels as text."""
+    return list(pd.Categorical(blocks.to_numpy()).categories)
+
+
+def _named_level(node: ast.AST) -> tuple[str, str, object] | None:
+    """Return the column, contrast and level of ``C(column, Treatment(level))`` or ``Sum(level)``; else None."""
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "C"):
+        return None
+    column, contrast = _argument(node, 0, "data"), _argument(node, 1, "contrast")
+    if (
+        not isinstance(column, ast.Name)
+        or not isinstance(contrast, ast.Call)
+        or not isinstance(contrast.func, ast.Name)
+        or contrast.func.id not in _LEVEL_ARGUMENTS
+        or _argument(node, 2, "levels") is not None  # patsy reads the level among the levels given, not the data's
+    ):
+        return None
+    level = _argument(contrast, 0, _LEVEL_ARGUMENTS[contrast.func.id])
+    try:
+        return (column.id, contrast.func.id, ast.literal_eval(level)) if level is not None else None
+    except ValueError:  # not a literal: validate_formula_is_safe refuses it
+        return None
+
+
+def _argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    """Return the argument of *call* at *position*, or the one passed as *keyword*; None when there is neither."""
+    if len(call.args) > position:
+        return call.args[position]
+    return next((kw.value for kw in call.keywords if kw.arg == keyword), None)
+
+
+def forg(x: float, prec: int = 3) -> str:
+    """Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
+
+    Formats ``x`` with ``prec`` significant/decimal digits, switching to the
+    ``g`` format for very large or very small magnitudes. Any positive ``prec``
+    is supported; ``prec=3`` and ``prec=4`` reproduce the original widths.
+    """
+    width = prec + 6
+    if (abs(x) >= 1e4) or (abs(x) < 1e-4):
+        return f"{x:{width}.{prec}g}"
+    return f"{x:{width}.{prec}f}"

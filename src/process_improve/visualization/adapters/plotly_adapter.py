@@ -40,6 +40,9 @@ from process_improve.visualization.types import AnnotationType, MarkType
 # narrowly as ``list[tuple[float, str]]``, so we cast for the type checker only.
 _SURFACE_COLORSCALE = cast("list[tuple[float, str]]", SURFACE_COLORSCALE)
 
+#: The marks drawn in three dimensions, whose axes are ``layout.scene``'s.
+_THREE_D = (MarkType.surface, MarkType.wireframe)
+
 
 class PlotlyAdapter(AbstractAdapter):
     """Translate a :class:`ChartSpec` to a Plotly figure dict."""
@@ -125,6 +128,11 @@ class PlotlyAdapter(AbstractAdapter):
 
         if panel.backend_hints.get("equal_aspect"):
             fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
+        if any(layer.mark in _THREE_D for layer in panel.layers):
+            # A 3D trace reads its axes from layout.scene: a title in layout.xaxis or layout.yaxis is never drawn.
+            titles = {"xaxis": panel.x_title, "yaxis": panel.y_title, "zaxis": panel.z_title}
+            fig.update_layout(scene={axis: dict(title=dict(text=text)) for axis, text in titles.items()})
 
         return fig
 
@@ -400,18 +408,29 @@ class PlotlyAdapter(AbstractAdapter):
         )
 
     def _wireframe_trace(self, layer: LayerSpec) -> go.Scatter3d:
+        """Build a 3D trace of lines, of points, or of both, from a wireframe layer.
+
+        The layer's style says which: lines of its ``width``, markers of its ``size``, and neither where that is
+        zero. A layer that gives neither is drawn as both, joined in the order of its rows. The rows' ``text``,
+        where any has some, is written beside the points.
+        """
         x_vals = [row[layer.x.field] for row in layer.data] if layer.x else []
         y_vals = [row[layer.y.field] for row in layer.data] if layer.y else []
         z_vals = [row[layer.z.field] for row in layer.data] if layer.z else []
+        text = [row.get("text", "") for row in layer.data]
+        unsaid = "width" not in layer.style and "size" not in layer.style
+        width = layer.style.get("width", 3 if unsaid else 0)
+        size = layer.style.get("size", 5 if unsaid else 0)
+        drawn = {"lines": width > 0, "markers": size > 0, "text": any(text)}
         return go.Scatter3d(
             x=x_vals,
             y=y_vals,
             z=z_vals,
-            mode="lines+markers+text",
+            mode="+".join(part for part, on in drawn.items() if on) or "none",  # Plotly's word for none of them
             name=layer.name,
-            line=dict(color=layer.color or DOE_PALETTE["primary"], width=3),
-            marker=dict(size=5),
-            text=[row.get("text", "") for row in layer.data],
+            line=dict(color=layer.color or DOE_PALETTE["primary"], width=width or 3),
+            marker=dict(size=size or 5, color=layer.color or DOE_PALETTE["primary"]),
+            text=text,
             textposition="top center",
         )
 

@@ -45,8 +45,12 @@ class Live:
 
 
 def new_context(chromium: Any, request: pytest.FixtureRequest) -> Any:  # noqa: ANN401 - Playwright objects
-    """Open a context for the app: its own worker, watched, with downloads cached unless ``--cdn-cache=off``."""
-    context = chromium.new_context(viewport={"width": 1280, "height": 900})
+    """Open a context for the app: its own worker, watched, with downloads cached unless ``--cdn-cache=off``.
+
+    The app's service worker is not registered here: a request it answered would pass by the routes these tests
+    serve and refuse downloads with. ``test_offline.py`` opens a context of its own, with the worker and no routes.
+    """
+    context = chromium.new_context(viewport={"width": 1280, "height": 900}, service_workers="block")
     context.add_init_script(path=HARNESS)
     cache = request.config.getoption("--cdn-cache")
     if cache != "off":

@@ -8,6 +8,7 @@ the page would show at Beginner what the map teaches at Adventurous.
 from __future__ import annotations
 
 import json
+import re
 
 from tests.web._support import WEB, javascript, page, source
 
@@ -27,14 +28,34 @@ def test_each_part_s_level_is_its_term_s_in_the_concept_map(node):
             assert info["level"] == levels[info["term"]], feature
 
 
+def test_each_part_index_html_tags_has_the_level_levels_js_gives_it(node):
+    """A part in the page from its first paint names its feature and carries its level: the two must agree."""
+    tagged = re.findall(r'data-feature="([^"]+)" data-level="(\d)"', source("index.html"))
+    assert len(tagged) == source("index.html").count("data-level="), "every level in the page names its feature"
+    known = features(node)
+    assert {feature: int(level) for feature, level in tagged} == {
+        feature: known[feature]["level"] for feature, _ in tagged
+    }
+    static = {key for key in known if key.split(":")[0] in {"option", "panel", "action"}}
+    assert static == {feature for feature, _ in tagged}, "each such part of levels.js is tagged in the page"
+
+
 def test_every_design_on_the_page_has_a_level(node, bootstrap):
     listed = {key.removeprefix("design:") for key in features(node) if key.startswith("design:")}
     assert listed == {*bootstrap.DESIGNS, *bootstrap.MIXTURES}
 
 
-def test_every_further_chart_has_a_level(node):
-    more = javascript(node, source("logic.js"), [("MORE_CHARTS", [])])[0]
-    assert {key.removeprefix("chart:") for key in features(node) if key.startswith("chart:")} == set(more)
+def test_every_further_chart_has_a_level_that_is_its_term_s_in_the_concept_map(node):
+    charts, more = javascript(node, source("logic.js"), [("CHARTS", []), ("MORE_CHARTS", [])])
+    levels = {
+        n["id"]: n["level"] for n in json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))["nodes"]
+    }
+    assert more, "the search found the charts"
+    for key in more:
+        assert charts[key]["level"] == levels[charts[key]["term"]], key
+    assert not [key for key in charts if key not in more and "level" in charts[key]], (
+        "the first charts are every level's"
+    )
 
 
 def test_the_page_s_first_paint_reads_the_level_levels_js_reads(node):

@@ -42,7 +42,7 @@ from scipy.stats import qmc
 
 from process_improve._random import check_random_state
 from process_improve.experiments._expression_text import MAX_EXPRESSION_LENGTH, nfkc
-from process_improve.experiments._lm import suggest_identifier
+from process_improve.experiments._formula import suggest_identifier
 from process_improve.experiments._region_geometry import box_vertices
 from process_improve.experiments._rules import Rules, compile_rules
 from process_improve.experiments._uniform_sampling import (

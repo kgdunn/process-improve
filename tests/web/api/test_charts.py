@@ -61,6 +61,8 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     corners = next(t for t in figures["cube"]["data"] if t["name"] == "Vertices")
     assert corners["mode"] == "markers+text"
     assert len(corners["text"]) == 8
+    edges = next(t for t in figures["cube"]["data"] if t["name"] == "Edges")
+    assert (edges["mode"], edges["line"]["width"]) == ("lines", 3), "the library draws the cube: the page adds nothing"
     assert len(figures["residuals_order"]["data"][-1]["x"]) == 15, "one residual a run"
 
 
@@ -121,8 +123,9 @@ def test_a_blocked_design_is_charted(api):
     design = api.ok("api_make_design", spec)
     responses = [float((i * 7) % 11) for i in range(design["n_runs"])]
     plots = api.ok("api_plots", {**held_of(design), "responses": responses})
-    assert {"contour", "residuals", "surface_3d"} <= set(plots["figures"])
-    assert "prediction_variance" not in plots["figures"], "a block has no setting to hold"
+    assert {"contour", "residuals", "surface_3d", "prediction_variance"} <= set(plots["figures"])
+    variance = json.loads(plots["figures"]["prediction_variance"])
+    assert variance["data"][0]["type"] == "contour", "drawn for the factors' terms: a block has no setting to hold"
 
 
 # --------------------------------------------------------------------------- limits on the settings

@@ -22,12 +22,47 @@ if TYPE_CHECKING:
 RUNTIME = json.loads(source("runtime.json"))
 
 
-def test_the_worker_reads_runtime_json_and_keeps_no_copy_of_it():
-    worker = source("worker.js")
-    assert 'fetch("runtime.json"' in worker
-    assert RUNTIME["pyodide"] not in worker, "no Pyodide release written out"
-    for name in [*RUNTIME["packages"], *RUNTIME["micropip"]]:
-        assert f'"{name}"' not in worker, f"{name} is written out in worker.js"
+#: The files that start Python in a worker: the module both pages share, and each page's worker.
+STARTERS = ("python-boot.js", "worker.js", "mva/worker.js")
+
+
+def test_the_workers_read_runtime_json_and_keep_no_copy_of_it():
+    assert 'new URL("runtime.json", root)' in source("python-boot.js")
+    # Two names are written out, each for what it does and not as a package to load: the installer, where it is
+    # called, and the module by which the worker asks for what a model is fitted with (onDemand's table is keyed
+    # by the names Python imports, bootstrap.py's ON_DEMAND).
+    by_role = {"micropip", "statsmodels"}
+    for file in STARTERS:
+        starter = source(file)
+        assert RUNTIME["pyodide"] not in starter, "no Pyodide release written out"
+        for name in {*RUNTIME["packages"], *RUNTIME["fitting"], *RUNTIME["micropip"]} - by_role:
+            assert f'"{name}"' not in starter, f"{name} is written out in {file}"
+
+
+def test_what_a_model_is_fitted_with_is_left_out_of_the_start_and_named_apart():
+    """The designed-experiments page is ready before it is in; the multivariate page fits from its first step."""
+    assert RUNTIME["fitting"] == ["statsmodels", "scikit-learn"]
+    assert not set(RUNTIME["fitting"]) & set(RUNTIME["packages"])
+    # patsy imports packaging, which the Pyodide release lists as a dependency of statsmodels and not of patsy:
+    # without it named, Python does not start. The wasm and live tiers are what see that; this says why it is there.
+    assert "packaging" in RUNTIME["packages"]
+    boot = source("python-boot.js")
+    assert "const packages = fitting ? [...runtime.packages, ...runtime.fitting] : runtime.packages;" in boot
+    assert "startPython(here, say)" in source("worker.js"), "the page's worker starts without it"
+    assert 'provide("statsmodels", { quiet: true })' in source("worker.js"), "and fetches it once it is ready"
+    assert "{ fitting: true }" in source("mva/worker.js")
+
+
+def test_both_pages_start_python_with_the_module_they_share():
+    for file in ("worker.js", "mva/worker.js"):
+        assert re.search(r'import \{[^}]*\bstartPython\b[^}]*\} from "(\.\.?)/python-boot\.js";', source(file)), file
+
+
+def test_the_distribution_is_a_folder_of_the_release_on_the_cdn():
+    """``pyc`` is the release with its Python compiled to bytecode already; ``full`` is the release as it is."""
+    assert RUNTIME["distribution"] in {"pyc", "full"}
+    assert "/${runtime.distribution}/" in source("python-boot.js")
+    assert re.fullmatch(r"3\.\d+", RUNTIME["python"]), "the Python that release runs, which the build compiles for"
 
 
 def test_the_pyodide_release_is_an_exact_version():
@@ -43,13 +78,15 @@ def test_every_package_from_pypi_is_pinned_to_one_version():
 
 def test_no_package_is_loaded_both_from_the_release_and_from_pypi():
     from_pypi = {r.split("==")[0].lower().replace("_", "-") for r in RUNTIME["micropip"]}
-    assert not from_pypi & {p.lower() for p in RUNTIME["packages"]}
+    assert not from_pypi & {p.lower() for p in [*RUNTIME["packages"], *RUNTIME["fitting"]]}
 
 
-def test_the_wasm_runner_reads_runtime_json():
+def test_the_wasm_runner_reads_runtime_json_and_installs_by_the_worker_s_own_table():
     runner = (ROOT / "tests" / "web" / "wasm" / "runner.mjs").read_text(encoding="utf-8")
-    assert "runtime.packages" in runner
-    assert "runtime.micropip" in runner
+    assert "packages: runtime.packages," in runner, "it starts with what the page starts with"
+    assert "runtime.distribution" in runner
+    assert "provider(pyodide, glue, onDemand(runtime, manifest), aside)" in runner
+    assert "runtime.fitting" not in runner, "what a model is fitted with comes when a call lacks it, as on the page"
 
 
 def test_ci_reads_the_pyodide_release_from_runtime_json():

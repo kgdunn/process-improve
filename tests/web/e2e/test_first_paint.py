@@ -43,7 +43,9 @@ def phase(page) -> str:
 def test_a_first_visit_starts_a_new_study_at_its_response(fresh_page):
     page = fresh_page
     assert phase(page) == "plan"
-    assert page.evaluate("document.activeElement.id") == "response", "the first question is what the study measures"
+    # The first question is what the study measures. The page looks for a saved study first, so the keyboard is
+    # put there a moment after Python has answered: waited for, not read at once.
+    page.wait_for_function("document.activeElement.id === 'response'")
     assert page.text_content("#study-title") == "A new study"
     assert factor_table(page) == [{"name": "", "low": "", "high": "", "units": ""}] * 2, "two factors to type in"
     assert page.is_visible("#plan-empty"), "the designs wait for the brief"

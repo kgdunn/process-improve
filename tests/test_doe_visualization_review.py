@@ -253,3 +253,42 @@ def test_default_model_is_the_richest_the_design_estimates() -> None:
     spec = create_plot("prediction_variance", design_data=rows, response_column="y").to_spec()
     assert spec.metadata["model"] == "interactions"
     assert create_plot("fds_plot", design_data=_ccd_rows()).to_spec().metadata["model"] == "quadratic"
+
+
+# ---------------------------------------------------------------------------
+# A factor named I or C, which hides patsy's own I() and C() in the fitted formula (#1229, item 2)
+# ---------------------------------------------------------------------------
+
+
+def _fitted_quadratic(first: str) -> tuple[list[dict[str, float]], dict]:
+    """Return a face-centred CCD in two factors, the first named ``first``, and its fitted quadratic model."""
+    factors = [Factor(name=name, low=-1, high=1) for name in (first, "T")]
+    design = pd.DataFrame(generate_design(factors, design_type="ccd", alpha="face_centered").design)[[first, "T"]]
+    y = pd.Series(50 + 3 * design[first] - 2 * design["T"] - 4 * design[first] ** 2 + design.index % 3, name="y")
+    results = analyze_experiment(design, y, model="quadratic", analysis_type=["coefficients"], coding="actual")
+    return design.to_dict("records"), results
+
+
+@pytest.mark.parametrize("hidden", ["I", "C"])
+@pytest.mark.parametrize("plot_type", ["prediction_variance", "fds_plot", "power_curve"])
+def test_a_design_quality_plot_is_drawn_for_a_factor_whose_name_the_fitted_formula_calls(
+    plot_type: str, hidden: str
+) -> None:
+    """The fitted formula squares a factor with ``I()``: a factor named ``I`` is drawn as one of any other name."""
+    rows, results = _fitted_quadratic(hidden)
+    plain_rows, plain_results = _fitted_quadratic("J")
+    assert f"I({hidden} ** 2)" in results["model_summary"]["formula"]
+    kw = {"random_state": 1} if plot_type == "fds_plot" else {}
+    spec = create_plot(plot_type, design_data=rows, analysis_results=results, **kw).to_spec()
+    plain = create_plot(plot_type, design_data=plain_rows, analysis_results=plain_results, **kw).to_spec()
+    layer, plain_layer = spec.panels[0].layers[0], plain.panels[0].layers[0]
+    if plot_type == "prediction_variance":
+        np.testing.assert_allclose(layer.style["z_matrix"], plain_layer.style["z_matrix"])
+        assert (layer.x.title, layer.y.title) == (hidden, "T"), "the axes keep the names given"
+    else:
+        assert layer.data == plain_layer.data
+    named = [layer.name for layer in spec.panels[0].layers]
+    assert not any(f"{hidden}_" in name for name in named), f"no stand-in name reaches the reader: {named}"
+    if plot_type == "power_curve":
+        plain_named = [layer.name.replace("J", hidden) for layer in plain.panels[0].layers]
+        assert named == plain_named, "each curve is named by the terms it holds, under the factor's own name"
