@@ -6,10 +6,6 @@ from __future__ import annotations
 import numpy as np
 from statsmodels.regression.linear_model import OLSResults, RegressionResultsWrapper
 
-# The two column names live with the designs that write the columns, which need no statsmodels (#1235); the
-# analyses take them from here, as they always have.
-from process_improve.experiments.designs_utils import BLOCK_COL, WHOLE_PLOT_COL  # noqa: F401
-
 
 def _press(ols_result: RegressionResultsWrapper) -> float:
     """Return the prediction sum of squares: each run's residual when the fit leaves it out, squared and summed."""

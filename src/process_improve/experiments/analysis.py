@@ -35,8 +35,6 @@ from process_improve._warnings import user_stacklevel
 # importers such as ``tests/test_sec09`` reaching for ``_run_residual_diagnostics``)
 # keep working unchanged.
 from process_improve.experiments._analyses._shared import (
-    BLOCK_COL,
-    WHOLE_PLOT_COL,
     _compute_adequate_precision,
     _compute_pred_r_squared,
     _no_intercept_note,
@@ -91,6 +89,7 @@ from process_improve.experiments._formula import (
 )
 from process_improve.experiments.designs_mixture_constrained import SCHEFFE_MODELS, scheffe_formula_rhs
 from process_improve.experiments.designs_mixture_process import ReducedRankFormula
+from process_improve.experiments.designs_utils import BLOCK_COL, WHOLE_PLOT_COL
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 logger = logging.getLogger(__name__)

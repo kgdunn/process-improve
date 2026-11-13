@@ -10,7 +10,7 @@ import pandas as pd
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
-from ._shared import BLOCK_COL, WHOLE_PLOT_COL
+from process_improve.experiments.designs_utils import BLOCK_COL, WHOLE_PLOT_COL
 
 
 def pure_error(design_df: pd.DataFrame, response_col: str, group_cols: list[str]) -> tuple[float, int]:

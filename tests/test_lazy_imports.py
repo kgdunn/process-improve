@@ -18,7 +18,8 @@ from pathlib import Path
 import pytest
 
 import process_improve
-from process_improve import experiments
+
+experiments = process_improve.experiments  # a subpackage is an attribute of the package: one of the things tested
 
 #: The packages a model is fitted with, which a design must not load.
 FITTING = ("sklearn", "statsmodels")
