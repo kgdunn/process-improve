@@ -32,9 +32,17 @@ def test_every_design_on_the_page_has_a_level(node, bootstrap):
     assert listed == {*bootstrap.DESIGNS, *bootstrap.MIXTURES}
 
 
-def test_every_further_chart_has_a_level(node):
-    more = javascript(node, source("logic.js"), [("MORE_CHARTS", [])])[0]
-    assert {key.removeprefix("chart:") for key in features(node) if key.startswith("chart:")} == set(more)
+def test_every_further_chart_has_a_level_that_is_its_term_s_in_the_concept_map(node):
+    charts, more = javascript(node, source("logic.js"), [("CHARTS", []), ("MORE_CHARTS", [])])
+    levels = {
+        n["id"]: n["level"] for n in json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))["nodes"]
+    }
+    assert more, "the search found the charts"
+    for key in more:
+        assert charts[key]["level"] == levels[charts[key]["term"]], key
+    assert not [key for key in charts if key not in more and "level" in charts[key]], (
+        "the first charts are every level's"
+    )
 
 
 def test_the_page_s_first_paint_reads_the_level_levels_js_reads(node):

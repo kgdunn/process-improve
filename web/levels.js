@@ -12,8 +12,9 @@ export const LEVEL_KEY = "factorial-map-level";
 export const DEFAULT_LEVEL = 2;
 
 /**
- * Each part of the page that a level brings, with the term of the concept map (map/graph.json) whose level it
- * takes: tests/web/page/test_levels.py keeps the two in step. A part with no term of its own names why in `because`.
+ * Each part of the page that a level brings, but for the charts, whose levels are in logic.CHARTS: with the term
+ * of the concept map (map/graph.json) whose level it takes. tests/web/page/test_levels.py keeps the two in step. A
+ * part with no term of its own names why in `because`.
  */
 export const FEATURES = {
   "design:full_factorial": { level: 1, term: "full_factorial" },
@@ -32,14 +33,6 @@ export const FEATURES = {
   "design:simplex_lattice": { level: 3, term: "mixture_design" },
   "design:simplex_centroid": { level: 3, term: "mixture_design" },
   "design:extreme_vertices": { level: 3, term: "mixture_design" },
-  "chart:main_effects": { level: 1, term: "main_effect" },
-  "chart:interaction": { level: 1, term: "interaction_plot" },
-  "chart:cube": { level: 1, term: "cube_plot" },
-  "chart:normal_probability": { level: 1, term: "residual_analysis" },
-  "chart:residuals_order": { level: 1, term: "residual_analysis" },
-  "chart:perturbation": { level: 2, term: "response_surface" },
-  "chart:surface_3d": { level: 2, term: "response_surface" },
-  "chart:prediction_variance": { level: 3, term: "prediction_variance" },
   "action:simplify": { level: 2, because: "choosing a model's terms from the results, past fitting the model as designed" },
   "table:diagnostics": { level: 2, because: "leverage and Cook's distance, past the residuals a beginner reads" },
 };

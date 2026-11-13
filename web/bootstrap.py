@@ -37,7 +37,7 @@ import sys
 import unicodedata
 import warnings
 from importlib.metadata import PackageNotFoundError, version
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -5120,35 +5120,32 @@ def _chosen_pair(raw: object, axes: list[str]) -> list[str] | None:
 
 
 def _more_charts(
-    spec: dict, axes: list[str], pair: list[str], settings: dict[str, int], transform: str | None, residual_df: int
-) -> dict[str, tuple[str, str | None, list[str], bool]]:
-    """List the page's further charts this study can draw, each as the library's plot, its scale and its factors.
+    spec: dict, axes: list[str], pair: list[str], coded: pd.DataFrame, transform: str | None, residual_df: int
+) -> dict[str, list[str]]:
+    """List the page's further charts this study can draw (see :data:`MORE_CHARTS`), each with the factors it draws.
 
-    ``settings`` counts the settings each factor of ``axes`` was run at. The last item of each says whether the
-    chart is drawn over the response surface's two factors, and so takes the surface's shading and held values.
+    ``coded`` holds the runs fitted, a column a factor of ``axes``. A chart of the residuals draws no factor.
     """
     surface = len(pair) > 1
-    charts: dict[str, tuple[str, str | None, list[str], bool]] = {}
-    if surface:
-        charts["surface_3d"] = ("surface_3d", transform, pair, True)
-    # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
-    # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
-    if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]}:
-        charts["prediction_variance"] = ("prediction_variance", None, pair, True)
-    charts["perturbation"] = ("perturbation", transform, axes, False)
     # Averages of the runs at each setting say something only where runs share settings: three settings or fewer.
-    few = [name for name in axes if settings[name] <= MAX_AVERAGED_SETTINGS]
-    if few:
-        charts["main_effects"] = ("main_effects", transform, few, False)
-    if surface and set(pair) <= set(few):
-        charts["interaction"] = ("interaction", transform, pair, False)
+    few = [name for name in axes if coded[name].round(6).nunique() <= MAX_AVERAGED_SETTINGS]
     corners = sorted(axes, key=lambda n: (n not in pair, axes.index(n)))[:3]  # the pair drawn, and the next factor
-    if len(corners) == len("xyz") and transform is None:  # the library prints the corners on the model's scale
-        charts["cube"] = ("cube_plot", None, corners, False)
-    if residual_df > 0:
-        charts["normal_probability"] = ("normal_probability", transform, [], False)
-        charts["residuals_order"] = ("residuals_vs_order", transform, [], False)
-    return charts
+    drawn = {
+        "perturbation": axes,
+        "main_effects": few or None,
+        "interaction": pair if surface and set(pair) <= set(few) else None,
+        "surface_3d": pair if surface else None,
+        # The library prints the corners on the model's scale, so a transformed fit has no cube.
+        "cube": corners if len(corners) == len("xyz") and transform is None else None,
+        "normal_probability": [] if residual_df > 0 else None,
+        "residuals_order": [] if residual_df > 0 else None,
+        # shortcut: the library's plot reads the fitted formula with patsy, which finds no setting to hold a block
+        # at, and calls a factor named I where the formula squares one; upgrade when the plot takes the model's terms.
+        "prediction_variance": (
+            pair if surface and not _blocked(spec) and "I" not in {f["name"] for f in spec["factors"]} else None
+        ),
+    }
+    return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 
 
 def plots(request: dict) -> dict:
@@ -5229,13 +5226,11 @@ def plots(request: dict) -> dict:
     if fit["lenth"]:
         effects = analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
         figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
-    settings = {name: coded[name].round(6).nunique() for name in axes}
-    residual_df = fit["out"]["model_summary"]["df_residual"]
-    for key, (kind, scale, drawn, on_surface) in _more_charts(
-        spec, axes, pair, settings, transform, residual_df
-    ).items():
-        options = {"factors_to_plot": drawn} if drawn else {}
-        figures[key] = draw(kind, out, scale, drawn, **options, **(shading if on_surface else {}))
+    more = _more_charts(spec, axes, pair, coded, transform, fit["out"]["model_summary"]["df_residual"])
+    for key, drawn in more.items():
+        chart = MORE_CHARTS[key]
+        options = {**({"factors_to_plot": drawn} if drawn else {}), **(shading if chart.on_surface else {})}
+        figures[key] = draw(chart.plot, out, transform if chart.scaled else None, drawn, **options)
     return {
         "figures": figures,
         "contour_factors": pair,
@@ -5496,20 +5491,39 @@ def _dress_residuals(axis_title: str) -> Callable[[dict, dict], None]:
     return dress
 
 
-#: How each of the page's further charts is put in the reader's words, by the library's name for the plot.
-_DRESS_MORE: dict[str, Callable[[dict, dict], None]] = {
-    "surface_3d": _dress_surface_3d,
-    "cube_plot": _dress_cube,
-    "prediction_variance": _dress_prediction_variance,
-    "perturbation": _dress_perturbation,
-    "main_effects": _dress_main_effects,
-    "interaction": _dress_interaction,
-    "normal_probability": _dress_residuals("Expected, were the residuals normally distributed"),
-    "residuals_vs_order": _dress_residuals("Run, in the order made"),
+class _Chart(NamedTuple):
+    """One of the page's further charts: the library's plot, and how the page draws it.
+
+    ``plot`` is the library's name for the plot; ``dress`` puts its figure in the reader's words; ``scaled`` says
+    it shows the response, and so follows a transform's scale; ``on_surface`` that it is drawn over the response
+    surface's two factors, with the surface's shading and held values; ``legend_above`` that it has a line per
+    factor or setting, whose legend sits above the plot, off the axis title.
+    """
+
+    plot: str
+    dress: Callable[[dict, dict], None]
+    scaled: bool = True
+    on_surface: bool = False
+    legend_above: bool = False
+
+
+#: The charts under "More charts", in the page's order, by the key the page knows each by: logic.js's CHARTS
+#: holds each one's heading, caption and reading level, and tests/web/page/test_parity.py keeps the two in step.
+MORE_CHARTS: dict[str, _Chart] = {
+    "perturbation": _Chart("perturbation", _dress_perturbation, legend_above=True),
+    "main_effects": _Chart("main_effects", _dress_main_effects, legend_above=True),
+    "interaction": _Chart("interaction", _dress_interaction, legend_above=True),
+    "surface_3d": _Chart("surface_3d", _dress_surface_3d, on_surface=True),
+    "cube": _Chart("cube_plot", _dress_cube, scaled=False),
+    "normal_probability": _Chart(
+        "normal_probability", _dress_residuals("Expected, were the residuals normally distributed")
+    ),
+    "residuals_order": _Chart("residuals_vs_order", _dress_residuals("Run, in the order made")),
+    "prediction_variance": _Chart("prediction_variance", _dress_prediction_variance, scaled=False, on_surface=True),
 }
 
-#: The charts with a line per factor or setting: their legend sits above the plot, off the axis title.
-_LEGEND_ABOVE = {"perturbation", "main_effects", "interaction"}
+#: Each further chart by the library's name for its plot, as a figure's dressing knows it.
+_BY_PLOT = {chart.plot: chart for chart in MORE_CHARTS.values()}
 
 
 def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transform: str | None) -> None:
@@ -5523,8 +5537,8 @@ def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transfo
     factors = {f["name"]: f for f in spec["factors"]}
     words = {"label": label, "units": units, "scaled": scaled, "scale_units": scale_units, "transform": transform}
     figure.setdefault("data", [])
-    _DRESS_MORE[kind](figure, {**words, "drawn": [factors[name] for name in drawn]})
-    if kind in _LEGEND_ABOVE:
+    _BY_PLOT[kind].dress(figure, {**words, "drawn": [factors[name] for name in drawn]})
+    if _BY_PLOT[kind].legend_above:
         figure["layout"].update(legend={"y": 1.02, "yanchor": "bottom"}, margin={"t": 40})
 
 

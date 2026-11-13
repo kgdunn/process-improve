@@ -1073,26 +1073,6 @@ export function compareCells(a, b) {
 export const escape = (v) =>
   String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-/** Each chart's heading. */
-export const TITLES = {
-  coefficients: "Coefficients",
-  contour: "Fitted response surface",
-  true_contour: "True response surface",
-  residuals: "Residuals against fitted values",
-  half_normal: "Half-normal plot of the effects",
-  ternary: "Fitted response over the blends",
-  true_ternary: "True response over the blends",
-  cox: "Fitted response along each Cox direction",
-  levels: "The runs at each level",
-  surface_3d: "Fitted response surface, in three dimensions",
-  perturbation: "Each factor's effect on the prediction",
-  main_effects: "Average result at each setting",
-  interaction: "Interaction of the two factors",
-  cube: "Predictions at the corners",
-  normal_probability: "Residuals against the normal distribution",
-  residuals_order: "Residuals in the order the runs were made",
-  prediction_variance: "Where the predictions are least certain",
-};
 
 /**
  * One cell of a CSV file: a number as it is, text in quotes where it holds a comma, a quote or a line break. Text a
@@ -1140,73 +1120,165 @@ export function simplerWords(found, fmt) {
   );
 }
 
-/** The charts under "More charts", in their order: what the factors do, then whether to trust the model. */
-export const MORE_CHARTS = [
-  "perturbation",
-  "main_effects",
-  "interaction",
-  "surface_3d",
-  "cube",
-  "normal_probability",
-  "residuals_order",
-  "prediction_variance",
-];
 
 /** How the caption of a response surface says which two factors it is drawn over. */
 export const pairWords = (chosen) => (chosen ? "the two factors you chose" : "the two factors with the largest main effects");
 
-/** What each chart shows and how to read it; some name the factors drawn. */
-export const CAPTIONS = {
-  /**
-   * With limits on the settings the surface is greyed where a setting cannot be run, and when the
-   * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
-   * in their own units).
-   */
-  contour: (pair, { shaded = false, held = [], factors = [], chosen = false } = {}) => {
-    const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
-    const others = held.length
-      ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
-        "the ranges cannot be run"
-      : ", with the others at their center";
-    const grey = shaded ? "; grey: settings outside your limits" : "";
-    return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
+/**
+ * Every chart of Learn, in the order the page draws them: its heading (``title``); what it shows and how to read
+ * it (``caption``, a sentence or a function of the surface's two factors and what the page knows of them); the
+ * glossary's entry for its heading (``glossary``); and its ``height`` when not the usual. A chart under "More
+ * charts" (``more``) also has the reading level that first shows it (``level``), which is that of its ``term`` in
+ * the concept map (map/graph.json): tests/web/page/test_levels.py keeps the two in step, and
+ * tests/web/page/test_parity.py keeps the charts under "More charts" the ones bootstrap.MORE_CHARTS draws.
+ */
+export const CHARTS = {
+  coefficients: { title: "Coefficients" },
+  levels: {
+    title: "The runs at each level",
+    caption:
+      "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
+      "within a level is the noise a difference between the levels is judged against.",
   },
-  true_contour: "The process the results were simulated from, on the same scale.",
-  /** With the best blend found, a star marks it (``starred``). */
-  ternary: (_, { starred = false } = {}) =>
-    "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
-    `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
-  true_ternary: "The process the results were simulated from, on the same scale.",
-  /** With the best blend found, the lines go through it and a star marks it (``starred``); else through the reference blend. */
-  cox: (_, { starred = false } = {}) =>
-    starred
-      ? "Each line changes one component's share of the best blend while the others keep their proportions to each " +
-        "other; the lines cross at the best blend, which the star marks."
-      : "Each line changes one component's share of the reference blend, the centroid of the design's blends, while " +
-        "the others keep their proportions to each other; the lines cross at the reference blend.",
-  residuals: "A curve or a funnel points to a missing term or a changing noise level.",
-  half_normal: "Effects far above the line, past Lenth's margin of error, are likely real.",
-  levels:
-    "Each dot is a run, and beside the dots is the level's average with its 95% interval. The spread of the dots " +
-    "within a level is the noise a difference between the levels is judged against.",
-  surface_3d: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
-  perturbation:
-    "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
-    "factor that matters; a bent one has an optimum inside its range.",
-  main_effects:
-    "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
-    "these are your results.",
-  interaction: (pair) =>
-    `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
-    `are not parallel say the effect of ${pair[1]} depends on ${pair[0]}.`,
-  cube: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
-  normal_probability:
-    "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again.",
-  residuals_order: "A drift or a step says something changed while the runs were made, which the model does not know of.",
-  prediction_variance:
-    "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
-    "the runs are, not on their results: predictions are firmest where it is lowest.",
+  contour: {
+    title: "Fitted response surface",
+    glossary: "response-surface",
+    /**
+     * With limits on the settings the surface is greyed where a setting cannot be run, and when the
+     * center of the ranges cannot be run, the others are held at a central setting that can (``held``,
+     * in their own units).
+     */
+    caption: (pair, { shaded = false, held = [], factors = [], chosen = false } = {}) => {
+      const units = Object.fromEntries(factors.map((f) => [f.name, f.units ?? ""]));
+      const others = held.length
+        ? `, with ${listNames(held.map((h) => `${h.name} at ${inUnits(h.value, units[h.name])}`))}, since the center of ` +
+          "the ranges cannot be run"
+        : ", with the others at their center";
+      const grey = shaded ? "; grey: settings outside your limits" : "";
+      return `Drawn over ${pair.join(" and ")}, ${pairWords(chosen)}${others}${grey}; the dots are the runs.`;
+    },
+  },
+  true_contour: {
+    title: "True response surface",
+    glossary: "true-process",
+    caption: "The process the results were simulated from, on the same scale.",
+  },
+  ternary: {
+    title: "Fitted response over the blends",
+    /** With the best blend found, a star marks it (``starred``). */
+    caption: (_, { starred = false } = {}) =>
+      "Each corner is a pure component and each point a blend, coloured by the fitted response, over the blends the " +
+      `bounds allow; the white dots are the runs${starred ? ", and the star the best blend" : ""}.`,
+  },
+  true_ternary: {
+    title: "True response over the blends",
+    caption: "The process the results were simulated from, on the same scale.",
+  },
+  cox: {
+    title: "Fitted response along each Cox direction",
+    /** With the best blend found, the lines go through it and a star marks it (``starred``); else through the reference blend. */
+    caption: (_, { starred = false } = {}) =>
+      starred
+        ? "Each line changes one component's share of the best blend while the others keep their proportions to each " +
+          "other; the lines cross at the best blend, which the star marks."
+        : "Each line changes one component's share of the reference blend, the centroid of the design's blends, while " +
+          "the others keep their proportions to each other; the lines cross at the reference blend.",
+  },
+  residuals: {
+    title: "Residuals against fitted values",
+    glossary: "residuals",
+    caption: "A curve or a funnel points to a missing term or a changing noise level.",
+  },
+  half_normal: {
+    title: "Half-normal plot of the effects",
+    glossary: "half-normal",
+    caption: "Effects far above the line, past Lenth's margin of error, are likely real.",
+  },
+  // Under "More charts": what the factors do, then whether to trust the model.
+  perturbation: {
+    title: "Each factor's effect on the prediction",
+    more: true,
+    level: 2,
+    term: "response_surface",
+    caption:
+      "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
+      "factor that matters; a bent one has an optimum inside its range.",
+  },
+  main_effects: {
+    title: "Average result at each setting",
+    more: true,
+    level: 1,
+    term: "main_effect",
+    caption:
+      "The average of the runs made at each setting of a factor, whatever the others were at. The model is not used: " +
+      "these are your results.",
+  },
+  interaction: {
+    title: "Interaction of the two factors",
+    more: true,
+    level: 1,
+    term: "interaction_plot",
+    caption: (pair) =>
+      `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
+      `are not parallel say the effect of ${pair[1]} depends on ${pair[0]}.`,
+  },
+  surface_3d: {
+    title: "Fitted response surface, in three dimensions",
+    more: true,
+    level: 2,
+    term: "response_surface",
+    height: 420,
+    caption: (pair) => `The surface above, over ${pair.join(" and ")}, as a shape to turn: drag it.`,
+  },
+  cube: {
+    title: "Predictions at the corners",
+    more: true,
+    level: 1,
+    term: "cube_plot",
+    height: 420,
+    caption: "The model's prediction at each combination of the low and high settings of three factors: drag to turn it.",
+  },
+  normal_probability: {
+    title: "Residuals against the normal distribution",
+    more: true,
+    level: 1,
+    term: "residual_analysis",
+    caption: "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again.",
+  },
+  residuals_order: {
+    title: "Residuals in the order the runs were made",
+    more: true,
+    level: 1,
+    term: "residual_analysis",
+    caption: "A drift or a step says something changed while the runs were made, which the model does not know of.",
+  },
+  prediction_variance: {
+    title: "Where the predictions are least certain",
+    more: true,
+    level: 3,
+    term: "prediction_variance",
+    caption:
+      "The variance of a prediction, relative to the noise of one run, over the same two factors. It depends on where " +
+      "the runs are, not on their results: predictions are firmest where it is lowest.",
+  },
 };
+
+/** Each chart's heading, and what each shows and how to read it: read from CHARTS. */
+export const TITLES = Object.fromEntries(Object.entries(CHARTS).map(([key, chart]) => [key, chart.title]));
+export const CAPTIONS = Object.fromEntries(
+  Object.entries(CHARTS)
+    .filter(([, chart]) => chart.caption)
+    .map(([key, chart]) => [key, chart.caption]),
+);
+
+/** The charts under "More charts", in their order. */
+export const MORE_CHARTS = Object.keys(CHARTS).filter((key) => CHARTS[key].more);
+
+/** The reading level that first shows a chart: 1 for one every level has. */
+export const chartLevel = (key) => CHARTS[key]?.level ?? 1;
+
+/** A chart's height on the page, in pixels. */
+export const chartHeight = (key) => CHARTS[key]?.height ?? 340;
 
 /** The most times each run of a design is made: bootstrap.MAX_REPLICATES. */
 export const MAX_REPLICATES = 10;

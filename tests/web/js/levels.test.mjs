@@ -25,7 +25,7 @@ describe("the reading level", () => {
   });
 
   test("a part no level names is on every page", () => {
-    assert.equal(levelOf("chart:contour"), 1);
+    assert.equal(levelOf("table:of-no-level"), 1);
     assert.equal(levelOf("design:d_optimal"), 3);
   });
 

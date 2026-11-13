@@ -97,7 +97,10 @@ import {
   AXIAL_DISTANCE,
   BLOCK,
   CAPTIONS,
+  CHARTS,
   MORE_CHARTS,
+  chartHeight,
+  chartLevel,
   simplerWords,
   runSheetCsv,
   asideOf,
@@ -130,7 +133,6 @@ import {
   omarsHint,
   SPACE_FILLING_RUNS,
   defaultBudget,
-  TITLES,
   TRADE_OFF_FACTORS,
   TRADE_OFF_RUNS,
   aimTerms,
@@ -4109,14 +4111,12 @@ function setModel(model) {
 }
 
 // ---------------------------------------------------------------- charts
-/** The glossary's entry for a chart's title, where it has one. */
-const CHART_TERMS = { contour: "response-surface", true_contour: "true-process", residuals: "residuals", half_normal: "half-normal" };
-
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
   const plot = el("div", "plot", "");
-  const title = el("h3", "", CHART_TERMS[key] ? "" : TITLES[key]);
-  if (CHART_TERMS[key]) title.append(term(TITLES[key], { key: CHART_TERMS[key], alone: true }));
+  const { title: words, glossary } = CHARTS[key];
+  const title = el("h3", "", glossary ? "" : words);
+  if (glossary) title.append(term(words, { key: glossary, alone: true }));
   card.append(title, plot, ...(caption ? [el("figcaption", "hint", caption)] : []));
   return { card, plot };
 }
@@ -4249,16 +4249,13 @@ async function drawCharts(request, mine, given = null) {
     state.plots = plots; // drawn again, from these, when the reading level changes
     state.chartRequest = request;
     const drawable = MORE_CHARTS.filter((key) => figures[key]);
-    const more = drawable.filter((key) => levelOf(`chart:${key}`) <= pageLevel());
-    const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map((key) => levelOf(`chart:${key}`)), "chart");
+    const more = drawable.filter((key) => chartLevel(key) <= pageLevel());
+    const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map(chartLevel), "chart");
     if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
-
-/** The charts in three dimensions, which need more height to be read. */
-const SOLID_CHARTS = new Set(["surface_3d", "cube"]);
 
 /**
  * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
@@ -4280,7 +4277,7 @@ function moreCharts(keys, figures, captioned, version, beyond = "") {
       const card = captioned(key);
       card.card.dataset.chart = key;
       grid.append(card.card);
-      await draw(card.plot, figures[key], version, SOLID_CHARTS.has(key) ? 420 : 340);
+      await draw(card.plot, figures[key], version, chartHeight(key));
     }
   };
   box.addEventListener("toggle", () => {

@@ -575,6 +575,13 @@ def test_a_column_offers_every_design_the_page_makes_there_and_marks_it(api, boo
         assert column == set(fractions) | full_factorial, f"{k} factors"
 
 
+# --------------------------------------------------------------------------- the charts
+def test_the_charts_under_more_charts_are_the_ones_bootstrap_draws(bootstrap, node):
+    """logic.js holds each chart's heading, caption and level, and bootstrap.py how it is drawn: the same charts."""
+    (more,) = javascript(node, source("logic.js"), [("MORE_CHARTS", [])])
+    assert more == list(bootstrap.MORE_CHARTS)
+
+
 # --------------------------------------------------------------------------- what the worker answers
 def test_the_worker_answers_every_entry_point_bootstrap_defines_and_nothing_else(bootstrap):
     """worker.js refuses a name its pattern does not match; every api_* function of bootstrap.py matches it."""
@@ -605,7 +612,7 @@ def test_every_tab_controls_a_panel_on_the_page():
 
 
 def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
-    """A word marked on the page names a glossary entry, and each entry is a word the page or app.js marks.
+    """A word marked on the page names a glossary entry, and each entry is a word the page, app.js or a chart marks.
 
     Each definition is one or two short sentences, as a pop-up holds: the page says what a word means
     once, there, rather than in a sentence under every box.
@@ -613,7 +620,10 @@ def test_every_marked_word_has_a_definition_and_every_definition_a_word(node):
     glossary, marked = javascript(node, source("glossary.js"), [("GLOSSARY", []), ("MARKED", [])])
     assert set(page().terms) <= set(glossary), "a word on the page with no definition"
     assert set(marked.values()) <= set(glossary), "a phrase app.js marks with no definition"
-    named = set(page().terms) | set(marked.values()) | set(re.findall(r'"([\w-]+)"', source("app.js")))
+    (charts,) = javascript(node, source("logic.js"), [("CHARTS", [])])
+    headings = {chart["glossary"] for chart in charts.values() if "glossary" in chart}
+    assert headings <= set(glossary), "a chart's heading with no definition"
+    named = set(page().terms) | set(marked.values()) | set(re.findall(r'"([\w-]+)"', source("app.js"))) | headings
     assert set(glossary) <= named, "a definition no word opens"
     for key, text in glossary.items():
         assert text.endswith("."), key
