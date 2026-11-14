@@ -257,6 +257,11 @@ When you change the app, the tests move with it:
   the package and makes the call again.
 - A new file in `web/`: in `APP_FILES` in `scripts/build_web_app.py` if the page loads
   it, and in `APP_SOURCES` in `tests/web/_support.py` either way.
+- A change to what a study a reader kept shows when it opens again, from a link or a study
+  file: the same change in `tests/web/e2e/golden/studies.json`, which holds links made on
+  factori.al and what each showed. `test_golden_studies.py` fails until it agrees, so the
+  change is seen in review. Never re-make the links: they stand for the ones readers keep.
+  A new format a link or a file can be saved in keeps every older one opening.
 - A new example the book links to (`https://factori.al/?book=<name>`): an entry in
   `web/book-examples.json`, and a case in `tests/web/api/test_book_examples.py` holding
   the numbers the book prints for it; the suite fails until there is one. Its name is

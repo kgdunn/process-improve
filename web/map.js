@@ -52,6 +52,7 @@ const bowOf = (a, b) => BOW * Math.hypot(b.x - a.x, b.y - a.y);
 // letters, so it reads where lines cross it and hides nothing else.
 const HALO = px => ({ "text-outline-color": css("--map-bubble"), "text-outline-width": px(2), "text-outline-opacity": 0.7 });
 const VERB_EM = 0.95;   // a link label's size, as a fraction of a term name's
+const VERB_LIFT = 0.85;   // how far a link label's middle sits from its line, as a fraction of the label's size
 const TERM_GAP = 62;   // least distance between two terms in the drawing (layout_kg.py)
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -64,6 +65,23 @@ const groupOf = id => topics.get(id) || subtopics.get(id);   // a topic or a sub
 const fam = n => FAMILY[n.type] || "concept";
 const icon = (f, color) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}" fill="${color}"/></svg>`;
 const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+// Math, as the graph writes it: LaTeX between dollar signs in a definition, and the book's own :math:`...` role in the
+// line it quotes. KaTeX draws it, and writes each formula twice: as drawn, for the eye, and as MathML, out of sight,
+// which is what a screen reader reads. It is fetched when the map first shows a formula, never before, and a formula
+// is hidden until it is drawn; if KaTeX cannot be fetched, the formula is shown as it is written.
+const MATH = /\$([^$]+)\$|:math:`([^`]+)`/g;
+const withMath = text => esc(text).replace(MATH, (_, dollars, role) => `<span class="tex">${dollars ?? role}</span>`);
+let katex;   // undefined: not asked for yet; then the fetch, as a promise; then KaTeX, or false when it did not come
+function typeset(root) {
+  const formulas = root.querySelectorAll(".tex:not(.done)");
+  if (!formulas.length) return;
+  katex ??= import("./vendor/katex/katex.min.js").then(() => (katex = self.katex), () => (katex = false));
+  if (katex instanceof Promise) { katex.then(() => typeset(root)); return; }
+  for (const f of formulas) {
+    if (katex) katex.render(f.textContent, f, { throwOnError: false });
+    f.classList.add("done");
+  }
+}
 // The link to the book goes to the term's section and, as a text fragment (#:~:text=), to the sentence it quotes: a
 // browser that knows text fragments scrolls to that sentence and highlights it, and one that does not stops at the
 // section. The quote is a line of the book's source, so a word with markup in it (a role, emphasis, a literal) or
@@ -73,7 +91,7 @@ const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "
 const PLAIN = /^[\p{L}\p{N}.,;:!?()%/+=-]+$/u;
 const textFragment = quote => {
   let best = [], run = [];
-  for (const w of (quote || "").split(/\s+/)) {
+  for (const w of (quote || "").replace(MATH, " ` ").split(/\s+/)) {   // a formula is no word of the page's text
     if (PLAIN.test(w) && !w.includes("--") && !/:\S/.test(w)) { run.push(w); if (run.length > best.length) best = [...run]; }
     else run = [];
   }
@@ -179,7 +197,7 @@ const elements = [
     data: { id: `${s.id}-name`, label: `${s.name}\n[${sizeAt(s.id)}]`, w: 1.6 * s.r } })),
   ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}${bookClass(booksOfTerm(n), "book")}`, position: { x: n.x, y: n.y },
     data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length } })),
-  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0,
+  ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0, liftX: 0, liftY: 0,
     bow: bowOf(terms.get(e.source), terms.get(e.target)) },
     classes: (terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross") + bookClass(booksOfLink(e), "also") })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between",
@@ -265,9 +283,9 @@ function sheet(z) {
     { selector: ".term.held", style: { "border-width": px(3), "border-color": css("--accent"), "z-index": 35 } },
     { selector: ".link", style: { display: overview ? "none" : "element", width: px(line), "line-color": css("--muted"),
       ...ARC, "z-index": 5, "line-opacity": middle ? 0.3 : 0.55 } },   // fades the line, not its label
-    // The link labels, once the terms they join are named: the verb along the line, reading the way the arrow points,
+    // The link labels, once the terms they join are named: the verb beside the line, reading the way the arrow points,
     // in italic and the accent colour, so a verb is not read as a term.
-    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "font-family": FONT, "font-size": px(font * VERB_EM), "font-weight": 600,
+    ...(verbsOn && !middle ? [{ selector: ".link", style: { "source-label": "data(verb)", "source-text-offset": "data(at)", "source-text-margin-x": "data(liftX)", "source-text-margin-y": "data(liftY)", "font-family": FONT, "font-size": px(font * VERB_EM), "font-weight": 600,
       color: css("--accent"), "font-style": "italic", "source-text-rotation": "autorotate", ...HALO(px), "text-outline-opacity": 0.95, "target-arrow-shape": "triangle",
       "target-arrow-color": css("--muted"), "arrow-scale": arrow(line, dot * 0.8) } }] : []),
     { selector: ".link.cross", style: { "line-opacity": middle ? 0.12 : 0.25 } },   // links between topics: present, but behind the topic's own
@@ -355,34 +373,45 @@ function settleOverlaps() {
   if (verbsOn) settleLinkLabels(kept);
 }
 
-// A link's label sits on its line, clear of the terms, their names and the other labels: in the middle where that is
-// clear, else at the first clear spot further along either way, else held back until zooming in makes room for it.
-// The label is drawn `at` drawing units along the line from where it leaves its source term.
+// A link's label sits beside its line, clear of the terms, their names and the other labels: in the middle where that
+// is clear, else at the first clear spot further along either way, else held back until zooming in makes room for it.
+// On the line itself the line ran through the gaps between the words, in the label's own colour. The label is drawn
+// `at` drawing units along the line from where it leaves its source term, and moved (`liftX`, `liftY`) units off it:
+// Cytoscape adds a label's margin along the map's axes and turns the text afterwards, so "above" needs both.
 const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way from the source term to the target
 function settleLinkLabels(kept) {
-  const z = cy.zoom(), { font, dot } = sizes(z), f = font * VERB_EM, pad = f * 0.5;   // pad: half the text's height
+  const z = cy.zoom(), { font, dot } = sizes(z), f = font * VERB_EM, pad = f * 0.5, lift = f * VERB_LIFT;   // pad: half the text's height
   if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
   const W = cy.width(), H = cy.height();
   const taken = [...kept, ...cy.nodes(".term").filter(n => n.visible()).map(n => n.renderedBoundingBox({ includeLabels: false }))];
   const hit = (x, y) => taken.some(b => x > b.x1 - pad && x < b.x2 + pad && y > b.y1 - pad && y < b.y2 + pad);
   const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
+  // A link as Cytoscape draws it: the quadratic through its own control point, from the centre of one term to the
+  // other's, close enough to the arc length for a label's few points.
+  const pan = cy.pan(), path = e => { const s = e.source().renderedPosition(), t = e.target().renderedPosition();
+    const [c] = e.controlPoints() || [{ x: ((s.x + t.x) / 2 - pan.x) / z, y: ((s.y + t.y) / 2 - pan.y) / z }], cx = c.x * z + pan.x, cy_ = c.y * z + pan.y;
+    return { s, t, cx, cy_, len: Math.hypot(t.x - s.x, t.y - s.y),
+      on: u => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * cx + u * u * t.x, y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * cy_ + u * u * t.y }) }; };
+  // The selected term's lines are in the labels' own colour, so a label keeps clear of each of them: of the others as
+  // of its own. A point every `pad` along a line leaves no gap a label's point could pass through.
+  links.filter(e => e.hasClass("hl")).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
+    for (let i = 0; i <= n; i++) { const p = on(i / n); if (p.x > 0 && p.x < W && p.y > 0 && p.y < H) taken.push({ x1: p.x, x2: p.x, y1: p.y, y2: p.y }); } });
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
-    const s = e.source().renderedPosition(), t = e.target().renderedPosition();
-    const len = Math.hypot(t.x - s.x, t.y - s.y), w = textWidth(e.data("verb"), f, "italic 600") + 4;
+    const { s, t, cx, cy_, len, on } = path(e), w = textWidth(e.data("verb"), f, "italic 600") + 4;
     const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
-    // Along the curve as Cytoscape draws it: the quadratic through its own control point, from the centre of one term
-    // to the other's, close enough to the arc length for a label's few points.
-    const pan = cy.pan(), [c] = e.controlPoints() || [{ x: ((s.x + t.x) / 2 - pan.x) / z, y: ((s.y + t.y) / 2 - pan.y) / z }];
-    const cx = c.x * z + pan.x, cy_ = c.y * z + pan.y;
-    const points = k => [-0.45, -0.2, 0, 0.2, 0.45].map(j => { const u = Math.min(1, Math.max(0, k + (w * j) / len)), v = 1 - u;
-      return { x: v * v * s.x + 2 * u * v * cx + u * u * t.x, y: v * v * s.y + 2 * u * v * cy_ + u * u * t.y }; });
-    const mid = points(0.5)[2], off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
-    const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !points(k).some(p => hit(p.x, p.y)));
+    // The text is straight: it runs along the line's direction where it sits, left to right, and stands above it. Where
+    // the line bows upwards its two ends rise towards the text, so the text is raised by that much more.
+    const spot = k => { const dx = (1 - k) * (cx - s.x) + k * (t.x - cx), dy = (1 - k) * (cy_ - s.y) + k * (t.y - cy_), d = Math.hypot(dx, dy) * (dx < 0 ? -1 : 1) || 1;
+      const p = on(k), ax = dx / d, ay = dy / d, rise = q => (q.x - p.x) * ay - (q.y - p.y) * ax;   // how far above p, as the text stands
+      const h = lift + Math.max(0, ...[-0.5, 0.5].map(j => rise(on(Math.min(1, Math.max(0, k + (w * j) / len))))));
+      return { x: ay * h, y: -ax * h, points: [-0.45, -0.2, 0, 0.2, 0.45].map(j => ({ x: p.x + ay * h + ax * w * j, y: p.y - ax * h + ay * w * j })) }; };
+    const mid = on(0.5), off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
+    const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !spot(k).points.some(p => hit(p.x, p.y)));
     e.toggleClass("mute", k === undefined);
     if (k === undefined) return;
-    const at = (k * len - from) / z;
-    if (Math.abs(e.data("at") - at) > 0.01) e.data("at", at);
-    if (!off) taken.push(...points(k).map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
+    const { x, y, points } = spot(k);
+    for (const [key, to] of [["at", (k * len - from) / z], ["liftX", x / z], ["liftY", y / z]]) if (Math.abs(e.data(key) - to) > 0.01) e.data(key, to);
+    if (!off) taken.push(...points.map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
   });
 }
 
@@ -497,11 +526,11 @@ function render() {
   if (selected && terms.has(selected)) {
     const n = terms.get(selected), color = css(`--map-${fam(n)}`);
     card.style.setProperty("--fam", color);
-    card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${esc(n.definition)}</p>
+    card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${withMath(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
-      <blockquote class="map-quote"><p>${esc(n.quote)}</p></blockquote>
+      <blockquote class="map-quote"><p>${withMath(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {
@@ -509,7 +538,8 @@ function render() {
       groups.set(rel, [...(groups.get(rel) || []), other]);
     }
     links.innerHTML = group("Topic", [n.cluster]) + (n.sub ? group("Sub-topic", [n.sub]) : "") + [...groups].map(([rel, ids]) => group(rel, ids)).join("");
-    strip.innerHTML = `<b>${esc(n.name)}</b> · ${esc(n.definition)}`;
+    strip.innerHTML = `<b>${esc(n.name)}</b> · ${withMath(n.definition)}`;
+    typeset(card); typeset(strip);
   } else if (selected && groupOf(selected)) {
     const c = groupOf(selected), isSub = subtopics.has(selected);
     const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && onMap.has(n.id))
@@ -645,7 +675,7 @@ function sayLink(e) {
 }
 cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(ev.target); });
 cy.on("mouseout", "edge.link", () => {
-  if (stripWas !== null) { document.getElementById("striptext").innerHTML = stripWas; stripWas = null; }
+  if (stripWas !== null) { const strip = document.getElementById("striptext"); strip.innerHTML = stripWas; stripWas = null; typeset(strip); }
 });
 // A tap on the map brings it up the page, the filters at the top of the screen, so the card it opens below the map
 // is in view: a reader who tapped with the map low on the screen would otherwise not see that anything changed. A
