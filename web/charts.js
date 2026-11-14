@@ -44,6 +44,7 @@ export function palette() {
     fg: read("--fg"),
     muted: read("--muted"),
     line: read("--line"),
+    panel: read("--panel"),
     accent: read("--accent"),
     warn: read("--warn"),
     ok: read("--ok"),
@@ -130,6 +131,8 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     margin,
     // No box around the legend: the library's own figures draw one, in black on a white page.
     legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
+    // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
+    hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
     xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
     yaxis: axis(layout.yaxis, height - margin.t - margin.b),
   };
@@ -236,6 +239,9 @@ export async function draw(div, figure, version, height = 340, { toolbar = false
   const shown = { make, version, height, toolbar, python, revision: ++draws };
   drawn.set(div, shown);
   offerWindow(div);
+  // To a reader who cannot see it, a chart is one picture, named by its heading: its numbers are in a table beside it.
+  if (!div.hasAttribute("role")) div.setAttribute("role", "img");
+  if (!div.hasAttribute("aria-label")) div.setAttribute("aria-label", wordsOf(div).title);
   await react(div, shown);
   watch(div);
 }
@@ -295,6 +301,7 @@ export const LIGHT = {
   fg: "#1d1d1f",
   muted: "#5f6368",
   line: "#dcd8ce",
+  panel: "#ffffff",
   accent: "#2c5f7c",
   warn: "#a35f00",
   ok: "#1e7b3a",

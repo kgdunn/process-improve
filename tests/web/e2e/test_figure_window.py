@@ -125,6 +125,34 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
     )
 
 
+def test_each_chart_is_one_picture_named_by_its_heading(page):
+    """To a reader who cannot see it a chart is one picture, with its numbers in the table beside it."""
+    open_more(page)
+    named = page.locator("#charts figure.chart").evaluate_all(
+        """(cards) => cards.map((card) => {
+             const plot = card.querySelector('.plot');
+             return [plot.getAttribute('role'), plot.getAttribute('aria-label'), card.querySelector('h3').textContent];
+           })"""
+    )
+    assert len(named) == 4 + len(MORE_TITLES)
+    for role, label, heading in named:
+        assert (role, label) == ("img", heading)
+
+
+def test_what_the_pointer_rests_on_is_named_in_the_page_s_colours(page):
+    """The library's label is white, for a white page: on a dark page its pale text could not be read."""
+    open_more(page)
+    page.emulate_media(color_scheme="dark")
+    page.wait_for_function(
+        "document.querySelector('figure[data-chart=main_effects] .plot')._fullLayout.hoverlabel.bgcolor !== '#ffffff'"
+    )
+    label = page.locator("figure[data-chart=main_effects] .plot").evaluate("(plot) => plot._fullLayout.hoverlabel")
+    colours = page.evaluate(
+        "['--panel', '--fg'].map((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim())"
+    )
+    assert [label["bgcolor"], label["font"]["color"]] == colours
+
+
 def test_the_window_is_closed_by_its_button_and_by_a_click_outside_it(page):
     open_more(page)
     expand(page, "interaction")

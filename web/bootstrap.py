@@ -5235,15 +5235,39 @@ def _more_charts(
     return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 
 
+#: The library's plots with a point for each run's residual, and how each orders its points given the runs' numbers
+#: (``order``) and their residuals, both in the order the runs are listed: as listed, by their number, or by size.
+RESIDUAL_PLOTS: dict[str, Callable[[list[int], list[float]], list[int]]] = {
+    "residuals_vs_fitted": lambda order, _: order,
+    "residuals_vs_order": lambda order, _: sorted(order),
+    "normal_probability": lambda order, residuals: [order[i] for i in np.argsort(residuals, kind="stable")],
+}
+
+
+def _name_runs(figure: dict, kind: str, results: dict, order: list[int]) -> None:
+    """Say which run each residual is, where the pointer rests on its point: its place in the order the runs were made.
+
+    A residual out of line is a run to look at again, and the point alone does not say which one.
+    """
+    residuals = (results.get("residual_diagnostics") or {}).get("residuals")
+    if kind not in RESIDUAL_PLOTS or not residuals:
+        return
+    runs = RESIDUAL_PLOTS[kind](order, residuals)
+    for trace in figure["data"]:
+        if trace.get("mode") == "markers":
+            trace.update(customdata=runs, hovertemplate="Run %{customdata}<br>Residual %{y:.3g}<extra></extra>")
+
+
 class _Figures:
     """The figures of one analysis, drawn with the library's plots from its runs (``rows``, in coded units).
 
-    ``drawn`` holds each figure by the page's key for it, as JSON text for Plotly.js; ``asked`` holds what each
-    asked the library for beyond the runs and their analysis (see :data:`STATED_OPTIONS`), under its ``plot_type``.
+    ``order`` numbers each run by its place in the order the runs were made. ``drawn`` holds each figure by the
+    page's key for it, as JSON text for Plotly.js; ``asked`` holds what each asked the library for beyond the runs
+    and their analysis (see :data:`STATED_OPTIONS`), under its ``plot_type``.
     """
 
-    def __init__(self, spec: dict, rows: list[dict], plotly: ModuleType) -> None:
-        self.spec, self.rows, self.plotly = spec, rows, plotly
+    def __init__(self, spec: dict, rows: list[dict], order: list[int], plotly: ModuleType) -> None:
+        self.spec, self.rows, self.order, self.plotly = spec, rows, order, plotly
         self.drawn: dict[str, str] = {}
         self.asked: dict[str, dict[str, Any]] = {}
 
@@ -5251,10 +5275,14 @@ class _Figures:
         """Draw the library's plot ``kind`` of ``results`` as the page's figure ``key``, on a transform's ``scale``."""
         from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415 - imports plotly
 
+        rows = self.rows
+        if kind == "residuals_vs_order":  # each residual at its run's own number, which the library reads from here
+            rows = [{**row, "RunOrder": number} for row, number in zip(rows, self.order, strict=True)]
         figure = create_plot(
-            kind, analysis_results=results, design_data=self.rows, response_column=self.spec["response"], **options
+            kind, analysis_results=results, design_data=rows, response_column=self.spec["response"], **options
         )
         dressed = _dressed(figure.to_plotly(), kind, self.spec, options.get("factors_to_plot", []), scale)
+        _name_runs(dressed, kind, results, self.order)
         self.drawn[key] = json.dumps(dressed, cls=self.plotly.utils.PlotlyJSONEncoder)
         self.asked[key] = {"plot_type": kind, **{name: options[name] for name in STATED_OPTIONS if name in options}}
 
@@ -5308,6 +5336,7 @@ def plots(request: dict) -> dict:
             coded, y, model=fit["formula"], analysis_type=["coefficients", "residual_diagnostics"], coding="actual"
         )
     rows = coded.assign(**{response: y}).to_dict("records")
+    order = runs.loc[done, RUN_ORDER].astype(int).tolist() if RUN_ORDER in runs else list(range(1, len(rows) + 1))
     # A factor of several levels is no axis: the surface holds it at its average level, its contrasts at 0.
     axes = [f["name"] for f in spec["factors"] if not _several(f)]
     chosen = _chosen_pair(request.get("contour_factors"), axes)
@@ -5316,7 +5345,7 @@ def plots(request: dict) -> dict:
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    figures = _Figures(spec, rows, plotly)
+    figures = _Figures(spec, rows, order, plotly)
     draw = figures.draw
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -5712,8 +5741,10 @@ def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transfo
         # reader who does not see the colours apart; and a mark at each average, which is all the runs give.
         for trace, dash in zip(figure["data"], itertools.cycle(LINE_DASHES), strict=False):
             trace["line"] = {**trace.get("line", {}), "dash": dash}
+            trace["hovertemplate"] = "%{y:.4g}"
             if len(trace["x"]) <= MAX_AVERAGED_SETTINGS:
                 trace["mode"] = "lines+markers"
+        figure["layout"]["hovermode"] = "x unified"  # every line's value at one setting, read together
 
 
 # --------------------------------------------------------------------------- the pictures of a mixture

@@ -96,6 +96,46 @@ def test_the_variance_of_a_prediction_is_drawn_square_as_the_surface_it_is_over(
         assert axis["ticktext"] == ["1", "2", "3"]
 
 
+RESIDUAL_FIGURES = ("residuals", "normal_probability", "residuals_order")
+
+
+def residual_points(figure: str) -> dict:
+    """Return the trace of a residual figure that draws a point for each run."""
+    return next(trace for trace in json.loads(figure)["data"] if trace["mode"] == "markers")
+
+
+def test_each_residual_names_its_run_where_the_pointer_rests_on_it(api, held, simulated):
+    """A residual out of line is a run to look at again: each figure of the residuals says which run a point is."""
+    request = {**held, "responses": simulated["responses"]}
+    residual = {row["run"]: row["residual"] for row in api.ok("api_analyze_runs", request)["diagnostics"]}
+    figures = api.ok("api_plots", request)["figures"]
+    for key in RESIDUAL_FIGURES:
+        points = residual_points(figures[key])
+        assert sorted(points["customdata"]) == sorted(residual), f"{key}: every run, once"
+        for run, drawn in zip(points["customdata"], points["y"], strict=True):
+            assert drawn == pytest.approx(residual[run]), f"{key}: run {run}"
+        assert points["hovertemplate"] == "Run %{customdata}<br>Residual %{y:.3g}<extra></extra>"
+    by_size = residual_points(figures["normal_probability"])["customdata"]
+    assert by_size != sorted(by_size), "the normal plot orders the residuals by size, not by run"
+
+
+def test_the_residuals_in_run_order_are_drawn_at_each_run_s_own_number(api, held, simulated):
+    """With runs still to do, a residual's place along the axis is its run's number, not its place among the done."""
+    responses = [None, None, *simulated["responses"][2:]]
+    points = residual_points(api.ok("api_plots", {**held, "responses": responses})["figures"]["residuals_order"])
+    assert points["x"] == list(range(3, len(responses) + 1))
+    assert points["customdata"] == points["x"]
+
+
+def test_a_chart_of_lines_reads_every_line_at_one_setting_together(api, held, simulated):
+    figures = api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]
+    for key in ("perturbation", "main_effects", "interaction"):
+        figure = json.loads(figures[key])
+        assert figure["layout"]["hovermode"] == "x unified", key
+        assert {trace["hovertemplate"] for trace in figure["data"]} == {"%{y:.4g}"}, key
+    assert "hovermode" not in json.loads(figures["residuals"])["layout"]
+
+
 def test_a_transformed_prediction_is_drawn_in_the_response_s_units(api, held, simulated):
     """The model is fitted to ln(Yield): each prediction drawn is put back in percent, as the surface is."""
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}

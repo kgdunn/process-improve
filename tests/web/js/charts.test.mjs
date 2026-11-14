@@ -276,6 +276,13 @@ describe("a card's layout", () => {
     assert.equal(pageLayout({ legend: { y: 1.02 } }, 300, COLOURS).legend.borderwidth, 0);
   });
 
+  test("what the pointer rests on is named in the page's colours, on a light page or a dark one", () => {
+    const dark = { ...COLOURS, fg: "#e8e8e6", panel: "#1c1e21", line: "#3a3d42" };
+    const { hoverlabel } = pageLayout({}, 300, dark);
+    assert.deepEqual(hoverlabel, { bgcolor: "#1c1e21", bordercolor: "#3a3d42", font: { color: "#e8e8e6", size: 12 } });
+    assert.equal(pageLayout({}, 300, LIGHT).hoverlabel.bgcolor, "#ffffff");
+  });
+
   test("an axis title is wrapped to the room its axis has, once the room is known", () => {
     const long = "Expected, were the residuals normally distributed";
     const figure = { xaxis: { title: { text: long } }, yaxis: { title: { text: "Residual (%)" } } };
