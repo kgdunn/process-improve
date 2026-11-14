@@ -264,7 +264,6 @@ const sizes = z => ({ font: grow(z, 11, 0.25, 19), dot: grow(z, 7, 0.5, 22), lin
 const RIM_MOST = 0.13;   // of a topic's width: the broadest its rim is drawn, on the smallest topic at the furthest zoom
 function ringRules(z, px, overview, dot) {
   const inks = [css("--accent"), ...BOOKS.map((_, k) => css(`--map-book${k + 2}`))], track = css("--line");
-  const image = { "background-fit": "none", "background-position-x": "50%", "background-position-y": "50%", "background-image-opacity": 1 };
   const disc = ink => asImage(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${ink}"/></svg>`);
   const discs = [disc(css("--panel")), disc(css("--map-bubble"))];
   // A topic's sector is filled as far as the share of the topic's terms, of those drawn, that the book has.
@@ -285,7 +284,7 @@ function ringRules(z, px, overview, dot) {
           ...HALO(px), "text-outline-opacity": 0.95 } : {}) } };
     }),
     // A term keeps its kind's shape and gives up its colour; its ring is outside it.
-    { selector: ".term", style: { ...image, "background-color": css("--muted"), "background-clip": "none", "background-image-containment": "over",
+    { selector: ".term", style: { "background-color": css("--muted"), "background-clip": "none", "background-image-containment": "over",
       "background-width": "215%", "background-height": "215%", "bounds-expansion": px(dot * 0.7) } },
     ...RING_KEYS.flatMap(k => { const has = [1, ...k].map(Number); return [
       { selector: `.term[books = "${k}"]`, style: { "background-image": asImage(ringSvg(has, inks, track, 0.125)) } },
@@ -388,13 +387,13 @@ function placeLabels(z) {
     const shown = gap < 40 ? 3 : gap < 60 ? 8 : Infinity;   // per topic, by rank, before space decides
     const W = cy.width(), H = cy.height();
     const candidates = [];
-    const rings = [], reach = dot * 1.1;   // while books are compared: the terms in view, and how far a ring reaches from its term
+    const rings = [];   // while books are compared: the terms in view, and how far the ring of each reaches from its middle
     cy.nodes(".term").forEach(n => {
       if (n.hasClass("off")) return;
       const p = n.renderedPosition();
       if (p.x < -160 || p.x > W + 160 || p.y < -160 || p.y > H + 160) return;
-      if (othersOn) rings.push({ n, p });
       const sel = n.hasClass("sel"), forced = sel || (labelsOn && n.hasClass("nb"));
+      if (othersOn) rings.push({ n, p, reach: dot * (sel ? 1.85 : 1.1) });
       if (!sel && !labelsOn) return;
       if (!forced && n.data("rank") >= shown) return;
       if (!forced && n.data("sub") && gap < SUB_LABEL_GAP) return;   // the sub-topic's name stands for its terms
@@ -411,7 +410,7 @@ function placeLabels(z) {
       const below = { x1: c.p.x - half, x2: c.p.x + half, y1: c.p.y + off, y2: c.p.y + off + high };
       const above = { ...below, y1: c.p.y - off - high, y2: c.p.y - off };
       const free = b => !boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)
-        && !rings.some(r => r.n !== c.n && r.p.x + reach > b.x1 && r.p.x - reach < b.x2 && r.p.y + reach > b.y1 && r.p.y - reach < b.y2);
+        && !rings.some(r => r.n !== c.n && r.p.x + r.reach > b.x1 && r.p.x - r.reach < b.x2 && r.p.y + r.reach > b.y1 && r.p.y - r.reach < b.y2);
       // The rings take room that names had, so while books are compared a name goes above its term when below is taken.
       const fits = free(below), up = othersOn && !c.sel && !fits && free(above);
       c.n.toggleClass("up", up);
