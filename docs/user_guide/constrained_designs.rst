@@ -69,8 +69,9 @@ How the design is chosen
 
 1. **Candidate set.** A grid over the factor box (5 levels per continuous factor,
    fewer for many factors), plus the points where each constraint boundary crosses a
-   grid edge, located by bisection. Infeasible points are dropped. The metadata
-   reports the counts:
+   grid edge, located by bisection, and the vertices where linear constraints meet
+   (see :ref:`constrained-group-totals` for a region with too many to list).
+   Infeasible points are dropped. The metadata reports the counts:
 
    .. code-block:: python
 
@@ -123,6 +124,47 @@ Combining with other options
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
   factor is refused instead, since it usually marks a combination that cannot be run
   at all.
+
+.. _constrained-group-totals:
+
+Many factors with limits on group totals
+----------------------------------------
+
+A formulation often has many ingredients in groups, with a limit on each group's total
+and on the total of them all. Below, 15 ingredients sit in 5 buckets of 3. Each bucket
+supplies between 5% and 20% of the product, so every bucket is represented, and the 15
+together supply at most 60%; the base makes up the rest.
+
+.. code-block:: python
+
+   buckets = [[f"B{b}_{i}" for i in (1, 2, 3)] for b in (1, 2, 3, 4, 5)]
+   ingredients = [name for bucket in buckets for name in bucket]
+   bucket_limits = [f"5 <= {' + '.join(bucket)} <= 20" for bucket in buckets]
+   total_limit = f"{' + '.join(ingredients)} <= 60"
+
+   screening = generate_design(
+       [Factor(name=name, low=0, high=20, units="%") for name in ingredients],
+       budget=30,
+       constraints=[*bucket_limits, total_limit],
+       model_type="main_effects",
+       random_state=1,
+   )
+   amounts = screening.design_actual[ingredients]
+   print(screening.metadata["vertices_sampled"])  # True
+   print(amounts[buckets[0]].sum(axis=1).between(5 - 1e-9, 20 + 1e-9).all())  # True
+   print(amounts.sum(axis=1).max().round(6) <= 60)  # True
+
+No point of a grid on 15 factors has every bucket's total inside its limits, and the
+region has too many vertices to list. The candidates are then vertices of the region
+found by linear programming, each one the furthest point of the region in some
+direction, with the midpoints between them. ``metadata["vertices_sampled"]`` records
+it. A region the grid covers keeps the candidates described above.
+
+The lower limit on a bucket's total is what keeps the bucket represented: a total of at
+least 5% needs at least one of its ingredients. For a main-effects model the runs sit
+on vertices, and a vertex of this region has one ingredient in most buckets. Such a
+design estimates the effect of each ingredient on its own; how two ingredients of one
+bucket act together needs their interaction in the model, and more runs.
 
 .. _constrained-categorical-rules:
 
