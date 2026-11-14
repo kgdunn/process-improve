@@ -30,6 +30,7 @@ SUITES = (
     "offline.test.mjs",
     "sw.test.mjs",
     "charts.test.mjs",
+    "features.test.mjs",
     "figure.test.mjs",
     "python.test.mjs",
     "best.test.mjs",

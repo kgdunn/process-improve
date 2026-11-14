@@ -274,7 +274,10 @@ calculation, a control, a file it reads or writes, a limit: added, changed or ta
 changes that document in the same pull request, and nothing planned goes in it.
 `tests/web/page/test_features.py` fails while a design, a chart, a process to practise on, a
 limit or a count the document states is not the app's. The rest is prose, which a reviewer
-reads against the change.
+reads against the change. The app shows the document as a page, `web/features.html`, from the
+line `<!-- features.html shows what follows -->` on, so below that line it is written for a
+reader of the app: no path into the repository, and only the Markdown `web/features.js`
+reads (headings, paragraphs, lists, tables, bold, italic, code and links).
 
 The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
 start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode

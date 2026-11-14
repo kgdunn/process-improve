@@ -72,7 +72,10 @@ def test_the_page_registers_the_worker_it_ships_and_names_the_copies_as_it_does(
 
 def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_is_a_copy():
     html = " ".join(source("index.html").split())
-    assert '<p id="offline" hidden tabindex="-1"> <span role="status"></span>' in html, "said aloud, and focusable"
+    box = '<div id="offline" class="foot__device" hidden tabindex="-1">'
+    assert f'{box} <p class="foot__head">On this device</p> <p><span role="status"></span></p>' in html, (
+        "said aloud, and focusable; the words are in the box's first span, where offline.js writes them"
+    )
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
 
 

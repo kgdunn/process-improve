@@ -63,6 +63,9 @@ WEB_SRC = ROOT / "web"
 APP_FILES = (
     "index.html",
     "about.html",
+    "features.html",
+    "features.js",
+    "FEATURES.md",
     "catalog/index.html",
     "catalog.js",
     "catalog-logic.js",
