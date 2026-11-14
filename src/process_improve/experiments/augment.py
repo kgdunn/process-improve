@@ -802,14 +802,16 @@ def _exchange_rows(
 
 def _engine_region(ctx: _AugmentContext) -> _Region:
     """Return the constrained engine's region: the box of coded factors, cut by the limits of *ctx*'s region."""
+    from process_improve.experiments._count_rules import without_count_rules  # noqa: PLC0415
     from process_improve.experiments.designs_constrained import _Region, parse_constraint  # noqa: PLC0415
     from process_improve.experiments.factor import Factor  # noqa: PLC0415
 
     if ctx.region is None:
         return _Region([Factor(name=n, low=-1, high=1) for n in ctx.factor_names], [], [])
     names = set(ctx.region.names)
-    limits = [g for c in ctx.region.constraints for g in parse_constraint(c.expression, names)]
-    return _Region(list(ctx.region.factors), [], limits)
+    ordinary = without_count_rules(ctx.region.constraints)
+    limits = [g for c in ordinary for g in parse_constraint(c.expression, names)]
+    return _Region(list(ctx.region.factors), [], limits, counts=ctx.region.counts)
 
 
 def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:

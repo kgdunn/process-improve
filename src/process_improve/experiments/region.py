@@ -59,6 +59,7 @@ import pandas as pd
 from scipy.optimize import linprog
 from scipy.stats import qmc
 
+from process_improve.experiments._count_rules import count_rules, is_count_rule, used_sets, without_count_rules
 from process_improve.experiments._region_geometry import (
     box_share,
     box_vertices,
@@ -159,15 +160,26 @@ class DesignRegion:
             for j, f in enumerate(numeric)
             if f.min_when_used is not None
         ]
+        #: The limits on how many factors a run may use (``count_nonzero(...)`` constraints), and the sets of
+        #: factors they allow together; None without such a limit.
+        self.counts = count_rules(self.constraints, self.factors)
+        self._sets = used_sets(
+            self.names, numeric, self.counts, {f.name: f.type != FactorType.mixture for f in numeric}
+        )
+        if self._sets is not None:  # a factor a rule counts can be left out too, with or without a minimum
+            self._gaps = [(column, minimum) for column, _zero, minimum in self._sets.optional]
+        #: The constraints the inequalities are read from: a count rule's place is held by a limit that always
+        #: holds, so every index into :attr:`constraints` stays the index of the same constraint.
+        ordinary = [Constraint(expression="0 <= 1") if is_count_rule(c.expression) else c for c in self.constraints]
         #: For each inequality, the index of the constraint it came from (a chain gives several).
         self._limit_of: list[int] = []
         #: The rules on categorical factors, if any constraint names one (a box region only).
         self.rules: Rules | None = None
         #: The inequalities that apply everywhere, as text, each with the index of the constraint it came from.
-        self._plain = [(i, c.expression) for i, c in enumerate(self.constraints)]
+        self._plain = [(i, c.expression) for i, c in enumerate(ordinary)]
         if self.kind == "box" and self.constraints:
             categorical = {f.name: list(f.levels or []) for f in self.factors if f.type == FactorType.categorical}
-            self._plain, self.rules = compile_rules(self.constraints, self.names, categorical)
+            self._plain, self.rules = compile_rules(ordinary, self.names, categorical)
         self._inequalities = self._build_inequalities()  # a mixture-process region refuses rules here
         self._cache: dict[str, Any] = {}
 
@@ -180,7 +192,7 @@ class DesignRegion:
         if self.kind == "mixture":
             from process_improve.experiments.designs_mixture_constrained import mixture_inequalities  # noqa: PLC0415
 
-            a_mat, b_vec = mixture_inequalities(self.factors, self.constraints)
+            a_mat, b_vec = mixture_inequalities(self.factors, without_count_rules(self.constraints))
             self._a, self._b = a_mat, b_vec
             return [_linear_row(a_row, float(b_val)) for a_row, b_val in zip(a_mat, b_vec, strict=True)]
 
@@ -348,6 +360,8 @@ class DesignRegion:
             ok &= g(x) <= tol * widen
         for _name, trace in self._traces(x, tol):
             ok &= ~trace
+        if self._sets is not None:
+            ok &= self._sets.allows(x)
         if self.rules is None:
             return ok
         levels = self._level_text(labels, len(x))
@@ -481,14 +495,19 @@ class DesignRegion:
             raise ValueError(f"The constraints do not allow the combination {shown}.")
         return self._given_applies(self.rules.applies(text)[0])
 
-    def _given_applies(self, applies: np.ndarray) -> DesignRegion:
-        """Return the region of the numeric factors where the limits ``applies`` marks apply (cached)."""
-        key = "given:" + "".join("1" if a else "0" for a in applies)
+    def _given_applies(self, applies: np.ndarray, counted: bool = True) -> DesignRegion:
+        """Return the region of the numeric factors where the limits ``applies`` marks apply (cached).
+
+        ``counted`` keeps the limits on how many factors are used; without them the region
+        is one convex piece, which has a volume.
+        """
+        key = ("given:" if counted else "uncounted:") + "".join("1" if a else "0" for a in applies)
         if key not in self._cache:
             rules = cast("Rules", self.rules)
             numeric = [f for f in self.factors if f.type != FactorType.categorical]
             chosen = [clause.limit or "" for clause, on in zip(rules.limits, applies, strict=True) if on]
-            self._cache[key] = DesignRegion(numeric, [text for _source, text in self._plain] + chosen)
+            counts = [rule.expression for rule in self.counts] if counted else []
+            self._cache[key] = DesignRegion(numeric, [text for _source, text in self._plain] + chosen + counts)
         return self._cache[key]
 
     def sample_frame(self, n: int, rng: np.random.Generator) -> pd.DataFrame:
@@ -541,12 +560,14 @@ class DesignRegion:
         """Draw ``n`` rows of ``rules.allowed_table()``, each in proportion to the volume its region keeps.
 
         The volume is :meth:`volume_fraction` of the combination's region (see
-        :meth:`given`), found once per group of combinations that share their limits.
+        :meth:`given`), found once per group of combinations that share their limits. It
+        is taken without the limits on how many factors are used, whose pieces have no
+        volume of their own.
         """
         if "volumes" not in self._cache:
             _table, applies = cast("Rules", self.rules).allowed_table()
             groups, member = np.unique(applies, axis=0, return_inverse=True)
-            volumes = np.array([self._given_applies(signature).volume_fraction() for signature in groups])
+            volumes = np.array([self._given_applies(signature, False).volume_fraction() for signature in groups])
             self._cache["volumes"] = volumes[member.reshape(-1)]
         volumes = self._cache["volumes"]
         if np.all(volumes == volumes[0]):
@@ -642,6 +663,9 @@ class DesignRegion:
         for name, trace in self._traces(x, tol):
             for point in np.flatnonzero(trace):
                 broken[point].append(f"{name} = 0 or {name} >= {minimums[name]:g}")
+        for rule, breaks in [] if self._sets is None else self._sets.broken(x):
+            for point in np.flatnonzero(breaks):
+                broken[point].append(rule)
         if self.rules is not None:
             self._broken_rules(x, tol, labels, broken)
         return broken
@@ -722,9 +746,9 @@ class DesignRegion:
             if self._gaps:
                 names = [self.names[j] for j, _minimum in self._gaps]
                 raise ValueError(
-                    f"A mixture region whose components {names} are each left out or used at no less than their "
-                    "min_when_used cannot be sampled: its pieces, one for each set of the components in use, have "
-                    "no common measure that the sampler draws from. Its candidate blends are "
+                    f"A mixture region whose components {names} can each be left out (a min_when_used, or a limit "
+                    "on how many are used) cannot be sampled: its pieces, one for each set of the components in "
+                    "use, have no common measure that the sampler draws from. Its candidate blends are "
                     "region.support_points()."
                 )
             low = np.array([f.low for f in self.factors], dtype=float)
@@ -745,6 +769,7 @@ class DesignRegion:
             on_simplex=self.kind == "mixture",
             tolerances=self._widen(),  # so a sampled point passes feasible()
             gaps=self.gaps,
+            allowed=None if self._sets is None else self._sets.allows,
         )
         return sampler.draw(n, rng)
 
@@ -778,7 +803,8 @@ class DesignRegion:
         from process_improve.experiments.designs_constrained import _Region, build_candidates  # noqa: PLC0415
 
         continuous = [f for f in self.factors if f.type != FactorType.categorical]
-        coded, _cats, _ = build_candidates(_Region(continuous, [], self._actual_inequalities), n_levels=3)
+        region = _Region(continuous, [], self._actual_inequalities, counts=self.counts)
+        coded, _cats, _ = build_candidates(region, n_levels=3)
         return coded
 
     def _crossed_support_points(self) -> np.ndarray:
@@ -811,6 +837,12 @@ class DesignRegion:
                 f"DesignRegion.{method}() describes one region of settings; the rules on {self.rules.factors} give "
                 f"one for each allowed combination of their levels. Ask it of {self._given_example()}, or see "
                 "region.allowed_combinations()."
+            )
+        if self.counts and not rules_allowed:
+            raise ValueError(
+                f"DesignRegion.{method}() describes one region of settings; the limits on how many factors are "
+                f"used ({', '.join(rule.expression for rule in self.counts)}) give one for each set of the "
+                "factors in use."
             )
 
     def _given_example(self) -> str:
@@ -985,7 +1017,7 @@ class DesignRegion:
             raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
         if not self.constraints:
             return 1.0
-        if self.rules is not None:
+        if self.rules is not None or self.counts:
             self._require_box("volume_fraction")
         if self.kind != "box":
             return self._mixture_share(n_samples)
@@ -1115,6 +1147,10 @@ class DesignRegion:
         vertices included; a region so thin that none of these falls inside it is
         reported empty.
 
+        With limits on how many factors are used, the region is empty when none of its
+        pieces yields a setting: every piece is tried when the factors that can be left
+        out are few, and a sample of the pieces otherwise (see :meth:`support_points`).
+
         Returns
         -------
         bool
@@ -1125,6 +1161,8 @@ class DesignRegion:
         ValueError
             For a mixture region.
         """
+        if self.counts and self.kind == "box" and self.rules is None:
+            return not len(self.seed_points())
         self._require_box("is_empty")
         rows = self._linear()
         vertices = self._vertices_coded()

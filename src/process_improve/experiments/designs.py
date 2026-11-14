@@ -35,6 +35,7 @@ import pandas as pd
 
 from process_improve._warnings import user_stacklevel
 from process_improve.experiments._classical import ff2n
+from process_improve.experiments._count_rules import is_count_rule
 from process_improve.experiments._rules import mentions
 from process_improve.experiments.designs_utils import build_design_result, categorical_codes, refuse_reserved_names
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType, as_constraints
@@ -356,22 +357,31 @@ def _is_mixture_process(factors: list[Factor]) -> bool:
 def _refuse_unenforced_rules(
     factors: list[Factor], constraints: list[Constraint] | None, design_type: str, meta: dict
 ) -> None:
-    """Refuse a design that does not follow constraints naming categorical factors.
+    """Refuse a design that does not follow constraints naming categorical factors, or counting the factors in use.
 
     Other constraints a design family cannot follow are reported with a warning. A
     constraint on the levels usually says that a combination cannot be run at all (two
     materials that react, a catalyst that degrades when hot), and a run sheet holding one
-    could be run by someone who never saw the warning, so it is refused instead.
+    could be run by someone who never saw the warning, so it is refused instead. So is a
+    limit on how many factors a run uses (``count_nonzero(...)``): a classical design
+    uses every factor in most of its runs.
     """
-    categorical = [f.name for f in factors if f.type == FactorType.categorical]
-    if meta.get("constraints_enforced") or not categorical:
+    if meta.get("constraints_enforced"):
         return
+    categorical = [f.name for f in factors if f.type == FactorType.categorical]
     named = [c.expression for c in constraints or [] if mentions(c.expression, categorical)]
     if named:
         raise ValueError(
             f"design_type={design_type!r} cannot follow the constraints {named}, which name categorical factors. "
             "Use an optimal design ('d_optimal', 'i_optimal', ...), which places runs only in the combinations "
             "of levels and settings the constraints allow."
+        )
+    counted = [c.expression for c in constraints or [] if is_count_rule(c.expression)]
+    if counted:
+        raise ValueError(
+            f"design_type={design_type!r} cannot follow the constraints {counted}, which limit how many factors "
+            "a run uses. Use an optimal design ('d_optimal', 'i_optimal', ...), which places runs only where "
+            "that number is allowed."
         )
 
 

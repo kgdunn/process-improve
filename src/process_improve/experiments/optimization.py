@@ -814,6 +814,8 @@ class _SearchSpace:
     constraints: list[dict[str, Any]]
     starts: list[np.ndarray]
     gaps: list[tuple[int, float, float]] = field(default_factory=list)
+    #: Whether a setting uses a number of factors that the region's count rules allow; None without such rules.
+    allowed: Callable[[np.ndarray], bool] | None = None
 
     def left_out(self, x: np.ndarray, column: int, zero: float) -> bool:
         """Whether ``x`` leaves the factor in ``column`` out."""
@@ -872,6 +874,7 @@ def _search_space(
         raise ValueError(msg)
     idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
     gaps = [(idx[j], region.bounds[j][0], minimum) for j, minimum in region.gaps]
+    sets = region._sets  # the sets of factors that count rules allow in use together, if any
     for j, zero, _minimum in gaps:  # an amount is not below 0, however wide the search box
         bounds[j] = (max(bounds[j][0], zero), bounds[j][1])
     lows, highs = np.array(bounds).T
@@ -898,11 +901,13 @@ def _search_space(
             seeds=region.seed_points,
             tolerances=region._widen(),  # so a start passes region.feasible()
             gaps=region.gaps,  # so the starts differ in which factors with a min_when_used they leave out
+            allowed=None if sets is None else sets.allows,
         ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
         start[idx] = sample
-    return _SearchSpace(bounds, constraints, starts, gaps)
+    allowed = None if sets is None else (lambda x: bool(sets.allows(x[idx][None, :])[0]))
+    return _SearchSpace(bounds, constraints, starts, gaps, allowed)
 
 
 def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
@@ -986,7 +991,10 @@ def _best_set_of_factors(
         in_use = [j for j in ends if j not in left_out]
         moves = [(j,) for j in ends] + [(i, j) for i in in_use for j in left_out]
         for columns in moves:
-            if (res := search(changed(columns))) is not None:
+            start = changed(columns)
+            if space.allowed is not None and not space.allowed(start):
+                continue  # the count rules do not allow this set of factors
+            if (res := search(start)) is not None:
                 best, improved = res, True
                 break  # the sets next to the new best are not the ones listed above
     return best
@@ -1017,6 +1025,8 @@ def _within_region(region: DesignRegion | None, factor_names: list[str], x: np.n
     if region.kind == "mixture":
         return bool(region.feasible(point, tol=1e-6)[0])
     inside = all(float(g(point)[0]) <= 1e-6 for g in region.inequalities)
+    if region._sets is not None:  # the number of factors in use is one the count rules allow
+        inside = inside and bool(region._sets.allows(point)[0])
     components = [region.names.index(n) for n in region.mixture_names]
     return inside and abs(float(point[0, components].sum()) - 1.0) <= 1e-6 if components else inside
 

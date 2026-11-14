@@ -132,7 +132,10 @@ class GenerateDesignInput(BaseModel):
             "Enforced by the optimal designs, constrained mixtures and the sobol, halton and maximin designs. "
             "A constraint may also compare a categorical factor with its levels and join comparisons with and, "
             "or, not: \"not (catalyst == 'B' and solvent == 'Y')\" disallows a combination of levels, and "
-            "\"not (catalyst == 'B' and T > 180)\" limits T when the catalyst is B (optimal designs only)."
+            "\"not (catalyst == 'B' and T > 180)\" limits T when the catalyst is B (optimal designs only). "
+            "A constraint may limit how many factors a run uses, a factor at 0 being left out: "
+            '"count_nonzero(A, B, C, D) <= 2", "count_nonzero(A, B, C) == 1" or '
+            '"8 <= count_nonzero(A, B, C, ...) <= 14" (optimal designs and constrained mixtures only).'
         ),
     )
     candidates: list[dict[str, Any]] | None = Field(
