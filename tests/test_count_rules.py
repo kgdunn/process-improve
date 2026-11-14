@@ -592,6 +592,19 @@ class TestMixtures:
         assert found["optimal_coded"] == pytest.approx({"a": 0.9, "b": 0.1, "c": 0, "d": 0, "e": 0, "f": 0}, abs=1e-4)
         assert found["within_region"] is True
 
+    def test_the_optimum_uses_three_components_when_the_rule_asks_for_three(self) -> None:
+        # No vertex of the simplex, and no midpoint of its edges, uses three components: the searches start
+        # from the blends of the rule's pieces. The best is all of a but for b and c at their minimum of 0.1.
+        model = _model({"a": 9.0, "b": 7.0, "c": 5.0, "d": 3.0, "e": 1.0, "f": 1.0}, BLEND)
+        goals = [{"response": "y", "goal": "maximize", "low": 0.0, "high": 12.0}]
+        region = DesignRegion(SHARES, ["count_nonzero(a, b, c, d, e, f) >= 3"])
+        points = region.support_points()
+        assert len(points) > 0
+        assert ((points > 1e-9).sum(axis=1) >= 3).all()
+        found = optimize_responses([model], goals=goals, region=region)["desirability"]
+        assert found["optimal_coded"] == pytest.approx({"a": 0.8, "b": 0.1, "c": 0.1, "d": 0, "e": 0, "f": 0}, abs=1e-4)
+        assert found["within_region"] is True
+
     def test_blends_beside_a_process_factor_keep_both_rules(self) -> None:
         factors = [*SHARES, *AMOUNTS[:2], Factor(name="T", low=20, high=80)]
         limits = [TWO_OR_THREE, "count_nonzero(A, B) <= 1"]

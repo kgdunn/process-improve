@@ -794,8 +794,15 @@ class DesignRegion:
         if self.kind == "mixture_process":
             return self._crossed_support_points()
         if self.kind == "mixture":
-            from process_improve.experiments.designs_mixture_constrained import mixture_candidates  # noqa: PLC0415
+            from process_improve.experiments.designs_mixture_constrained import (  # noqa: PLC0415
+                candidate_blends,
+                mixture_candidates,
+            )
 
+            if self._sets is not None:
+                # The vertices of the region without its count rules seldom use a number of components the rules
+                # allow, so the blends come from the rules' pieces.
+                return candidate_blends(self.factors, self.constraints)
             candidates = mixture_candidates(self._a, self._b)
             points = np.vstack([candidates["vertex"], candidates["edge_midpoint"]])
             return points[self.feasible(points)] if self._gaps else points
