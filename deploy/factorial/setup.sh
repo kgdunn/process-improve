@@ -24,6 +24,11 @@ install -d -o factorial -g factorial -m 755 /srv/factorial /srv/factorial/releas
 install -o root -g root -m 755 "$here/factorial_deploy.py" /usr/local/bin/factorial-deploy
 install -o root -g root -m 755 "$here/usage.py" /usr/local/bin/factorial-usage
 
+# Each finished day's counts of use, kept after the access log forgets the day: numbers, and nothing of a
+# reader's (usage.py, --keep). The job runs once a day; run-parts skips a name with a dot in it.
+install -d -o root -g root -m 755 /var/lib/factorial
+install -o root -g root -m 755 "$here/usage-daily.sh" /etc/cron.daily/factorial-usage
+
 # The deploy key, where only root can change it, and restricted again on its own line.
 install -d -o root -g root -m 755 /etc/ssh/authorized_keys
 printf 'restrict %s\n' "$(cat "$key")" > /etc/ssh/authorized_keys/factorial

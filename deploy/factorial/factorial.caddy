@@ -49,16 +49,20 @@ factori.al {
 	}
 
 	# Usage is all the server keeps: one line per request, with the reader's address cut to
-	# its network (the first 24 bits of IPv4, 48 of IPv6) before it is written, for 90 days.
-	# deploy/factorial/usage.py counts visits from it. A design shared by link travels after
+	# its network (the first 24 bits of IPv4, 48 of IPv6) before it is written, for 366 days,
+	# so that a year can be set beside the one before. deploy/factorial/usage.py counts visits
+	# from it, and keeps each day's counts, numbers alone, in /var/lib/factorial/usage.csv.
+	# The number of rolled files only guards the disk: 400 files of 50 MiB, each a few MiB
+	# once gzipped, hold a year at about a thousand visits a day (some 40 requests of about
+	# 1 kB each); past that, the oldest go first. A design shared by link travels after
 	# the "#", which a browser never sends, so no design reaches this log. A link from the book
 	# names one of the book's examples in its query (/?book=pollutant), which does: the book's
 	# data, nothing of the reader's.
 	log {
 		output file /var/log/caddy/factorial-access.log {
 			roll_size 50MiB
-			roll_keep 20
-			roll_keep_for 2160h
+			roll_keep 400
+			roll_keep_for 8784h
 		}
 		format filter {
 			request>remote_ip ip_mask {
