@@ -108,6 +108,12 @@ _MAX_SUPPORT_ROWS = 100_000
 class DesignRegion:
     """Factors plus constraints, with feasibility tests and uniform sampling in design units.
 
+    A factor with a ``min_when_used`` is 0 or at least that minimum, so the region leaves
+    out the settings between the two: :meth:`feasible` is False there. The diagnostics of
+    a box region (:meth:`vertices`, :meth:`volume_fraction`, :meth:`implied_bounds` and
+    the others) describe the region over the factor's whole range, those settings
+    included.
+
     Parameters
     ----------
     factors : list[Factor]
@@ -120,12 +126,6 @@ class DesignRegion:
         components only or process factors only. In a box region a constraint may also
         compare a categorical factor with its levels and join comparisons with ``and``,
         ``or`` and ``not``, as in ``"not (catalyst == 'B' and T > 180)"``.
-
-    A factor with a ``min_when_used`` is 0 or at least that minimum, so the region leaves
-    out the settings between the two: :meth:`feasible` is False there. The diagnostics of
-    a box region (:meth:`vertices`, :meth:`volume_fraction`, :meth:`implied_bounds` and
-    the others) describe the region over the factor's whole range, those settings
-    included.
 
     Examples
     --------
