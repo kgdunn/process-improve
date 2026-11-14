@@ -395,7 +395,8 @@ What an organisation asks before it lets people use a tool.
   each number its sources print, in four tiers, with the reason for each difference.
 - **[The concept map](map/).** 237 ideas of designed experiments and 489 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It shares
-  the app's reading level.
+  the app's reading level. "Compare books" sets two other textbooks beside this one: the links
+  go, and a ring on each topic and each term says which of the three books has it.
 - **[The multivariate page](mva/).** PCA and PLS on an example or your own file: a data
   table with each variable's distribution in its heading, linked score, loading, SPE and T²
   plots, and "Why are these rows different?". The app does not link to it yet
