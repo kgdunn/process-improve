@@ -50,7 +50,7 @@ from process_improve.experiments._desirability import (
     individual_desirability,
     overall_desirability,
 )
-from process_improve.experiments._uniform_sampling import UniformSampler
+from process_improve.experiments._uniform_sampling import UniformSampler, _affine_form
 
 if TYPE_CHECKING:
     from process_improve.experiments.region import DesignRegion
@@ -797,6 +797,10 @@ def _align_goals_to_models(
 _LEFT_OUT_TOL = 1e-9
 #: SLSQP iterations spent on a neighbouring set of factors before it is searched in full (if it is better by then).
 _SET_SCREEN_ITERATIONS = 8
+#: A coefficient of a fitted straight constraint this small, beside its largest, is rounding and is taken as 0.
+#: Left in a gradient (as 1e-15, say), it gave the limit of an ingredient that a search leaves out a slope on the
+#: ingredients in use, and SLSQP then stopped at its start.
+_FITTED_ZERO = 1e-12
 
 
 @dataclass
@@ -832,6 +836,18 @@ class _SearchSpace:
             out = self.left_out(start, j, zero) or bounds[j][1] < minimum
             bounds[j] = (zero, zero) if out else (minimum, bounds[j][1])
         return bounds
+
+    def constraints_at(self, start: np.ndarray) -> list[dict[str, Any]]:
+        """Return the constraints of a search from ``start``: those that a factor free to move enters.
+
+        A straight constraint on factors that the search holds fixed (the limits of an
+        ingredient that ``start`` leaves out) is a constant during it, so it cannot steer
+        the search, and whether it holds is for the test of the result. Most of a
+        formulation's ingredients are left out of any one blend, and so are most of
+        these constraints. A constraint without a gradient is kept.
+        """
+        free = np.array([low < high for low, high in self.bounds_at(start)])
+        return [c for c in self.constraints if "jac" not in c or np.any(c["jac"](start)[free] != 0.0)]
 
 
 def _search_space(
@@ -881,11 +897,12 @@ def _search_space(
     components = [factor_names.index(n) for n in region.mixture_names]
     for j in components:
         bounds[j] = region.bounds[region.names.index(factor_names[j])]
-    constraints: list[dict[str, Any]] = [
-        {"type": "ineq", "fun": lambda x, g=g: -float(g(x[idx][None, :])[0])} for g in region.inequalities
-    ]
+    limits = tuple(np.array(region.bounds, dtype=float).T)
+    constraints = [_slsqp_inequality(g, _affine_form(g, *limits), idx, len(factor_names)) for g in region.inequalities]
     if components:
-        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
+        ones = np.zeros(len(factor_names))
+        ones[components] = 1.0
+        constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0), "jac": lambda _x: ones})
     if any(region.names[j] in region.mixture_names for j, _minimum in region.gaps):
         # A region with such a component is not sampled: the searches start from its vertices and edge midpoints.
         points = region.support_points()
@@ -908,6 +925,26 @@ def _search_space(
         start[idx] = sample
     allowed = None if sets is None else (lambda x: bool(sets.allows(x[idx][None, :])[0]))
     return _SearchSpace(bounds, constraints, starts, gaps, allowed)
+
+
+def _slsqp_inequality(
+    g: Callable[[np.ndarray], np.ndarray], form: tuple[np.ndarray, float] | None, idx: list[int], n_factors: int
+) -> dict[str, Any]:
+    """Return a region's inequality ``g(x) <= 0`` as SLSQP's ``-g(x) >= 0``, with its gradient when ``g`` is straight.
+
+    Without a gradient SLSQP estimates one by finite differences, a call of ``g`` per
+    factor at every iteration. A formulation of 45 ingredients has a limit for each group
+    total, and those estimates took nearly all of a search's time. ``form`` is the
+    ``(a, b)`` of ``g(x) = a @ x - b``, or None when ``g`` is curved, and ``idx`` places
+    the region's columns among the model's factors.
+    """
+    constraint: dict[str, Any] = {"type": "ineq", "fun": lambda x: -float(g(x[idx][None, :])[0])}
+    if form is not None:
+        a = form[0]
+        gradient = np.zeros(n_factors)
+        gradient[idx] = -np.where(np.abs(a) > _FITTED_ZERO * np.abs(a).max(), a, 0.0)
+        constraint["jac"] = lambda _x: gradient
+    return constraint
 
 
 def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
@@ -933,7 +970,12 @@ def _multistart_results(
     results = []
     for x0 in space.starts:
         res = optimize.minimize(
-            objective, x0, method="SLSQP", bounds=space.bounds_at(x0), constraints=space.constraints, options=options
+            objective,
+            x0,
+            method="SLSQP",
+            bounds=space.bounds_at(x0),
+            constraints=space.constraints_at(x0),
+            options=options,
         )
         if accept(res.x) and np.isfinite(res.fun):
             results.append(res)
@@ -967,7 +1009,7 @@ def _best_set_of_factors(
                 start,
                 method="SLSQP",
                 bounds=space.bounds_at(start),
-                constraints=space.constraints,
+                constraints=space.constraints_at(start),
                 options={**(options or {}), **limit},
             )
             better = np.isfinite(res.fun) and res.fun < best.fun - 1e-9 * max(1.0, abs(best.fun))
@@ -1077,13 +1119,22 @@ def _closest_to_specification(
     def ramps(z: np.ndarray) -> np.ndarray:
         return _ramp_values([f(z[:n]) for f in evaluators], goals)
 
-    constraints = [{"type": "ineq", "fun": lambda z: ramps(z) - z[n]}]
-    constraints += [{**c, "fun": lambda z, c=c: c["fun"](z[:n])} for c in space.constraints]
+    def with_t(c: dict[str, Any]) -> dict[str, Any]:
+        wider = {**c, "fun": lambda z: c["fun"](z[:n])}
+        if "jac" in c:  # the constraint does not depend on t
+            wider["jac"] = lambda z: np.append(c["jac"](z[:n]), 0.0)
+        return wider
+
+    every_ramp = {"type": "ineq", "fun": lambda z: ramps(z) - z[n]}
     best: tuple[float, np.ndarray] | None = None
     for x0 in space.starts:
         z0 = np.append(x0, min(1.0, float(ramps(np.append(x0, 0.0)).min())))
         res = optimize.minimize(
-            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds_at(x0), (None, 1.0)], constraints=constraints
+            lambda z: -z[n],
+            z0,
+            method="SLSQP",
+            bounds=[*space.bounds_at(x0), (None, 1.0)],
+            constraints=[every_ramp, *map(with_t, space.constraints_at(x0))],
         )
         x = res.x[:n]
         t = float(ramps(res.x).min())
@@ -1947,6 +1998,10 @@ def _span(coding: dict[str, Any]) -> tuple[float, float]:
     return float(coding["low"]), float(coding["high"])
 
 
+#: The range under which a coded setting and an actual one are the same number.
+_AS_GIVEN = {"low": -1.0, "high": 1.0}
+
+
 def _ranges_from_coding(
     fitted_models: list[dict[str, Any]],
     factor_ranges: dict[str, dict[str, float]] | None,
@@ -1960,7 +2015,10 @@ def _ranges_from_coding(
     over the wrong region (-1 to +1 degC, say). A coded model instead says which actual
     settings its coded optimum stands for. A model without these keys, such as one
     written out by hand, is taken to be coded, as before. Mixture ``components`` (those
-    of the region searched) are proportions on either scale, so they are left out.
+    of the region searched) are proportions on either scale, so a model's coding of one
+    is left out, and a range given for one in *factor_ranges* is replaced by the range
+    that reports a setting as it is: the range given would read the proportion as a
+    coded setting and report an amount that no run has.
 
     Raises
     ------
@@ -1992,7 +2050,8 @@ def _ranges_from_coding(
                     "each. Fit them all with the same ranges: analyze_experiment(..., coding={...})."
                 )
                 raise ValueError(msg)
-    for factor, given in (factor_ranges or {}).items():
+    ranges = {factor: _AS_GIVEN if factor in components else given for factor, given in (factor_ranges or {}).items()}
+    for factor, given in ranges.items():
         if factor in implied and not np.allclose(_span(given), _span(implied[factor])):
             msg = (
                 f"factor_ranges gives {factor} from {given['low']} to {given['high']}, but the coefficients are coded "
@@ -2000,7 +2059,7 @@ def _ranges_from_coding(
                 "or fit with analyze_experiment(..., coding=factor_ranges) so that the two agree."
             )
             raise ValueError(msg)
-    return {**implied, **(factor_ranges or {})} or factor_ranges
+    return {**implied, **ranges} or None
 
 
 def _check_fitted_models(fitted_models: list[dict[str, Any]], method: str) -> None:
@@ -2194,7 +2253,9 @@ def optimize_responses(  # noqa: PLR0913
         Maps factor name to ``{"low": float, "high": float}`` in actual
         units.  Used for coded ↔ actual conversion. A coded model from
         ``analyze_experiment`` supplies the ranges of its own factors, and
-        a range given here for one of them must agree with it.
+        a range given here for one of them must agree with it. A range
+        for a mixture component of *region* is not used: a proportion is
+        the same on either scale, and is reported as it is.
     step_size : float
         Step length for steepest ascent/descent: the Euclidean distance, in
         coded units, between successive points on the path. Must be positive.
