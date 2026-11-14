@@ -323,6 +323,28 @@ def test_tab_goes_from_a_box_into_its_definition_s_link_and_on_from_there(fresh_
     )
 
 
+def test_a_definition_that_follows_the_keyboard_opens_clear_of_the_box_it_describes(fresh_page):
+    """The word is the label over its box: a pop-up under the word alone lay over the box being typed in."""
+    page = fresh_page
+    page.click("#response-known summary")
+    page.focus("#response-typical")
+    page.keyboard.press("Tab")
+    tip = page.locator(TIP).bounding_box()
+    box = page.locator("#response-noise").bounding_box()
+    word = page.locator("label:has(#response-noise) .term").bounding_box()
+    assert tip["y"] >= box["y"] + box["height"] or tip["y"] + tip["height"] <= word["y"], "under both, or over both"
+    assert inside_the_window(page, tip)
+
+
+def test_the_words_over_the_list_of_designs_lead_to_their_terms_too(blank_page):
+    page = blank_page
+    for word, term in (("Spare runs", "#degrees-of-freedom"), ("Power to find", "#statistical-power")):
+        page.mouse.move(5, 5)
+        page.locator(".term-tip").wait_for(state="hidden")
+        page.locator("#candidates thead .term", has_text=word).first.hover()
+        page.wait_for_function("(hash) => document.querySelector('.term-tip a')?.hash === hash", arg=term)
+
+
 def test_every_dotted_word_has_a_definition_its_control_describes(page):
     """Each word marked in the worked example, in Design, Run, Learn and the comparison, opens a definition."""
     undescribed = """() => [...document.querySelectorAll('.term')].filter((word) => {
