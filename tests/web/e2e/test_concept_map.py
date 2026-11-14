@@ -8,6 +8,7 @@ and what the page remembers. ``window.conceptMap`` gives them the map's ``cy`` a
 from __future__ import annotations
 
 import json
+import math
 import re
 from itertools import pairwise
 from typing import Any
@@ -375,6 +376,54 @@ def test_above_the_map_one_row_of_switches_and_one_row_of_kinds(context, site):
     assert page.locator(".map-controls button").evaluate_all("(bs) => bs.map((b) => b.id)") == ["zin", "zout", "home"]
 
 
+# Every link label on the map as Cytoscape drew it, not as the map meant it: the label's middle is the middle of its
+# own box. For each: its type size; how far its middle is from its own line (`off`) and from the nearer of its link's
+# two terms (`near`), in type sizes; whether it stands above its line, as the text reads, and whether that line is
+# steep there; whether it is inside the map; and whether its link leaves the map. Then the pairs
+# of labels whose text overlaps, as slanted boxes, and the labels that a line in a strong colour runs through: a line
+# of the selected term, or, with the other textbooks shown, one that another textbook states.
+DRAWN = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan();
+  const wide = cy.width(), high = cy.height();
+  const own = { includeNodes: false, includeEdges: false, includeLabels: true, includeMainLabels: false,
+                includeSourceLabels: true, includeTargetLabels: false, includeOverlays: false };
+  const at = (p) => ({ x: p.x * z + pan.x, y: p.y * z + pan.y });
+  const curve = (e) => { const s = at(e.sourceEndpoint()), t = at(e.targetEndpoint()), bow = e.controlPoints();
+    const c = bow ? at(bow[0]) : { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+    const n = Math.ceil(Math.max(200, Math.hypot(t.x - s.x, t.y - s.y) / 3));
+    return Array.from({ length: n + 1 }, (_, i) => { const u = i / n, v = 1 - u;
+      return { x: v * v * s.x + 2 * u * v * c.x + u * u * t.x, y: v * v * s.y + 2 * u * v * c.y + u * u * t.y }; }); };
+  const far = (p, q) => Math.hypot(p.x - q.x, p.y - q.y), ruler = document.createElement('canvas').getContext('2d');
+  const outside = (n) => { const p = n.renderedPosition(); return p.x < 0 || p.x > wide || p.y < 0 || p.y > high; };
+  const lit = (e) => e.visible() && !e.hasClass('dim');
+  const labels = cy.edges('.link').filter((e) => lit(e) && !e.hasClass('mute') && e.style('source-label')).map((e) => {
+    const b = e.renderedBoundingBox(own), m = { x: (b.x1 + b.x2) / 2, y: (b.y1 + b.y2) / 2 }, line = curve(e);
+    const size = parseFloat(e.style('font-size')) * z;
+    const i = line.reduce((best, p, j) => (far(p, m) < far(line[best], m) ? j : best), 0);
+    const a = line[Math.max(0, i - 1)], c = line[Math.min(line.length - 1, i + 1)], d = far(a, c);
+    ruler.font = `italic 600 ${size}px ${e.style('font-family')}`;
+    const ux = ((c.x - a.x) / d) * (c.x < a.x ? -1 : 1), uy = ((c.y - a.y) / d) * (c.x < a.x ? -1 : 1);   // as it reads
+    return { id: e.id(), verb: e.data('verb'), ...m, size, ux, uy, steep: Math.abs(uy) > 2 * Math.abs(ux),
+      hw: ruler.measureText(e.data('verb')).width / 2, off: far(line[i], m) / size,
+      above: (m.x - line[i].x) * uy - (m.y - line[i].y) * ux > 0,
+      near: Math.min(...e.connectedNodes().map((n) => far(n.renderedPosition(), m) - n.renderedWidth() / 2)) / size,
+      inside: m.x > 0 && m.x < wide && m.y > 0 && m.y < high, leaves: outside(e.source()) || outside(e.target()) }; });
+  // Two slanted boxes are apart when, along a side of one of them, a gap lies between them.
+  const apart = (p, q) => [[p.ux, p.uy], [-p.uy, p.ux], [q.ux, q.uy], [-q.uy, q.ux]].some(([x, y]) => {
+    const reach = (r) => Math.abs(r.ux * x + r.uy * y) * r.hw + Math.abs(r.ux * y - r.uy * x) * r.size * 0.55;
+    return Math.abs((q.x - p.x) * x + (q.y - p.y) * y) > reach(p) + reach(q) - 1; });
+  const overlaps = labels.flatMap((p, i) => labels.slice(i + 1).filter((q) => !apart(p, q))
+    .map((q) => `${p.verb} / ${q.verb}`));
+  const others = document.querySelector('#others').checked;
+  const strong = cy.edges('.link').filter((e) => lit(e) && (e.hasClass('hl') || (others && !e.hasClass('also-own'))));
+  const lines = strong.map(curve);
+  const within = (l, p) => { const x = p.x - l.x, y = p.y - l.y;
+    return Math.abs(x * l.ux + y * l.uy) < l.hw - 1 && Math.abs(y * l.ux - x * l.uy) < l.size * 0.4; };
+  const through = labels.filter((l) => lines.some((line) => line.some((p) => within(l, p)))).map((l) => l.verb);
+  return { labels, overlaps, through }; }"""
+CLOSER = """(k) => { const cy = window.conceptMap.cy;
+  cy.zoom({ level: cy.zoom() * k, renderedPosition: cy.nodes('.sel')[0].renderedPosition() }); }"""
+
+
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site):
     page = _open(context, site)
@@ -399,7 +448,9 @@ def test_link_labels_read_each_lit_link_s_verb_and_are_remembered(context, site)
     assert all(solid for *_, solid in shown), "the labels are solid, italic and in the accent colour"
     page.click("#zin")
     _settled(page)
-    assert len(page.evaluate(labelled)) >= len(shown), "zooming in makes room for more of them"
+    closer = page.evaluate(DRAWN)["labels"]
+    assert closer, "zoomed in, links are still labelled"
+    assert all(label["inside"] for label in closer), "each on the map, though its link may now leave it"
     page.reload()
     page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
     assert page.is_checked("#verbs"), "the choice is remembered"
@@ -524,11 +575,6 @@ def test_on_a_touch_screen_one_finger_scrolls_the_page_and_two_move_the_map(cont
     assert page.evaluate(view)["zoom"] > moved["zoom"] * 1.5, "and spreading them zooms in"
 
 
-# Each drawn link's label: where along its line it sits (0 at the source term, 1 at the target), or None if held back.
-SPOT = """(e) => { if (e.hasClass('mute')) return null;
-  const s = e.source().renderedPosition(), t = e.target().renderedPosition(), z = window.conceptMap.cy.zoom();
-  return (e.data('at') * z + e.source().renderedWidth() / 2) / Math.hypot(t.x - s.x, t.y - s.y); }"""
-SPOTS = f"() => window.conceptMap.cy.edges('.link').filter((e) => e.visible() && !e.hasClass('dim')).map({SPOT})"
 # The selected term's drawn links, longest first; and one link's middle brought to the middle of the map, with or
 # without a term that is on none of those links dragged onto it, as a reader can drag one.
 LONG_FIRST = """() => { const span = (e, k) => e.target().position(k) - e.source().position(k);
@@ -552,11 +598,11 @@ LONGEST = """() => { const cy = window.conceptMap.cy, box = cy.container().getBo
   return { said, x: box.left + m.x, y: box.top + m.y }; }"""
 
 
-def _label_spot(page: Any, link: str, *, take: bool) -> float | None:  # noqa: ANN401 - a Playwright Page
-    """Bring a link's middle to the middle of the map, or drag a term onto it; then where its label sits."""
+def _label(page: Any, link: str, *, take: bool) -> dict[str, float] | None:  # noqa: ANN401 - a Playwright Page
+    """Bring a link's middle to the middle of the map, or drag a term onto it; then its label as drawn, if it is."""
     page.evaluate(AT_MIDDLE, [link, take])
     _settled(page)
-    return page.evaluate(f"(id) => ({SPOT})(window.conceptMap.cy.getElementById(id))", link)
+    return next((label for label in page.evaluate(DRAWN)["labels"] if label["id"] == link), None)
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
@@ -569,64 +615,75 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
         "cy.zoom({ level: cy.zoom() * 0.7, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } }); }"
     )
     _settled(page)
-    spots = [k for k in page.evaluate(SPOTS) if k is not None]
-    assert spots, "some links are labelled"
-    assert all(0.15 < k < 0.85 for k in spots), f"each label sits along its line, clear of both terms: {spots}"
+    labels = page.evaluate(DRAWN)["labels"]
+    assert labels, "some links are labelled"
+    assert all(label["inside"] for label in labels), "each label is on the map"
+    assert all(label["near"] > 0.5 for label in labels), f"and clear of both its terms: {labels}"
     # The test takes a middle itself: whether the drawing takes one changes with every drawing. A label with no room
     # left on its line is held back, so it tries the longest links first, which have the most room.
-    moved = None
+    here = (page.viewport_size["width"] / 2, page.evaluate("window.conceptMap.cy.height() / 2"))
+    before = moved = None
     for link in page.evaluate(LONG_FIRST):
-        spot = _label_spot(page, link, take=False)
-        if spot is None or abs(spot - 0.5) > 0.01:
-            continue  # not labelled, or its middle is taken already
-        moved = _label_spot(page, link, take=True)
+        before = _label(page, link, take=False)
+        if before is None or math.dist((before["x"], before["y"]), here) > 2 * before["size"]:
+            continue  # not labelled, or not beside its line's middle: that is taken already
+        moved = _label(page, link, take=True)
         if moved is not None:
             break
     assert moved is not None, "a label still drawn after a term took its middle"
-    assert abs(moved - 0.5) > 0.05, "a label whose middle is taken moves along its line"
-    assert 0.15 < moved < 0.85, "and stays clear of both terms"
+    slid = math.dist((moved["x"], moved["y"]), (before["x"], before["y"]))
+    assert slid > before["size"], "a label whose middle is taken moves along its line"
+    assert moved["off"] < 2, "still beside its own line"
+    assert moved["near"] > 0.5, "and clear of both its terms"
+    assert moved["inside"]
 
 
-# Each label drawn on a link of the selected term, for the labels whose place the map checked (the middle of the link
-# is in view): how far the label's middle is from its own line and from the nearest other line of that term, both as
-# a fraction of the label's size; whether it stands above its line; and whether that line is steep.
-BESIDE = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan();
-  const curve = (e) => { const s = e.source().position(), t = e.target().position(), [c] = e.controlPoints();
-    return (u) => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * c.x + u * u * t.x,
-                     y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * c.y + u * u * t.y }); };
-  const gap = (on, p) => Math.min(...Array.from({ length: 401 }, (_, i) => on(i / 400))
-    .map((q) => Math.hypot(q.x - p.x, q.y - p.y)));
-  const seen = (p) => { const x = p.x * z + pan.x, y = p.y * z + pan.y;
-    return x > 0 && x < cy.width() && y > 0 && y < cy.height(); };
-  const lit = cy.edges('.link.hl').filter((e) => e.visible());
-  return lit.filter((e) => !e.hasClass('mute') && seen(curve(e)(0.5))).map((e) => {
-    const on = curve(e), s = e.source().position(), t = e.target().position();
-    const p = on((e.data('at') + e.source().width() / 2) / Math.hypot(t.x - s.x, t.y - s.y));
-    const at = { x: p.x + e.data('liftX'), y: p.y + e.data('liftY') }, size = parseFloat(e.style('font-size'));
-    return { verb: e.data('verb'), own: gap(on, at) / size, above: e.data('liftY') <= 0,
-             other: Math.min(...lit.filter((o) => o.id() !== e.id()).map((o) => gap(curve(o), at))) / size,
-             steep: Math.abs(t.y - s.y) > 2 * Math.abs(t.x - s.x) }; }); }"""
+def _read_clearly(page: Any, where: str) -> list[dict[str, Any]]:  # noqa: ANN401 - a Playwright Page
+    """Check the labels drawn now are on the map, apart from each other and off the strong lines; return them."""
+    drawn = page.evaluate(DRAWN)
+    assert all(label["inside"] for label in drawn["labels"]), f"{where}: a label is off the map"
+    assert drawn["overlaps"] == [], f"{where}: two labels overlap"
+    assert drawn["through"] == [], f"{where}: a line in a strong colour runs through a label"
+    return drawn["labels"]
 
 
+@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "with the other textbooks"])
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
-def test_a_link_label_stands_beside_its_line_and_clear_of_the_selected_term_s_other_lines(context, site):
+def test_a_link_label_is_beside_its_line_on_the_map_and_clear_of_labels_and_strong_lines(context, site, others):
     page = _open(context, site)
     page.click(".map-verbs")
-    closer = """(k) => { const cy = window.conceptMap.cy, at = cy.nodes('.sel')[0].renderedPosition();
-      cy.zoom({ level: cy.zoom() * k, renderedPosition: at }); }"""
-    labels = []
-    for term in ("full_factorial", "blocking", "replicate"):  # terms with many links, which run every way
+    if others:
+        page.click("#books .switch")
+    labels, unselected = [], []
+    view = "() => ({ zoom: window.conceptMap.cy.zoom(), pan: { ...window.conceptMap.cy.pan() } })"
+    look = "(view) => { window.conceptMap.cy.stop(); window.conceptMap.cy.viewport(view); }"
+    # Terms with many links, which run every way; the last has two long links that run side by side.
+    for term in ("full_factorial", "blocking", "resolution"):
         _go(page, term)
-        for k in (1, 2, 1.5):  # as selected, then closer in twice: near the term its lines run close together
-            page.evaluate(closer, k)
+        for closer in (1, 1.6, 1.6, 1.6):  # as selected, then closer in: its lines leave the map, close together
+            page.evaluate(CLOSER, closer)
             _settled(page)
-            labels += page.evaluate(BESIDE)
-    assert any(label["steep"] for label in labels), "some labelled links are steep"
-    assert any(not label["steep"] for label in labels), "and some are not"
+            labels += _read_clearly(page, f"{term}, closer by {closer}")
+            # The same place with no term selected: with the other textbooks shown, their lines are the strong ones.
+            here = page.evaluate(view)
+            page.evaluate("() => { location.hash = ''; }")
+            page.wait_for_function("() => !window.conceptMap.cy.nodes('.sel').length")
+            _settled(page)
+            page.evaluate(look, here)
+            _settled(page)
+            unselected += _read_clearly(page, f"round {term}, closer by {closer}, no term selected")
+            _go(page, term)
+            page.evaluate(look, here)
+            _settled(page)
+    assert len(labels) > 20, "the views do draw labels"
+    assert unselected, "with no term selected too"
     # On its line, the line ran through the gaps between the label's words, in the label's own colour.
-    assert all(label["own"] > 0.8 for label in labels), f"each label is off its line, a steep line too: {labels}"
-    assert all(label["above"] for label in labels), "and above it, so a label is read with the line under it"
-    assert all(label["other"] > 0.4 for label in labels), f"no other line of the term runs through a label: {labels}"
+    assert all(label["off"] > 0.8 for label in labels + unselected), "each label is off its own line"
+    assert all(label["above"] for label in labels + unselected), "and above it, as the text reads"
+    assert any(label["steep"] for label in labels), "on a steep line"
+    assert any(not label["steep"] for label in labels), "as on a flat one"
+    # A selected term keeps its links to terms off the map: each is labelled on the part of its line that can be seen.
+    assert any(label["leaves"] for label in labels), "a link that leaves the map carries its label on the map"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
