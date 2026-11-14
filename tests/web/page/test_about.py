@@ -5,6 +5,9 @@ Each of those is checked here against the file it describes, so a change to the 
 configuration, the build script or the repository's layout cannot leave the page describing an
 app that no longer exists. The versions it lists are read at run time from the files the app
 loads (``runtime.json`` and ``wheels/manifest.json``), so none is written into the page.
+
+The page is written for a reader of the app: each part answers a question in plain words, and
+what only some readers ask is under the answer, in a fold. That is checked here too.
 """
 
 from __future__ import annotations
@@ -24,6 +27,63 @@ def about() -> str:
 
 def source_of(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+#: Words for a reader who checks how it is done. Each is said in a fold, and none in an answer.
+FOR_THE_FOLDS = (
+    "IndexedDB",
+    "local storage",
+    "service worker",
+    "Web Worker",
+    "WebAssembly",
+    "CPython",
+    "Pyodide",
+    "Plotly.js",
+    "JSON",
+    "SHA-256",
+    "User-Agent",
+    "IPv4",
+    "MIT license",
+    "wheel",
+    ".xlsx",
+    ".ipynb",
+)
+
+
+def test_each_part_answers_a_question_in_plain_words_and_folds_the_rest():
+    text = about()
+    parts = re.findall(r'<section aria-labelledby="(h-[\w-]+)">(.*?)</section>', text)
+    assert len(parts) >= 8
+    for name, part in parts:
+        heading = re.search(rf'<h2 id="{name}">([^<]+)</h2>', part)
+        assert heading, name
+        assert heading[1].endswith("?"), f"{name}: the question a reader asks"
+        answer, fold, folded = part.partition('<details class="fold">')
+        assert "<p>" in answer, f"{name}: its answer comes first"
+        assert fold, f"{name}: the rest is in a fold"
+        assert folded.count("<summary>") == 1, f"{name}: one fold, which says what it holds"
+        assert folded.strip().endswith("</details>"), f"{name}: nothing follows the fold"
+    assert text.count('<details class="fold">') == len(parts)
+
+
+def test_what_is_in_bold_is_a_sentence_with_its_period():
+    """A point opens with a sentence in bold: none trails a comma. The names in the drawing's boxes are no points."""
+    text = re.sub(r'<div class="flow__box[^"]*"><strong>[^<]+</strong>', "", about())
+    bold = [re.sub(r"<[^>]+>", "", words) for words in re.findall(r"<strong>(.+?)</strong>", text)]
+    assert len(bold) > 25
+    assert [words for words in bold if not words.endswith(".")] == []
+    assert not re.search(r"</strong>[,:;]", text), "and nothing but a new sentence follows it"
+
+
+def test_the_answers_have_none_of_the_words_kept_for_the_folds():
+    """What a reader sees before opening a fold is in plain words: the words of files and servers are inside."""
+    text = about()
+    shown = text[text.index("<main") : text.index("</main>")]  # what the page says: its scripts are outside it
+    answers = re.sub(r'<details class="fold">.*?</details>', "", shown)
+    assert len(answers) < len(shown) / 2, "most of the page's words are in its folds"
+    for word in FOR_THE_FOLDS:
+        assert word.lower() not in answers.lower(), word
+        assert word.lower() in shown.lower(), f"{word}: said in a fold, for a reader who asks"
 
 
 def test_the_app_s_footer_links_to_it():
@@ -66,8 +126,9 @@ def test_what_it_says_the_server_keeps_is_what_the_server_is_configured_to_keep(
 def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     """Sent only on Send, the screenshot unless unticked, the study only if ticked, and the relay's code a link away."""
     text = about()
-    bullet = re.search(r"<li><strong>Feedback</strong>(.+?)</li>", text)[1]
-    assert "only when you press Send" in bullet
+    bullet = re.search(r"<li><strong>Feedback reaches factori\.al only when you press Send\.</strong>(.+?)</li>", text)[
+        1
+    ]
     form = " ".join(source("feedback.js").split())
     assert '<input type="checkbox" id="feedback-screenshot" name="screenshot" checked>' in form
     assert "a screenshot of the tab unless you untick it" in bullet

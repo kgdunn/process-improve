@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>What Factorial does</title>
-  <meta name="description" content="Everything Factorial does, grouped by kind: 16 experimental designs, planning a study, analysing its results, 17 charts, reproducible Python, and privacy by design. It runs in your browser tab, with nothing to install.">
+  <meta name="description" content="Everything Factorial does, in plain words: 16 experimental designs, planning a study, analysing its results, 17 charts, reproducible Python, and data that stays on your device. It runs in your browser tab, with nothing to install.">
   <meta property="og:title" content="What Factorial does">
   <meta property="og:description" content="Designed experiments in your browser: 16 designs, the analysis, 17 charts and reproducible Python. Nothing to install, and your data never leaves your device.">
   <meta property="og:type" content="website">
@@ -20,6 +20,14 @@
     } catch {
       /* storage refused: the system's mode */
     }
+    /* The reading level (levels.js), put on the page before it is drawn, so no detail a beginner is not shown
+       flashes by. 2 is levels.DEFAULT_LEVEL, a first visit's. */
+    try {
+      const level = Number(localStorage.getItem("factorial-map-level"));
+      document.documentElement.dataset.level = level >= 1 && level <= 3 ? level : 2;
+    } catch {
+      document.documentElement.dataset.level = 2;
+    }
   </script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -28,12 +36,27 @@
   <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
   <h1>What Factorial does</h1>
   <p class="lede">Factorial plans a designed experiment, takes its results and analyses them, in three steps: Design,
-    Run and Learn. It runs in your browser tab, so a study never reaches a server. This is everything it does today,
-    grouped by kind.</p>
+    Run and Learn. It runs in your browser tab, so your data never leaves your device. This is everything it does
+    today.</p>
   <p><a class="button primary" href="./">Start a study</a></p>
+  <!-- What the reader steers the list with: a word to find, and the reading level the app and the concept map keep
+       (levels.js). At Beginner each point is in plain words; Intermediate adds its details where they are asked
+       for; Adventurous opens them all. -->
+  <div class="feat-tools">
+    <label class="feat-find"><span class="visually-hidden">Find a word in this list</span>
+      <input type="search" id="find" placeholder="Find a word: blocks, offline, Box-Cox..." autocomplete="off" spellcheck="false"></label>
+    <fieldset id="level" class="level-switch">
+      <legend>Level</legend>
+      <label><input type="radio" name="level" value="1"><span>Beginner</span></label>
+      <label><input type="radio" name="level" value="2"><span>Intermediate</span></label>
+      <label><input type="radio" name="level" value="3"><span>Adventurous</span></label>
+    </fieldset>
+    <p class="hint" id="level-says"></p>
+    <p class="hint" id="found" role="status"></p>
+  </div>
   <!-- The list is FEATURES.md, the document the app is described from, read by features.js: one text, so the page
        cannot say what the document does not. tests/web/page/test_features.py holds the document to the app. -->
-  <div id="features" aria-live="polite" aria-busy="true"><p>Reading the list...</p></div>
+  <div id="features" aria-busy="true"><p>Reading the list...</p></div>
   <noscript><p>This page needs JavaScript to show the list. The same list is
     <a href="https://github.com/kgdunn/process-improve/blob/main/web/FEATURES.md">in the repository</a>.</p></noscript>
   <p class="hint">This page is drawn from
@@ -41,21 +64,118 @@
     the app is described from</a>. A test fails when it names a design, a chart or a limit that the app does not have.</p>
 </main>
 <script type="module">
-  import { markdown, shownPart } from "./features.js";
+  import { addressOf, page, shownPart } from "./features.js";
+  import { LEVEL_KEY, readLevel } from "./levels.js";
 
   const list = document.getElementById("features");
+  const find = document.getElementById("find");
+  const all = (selector, within = list) => [...within.querySelectorAll(selector)];
+  let level = 2;
+
+  /** Show the list at a level, and keep the choice where the app and the concept map keep theirs. */
+  const SAYS = [
+    "Each point in plain words.",
+    "Each point in plain words. Press Details under a point for the rest.",
+    "Each point in plain words, with its details open.",
+  ];
+  function setLevel(to, keep = true) {
+    level = to;
+    document.documentElement.dataset.level = level;
+    for (const radio of all('input[name="level"]', document)) radio.checked = Number(radio.value) === level;
+    document.getElementById("level-says").textContent = SAYS[level - 1];
+    for (const more of all("details.more")) more.open = level === 3;
+    if (!keep) return;
+    try {
+      localStorage.setItem(LEVEL_KEY, String(level));
+    } catch {
+      /* storage refused: the level holds for this visit */
+    }
+  }
+
+  /**
+   * Show the points that hold the words typed and no others, each in its part, opened, with its details if the
+   * words are there. A part whose own name holds the words shows whole. With nothing typed the list is as it was.
+   */
+  function search() {
+    const words = find.value.trim();
+    const on = words.length > 1;
+    const holds = (element) => element.textContent.toLowerCase().includes(words.toLowerCase());
+    let shown = 0;
+    for (const card of all(".feat-cards li")) {
+      card.hidden = on && !holds(card);
+      shown += on && !card.hidden;
+    }
+    for (const part of all(".feat-part")) {
+      const whole = on && holds(part.querySelector("summary"));
+      let any = false;
+      for (const entry of all(".feat-body li, .feat-body tbody tr, .feat-body > p", part)) {
+        entry.hidden = on && !whole && !holds(entry);
+        any ||= !entry.hidden;
+        shown += on && !entry.hidden && entry.tagName !== "P";
+        const more = entry.querySelector("details.more");
+        if (!more) continue;
+        const there = on && holds(more);
+        more.classList.toggle("found", there); // shown at every level
+        more.open = there || level === 3;
+      }
+      // A heading, a list or a table with none of its points left goes with them.
+      for (const group of all(".feat-body ul, .feat-body ol, .feat-body .scroll", part)) group.hidden = !group.querySelector("li:not([hidden]), tbody tr:not([hidden])");
+      for (const head of all(".feat-body h4", part)) {
+        let under = head.nextElementSibling;
+        while (under && under.tagName !== "H4" && under.hidden) under = under.nextElementSibling;
+        head.hidden = !under || under.tagName === "H4";
+      }
+      part.hidden = on && !any;
+      if (on && any && !part.open) {
+        part.open = true;
+        part.dataset.opened = "find";
+      } else if (!on && part.dataset.opened) {
+        part.open = false;
+        delete part.dataset.opened;
+      }
+    }
+    for (const step of all("h2.feat-step")) {
+      let under = step.nextElementSibling;
+      while (under && under.tagName !== "H2" && (under.hidden || !under.querySelector(":scope > li:not([hidden])") && under.tagName === "UL")) under = under.nextElementSibling;
+      step.hidden = on && (!under || under.tagName === "H2");
+    }
+    const points = `${shown} ${shown === 1 ? "point mentions" : "points mention"}`;
+    document.getElementById("found").textContent = !on ? "" : shown ? `${points} "${words}".` : `Nothing here mentions "${words}".`;
+  }
+
+  /** Go to the part the address names, opening it: its heading is inside the fold. */
+  function goTo() {
+    const id = addressOf(location.hash, all("[id]").map((element) => element.id));
+    const at = id && document.getElementById(id);
+    if (!at) return;
+    const part = at.closest("details.feat-part");
+    if (part) part.open = true;
+    at.scrollIntoView();
+  }
+
   try {
     const answer = await fetch("FEATURES.md", { cache: "no-cache" });
     if (!answer.ok) throw new Error(String(answer.status));
-    list.innerHTML = markdown(shownPart(await answer.text()));
+    list.innerHTML = page(shownPart(await answer.text()));
+    let stored = null;
+    try {
+      stored = localStorage.getItem(LEVEL_KEY);
+    } catch {
+      /* storage refused: the first visit's level */
+    }
+    setLevel(readLevel(stored), false);
+    document.getElementById("level").onchange = (event) => setLevel(Number(event.target.value));
+    find.addEventListener("input", search);
+    addEventListener("hashchange", goTo);
     // The address may name a part of the list, which was not there when the browser looked for it.
-    if (location.hash.length > 1) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+    if (location.hash.length > 1) goTo();
   } catch {
     list.innerHTML = "";
     const said = document.createElement("p");
     said.className = "error";
     said.textContent = "The list could not be read. Reload the page, or read it in the repository, linked below.";
     list.append(said);
+    document.querySelector(".feat-tools").hidden = true;
   }
   list.setAttribute("aria-busy", "false");
 </script>
