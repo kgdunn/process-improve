@@ -244,7 +244,16 @@ export async function draw(div, figure, version, height = 340, { toolbar = false
   if (!div.hasAttribute("aria-label")) div.setAttribute("aria-label", wordsOf(div).title);
   await react(div, shown);
   watch(div);
+  (window.requestIdleCallback ?? setTimeout)(figureWindow);
 }
+
+/**
+ * The module of a figure's own window (figure.js), asked for once: when the browser is first idle after a chart
+ * is drawn, so it costs the page's start nothing, a first press of Expand opens at once, and the copy of the page
+ * kept for use without a network holds it, which copies what a visit loaded (offline.js).
+ */
+let windowModule = null;
+const figureWindow = () => (windowModule ??= import("./figure.js"));
 
 /** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
 export const figureOf = (div) => drawn.get(div);
@@ -271,7 +280,7 @@ function wordsOf(div) {
 /**
  * Put the button that opens a chart in a window of its own (figure.js) at the right of its heading, once. Every
  * chart is drawn by draw(), so every chart has one. A chart in a card has the card's heading; one with no card
- * has the button alone, above it. The window's module is loaded when a figure is first opened.
+ * has the button alone, above it.
  */
 function offerWindow(div) {
   if (div.closest("dialog.figure")) return; // the window's own chart
@@ -292,7 +301,7 @@ function offerWindow(div) {
   button.className = "link expand";
   button.textContent = "Expand";
   button.setAttribute("aria-label", "Expand this figure: open it in a window of its own, to look at it closely");
-  button.onclick = async () => (await import("./figure.js")).openFigure(div, wordsOf(div));
+  button.onclick = async () => (await figureWindow()).openFigure(div, wordsOf(div));
   head.append(button);
 }
 

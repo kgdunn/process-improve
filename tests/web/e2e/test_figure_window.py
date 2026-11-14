@@ -125,6 +125,16 @@ def test_every_chart_has_a_button_that_opens_it_in_a_window_of_its_own(page):
     )
 
 
+def test_the_window_s_module_is_loaded_once_a_chart_is_drawn_and_the_browser_is_idle(page):
+    """The page's start waits for none of it, and the copy kept for use without a network copies what a visit loaded."""
+    loaded = (
+        "performance.getEntriesByType('resource').some((entry) => new URL(entry.name).pathname.endsWith('/figure.js'))"
+    )
+    page.wait_for_function(loaded)
+    assert "figure.js" not in page.content().split("</head>")[0], "no module the page asks for at once"
+    assert page.locator("dialog.figure").count() == 0, "the window itself is made when a figure is first opened"
+
+
 def test_each_chart_is_one_picture_named_by_its_heading(page):
     """To a reader who cannot see it a chart is one picture, with its numbers in the table beside it."""
     open_more(page)

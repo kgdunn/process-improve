@@ -1,6 +1,6 @@
 // web/figure.js: a figure in a window of its own, over the page, to look at closely: as large as the window allows,
 // in a shape the reader chooses, with Plotly's buttons to zoom and turn it, and saved as an image in that shape.
-// charts.js loads this module when a figure is first opened, so a reader who opens none pays nothing for it.
+// charts.js loads this module once a first chart is drawn and the browser is idle, so the page's start waits for none of it.
 
 import { chartImage, draw, erase, figureOf } from "./charts.js";
 import { closeOnBackdrop } from "./dialogs.js";
