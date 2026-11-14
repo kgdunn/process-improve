@@ -381,13 +381,12 @@ function textWidth(text, font, style = "") {   // style: as a CSS font's first w
 function placeLabels(z) {
   const gap = TERM_GAP * z;
   const show = new Set();
-  placed = [];
+  placed = []; rings = [];
   if (gap >= DETAIL_GAP) {
     const { font, dot } = sizes(z), wrap = font * LABEL_EMS;
     const shown = gap < 40 ? 3 : gap < 60 ? 8 : Infinity;   // per topic, by rank, before space decides
     const W = cy.width(), H = cy.height();
     const candidates = [];
-    const rings = [];   // while books are compared: the terms in view, and how far the ring of each reaches from its middle
     cy.nodes(".term").forEach(n => {
       if (n.hasClass("off")) return;
       const p = n.renderedPosition();
@@ -409,8 +408,7 @@ function placeLabels(z) {
       const off = (c.sel ? dot * 1.9 : dot) / 2 + 1 + (othersOn ? dot * (c.sel ? 0.9 : 0.6) : 0);   // past its own ring
       const below = { x1: c.p.x - half, x2: c.p.x + half, y1: c.p.y + off, y2: c.p.y + off + high };
       const above = { ...below, y1: c.p.y - off - high, y2: c.p.y - off };
-      const free = b => !boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)
-        && !rings.some(r => r.n !== c.n && r.p.x + r.reach > b.x1 && r.p.x - r.reach < b.x2 && r.p.y + r.reach > b.y1 && r.p.y - r.reach < b.y2);
+      const free = b => !boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2) && !onRing(c.n, b);
       // The rings take room that names had, so while books are compared a name goes above its term when below is taken.
       const fits = free(below), up = othersOn && !c.sel && !fits && free(above);
       c.n.toggleClass("up", up);
@@ -425,13 +423,17 @@ function placeLabels(z) {
 
 // The first pass estimates label sizes; once they are drawn, their real boxes settle any overlap it missed.
 let placed = [];
+// While books are compared: the terms in view, and how far the ring of each reaches from its middle. A name keeps
+// clear of every ring but its own term's.
+let rings = [];
+const onRing = (n, b) => rings.some(r => r.n !== n && r.p.x + r.reach > b.x1 && r.p.x - r.reach < b.x2 && r.p.y + r.reach > b.y1 && r.p.y - r.reach < b.y2);
 function settleOverlaps() {
   // Topic and sub-topic names are placed first: term names give way to them.
   const kept = cy.nodes(".topic, .subtopic, .subname").filter(n => n.visible() && n.style("label"))
     .map(n => n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true }));
   for (const c of placed) {
     const b = c.n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true });
-    if (!c.forced && kept.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)) c.n.removeClass("lab");
+    if (!c.forced && (onRing(c.n, b) || kept.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2))) c.n.removeClass("lab");
     else kept.push(b);
   }
   if (verbsOn) settleLinkLabels(kept);
