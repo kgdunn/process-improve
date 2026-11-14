@@ -424,6 +424,17 @@ describe("a reader who removes the copy", () => {
     assert.deepEqual([page.keep.textContent, page.remove.hidden], ["Keep a copy, to open it without a network", true]);
   });
 
+  test("has a cache that came back after the removal deleted at the next visit, asking nothing of the network", async () => {
+    const left = new Browser();
+    await (await left.visit()).remove.onclick();
+    await left.caches.open(KEPT); // a write the worker was in the middle of as the copy went
+    const before = left.network.asked.length;
+    const later = await left.visit();
+    assert.deepEqual(await left.caches.keys(), []);
+    assert.deepEqual(left.network.asked.slice(before), []);
+    assert.equal(later.said.textContent, "Factorial keeps no copy of itself on this device.");
+  });
+
   test("has none made at later visits, until they ask for one", async () => {
     const before = browser.network.asked.length;
     const later = await browser.visit();

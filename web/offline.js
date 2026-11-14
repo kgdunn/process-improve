@@ -331,6 +331,9 @@ export async function installOffline({ manifest, started, box }) {
     wish(true);
     show("none");
   };
-  if (wishesNone()) show("none");
-  else await run("page"); // quietly: on a visit after the first, the copy lacks nothing
+  if (wishesNone()) {
+    // A write the worker was in the middle of as the copy went can bring a cache back: it goes at the next visit.
+    await removeCopy().catch(() => {});
+    show("none");
+  } else await run("page"); // quietly: on a visit after the first, the copy lacks nothing
 }
