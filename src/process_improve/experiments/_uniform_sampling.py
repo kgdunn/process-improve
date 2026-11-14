@@ -186,6 +186,11 @@ class UniformSampler:
         ``(column, minimum)`` for each coordinate that is left out or used at no less than a
         minimum: it sits at its lower bound, or between ``minimum`` and its upper bound,
         and nowhere between the two. See below for what "uniform" then means.
+    allowed : callable or None
+        ``allowed(x)`` of ``(m, k)`` points says which of them use a set of the coordinates
+        with a gap that may be used together (a limit on how many are in use). A point it
+        refuses is outside the region; a chain keeps its set, or changes it to one that is
+        allowed.
 
     Notes
     -----
@@ -213,6 +218,7 @@ class UniformSampler:
     on_simplex: bool = False
     tolerances: np.ndarray | None = None
     gaps: list[tuple[int, float]] | None = None
+    allowed: Callable[[np.ndarray], np.ndarray] | None = None
 
     def __post_init__(self) -> None:
         """Split the constraints into affine rows ``a @ x <= b`` and the rest."""
@@ -240,6 +246,8 @@ class UniformSampler:
         if len(self._gap_columns):
             mine = x[:, self._gap_columns]
             ok &= ~np.any((mine > low[self._gap_columns] + _TOL) & (mine < self._gap_minimums - _TOL), axis=1)
+        if self.allowed is not None:
+            ok &= self.allowed(x)
         return ok
 
     def _left_out(self, x: np.ndarray) -> np.ndarray:
@@ -417,7 +425,8 @@ class UniformSampler:
         bound, and may be used over the part of the interval at or above its minimum.
         Being left out weighs as much as the whole range from the minimum to the upper
         bound, so the two are as likely when nothing limits the coordinate. A draw that
-        breaks a non-linear constraint is not taken, which keeps the measure invariant.
+        breaks a non-linear constraint, or leaves a set of coordinates in use that is not
+        allowed, is not taken, which keeps the measure invariant.
         """
         rows = np.arange(len(x))
         pick = rng.integers(len(self._gap_columns), size=len(x))
@@ -436,7 +445,7 @@ class UniformSampler:
         value = np.where(draw < weight_out, bottom, start + (draw - weight_out))
         trial = x.copy()
         trial[rows, columns] = np.where(total > 0, value, current)
-        ok = np.ones(len(x), dtype=bool)
+        ok = np.ones(len(x), dtype=bool) if self.allowed is None else self.allowed(trial)
         for g, reach in self._nonlinear:
             ok &= np.asarray(g(trial)) <= reach
         x[ok] = trial[ok]

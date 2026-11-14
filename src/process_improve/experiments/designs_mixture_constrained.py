@@ -41,6 +41,7 @@ from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._count_rules import UsedSets, count_rules, used_sets, without_count_rules
 from process_improve.experiments._uniform_sampling import UniformSampler, _linear_row
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
@@ -49,6 +50,7 @@ from process_improve.experiments.designs_constrained import (
     independent_columns,
     make_criterion,
     parse_constraint,
+    piece_vertices,
     search_directions,
     selection_counts,
 )
@@ -449,6 +451,46 @@ def _candidates_from_a_sample(vertices: np.ndarray) -> dict[str, np.ndarray]:
     )
 
 
+def mixture_sets(factors: list[Factor], constraints: list[Constraint] | None) -> UsedSets | None:
+    """Return which components a blend may use together, or None when no constraint limits how many are used."""
+    names = [f.name for f in factors]
+    return used_sets(names, factors, count_rules(constraints, factors), dict.fromkeys(names, False))
+
+
+def candidate_blends(factors: list[Factor], constraints: list[Constraint] | None) -> np.ndarray:
+    """Return every candidate blend of a mixture region that a run may use, each once.
+
+    They are the blends of :func:`mixture_candidates` for the region without its limits
+    on how many components are used; with such limits, the vertices of each of their
+    pieces and the points between them
+    (:func:`~process_improve.experiments.designs_constrained.piece_vertices`); less every
+    blend with a component between 0 and its ``min_when_used``, or with a number of
+    components in use that a limit does not allow.
+
+    Raises
+    ------
+    ValueError
+        If no blend meets the linear constraints.
+    """
+    a_mat, b_vec = mixture_inequalities(factors, without_count_rules(constraints))
+    return _usable_blends(factors, mixture_candidates(a_mat, b_vec), (a_mat, b_vec), mixture_sets(factors, constraints))
+
+
+def _usable_blends(
+    factors: list[Factor], candidates: dict[str, np.ndarray], limits: tuple, sets: UsedSets | None
+) -> np.ndarray:
+    """See :func:`candidate_blends`: the blends of ``candidates``, the pieces' blends, less those no run may use."""
+    kinds = list(candidates.values())
+    if sets is not None:
+        bounds = [(float(f.low), float(f.high)) for f in factors]  # type: ignore[arg-type]
+        kinds.append(piece_vertices(sets, limits[0], limits[1], bounds, sum_to_one=True))
+    pool = _unique_rows(np.vstack(kinds))
+    usable = ~_traces(factors, pool)
+    if sets is not None:
+        usable &= sets.allows(pool)
+    return pool[usable]
+
+
 def _traces(factors: list[Factor], blends: np.ndarray) -> np.ndarray:
     """Return, per blend, whether a component lies between 0 and its ``min_when_used``."""
     out = np.zeros(len(blends), dtype=bool)
@@ -530,35 +572,41 @@ class _Blends:
 
 
 def _blends(
-    factors: list[Factor], candidates: dict[str, np.ndarray], opts: ConstrainedOptions, limits: tuple
+    factors: list[Factor],
+    candidates: dict[str, np.ndarray],
+    opts: ConstrainedOptions,
+    limits: tuple,
+    sets: UsedSets | None,
 ) -> _Blends:
-    """Return the blends a design may use: the caller's or the region's, without those that hold a trace.
+    """Return the blends a design may use: the caller's or the region's, without those no run may use.
 
-    A blend with a component between 0 and its ``min_when_used`` is left out. The
+    A blend with a component between 0 and its ``min_when_used`` is left out, and so is
+    one that uses more components, or fewer, than a limit on their number allows. The
     region's own candidates then say which columns of the model can be estimated (see
     :func:`_estimable_columns`); the caller's candidates must support the whole model.
 
     Raises
     ------
     ValueError
-        If every candidate blend holds a trace.
+        If no candidate blend is left.
     """
     model = scheffe_model(opts.model_type)
     n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
     labels: list | None = None
     if opts.candidates is not None:
         pool, labels = _user_blends(factors, opts.candidates, *limits)
+        usable = ~_traces(factors, pool) & (True if sets is None else sets.allows(pool))
+        pool, labels = pool[usable], [label for label, keep in zip(labels, usable, strict=True) if keep]
     else:
-        pool = _unique_rows(np.vstack(list(candidates.values())))
-    usable = ~_traces(factors, pool)
-    if not usable.any():
-        raise ValueError("Every candidate blend has a component between 0 and its min_when_used.")
-    pool = pool[usable]
+        pool = _usable_blends(factors, candidates, limits, sets)
+    if len(pool) == 0:
+        raise ValueError(
+            "Every candidate blend has a component between 0 and its min_when_used, or uses a number of components "
+            "that a count_nonzero limit does not allow."
+        )
     columns = np.arange(n_parameters)
     lost: list[str] = []
-    if labels is not None:
-        labels = [label for label, keep in zip(labels, usable, strict=True) if keep]
-    elif np.linalg.matrix_rank(scheffe_matrix(pool, model)) < n_parameters:
+    if labels is None and np.linalg.matrix_rank(scheffe_matrix(pool, model)) < n_parameters:
         columns, lost = _estimable_columns(factors, pool, model)
     return _Blends(pool, labels, columns, lost, n_parameters, isinstance(candidates, _SampledCandidates))
 
@@ -673,19 +721,20 @@ def constrained_mixture_design(
     opts = options if options is not None else ConstrainedOptions(model_type="scheffe_quadratic")
     model = scheffe_model(opts.model_type)
     rng = check_random_state(random_state)
-    a_mat, b_vec = mixture_inequalities(factors, constraints)
+    a_mat, b_vec = mixture_inequalities(factors, without_count_rules(constraints))
+    sets = mixture_sets(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
-    blends = _blends(factors, candidates, opts, (a_mat, b_vec))
+    blends = _blends(factors, candidates, opts, (a_mat, b_vec), sets)
     pool, columns = blends.pool, blends.columns
-    left_out = any(f.min_when_used is not None for f in factors)
+    left_out = sets is not None or any(f.min_when_used is not None for f in factors)
 
     def model_rows(points: np.ndarray) -> np.ndarray:
         return scheffe_matrix(points, model)[:, columns]
 
     def region_rows() -> np.ndarray:
         if blends.labels is not None or left_out:
-            # The supplied blends stand for the region. shortcut: so do the candidates when a component has a
-            # min_when_used, whose region is made of pieces that no sampler here draws from, upgrade with one.
+            # The supplied blends stand for the region. shortcut: so do the candidates when a component can be
+            # left out, whose region is made of pieces that no sampler here draws from, upgrade with one.
             return model_rows(pool)
         low = np.array([f.low or 0.0 for f in factors], dtype=float)
         return model_rows(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng))

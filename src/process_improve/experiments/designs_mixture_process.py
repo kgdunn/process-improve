@@ -75,6 +75,7 @@ from patsy import Term as PatsyTerm
 from patsy import categorical as patsy_categorical
 
 from process_improve._random import check_random_state
+from process_improve.experiments._count_rules import count_rules, without_count_rules
 from process_improve.experiments._rules import names_categorical
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
@@ -89,11 +90,8 @@ from process_improve.experiments.designs_constrained import (
 )
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
-    _traces,
-    _unique_rows,
+    candidate_blends,
     cubic_difference_term,
-    mixture_candidates,
-    mixture_inequalities,
     scheffe_model,
 )
 from process_improve.experiments.designs_utils import (
@@ -490,12 +488,17 @@ def split_constraints(
 
 
 def _candidate_blends(mixture: list[Factor], constraints: list[Constraint]) -> np.ndarray:
-    """Return every candidate blend of the constrained simplex: vertices, edge points, face centroids, centroid."""
-    kinds = mixture_candidates(*mixture_inequalities(mixture, constraints))
-    blends = _unique_rows(np.vstack(list(kinds.values())))
-    blends = blends[~_traces(mixture, blends)]  # none with a component between 0 and its min_when_used
+    """Return every candidate blend of the constrained simplex: vertices, edge points, face centroids, centroid.
+
+    None has a component between 0 and its ``min_when_used``, or uses a number of
+    components that a ``count_nonzero`` limit does not allow.
+    """
+    blends = candidate_blends(mixture, constraints)
     if len(blends) == 0:
-        raise ValueError("Every candidate blend has a component between 0 and its min_when_used.")
+        raise ValueError(
+            "Every candidate blend has a component between 0 and its min_when_used, or uses a number of components "
+            "that a count_nonzero limit does not allow."
+        )
     return blends
 
 
@@ -511,9 +514,9 @@ def _candidate_settings(
     continuous = [f for f in process if f.type != FactorType.categorical]
     categorical = [f for f in process if f.type == FactorType.categorical]
     names = {f.name for f in continuous}
-    inequalities = [g for c in constraints for g in parse_constraint(c.expression, names)]
+    inequalities = [g for c in without_count_rules(constraints) for g in parse_constraint(c.expression, names)]
     coded, cats, _counts = build_candidates(
-        _Region(continuous, categorical, inequalities),
+        _Region(continuous, categorical, inequalities, counts=count_rules(constraints, continuous)),
         model_type="quadratic" if model.has_squares else "interactions",
         criterion=criterion,
     )

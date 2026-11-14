@@ -29,10 +29,11 @@ only compute a number.
 from __future__ import annotations
 
 import ast
+import itertools
 import keyword
 import logging
 import math
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, cast
 
@@ -42,6 +43,15 @@ from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._count_rules import (
+    CountRule,
+    UsedSets,
+    count_rule_syntax,
+    count_rules,
+    is_count_rule,
+    used_sets,
+    without_count_rules,
+)
 from process_improve.experiments._expression_text import MAX_EXPRESSION_LENGTH, nfkc
 from process_improve.experiments._formula import suggest_identifier
 from process_improve.experiments._region_geometry import box_vertices
@@ -283,7 +293,8 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
     Parameters
     ----------
     expression : str
-        A constraint, e.g. ``"3*T + 5*D <= 600"``, as :func:`parse_constraint` accepts.
+        A constraint, e.g. ``"3*T + 5*D <= 600"``, as :func:`parse_constraint` accepts, or
+        a limit on how many factors are used, e.g. ``"count_nonzero(A, B, C) <= 2"``.
     names : Mapping[str, str]
         Old name to new name. Names the expression does not use are ignored. An old
         name is matched through its Unicode NFKC form, as :func:`parse_constraint` does.
@@ -315,7 +326,8 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
     except SyntaxError as err:
         raise ValueError(f"Constraint {expression!r} is not a valid expression: {err.msg}.") from err
     used = _factor_names(tree)
-    parse_constraint(expression, set(used))
+    check = (lambda text, _names: count_rule_syntax(text)) if is_count_rule(expression) else parse_constraint
+    check(expression, set(used))
     for new in names.values():
         if not (isinstance(new, str) and new.isidentifier() and not keyword.iskeyword(new)):
             raise ValueError(
@@ -328,7 +340,7 @@ def rename_factors(expression: str, names: Mapping[str, str]) -> str:
         merged = sorted(name for name in used if [nfkc(r) for r in renamed].count(nfkc(parsed.get(name, name))) > 1)
         raise ValueError(f"Renaming {expression!r} with {dict(names)} would merge the factors {merged} into one.")
     text = ast.unparse(_Renamer(parsed).visit(tree))
-    parse_constraint(text, set(renamed))
+    check(text, set(renamed))
     return text
 
 
@@ -357,7 +369,14 @@ class _Region:
     #: Model columns kept when the rules leave some coefficients inestimable; None keeps every column.
     kept_columns: np.ndarray | None = None
     source: DesignRegion | None = field(default=None, repr=False, compare=False)
+    #: Limits on how many of the continuous factors a run may use (``count_nonzero(...)`` constraints).
+    counts: list[CountRule] = field(default_factory=list)
     _lengths: np.ndarray | None = field(default=None, init=False, repr=False, compare=False)
+
+    def used_sets(self) -> UsedSets | None:
+        """Return which continuous factors a run may use together, or None without count rules."""
+        names = [f.name for f in self.continuous]
+        return used_sets(names, self.continuous, self.counts, dict.fromkeys(names, True))
 
     def _limits(self) -> list[tuple[_Evaluator, int | None]]:
         """Every inequality, with the clause of ``rules.limits`` it applies under (None where it applies everywhere)."""
@@ -388,7 +407,7 @@ class _Region:
     def given(self, applies: np.ndarray) -> _Region:
         """Return the region, without rules, of the runs on which the clauses ``applies`` marks apply."""
         chosen = [g for j, group in enumerate(self.conditional) if applies[j] for g in group]
-        return _Region(self.continuous, [], self.inequalities + chosen)
+        return _Region(self.continuous, [], self.inequalities + chosen, counts=self.counts)
 
     def draw_levels(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """Draw ``n`` combinations of levels, each allowed combination in proportion to its volume.
@@ -412,11 +431,16 @@ class _Region:
         return cats
 
     def gaps(self) -> list[tuple[int, float]]:
-        """Return ``(column, minimum)`` for each continuous factor with a ``min_when_used``, in coded units.
+        """Return ``(column, minimum)`` for each continuous factor that can be left out, in coded units.
 
-        Such a factor is 0 (coded -1) or at least its minimum, so no run may set it
-        strictly between -1 and that minimum.
+        A factor with a ``min_when_used`` is 0 (coded -1) or at least its minimum, so no
+        run may set it strictly between -1 and that minimum. A factor that a count rule
+        counts, and that has no such minimum, is left out at -1 and used anywhere above
+        it: its minimum here is -1.
         """
+        sets = self.used_sets()
+        if sets is not None:
+            return [(column, minimum) for column, _zero, minimum in sets.optional]
         return [
             (j, 2.0 * f.min_when_used / f.high - 1.0)  # type: ignore[operator]
             for j, f in enumerate(self.continuous)
@@ -465,7 +489,8 @@ class _Region:
         such as ``X <= 0.5e-9`` on a factor whose range is ``1e-9``.
 
         A factor with a ``min_when_used`` adds the distance, in coded units, from a value
-        between 0 and that minimum to the nearer of the two (see :meth:`gaps`).
+        between 0 and that minimum to the nearer of the two (see :meth:`gaps`). A run that
+        breaks a count rule has an infinite slack.
         """
         env = self.actual(coded)
         rows = coded.shape[0]
@@ -479,6 +504,9 @@ class _Region:
         slack = np.max(g, axis=0) if g else np.full(rows, -np.inf)
         for j, minimum in self.gaps():
             slack = np.maximum(slack, np.minimum(coded[:, j] + 1.0, minimum - coded[:, j]))
+        sets = self.used_sets()
+        if sets is not None:  # a run that uses too many factors, or too few, is not a run of the region
+            slack = np.where(sets.allows(coded), slack, np.inf)
         return slack if cats is None else np.where(self.allowed(cats), slack, np.inf)
 
     def _value_scales(self) -> np.ndarray:
@@ -642,8 +670,10 @@ _FEW_CANDIDATES_PER_COEFFICIENT = 5
 _SMALLEST_SHARE_MOVED = 0.03
 
 
-def search_directions(k: int) -> Iterator[np.ndarray]:
-    """Yield ``_SAMPLED_VERTICES`` directions in ``k`` coordinates for linear programmes that look for vertices.
+def search_directions(k: int, n: int | None = None) -> Iterator[np.ndarray]:
+    """Yield ``n`` directions in ``k`` coordinates for linear programmes that look for vertices.
+
+    ``n`` is ``_SAMPLED_VERTICES`` when it is not given.
 
     The directions are not drawn alike in every coordinate. Such a direction asks most
     factors to move, so it nearly always ends where a limit on a total is met: in a
@@ -656,7 +686,7 @@ def search_directions(k: int) -> Iterator[np.ndarray]:
     do not depend on the caller's random state.
     """
     rng = np.random.default_rng(0)
-    for _ in range(_SAMPLED_VERTICES):
+    for _ in range(_SAMPLED_VERTICES if n is None else n):
         moved = rng.random(k) < rng.uniform(_SMALLEST_SHARE_MOVED, 1.0)
         yield np.where(moved, rng.standard_normal(k) + rng.choice((-1.0, 0.0, 1.0)), 0.0)
 
@@ -695,6 +725,68 @@ def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
     return points_between(np.clip(np.array(found), -1.0, 1.0))
 
 
+def piece_vertices(
+    sets: UsedSets,
+    a_ub: np.ndarray,
+    b_ub: np.ndarray,
+    bounds: Sequence[tuple[float, float]],
+    sum_to_one: bool = False,
+) -> np.ndarray:
+    """Return vertices of the pieces of a region with count rules, and points between the vertices of each piece.
+
+    The region is the union of one piece per allowed set of the factors in use (see
+    :class:`~process_improve.experiments._count_rules.UsedSets`): on a piece the factors
+    left out are at 0 and the others are at their minimum or above, within
+    ``a_ub @ x <= b_ub`` and ``bounds``. A grid, or a vertex of the region taken without
+    the count rules, seldom uses a number of factors the rules allow: a vertex uses few
+    factors, fewer than a rule that asks for several. So candidates are found piece by
+    piece. Linear programmes in the directions of :func:`search_directions` end at
+    vertices of a piece, and :func:`points_between` adds the points between them, which
+    the piece holds too. A piece no point of which meets the limits gives nothing.
+
+    The sets are every allowed one when there are few, and a sample of them otherwise, so
+    that about ``_SAMPLED_VERTICES`` programmes are solved in all, at least two per set.
+
+    Parameters
+    ----------
+    sets : UsedSets
+        Which factors may be used together, and where each sits when it is left out.
+    a_ub, b_ub : np.ndarray
+        The linear limits ``a_ub @ x <= b_ub``; there may be none.
+    bounds : Sequence[tuple[float, float]]
+        Each coordinate's lower and upper bound, with every factor in use.
+    sum_to_one : bool
+        The coordinates are proportions that sum to 1.
+
+    Returns
+    -------
+    np.ndarray
+        Points ``(n, k)``, each once.
+    """
+    k = len(bounds)
+    patterns = sets.sets(_SAMPLED_VERTICES // 2)
+    if len(patterns) == 0:
+        return np.empty((0, k))
+    per_set = min(max(2, _SAMPLED_VERTICES // len(patterns)), 4 * k + 4)
+    directions = search_directions(k, per_set * len(patterns))
+    equal = {"A_eq": np.ones((1, k)), "b_eq": [1.0]} if sum_to_one else {}
+    limits = {"A_ub": a_ub, "b_ub": b_ub} if len(b_ub) else {}
+    found = [np.empty((0, k))]
+    for pattern in patterns:
+        piece = sets.bounds(pattern, bounds)
+        vertices = []
+        for direction in itertools.islice(directions, per_set):
+            result = linprog(direction, bounds=piece, method="highs-ds", **limits, **equal)
+            if result.status == 0:
+                vertices.append(result.x)
+        if vertices:
+            found.append(points_between(np.array(vertices)))
+    points = np.vstack(found)
+    points[np.abs(points) < 1e-12] = 0.0  # no -0.0 or 1e-17 in a design sheet
+    _, first = np.unique(points.round(10), axis=0, return_index=True)
+    return points[np.sort(first)]
+
+
 def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], np.ndarray]:
     """``g`` as a function of coded points ``(n, k)``."""
     return lambda x: np.broadcast_to(np.asarray(g(region.actual(np.atleast_2d(x))), dtype=float), (len(x),))
@@ -715,15 +807,37 @@ def _polytope_vertices(region: _Region, sample: bool = False) -> np.ndarray:
     there is no linear constraint. A region with more than ``_MAX_VERTEX_CANDIDATES``
     vertices gives none either, unless ``sample`` asks for some of them and points
     between them (see :func:`_sampled_vertices`).
+
+    With count rules the vertices are those of the box without the rules, which the
+    caller filters, and then the vertices of the rules' pieces (:func:`piece_vertices`),
+    with or without a linear constraint.
+    """
+    k = len(region.continuous)
+    a_mat, b_vec = _linear_rows(region)
+    pieces = np.empty((0, k))
+    sets = region.used_sets()
+    if sets is not None and k:
+        pieces = piece_vertices(sets, a_mat, b_vec, [(-1.0, 1.0)] * k)
+    if not len(b_vec) or k == 0:
+        return pieces
+    try:
+        vertices = box_vertices(a_mat, b_vec, _MAX_VERTEX_CANDIDATES)
+    except ValueError:  # more vertices than the candidate set takes
+        vertices = _sampled_vertices(a_mat, b_vec) if sample else np.empty((0, k))
+    return np.vstack([vertices, pieces])
+
+
+def _linear_rows(region: _Region) -> tuple[np.ndarray, np.ndarray]:
+    """Return the region's linear constraints as unit-length rows ``a @ x <= b`` in coded units.
+
+    A row that holds everywhere is left out, and one that no point meets is a zero row
+    with ``b = -1``.
     """
     k = len(region.continuous)
     ones = np.ones(k)
     forms = [_affine_form(_coded_inequality(region, g), -ones, ones, region.offsets()) for g in region.inequalities]
-    rows = [f for f in forms if f is not None]
-    if not rows or k == 0:
-        return np.empty((0, k))
     a_rows, b_rows = [], []
-    for a, b in rows:
+    for a, b in (form for form in forms if form is not None and k):
         # Over the box |a @ x| <= sum |a|, so a row with less than |b| there (a limit on numbers only, whose
         # fit leaves a gradient of rounding noise) holds everywhere or nowhere, by the sign of b.
         if not a.any() or np.abs(a).sum() < abs(b):
@@ -734,11 +848,7 @@ def _polytope_vertices(region: _Region, sample: bool = False) -> np.ndarray:
         size = math.hypot(*a)
         a_rows.append(a / size)
         b_rows.append(b / size)
-    a_mat, b_vec = np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows)
-    try:
-        return box_vertices(a_mat, b_vec, _MAX_VERTEX_CANDIDATES)
-    except ValueError:  # more vertices than the candidate set takes
-        return _sampled_vertices(a_mat, b_vec) if sample else np.empty((0, k))
+    return np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows)
 
 
 def _vertex_candidates(region: _Region, cat_shape: list[int], sample: bool = False) -> tuple[np.ndarray, np.ndarray]:
@@ -2061,6 +2171,7 @@ def _corners_suffice(region: _Region, opts: ConstrainedOptions) -> bool:
         and opts.model_type != "quadratic"
         and not region.inequalities
         and not region.conditional
+        and not region.counts
     )
 
 
@@ -2189,6 +2300,7 @@ def _uniform_rows(
 def _uniform_points(region: _Region, n: int, rng: np.random.Generator, seeds: np.ndarray) -> np.ndarray:
     """Draw ``n`` coded points uniformly from the box cut by the region's inequalities (its rules are not read)."""
     k = len(region.continuous)
+    sets = region.used_sets()
 
     def coded_inequality(g: Callable) -> Callable[[np.ndarray], np.ndarray]:
         return lambda x: np.broadcast_to(np.asarray(g(region.actual(x)), dtype=float), (len(x),))
@@ -2200,6 +2312,7 @@ def _uniform_points(region: _Region, n: int, rng: np.random.Generator, seeds: np
         seeds=lambda: seeds,
         tolerances=region._value_scales()[: len(region.inequalities)],  # so a drawn point passes slack()
         gaps=region.gaps(),  # a factor with a min_when_used is left out in about half of the points
+        allowed=None if sets is None else sets.allows,
     )
     return sampler.draw(n, rng)
 
@@ -2355,19 +2468,24 @@ def region_with_rules(factors: list[Factor], constraints: list[Constraint]) -> _
 
     A constraint that names a categorical factor, or joins comparisons with ``and``,
     ``or`` or ``not``, is read by :func:`~process_improve.experiments._rules.compile_rules`;
-    every other one by :func:`parse_constraint`, as before.
+    a limit on how many factors are used, ``count_nonzero(...)``, by
+    :func:`~process_improve.experiments._count_rules.count_rules`; every other one by
+    :func:`parse_constraint`, as before.
     """
     continuous = [f for f in factors if f.type != FactorType.categorical]
     categorical = [f for f in factors if f.type == FactorType.categorical]
     names = {f.name for f in continuous}
-    plain, rules = compile_rules(constraints, names, {f.name: list(f.levels or []) for f in categorical})
+    counts = count_rules(constraints, factors)
+    ordinary = without_count_rules(constraints)
+    plain, rules = compile_rules(ordinary, names, {f.name: list(f.levels or []) for f in categorical})
     inequalities = [g for _source, text in plain for g in parse_constraint(text, names)]
     if rules is None:
-        return _Region(continuous, categorical, inequalities)
+        return _Region(continuous, categorical, inequalities, counts=counts)
     from process_improve.experiments.region import DesignRegion  # noqa: PLC0415  region imports this module
 
     conditional = [parse_constraint(clause.limit or "", names) for clause in rules.limits]
-    return _Region(continuous, categorical, inequalities, rules, conditional, source=DesignRegion(factors, constraints))
+    source = DesignRegion(factors, ordinary)  # the volume of each combination of levels, before the count rules
+    return _Region(continuous, categorical, inequalities, rules, conditional, source=source, counts=counts)
 
 
 def _candidate_rows(
@@ -2375,13 +2493,16 @@ def _candidate_rows(
 ) -> tuple[np.ndarray, dict[str, int]]:
     """Return the candidates' model rows, and per term the columns the rules leave inestimable (none without rules).
 
-    With rules, the columns that cannot be estimated are dropped from the model, here and
-    in every later call of :func:`model_matrix` on ``region``.
+    With rules on categorical factors, or limits on how many factors a run uses, the
+    columns that cannot be estimated are dropped from the model, here and in every later
+    call of :func:`model_matrix` on ``region``: two factors that no run uses together
+    have no interaction to estimate.
     """
     f_cand = model_matrix(region, coded, cats, model_type)
-    if region.rules is None:
+    if region.rules is None and not region.counts:
         return f_cand, {}
-    _check_every_level_runs(region, cats)
+    if region.rules is not None:
+        _check_every_level_runs(region, cats)
     region.kept_columns, inestimable = _estimable_columns(region, f_cand, model_type)
     return f_cand[:, region.kept_columns], inestimable
 
