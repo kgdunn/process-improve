@@ -65,6 +65,23 @@ const groupOf = id => topics.get(id) || subtopics.get(id);   // a topic or a sub
 const fam = n => FAMILY[n.type] || "concept";
 const icon = (f, color) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${FAMILIES[f][2]}" fill="${color}"/></svg>`;
 const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+// Math, as the graph writes it: LaTeX between dollar signs in a definition, and the book's own :math:`...` role in the
+// line it quotes. KaTeX draws it, and writes each formula twice: as drawn, for the eye, and as MathML, out of sight,
+// which is what a screen reader reads. It is fetched when the map first shows a formula, never before, and a formula
+// is hidden until it is drawn; if KaTeX cannot be fetched, the formula is shown as it is written.
+const MATH = /\$([^$]+)\$|:math:`([^`]+)`/g;
+const withMath = text => esc(text).replace(MATH, (_, dollars, role) => `<span class="tex">${dollars ?? role}</span>`);
+let katex;   // undefined: not asked for yet; then the fetch, as a promise; then KaTeX, or false when it did not come
+function typeset(root) {
+  const formulas = root.querySelectorAll(".tex:not(.done)");
+  if (!formulas.length) return;
+  katex ??= import("./vendor/katex/katex.min.js").then(() => (katex = self.katex), () => (katex = false));
+  if (katex instanceof Promise) { katex.then(() => typeset(root)); return; }
+  for (const f of formulas) {
+    if (katex) katex.render(f.textContent, f, { throwOnError: false });
+    f.classList.add("done");
+  }
+}
 // The link to the book goes to the term's section and, as a text fragment (#:~:text=), to the sentence it quotes: a
 // browser that knows text fragments scrolls to that sentence and highlights it, and one that does not stops at the
 // section. The quote is a line of the book's source, so a word with markup in it (a role, emphasis, a literal) or
@@ -74,7 +91,7 @@ const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "
 const PLAIN = /^[\p{L}\p{N}.,;:!?()%/+=-]+$/u;
 const textFragment = quote => {
   let best = [], run = [];
-  for (const w of (quote || "").split(/\s+/)) {
+  for (const w of (quote || "").replace(MATH, " ` ").split(/\s+/)) {   // a formula is no word of the page's text
     if (PLAIN.test(w) && !w.includes("--") && !/:\S/.test(w)) { run.push(w); if (run.length > best.length) best = [...run]; }
     else run = [];
   }
@@ -509,11 +526,11 @@ function render() {
   if (selected && terms.has(selected)) {
     const n = terms.get(selected), color = css(`--map-${fam(n)}`);
     card.style.setProperty("--fam", color);
-    card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${esc(n.definition)}</p>
+    card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${withMath(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
-      <blockquote class="map-quote"><p>${esc(n.quote)}</p></blockquote>
+      <blockquote class="map-quote"><p>${withMath(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {
@@ -521,7 +538,8 @@ function render() {
       groups.set(rel, [...(groups.get(rel) || []), other]);
     }
     links.innerHTML = group("Topic", [n.cluster]) + (n.sub ? group("Sub-topic", [n.sub]) : "") + [...groups].map(([rel, ids]) => group(rel, ids)).join("");
-    strip.innerHTML = `<b>${esc(n.name)}</b> · ${esc(n.definition)}`;
+    strip.innerHTML = `<b>${esc(n.name)}</b> · ${withMath(n.definition)}`;
+    typeset(card); typeset(strip);
   } else if (selected && groupOf(selected)) {
     const c = groupOf(selected), isSub = subtopics.has(selected);
     const members = DATA.nodes.filter(n => (isSub ? n.sub : n.cluster) === c.id && onMap.has(n.id))
@@ -657,7 +675,7 @@ function sayLink(e) {
 }
 cy.on("mouseover", "edge.link", ev => { if (!ev.target.hasClass("dim")) sayLink(ev.target); });
 cy.on("mouseout", "edge.link", () => {
-  if (stripWas !== null) { document.getElementById("striptext").innerHTML = stripWas; stripWas = null; }
+  if (stripWas !== null) { const strip = document.getElementById("striptext"); strip.innerHTML = stripWas; stripWas = null; typeset(strip); }
 });
 // A tap on the map brings it up the page, the filters at the top of the screen, so the card it opens below the map
 // is in view: a reader who tapped with the map low on the screen would otherwise not see that anything changed. A

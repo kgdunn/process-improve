@@ -1621,7 +1621,8 @@ main.map .lede { margin: 0; }
 .map-bar { display: flex; gap: 8px; align-items: stretch; margin-top: -6px; }
 .map-strip { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; background: var(--panel);
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 10px; font-size: 0.88rem; }
-.map-strip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* The strip's own span, not the spans KaTeX draws a formula with inside it. */
+.map-strip > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .map-strip b { color: var(--fg); }
 .map-strip i { color: var(--accent); }   /* a link's verb, as on the map */
 .map-strip button { flex: none; min-height: 0; padding: 4px 10px; font-size: 0.85rem; }
@@ -1678,6 +1679,11 @@ main.map .lede { margin: 0; }
 .map-elsewhere { font-size: 0.85rem; font-style: italic; }
 .map-quote { margin: 4px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--muted); }
 .map-quote p { font-style: italic; }
+/* A formula (map.js): out of sight until KaTeX has drawn it, so its LaTeX is not flashed first. KaTeX sets its own
+   type a fifth larger than the words around it, to suit a serif text; beside the page's sans-serif a tenth is enough. */
+.tex { visibility: hidden; }
+.tex.done { visibility: visible; }
+.map .katex { font-size: 1.1em; }
 .map-book { font-size: 0.9rem; overflow-wrap: anywhere; }
 .map-links { display: grid; gap: 10px; }
 .map-rel { display: grid; gap: 6px; }
