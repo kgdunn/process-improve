@@ -384,14 +384,26 @@ def test_a_surface_s_code_holds_the_others_at_the_best_settings_as_its_caption_s
     assert float(held) == pytest.approx((18.04 - 15) / 5, abs=1e-3), "18.04 L/min, in coded units"
 
 
-def test_a_figure_the_page_draws_itself_shows_no_python(page):
-    """The coefficients' chart is the page's own: the analysis's panel holds the code of its numbers."""
+def test_a_figure_the_page_draws_itself_shows_the_python_that_draws_it_too(page):
+    """The library has no plot for these, so the code is Plotly's, on the numbers of the analysis above it."""
     page.click("figure[data-chart=coefficients] .expand")
     page.wait_for_function(SHOWN)
-    assert page.locator("dialog.figure details.python").is_hidden()
+    code = page.locator("dialog.figure code").text_content()
+    assert "analysis = analyze_experiment(" in code, "after the code of the analysis it draws"
+    assert '# The figure "Coefficients": each term\'s estimate with its 95% interval' in code
+    assert 'terms = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]' in code
+    assert code.rstrip().endswith("figure.show()")
     page.keyboard.press("Escape")
     expand(page, "true_contour")
-    assert page.locator("dialog.figure details.python").is_hidden(), "drawn from the simulation, not from the results"
+    code = page.locator("dialog.figure code").text_content()
+    assert '# The figure "True response surface": the process the results were simulated from, with no noise' in code
+    assert "truth = TrueProcess(" in code
+    assert 'points["F"] = ' in code, "held at the best settings, as the fitted surface beside it"
+    page.keyboard.press("Escape")
+    page.click("#best-chart .expand")
+    page.wait_for_function(SHOWN)
+    assert page.text_content("#figure-title") == "How tightly to hold each factor"
+    assert page.locator("dialog.figure details.python").is_hidden(), "a figure of the best settings, with no code yet"
 
 
 def place(page) -> list[str]:
@@ -416,10 +428,11 @@ def test_the_window_steps_through_the_figures_beside_the_one_opened(page):
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
     assert place(page) == ["How tightly to hold each factor", "5 of 5"], "the chart of the best settings, further down"
+    assert page.locator("dialog.figure details.python").is_hidden(), "a figure with no code: its panel goes"
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
     assert place(page) == ["Coefficients", "1 of 5"], "after the last, the first"
-    assert page.locator("dialog.figure details.python").is_hidden(), "the page's own figure: no code of the library's"
+    assert page.locator("dialog.figure details.python").is_visible(), "and comes back with a figure that has some"
     page.keyboard.press("ArrowLeft")
     page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('How tightly')")
     assert place(page)[1] == "5 of 5"

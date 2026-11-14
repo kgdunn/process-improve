@@ -287,7 +287,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, ownFigureCode, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -518,6 +518,7 @@ const state = {
   picked: null, // a design taken from the comparison, {key, design}, made again only if the plan changes
   control: null, // the level Dunnett's intervals compare the others with, when the reader picks one: else the first
   plotlyJs: null, // the Plotly.js version the Python plotly package names
+  charted: null, // the figures drawn for the response on show: their keys and the charts' reply they were drawn from
   commit: null, // the commit the app was built from, as its manifest names it
   campaign: null, // this browser's record of the study on the page, {id, created, title}; null for the worked example
   example: false, // the worked example is on the page, as the build made it or as run again here
@@ -3090,6 +3091,7 @@ async function downloadNotebook() {
     best: state.best,
     analyses,
     balance: state.balance,
+    figures: figuresCharted(),
   });
   const blob = new Blob([`${JSON.stringify(book, null, 1)}\n`], { type: "application/x-ipynb+json" });
   download(blob, `${state.design.spec.design_type}-${runCount()}-runs.ipynb`);
@@ -4326,7 +4328,7 @@ function coefficientCard(analysis, simulated) {
   const show = async (asked, version) => {
     const view = mixture ? "estimates" : asked;
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
-    if (version) await draw(plot, figure(view), version, figure(view)().height);
+    if (version) await draw(plot, figure(view), version, figure(view)().height, { python: figurePython("coefficients") });
   };
   for (const button of buttons) {
     button.onclick = () => {
@@ -4347,6 +4349,7 @@ let chartTicket = 0;
 
 async function drawCharts(request, mine, given = null) {
   const drawing = ++chartTicket;
+  state.charted = null; // until this analysis's figures are known
   const overtaken = () => mine !== ticket || drawing !== chartTicket;
   const charts = $("#charts");
   charts.hidden = false;
@@ -4393,7 +4396,9 @@ async function drawCharts(request, mine, given = null) {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
       return chartCard(key, caption);
     };
-    const python = (key) => figurePython(key, plots.plot_options?.[key]);
+    const python = (key) => figurePython(key, plots);
+    // The figures of this analysis, in the order the page has them: a notebook of the study ends with their code.
+    state.charted = { keys: Object.keys(CHARTS).filter((key) => key === "coefficients" || figures[key]), plots };
     for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const card = captioned(key);
@@ -4415,17 +4420,34 @@ async function drawCharts(request, mine, given = null) {
 
 /**
  * What gives the Python that draws one of Learn's figures, for the figure's own window: the code of the design,
- * its results and their analysis, as the analysis's panel shows it, then the figure's own. ``options`` is what
- * the page asked the library for (``plot_options`` of the charts' reply); null for a figure it has none for,
- * which the page draws itself. The code is written when it is asked for, from the analysis shown then.
+ * its results and their analysis, as the analysis's panel shows it, then the figure's own. ``plots`` is the charts'
+ * reply: its ``plot_options`` hold what the page asked the library for, for a figure the library drew. A figure the
+ * page drew itself has none, and its code is Plotly's, from the same analysis. The code is written when it is asked
+ * for, from the analysis shown then; it is null for a figure with no code to show.
  */
-function figurePython(key, options) {
-  if (!options) return null;
+function figurePython(key, plots = null) {
   return () => {
-    const { formula, model } = state.analysis;
-    const figure = figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, shownSpec());
-    return cumulative(...["design", "run", "analyse"].map((step) => stepCode[step]).filter(Boolean), figure);
+    const figure = figureAlone(key, plots);
+    return figure && cumulative(...["design", "run", "analyse"].map((step) => stepCode[step]).filter(Boolean), figure);
   };
+}
+
+/** The code that draws one figure, after the analysis's: the library's call, or Plotly's for a figure of the page's. */
+function figureAlone(key, plots = null) {
+  const options = plots?.plot_options?.[key];
+  const { formula, model } = state.analysis;
+  const spec = shownSpec();
+  if (options) return figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, spec);
+  const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, process: processOf(spec.response) };
+  return ownFigureCode(key, CHARTS[key].title, spec, about);
+}
+
+/** The figures drawn for the response on show, each with the code that draws it: the last cells of its notebook. */
+function figuresCharted() {
+  if (!state.charted || !state.analysis) return null;
+  const { keys, plots } = state.charted;
+  const codes = keys.map((key) => ({ title: CHARTS[key].title, code: figureAlone(key, plots) }));
+  return { response: state.shown, codes: codes.filter(({ code }) => code) };
 }
 
 /**

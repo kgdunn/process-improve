@@ -47,9 +47,8 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
   question, analyses the results, finds the best settings, and says what to run next.
 - **Plain words.** Findings are written as sentences from the numbers alone, with no language
   model: the same results give the same words.
-- **17 charts.** Each opens in a window to resize, save or copy, and 11 of them show the
-  Python that draws them. A run pointed at on one chart is marked on the others and in the
-  run sheet.
+- **17 charts.** Each opens in a window to resize, save or copy, and shows the Python that
+  draws it. A run pointed at on one chart is marked on the others and in the run sheet.
 - **Reproducible.** Every step shows Python code that runs as it is. A study leaves as a
   workbook, a notebook, a report, a file or a link.
 - **Checked against print.** The design catalog opens more than 1,000 published designs and
@@ -252,9 +251,9 @@ curve with its 95% bands.
 - **Save or copy.** A PNG or an SVG in the shape shown, on white under its title, or an image
   on the clipboard to paste into a slide. An image saved from a dark page has the light
   theme's colours.
-- **The Python that draws it.** The fitted response surface, the residuals, the half-normal
-  plot and the eight under More charts (11 of the 17) show code that runs as it is. The
-  others are drawn by the page, and the analysis's code gives their numbers.
+- **The Python that draws it.** Each of the 17 charts shows code that runs as it is: the
+  library's own call for the eleven the library draws, and Plotly's for the six the page
+  draws itself.
 - **One run, marked everywhere.** Rest on a run on a chart or in a table and it is ringed on
   every chart that draws the runs and shaded in the run sheet. A press or a tap keeps it;
   Escape lets it go.
@@ -306,7 +305,8 @@ curve with its 95% bands.
 - **Workbook (.xlsx).** The run sheet to fill in and read back. Two downloads of one study are
   the same file.
 - **Run sheet (.csv)**, for any spreadsheet or program.
-- **Notebook (.ipynb)** of the study's code.
+- **Notebook (.ipynb)** of the study's code, with a cell that draws each figure of the
+  analysis.
 - **Report (.html).** One page that needs nothing else: the brief, the design, the results, the
   analysis with its charts, the best settings, the next step and the code. A stamp gives the
   versions, the seed, the SHA-256 of the study's inputs and a link that opens the same study.

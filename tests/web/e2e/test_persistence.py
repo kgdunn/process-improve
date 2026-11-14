@@ -328,9 +328,10 @@ def test_a_damaged_link_is_refused_and_a_new_study_started(context, site):
     assert status(page)[1] == "ok"
 
 
-def test_the_notebook_holds_each_step_s_code(page, tmp_path: Path):
+def test_the_notebook_holds_each_step_s_code_and_each_figure_s(page, tmp_path: Path):
     generate(page, design_type="full_factorial", n_center_points=2)
     practise(page)
+    page.wait_for_function("document.querySelectorAll('#charts .js-plotly-plot').length >= 4")  # the figures are known
     with page.expect_download() as download:
         page.click("#notebook")
     assert download.value.suggested_filename == "full_factorial-10-runs.ipynb"
@@ -347,8 +348,20 @@ def test_the_notebook_holds_each_step_s_code(page, tmp_path: Path):
 
     assert all(body(cell) in analysis for cell in code[1:4]), "a cell a step, as the analysis panel holds them all"
     best = page.text_content("#py-best code")
-    assert all(body(cell) in best for cell in code[1:]), "and the best settings, as their panel holds every step"
-    assert len(code) == 5, "the install line, the design, the results, the analysis and the best settings"
+    assert all(body(cell) in best for cell in [*code[1:4], code[-1]]), "and the best settings, the last cell"
+    # Between the analysis and the best settings, a cell for each figure of the analysis, under its title.
+    figures = code[4:-1]
+    titles = ["".join(cell["source"]) for cell in book["cells"] if cell["cell_type"] == "markdown"]
+    named = [title[4:] for title in titles if title.startswith("### ")]
+    assert named[:4] == [
+        "Coefficients",
+        "Fitted response surface",
+        "True response surface",
+        "Residuals against fitted values",
+    ]
+    assert len(named) == len(figures) == 12, "the four on show and the eight under More charts, opened or not"
+    assert all(cell.rstrip().endswith("figure.show()") for cell in figures)
+    assert sum("visualize_doe(" in cell for cell in figures) == 10, "the library's figures; the page's own are Plotly's"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

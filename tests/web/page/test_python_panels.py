@@ -1247,3 +1247,192 @@ def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_se
     np.testing.assert_allclose(
         np.asarray(drawn.data[0].z, dtype=float), np.asarray(shown[0]["z"], dtype=float), atol=1e-9
     )
+
+
+# --------------------------------------------------------------------------- the page's own figures
+def own_figure(node, monkeypatch, steps: tuple, key: str, spec: dict, about: dict | None = None):
+    """Return the figure that the code of one of the page's own figures draws, run after the steps it builds on."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    code = panel(node, *steps, ("ownFigureCode", [key, "A figure", spec, about or {}]))
+    return run(code)["figure"]
+
+
+def steps_of(held: dict, responses: list, analysis: dict, simulation: dict | None = None) -> tuple:
+    """Return the three steps a figure's code builds on: the design, its results and their analysis."""
+    results = [held, responses] if simulation is None else [held, responses, simulation]
+    return (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", results),
+        ("analyseCode", [analysis["formula"], None not in responses, held["spec"]]),
+    )
+
+
+@pytest.mark.slow
+def test_the_coefficients_code_draws_each_estimate_with_its_interval(api, node, monkeypatch):
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    responses = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    drawn = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "coefficients", held["spec"]).data[0]
+    shown = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]
+    assert list(drawn.y) == [c["term"] for c in shown], "a row a term, the intercept left out as on the page"
+    np.testing.assert_allclose(drawn.x, [c["coefficient"] for c in shown])
+    np.testing.assert_allclose(drawn.error_x.array, [c["ci_high"] - c["coefficient"] for c in shown])
+    np.testing.assert_allclose(drawn.error_x.arrayminus, [c["coefficient"] - c["ci_low"] for c in shown])
+
+
+@pytest.mark.slow
+def test_the_coefficients_code_draws_a_fit_that_uses_every_run_with_no_interval(api, node, monkeypatch):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    drawn = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "coefficients", held["spec"]).data[0]
+    np.testing.assert_allclose(
+        drawn.x, [c["coefficient"] for c in analysis["coefficients"] if c["term"] != "Intercept"]
+    )
+    assert not np.nansum(np.asarray(drawn.error_x.array, dtype=float)), "nothing is left to say how well each is known"
+
+
+@pytest.mark.slow
+def test_the_levels_code_draws_every_run_at_its_level_and_each_level_s_average(api, node, monkeypatch):
+    spec = {"design_type": "full_factorial", "factors": [SUPPLIER], "n_replicates": 5, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    simulated = api.ok("api_simulate", {**held, "scenario": "main_effects", "sigma": 1, "seed": 2})["responses"]
+    responses = [None, *simulated[1:]]  # a run still to do is left out, as the page leaves it out
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    runs, averages = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "levels", held["spec"]).data
+    levels = analysis["comparison"]["levels"]
+    assert sorted(runs.y) == sorted(r["value"] for level in levels for r in level["runs"])
+    assert len(runs.y) == len(responses) - 1
+    assert dict(zip(averages.x, averages.y, strict=True)) == pytest.approx(
+        {str(level["level"]): level["mean"] for level in levels}
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("best", [None, {"T": 1.0, "P": -1.0, "F": 0.6}], ids=["at the center", "at the best settings"])
+def test_the_true_surface_s_code_draws_the_process_the_results_were_simulated_from(api, node, monkeypatch, best):
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    responses = simulation["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    sent = {**held, "responses": responses, "truth": simulation["truth"], **({"best": best} if best else {})}
+    plots = api.ok("api_plots", sent)
+    about = {"contour": plots["plot_options"]["contour"], "process": simulation}
+    drawn = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "true_contour", held["spec"], about)
+    surface = json.loads(plots["figures"]["true_contour"])["data"][0]
+    assert (about["contour"].get("hold_values") is not None) == (best is not None)
+    for name in ("x", "y", "z"):
+        np.testing.assert_allclose(np.asarray(drawn.data[0][name], dtype=float), surface[name], atol=1e-9, err_msg=name)
+    # With results typed over the simulated ones, step 2 makes no process: the figure's code makes its own.
+    typed = steps_of(held, [round(value) for value in responses], analysis)
+    again = own_figure(node, monkeypatch, typed, "true_contour", held["spec"], about)
+    np.testing.assert_allclose(np.asarray(again.data[0].z, dtype=float), surface["z"], atol=1e-9)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("request_", [MIXTURES[1], MIXTURES[4]], ids=["lattice", "vertices"])
+def test_a_mixture_s_triangles_are_drawn_by_their_code_over_the_page_s_blends(api, node, monkeypatch, request_):
+    """The fitted response and the true one, over the blends the bounds allow, with the runs on the fitted one."""
+    held = held_of(api.ok("api_make_design", {**request_, "factors": components(request_["design_type"])}))
+    simulation = api.ok("api_simulate", {**held, "seed": 5})
+    responses = simulation["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    ternary = api.ok("api_plots", {**held, "responses": responses, "truth": simulation["truth"]})["ternary"]
+    steps = steps_of(held, responses, analysis, simulation)
+    for key, values in (("ternary", "fitted"), ("true_ternary", "true")):
+        surface, runs = own_figure(node, monkeypatch, steps, key, held["spec"], {"process": simulation}).data
+        for corner in "abc":
+            np.testing.assert_allclose(surface[corner], ternary["grid"][corner], atol=1e-9, err_msg=f"{key} {corner}")
+            np.testing.assert_allclose(runs[corner], ternary["runs"][corner], atol=1e-12)
+        np.testing.assert_allclose(surface.marker.color, ternary["grid"][values], rtol=1e-5, err_msg=key)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("through", ["the reference blend", "the best blend"])
+def test_the_cox_traces_code_moves_each_component_as_the_page_moves_it(api, node, monkeypatch, through):
+    four = [{"name": name, "low": None, "high": None, "units": ""} for name in "ABCD"]
+    made = held_of(api.ok("api_make_design", {"design_type": "simplex_lattice", "factors": four}))
+    held = aimed(made, "maximize")
+    responses = api.ok("api_simulate", {**held, "seed": 5})["responses"]
+    request = {**held, "responses": responses}
+    analysis = api.ok("api_analyze_runs", request)
+    best = api.ok("api_best_settings", request)["coded"] if through == "the best blend" else None
+    cox = api.ok("api_plots", {**request, **({"best": best} if best else {})})["cox"]
+    assert (cox.get("through") == "best") == (best is not None)
+    drawn = own_figure(node, monkeypatch, steps_of(held, responses, analysis), "cox", held["spec"], {"cox": cox})
+    assert [trace.name for trace in drawn.data] == [trace["component"] for trace in cox["traces"]]
+    for mine, theirs in zip(drawn.data, cox["traces"], strict=True):
+        np.testing.assert_allclose(mine.x, theirs["change"], atol=1e-6, err_msg=theirs["component"])
+        np.testing.assert_allclose(mine.y, theirs["fitted"], rtol=1e-5, err_msg=theirs["component"])
+
+
+def test_a_figure_the_page_could_not_have_drawn_has_no_code(node):
+    spec = {"response": "y", "factors": factors_named("T", "P")}
+    asked = [
+        ("ownFigureCode", ["true_contour", "A figure", spec, {}]),
+        ("ownFigureCode", ["true_ternary", "A figure", spec, {}]),
+        ("ownFigureCode", ["cox", "A figure", spec, {}]),
+        ("ownFigureCode", ["contour", "A figure", spec, {}]),
+    ]
+    assert javascript(node, source("python.js"), asked) == [None] * 4, (
+        "no process, no traces, or the library's own figure"
+    )
+
+
+@pytest.mark.slow
+def test_the_notebook_draws_each_figure_after_the_analysis_it_is_of(api, node, monkeypatch):
+    """Each figure's code is a cell of its own, under its title, so a notebook run top to bottom shows them all."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    shown: list = []
+    monkeypatch.setattr(go.Figure, "show", lambda figure, *_, **__: shown.append(figure))
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    responses = simulation["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses, "truth": simulation["truth"]})
+    spec, formula = held["spec"], analysis["formula"]
+    about = {"contour": plots["plot_options"]["contour"], "process": simulation}
+    codes = [
+        {"title": "Coefficients", "code": page_code(node, "ownFigureCode", "coefficients", "Coefficients", spec)},
+        {
+            "title": "Fitted",
+            "code": page_code(node, "figureCode", "Fitted", plots["plot_options"]["contour"], formula, True, spec),
+        },
+        {"title": "True", "code": page_code(node, "ownFigureCode", "true_contour", "True", spec, about)},
+    ]
+    book = notebook_of(
+        node,
+        design=held,
+        responses=responses,
+        sources=["simulated"] * len(responses),
+        simulation=simulation,
+        model=formula,
+        figures={"response": spec["response"], "codes": codes},
+    )
+    nbformat = pytest.importorskip("nbformat", reason="the notebook is checked against Jupyter's own schema")
+    nbformat.validate(nbformat.reads(json.dumps(book), as_version=4))
+    cells = [(cell["cell_type"], "".join(cell["source"])) for cell in book["cells"]]
+    assert [text for kind, text in cells if kind == "markdown"][-3:] == ["### Coefficients", "### Fitted", "### True"]
+    code = [text for kind, text in cells if kind == "code"]
+    assert code[-3:] == [figure["code"] for figure in codes], "each after the analysis, in the page's order"
+    namespace: dict = {}
+    for cell in code[1:]:
+        run(cell, namespace)
+    assert len(shown) == 3
+    other = notebook_of(
+        node,
+        design=held,
+        responses=responses,
+        sources=["simulated"] * len(responses),
+        simulation=simulation,
+        model=formula,
+        figures={"response": "another response", "codes": codes},
+    )
+    assert len(other["cells"]) == len(book["cells"]) - 6, (
+        "figures of a response the notebook does not analyse are left out"
+    )
