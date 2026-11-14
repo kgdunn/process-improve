@@ -413,9 +413,7 @@ DRAWN = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan(
     return Math.abs((q.x - p.x) * x + (q.y - p.y) * y) > reach(p) + reach(q) - 1; });
   const overlaps = labels.flatMap((p, i) => labels.slice(i + 1).filter((q) => !apart(p, q))
     .map((q) => `${p.verb} / ${q.verb}`));
-  const others = document.querySelector('#others').checked;
-  const strong = cy.edges('.link').filter((e) => lit(e) && (e.hasClass('hl') || (others && !e.hasClass('also-own'))));
-  const lines = strong.map(curve);
+  const lines = cy.edges('.link').filter((e) => lit(e) && e.hasClass('hl')).map(curve);
   const within = (l, p) => { const x = p.x - l.x, y = p.y - l.y;
     return Math.abs(x * l.ux + y * l.uy) < l.hw - 1 && Math.abs(y * l.ux - x * l.uy) < l.size * 0.4; };
   const through = labels.filter((l) => lines.some((line) => line.some((p) => within(l, p)))).map((l) => l.verb);
@@ -647,7 +645,7 @@ def _read_clearly(page: Any, where: str) -> list[dict[str, Any]]:  # noqa: ANN40
     return drawn["labels"]
 
 
-@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "with the other textbooks"])
+@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "compared with the other textbooks"])
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_a_link_label_is_beside_its_line_on_the_map_and_clear_of_labels_and_strong_lines(context, site, others):
     page = _open(context, site)
@@ -664,7 +662,7 @@ def test_a_link_label_is_beside_its_line_on_the_map_and_clear_of_labels_and_stro
             page.evaluate(CLOSER, closer)
             _settled(page)
             labels += _read_clearly(page, f"{term}, closer by {closer}")
-            # The same place with no term selected: with the other textbooks shown, their lines are the strong ones.
+            # The same place with no term selected: every link is drawn, or none while the books are compared.
             here = page.evaluate(view)
             page.evaluate("() => { location.hash = ''; }")
             page.wait_for_function("() => !window.conceptMap.cy.nodes('.sel').length")
@@ -676,7 +674,7 @@ def test_a_link_label_is_beside_its_line_on_the_map_and_clear_of_labels_and_stro
             page.evaluate(look, here)
             _settled(page)
     assert len(labels) > 20, "the views do draw labels"
-    assert unselected, "with no term selected too"
+    assert bool(unselected) != others, "with no term selected too, unless the books are compared: no link is drawn then"
     # On its line, the line ran through the gaps between the label's words, in the label's own colour.
     assert all(label["off"] > 0.8 for label in labels + unselected), "each label is off its own line"
     assert all(label["above"] for label in labels + unselected), "and above it, as the text reads"
@@ -1024,11 +1022,14 @@ def test_a_term_s_book_link_goes_to_the_sentence_it_quotes(context, site):
     assert url({"quote": "a :math:`b`"}) == "https://learnche.org/pid/a/b#doe-x", "no fragment: the section alone"
 
 
-# ---------- the other textbooks read against the graph
+# ---------- the other textbooks compared with this one
 # What each other textbook also has, worked out as map.js does: a link by its own list; a term by its own list or by
-# any link it is on. The page names a textbook by a letter, and draws it by its number, as "all" where every one of
-# two or more textbooks has the item, or as "own" where this book alone has it.
+# any link it is on. The page names a textbook by a letter. While the books are compared no link is drawn but the
+# selected term's own, and each topic and each term carries a ring: one sector per book, clockwise from 12 o'clock,
+# this book first.
 BOOK_NAME = {"reviewed_text_1": "Book B", "reviewed_text_2": "Book M"}
+RING_INKS = ["--accent", "--map-book2", "--map-book3"]  # this book's, then each other textbook's
+RING_GAP = 9  # degrees left open between two sectors, as map.js
 
 
 def _backing(graph: dict[str, Any]) -> tuple[list[str], dict[int, list[str]], dict[str, list[str]]]:
@@ -1041,61 +1042,171 @@ def _backing(graph: dict[str, Any]) -> tuple[list[str], dict[int, list[str]], di
     return books, links, terms
 
 
-def _drawn_as(books: list[str], mine: list[str]) -> str:
-    if not mine:
-        return "own"
-    return "all" if len(mine) == len(books) > 1 else str(books.index(mine[0]))
-
-
 def _in_books(mine: list[str]) -> str:
     names = [BOOK_NAME[b] for b in mine]
     return f"{', '.join(names[:-1])} and {names[-1]}" if len(names) > 1 else names[0]
 
 
-def _two_others(graph: dict[str, Any]) -> dict[str, Any]:
-    """Return the graph with two other textbooks of the test's own: one states every second link, one every third."""
+def _others(graph: dict[str, Any], count: int) -> dict[str, Any]:
+    """Return the graph with other textbooks of the test's own: one states every second link, the next every third."""
     more = json.loads(json.dumps(graph))
-    more["sources"] = dict.fromkeys(BOOK_NAME, "A textbook for this test")
+    more["sources"] = dict.fromkeys(list(BOOK_NAME)[:count], "A textbook for this test")
     for n in more["nodes"]:
         n["also"] = []
     for i, e in enumerate(more["edges"]):
-        e["also"] = [b for b, every in zip(BOOK_NAME, (2, 3), strict=True) if i % every == 0]
+        e["also"] = [b for b, every in zip(more["sources"], (2, 3), strict=False) if i % every == 0]
     return more
 
 
-TWO_OTHERS = _two_others(GRAPH)
-# The class each link and term carries for its textbooks; and how one of each kind is drawn.
-BACKED = """() => { const cy = window.conceptMap.cy;
-  const kind = (el, stem) => (el.classes().find((c) => c.startsWith(stem + '-')) || '').slice(stem.length + 1);
-  const pairs = (els, stem) => Object.fromEntries(els.map((e) => [e.id(), kind(e, stem)]));
-  return { links: pairs(cy.edges('.link'), 'also'), terms: pairs(cy.nodes('.term'), 'book') }; }"""
+TWO_OTHERS = _others(GRAPH, 2)
+GRAPHS = {"as copied": GRAPH, "one other": _others(GRAPH, 1), "two others": TWO_OTHERS}
+# Each colour of the page asked for by name, as [red, green, blue].
+COLOURS = """(names) => names.map((name) => { const i = document.createElement('i'); i.style.color = `var(${name})`;
+  document.body.append(i); const c = getComputedStyle(i).color.match(/[\\d.]+/g).slice(0, 3).map(Number); i.remove();
+  return c; })"""
+# The colour drawn on the map at each point, once each is nearer the colour wanted there than any other a ring is drawn
+# in, or the map has had 90 frames to draw it: after a move Cytoscape draws from a coarser copy first. "Nearer", as a
+# thin rim's edge is blended with what is beside it.
+INKS = """([points, indices, palette]) => new Promise((done) => {
+  const wanted = indices.map((i) => palette[i]);
+  const canvas = document.querySelector('#cy canvas[data-id="layer2-node"]'), k = canvas.width / canvas.clientWidth;
+  const read = () => points.map((p) => [...canvas.getContext('2d')
+    .getImageData(Math.round(p.x * k), Math.round(p.y * k), 1, 1).data].slice(0, 3));
+  const far = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
+  const nearest = (c) => palette.reduce((best, ink) => (far(c, ink) < far(c, best) ? ink : best));
+  let frames = 0;
+  const look = () => { const seen = read();
+    if (seen.every((c, i) => nearest(c) === wanted[i]) || ++frames > 90) done(seen.map(nearest));
+    else requestAnimationFrame(look); };
+  look(); })"""
+# Where each topic is drawn, how wide, and the box of its name: a small topic's name reaches over its rim.
+TOPICS_DRAWN = """() => Object.fromEntries(window.conceptMap.cy.nodes('.topic').map((n) => [n.id(), {
+  ...n.renderedPosition(), w: n.renderedWidth(),
+  name: n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true }) }]))"""
+# Each term drawn whole on the map with its ring: where, how wide, and whether no name is drawn over its ring.
+TERMS_DRAWN = """() => { const cy = window.conceptMap.cy, wide = cy.width(), high = cy.height();
+  const names = cy.nodes('.topic, .subtopic, .subname, .term.lab').filter((n) => n.visible() && n.style('label'))
+    .map((n) => n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true }));
+  return cy.nodes('.term').filter((n) => n.visible()).map((n) => {
+    const p = n.renderedPosition(), w = n.renderedWidth(), r = 1.1 * w;   // as far as its ring reaches
+    return { id: n.id(), x: p.x, y: p.y, w, whole: p.x > r && p.x < wide - r && p.y > r && p.y < high - r,
+      clear: !names.some((b) => p.x + r > b.x1 && p.x - r < b.x2 && p.y + r > b.y1 && p.y - r < b.y2) }; }); }"""
+BETWEEN = "() => window.conceptMap.cy.edges('.between').filter((e) => e.visible()).length"
+SWITCH = "#books .switch"
+
+
+def _open_with(context: Any, site: str, which: str) -> tuple[dict[str, Any], Any]:  # noqa: ANN401 - Playwright objects
+    """Open the map on the copied graph, or on one with other textbooks of the test's own."""
+    graph = GRAPHS[which]
+    if graph is not GRAPH:
+        context.route("**/map/graph.json", lambda route: route.fulfill(json=graph))
+    return graph, _open(context, site)
+
+
+def _on_ring(at: dict[str, float], radius: float, sector: int, sectors: int, along: float) -> dict[str, float]:
+    """Return the point of a ring that is ``along`` the way round one of its sectors, clockwise from 12 o'clock."""
+    start, end = sector * 360 / sectors + RING_GAP / 2, (sector + 1) * 360 / sectors - RING_GAP / 2
+    angle = math.radians(start + (end - start) * along)
+    return {"x": at["x"] + radius * math.sin(angle), "y": at["y"] - radius * math.cos(angle)}
+
+
+def _not_as_wanted(page: Any, places: list[tuple[str, dict[str, float], int]], palette: list[list[int]]) -> list[str]:  # noqa: ANN401
+    """Return each place, of (what it is, where, which colour of the palette is wanted there), drawn in another."""
+    seen = page.evaluate(INKS, [[where for _, where, _ in places], [wanted for _, _, wanted in places], palette])
+    return [
+        f"{what}: drawn {got}, wanted {palette[wanted]}"
+        for (what, _, wanted), got in zip(places, seen, strict=True)
+        if got != palette[wanted]
+    ]
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 1100}}])  # a map tall enough to
+@pytest.mark.parametrize("which", list(GRAPHS))  # hold most names inside their rims
+def test_compared_with_other_books_a_topic_s_ring_is_filled_by_the_share_of_its_terms_each_has(context, site, which):
+    graph, page = _open_with(context, site, which)
+    books, _, terms = _backing(graph)
+    assert books, "the graph names the other textbooks read against it"
+    assert page.is_visible("#books")
+    assert not page.is_checked("#others"), "the map opens as the book alone"
+    assert page.evaluate(BETWEEN) > 0
+    page.click(SWITCH)
+    _settled(page)
+    assert page.evaluate(BETWEEN) == 0, "the lines between the topics go: the rings alone say who has what"
+    shown = set(page.evaluate(SHOWN))
+    palette = page.evaluate(
+        COLOURS, [*RING_INKS[: len(books) + 1], "--line"]
+    )  # each book's ink, then the empty track's
+    drawn, places, partly, under = page.evaluate(TOPICS_DRAWN), [], 0, 0
+    for topic in graph["clusters"]:
+        mine = [n["id"] for n in graph["nodes"] if n["cluster"] == topic["id"] and n["id"] in shown]
+        shares = [1.0] + [sum(b in terms[i] for i in mine) / len(mine) for b in books]  # this book has all of them
+        partly += sum(0.1 < share < 0.9 for share in shares)
+        at = drawn[topic["id"]]
+        for sector, share in enumerate(shares):
+            for along in (0.04, 0.2, 0.4, 0.6, 0.8, 0.96):
+                if abs(along - share) < 0.05:
+                    continue  # too near where the colour ends to say which is drawn there
+                # The middle of the rim: 9 px wide on a large topic, 7.5% of the topic's width on a small one.
+                where = _on_ring(at, at["w"] / 2 - min(4.5, 0.0375 * at["w"]), sector, len(shares), along)
+                name = at["name"]  # its box is some 6 px wider each side than its letters: their halo, and padding
+                if name["x1"] + 6 < where["x"] < name["x2"] - 6 and name["y1"] < where["y"] < name["y2"]:
+                    under += 1  # the topic's name is drawn there
+                    continue
+                ink = sector if along < share else len(shares)
+                places.append((f"{topic['short']}, sector {sector}, {along:.0%} of the way round it", where, ink))
+    assert partly, "some topic is covered in part by another textbook, or this test sees no sector end"
+    assert under < len(places) / 5, f"few places of a rim are under a name: {under} against {len(places)} in the clear"
+    assert not _not_as_wanted(page, places, palette)
+
+
+@pytest.mark.parametrize("which", list(GRAPHS))
+def test_zoomed_in_each_term_carries_a_ring_with_a_sector_for_each_book_this_book_first(context, site, which):
+    graph, page = _open_with(context, site, which)
+    books, _, terms = _backing(graph)
+    page.click(SWITCH)
+    page.click(".map-names")  # no term's name is drawn, so none lies over a ring
+    palette = page.evaluate(
+        COLOURS, [*RING_INKS[: len(books) + 1], "--line"]
+    )  # each book's ink, then the empty track's
+    places, sampled = [], {}
+    for topic in sorted(graph["clusters"], key=lambda c: -c["size"])[:4]:
+        # Close enough that a ring is several pixels wide.
+        page.evaluate(
+            """(id) => { const cy = window.conceptMap.cy, at = cy.getElementById(id).position(); cy.stop();
+              cy.viewport({ zoom: 3, pan: { x: cy.width() / 2 - 3 * at.x, y: cy.height() / 2 - 3 * at.y } }); }""",
+            topic["id"],
+        )
+        _settled(page)
+        assert page.evaluate(STATE)["links"] == 0, "no link is drawn"
+        for term in page.evaluate(TERMS_DRAWN):
+            if not (term["whole"] and term["clear"]):
+                continue
+            has = [True] + [b in terms[term["id"]] for b in books]
+            sampled[term["id"]] = has
+            # Its ring is outside the term: the ring's middle is 0.94 of the term's width from the term's centre.
+            middles = [_on_ring(term, 0.94 * term["w"], k, len(has), 0.5) for k in range(len(has))]
+            places += [(f"{term['id']}, sector {k}", middles[k], k if h else len(has)) for k, h in enumerate(has)]
+        assert not _not_as_wanted(page, places, palette)
+        places = []
+    assert len(sampled) > 20, "the views do draw terms"
+    for k in range(1, len(books) + 1):
+        assert {has[k] for has in sampled.values()} == {True, False}, "terms a textbook has, and terms it has not"
+
+
 HOW_DRAWN = """() => { const cy = window.conceptMap.cy;
   const shade = (value) => { const i = document.createElement('i'); i.style.color = value;
     document.body.append(i); const c = getComputedStyle(i).color.replace(/\\s/g, ''); i.remove(); return c; };
   const colour = (name) => shade(`var(${name})`);
-  const line = (e) => e && { colour: shade(e.style('line-color')), opacity: Number(e.style('line-opacity')),
-    width: parseFloat(e.style('width')), shown: Number(e.style('opacity')) };
   const fam = (n) => n.classes().find((c) => c.startsWith('fam-')).slice(4);
-  const term = (n) => n && { fill: shade(n.style('background-color')), kind: colour(`--map-${fam(n)}`),
-    shown: Number(n.style('opacity')) };
-  const links = cy.edges('.link').filter((e) => !e.hasClass('hl') && !e.hasClass('cross'));
-  const terms = cy.nodes('.term').filter((n) => !n.hasClass('sel') && !n.hasClass('held'));
+  const term = cy.nodes('.term').filter((n) => n.visible() && !n.hasClass('sel') && !n.hasClass('held'))[0];
+  const seen = cy.edges('.link').filter((e) => e.visible());
   const icon = document.querySelector('#legend button[aria-pressed="true"]');
-  return { book2: colour('--map-book2'), book3: colour('--map-book3'), fg: colour('--fg'), muted: colour('--muted'),
-    plain: line(links.filter('.also-own')[0]), first: line(links.filter('.also-0')[0]),
-    second: line(links.filter('.also-1')[0]), all: line(links.filter('.also-all')[0]),
-    picked: line(cy.edges('.link.hl.also-own')[0]),
-    alone: term(terms.filter('.book-own')[0]), covered: term(terms.filter('.book-0')[0]),
+  return { accent: colour('--accent'), muted: colour('--muted'),
+    links: seen.length, lit: seen.filter((e) => e.hasClass('hl')).length,
+    line: shade(cy.edges('.link.hl')[0].style('line-color')),
+    term: { fill: shade(term.style('background-color')), kind: colour(`--map-${fam(term)}`) },
     icon: { fill: shade(icon.querySelector('path').getAttribute('fill')),
       kind: colour(`--map-${icon.dataset.fam}`) } }; }"""
-
-
-def _open_with(context: Any, site: str, which: str) -> tuple[dict[str, Any], Any]:  # noqa: ANN401 - Playwright objects
-    """Open the map on the copied graph, or on the one with two other textbooks of the test's own."""
-    graph = GRAPH if which == "as copied" else TWO_OTHERS
-    if graph is not GRAPH:
-        context.route("**/map/graph.json", lambda route: route.fulfill(json=graph))
-    return graph, _open(context, site)
 
 
 def _a_term_of_both(graph: dict[str, Any], links: dict[int, list[str]]) -> tuple[str, int]:
@@ -1108,100 +1219,146 @@ def _a_term_of_both(graph: dict[str, Any], links: dict[int, list[str]]) -> tuple
 
 
 @pytest.mark.parametrize("which", ["as copied", "two others"])
-def test_other_textbooks_colour_who_states_a_link_and_who_covers_a_term(context, site, which):
+def test_compared_with_other_books_only_the_selected_term_s_links_are_drawn_in_a_neutral(context, site, which):
     graph, page = _open_with(context, site, which)
-    books, links, terms = _backing(graph)
-    assert books, "the graph names the other textbooks read against it"
-    names = ["This book"] + [BOOK_NAME[b] for b in books] + ([f"All {len(books) + 1}"] if len(books) > 1 else [])
-    assert page.is_visible("#books")
-    assert not page.is_checked("#others"), "the map opens as the book alone"
-    assert [t.strip() for t in page.locator("#bookkey button").all_text_contents()] == names
-    assert page.locator("#bookkey button:disabled").count() == len(names), "the names wait for the switch"
-    backed = page.evaluate(BACKED)
-    assert backed["links"] == {f"l{i}": _drawn_as(books, mine) for i, mine in links.items()}
-    assert backed["terms"] == {i: _drawn_as(books, mine) for i, mine in terms.items()}
-    # A term with a link another textbook states: its card names the textbooks whether or not they are shown.
+    _, links, terms = _backing(graph)
+    # A term with a link another textbook states: its card names the textbooks whether or not they are compared.
     term, link = _a_term_of_both(graph, links)
     _go(page, term)
     assert page.text_content("#card .map-backed") == f"Also in {_in_books(terms[term])}"
     off = page.evaluate(HOW_DRAWN)
-    assert off["first"]["colour"] == off["plain"]["colour"], "until asked for, every link is drawn alike"
-    assert off["covered"]["fill"] == off["covered"]["kind"], "and a term has the colour of its kind"
+    assert off["links"] > off["lit"] > 0, "until the books are compared every link is drawn, the term's own lit"
+    assert off["line"] == off["accent"], "in the accent colour"
+    assert off["term"]["fill"] == off["term"]["kind"], "and a term has the colour of its kind"
     assert off["icon"]["fill"] == off["icon"]["kind"], "as its shape has above the map"
     read = """(id) => { window.conceptMap.cy.getElementById(id).emit('mouseover');
       return document.querySelector('#striptext').textContent; }"""
     assert "also in" not in page.evaluate(read, f"l{link}")
 
-    page.click("#books .switch")
-    assert not page.locator("#bookkey button:disabled").count()
+    page.click(SWITCH)
+    _settled(page)
     on = page.evaluate(HOW_DRAWN)
-    assert on["first"]["colour"] == on["book2"], "a link the first of them states, in its colour"
-    assert on["first"]["opacity"] > on["plain"]["opacity"], "the links of this book alone step back"
-    assert on["first"]["width"] > on["plain"]["width"]
-    assert on["plain"]["colour"] == on["muted"], "in a neutral"
-    assert on["picked"]["colour"] == on["muted"], "the selected term's too: colour now says who states a link"
-    assert on["covered"]["fill"] == on["book2"], "a term the first of them covers, in its colour"
-    assert on["alone"]["fill"] == on["muted"], "and a term of this book alone in the neutral"
-    assert on["icon"]["fill"] == on["muted"] != on["icon"]["kind"], "the kinds keep their shapes, not their colours"
-    if len(books) > 1:
-        assert on["second"]["colour"] == on["book3"]
-        assert on["all"]["colour"] == on["fg"], "a link every textbook states"
-        assert on["all"]["width"] > on["first"]["width"], "is the heaviest"
+    assert on["links"] == on["lit"] == off["lit"], "then the selected term's links alone"
+    assert on["line"] == on["muted"], "in a neutral: colour now says which book has a term"
+    assert on["term"]["fill"] == on["muted"] != on["term"]["kind"], "the kinds keep their shapes, not their colours"
+    assert on["icon"]["fill"] == on["muted"] != on["icon"]["kind"], "above the map too"
     said = page.evaluate(read, f"l{link}")
     assert said.endswith(f"(also in {_in_books(links[link])})"), "a link read out says who else states it"
-
-
-@pytest.mark.parametrize("which", ["as copied", "two others"])
-def test_a_tap_on_a_name_fades_its_links_and_terms_and_the_choices_are_kept(context, site, which):
-    graph, page = _open_with(context, site, which)
-    books = list(graph["sources"])
-    page.click("#books .switch")  # no term is selected, so nothing is dimmed for being far from one
-    on = page.evaluate(HOW_DRAWN)
-    assert (on["first"]["shown"], on["plain"]["shown"], on["covered"]["shown"]) == (1, 1, 1)
-    first = '#bookkey button[data-book="0"]'
-    page.click(first)
-    assert page.get_attribute(first, "aria-pressed") == "false"
-    faded = page.evaluate(HOW_DRAWN)
-    assert faded["first"]["shown"] < 0.2 > faded["covered"]["shown"], "its links and its terms are faded"
-    assert (faded["plain"]["shown"], faded["alone"]["shown"]) == (1, 1), "this book's own are not"
-    if len(books) > 1:
-        assert (faded["second"]["colour"], faded["all"]["colour"]) == (on["book3"], on["fg"])
-        assert (faded["second"]["shown"], faded["all"]["shown"]) == (1, 1)
     page.reload()
-    page.wait_for_function("() => window.conceptMap && window.conceptMap.cy.edges('.link').length")
-    assert page.is_checked("#others")
-    assert page.get_attribute(first, "aria-pressed") == "false"
-    assert page.evaluate(HOW_DRAWN)["first"]["shown"] < 0.2, "a reload keeps both choices"
-    page.click(first)
-    assert page.evaluate(HOW_DRAWN)["first"]["shown"] == 1, "and a second tap shows them again"
-    page.click('#bookkey button[data-book="own"]')
-    alone = page.evaluate(HOW_DRAWN)
-    assert alone["plain"]["shown"] < 0.2, "this book's own links can be faded too, leaving what the others also state"
-    assert alone["first"]["shown"] == 1
+    page.wait_for_function("() => window.conceptMap && window.conceptMap.cy.nodes('.sel').length")
+    _settled(page)
+    assert page.is_checked("#others"), "a reload keeps the choice"
+    assert page.evaluate(HOW_DRAWN)["links"] == on["lit"]
+    page.evaluate("() => { location.hash = ''; }")
+    page.wait_for_function("() => !window.conceptMap.cy.nodes('.sel').length")
+    _settled(page)
+    assert page.evaluate(STATE)["links"] == 0, "with no term selected, no link"
+
+
+KEY = """() => { const key = document.querySelector('#bookkey');
+  return { sectors: [...key.querySelectorAll('svg path')].map((p) => getComputedStyle(p).stroke.replace(/\\s/g, '')),
+    swatches: [...key.querySelectorAll('i')].map((i) => getComputedStyle(i).backgroundColor.replace(/\\s/g, '')),
+    faint: Number(getComputedStyle(key).opacity) < 1 }; }"""
+
+
+@pytest.mark.parametrize("which", list(GRAPHS))
+def test_the_key_names_the_books_in_the_order_of_the_sectors_and_a_topic_s_card_counts_what_each_has(
+    context, site, which
+):
+    graph, page = _open_with(context, site, which)
+    books, _, terms = _backing(graph)
+    names = ["This book"] + [BOOK_NAME[b] for b in books]
+    assert [t.strip() for t in page.locator("#bookkey span").all_text_contents()] == names
+    assert page.get_attribute("#bookkey", "aria-label") == f"Each ring, clockwise from the top: {', '.join(names)}"
+    inks = [f"rgb({','.join(str(v) for v in ink)})" for ink in page.evaluate(COLOURS, RING_INKS[: len(names)])]
+    key = page.evaluate(KEY)
+    assert key["sectors"] == key["swatches"] == inks, "a sector for each book, in its colour, beside its name"
+    assert key["faint"], "the key waits for the switch"
+    page.click(SWITCH)
+    assert not page.evaluate(KEY)["faint"]
+    # A topic's card says in words what its ring draws, whether or not the books are compared.
+    _open_topic(page, BIGGEST)
+    shown = set(page.evaluate(SHOWN))
+    mine = [n["id"] for n in graph["nodes"] if n["cluster"] == BIGGEST["id"] and n["id"] in shown]
+    counts = [f"{BOOK_NAME[b]} has {sum(b in terms[i] for i in mine)}" for b in books]
+    said = f"{counts[0]} of these terms{''.join(f', {c}' for c in counts[1:])}."
+    assert page.text_content("#card .map-backed") == said
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_zooming_while_books_are_compared_loads_no_image(context, site):
+    """A ring's image is the same at every zoom: one loaded as the reader zooms would be missing for a frame."""
+    page = _open(context, site)
+    page.click(SWITCH)
+    _settled(page)
+    images = """() => window.conceptMap.cy.nodes('.topic, .term').map((n) => n.style('background-image')).join(' ')"""
+    opened = page.evaluate(images)
+    assert opened.count("data:image/svg+xml") > len(GRAPH["nodes"]), "every topic and term has its ring"
+    zoom = """(k) => { const cy = window.conceptMap.cy;
+      cy.zoom({ level: cy.zoom() * k, renderedPosition: { x: 200, y: 200 } }); }"""
+    for _ in range(5):  # from the topics alone to the terms close up
+        page.evaluate(zoom, 1.9)
+        _settled(page)
+        assert page.evaluate(images) == opened
+    assert page.evaluate(STATE)["terms"], "the terms are drawn by now"
+
+
+# Each name drawn that lies on another term's ring, and how many names are above their terms.
+NAMES_ON_RINGS = """() => { const cy = window.conceptMap.cy;
+  const terms = cy.nodes('.term').filter((n) => n.visible());
+  const named = terms.filter((n) => n.hasClass('lab') && !n.hasClass('sel') && !n.hasClass('nb'));
+  const box = (n) => n.renderedBoundingBox({ includeNodes: false, includeEdges: false, includeLabels: true });
+  const on = named.filter((n) => { const b = box(n);
+    return terms.some((t) => { const p = t.renderedPosition(), r = 1.075 * t.renderedWidth();   // its ring's outer edge
+      return t !== n && p.x + r > b.x1 + 2 && p.x - r < b.x2 - 2 && p.y + r > b.y1 + 2 && p.y - r < b.y2 - 2; }); });
+  return { on: on.map((n) => n.data('label')), named: named.length,
+    above: named.filter((n) => box(n).y2 < n.renderedPosition().y).length }; }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_while_books_are_compared_a_term_s_name_keeps_clear_of_the_rings_above_its_term_if_need_be(context, site):
+    page = _open(context, site)
+    page.click(SWITCH)
+    _open_topic(page, BIGGEST)
+    named = above = 0
+    for _ in range(4):
+        page.click("#zin")
+        _settled(page)
+        state, names = page.evaluate(STATE), page.evaluate(NAMES_ON_RINGS)
+        assert state["overlaps"] == 0, "no name is on another"
+        assert names["on"] == [], "nor on another term's ring"
+        named, above = named + names["named"], above + names["above"]
+    assert named > 10, "the views do name terms"
+    assert above, "a name goes above its term where the place below it is taken"
+    page.click(SWITCH)
+    _settled(page)
+    assert page.evaluate(NAMES_ON_RINGS)["above"] == 0, "with no rings, every name is below its term"
 
 
 @pytest.mark.parametrize(
     "context_options", [{"viewport": {"width": 320, "height": 700}, "is_mobile": True}, SMALL_PHONE, PHONE]
 )
-def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(context, site):
+def test_on_a_phone_the_kinds_are_large_and_the_key_to_the_rings_is_one_row_under_its_switch(context, site):
     context.route("**/map/graph.json", lambda route: route.fulfill(json=TWO_OTHERS))  # two textbooks: the longest row
     page = _open(context, site)
-    page.click("#books .switch")
+    page.click(SWITCH)
     # The names in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
     page.evaluate("""() => { document.querySelector('#books').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
     rows = page.evaluate("""() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
       const page = document.documentElement;
       const middle = (e) => { const b = e.getBoundingClientRect(); return (b.top + b.bottom) / 2; };
       return { icon: box('#legend svg').width, legend: box('#legend'), books: box('#books'), key: box('#bookkey'),
-        middles: [...document.querySelectorAll('#books .switch, #bookkey button')].map(middle),
+        switch: box('#books .switch'), words: box('#books .switch__text').width,
+        middles: [...document.querySelectorAll('#bookkey svg, #bookkey span')].map(middle),
         map: box('#cy'), width: page.clientWidth, scroll: page.scrollWidth }; }""")
     assert rows["icon"] >= 22, "each kind's shape is large enough to tell apart and to tap"
     assert rows["legend"]["bottom"] <= rows["books"]["top"], "the kinds, then the other textbooks"
     assert rows["books"]["bottom"] <= rows["map"]["top"], "both above the map"
+    assert rows["words"] > 60, "the switch says what it does"
+    assert rows["switch"]["bottom"] <= rows["key"]["top"] + 1, "the key is under its switch"
     assert rows["key"]["right"] <= rows["width"] - 16 + 0.5, "the row ends inside the page's side margin"
     assert rows["scroll"] == rows["width"], "and the page does not scroll sideways"
-    if rows["width"] >= 360:  # a narrower phone wraps the row, as it does the kinds
-        assert max(rows["middles"]) - min(rows["middles"]) < 3, "the switch and the four names on one line"
+    assert max(rows["middles"]) - min(rows["middles"]) < 3, "the ring and the three names on one line"
 
 
 # At one width: whether the page is wider than the window, what reaches past it, and how many lines the kinds take.
