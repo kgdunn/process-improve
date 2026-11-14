@@ -5,7 +5,8 @@ The log has one line per request, written with the reader's address cut to its n
 (``factorial.caddy``), and kept for 366 days. From it, for each day (UTC), the report counts:
 
     pages      each page loaded in a browser: the app (Home), the concept map (Map), the pages
-               of the design catalog (Catalog), the multivariate page, About, and any other page
+               of the design catalog (Catalog), the multivariate page, About, the list of what
+               Factorial does (Features), and any other page
     readers    distinct networks and browsers among them: approximate, since one network can
                hold many readers and one reader can move between networks
     python     Python started in the app: its worker reads runtime.json, past every cache, as it
@@ -54,6 +55,7 @@ PAGES = {
     "Catalog": set(),
     "Multivariate": {"/mva/", "/mva/index.html"},
     "About": {"/about.html"},
+    "Features": {"/features.html"},
     "Other": set(),
 }
 #: What the report counts each day, in the order of its columns and of the file that keeps them.
