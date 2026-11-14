@@ -52,8 +52,10 @@ class TestFactor:
             ({"low": 0, "high": 50, "min_when_used": 0}, "must lie between 0 and high"),
             ({"low": 0, "high": 50, "min_when_used": -1}, "must lie between 0 and high"),
             ({"low": 0, "high": 50, "min_when_used": float("nan")}, "must lie between 0 and high"),
-            ({"type": "mixture", "min_when_used": 0.1}, "is for a continuous factor"),
-            ({"type": "categorical", "levels": ["a", "b"], "min_when_used": 1}, "is for a continuous factor"),
+            ({"type": "mixture", "low": 0.1, "min_when_used": 0.2}, "needs low=0"),
+            ({"type": "mixture", "high": 0.5, "min_when_used": 0.5}, "must lie between 0 and high"),
+            ({"type": "mixture", "min_when_used": 1.0}, "must lie between 0 and high"),
+            ({"type": "categorical", "levels": ["a", "b"], "min_when_used": 1}, "this factor is categorical"),
         ],
     )
     def test_a_minimum_that_cannot_be_used_is_refused(self, spec: dict, message: str) -> None:
@@ -314,19 +316,19 @@ class TestSearch:
         assert found["optimal_actual"]["B"] == pytest.approx(0.0, abs=1e-6)
 
     def test_a_search_keeps_the_set_of_factors_its_start_uses(self) -> None:
-        space = _SearchSpace([(-1.0, 1.0)] * 3, [], [], [(0, -0.8), (1, 0.2)])
+        space = _SearchSpace([(-1.0, 1.0)] * 3, [], [], [(0, -1.0, -0.8), (1, -1.0, 0.2)])
         assert space.bounds_at(np.array([-1.0, 0.5, 0.0])) == [(-1.0, -1.0), (0.2, 1.0), (-1.0, 1.0)]
         assert space.bounds_at(np.array([0.3, -1.0, 0.0])) == [(-0.8, 1.0), (-1.0, -1.0), (-1.0, 1.0)]
 
     def test_a_search_box_that_ends_below_a_minimum_leaves_the_factor_out(self) -> None:
-        space = _SearchSpace([(-1.0, 0.0), (-1.0, 1.0)], [], [], [(0, 0.2)])
+        space = _SearchSpace([(-1.0, 0.0), (-1.0, 1.0)], [], [], [(0, -1.0, 0.2)])
         assert space.bounds_at(np.array([-0.5, 0.0])) == [(-1.0, -1.0), (-1.0, 1.0)]
 
     def test_the_search_box_does_not_reach_below_0(self) -> None:
         space = _search_space(["A", "B", "C"], (-1.5, 1.5), DesignRegion(FACTORS), np.random.default_rng(1), 6)
         assert space.bounds[:2] == [(-1.0, 1.5), (-1.0, 1.5)]
         assert space.bounds[2] == (-1.5, 1.5)
-        assert space.gaps == [(0, pytest.approx(-0.8)), (1, pytest.approx(0.2))]
+        assert space.gaps == [(0, -1.0, pytest.approx(-0.8)), (1, -1.0, pytest.approx(0.2))]
         assert all(start[0] <= -1 + 1e-9 or start[0] >= -0.8 - 1e-9 for start in space.starts)
 
     def test_one_factor_is_exchanged_for_another_under_a_limit(self) -> None:
@@ -337,7 +339,7 @@ class TestSearch:
             [(-1.0, 1.0)] * 2,
             [{"type": "ineq", "fun": lambda x, g=g: -float(g(x[None, :])[0])} for g in region.inequalities],
             [],
-            region.gaps,
+            [(column, -1.0, minimum) for column, minimum in region.gaps],
         )
 
         def objective(x: np.ndarray) -> float:

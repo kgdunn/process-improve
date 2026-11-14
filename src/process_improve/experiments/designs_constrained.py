@@ -642,15 +642,8 @@ _FEW_CANDIDATES_PER_COEFFICIENT = 5
 _SMALLEST_SHARE_MOVED = 0.03
 
 
-def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
-    """Return vertices of ``{x in [-1, 1]^k : a_mat @ x <= b_vec}`` found by linear programming, and points between.
-
-    For a region with more vertices than can be listed. A linear programme moves a point
-    as far as it goes in one direction, which ends at a vertex, so ``_SAMPLED_VERTICES``
-    directions give that many vertices, less the repeats. The points between them are the
-    midpoint of each vertex and the next one found, and the mean of them all: a convex
-    region holds those too, and a model with squared terms needs runs away from the
-    vertices.
+def search_directions(k: int) -> Iterator[np.ndarray]:
+    """Yield ``_SAMPLED_VERTICES`` directions in ``k`` coordinates for linear programmes that look for vertices.
 
     The directions are not drawn alike in every coordinate. Such a direction asks most
     factors to move, so it nearly always ends where a limit on a total is met: in a
@@ -661,6 +654,31 @@ def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
 
     The generator is seeded here, as the sampled grid is fixed: the candidates of a region
     do not depend on the caller's random state.
+    """
+    rng = np.random.default_rng(0)
+    for _ in range(_SAMPLED_VERTICES):
+        moved = rng.random(k) < rng.uniform(_SMALLEST_SHARE_MOVED, 1.0)
+        yield np.where(moved, rng.standard_normal(k) + rng.choice((-1.0, 0.0, 1.0)), 0.0)
+
+
+def points_between(vertices: np.ndarray) -> np.ndarray:
+    """Return ``vertices``, the midpoint of each with the next, and the mean of them all, each point once.
+
+    A convex region holds the points between its vertices too, and a model with squared
+    terms needs runs away from the vertices.
+    """
+    points = np.vstack([vertices, (vertices[:-1] + vertices[1:]) / 2.0, vertices.mean(axis=0, keepdims=True)])
+    _, first = np.unique(points.round(10), axis=0, return_index=True)
+    return points[np.sort(first)]
+
+
+def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
+    """Return vertices of ``{x in [-1, 1]^k : a_mat @ x <= b_vec}`` found by linear programming, and points between.
+
+    For a region with more vertices than can be listed. A linear programme moves a point
+    as far as it goes in one direction, which ends at a vertex, so the directions of
+    :func:`search_directions` give that many vertices, less the repeats;
+    :func:`points_between` adds the points between them.
 
     Returns
     -------
@@ -668,19 +686,13 @@ def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
         Points ``(n, k)`` in coded units, without duplicates; no rows when the region is empty.
     """
     k = a_mat.shape[1]
-    rng = np.random.default_rng(0)
     found = []
-    for _ in range(_SAMPLED_VERTICES):
-        moved = rng.random(k) < rng.uniform(_SMALLEST_SHARE_MOVED, 1.0)
-        direction = np.where(moved, rng.standard_normal(k) + rng.choice((-1.0, 0.0, 1.0)), 0.0)
+    for direction in search_directions(k):
         result = linprog(direction, A_ub=a_mat, b_ub=b_vec, bounds=[(-1.0, 1.0)] * k, method="highs-ds")
         if result.status != 0:  # no point meets every row, whatever the direction
             return np.empty((0, k))
         found.append(result.x)
-    vertices = np.clip(np.array(found), -1.0, 1.0)
-    points = np.vstack([vertices, (vertices[:-1] + vertices[1:]) / 2.0, vertices.mean(axis=0, keepdims=True)])
-    _, first = np.unique(points.round(10), axis=0, return_index=True)
-    return points[np.sort(first)]
+    return points_between(np.clip(np.array(found), -1.0, 1.0))
 
 
 def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], np.ndarray]:

@@ -152,8 +152,13 @@ class DesignRegion:
         self._low = np.array([f.low for f in numeric], dtype=float)
         self._high = np.array([f.high for f in numeric], dtype=float)
         self._centre, self._half = (self._low + self._high) / 2.0, (self._high - self._low) / 2.0
-        #: Per numeric column with a ``min_when_used``: the column, and that minimum in design units (coded).
-        self._gaps = [(j, 2.0 * f.min_when_used / f.high - 1.0) for j, f in enumerate(numeric) if f.min_when_used]  # type: ignore[operator]
+        #: Per numeric column with a ``min_when_used``: the column, and that minimum in design units (coded for a
+        #: process factor, whose 0 is -1; a proportion for a mixture component).
+        self._gaps = [
+            (j, f.min_when_used if f.type == FactorType.mixture else 2.0 * f.min_when_used / f.high - 1.0)  # type: ignore[operator]
+            for j, f in enumerate(numeric)
+            if f.min_when_used is not None
+        ]
         #: For each inequality, the index of the constraint it came from (a chain gives several).
         self._limit_of: list[int] = []
         #: The rules on categorical factors, if any constraint names one (a box region only).
@@ -284,8 +289,8 @@ class DesignRegion:
     def gaps(self) -> list[tuple[int, float]]:
         """``(column, minimum)`` per column of :attr:`names` with a ``min_when_used``, the minimum in design units.
 
-        The factor is left out at its lower bound (0, which is -1 in coded units), or set
-        between that minimum and its upper bound.
+        The factor is left out at its lower bound (0, which is -1 in coded units for a
+        process factor), or set between that minimum and its upper bound.
         """
         return list(self._gaps)
 
@@ -353,10 +358,8 @@ class DesignRegion:
 
     def _traces(self, x: np.ndarray, tol: float) -> list[tuple[str, np.ndarray]]:
         """Return, per factor with a ``min_when_used``, its name and where ``x`` sets it between 0 and that minimum."""
-        return [
-            (self.names[j], (x[:, j] > -1.0 + tol) & (x[:, j] < minimum - tol))  # 0 is coded -1
-            for j, minimum in self._gaps
-        ]
+        low = np.array(self.bounds, dtype=float).reshape(-1, 2)[:, 0]  # where the factor is left out
+        return [(self.names[j], (x[:, j] > low[j] + tol) & (x[:, j] < minimum - tol)) for j, minimum in self._gaps]
 
     # -- rules on categorical factors -------------------------------------------
 
@@ -692,12 +695,15 @@ class DesignRegion:
         in the others: the measure :class:`UniformSampler` describes, on which the
         constraints then act. So the points say what the region's formulations look
         like, with ingredients left out, and not only its pieces of largest dimension.
+        That holds for a process factor; a mixture region with such a component is
+        not sampled.
 
         Raises
         ------
         ValueError
-            If no point of the region can be found, or the region has rules on
-            categorical factors (use :meth:`sample_frame`, which draws the levels too).
+            If no point of the region can be found, the region has rules on
+            categorical factors (use :meth:`sample_frame`, which draws the levels too), or
+            a mixture component has a ``min_when_used``.
         """
         if self.rules is not None:
             raise ValueError(
@@ -713,6 +719,14 @@ class DesignRegion:
                 points[:, columns] = part.sample(n, rng)
             return points
         if self.kind == "mixture":
+            if self._gaps:
+                names = [self.names[j] for j, _minimum in self._gaps]
+                raise ValueError(
+                    f"A mixture region whose components {names} are each left out or used at no less than their "
+                    "min_when_used cannot be sampled: its pieces, one for each set of the components in use, have "
+                    "no common measure that the sampler draws from. Its candidate blends are "
+                    "region.support_points()."
+                )
             low = np.array([f.low for f in self.factors], dtype=float)
 
             def propose(m: int) -> np.ndarray:
@@ -758,7 +772,8 @@ class DesignRegion:
             from process_improve.experiments.designs_mixture_constrained import mixture_candidates  # noqa: PLC0415
 
             candidates = mixture_candidates(self._a, self._b)
-            return np.vstack([candidates["vertex"], candidates["edge_midpoint"]])
+            points = np.vstack([candidates["vertex"], candidates["edge_midpoint"]])
+            return points[self.feasible(points)] if self._gaps else points
 
         from process_improve.experiments.designs_constrained import _Region, build_candidates  # noqa: PLC0415
 

@@ -32,10 +32,12 @@ from __future__ import annotations
 import itertools
 import logging
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
@@ -44,8 +46,10 @@ from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
     criterion_metadata,
     fedorov_exchange,
+    independent_columns,
     make_criterion,
     parse_constraint,
+    search_directions,
     selection_counts,
 )
 from process_improve.experiments.designs_utils import refuse_budget_below_model
@@ -217,6 +221,45 @@ def _drop_redundant_rows(a_mat: np.ndarray, b_vec: np.ndarray) -> tuple[np.ndarr
     return a_mat[keep], b_vec[keep]
 
 
+class TooManyVertices(ValueError):  # noqa: N818  a ValueError, as before it had a name of its own
+    """Raised by :func:`extreme_vertices` for a region with more constraint subsets than it solves."""
+
+
+def sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
+    """Return vertices of ``{x : A x <= b, sum(x) = 1}`` found by linear programming.
+
+    For a region with too many vertices for :func:`extreme_vertices` to list.
+
+    A linear programme moves a blend as far as it goes in one direction, which ends at a
+    vertex, so the directions of
+    :func:`~process_improve.experiments.designs_constrained.search_directions` give that
+    many vertices, less the repeats.
+
+    Returns
+    -------
+    np.ndarray
+        Vertices ``(n, q)``, each once, in the order found; no rows when the region is empty.
+    """
+    q = a_mat.shape[1]
+    found = []
+    for direction in search_directions(q):
+        result = linprog(
+            direction,
+            A_ub=a_mat,
+            b_ub=b_vec,
+            A_eq=np.ones((1, q)),
+            b_eq=[1.0],
+            bounds=[(None, None)] * q,
+            method="highs-ds",
+        )
+        if result.status != 0:  # no blend meets every row, whatever the direction
+            return np.empty((0, q))
+        found.append(result.x)
+    points = np.array(found)
+    points[np.abs(points) < 1e-12] = 0.0  # no -0.0 or 1e-17 in a design sheet
+    return _unique_rows(points)
+
+
 def extreme_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
     """Enumerate the vertices of ``{x : A x <= b, sum(x) = 1}``.
 
@@ -230,15 +273,16 @@ def extreme_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
 
     Raises
     ------
-    ValueError
-        If more than ``MAX_VERTEX_SUBSETS`` systems would have to be solved.
+    TooManyVertices
+        If more than ``MAX_VERTEX_SUBSETS`` systems would have to be solved. It is a
+        ``ValueError``; :func:`sampled_vertices` finds some of the vertices of such a region.
     """
     a_mat, b_vec = _unit_rows(np.asarray(a_mat, dtype=float), np.asarray(b_vec, dtype=float))
     a_red, b_red = _drop_redundant_rows(a_mat, b_vec)
     m, q = a_red.shape
     n_subsets = math.comb(m, q - 1)
     if n_subsets > MAX_VERTEX_SUBSETS:
-        raise ValueError(
+        raise TooManyVertices(
             f"Enumerating the vertices needs {n_subsets} linear solves ({m} non-redundant constraints, {q} "
             f"components), more than the limit of {MAX_VERTEX_SUBSETS}. Remove constraints or components."
         )
@@ -343,9 +387,16 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
     vertex to it. Two vertices share an edge when the
     constraints active at both, together with ``sum(x) = 1``, have rank ``q - 1``: the
     set of points satisfying them is a line.
+
+    A region with too many vertices to list (see :func:`extreme_vertices`) gives some of
+    them, found by linear programming, and points between those in place of its edges and
+    faces (see :func:`_candidates_from_a_sample`); it has no ``face_centroid`` blends.
     """
     a_mat, b_vec = _unit_rows(np.asarray(a_mat, dtype=float), np.asarray(b_vec, dtype=float))
-    vertices = extreme_vertices(a_mat, b_vec)
+    try:
+        vertices = extreme_vertices(a_mat, b_vec)
+    except TooManyVertices:
+        return _candidates_from_a_sample(sampled_vertices(a_mat, b_vec))
     if len(vertices) == 0:
         raise ValueError("No mixture satisfies all the constraints; check them for conflicts.")
     q = a_mat.shape[1]
@@ -365,6 +416,151 @@ def mixture_candidates(a_mat: np.ndarray, b_vec: np.ndarray) -> dict[str, np.nda
         "centroid": centroid,
         "axial_blend": (vertices + centroid) / 2,
     }
+
+
+class _SampledCandidates(dict):
+    """Candidate blends by kind, from a sample of the region's vertices and not from all of them."""
+
+
+def _candidates_from_a_sample(vertices: np.ndarray) -> dict[str, np.ndarray]:
+    """Return candidate blends by kind from some of a region's vertices, when not all of them can be listed.
+
+    Which vertices share an edge or a face is not known, so the points between the
+    vertices stand in for them: each vertex with the next one found gives a midpoint and
+    two third-points, and each with the next two gives the mean of the three. A convex
+    region holds all of them, and they give a model's product terms blends of two and of
+    three vertices to be estimated from.
+    """
+    if len(vertices) == 0:
+        raise ValueError("No mixture satisfies all the constraints; check them for conflicts.")
+    q = vertices.shape[1]
+    first, second = vertices[:-1], vertices[1:]
+    centroid = vertices.mean(axis=0, keepdims=True)
+    return _SampledCandidates(
+        {
+            "vertex": vertices,
+            "edge_midpoint": _unique_rows((first + second) / 2.0),
+            "edge_third": _unique_rows(np.vstack([(2.0 * first + second) / 3.0, (first + 2.0 * second) / 3.0])),
+            "plane_centroid": _unique_rows((vertices[:-2] + vertices[1:-1] + vertices[2:]) / 3.0),
+            "face_centroid": np.empty((0, q)),
+            "centroid": centroid,
+            "axial_blend": (vertices + centroid) / 2.0,
+        }
+    )
+
+
+def _traces(factors: list[Factor], blends: np.ndarray) -> np.ndarray:
+    """Return, per blend, whether a component lies between 0 and its ``min_when_used``."""
+    out = np.zeros(len(blends), dtype=bool)
+    for j, f in enumerate(factors):
+        if f.min_when_used is not None:
+            out |= (blends[:, j] > _TOL) & (blends[:, j] < f.min_when_used - _TOL)
+    return out
+
+
+#: Inestimable columns a warning names before it says there are more.
+_LOST_COLUMNS_NAMED = 6
+
+
+def _column_labels(names: list[str], model: str) -> list[str]:
+    """Return a label for each column of :func:`scheffe_matrix`, in its order."""
+    labels = list(names)
+    if SCHEFFE_DEGREE[model] >= 2:
+        labels += [f"{a}:{b}" for a, b in itertools.combinations(names, 2)]
+    if model == "scheffe_cubic":
+        labels += [cubic_difference_term(a, b) for a, b in itertools.combinations(names, 2)]
+    if SCHEFFE_DEGREE[model] == 3:
+        labels += [f"{a}:{b}:{c}" for a, b, c in itertools.combinations(names, 3)]
+    return labels
+
+
+def _estimable_columns(factors: list[Factor], pool: np.ndarray, model: str) -> tuple[np.ndarray, list[str]]:
+    """Return the columns of the Scheffé model the candidate blends can estimate, and the labels of the others.
+
+    Limits can hold a group of components to a fixed total: five groups that may each
+    supply at most 20% of a blend supply exactly 20% each. The components of such a group
+    then sum to a constant in every blend, as all the components do, and one column of
+    the group cannot be told from the others. The columns are kept in model order while
+    each adds rank, so every set kept this way spans the same model over the region, and
+    the design does not depend on which column of a group is left out.
+    """
+    kept = independent_columns(scheffe_matrix(pool, model))
+    labels = _column_labels([f.name for f in factors], model)
+    lost = [labels[j] for j in sorted(set(range(len(labels))) - set(kept.tolist()))]
+    if lost:
+        logger.warning(
+            "The region leaves %d of the %d columns of the %s model inestimable (%s%s): its limits fix the total of "
+            "some components. The design is built for the columns that can be estimated, and "
+            "metadata['inestimable_columns'] lists the others.",
+            len(lost),
+            len(labels),
+            model,
+            ", ".join(lost[:_LOST_COLUMNS_NAMED]),
+            ", ..." if len(lost) > _LOST_COLUMNS_NAMED else "",
+        )
+    return kept, lost
+
+
+@dataclass
+class _Blends:
+    """The candidate blends a design is chosen from, and the columns of its model that they can estimate."""
+
+    pool: np.ndarray
+    #: The index label of each blend, when the caller supplied the candidates.
+    labels: list | None
+    #: The model columns kept, and the labels of the ones the region leaves inestimable.
+    columns: np.ndarray
+    lost: list[str]
+    n_parameters: int
+    #: Whether the region's vertices were sampled, not listed.
+    sampled: bool
+
+    def metadata(self, rows: np.ndarray | None, supplied: pd.DataFrame | None) -> dict:
+        """Return what the design's metadata says of the candidates: sampled, columns lost, the caller's picks."""
+        meta: dict = {}
+        if self.sampled:
+            meta["vertices_sampled"] = True
+        if self.lost:
+            meta["inestimable_columns"] = self.lost
+        if self.labels is not None and supplied is not None and rows is not None:
+            meta["candidate_source"] = "user"
+            meta["n_candidates_supplied"] = len(supplied)
+            meta["selected_candidates"] = selection_counts(self.labels, rows)
+        return meta
+
+
+def _blends(
+    factors: list[Factor], candidates: dict[str, np.ndarray], opts: ConstrainedOptions, limits: tuple
+) -> _Blends:
+    """Return the blends a design may use: the caller's or the region's, without those that hold a trace.
+
+    A blend with a component between 0 and its ``min_when_used`` is left out. The
+    region's own candidates then say which columns of the model can be estimated (see
+    :func:`_estimable_columns`); the caller's candidates must support the whole model.
+
+    Raises
+    ------
+    ValueError
+        If every candidate blend holds a trace.
+    """
+    model = scheffe_model(opts.model_type)
+    n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
+    labels: list | None = None
+    if opts.candidates is not None:
+        pool, labels = _user_blends(factors, opts.candidates, *limits)
+    else:
+        pool = _unique_rows(np.vstack(list(candidates.values())))
+    usable = ~_traces(factors, pool)
+    if not usable.any():
+        raise ValueError("Every candidate blend has a component between 0 and its min_when_used.")
+    pool = pool[usable]
+    columns = np.arange(n_parameters)
+    lost: list[str] = []
+    if labels is not None:
+        labels = [label for label, keep in zip(labels, usable, strict=True) if keep]
+    elif np.linalg.matrix_rank(scheffe_matrix(pool, model)) < n_parameters:
+        columns, lost = _estimable_columns(factors, pool, model)
+    return _Blends(pool, labels, columns, lost, n_parameters, isinstance(candidates, _SampledCandidates))
 
 
 # ---------------------------------------------------------------------------
@@ -479,37 +675,44 @@ def constrained_mixture_design(
     rng = check_random_state(random_state)
     a_mat, b_vec = mixture_inequalities(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
-    n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
-    labels: list | None = None
-    if opts.candidates is not None:
-        pool, labels = _user_blends(factors, opts.candidates, a_mat, b_vec)
-        budget = budget if budget is not None else n_parameters + 3
+    blends = _blends(factors, candidates, opts, (a_mat, b_vec))
+    pool, columns = blends.pool, blends.columns
+    left_out = any(f.min_when_used is not None for f in factors)
 
-        def region_rows() -> np.ndarray:
-            return scheffe_matrix(pool, model)  # the supplied blends stand for the region
-    else:
-        pool = _unique_rows(np.vstack(list(candidates.values())))
+    def model_rows(points: np.ndarray) -> np.ndarray:
+        return scheffe_matrix(points, model)[:, columns]
 
-        def region_rows() -> np.ndarray:
-            low = np.array([f.low or 0.0 for f in factors], dtype=float)
-            return scheffe_matrix(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng), model)
+    def region_rows() -> np.ndarray:
+        if blends.labels is not None or left_out:
+            # The supplied blends stand for the region. shortcut: so do the candidates when a component has a
+            # min_when_used, whose region is made of pieces that no sampler here draws from, upgrade with one.
+            return model_rows(pool)
+        low = np.array([f.low or 0.0 for f in factors], dtype=float)
+        return model_rows(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng))
 
+    if budget is None and blends.labels is not None:
+        budget = blends.n_parameters + 3
     requested_budget = budget
-    budget, n_classical = _budget_for_a_large_region(budget, candidates, model, n_parameters)
+    budget, n_classical = _budget_for_a_large_region(budget, candidates, model, len(columns))
+    if budget is None and (blends.sampled or left_out or blends.lost):
+        # The design used without a budget is every vertex, which a sample of them is not, and its centroid
+        # blends every component, traces included; nor is it built for a model with columns left out.
+        budget = len(columns) + _EXTRA_RUNS
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
-        method, logdet = "extreme_vertices", None
+        method, chosen = "extreme_vertices", None
     else:
-        refuse_budget_below_model(budget, n_parameters, model)
-        f_pool = scheffe_matrix(pool, model)
-        criterion = make_criterion(opts.criterion, n_parameters, region_rows, f_pool)
-        rows, logdet = fedorov_exchange(f_pool, budget, np.empty((0, n_parameters)), rng, criterion)
+        refuse_budget_below_model(budget, len(columns), model)
+        f_pool = model_rows(pool)
+        criterion = make_criterion(opts.criterion, len(columns), region_rows, f_pool)
+        rows, logdet = fedorov_exchange(f_pool, budget, np.empty((0, len(columns))), rng, criterion)
         design = pool[rows]
-        method = f"{opts.criterion}_{'user_candidates' if labels is not None else 'extreme_vertices'}"
+        method = f"{opts.criterion}_{'user_candidates' if blends.labels is not None else 'extreme_vertices'}"
+        chosen = (rows, {"optimality_criterion": opts.criterion, **criterion_metadata(criterion, logdet)})
 
-    if np.linalg.matrix_rank(scheffe_matrix(design, model)) < n_parameters:
+    if np.linalg.matrix_rank(model_rows(design)) < len(columns):
         raise ValueError(
-            f"The constrained mixture region cannot support a {model} model ({n_parameters} terms): "
+            f"The constrained mixture region cannot support a {model} model ({blends.n_parameters} terms): "
             "it has too few distinct blends. Use a simpler model or loosen the constraints."
         )
     meta = {
@@ -524,11 +727,7 @@ def constrained_mixture_design(
         # A budget raised to the model's size, or one set because the default design was too large.
         key = "budget_requested" if requested_budget is not None else "n_runs_vertices_edges_centroid"
         meta[key] = requested_budget if requested_budget is not None else n_classical
-    if labels is not None:
-        meta["candidate_source"] = "user"
-        meta["n_candidates_supplied"] = len(opts.candidates)  # type: ignore[arg-type]
-        meta["selected_candidates"] = selection_counts(labels, rows)
-    if logdet is not None:
-        meta["optimality_criterion"] = opts.criterion
-        meta.update(criterion_metadata(criterion, logdet))
+    meta.update(blends.metadata(None if chosen is None else chosen[0], opts.candidates))
+    if chosen is not None:
+        meta.update(chosen[1])
     return design, meta

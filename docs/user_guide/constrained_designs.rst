@@ -685,6 +685,62 @@ and Lenth's method is not applied.
 design and samples its constrained simplex. ``optimize_responses`` with the mixture
 region searches the polytope and returns a blend that sums to one.
 
+Many components, groups held to a total, and components left out
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three things happen in a blend of many components that are grouped, as when the
+ingredients of a formulation sit in buckets and the whole formulation is the mixture.
+
+*Too many vertices to list.* Fifteen components in five buckets, each bucket between 5%
+and 30% of the blend, need millions of linear systems to list every vertex. Some of the
+vertices are then found by linear programming, as for :ref:`limits on group totals
+<constrained-group-totals>`, with the points between them standing in for the edges and
+faces, and ``metadata["vertices_sampled"]`` is True. Without a budget the design is
+D-optimal, a few runs more than the model has terms.
+
+*A group held to a fixed total.* Five buckets that may each supply at most 20% of a
+blend supply exactly 20% each. The components of a bucket then sum to a constant in
+every blend, as all the components together do, and one column of each bucket but the
+first cannot be told from the others. The design is built for the columns that can be
+estimated, a warning names the others, and ``metadata["inestimable_columns"]`` lists
+them:
+
+.. code-block:: python
+
+   pairs = [[f"B{b}_{i}" for i in (1, 2)] for b in (1, 2, 3, 4, 5)]
+   components = [Factor(name=name, type="mixture", high=0.2) for pair in pairs for name in pair]
+   at_most_a_fifth = [f"{first} + {second} <= 0.2" for first, second in pairs]
+   fifths = generate_design(
+       components, budget=16, constraints=at_most_a_fifth, model_type="scheffe_linear", random_state=1
+   )
+   print(fifths.metadata["inestimable_columns"])  # ['B2_2', 'B3_2', 'B4_2', 'B5_2']
+   print(fifths.design_actual[pairs[0]].sum(axis=1).round(9).unique())  # [0.2]
+
+Whichever column of a bucket is left out, the columns kept span the same model over
+the region, so the design does not depend on the choice.
+
+*A component left out, or used at no less than a minimum.* ``min_when_used`` works on a
+mixture component as on an amount (:ref:`constrained-min-when-used`): the component is
+left out of a blend or makes up no less than that share of it. Candidate blends with a
+trace are dropped, the design is D-optimal with or without a budget (the centroid of
+the design used otherwise blends every component), and ``optimize_responses`` returns
+a blend that leaves the component out or uses at least its minimum.
+
+.. code-block:: python
+
+   trio = [
+       Factor(name="x1", type="mixture", min_when_used=0.1),
+       Factor(name="x2", type="mixture", min_when_used=0.3),
+       Factor(name="x3", type="mixture"),
+   ]
+   blended = generate_design(trio, budget=10, model_type="scheffe_quadratic", random_state=1)
+   print(sorted(set(blended.design_actual["x2"].round(6))))  # no share between 0 and 0.3
+
+Such a mixture region is not sampled, since its pieces have no common measure the
+sampler draws from: ``DesignRegion.sample`` raises, an I- or G-optimal design averages
+over the candidate blends, and a search starts from the region's vertices and edge
+midpoints.
+
 Mixture components with process factors
 ---------------------------------------
 

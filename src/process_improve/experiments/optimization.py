@@ -803,16 +803,21 @@ _SET_SCREEN_ITERATIONS = 8
 class _SearchSpace:
     """Where SLSQP may look: bounds, scipy constraint dicts, and feasible starting points.
 
-    ``gaps`` holds ``(column, minimum)``, in coded units, for each factor with a
-    ``min_when_used``. A search cannot cross from 0 to the minimum, so each one keeps
-    the set of factors its start uses (see :meth:`bounds_at`), and
-    :func:`_best_set_of_factors` then tries the neighbouring sets.
+    ``gaps`` holds ``(column, zero, minimum)`` for each factor with a ``min_when_used``,
+    in the search's units: ``zero`` is where the factor is left out (coded -1 for a
+    process factor, 0 for a mixture component). A search cannot cross from there to
+    the minimum, so each one keeps the set of factors its start uses (see
+    :meth:`bounds_at`), and :func:`_best_set_of_factors` then tries the neighbouring sets.
     """
 
     bounds: list[tuple[float, float]]
     constraints: list[dict[str, Any]]
     starts: list[np.ndarray]
-    gaps: list[tuple[int, float]] = field(default_factory=list)
+    gaps: list[tuple[int, float, float]] = field(default_factory=list)
+
+    def left_out(self, x: np.ndarray, column: int, zero: float) -> bool:
+        """Whether ``x`` leaves the factor in ``column`` out."""
+        return bool(x[column] <= zero + _LEFT_OUT_TOL)
 
     def bounds_at(self, start: np.ndarray) -> list[tuple[float, float]]:
         """Return the bounds of a search from ``start``.
@@ -821,9 +826,9 @@ class _SearchSpace:
         when the search box ends below its minimum), and at or above its minimum otherwise.
         """
         bounds = list(self.bounds)
-        for j, minimum in self.gaps:
-            left_out = start[j] <= -1.0 + _LEFT_OUT_TOL or bounds[j][1] < minimum
-            bounds[j] = (-1.0, -1.0) if left_out else (minimum, bounds[j][1])
+        for j, zero, minimum in self.gaps:
+            out = self.left_out(start, j, zero) or bounds[j][1] < minimum
+            bounds[j] = (zero, zero) if out else (minimum, bounds[j][1])
         return bounds
 
 
@@ -866,9 +871,9 @@ def _search_space(
         msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
         raise ValueError(msg)
     idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
-    gaps = [(idx[j], minimum) for j, minimum in region.gaps]
-    for j, _minimum in gaps:  # an amount is not below 0, however wide the search box
-        bounds[j] = (max(bounds[j][0], -1.0), bounds[j][1])
+    gaps = [(idx[j], region.bounds[j][0], minimum) for j, minimum in region.gaps]
+    for j, zero, _minimum in gaps:  # an amount is not below 0, however wide the search box
+        bounds[j] = (max(bounds[j][0], zero), bounds[j][1])
     lows, highs = np.array(bounds).T
     components = [factor_names.index(n) for n in region.mixture_names]
     for j in components:
@@ -878,7 +883,11 @@ def _search_space(
     ]
     if components:
         constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
-    if region.kind != "box":
+    if any(region.names[j] in region.mixture_names for j, _minimum in region.gaps):
+        # A region with such a component is not sampled: the searches start from its vertices and edge midpoints.
+        points = region.support_points()
+        samples = points[rng.choice(len(points), size=n_starts, replace=len(points) < n_starts)]
+    elif region.kind != "box":
         samples = region.sample(n_starts, rng)
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
@@ -965,16 +974,17 @@ def _best_set_of_factors(
     def changed(columns: tuple[int, ...]) -> np.ndarray:
         start = best.x.copy()
         for j in columns:
-            start[j] = minimums[j] if start[j] <= -1.0 + _LEFT_OUT_TOL else -1.0
+            zero, minimum = ends[j]
+            start[j] = minimum if space.left_out(start, j, zero) else zero
         return start
 
-    minimums = dict(space.gaps)
+    ends = {j: (zero, minimum) for j, zero, minimum in space.gaps}
     improved = True
     while improved:
         improved = False
-        left_out = [j for j in minimums if best.x[j] <= -1.0 + _LEFT_OUT_TOL]
-        in_use = [j for j in minimums if j not in left_out]
-        moves = [(j,) for j in minimums] + [(i, j) for i in in_use for j in left_out]
+        left_out = [j for j, (zero, _minimum) in ends.items() if space.left_out(best.x, j, zero)]
+        in_use = [j for j in ends if j not in left_out]
+        moves = [(j,) for j in ends] + [(i, j) for i in in_use for j in left_out]
         for columns in moves:
             if (res := search(changed(columns))) is not None:
                 best, improved = res, True

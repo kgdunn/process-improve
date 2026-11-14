@@ -1236,10 +1236,10 @@ def _refuse_traces(
     for j, f in enumerate(factors):
         if f.min_when_used is None:
             continue
-        coded = np.asarray(coded_matrix[n_fixed:, j], dtype=float)
-        if n_center_points:
-            coded = np.append(coded, 0.0)
-        amount = (coded + 1.0) * f.high / 2.0  # type: ignore[operator]
+        amount = np.asarray(coded_matrix[n_fixed:, j], dtype=float)
+        if f.type != FactorType.mixture:  # a process factor is coded; a mixture component is a proportion as it is
+            coded = np.append(amount, 0.0) if n_center_points else amount
+            amount = (coded + 1.0) * f.high / 2.0  # type: ignore[operator]
         tol = 1e-9 * f.high  # type: ignore[operator]
         if np.any((amount > tol) & (amount < f.min_when_used - tol)):
             traces.append(f"{f.name} (min_when_used={f.min_when_used:g})")

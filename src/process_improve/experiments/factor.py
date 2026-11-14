@@ -52,7 +52,8 @@ class Factor(BaseModel):
     min_when_used : float or None
         The smallest amount of an ingredient that is used at all, which keeps traces out of a
         formulation: the factor is 0 (the ingredient is left out), or between this and ``high``.
-        For a continuous factor with ``low=0``, and ``0 < min_when_used < high``. The optimal
+        For a continuous factor or a mixture component with ``low=0``, and
+        ``0 < min_when_used < high``. The optimal
         designs then place no run between 0 and it,
         :class:`~process_improve.experiments.region.DesignRegion` counts such a setting as
         outside the region, and ``optimize_responses`` returns an optimum that leaves the factor
@@ -111,20 +112,19 @@ class Factor(BaseModel):
     def _check_min_when_used(self) -> None:
         """Raise unless ``min_when_used`` lies between ``low = 0`` and ``high`` of a continuous factor."""
         minimum = self.min_when_used
-        if self.type != FactorType.continuous:
+        if self.type == FactorType.categorical:
             raise ValueError(
-                f"Factor '{self.name}': 'min_when_used' is for a continuous factor, an amount that is 0 or at "
-                f"least a minimum; this factor is {self.type.value}."
+                f"Factor '{self.name}': 'min_when_used' is for an amount or a proportion that is 0 or at least "
+                "a minimum; this factor is categorical."
             )
-        if self.low != 0:
+        if self.low not in (0, None):  # a mixture component's low defaults to 0
             raise ValueError(
                 f"Factor '{self.name}': 'min_when_used' needs low=0, since the factor is then 0 or between "
                 f"min_when_used and high; got low={self.low}."
             )
-        if self.high is None or not 0 < float(minimum) < self.high:  # type: ignore[arg-type]
-            raise ValueError(
-                f"Factor '{self.name}': 'min_when_used' ({minimum}) must lie between 0 and high ({self.high})."
-            )
+        high = 1.0 if self.high is None else self.high  # a mixture component's high defaults to 1
+        if not 0 < float(minimum) < high:  # type: ignore[arg-type]
+            raise ValueError(f"Factor '{self.name}': 'min_when_used' ({minimum}) must lie between 0 and high ({high}).")
 
     def _check_levels(self) -> None:
         """Raise unless a categorical factor has at least two distinct, non-missing levels."""
