@@ -282,6 +282,10 @@ curve with its 95% bands.
 - **Words defined on request.** The glossary holds 78 terms. A term on the page has a dotted
   underline and opens its definition, in the book's words, on a hover, a press or the
   keyboard.
+- **A definition leads to its idea.** For 61 of them the definition ends in "See it in
+  context", a link that opens the concept map at that idea, in a tab of its own, with the
+  ideas around it, the book's line and the way into the book. A design's name in the list of
+  designs does the same. A finger, a mouse and the keyboard each reach the link.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Light, dark or the system's colours**, kept in the browser.
 - **The keyboard and a screen reader.** A link past the header, sortable headings, labelled
@@ -370,8 +374,9 @@ What an organisation asks before it lets people use a tool.
 
 ## 10. Learning and documentation
 
-- **Links into the book.** Each design, each measure and each defined word links to its place
-  in *Process Improvement using Data* (<https://learnche.org/pid>).
+- **Links into the book.** Each design and each measure links to its place in *Process
+  Improvement using Data* (<https://learnche.org/pid>), and a defined word leads there by way
+  of its idea in the concept map.
 - **The worked example** opens at once, and can be run again in the tab.
 - **Practice on a known process** shows the true model beside the fitted one.
 - **What Factorial does**: this list, as a page of the app. It is drawn from the document the
@@ -394,8 +399,8 @@ What an organisation asks before it lets people use a tool.
 - **[Reproduced from the books](catalog/reproduced/).** How closely the library reproduces
   each number its sources print, in four tiers, with the reason for each difference.
 - **[The concept map](map/).** 237 ideas of designed experiments and 489 links between them,
-  in 13 topics, each with its definition, the book's line and a link into the book. It shares
-  the app's reading level. "Compare books" sets two other textbooks beside this one: the links
+  in 13 topics, each with its definition, the book's line and a link into the book. An address
+  that names an idea opens at the map, on that idea. It shares the app's reading level. "Compare books" sets two other textbooks beside this one: the links
   go, and a ring on each topic and each term says which of the three books has it.
 - **[The multivariate page](mva/).** PCA and PLS on an example or your own file: a data
   table with each variable's distribution in its heading, linked score, loading, SPE and T²

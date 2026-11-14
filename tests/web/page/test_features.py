@@ -86,7 +86,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
     """A number said twice is checked twice: each of these is in a sentence, apart from the table of limits."""
     app = bootstrap
     graph = json.loads(source("map/graph.json"))
-    (glossary,) = javascript(node, source("glossary.js"), [("GLOSSARY", [])])
+    glossary, context = javascript(node, source("glossary.js"), [("GLOSSARY", []), ("CONTEXT", [])])
     book, published = (
         json.loads(source(name))["examples"] for name in ("book-examples.json", "published-examples.json")
     )
@@ -105,6 +105,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"a note when one is above {app.VIF_HIGH:g}",
         f"{['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][len(app.SCENARIOS)]} processes with a known true model",
         f"The glossary holds {len(glossary)} terms",
+        f'For {len(context)} of them the definition ends in "See it in',
         f"The book's {len(book)} examples open with `?book=<name>`, and {len(published)} published",
         f"the book's {len(book)} examples are held to",
         f"{len(graph['nodes'])} ideas of designed experiments and {len(graph['edges'])} links between them",
