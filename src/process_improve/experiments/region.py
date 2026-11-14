@@ -121,6 +121,12 @@ class DesignRegion:
         compare a categorical factor with its levels and join comparisons with ``and``,
         ``or`` and ``not``, as in ``"not (catalyst == 'B' and T > 180)"``.
 
+    A factor with a ``min_when_used`` is 0 or at least that minimum, so the region leaves
+    out the settings between the two: :meth:`feasible` is False there. The diagnostics of
+    a box region (:meth:`vertices`, :meth:`volume_fraction`, :meth:`implied_bounds` and
+    the others) describe the region over the factor's whole range, those settings
+    included.
+
     Examples
     --------
     >>> region = DesignRegion(
@@ -146,6 +152,8 @@ class DesignRegion:
         self._low = np.array([f.low for f in numeric], dtype=float)
         self._high = np.array([f.high for f in numeric], dtype=float)
         self._centre, self._half = (self._low + self._high) / 2.0, (self._high - self._low) / 2.0
+        #: Per numeric column with a ``min_when_used``: the column, and that minimum in design units (coded).
+        self._gaps = [(j, 2.0 * f.min_when_used / f.high - 1.0) for j, f in enumerate(numeric) if f.min_when_used]  # type: ignore[operator]
         #: For each inequality, the index of the constraint it came from (a chain gives several).
         self._limit_of: list[int] = []
         #: The rules on categorical factors, if any constraint names one (a box region only).
@@ -229,9 +237,13 @@ class DesignRegion:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly description, as stored in ``DesignResult.metadata["region"]``."""
+        factors = [f.model_dump(mode="json") for f in self.factors]
+        for spec in factors:  # a factor without a minimum is written as it was before the option existed
+            if spec["min_when_used"] is None:
+                del spec["min_when_used"]
         return {
             "kind": self.kind,
-            "factors": [f.model_dump(mode="json") for f in self.factors],
+            "factors": factors,
             "constraints": [c.model_dump(mode="json") for c in self.constraints],
         }
 
@@ -320,6 +332,8 @@ class DesignRegion:
             ok &= np.abs(x[:, self._mixture_columns].sum(axis=1) - 1.0) <= 1e-6
         for g, widen in zip(self._inequalities, self._widen(), strict=True):
             ok &= g(x) <= tol * widen
+        for _name, trace in self._traces(x, tol):
+            ok &= ~trace
         if self.rules is None:
             return ok
         levels = self._level_text(labels, len(x))
@@ -327,6 +341,13 @@ class DesignRegion:
         for fails, clause in self._conditional_failures(x, tol):
             ok &= ~(fails & self.rules.applies(levels)[:, clause])
         return ok
+
+    def _traces(self, x: np.ndarray, tol: float) -> list[tuple[str, np.ndarray]]:
+        """Return, per factor with a ``min_when_used``, its name and where ``x`` sets it between 0 and that minimum."""
+        return [
+            (self.names[j], (x[:, j] > -1.0 + tol) & (x[:, j] < minimum - tol))  # 0 is coded -1
+            for j, minimum in self._gaps
+        ]
 
     # -- rules on categorical factors -------------------------------------------
 
@@ -556,7 +577,8 @@ class DesignRegion:
         """Return, for each point, the limits it breaks: the factor ranges it leaves, then the constraints it fails.
 
         A range is written in actual units, ``"100 <= T <= 150"``, and a constraint as its
-        expression, each once. A point that :meth:`feasible` accepts with the same ``tol``
+        expression, each once. A factor set between 0 and its ``min_when_used`` is written
+        ``"A = 0 or A >= 5"``. A point that :meth:`feasible` accepts with the same ``tol``
         breaks none, so this says why a setting cannot be run.
 
         Parameters
@@ -604,6 +626,10 @@ class DesignRegion:
                 if fail[row] and expression not in found:
                     found.append(expression)
             broken.append(found)
+        minimums = {f.name: f.min_when_used for f in self.factors}
+        for name, trace in self._traces(x, tol):
+            for point in np.flatnonzero(trace):
+                broken[point].append(f"{name} = 0 or {name} >= {minimums[name]:g}")
         if self.rules is not None:
             self._broken_rules(x, tol, labels, broken)
         return broken
@@ -655,13 +681,15 @@ class DesignRegion:
         Raises
         ------
         ValueError
-            If no point of the region can be found, or the region has rules on
-            categorical factors (use :meth:`sample_frame`, which draws the levels too).
+            If no point of the region can be found, the region has rules on
+            categorical factors (use :meth:`sample_frame`, which draws the levels too),
+            or a factor has a ``min_when_used``.
         """
         if self.rules is not None:
             raise ValueError(
                 f"This region's rules on {self.rules.factors} tie the settings to the levels; use sample_frame()."
             )
+        self._refuse_gaps("sampled")
         k = len(self.names)
         if k == 0:  # only categorical factors: no continuous dimension to sample
             return np.empty((n, 0))
@@ -691,6 +719,15 @@ class DesignRegion:
             tolerances=self._widen(),  # so a sampled point passes feasible()
         )
         return sampler.draw(n, rng)
+
+    def _refuse_gaps(self, action: str) -> None:
+        """Raise for a region in which a factor is 0 or at least its ``min_when_used``."""
+        if self._gaps:
+            names = [self.names[j] for j, _minimum in self._gaps]
+            raise ValueError(
+                f"This region cannot be {action}: {names} are each 0 or at least their min_when_used, so the "
+                "region is made of separate pieces, one for each set of the factors in use."
+            )
 
     def seed_points(self) -> np.ndarray:
         """Return :meth:`support_points`, or none for a box too large for a boundary grid."""

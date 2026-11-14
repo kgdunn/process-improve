@@ -833,6 +833,7 @@ def _search_space(
             f"settings per allowed combination of levels; search one of them, as region.given({example})."
         )
         raise ValueError(msg)
+    region._refuse_gaps("searched")
     if set(region.names) != set(factor_names):
         msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
         raise ValueError(msg)

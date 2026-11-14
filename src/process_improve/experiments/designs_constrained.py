@@ -411,6 +411,29 @@ class _Region:
                     cats[:, j] = [position[level] for level in table[f.name].to_numpy()[pick]]
         return cats
 
+    def gaps(self) -> list[tuple[int, float]]:
+        """Return ``(column, minimum)`` for each continuous factor with a ``min_when_used``, in coded units.
+
+        Such a factor is 0 (coded -1) or at least its minimum, so no run may set it
+        strictly between -1 and that minimum.
+        """
+        return [
+            (j, 2.0 * f.min_when_used / f.high - 1.0)  # type: ignore[operator]
+            for j, f in enumerate(self.continuous)
+            if f.min_when_used is not None
+        ]
+
+    def out_of_gaps(self, coded: np.ndarray) -> np.ndarray:
+        """Return ``coded`` with each value between 0 and its factor's ``min_when_used`` moved up to that minimum."""
+        gaps = self.gaps()
+        if not gaps:
+            return coded
+        moved = coded.copy()
+        for j, minimum in gaps:
+            inside = (moved[:, j] > -1.0 + _FEASIBILITY_TOL) & (moved[:, j] < minimum)
+            moved[inside, j] = minimum
+        return moved
+
     def actual(self, coded: np.ndarray) -> dict[str, np.ndarray]:
         """Map coded continuous columns to ``{name: actual values}``."""
         return {
@@ -440,6 +463,9 @@ class _Region:
         units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a steep boundary
         such as ``120*T + 33*D + 450*F <= 17000``, and let every setting pass a gentle one,
         such as ``X <= 0.5e-9`` on a factor whose range is ``1e-9``.
+
+        A factor with a ``min_when_used`` adds the distance, in coded units, from a value
+        between 0 and that minimum to the nearer of the two (see :meth:`gaps`).
         """
         env = self.actual(coded)
         rows = coded.shape[0]
@@ -451,6 +477,8 @@ class _Region:
             value = np.broadcast_to(ineq(env), (rows,)) / size
             g.append(value if clause is None else np.where(applies[:, clause], value, -np.inf))
         slack = np.max(g, axis=0) if g else np.full(rows, -np.inf)
+        for j, minimum in self.gaps():
+            slack = np.maximum(slack, np.minimum(coded[:, j] + 1.0, minimum - coded[:, j]))
         return slack if cats is None else np.where(self.allowed(cats), slack, np.inf)
 
     def _value_scales(self) -> np.ndarray:
@@ -788,7 +816,8 @@ def build_candidates(
 
     extra, extra_cat = _boundary_points(region, grid, cat_idx, step=2.0 / (levels - 1))
     corners, corner_cat = _vertex_candidates(region, shape[k_cont:])
-    coded = np.vstack([grid, extra, corners])
+    # A grid level between 0 and a factor's min_when_used moves up to that minimum, the lowest amount in use.
+    coded = np.vstack([region.out_of_gaps(grid), extra, corners])
     cats = np.vstack([cat_idx, extra_cat, corner_cat])
 
     coded, cats = _feasible_and_distinct(region, coded, cats)

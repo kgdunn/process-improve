@@ -166,6 +166,47 @@ on vertices, and a vertex of this region has one ingredient in most buckets. Suc
 design estimates the effect of each ingredient on its own; how two ingredients of one
 bucket act together needs their interaction in the model, and more runs.
 
+.. _constrained-min-when-used:
+
+An ingredient that is left out, or used at no less than a minimum
+-----------------------------------------------------------------
+
+An ingredient is often either left out or added in an amount that can be dosed and
+tasted: 0, or at least 5 ppm, and never a trace in between. ``min_when_used`` on the
+factor says so. It needs ``low=0``.
+
+.. code-block:: python
+
+   flavours = [
+       Factor(name="vanillin", low=0, high=50, units="ppm", min_when_used=5),
+       Factor(name="maltol", low=0, high=50, units="ppm", min_when_used=30),
+       Factor(name="sugar", low=10, high=20, units="%"),
+   ]
+   blend = generate_design(flavours, budget=14, model_type="quadratic", random_state=1)
+   print(blend.design_type)  # d_optimal, chosen because a factor has a minimum
+   print(sorted(set(blend.design_actual["vanillin"])))  # [0.0, 25.0, 50.0]
+   print(sorted(set(blend.design_actual["maltol"])))  # [0.0, 30.0, 50.0]
+
+No run sets a factor between 0 and its minimum. The middle level of ``maltol`` would
+be 25 ppm, below its minimum of 30, so the candidates hold 30 in its place: the factor
+still takes three levels, which its squared term needs. The same holds beside
+constraints, and beside limits on group totals, where a lower limit on a group's total
+equal to the smallest minimum in the group says that at least one of its ingredients is
+used.
+
+.. code-block:: python
+
+   from process_improve.experiments import DesignRegion
+
+   region = DesignRegion(flavours, ["vanillin + maltol <= 60"])
+   # vanillin at 2.5 ppm, then at 5 ppm; maltol at 0; sugar at 15%. Coded units.
+   print(region.feasible([[-0.9, -1.0, 0.0], [-0.8, -1.0, 0.0]]))  # [False  True]
+   print(region.broken_limits([[-0.9, -1.0, 0.0]]))  # [['vanillin = 0 or vanillin >= 5']]
+
+A classical design takes its levels from the factor's range alone. One that would set
+the factor between 0 and its minimum, in a run or in its centre points, is refused,
+with the factor's name; ``fixed_runs`` are kept as given.
+
 .. _constrained-categorical-rules:
 
 Combinations of levels that cannot be run
