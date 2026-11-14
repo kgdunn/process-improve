@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from tests.web._support import BUILD_SCRIPT, page, source
+from tests.web._support import BUILD_SCRIPT, WEB, page, source
 
 BUILD = BUILD_SCRIPT.read_text(encoding="utf-8")
 
@@ -74,3 +74,22 @@ def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_
     html = " ".join(source("index.html").split())
     assert '<p id="offline" hidden tabindex="-1"> <span role="status"></span>' in html, "said aloud, and focusable"
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
+
+
+#: The modules the app loads on demand that a page without a network has no use for: the feedback form's
+#: picture of the page, which is sent over the network.
+NEEDS_A_NETWORK = {"vendor/modern-screenshot.mjs"}
+
+
+def test_the_copy_holds_every_module_the_app_loads_on_demand():
+    """The copy holds what a visit loaded, so a module loaded later, when a chart is drawn, must be named to it.
+
+    A first visit that drew no chart kept a copy with no ``figure.js``, and a chart drawn without a network could
+    not open in its window: only the live tier saw it.
+    """
+    on_demand = set()
+    for module in WEB.glob("*.js"):
+        on_demand |= set(re.findall(r"""import\(\s*[^)]*?["'`]\./([\w./-]+\.m?js)""", source(module.name)))
+    assert "figure.js" in on_demand, "the pattern above finds the modules loaded on demand"
+    kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const onDemand = .*", source("offline.js")).group()))
+    assert on_demand - NEEDS_A_NETWORK == kept
