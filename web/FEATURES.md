@@ -24,6 +24,9 @@ is written for them:
   it is asked for, and at once at the Adventurous reading level.
 - **Headings are the page's parts.** A `##` heading is a step of a study. A `###` heading is
   a part that folds, and the line in italics under it is what the fold says while closed.
+- **A point can end with "Show me".** It is a link to `https://factori.al/?example=<name>&show=<part>`
+  (or `?book=<name>`): the app opens that example at the part of its page with that id. On the
+  page the link stays within the copy of the app it is served from.
 
 Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow.
 
@@ -121,6 +124,7 @@ Also:
   - *Details:* From a seed of the study's own, named in the report and the code.
 - **What you are getting.** For each design the app says how many runs it takes, how many are
   spare, and which effects it cannot tell apart.
+  [Show me](https://factori.al/?book=bioreactor-half-fraction&show=design-summary)
   - *Details:* Its runs and spare runs, its resolution and defining relation, its aliases, and
     what its blocks take.
 
@@ -128,9 +132,9 @@ Also:
 
 *From what you want to learn to a run sheet, with the trade-offs said.*
 
-- **Start from the question.** Say what you measure (its name, its units, and a goal:
-  maximise, minimise, hit a target, or just learn), what might change it, and what you want
-  to learn.
+- **Start from the question.** Say what you measure (its name, its units, and a goal: maximise,
+  minimise, hit a target, or just learn), what might change it, and what you want to learn.
+  [Show me](https://factori.al/?example=worked&show=response-card)
 - **Say what you know already, if you like.** The typical value, how much results vary from
   run to run, and the smallest change worth finding. The app then says how likely each
   design is to find that change.
@@ -141,9 +145,9 @@ Also:
   chips to type, paste, remove and reorder.
 - **Four aims to choose from.** Find which factors matter; see how they act together; see
   where an effect curves; or map the whole response to find its best point.
-- **The designs that fit your question.** As you type, the app makes every design that fits
-  and lists each with its runs and what it stands out for. It suggests one and says why. A
-  design left out says why.
+- **The designs that fit your question.** As you type, the app makes every design that fits and
+  lists each with its runs and what it stands out for. It suggests one and says why. A design
+  left out says why. [Show me](https://factori.al/?example=worked&show=step-plan)
   - *Details:* Each is listed with its runs, spare runs and power. The app picks the fewest
     runs that leave three or more spare.
 - **Compare designs side by side.** What each design costs in runs and what it gives in
@@ -157,8 +161,9 @@ Also:
   - *Details:* Up to 8 inequalities in the factors' own units, such as `T + 25*P <= 250`. A
     limit can also be proposed from the corners you mark as not runnable. The picture is
     drawn for each pair of factors.
-- **Know what your runs can tell apart.** Before a run is made, the app names the effects
-  that these runs cannot separate from each other.
+- **Know what your runs can tell apart.** Before a run is made, the app names the effects that
+  these runs cannot separate from each other.
+  [Show me](https://factori.al/?book=bioreactor-half-fraction&show=correlation)
   - *Details:* A correlation map of the study's own runs, with sentences that name each
     aliased or correlated pair of terms.
 - **Experiments like yours.** The plan beside what others in your field have published.
@@ -174,16 +179,17 @@ Also:
 *A run sheet to fill in: type, paste or upload your results.*
 
 - **A run sheet in the order to run it.** It has a column for each response, and its columns
-  sort.
+  sort. [Show me](https://factori.al/?example=worked&show=step-run)
   - *Details:* The order is the randomised one.
 - **Type, paste or upload your results.** A block pasted from a spreadsheet fills the sheet,
   and a workbook filled in elsewhere is read back.
   - *Details:* A pasted block is matched by run number when it has one, with decimal commas
     read. The workbook is an .xlsx file.
 - **No need to wait for every run.** The app analyses the runs that have a result.
-- **Practise before you spend a run.** Simulated results from a process whose true behaviour
-  is known, to see whether the analysis finds it. You set the noise, simulate again for new
-  noise, and show the true process when you want it.
+- **Practise before you spend a run.** Simulated results from a process whose true behaviour is
+  known, to see whether the analysis finds it. You set the noise, simulate again for new noise,
+  and show the true process when you want it.
+  [Show me](https://factori.al/?example=worked&show=panel-simulate)
   - *Details:* Six processes with a known true model: Reactor yield, Main effects only, An
     interaction, A maximum inside the ranges, Nothing active, and A random process. A mixture
     has one of its own (a synergy and an antagonism).
@@ -203,8 +209,9 @@ Also:
 #### What the results say
 
 - **The findings in sentences.** Which factor matters most and by how much in its own units,
-  which effects are real, which depend on another factor, where the response curves, how
-  well the model fits, and which runs to look at again.
+  which effects are real, which depend on another factor, where the response curves, how well
+  the model fits, and which runs to look at again.
+  [Show me](https://factori.al/?example=worked&show=analysis)
 - **Choose how much the model holds.** As designed, the factors on their own, the factors
   and how pairs of them act together, curves as well, or the terms you choose.
   - *Details:* As designed, main effects, main effects and two-factor interactions, the full
@@ -224,9 +231,10 @@ Also:
 - **Effects that cannot be told apart are shown as one.** Neither is given the credit alone.
   - *Details:* Aliased terms are estimated once, as their chain (`T + P·F`).
 - **A design with no spare runs is still judged.**
+  [Show me](https://factori.al/?book=saturated-screening&show=analysis)
   - *Details:* Saturated designs are judged with Lenth's method.
 - **Days and batches are allowed for.** A difference between blocks is taken out before the
-  factors are judged.
+  factors are judged. [Show me](https://factori.al/?book=side-product&show=analysis)
   - *Details:* Blocks are fitted as a fixed effect. A term the blocks take is left out, with
     a note.
 - **Categories of three levels or more.** Each level is compared, and the factor is judged
@@ -278,20 +286,24 @@ Also:
 - **The best settings for your goal.** They are inside the ranges and the limits, with what to
   expect there and how far a single run may fall from it. The app warns when the answer leans
   on the model beyond the runs, and says how tightly to hold each factor.
+  [Show me](https://factori.al/?example=worked&show=best)
   - *Details:* The prediction with its 95% confidence and prediction intervals.
 - **More than one goal at once.** With two or more responses, the settings that serve them
   best together. You set each response's acceptable range and its importance, and a picture
   shows where every response is acceptable.
   - *Details:* The settings of the best overall desirability, with each response's
     acceptable range, importance and shape to edit.
-- **What if.** A slider for each factor. Each response's prediction follows at once.
-  Settings can be kept with the study under a name.
+- **What if.** A slider for each factor. Each response's prediction follows at once. Settings
+  can be kept with the study under a name.
+  [Show me](https://factori.al/?example=worked&show=what-if)
   - *Details:* Its intervals and its leverage follow too.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
-- **Check the answer.** One button adds three confirmation runs at the settings found, and
-  the app judges them when their results are in.
-- **What to do next.** What the results call for, with one button: more runs for this
-  design, confirmation runs, or a new study with its ranges moved towards better results.
+- **Check the answer.** One button adds three confirmation runs at the settings found, and the
+  app judges them when their results are in.
+  [Show me](https://factori.al/?example=worked&show=confirm)
+- **What to do next.** What the results call for, with one button: more runs for this design,
+  confirmation runs, or a new study with its ranges moved towards better results.
+  [Show me](https://factori.al/?example=worked&show=next)
   - *Details:* Runs added to the design are a fold-over, axial runs, center runs, runs chosen
     for the model, or every run again. The new study's ranges move along the steepest ascent.
 
@@ -312,8 +324,8 @@ Also:
 
 Nine charts come with the analysis. Eight more are one press away, under More charts.
 
-- **Coefficients.** How large each effect is, and how sure. Every fit has it, and it
-  switches to the book's Pareto plot.
+- **Coefficients.** How large each effect is, and how sure. Every fit has it, and it switches
+  to the book's Pareto plot. [Show me](https://factori.al/?example=worked&show=charts)
 - **The runs at each level.** The results at each level, side by side, for a study of one
   factor.
 - **Fitted response surface.** A map of the response over two factors of your choice, the
@@ -327,8 +339,8 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
   what each part does as its share grows.
 - **Residuals against fitted values.** What the model leaves unexplained, to see whether it
   misses a pattern. Every fit has it.
-- **Half-normal plot of the effects.** For a saturated two-level design: the effects that
-  stand out from the noise.
+- **Half-normal plot of the effects.** For a saturated two-level design: the effects that stand
+  out from the noise. [Show me](https://factori.al/?book=saturated-screening&show=charts)
 - **Each factor's effect on the prediction.** One line for each factor, with a 95% band.
   *More charts.*
 - **Average result at each setting.** *More charts.*
@@ -386,6 +398,7 @@ Also:
 
 - **See the code behind every step.** Each step shows a Python script that runs as it is and
   gives the page's numbers, so that anyone can repeat your analysis without the app.
+  [Show me](https://factori.al/?example=worked&show=py-analyse)
   - *Details:* A script of `process-improve` calls for the design, the comparison, the
     analysis, the best settings, the balance, the predictions and each figure. Tests run the
     code and compare.
@@ -446,6 +459,7 @@ Also:
   refused as it is typed, with a name that works.
 - **Your work is kept.** Every study is saved in the browser as you work, with a draft of a
   question not yet finished. Your studies lists them, to open, share or delete.
+  [Show me](https://factori.al/?example=worked&show=library)
 - **Feedback.** Send it from the header, the footer or beside a result. A list shows what is
   sent.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
@@ -459,7 +473,8 @@ Also:
   in *Process Improvement using Data* (<https://learnche.org/pid>).
 - **The worked example.** It opens at once, and can be run again in the tab.
 - **Practice on a known process.** It shows the true model beside the fitted one.
-- **What Factorial does.** This list, as a page of the app.
+- **What Factorial does.** This list, as a page of the app. A point that ends with Show me
+  opens the app on an example of it, at the part of the page that has it.
   - *Details:* It is drawn from the document the app is described from, which a test holds to
     the app.
 - **[How Factorial works](about.html).** What runs where, what is sent and what is not, and how

@@ -24,11 +24,20 @@ export const slug = (heading) =>
     .trim()
     .replace(/\s/g, "-");
 
-/** A link: one to another site opens in a tab of its own, and an address of any other scheme is not followed. */
-function anchor(words, href) {
+/** Where the app is published. The document links to it there, so that its links hold where the document is read. */
+const APP = "https://factori.al/";
+
+/**
+ * A link: one to another site opens in a tab of its own, and an address of any other scheme is not followed. A
+ * link to the app is one within the copy this page is served from. One named "Show me" opens the app on an
+ * example of its point (app.js, ?show=), and is marked for the page to style.
+ */
+function anchor(words, to) {
+  const href = to.startsWith(APP) ? `./${to.slice(APP.length)}` : to;
   const outside = /^https?:\/\//i.test(href);
   if (!outside && /^[a-z][a-z0-9+.-]*:/i.test(href)) return words;
-  return `<a href="${href}"${outside ? ' target="_blank" rel="noopener"' : ""}>${words}</a>`;
+  const show = words === "Show me" ? ' class="show-me"' : "";
+  return `<a${show} href="${href}"${outside ? ' target="_blank" rel="noopener"' : ""}>${words}</a>`;
 }
 
 /** The marks inside a line: code first, since what is inside it is not Markdown. */
@@ -66,8 +75,14 @@ function list(lines) {
     else last.details += ` ${line.trim()}`;
   }
   const more = (details) => (details === null ? "" : `<details class="more"><summary>Details</summary><p>${inline(details)}</p></details>`);
+  // "Show me" is said of many points: a screen reader is told which, by the point's opening words.
+  const said = (says) => {
+    const opening = says.match(/^\*\*(.+?)\*\*/)?.[1].replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\.$/, "");
+    const html = inline(says);
+    return opening ? html.replace('<a class="show-me" ', `<a class="show-me" aria-label="Show me: ${escaped(opening)}" `) : html;
+  };
   const kind = /^\d/.test(lines[0]) ? "ol" : "ul";
-  return `<${kind}>${items.map((item) => `<li>${inline(item.says)}${more(item.details)}</li>`).join("")}</${kind}>`;
+  return `<${kind}>${items.map((item) => `<li>${said(item.says)}${more(item.details)}</li>`).join("")}</${kind}>`;
 }
 
 /** A table: its first line is its head and its second the rule under it. It scrolls sideways where it is too wide. */

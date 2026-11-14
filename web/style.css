@@ -1137,6 +1137,9 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body [hidden], .feat-cards [hidden] { display: none; }
 /* What only some readers ask for, under its point: a word to press at Intermediate, open at Adventurous, and not
    there at Beginner, but where the reader's own search found its words. */
+/* "Show me", at the end of a point: the way to the app, on an example of the point. */
+.show-me { margin-left: 2px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.show-me::after { content: "\00a0\2192"; }
 details.more { display: inline; }
 details.more > summary { display: inline; margin-left: 4px; padding: 10px 4px; font-size: 0.85rem; color: var(--accent);
   text-decoration: underline; white-space: nowrap; list-style: none; cursor: pointer; }
