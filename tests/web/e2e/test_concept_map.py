@@ -563,7 +563,7 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     _settled(page)
     spots = [k for k in page.evaluate(SPOTS) if k is not None]
     assert spots, "some links are labelled"
-    assert all(0.15 < k < 0.85 for k in spots), f"each label sits on its line, clear of both terms: {spots}"
+    assert all(0.15 < k < 0.85 for k in spots), f"each label sits along its line, clear of both terms: {spots}"
     # The test takes a middle itself: whether the drawing takes one changes with every drawing. A label with no room
     # left on its line is held back, so it tries the longest links first, which have the most room.
     moved = None
@@ -577,6 +577,48 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     assert moved is not None, "a label still drawn after a term took its middle"
     assert abs(moved - 0.5) > 0.05, "a label whose middle is taken moves along its line"
     assert 0.15 < moved < 0.85, "and stays clear of both terms"
+
+
+# Each label drawn on a link of the selected term, for the labels whose place the map checked (the middle of the link
+# is in view): how far the label's middle is from its own line and from the nearest other line of that term, both as
+# a fraction of the label's size; whether it stands above its line; and whether that line is steep.
+BESIDE = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan();
+  const curve = (e) => { const s = e.source().position(), t = e.target().position(), [c] = e.controlPoints();
+    return (u) => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * c.x + u * u * t.x,
+                     y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * c.y + u * u * t.y }); };
+  const gap = (on, p) => Math.min(...Array.from({ length: 401 }, (_, i) => on(i / 400))
+    .map((q) => Math.hypot(q.x - p.x, q.y - p.y)));
+  const seen = (p) => { const x = p.x * z + pan.x, y = p.y * z + pan.y;
+    return x > 0 && x < cy.width() && y > 0 && y < cy.height(); };
+  const lit = cy.edges('.link.hl').filter((e) => e.visible());
+  return lit.filter((e) => !e.hasClass('mute') && seen(curve(e)(0.5))).map((e) => {
+    const on = curve(e), s = e.source().position(), t = e.target().position();
+    const p = on((e.data('at') + e.source().width() / 2) / Math.hypot(t.x - s.x, t.y - s.y));
+    const at = { x: p.x + e.data('liftX'), y: p.y + e.data('liftY') }, size = parseFloat(e.style('font-size'));
+    return { verb: e.data('verb'), own: gap(on, at) / size, above: e.data('liftY') <= 0,
+             other: Math.min(...lit.filter((o) => o.id() !== e.id()).map((o) => gap(curve(o), at))) / size,
+             steep: Math.abs(t.y - s.y) > 2 * Math.abs(t.x - s.x) }; }); }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_link_label_stands_beside_its_line_and_clear_of_the_selected_term_s_other_lines(context, site):
+    page = _open(context, site)
+    page.click(".map-verbs")
+    closer = """(k) => { const cy = window.conceptMap.cy, at = cy.nodes('.sel')[0].renderedPosition();
+      cy.zoom({ level: cy.zoom() * k, renderedPosition: at }); }"""
+    labels = []
+    for term in ("full_factorial", "blocking", "replicate"):  # terms with many links, which run every way
+        _go(page, term)
+        for k in (1, 2, 1.5):  # as selected, then closer in twice: near the term its lines run close together
+            page.evaluate(closer, k)
+            _settled(page)
+            labels += page.evaluate(BESIDE)
+    assert any(label["steep"] for label in labels), "some labelled links are steep"
+    assert any(not label["steep"] for label in labels), "and some are not"
+    # On its line, the line ran through the gaps between the label's words, in the label's own colour.
+    assert all(label["own"] > 0.8 for label in labels), f"each label is off its line, a steep line too: {labels}"
+    assert all(label["above"] for label in labels), "and above it, so a label is read with the line under it"
+    assert all(label["other"] > 0.4 for label in labels), f"no other line of the term runs through a label: {labels}"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
