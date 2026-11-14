@@ -234,7 +234,7 @@ async function refit(div, shown) {
  */
 export async function draw(div, figure, version, height = 340, { toolbar = false, python = null } = {}) {
   const make = typeof figure === "function" ? figure : () => figure;
-  for (const old of drawn.keys()) if (!old.isConnected) drawn.delete(old);
+  for (const old of drawn.keys()) if (!old.isConnected) forget(old);
   // The reader's zoom, or the way a figure is turned, is kept while this figure is drawn again, and no longer.
   const shown = { make, version, height, toolbar, python, revision: ++draws };
   drawn.set(div, shown);
@@ -266,9 +266,15 @@ function figureWindow() {
 /** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
 export const figureOf = (div) => drawn.get(div);
 
+/** Forget what a chart was drawn from, and stop watching its room: a chart that has left the page is let go. */
+function forget(div) {
+  drawn.delete(div);
+  rooms?.unobserve(div);
+}
+
 /** Take a chart down, and forget what it was drawn from. */
 export function erase(div) {
-  drawn.delete(div);
+  forget(div);
   window.Plotly?.purge(div);
 }
 
@@ -357,7 +363,7 @@ export async function chartImage(div, width = 720, { height = null, title = "", 
 export async function redrawAll() {
   for (const [div, shown] of drawn) {
     if (div.isConnected) await react(div, shown);
-    else drawn.delete(div);
+    else forget(div);
   }
 }
 

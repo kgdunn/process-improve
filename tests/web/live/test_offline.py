@@ -95,6 +95,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         started(page)  # Python, its packages and the wheel come from the copy
         said(page, "Factorial opens and works on this device")  # read from the copy, with no network to ask
         a_study_with_its_charts_and_its_workbook(page)  # plotly and openpyxl come from the copy: no index is asked
+        reveal(page, "#charts")
         page.locator("#charts figure.chart .expand").first.click()  # the window a figure opens in, from the copy too
         page.wait_for_selector("dialog.figure[open] .main-svg")
         page.keyboard.press("Escape")
