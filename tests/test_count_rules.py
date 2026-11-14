@@ -355,23 +355,23 @@ class TestDesigns:
         assert DesignRegion.from_dict(design.metadata["region"]).feasible(new_runs).all()
 
     @pytest.mark.slow
-    def test_between_8_and_14_of_26_amounts_are_used(self) -> None:
-        names = [f"G{g}_{i}" for g, size in enumerate([5, 5, 7, 4, 5]) for i in range(size)]
-        groups = [[name for name in names if name.startswith(f"G{g}_")] for g in range(5)]
-        factors = [Factor(name=name, low=0, high=30, units="%", min_when_used=5) for name in names]
-        limits = [f"10 <= {' + '.join(group)} <= 35" for group in groups]
-        limits += [f"{' + '.join(names)} <= 100", f"8 <= count_nonzero({', '.join(names)}) <= 14"]
+    def test_a_formulation_of_many_amounts_in_groups_keeps_the_rule(self) -> None:
+        names = [f"G{g}_{i}" for g in range(4) for i in range(6)]
+        groups = [names[6 * g : 6 * g + 6] for g in range(4)]
+        factors = [Factor(name=name, low=0, high=40, units="%", min_when_used=4) for name in names]
+        limits = [f"12 <= {' + '.join(group)} <= 40" for group in groups]
+        limits += [f"{' + '.join(names)} <= 100", f"6 <= count_nonzero({', '.join(names)}) <= 10"]
         result = generate_design(factors, budget=40, model_type="main_effects", constraints=limits, random_state=1)
         used = _used(result, names)
-        assert used.min() >= 8
-        assert used.max() <= 14
+        assert used.min() >= 6
+        assert used.max() <= 10
         amounts = result.design_actual[names].to_numpy(dtype=float)
-        assert not np.any((amounts > 1e-6) & (amounts < 5 - 1e-6))
+        assert not np.any((amounts > 1e-6) & (amounts < 4 - 1e-6))
         for group in groups:
             total = result.design_actual[group].sum(axis=1)
-            assert total.min() >= 10 - 1e-6
-            assert total.max() <= 35 + 1e-6
-        assert np.linalg.matrix_rank(np.column_stack([np.ones(40), amounts])) == 27
+            assert total.min() >= 12 - 1e-6
+            assert total.max() <= 40 + 1e-6
+        assert np.linalg.matrix_rank(np.column_stack([np.ones(40), amounts])) == 25
 
 
 class TestCandidates:
@@ -612,21 +612,21 @@ class TestMixtures:
             generate_design(tight, budget=8, model_type="main_effects", constraints=limits)
 
     @pytest.mark.slow
-    def test_between_8_and_14_of_26_components_are_used(self) -> None:
-        names = [f"G{g}_{i}" for g, size in enumerate([5, 5, 7, 4, 5]) for i in range(size)]
-        groups = [[name for name in names if name.startswith(f"G{g}_")] for g in range(5)]
-        factors = [Factor(name=name, type="mixture", high=0.30, min_when_used=0.05) for name in names]
-        limits = [f"0.10 <= {' + '.join(group)} <= 0.35" for group in groups]
-        limits.append(f"8 <= count_nonzero({', '.join(names)}) <= 14")
+    def test_a_blend_of_many_components_in_groups_keeps_the_rule(self) -> None:
+        names = [f"G{g}_{i}" for g in range(4) for i in range(6)]
+        groups = [names[6 * g : 6 * g + 6] for g in range(4)]
+        factors = [Factor(name=name, type="mixture", high=0.40, min_when_used=0.04) for name in names]
+        limits = [f"0.12 <= {' + '.join(group)} <= 0.40" for group in groups]
+        limits.append(f"6 <= count_nonzero({', '.join(names)}) <= 10")
         result = generate_design(factors, budget=40, model_type="main_effects", constraints=limits, random_state=1)
         blends = result.design_actual[names].to_numpy(dtype=float)
         np.testing.assert_allclose(blends.sum(axis=1), 1.0, atol=1e-9)
         used = (blends > 1e-9).sum(axis=1)
-        assert used.min() >= 8
-        assert used.max() <= 14
-        assert not np.any((blends > 1e-9) & (blends < 0.05 - 1e-9))
+        assert used.min() >= 6
+        assert used.max() <= 10
+        assert not np.any((blends > 1e-9) & (blends < 0.04 - 1e-9))
         for group in groups:
             share = result.design_actual[group].sum(axis=1)
-            assert share.min() >= 0.10 - 1e-9
-            assert share.max() <= 0.35 + 1e-9
-        assert np.linalg.matrix_rank(blends) == 26
+            assert share.min() >= 0.12 - 1e-9
+            assert share.max() <= 0.40 + 1e-9
+        assert np.linalg.matrix_rank(blends) == 24

@@ -738,8 +738,8 @@ def piece_vertices(
     :class:`~process_improve.experiments._count_rules.UsedSets`): on a piece the factors
     left out are at 0 and the others are at their minimum or above, within
     ``a_ub @ x <= b_ub`` and ``bounds``. A grid, or a vertex of the region taken without
-    the count rules, seldom uses a number of factors the rules allow: with 26 ingredients
-    of which 8 to 14 are used, a vertex uses 5 to 7. So candidates are found piece by
+    the count rules, seldom uses a number of factors the rules allow: a vertex uses few
+    factors, fewer than a rule that asks for several. So candidates are found piece by
     piece. Linear programmes in the directions of :func:`search_directions` end at
     vertices of a piece, and :func:`points_between` adds the points between them, which
     the piece holds too. A piece no point of which meets the limits gives nothing.

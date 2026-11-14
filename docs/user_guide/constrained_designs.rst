@@ -269,7 +269,7 @@ are above 0 in a run, and the constraint compares that count with whole numbers:
 
 * ``"count_nonzero(A, B, C, D) <= 2"``: at most two of the four are used;
 * ``"count_nonzero(A, B, C) >= 1"``: at least one of the three is used;
-* ``"8 <= count_nonzero(A, B, C, ...) <= 14"``: between 8 and 14 of them are used;
+* ``"3 <= count_nonzero(A, B, C, ...) <= 5"``: between 3 and 5 of them are used;
 * ``"count_nonzero(A, B, C) == 1"``: exactly one of the three is used.
 
 The factors it names are amounts: continuous factors, or mixture components, whose

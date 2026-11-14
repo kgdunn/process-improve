@@ -135,7 +135,7 @@ class GenerateDesignInput(BaseModel):
             "\"not (catalyst == 'B' and T > 180)\" limits T when the catalyst is B (optimal designs only). "
             "A constraint may limit how many factors a run uses, a factor at 0 being left out: "
             '"count_nonzero(A, B, C, D) <= 2", "count_nonzero(A, B, C) == 1" or '
-            '"8 <= count_nonzero(A, B, C, ...) <= 14" (optimal designs and constrained mixtures only).'
+            '"3 <= count_nonzero(A, B, C, ...) <= 5" (optimal designs and constrained mixtures only).'
         ),
     )
     candidates: list[dict[str, Any]] | None = Field(
