@@ -800,6 +800,10 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
 /* A figure in a window of its own (figure.js): a sheet as wide as the page allows, whatever the figure's size, so
    its buttons and its caption stay where they are while the reader sizes the figure by its corner. */
 .figure__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0; }
+/* The figure before, where this one is among those beside it, the figure after: at the right of the head, by Close. */
+.figure__steps { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; white-space: nowrap; }
+.figure__steps .link { font-size: 1.5rem; line-height: 1; padding: 0 8px; }
+dialog.figure .sheet__head h2 { flex: 1 1 8em; min-width: 0; }
 .figure__frame {
   position: relative; box-sizing: content-box; margin: 0 auto; border: 1px dashed var(--line); border-radius: 6px;
 }

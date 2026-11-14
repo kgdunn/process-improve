@@ -36,8 +36,23 @@ export function loadPlotly(version) {
   return loading;
 }
 
+/**
+ * The colours a figure is being made in, while it is: a figure whose colours are the page's own reads them with
+ * palette() as it is made, and an image of it for a report or a file is made in the light theme's (chartImage).
+ */
+let making = null;
+function madeIn(colours, make) {
+  making = colours;
+  try {
+    return make();
+  } finally {
+    making = null;
+  }
+}
+
 /** The page's colours, read from its CSS, so the charts follow the light and dark themes. */
 export function palette() {
+  if (making) return making;
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
   return {
@@ -277,7 +292,7 @@ export function pageData(data) {
  * layout. A chart with Plotly's toolbar is the one in a figure's own window, where the reader gives it its shape.
  */
 function dressed(shown, height, colours, width) {
-  const figure = shown.make();
+  const figure = madeIn(colours, shown.make);
   const data = pageData(figure.data);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
   const layout = pageLayout(figure.layout || {}, height, colours, room);
@@ -380,8 +395,19 @@ export function erase(div) {
   window.Plotly?.purge(div);
 }
 
+/**
+ * The charts a reader can see beside ``div``, in the page's order, ``div`` among them: those of the same dialog,
+ * or of the page when it is in none. A figure's window steps through them.
+ */
+export function figuresBeside(div) {
+  const beside = [...drawn.keys()].filter(
+    (other) => other.isConnected && other.getClientRects().length && !other.closest("dialog.figure") && other.closest("dialog") === div.closest("dialog"),
+  );
+  return beside.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
 /** A chart's heading and what is written under it, as its card has them, for its own window. */
-function wordsOf(div) {
+export function wordsOf(div) {
   const card = div.closest("figure.chart");
   const said = (node) => node?.textContent.replace(/\s+/g, " ").trim();
   const title =
@@ -419,7 +445,7 @@ function offerWindow(div) {
   button.setAttribute("aria-label", "Expand this figure: open it in a window of its own, to look at it closely");
   button.onclick = async () => {
     try {
-      (await figureWindow()).openFigure(div, wordsOf(div));
+      (await figureWindow()).openFigure(div);
     } catch {
       button.textContent = "Could not open: no network";
       setTimeout(() => (button.textContent = "Expand"), 4000);
