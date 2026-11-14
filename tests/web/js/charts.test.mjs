@@ -31,8 +31,12 @@ import {
   fdsFigure,
   markBest,
   niceStep,
+  markedRun,
+  onRunMarked,
   pageData,
   pageLayout,
+  pressRun,
+  restOnRun,
   paretoFigure,
   prettyTerm,
   sensitivityFigure,
@@ -321,6 +325,52 @@ describe("a card's layout", () => {
     const turned = { scene: { camera: { eye: { x: 2, y: 0, z: 0 } } } };
     assert.deepEqual(pageLayout(turned, 420, COLOURS, { width: 300 }).scene.camera.eye, { x: 2, y: 0, z: 0 }, "a figure's own camera is kept");
     assert.deepEqual(pageLayout(scene, 420, COLOURS).margin, { l: 0, r: 0, t: 0, b: 0 });
+  });
+});
+
+describe("one run, marked wherever it is drawn", () => {
+  const runs = { type: "scatter", mode: "markers", meta: "runs", customdata: [3, 1, 2, 1], marker: { size: 8 } };
+  const levels = { type: "scatter", meta: "runs", customdata: [[2, "Low"], [5, "High"]] };
+  const heard = [];
+  onRunMarked((run) => heard.push(run));
+
+  test("no run is marked at first, and a trace of the runs is drawn as it is", () => {
+    assert.equal(markedRun(), null);
+    const [drawn] = pageData([runs], COLOURS);
+    assert.equal(drawn.selectedpoints, null);
+    assert.deepEqual(drawn.selected, { marker: { color: COLOURS.warn, size: 13, opacity: 1 } }, "larger, in the warning colour");
+    assert.deepEqual(drawn.unselected, { marker: { opacity: 0.55 } });
+    assert.equal(pageData([{ type: "scatter", customdata: [1] }], COLOURS)[0].selected, undefined, "not a trace of the runs");
+  });
+
+  test("the run the pointer rests on is marked, on each of its points, and let go when it moves off", () => {
+    restOnRun(1);
+    assert.equal(markedRun(), 1);
+    assert.deepEqual(pageData([runs], COLOURS)[0].selectedpoints, [1, 3]);
+    assert.equal(pageData([levels], COLOURS)[0].selectedpoints, null, "a chart without the run is left as it is");
+    restOnRun(2);
+    assert.deepEqual(pageData([levels], COLOURS)[0].selectedpoints, [0], "a point that holds its run with other words");
+    restOnRun(null);
+    assert.equal(markedRun(), null);
+    assert.deepEqual(heard, [1, 2, null], "the app hears each change, to mark the run's rows");
+  });
+
+  test("a press keeps a run marked while the pointer rests elsewhere, until it is pressed again", () => {
+    heard.length = 0;
+    pressRun(3);
+    restOnRun(1);
+    restOnRun(null);
+    assert.equal(markedRun(), 3);
+    pressRun(2);
+    assert.equal(markedRun(), 2, "a press on another run marks that one");
+    pressRun(2);
+    assert.equal(markedRun(), null);
+    restOnRun(1);
+    assert.equal(markedRun(), 1, "and the pointer marks again");
+    pressRun(1);
+    pressRun(null);
+    assert.equal(markedRun(), null, "Escape lets go of a run a press marked");
+    assert.deepEqual(heard, [3, 2, null, 1, null], "the app hears a change once");
   });
 });
 

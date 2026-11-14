@@ -164,13 +164,91 @@ const hasBar = (trace) => SCALED.has(trace.type) && trace.showscale !== false;
 /** The width a colour bar takes from the plot, as pageData() draws it: the bar, its numbers and its title. */
 const BAR = 64;
 
+// ---------------------------------------------------------------- one run, marked wherever it is drawn
+// A point out of line on one chart is a run, and the reader wants that run on the other charts and in the run sheet.
+// A trace that draws a point for each run says so (meta "runs") and holds each point's run in its customdata: the
+// library's plots of the residuals and of the runs on a response surface (bootstrap.py), and the page's own chart of
+// the runs at each level. The run the pointer rests on is marked on every such chart; a press keeps it marked.
+let marked = null; // the run marked now, by its place in the order the runs were made
+let pinned = false; // whether a press marked it: it then stays when the pointer moves off
+
+/** The run marked now, or null. */
+export const markedRun = () => marked;
+
+/** What an app does when the marked run changes: mark the run's row in its tables. */
+let onMark = () => {};
+export const onRunMarked = (heard) => (onMark = heard);
+
+const drawsRuns = (trace) => trace.meta === "runs";
+const runAt = (held) => (Array.isArray(held) ? held[0] : held);
+
+/** The points of a trace that are the marked run's: null for none, which leaves the trace as it is drawn. */
+function markedPoints(trace) {
+  const points = (trace.customdata ?? []).flatMap((held, i) => (runAt(held) === marked ? [i] : []));
+  return marked === null || !points.length ? null : points;
+}
+
+/** Mark ``run`` on every chart and tell the app, unless it is marked already. */
+function mark(run) {
+  if (run === marked) return;
+  marked = run;
+  for (const [div] of drawn) {
+    const traces = (div.data ?? []).flatMap((trace, i) => (drawsRuns(trace) ? [i] : []));
+    if (div.isConnected && traces.length) {
+      window.Plotly.restyle(div, { selectedpoints: traces.map((i) => markedPoints(div.data[i])) }, traces);
+    }
+  }
+  onMark(marked);
+}
+
+/** The pointer rests on ``run``, or on none (null): marked while it does, unless a press holds another. */
+export function restOnRun(run) {
+  if (!pinned) mark(run);
+}
+
+/** A press on ``run``: it stays marked until it is pressed again. Null lets go of the run a press marked. */
+export function pressRun(run) {
+  pinned = run !== null && !(pinned && run === marked);
+  mark(pinned ? run : null);
+}
+
+/** Have a chart mark the run its points are rested on and pressed: once for each chart. */
+const listening = new WeakSet();
+function listenForRuns(div) {
+  if (listening.has(div)) return;
+  listening.add(div);
+  const run = (event) => event.points.filter((point) => drawsRuns(point.data)).map((point) => runAt(point.customdata))[0];
+  div.on("plotly_hover", (event) => run(event) !== undefined && restOnRun(run(event)));
+  div.on("plotly_unhover", () => restOnRun(null));
+  div.on("plotly_click", (event) => {
+    const pressed = run(event);
+    // A tap raises Plotly's click twice, for the touch and for the mouse a browser plays after it: one press.
+    const again = pressed === lastPress.run && performance.now() - lastPress.at < 700;
+    if (pressed === undefined || again) return;
+    lastPress = { run: pressed, at: performance.now() };
+    pressRun(pressed);
+  });
+}
+let lastPress = { run: null, at: 0 };
+
 /**
- * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
- * is wide, with its title on top, and takes a third of a card's width from the plot.
+ * A figure's traces as the page draws them, in ``colours``. A colour bar is narrow, with its title along its
+ * side: Plotly's own is wide, with its title on top, and takes a third of a card's width from the plot. A trace
+ * of the runs shows the marked run larger and in the page's warning colour, and the others fainter.
  */
-export function pageData(data) {
+export function pageData(data, colours = {}) {
   const slim = (bar = {}) => ({ thickness: 12, outlinewidth: 0, ...bar, title: { side: "right", ...(bar.title || {}) } });
-  return data.map((trace) => (hasBar(trace) ? { ...trace, colorbar: slim(trace.colorbar) } : trace));
+  return data.map((trace) => {
+    if (hasBar(trace)) return { ...trace, colorbar: slim(trace.colorbar) };
+    if (!drawsRuns(trace)) return trace;
+    const size = (trace.marker?.size ?? 8) + 5;
+    return {
+      ...trace,
+      selectedpoints: markedPoints(trace),
+      selected: { marker: { color: colours.warn, size, opacity: 1 } },
+      unselected: { marker: { opacity: 0.55 } },
+    };
+  });
 }
 
 /**
@@ -179,7 +257,7 @@ export function pageData(data) {
  */
 function dressed(shown, height, colours, width) {
   const figure = shown.make();
-  const data = pageData(figure.data);
+  const data = pageData(figure.data, colours);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
   return { data, layout: pageLayout(figure.layout || {}, height, colours, room) };
 }
@@ -275,6 +353,7 @@ function forget(div) {
 /** Take a chart down, and forget what it was drawn from. */
 export function erase(div) {
   forget(div);
+  listening.delete(div); // Plotly takes a chart's listeners down with it
   window.Plotly?.purge(div);
 }
 
@@ -382,6 +461,7 @@ async function react(div, shown) {
     layout.modebar = { bgcolor: "rgba(0,0,0,0)", color: muted, activecolor: accent };
   }
   await Plotly.react(div, data, layout, plotConfig(shown.toolbar));
+  listenForRuns(div);
 }
 
 /**
@@ -781,6 +861,7 @@ export function levelsFigure(comparison, { response, units = "", factorUnits = "
     type: "scatter",
     mode: "markers",
     name: "Runs",
+    meta: "runs", // each point is a run, named in its customdata: marked with the run on every other chart
     x: levels.flatMap((level, i) => level.runs.map((r) => i + spreadOf(r.run))),
     y: levels.flatMap((level) => level.runs.map((r) => r.value)),
     customdata: levels.flatMap((level, i) => level.runs.map((r) => [r.run, named[i]])),

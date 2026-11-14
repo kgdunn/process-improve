@@ -23,10 +23,14 @@ import {
   fdsFigure,
   levelsFigure,
   markBest,
+  markedRun,
+  onRunMarked,
   overlayFigure,
   paretoFigure,
+  pressRun,
   prettyTerm,
   redrawAll,
+  restOnRun,
   sensitivityFigure,
   shareContourScale,
   ternaryFigure,
@@ -2695,6 +2699,11 @@ function renderRuns() {
   const words = Object.fromEntries(resultNames().map((name) => [name, wordsOf(name)]));
   const at = new Map(resultNames().map((name) => [d.columns.indexOf(name), name]));
   const rows = d.rows.map((row, i) => Object.assign([...row], { index: i }));
+  // Each row is a run, by its place in the order the runs are made, as the analysis and the charts name it.
+  const order = d.columns.indexOf("Run order");
+  t._run = (row) => (order < 0 ? row.index + 1 : row[order]);
+  if (t._design !== d) pressRun(null); // a run marked in the design before is none of this one's
+  t._design = d;
   t._cell = (row, col) => {
     const name = at.get(col);
     if (name === undefined) return null;
@@ -3689,6 +3698,11 @@ function findingParts(findings, picked) {
  * Each run as the fitted model sees it, under a heading the reader opens: open already when a run is one to look
  * at again. On a transform's scale the fitted values and residuals are on that scale, which the hint says.
  */
+/** How a run is marked on every chart and table that shows it, as the table of the runs says it. */
+const RUN_MARKING =
+  "Rest on a run here, in the run sheet or on a chart to mark it wherever it is shown; press it to keep it marked, and " +
+  "again, or Escape, to let it go.";
+
 function diagnosticParts(diagnostics, transform) {
   if (!diagnostics?.length) return [];
   const unusual = diagnostics.filter((d) => d.unusual);
@@ -3704,12 +3718,14 @@ function diagnosticParts(diagnostics, transform) {
       "A residual is the result less what the model fits there" +
         (transform ? ", on the scale the model is fitted on" : "") +
         "; in standard deviations it is judged with the run itself left out of the fit. Leverage is how much the run " +
-        "alone decides its own fitted value, from 0 to 1, and Cook's distance how far the whole model moves without it.",
+        "alone decides its own fitted value, from 0 to 1, and Cook's distance how far the whole model moves without it. " +
+        RUN_MARKING,
     ),
     table(
       ["Run", "Fitted", "Residual", "In standard deviations", "Leverage", "Cook's distance", "Look again"],
       diagnostics.map((d) => [d.run, fmt(d.fitted), fmt(d.residual), fmt(d.studentized), fmt(d.leverage), fmt(d.cooks), d.unusual ? "yes" : ""]),
       { Residual: "residuals" },
+      { run: (row) => row[0] },
     ),
   );
   // Each run can be set aside from this fit: its result stays on the run sheet, and the model is fitted without it.
@@ -6413,10 +6429,11 @@ function link(href, text, target = "pid-book") {
  * A table of results; `terms` names the glossary entry of a column whose heading is a term. `sortedBy` names the
  * column the rows arrive sorted on, smallest first, and `looks` gives a column its look (style.css: dim, strong).
  */
-function table(columns, rows, terms = {}, { sortedBy = null, looks = {} } = {}) {
+function table(columns, rows, terms = {}, { sortedBy = null, looks = {}, run = null } = {}) {
   const wrap = el("div", "scroll", "");
   const t = el("table", "data", "");
   t._looks = columns.map((c) => looks[c] ?? "");
+  t._run = run; // for a table with a row a run: the run of a row, which marks it on every chart (fillBody)
   renderTable(t, columns, rows, sortedBy, [], terms);
   wrap.append(t);
   return wrap;
@@ -6519,9 +6536,48 @@ function fillBody(t, rows) {
     const own = t._cell ? t._cell(row, c) : null;
     return own ?? escape(typeof v === "number" ? +v.toPrecision(6) : (v ?? ""));
   };
+  // A row that is a run says which, and is marked while its run is (markRows).
+  const run = (row) => {
+    if (!t._run) return "";
+    return ` data-run="${t._run(row)}"${t._run(row) === markedRun() ? ' class="run-marked"' : ""}`;
+  };
   t._shown = rows;
-  t.tBodies[0].innerHTML = rows.map((row) => `<tr>${row.map((v, c) => `<td${lookOf(t, c)}>${cell(row, v, c)}</td>`).join("")}</tr>`).join("");
+  t.tBodies[0].innerHTML = rows
+    .map((row) => `<tr${run(row)}>${row.map((v, c) => `<td${lookOf(t, c)}>${cell(row, v, c)}</td>`).join("")}</tr>`)
+    .join("");
 }
+
+// ---------------------------------------------------------------- one run, marked wherever it is shown
+/** Mark a run's row in every table with a row a run: charts.js marks its point on every chart, and says so here. */
+function markRows(run) {
+  for (const row of document.querySelectorAll("tr[data-run]")) {
+    row.classList.toggle("run-marked", run !== null && Number(row.dataset.run) === run);
+  }
+}
+onRunMarked(markRows);
+
+/** The run of the row an event is in, or null. */
+function rowRun(target) {
+  const row = target?.closest?.("tr[data-run]");
+  return row ? Number(row.dataset.run) : null;
+}
+
+// A run's row marks the run as its point on a chart does: while the pointer rests on it, and for good once it is
+// pressed, until it is pressed again or Escape lets it go. A press on a box to type in, or on a button, is its own.
+document.addEventListener("mouseover", (event) => {
+  const run = rowRun(event.target);
+  if (run !== null) restOnRun(run);
+});
+document.addEventListener("mouseout", (event) => {
+  if (rowRun(event.target) !== null && rowRun(event.relatedTarget) === null) restOnRun(null);
+});
+document.addEventListener("click", (event) => {
+  const run = rowRun(event.target);
+  if (run !== null && !event.target.closest("input, button, a, select")) pressRun(run);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !document.querySelector("dialog[open]")) pressRun(null);
+});
 
 // ---------------------------------------------------------------- reading level
 /** The reading level the page shows: 1 Beginner, 2 Intermediate, 3 Adventurous (levels.js). */

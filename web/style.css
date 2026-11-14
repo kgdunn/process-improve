@@ -441,6 +441,13 @@ table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4p
 table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data th { padding: 0; }
 /* A column's look: the ends of an interval step back, and the estimate between them stands out. */
+/* A run marked on the charts is marked in its row too (app.js markRows): a row a run can be pressed to mark it. The
+   colour is mixed with the panel's, and so is opaque: a first cell that stays put as the table scrolls covers the
+   cells that pass under it. */
+table.data tr[data-run] > td { cursor: pointer; }
+table.data tr.run-marked > td, #analysis .scroll > table.data tr.run-marked > td:first-child {
+  background: color-mix(in srgb, var(--warn) 22%, var(--panel));
+}
 table.data .dim { color: var(--muted); }
 table.data td.strong { font-weight: 700; color: var(--fg); }
 /* A table of the analysis wider than its screen is moved sideways: the column that names its rows stays in view,

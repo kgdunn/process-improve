@@ -101,7 +101,7 @@ RESIDUAL_FIGURES = ("residuals", "normal_probability", "residuals_order")
 
 def residual_points(figure: str) -> dict:
     """Return the trace of a residual figure that draws a point for each run."""
-    return next(trace for trace in json.loads(figure)["data"] if trace["mode"] == "markers")
+    return next(trace for trace in json.loads(figure)["data"] if trace.get("mode") == "markers")
 
 
 def test_each_residual_names_its_run_where_the_pointer_rests_on_it(api, held, simulated):
@@ -115,8 +115,29 @@ def test_each_residual_names_its_run_where_the_pointer_rests_on_it(api, held, si
         for run, drawn in zip(points["customdata"], points["y"], strict=True):
             assert drawn == pytest.approx(residual[run]), f"{key}: run {run}"
         assert points["hovertemplate"] == "Run %{customdata}<br>Residual %{y:.3g}<extra></extra>"
+        assert points["meta"] == "runs", "the page marks a run on every chart whose trace says it draws the runs"
     by_size = residual_points(figures["normal_probability"])["customdata"]
     assert by_size != sorted(by_size), "the normal plot orders the residuals by size, not by run"
+
+
+def test_each_run_on_the_surface_is_named(api, held, simulated):
+    """The library draws the runs at one setting together, not in the run sheet's order: each point is still its run.
+
+    The glue repeats that order to name the runs (``_runs_on_surface``). Each point's words hold its run's result,
+    so a change to the library's order fails here.
+    """
+    responses = simulated["responses"]
+    request = {**held, "responses": responses, "truth": simulated["truth"]}
+    figures = api.ok("api_plots", request)["figures"]
+    for key in ("contour", "true_contour"):
+        runs = residual_points(figures[key])
+        assert runs["meta"] == "runs"
+        assert sorted(runs["customdata"]) == list(range(1, len(responses) + 1)), f"{key}: every run, once"
+        assert runs["customdata"] != sorted(runs["customdata"]), "three runs share the center, and are drawn together"
+        for run, words in zip(runs["customdata"], runs["text"], strict=True):
+            assert words.startswith(f"Run {run}<br>"), key
+            result = float(words.split("Yield: ")[1].split("<br>")[0])
+            assert result == pytest.approx(responses[run - 1], abs=5e-3), f"{key}: run {run}'s own result"
 
 
 def test_the_residuals_in_run_order_are_drawn_at_each_run_s_own_number(api, held, simulated):

@@ -5244,6 +5244,11 @@ RESIDUAL_PLOTS: dict[str, Callable[[list[int], list[float]], list[int]]] = {
 }
 
 
+#: How a figure's trace says each of its points is a run, named in the trace's customdata: charts.js marks a run
+#: the reader rests on or presses on every chart that draws it, and in the run sheet.
+DRAWS_RUNS = "runs"
+
+
 def _name_runs(figure: dict, kind: str, results: dict, order: list[int]) -> None:
     """Say which run each residual is, where the pointer rests on its point: its place in the order the runs were made.
 
@@ -5255,7 +5260,25 @@ def _name_runs(figure: dict, kind: str, results: dict, order: list[int]) -> None
     runs = RESIDUAL_PLOTS[kind](order, residuals)
     for trace in figure["data"]:
         if trace.get("mode") == "markers":
-            trace.update(customdata=runs, hovertemplate="Run %{customdata}<br>Residual %{y:.3g}<extra></extra>")
+            trace.update(
+                customdata=runs, meta=DRAWS_RUNS, hovertemplate="Run %{customdata}<br>Residual %{y:.3g}<extra></extra>"
+            )
+        else:  # a line through the points, which the pointer would rest on in place of the run under it
+            trace["hoverinfo"] = "skip"
+
+
+def _runs_on_surface(rows: list[dict], pair: list[str], order: list[int]) -> list[int]:
+    """Return the run of each point the library draws on a response surface, in the order it draws them.
+
+    shortcut: this repeats how the library's contour plot orders its points (``_design_point_layer``): the runs at
+    one setting of the two factors together, the settings in the order the runs first reach them. The plot gives
+    each point's words and not its run; were it to give the run, this would read it. A test holds the two in step
+    (``test_each_run_on_the_surface_is_named``): each point's result must be its run's.
+    """
+    places: dict[tuple[float, float], list[int]] = {}
+    for run, row in zip(order, rows, strict=True):
+        places.setdefault((round(float(row[pair[0]]), 6), round(float(row[pair[1]]), 6)), []).append(run)
+    return [run for runs in places.values() for run in runs]
 
 
 class _Figures:
@@ -5283,6 +5306,12 @@ class _Figures:
         )
         dressed = _dressed(figure.to_plotly(), kind, self.spec, options.get("factors_to_plot", []), scale)
         _name_runs(dressed, kind, results, self.order)
+        if kind == "contour":
+            runs = _runs_on_surface(self.rows, options["factors_to_plot"], self.order)
+            for trace in dressed["data"]:
+                if trace.get("mode") == "markers":  # the runs, each named where the pointer rests on it
+                    words = [f"Run {run}<br>{said}" for run, said in zip(runs, trace["text"], strict=True)]
+                    trace.update(customdata=runs, meta=DRAWS_RUNS, text=words)
         self.drawn[key] = json.dumps(dressed, cls=self.plotly.utils.PlotlyJSONEncoder)
         self.asked[key] = {"plot_type": kind, **{name: options[name] for name in STATED_OPTIONS if name in options}}
 
