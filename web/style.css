@@ -317,6 +317,15 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 }
 /* One that follows the keyboard is read, not touched: it never stands in the way of a click. */
 .term-tip[data-how="keyboard"] { pointer-events: none; }
+/* Under a definition, the way to its word's term in the concept map: a line of its own, taller under a finger. */
+.term-more {
+  display: block; margin-top: 8px; padding-top: 7px; color: inherit; font-weight: 600;
+  border-top: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.term-more::after { content: " \2192"; }
+.term-more:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 3px; }
+@media (pointer: coarse) { .term-more { padding: 11px 0 5px; } }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
@@ -1683,7 +1692,8 @@ main.map .lede { margin: 0; }
   border-radius: 0; background: none; color: var(--fg); font: inherit; padding: 9px 12px; min-height: 0; cursor: pointer; }
 .map-results button:hover, .map-results button:focus-visible { background: var(--bg); outline: none; }
 .map-results small { color: var(--muted); white-space: nowrap; }
-.map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+/* The margin is where the map stops under the window's top, for a reader who arrives at a term by its address. */
+.map-box { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; scroll-margin-top: 8px;
   height: clamp(340px, 62vh, 640px); max-width: 100%; overflow: hidden; }
 #cy { position: absolute; inset: 0; -webkit-touch-callout: none; user-select: none; }   /* a held term, not a text callout */
 /* Said over the map for a moment when one finger drags across it on a touch screen: that finger scrolls the page. */

@@ -666,6 +666,13 @@ function go(id, { animate = true, hash = true } = {}) {
 }
 const fromHash = () => location.hash.slice(1).replaceAll("-", "_");
 
+// A reader who arrives by an address that names a term, from a word's definition in the app or a shared link, came
+// for that term: the map comes into view with the term's card under it, where the page's top leaves both below.
+function arrive(animate) {
+  go(fromHash() || null, { animate, hash: false });
+  if (selected) document.querySelector(".map-box").scrollIntoView();
+}
+
 // On a touch screen one finger scrolls the page, as it does everywhere else on it, and two fingers move and zoom the
 // map, as on an embedded map: a one-finger drag that moved the map trapped a phone's reader inside it. Cytoscape
 // listens for moves on the window and cancels the browser's scrolling, so one finger's moves are kept from it; and it
@@ -1009,7 +1016,7 @@ renderHow();
 const restyle = () => { drawLegend(); refresh(true); render(); };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
 new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-window.addEventListener("hashchange", () => go(fromHash(), { hash: false }));
+window.addEventListener("hashchange", () => arrive(true));
 // A phone's toolbar that hides or shows as the page scrolls fires "resize" but leaves the map's width alone: the
 // reader's view stays then. Only a new width (a turned phone, a resized window) centres the map again.
 let resizing, mapWidth = cy.width();
@@ -1034,4 +1041,4 @@ installFeedback({
 drawLegend();
 spread();
 setLimits();
-go(fromHash() || null, { animate: false, hash: false });
+arrive(false);

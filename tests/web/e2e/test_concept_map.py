@@ -96,6 +96,22 @@ BIGGEST = max(GRAPH["clusters"], key=lambda c: c["size"])
 
 
 @pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_an_address_that_names_a_term_opens_at_the_map_where_the_page_s_top_would_leave_it_below(context, site):
+    """A word's definition in the app, or a shared link, names a term: the reader came for it, not for the title."""
+    top = "document.querySelector('.map-box').getBoundingClientRect().top"
+    page = context.new_page()
+    page.goto(f"{site}map/#interaction")
+    page.wait_for_function("() => document.querySelector('#card h2')?.textContent === 'Interaction'")
+    _settled(page)
+    assert 0 <= page.evaluate(top) <= 16
+    assert page.evaluate("document.querySelector('#card').getBoundingClientRect().top") < page.viewport_size["height"]
+    page.evaluate("scrollTo(0, document.body.scrollHeight)")  # the reader read on, then follows another link here
+    _go(page, "main_effect")
+    assert 0 <= page.evaluate(top) <= 16
+    assert _open(context, site).evaluate("scrollY") == 0, "an address that names nothing opens the page at its top"
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
 def test_it_opens_on_the_topics_with_their_terms_hidden(context, site):
     page = _open(context, site)
     drawn = set(_drawn(3, {n["id"] for n in GRAPH["nodes"] if n["type"] in CONTEXT}))
