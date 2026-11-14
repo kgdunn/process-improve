@@ -158,7 +158,8 @@ describe("the features document itself, as the page shows it", () => {
     assert.ok(links.length > 8);
     for (const href of links) assert.match(href, /^(https:\/\/|#|about\.html$|catalog\/|map\/$|mva\/$|\.\/\?(example|book)=[a-z0-9-]+&amp;show=[a-z0-9-]+$)/, href);
     assert.ok(links.filter((to) => to.startsWith("./?")).length >= 15, "the points that end with Show me");
-    assert.ok(!links.some((to) => to.startsWith("https://factori.al")), "a link to the app stays within this copy of it");
+    const sites = links.filter((to) => to.startsWith("https://")).map((to) => new URL(to.replaceAll("&amp;", "&")).hostname);
+    assert.ok(!sites.includes("factori.al"), "a link to the app stays within this copy of it");
     assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
     for (const href of links.filter((to) => to.startsWith("#"))) assert.ok(ids.includes(href.slice(1)), href);
   });
