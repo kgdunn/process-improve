@@ -147,7 +147,7 @@ const ringKey = id => BOOKS.map(b => Number(termBooks.get(id).includes(b))).join
 const RING_KEYS = [...new Set(DATA.nodes.map(n => ringKey(n.id)))];
 const RING_GAP = 9;   // degrees left open between two sectors
 // The ring, drawn. `filled` is how much of each sector is in its book's ink, from 0 to 1, with the rest in `track`;
-// `width` is the ring's as a fraction of the drawing's, and at 0.5 the sectors reach the middle.
+// `width` is the ring's as a fraction of the drawing's.
 const ringSvg = (filled, inks, track, width) => {
   const r = 50 - width * 50, turn = Math.PI / 180;
   const at = a => `${(50 + r * Math.sin(a * turn)).toFixed(2)} ${(50 - r * Math.cos(a * turn)).toFixed(2)}`;
@@ -256,14 +256,17 @@ function grow(z, base, power, max) {
 const sizes = z => ({ font: grow(z, 11, 0.25, 19), dot: grow(z, 7, 0.5, 22), line: grow(z, 1, 0.4, 2.6) });
 
 // The rules while books are compared. No link is drawn but the selected term's own, in a neutral: colour is the
-// books' now. A topic's ring is two images: its sectors, which reach the middle, and over them a disc of the topic's
-// own fill that leaves a rim of them showing. Neither image changes with the zoom, only the size of the disc, so the
-// rim keeps its width on screen and no image is loaded, and so missing for a frame, while the reader zooms.
+// books' now. A topic's ring is its sectors, drawn broad, and over them two discs that leave a rim of them showing:
+// one in the colour of the map's ground and one in the topic's, as faint as the topic is, so that inside the rim the
+// topic looks as it does without one. No image changes with the zoom, only the size of the discs: the rim keeps its
+// width on screen, and no image is loaded, and so missing for a frame, while the reader zooms.
+// shortcut: two other textbooks have a colour (--map-book2, --map-book3), give a third --map-book4 when it is reviewed
+const RIM_MOST = 0.13;   // of a topic's width: the broadest its rim is drawn, on the smallest topic at the furthest zoom
 function ringRules(z, px, overview, dot) {
   const inks = [css("--accent"), ...BOOKS.map((_, k) => css(`--map-book${k + 2}`))], track = css("--line");
   const image = { "background-fit": "none", "background-position-x": "50%", "background-position-y": "50%", "background-image-opacity": 1 };
-  const disc = asImage(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${css("--panel")}"/>`
-    + `<circle cx="50" cy="50" r="50" fill="${css("--map-bubble")}" fill-opacity="${overview ? 0.9 : 0.55}"/></svg>`);
+  const disc = ink => asImage(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${ink}"/></svg>`);
+  const discs = [disc(css("--panel")), disc(css("--map-bubble"))];
   // A topic's sector is filled as far as the share of the topic's terms, of those drawn, that the book has.
   const share = id => { const all = DATA.nodes.filter(n => n.cluster === id && onMap.has(n.id));
     return BOOKS.map(b => (all.length ? all.filter(n => termBooks.get(n.id).includes(b)).length / all.length : 0)); };
@@ -275,8 +278,9 @@ function ringRules(z, px, overview, dot) {
       // Zoomed out, the topic's name is inside the rim, in a size that fits there: a word to a line at the least.
       const words = c.short.split(" "), room = d - 2 * rim - 8;
       const fits = Math.min(13 * room / Math.max(...words.map(w => textWidth(w, 13, "600"))), room / (1.2 * (words.length + 1)));
-      return { selector: `#${c.id}`, style: { ...image, "background-image": [asImage(ringSvg([1, ...share(c.id)], inks, track, 0.5)), disc],
-        "background-width": ["100%", inner], "background-height": ["100%", inner], "background-clip": "node",
+      return { selector: `#${c.id}`, style: { "background-image": [asImage(ringSvg([1, ...share(c.id)], inks, track, RIM_MOST)), ...discs],
+        "background-width": ["100%", inner, inner], "background-height": ["100%", inner, inner],
+        "background-image-opacity": [1, 1, overview ? 0.9 : 0.55],   // the last as the topic's own fill is
         ...(overview ? { "font-size": px(Math.min(13, Math.max(9, fits))), "text-max-width": px(room), "text-background-opacity": 0,
           ...HALO(px), "text-outline-opacity": 0.95 } : {}) } };
     }),
