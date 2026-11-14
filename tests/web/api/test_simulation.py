@@ -1,8 +1,8 @@
 """Simulating the results: ``api_simulate``, which Run calls while the reader practises.
 
 A known process, written over the reader's own factors in coded units, plus noise drawn from
-the seed: so the analysis can be set beside the truth, and "New noise" draws the same process
-again with new noise.
+the seed: so the analysis can be set beside the truth, and simulating again draws the same
+process with new noise.
 """
 
 from __future__ import annotations

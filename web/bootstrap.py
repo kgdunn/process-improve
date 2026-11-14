@@ -626,7 +626,7 @@ SCENARIOS: dict[str, dict[str, Any]] = {
         "label": "A random process",
         "hint": (
             "Two or three active factors drawn at random, with an interaction or curvature; "
-            "new noise draws a new process."
+            "simulating again draws a new process."
         ),
         "terms": None,
         "sigma": 1.0,

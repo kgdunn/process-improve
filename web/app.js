@@ -2902,10 +2902,26 @@ function describeSource() {
   $("#run-source").textContent = text;
 }
 
-/** The true process behind the simulated results, behind a reveal: each response's, while some of its results are. */
+/** What the button that simulates says: at first, and once the run sheet holds simulated results. */
+const SIMULATE = "Simulate the results";
+const SIMULATE_AGAIN = "Simulate again, with new noise";
+
+/** Show the true process, or hide it, by its button: the button says which a press will do. */
+function showTruth(open) {
+  $("#truth").hidden = !open;
+  $("#truth-toggle").setAttribute("aria-expanded", String(open));
+  $("#truth-toggle").textContent = `${open ? "Hide" : "Show"} the true process`;
+}
+
+/**
+ * The true process behind the simulated results, behind a reveal: each response's, while some of its results are.
+ * While some are, the button that simulates says a press draws new noise: as it does (see its handler).
+ */
 function renderTruth() {
   const shown = resultNames().filter((name) => processOf(name) && state.marks[name]?.includes("simulated"));
-  $("#truth").hidden = !shown.length; // gone with the last simulated result
+  $("#simulate").textContent = shown.length ? SIMULATE_AGAIN : SIMULATE;
+  $("#truth-toggle").hidden = !shown.length; // gone with the last simulated result
+  if (!shown.length) showTruth(false);
   if (!shown.length) return;
   const [first, ...more] = shown.map((name) => processOf(name));
   $("#truth-equation").textContent = first.equation;
@@ -6732,11 +6748,13 @@ $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
 closeOnBackdrop($("#compare-dialog"));
 $("#run-example").onclick = runExample;
-$("#simulate").onclick = simulateResults;
-$("#reroll").onclick = () => {
-  seed += 1;
+// A press always changes the results: the first simulates them, and one more draws new noise for the same
+// process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
+$("#simulate").onclick = () => {
+  if (someSimulated()) seed += 1;
   simulateResults();
 };
+$("#truth-toggle").onclick = () => showTruth($("#truth").hidden);
 $("#scenario").onchange = () => {
   showScenarioHint();
   if (someSimulated()) simulateResults();
@@ -6891,7 +6909,7 @@ call("api_catalogue").then((reply) => {
   state.version = catalogue.version ?? null;
   state.runtime = catalogue.runtime ?? null;
   pythonReady = true;
-  for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
+  for (const id of ["#upload", "#simulate"]) $(id).disabled = false;
   refreshDesign();
   scheduleCandidates();
   resolveReady();

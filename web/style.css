@@ -262,6 +262,15 @@ section {
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
+/* Practising: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
+   the two are given one height, and sit on one line with their labels on one line above them. */
+#panel-simulate .row { align-items: flex-end; }
+#panel-simulate .row select, #panel-simulate .row input { height: 2.4rem; }
+/* A button that shows a part of the page and hides it again, marked as the browser marks a summary. */
+.reveal::before { content: "\25B8"; display: inline-block; width: 1em; }
+.reveal[aria-expanded="true"]::before { content: "\25BE"; }
+.truth { margin: 0 0 10px; }
+.truth p { margin: 4px 0; }
 [hidden] { display: none !important; }
 
 /* A word with a definition: a dotted underline, and its definition in a small pop-up beside it on a press

@@ -652,8 +652,8 @@ def test_results_simulated_afresh_set_no_run_aside(blank_page):
     reveal(page, "#analysis")
     set_aside(page, 3)
     before = page.evaluate("window.__pi.count('api_analyze_runs')")
-    reveal(page, "#reroll")
-    page.click("#reroll")
+    reveal(page, "#simulate")
+    page.click("#simulate")  # again: new noise
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {before}")
     settled(page)
     reveal(page, "#analysis")
