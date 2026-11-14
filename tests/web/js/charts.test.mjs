@@ -23,6 +23,10 @@ import {
   SIGN_COLOURS,
   TRUE_MARKER,
   SURFACE,
+  DEEP,
+  isDark,
+  lightness,
+  rampFor,
   coefficientFigure,
   correlationFigure,
   coxFigure,
@@ -416,6 +420,89 @@ describe("a figure's traces, as the page draws them", () => {
     const [first, second] = pageData([hidden, line]);
     assert.equal(first, hidden);
     assert.equal(second, line);
+  });
+});
+
+describe("a surface's colours, on a light page and on a dark one", () => {
+  const DARK = { ...LIGHT, fg: "#e8e8e6", panel: "#1c1e21" };
+  // The contrast of two colours as WCAG measures it, from each one's luminance: 1 for the same colour, 21 at most.
+  const linear = (part) => (part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
+  const luminance = (hex) => [0.2126, 0.7152, 0.0722].reduce((sum, w, i) => sum + w * linear(parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255), 0);
+  const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+  const bands = { type: "contour", z: [[1]], colorscale: SURFACE.map(([at, hex]) => [at, hex]), contours: { showlabels: true } };
+
+  test("a page is dark when its text is the light part of it", () => {
+    assert.equal(lightness("#000000"), 0);
+    assert.equal(lightness("#ffffff"), 1);
+    assert.equal(lightness("#fff"), 1, "a colour of three digits");
+    assert.equal(isDark(LIGHT), false);
+    assert.equal(isDark(DARK), true);
+    assert.equal(isDark(COLOURS), false);
+  });
+
+  test("each ramp starts as near nothing as its page: low is light on a light page, and dark on a dark one", () => {
+    const steps = (ramp) => ramp.map(([, hex]) => lightness(hex));
+    const falls = steps(SURFACE).every((light, i, all) => i === 0 || light < all[i - 1]);
+    const rises = steps(DEEP).every((light, i, all) => i === 0 || light > all[i - 1]);
+    assert.ok(falls && rises, "one way all along, so that an order of colours is an order of values");
+    assert.deepEqual(DEEP.map(([at]) => at), SURFACE.map(([at]) => at));
+    assert.ok(contrast(SURFACE[0][1], LIGHT.panel) < 1.15);
+    assert.ok(contrast(DEEP[0][1], DARK.panel) < 1.15, "no glare where the response is low");
+    assert.ok(contrast(DEEP.at(-1)[1], DARK.panel) > 7, "and high stands out");
+    assert.equal(rampFor(SURFACE, LIGHT), SURFACE);
+    assert.equal(rampFor(SURFACE, DARK), DEEP);
+  });
+
+  test("a figure from Python in the library's ramp is drawn in the dark page's ramp, on a dark page only", () => {
+    assert.equal(pageData([bands], LIGHT)[0].colorscale, bands.colorscale);
+    assert.equal(pageData([bands], DARK)[0].colorscale, DEEP);
+    assert.equal(pageData([{ ...bands, type: "surface" }], DARK)[0].colorscale, DEEP);
+    const other = [[0, "#DC2626"], [1, "#059669"]];
+    assert.equal(pageData([{ ...bands, colorscale: other }], DARK)[0].colorscale, other, "a ramp with a meaning of its own");
+    assert.equal(pageData([{ ...bands, colorscale: "Blues" }], DARK)[0].colorscale, "Blues");
+    assert.equal(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
+  });
+
+  test("the numbers on a surface's lines are in the page's ink, with a halo in the page's colour", () => {
+    for (const colours of [LIGHT, DARK]) {
+      const { labelfont, showlabels } = pageData([bands], colours)[0].contours;
+      assert.equal(showlabels, true);
+      assert.equal(labelfont.color, colours.fg);
+      assert.equal(labelfont.shadow.split(", ").length, 4, "a shadow to each corner");
+      assert.ok(labelfont.shadow.split(", ").every((part) => part.endsWith(` 1px ${colours.panel}`)));
+      assert.ok(contrast(colours.fg, colours.panel) > 7, "the ink reads on its halo, whatever band is under it");
+    }
+    const sized = { ...bands, contours: { showlabels: true, labelfont: { size: 9, color: "#123456" } } };
+    assert.deepEqual(
+      Object.entries(pageData([sized], LIGHT)[0].contours.labelfont).filter(([key]) => key !== "shadow"),
+      [["color", "#123456"], ["size", 9]],
+      "a figure's own font is kept",
+    );
+    assert.deepEqual(bands.contours, { showlabels: true }, "the figure it was drawn from is left as it was");
+  });
+
+  test("lines drawn in a colour of their own, a shaded region and a surface with no numbers keep their labels", () => {
+    const lines = { type: "contour", z: [[1]], showscale: false, contours: { showlabels: true, coloring: "lines" } };
+    const none = { ...lines, contours: { showlabels: true, coloring: "none", labelfont: { color: "#a35f00" } } };
+    const shaded = { ...lines, contours: { type: "constraint", showlabels: true } };
+    const bare = { ...lines, contours: { showlabels: false } };
+    const unset = { type: "contour", z: [[1]], showscale: false };
+    const all = [lines, none, shaded, bare, unset];
+    assert.deepEqual(pageData(all, DARK), all);
+    pageData(all, DARK).forEach((drawn, i) => assert.equal(drawn, all[i]));
+  });
+
+  test("the page's own surface and its correlation map take the dark page's ramp", () => {
+    const ternary = {
+      components: ["A", "B", "C"],
+      grid: { a: [1, 0, 0], b: [0, 1, 0], c: [0, 0, 1], fitted: [30, 25, 20], true: null },
+      runs: { a: [1], b: [0], c: [0], y: [30.2] },
+    };
+    assert.equal(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
+    const map = (colours) => correlationFigure(["A", "B"], [[1, 0], [0, 1]], 2, colours).data[0].colorscale;
+    assert.equal(map(DARK), DEEP);
+    assert.notEqual(map(LIGHT), DEEP);
+    assert.ok(lightness(map(LIGHT)[0][1]) > 0.9, "no correlation is near white on a light page");
   });
 });
 

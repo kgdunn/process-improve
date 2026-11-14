@@ -228,6 +228,66 @@ def test_each_factor_s_effect_is_drawn_with_the_band_of_its_interval_which_its_c
     )
 
 
+#: The first and the last colour of each chart's ramp, for the charts drawn in bands or shades of the response.
+ENDS = """() => Object.fromEntries([...document.querySelectorAll('#charts figure.chart')].flatMap((card) => {
+  const ramp = card.querySelector('.plot').data?.find((trace) => Array.isArray(trace.colorscale))?.colorscale;
+  return ramp ? [[card.dataset.chart, [ramp[0][1], ramp.at(-1)[1]].map((colour) => colour.toLowerCase())]] : [];
+}))"""
+
+#: The ends of the library's ramp, near white for low, and of the dark page's, as dark as the page for low.
+LIGHT_ENDS, DARK_ENDS = ["#eff6ff", "#1e3a8a"], ["#1a2436", "#bfdbfe"]
+SURFACES = ["contour", "true_contour", "surface_3d", "prediction_variance"]
+
+
+def test_on_a_dark_page_a_surface_is_dark_where_the_response_is_low_and_saved_as_a_light_page_s(page, tmp_path):
+    """A ramp that starts in near white glares on a dark page, so there it starts dark. An image is on white."""
+    open_more(page)
+    assert page.evaluate(ENDS) == dict.fromkeys(SURFACES, LIGHT_ENDS)
+    page.emulate_media(color_scheme="dark")
+    page.wait_for_function(f"({ENDS})().prediction_variance[0] === '{DARK_ENDS[0]}'")
+    assert page.evaluate(ENDS) == dict.fromkeys(SURFACES, DARK_ENDS)
+
+    page.evaluate(
+        """() => { const save = Plotly.toImage;
+          Plotly.toImage = (figure, ...how) => { window.__saved = figure; return save(figure, ...how); }; }"""
+    )
+    page.click("figure[data-chart=contour] .expand")
+    page.wait_for_function("document.querySelector('dialog.figure .plot.js-plotly-plot')")
+    assert page.locator("dialog.figure .plot").evaluate("(plot) => plot.data[0].colorscale[0][1]") == DARK_ENDS[0]
+    with page.expect_download() as svg:
+        page.click("dialog.figure [data-do=svg]")
+    svg.value.save_as(tmp_path / "figure.svg")
+    saved = page.evaluate("[window.__saved.data[0].colorscale[0][1], window.__saved.data[0].contours.labelfont.color]")
+    assert [colour.lower() for colour in saved] == [LIGHT_ENDS[0], "#1d1d1f"]
+
+
+def rgb(colour: str) -> str:
+    """Return a colour written ``#rrggbb`` as a browser writes it in a computed style."""
+    return "rgb({}, {}, {})".format(*(int(colour[at : at + 2], 16) for at in (1, 3, 5)))
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page, scheme):
+    """A ramp runs from as light as the page to as dark as its ink: no one colour reads on every band without it."""
+    page.emulate_media(color_scheme=scheme)
+    open_more(page)
+    ink, panel = page.evaluate(
+        "['--fg', '--panel'].map((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim())"
+    )
+    for chart in ("contour", "prediction_variance"):
+        plot = page.locator(f"figure[data-chart={chart}] .plot")
+        page.wait_for_function(
+            "([plot, ink]) => plot.data[0].contours.labelfont?.color === ink", arg=[plot.element_handle(), ink]
+        )
+        font = plot.evaluate("(plot) => plot.data[0].contours.labelfont")
+        assert font["shadow"].count(panel) == 4, "a shadow to each corner"
+        labels = plot.locator(".contourlabels text")
+        assert labels.count() >= 3
+        drawn = labels.first.evaluate("(label) => [getComputedStyle(label).fill, getComputedStyle(label).textShadow]")
+        assert drawn[0] == rgb(ink)
+        assert drawn[1].count(rgb(panel)) == 4, "the browser draws it"
+
+
 def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):
     assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
     open_more(page)

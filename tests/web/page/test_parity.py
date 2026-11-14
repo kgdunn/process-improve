@@ -14,6 +14,7 @@ import re
 import pandas as pd
 import pytest
 
+from process_improve.visualization.colors import SURFACE_COLORSCALE
 from tests.web._support import (
     ENTRY_POINT,
     FACTORS,
@@ -767,3 +768,9 @@ def test_one_factor_s_runs_and_study_format_are_held_as_bootstrap_and_the_build_
         assert build_script.study_format({"factors": factors}) == expected, k
         (page_format,) = javascript(node, source("campaign.js"), [("studyFormat", [{"factors": factors}])])
         assert page_format == expected, k
+
+
+def test_the_page_s_ramp_for_a_surface_is_the_library_s(node):
+    """On a dark page the page draws a surface from Python in a ramp of its own: it knows one by the library's ramp."""
+    (ramp,) = javascript(node, source("charts.js"), [("SURFACE", [])])
+    assert ramp == SURFACE_COLORSCALE

@@ -282,9 +282,31 @@ let lastPress = { run: null, at: 0 };
  * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
  * is wide, with its title on top, and takes a third of a card's width from the plot.
  */
-export function pageData(data) {
+export function pageData(data, colours = LIGHT) {
   const slim = (bar = {}) => ({ thickness: 12, outlinewidth: 0, ...bar, title: { side: "right", ...(bar.title || {}) } });
-  return data.map((trace) => (hasBar(trace) ? { ...trace, colorbar: slim(trace.colorbar) } : trace));
+  return data.map((trace) => {
+    const changes = {};
+    if (hasBar(trace)) changes.colorbar = slim(trace.colorbar);
+    if (isDark(colours) && isSurfaceRamp(trace.colorscale)) changes.colorscale = DEEP;
+    if (labelsBands(trace)) changes.contours = { ...trace.contours, labelfont: bandLabel(trace, colours) };
+    return Object.keys(changes).length ? { ...trace, ...changes } : trace;
+  });
+}
+
+/** Whether a figure from Python holds the library's ramp for a surface, which the page keeps a copy of. */
+const isSurfaceRamp = (scale) => JSON.stringify(scale ?? null).toLowerCase() === JSON.stringify(SURFACE).toLowerCase();
+
+/** Whether a trace is a surface in filled bands, with a number on each line between two of them. */
+const labelsBands = ({ type, contours = {} }) =>
+  type === "contour" && contours.showlabels === true && contours.type !== "constraint" && !["lines", "none"].includes(contours.coloring);
+
+/**
+ * The numbers on a surface's lines: in the page's ink, with a halo in the page's own colour. A ramp runs from
+ * as light as the page to as dark as its ink, so no one colour reads on every band; with a halo, one does.
+ */
+function bandLabel(trace, colours) {
+  const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
+  return { color: colours.fg, shadow: halo, ...trace.contours.labelfont };
 }
 
 /**
@@ -293,7 +315,7 @@ export function pageData(data) {
  */
 function dressed(shown, height, colours, width) {
   const figure = madeIn(colours, shown.make);
-  const data = pageData(figure.data);
+  const data = pageData(figure.data, colours);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
   const layout = pageLayout(figure.layout || {}, height, colours, room);
   shown.shapes = layout.shapes ?? []; // the figure's own, which the ring of a marked run is drawn after
@@ -726,6 +748,31 @@ export const SURFACE = [
   [1, "#1E3A8A"],
 ];
 
+/**
+ * The ramp of a dark page, for a surface and for a correlation map: dark for low, as near nothing as the page
+ * itself, and light for high. A light page's ramps start in near white, which glares where the page is dark.
+ */
+export const DEEP = [
+  [0, "#1a2436"],
+  [0.25, "#1e40af"],
+  [0.5, "#2563eb"],
+  [0.75, "#60a5fa"],
+  [1, "#bfdbfe"],
+];
+
+/** How light a colour written as #rgb or #rrggbb is: 0 for black, 1 for white. */
+export function lightness(hex) {
+  const digits = hex.length === 4 ? [...hex.slice(1)].map((digit) => digit + digit).join("") : hex.slice(1);
+  const [red, green, blue] = [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16) / 255);
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+/** Whether ``colours`` are a dark page's: its text is the light part of it. */
+export const isDark = (colours) => lightness(colours.fg) > 0.5;
+
+/** The ramp to draw in ``colours``: a ``light`` page's own, or the dark page's. */
+export const rampFor = (light, colours) => (isDark(colours) ? DEEP : light);
+
 /** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
 const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
@@ -776,7 +823,7 @@ export function ternaryFigure(
           symbol: "circle",
           size: 7,
           color: grid[values],
-          colorscale: SURFACE,
+          colorscale: rampFor(SURFACE, colours),
           cmin: range[0],
           cmax: range[1],
           line: { width: 0 },
@@ -1014,7 +1061,7 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
         z: matrix,
         zmin: 0,
         zmax: 1,
-        colorscale: BLUES,
+        colorscale: rampFor(BLUES, colours),
         showscale: false,
         hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
       },
