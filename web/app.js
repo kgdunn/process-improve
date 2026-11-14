@@ -27,7 +27,6 @@ import {
   paretoFigure,
   prettyTerm,
   redrawAll,
-  resizeWithin,
   sensitivityFigure,
   shareContourScale,
   ternaryFigure,
@@ -621,7 +620,6 @@ function showPhase(phase) {
     tab.tabIndex = on ? 0 : -1;
     $(pane).hidden = !on;
   }
-  resizeWithin($(PANES[phase]));
   if (phase !== "plan") cancelCandidates();
   // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
   const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
@@ -2415,10 +2413,7 @@ async function showComparison() {
   if (!c?.result) return;
   const dialog = $("#compare-dialog");
   if (!dialog.open) dialog.showModal();
-  if (dialog.dataset.key === c.key) {
-    resizeWithin(dialog);
-    return;
-  }
+  if (dialog.dataset.key === c.key) return;
   dialog.dataset.key = c.key;
   c.hidden ??= new Set(); // the designs the reader has hidden, kept while this comparison stands
   renderComparison(c.result, c.made, c.notes, c.hidden);
@@ -2621,11 +2616,7 @@ function slideColumns(t, before) {
 /** Show the designs shown, and only those, in the charts: their curves in the FDS plot, and their correlation maps. */
 function showComparedCharts(result, hidden) {
   const box = $("#compare-charts");
-  for (const card of box.querySelectorAll("figure[data-design]")) {
-    const was = card.hidden;
-    card.hidden = hidden.has(card.dataset.design);
-    if (was && !card.hidden) resizeWithin(card); // a map drawn or resized while hidden is fitted to its card again
-  }
+  for (const card of box.querySelectorAll("figure[data-design]")) card.hidden = hidden.has(card.dataset.design);
   const fds = box.querySelector("figure.fds .plot");
   if (fds && state.plotlyJs) draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380);
 }
@@ -4242,6 +4233,7 @@ function setModel(model) {
 // ---------------------------------------------------------------- charts
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
+  card.dataset.chart = key;
   const plot = el("div", "plot", "");
   const { title: words, glossary } = CHARTS[key];
   const title = el("h3", "", glossary ? "" : words);
@@ -4404,7 +4396,6 @@ function moreCharts(keys, figures, captioned, version, beyond = "") {
     shown = true;
     for (const key of keys) {
       const card = captioned(key);
-      card.card.dataset.chart = key;
       grid.append(card.card);
       await draw(card.plot, figures[key], version, chartHeight(key));
     }

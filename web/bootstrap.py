@@ -5525,6 +5525,9 @@ def _dressed(figure: dict, kind: str, spec: dict, pair: list[str], transform: st
                 if transform is not None:
                     z = np.asarray(trace["z"], dtype=float).tolist()
                     trace["z"] = [[_put_back(v, transform) for v in row] for row in z]
+            elif trace.get("mode") == "markers":  # the runs: on every colour of the surface, on a light or a dark page
+                trace.update(marker=RUN_MARKER, opacity=1.0)
+        layout.update(LEGEND_ABOVE)
     elif kind == "residuals_vs_fitted":
         title("xaxis", _with_units(f"Fitted {scaled}", scale_units))
         title("yaxis", _with_units("Residual", scale_units))
@@ -5541,6 +5544,15 @@ def _setting_words(factor: dict, coded: float) -> str:
         return _level_at(factor, coded)
     return f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.4g}"
 
+
+#: A legend above the plot, where it meets neither the axis title under the plot nor, in a narrow card, the plot.
+LEGEND_ABOVE = {"legend": {"y": 1.02, "yanchor": "bottom"}, "margin": {"t": 40}}
+
+#: A run on a response surface: a white face and a dark edge, which read on every colour of the surface.
+RUN_MARKER = {"color": "#ffffff", "size": 8, "symbol": "circle", "line": {"color": "#1a1a1a", "width": 1.5}}
+
+#: The pattern of each line of a chart that draws one line for each factor or setting, in the lines' order.
+LINE_DASHES = ("solid", "dash", "dot", "dashdot", "longdash", "longdashdot")
 
 #: The three settings most designs run a factor at, as the plots of every factor at once name them.
 SETTING_WORDS = {-1.0: "Low", 0.0: "Middle", 1.0: "High"}
@@ -5575,6 +5587,8 @@ def _dress_cube(figure: dict, w: dict) -> None:
 def _dress_prediction_variance(figure: dict, w: dict) -> None:
     for axis, factor in zip(("xaxis", "yaxis"), w["drawn"], strict=True):
         figure["layout"][axis] = _factor_axis(factor)
+    # In coded units, as the response surface above it: one step of each factor is as long on the page.
+    figure["layout"]["yaxis"].update(scaleanchor="x", scaleratio=1)
     for trace in figure["data"]:  # the variance's contours; the shading of a region's limits has no scale
         if trace.get("type") == "contour" and trace.get("contours", {}).get("type") != "constraint":
             trace["colorbar"] = {"title": {"text": "Relative variance"}}
@@ -5663,7 +5677,13 @@ def _dressed_more(figure: dict, kind: str, spec: dict, drawn: list[str], transfo
     figure.setdefault("data", [])
     _BY_PLOT[kind].dress(figure, {**words, "drawn": [factors[name] for name in drawn]})
     if _BY_PLOT[kind].legend_above:
-        figure["layout"].update(legend={"y": 1.02, "yanchor": "bottom"}, margin={"t": 40})
+        figure["layout"].update(LEGEND_ABOVE)
+        # Each line has a pattern of its own as well as a colour, so the lines are told apart in print and by a
+        # reader who does not see the colours apart; and a mark at each average, which is all the runs give.
+        for trace, dash in zip(figure["data"], itertools.cycle(LINE_DASHES), strict=False):
+            trace["line"] = {**trace.get("line", {}), "dash": dash}
+            if len(trace["x"]) <= MAX_AVERAGED_SETTINGS:
+                trace["mode"] = "lines+markers"
 
 
 # --------------------------------------------------------------------------- the pictures of a mixture

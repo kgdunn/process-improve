@@ -1348,7 +1348,7 @@ export const CHARTS = {
     term: "interaction_plot",
     caption: (pair) =>
       `One line for each setting of ${pair[0]}, over the settings of ${pair[1]}: averages of your results. Lines that ` +
-      `are not parallel say the effect of ${pair[1]} depends on ${pair[0]}.`,
+      `are not parallel indicate that the effect of ${pair[1]} depends on ${pair[0]}.`,
   },
   surface_3d: {
     title: "Fitted response surface, in three dimensions",

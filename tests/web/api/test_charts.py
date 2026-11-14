@@ -66,6 +66,36 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     assert len(figures["residuals_order"]["data"][-1]["x"]) == 15, "one residual a run"
 
 
+def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colours(api, held, simulated):
+    figures = {
+        k: json.loads(v)
+        for k, v in api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"].items()
+    }
+    surface, runs = figures["contour"]["data"]
+    assert runs["marker"]["color"] == "#ffffff", (
+        "a run has a white face and a dark edge, on every colour of the surface"
+    )
+    assert runs["marker"]["line"]["color"] == "#1a1a1a"
+    assert runs["opacity"] == 1
+    assert "marker" not in surface
+    assert figures["contour"]["layout"]["legend"]["y"] > 1, "the legend above the plot, clear of the axis title"
+    for key in ("perturbation", "main_effects", "interaction"):
+        dashes = [trace["line"]["dash"] for trace in figures[key]["data"]]
+        assert dashes == ["solid", "dash", "dot"], f"{key}: each line has a pattern of its own"
+        assert figures[key]["layout"]["legend"]["y"] > 1
+    assert {trace["mode"] for trace in figures["perturbation"]["data"]} == {"lines"}, "a curve: no marks along it"
+    for key in ("main_effects", "interaction"):
+        assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+
+
+def test_the_variance_of_a_prediction_is_drawn_square_as_the_surface_it_is_over(api, held, simulated):
+    figures = api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]
+    for key in ("contour", "prediction_variance"):
+        axis = json.loads(figures[key])["layout"]["yaxis"]
+        assert (axis["scaleanchor"], axis["scaleratio"]) == ("x", 1), f"{key}: one coded step is as long on each axis"
+        assert axis["ticktext"] == ["1", "2", "3"]
+
+
 def test_a_transformed_prediction_is_drawn_in_the_response_s_units(api, held, simulated):
     """The model is fitted to ln(Yield): each prediction drawn is put back in percent, as the surface is."""
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
