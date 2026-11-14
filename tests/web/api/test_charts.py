@@ -136,6 +136,20 @@ def test_a_chart_of_lines_reads_every_line_at_one_setting_together(api, held, si
     assert "hovermode" not in json.loads(figures["residuals"])["layout"]
 
 
+def test_a_study_of_one_factor_has_no_surface_and_its_other_charts_are_drawn(api):
+    """A surface is drawn over two factors: with one, the page draws its levels, and the library the rest."""
+    design = {"design_type": "full_factorial", "factors": FACTORS[:1], "n_replicates": 3, "n_center_points": 2}
+    held = held_of(api.ok("api_make_design", design))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    result = api.ok("api_plots", {**held, "responses": responses})
+    assert result["contour_factors"] == ["T"]
+    surfaces = {"contour", "surface_3d", "interaction", "prediction_variance", "cube"}
+    assert surfaces.isdisjoint(result["figures"]), "each takes two factors, or three"
+    assert {"residuals", "perturbation", "main_effects", "normal_probability"} <= set(result["figures"])
+    assert set(result["plot_options"]) == set(result["figures"]), "each figure drawn has the code that draws it"
+    assert result["plot_options"]["perturbation"] == {"plot_type": "perturbation", "factors_to_plot": ["T"]}
+
+
 def test_a_transformed_prediction_is_drawn_in_the_response_s_units(api, held, simulated):
     """The model is fitted to ln(Yield): each prediction drawn is put back in percent, as the surface is."""
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
