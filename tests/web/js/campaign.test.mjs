@@ -16,6 +16,7 @@ import {
   MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
   SCENARIOS_HELD,
+  SHOW_PARAM,
   WHAT_IF_FORMAT,
   bookName,
   campaignDone,
@@ -27,6 +28,7 @@ import {
   indexedName,
   mergeResults,
   packCampaign,
+  partName,
   progress,
   sameCampaign,
   shareable,
@@ -413,6 +415,14 @@ describe("one of the book's examples, named in a link", () => {
     for (const text of ["", "Pollutant", "../demo", "a--b", "-a", "a b", "a/b", "a%2Fb", "x".repeat(65)]) {
       refusedBy(() => bookName(text), /not the name of an example in the book/);
     }
+  });
+
+  test("a link names a part of the page to open at, ?show=, by the part's own name, and no other name is taken", () => {
+    assert.equal(SHOW_PARAM, "show");
+    assert.equal(partName("best"), "best");
+    assert.equal(partName("what-if"), "what-if");
+    assert.equal(partName("py-analyse"), "py-analyse");
+    for (const text of [null, undefined, "", "Best", "a b", "#best", "best>", "a--b", "x".repeat(41), 7]) assert.equal(partName(text), null);
   });
 
   test("only a name the index lists is fetched, as the index gives it", () => {

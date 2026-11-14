@@ -1855,6 +1855,8 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 :root[data-level="1"] [data-level="2"]:not(.in-use),
 :root[data-level="1"] [data-level="3"]:not(.in-use),
 :root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
+/* The part of the page a link asked to be shown (?show=): outlined for a moment, so the reader sees where they are. */
+.shown-part { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
 .level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
 .level-switch legend { float: left; padding: 0; margin-right: 4px; color: var(--muted); font-size: 0.9rem; }
 /* On a phone its name is read out, not drawn: the three levels then fit one line of a 360 px screen. */

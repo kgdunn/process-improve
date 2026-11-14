@@ -644,6 +644,18 @@ export const EXAMPLE_PARAM = "example";
 /** The name ``?example=`` gives the worked example the page was built with; the build lets no other example take it. */
 export const WORKED = "worked";
 
+/**
+ * The query parameter a link names a part of the page by, beside the example it opens:
+ * https://factori.al/?example=worked&show=best. The page then opens at that part. The list of what Factorial does
+ * (features.html) asks so with "Show me". The name is the part's id in index.html.
+ */
+export const SHOW_PARAM = "show";
+
+/** The part of the page a link asks to be shown: its name if it is one a part could have, else null. */
+export function partName(text) {
+  return typeof text === "string" && text.length <= 40 && BOOK_NAME.test(text) ? text : null;
+}
+
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
