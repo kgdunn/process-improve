@@ -1,8 +1,9 @@
 // What Factorial does (features.html): the page is drawn from FEATURES.md, the document the app is described
 // from, so the two cannot differ. This is a reader of the Markdown that document is written in: headings,
 // paragraphs, lists, tables and rules, with bold, italic, code and links inside them. It is no reader of
-// Markdown at large: what the document does not use is shown as it is typed. This module needs no document, so
-// it is tested under Node.js.
+// Markdown at large: what the document does not use is shown as it is typed. The document's own top says how it
+// is written for the page: a point in plain words, with a line of details under it, and headings that are the
+// page's parts. This module needs no document, so it is tested under Node.js.
 
 /** The line of the document after which the page shows it: what comes before is for those who keep it. */
 export const SHOWN_FROM = "<!-- features.html shows what follows -->";
@@ -49,15 +50,24 @@ const HEADING = /^(#{1,4}) +(.+)$/;
 const RULE = /^-{3,}\s*$/;
 const opens = (line) => HEADING.test(line) || RULE.test(line) || ITEM.test(line) || line.startsWith("|");
 
-/** A list: each line that opens with a mark is an item, and an indented line under it goes on with it. */
+const DETAIL = /^\s+- \*Details:\* +/;
+
+/**
+ * A list: each line that opens with a mark is an item, and an indented line under it goes on with it. An indented
+ * line that opens with "- *Details:*" starts what only some readers ask for: the page folds it under its item.
+ */
 function list(lines) {
   const items = [];
   for (const line of lines) {
-    if (ITEM.test(line)) items.push(line.replace(ITEM, ""));
-    else items[items.length - 1] += ` ${line.trim()}`;
+    const last = items.at(-1);
+    if (ITEM.test(line)) items.push({ says: line.replace(ITEM, ""), details: null });
+    else if (DETAIL.test(line)) last.details = line.replace(DETAIL, "");
+    else if (last.details === null) last.says += ` ${line.trim()}`;
+    else last.details += ` ${line.trim()}`;
   }
+  const more = (details) => (details === null ? "" : `<details class="more"><summary>Details</summary><p>${inline(details)}</p></details>`);
   const kind = /^\d/.test(lines[0]) ? "ol" : "ul";
-  return `<${kind}>${items.map((item) => `<li>${inline(item)}</li>`).join("")}</${kind}>`;
+  return `<${kind}>${items.map((item) => `<li>${inline(item.says)}${more(item.details)}</li>`).join("")}</${kind}>`;
 }
 
 /** A table: its first line is its head and its second the rule under it. It scrolls sideways where it is too wide. */
@@ -95,4 +105,75 @@ export function markdown(text) {
     else html.push(`<p>${inline(run((next) => next.trim() && !opens(next)).join(" "))}</p>`);
   }
   return html.join("\n");
+}
+
+const SAYS = /^\*([^*]+)\*$/;
+
+/**
+ * The document as the page: a `##` heading is a step of a study, and a `###` heading under it a part that folds,
+ * closed, with the line in italics under the heading as what it says while closed. The points of a step with no
+ * part of its own are the page's cards.
+ */
+export function page(text) {
+  const [before, ...steps] = text.replace(/\r\n?/g, "\n").split(/^(?=## )/m);
+  const named = (chunk) => {
+    const [head, ...rest] = chunk.split("\n");
+    return [head.replace(/^#+ +/, ""), rest.join("\n")];
+  };
+  const part = (chunk) => {
+    const [name, body] = named(chunk);
+    const lines = body.split("\n");
+    const at = lines.findIndex((line) => line.trim());
+    const says = at < 0 ? null : lines[at].trim().match(SAYS);
+    if (says) lines.splice(at, 1);
+    return (
+      `<details class="feat-part"><summary><h3 id="${slug(name)}">${inline(name)}</h3>` +
+      `${says ? `<span class="feat-says">${inline(says[1])}</span>` : ""}</summary>` +
+      `<div class="feat-body">${markdown(lines.join("\n"))}</div></details>`
+    );
+  };
+  const step = (chunk) => {
+    const [name, body] = named(chunk);
+    const [lead, ...parts] = body.split(/^(?=### )/m);
+    const first = markdown(lead);
+    return [
+      `<h2 class="feat-step" id="${slug(name)}">${inline(name)}</h2>`,
+      parts.length ? first : first.replace("<ul>", '<ul class="feat-cards">'),
+      ...parts.map(part),
+    ];
+  };
+  return [markdown(before), ...steps.flatMap(step)].filter(Boolean).join("\n");
+}
+
+/**
+ * The addresses the page's parts had while they were numbered, each with the start of its part's address now: a
+ * link kept from then still opens at its part.
+ */
+export const MOVED = {
+  "1-in-one-minute": "in-one-minute",
+  "2-designs": "choose-a-design",
+  "3-planning-a-study-design": "plan-a-study",
+  "4-running-it-run": "run-it",
+  "5-calculations-learn": "understand-the-results",
+  "6-figures": "see-it",
+  "7-interaction-and-ease-of-use": "easy-to-use",
+  "8-data-in-and-out-and-reproducibility": "take-it-with-you",
+  "9-enterprise-privacy-security-and-operation": "your-data-and-your-trust",
+  "10-learning-and-documentation": "learn-the-method",
+  "11-the-other-pages-at-factorial": "more-at-factorial",
+  "12-limits": "limits",
+  "13-not-in-the-app": "what-it-does-not-do",
+};
+
+/** The address, of those on the page, that the part of a link after its # names: its own, or the one it moved to. */
+export function addressOf(hash, ids) {
+  let id = hash.replace(/^#/, "");
+  try {
+    id = decodeURIComponent(id);
+  } catch {
+    /* not an address the page made: no part */
+  }
+  if (ids.includes(id)) return id;
+  const to = MOVED[id];
+  return (to && ids.find((other) => other.startsWith(to))) ?? null;
 }

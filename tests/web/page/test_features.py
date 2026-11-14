@@ -38,12 +38,36 @@ LIMITS = {
 }
 
 
+def under(heading: str) -> str:
+    """Return the document from under a heading to the next heading of its rank or above."""
+    rank = heading.split(" ", 1)[0]
+    rest = FEATURES.split(f"\n{heading}\n", 1)[1]
+    return re.split(rf"\n#{{1,{len(rank)}}} ", rest, maxsplit=1)[0]
+
+
 def table(heading: str) -> dict[str, str]:
     """Return the first table under a heading of the document: each row's first cell, and its second."""
-    section = FEATURES.split(f"\n{heading}\n", 1)[1].split("\n## ", 1)[0]
+    section = under(heading)
     lines = section[section.index("\n|") :].lstrip("\n").split("\n\n", 1)[0].splitlines()
     rows = [[cell.strip() for cell in line.strip("|").split("|")] for line in lines]
     return {row[0]: row[1] for row in rows[2:]}  # after the head and the rule under it
+
+
+def points(heading: str) -> list[str]:
+    """Return the points of the first list under a heading, each on one line and without its line of details."""
+    section = under(heading)
+    first = section[section.index("\n- ") :].lstrip("\n").split("\n\n", 1)[0]
+    found: list[str] = []
+    details = False  # a point's line of details, and the lines it goes on over, are no part of the point
+    for line in first.splitlines():
+        if line.startswith("- "):
+            found.append(line[2:])
+            details = False
+        elif line.lstrip().startswith("- *Details:*"):
+            details = True
+        elif not details:
+            found[-1] += f" {line.strip()}"
+    return found
 
 
 def test_every_design_the_app_makes_is_listed_with_the_factors_it_takes(bootstrap):
@@ -53,19 +77,27 @@ def test_every_design_the_app_makes_is_listed_with_the_factors_it_takes(bootstra
         low, high = info["min_factors"], info["max_factors"]
         return f"{low} or {high}" if high == low + 1 else f"{low} to {high}"
 
-    assert table("## 2. Designs") == {info["label"]: factors(info) for info in made.values()}
-    assert f"**{len(made)} designs**" in TEXT, "the count in the summary"
+    listed = [re.match(r"\*\*(.+)\.\*\* For (.+) factors\. \S", point) for point in points("### Choose a design")]
+    assert all(listed), "each design is named in bold, then the factors it takes, then what it is for"
+    assert dict(found.groups() for found in listed) == {info["label"]: factors(info) for info in made.values()}
+    assert f"**{len(made)} designs.**" in TEXT, "the count in the summary"
+    assert f"*{len(made)} designs in one list" in TEXT, "and on the fold"
     assert f"The design list holds {len(made)} designs" in TEXT
 
 
 def test_every_chart_is_listed_by_its_title(bootstrap, node):
     (charts,) = javascript(node, source("logic.js"), [("CHARTS", [])])
-    listed = table("## 6. Figures")
+    listed = {re.match(r"\*\*(.+)\.\*\*", point).group(1): point for point in points(f"#### The {len(charts)} charts")}
     assert list(listed) == [chart["title"] for chart in charts.values()]
-    more = [title for title, shown in listed.items() if shown.startswith("More charts")]
+    more = [title for title, said in listed.items() if said.endswith("*More charts.*")]
     assert more == [charts[key]["title"] for key in bootstrap.MORE_CHARTS]
+    words = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"]
+    first = (
+        f"{words[len(charts) - len(more)]} charts come with the analysis. {words[len(more)]} more are one press away"
+    )
+    assert first in TEXT
     assert f"**{len(charts)} charts.**" in TEXT, "the count in the summary"
-    assert f"### The {len(charts)} charts" in TEXT
+    assert f"### See it: {len(charts)} charts" in TEXT, "and on the fold"
 
 
 def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap, node):
@@ -76,7 +108,7 @@ def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap
 
 
 def test_the_limits_are_the_app_s(bootstrap):
-    stated = table("## 12. Limits")
+    stated = table("### Limits")
     assert list(stated) == list(LIMITS), "a row the document adds or drops is added to LIMITS, or dropped from it"
     for what, most in LIMITS.items():
         assert int(stated[what].replace(",", "")) == most(bootstrap), what
@@ -92,25 +124,85 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
     )
     megabytes = app.MAX_TABLE_BYTES // 1_000_000
     for sentence in (
-        f"**Up to {app.MAX_RESPONSES} responses**",
+        f"**Up to {app.MAX_RESPONSES} responses.**",
         f"has 2 to {app.MAX_LEVELS} levels of any text",
-        f"replicates (up to {app.MAX_REPLICATES}), blocks (up to {app.MAX_BLOCKS})",
+        f"repeats of every run (up to {app.MAX_REPLICATES})",
+        f"blocks such as days or batches (up to {app.MAX_BLOCKS})",
         f"Up to {app.MAX_CONSTRAINTS} inequalities",
-        f"**Up to {app.MAX_FACTORS} factors.** Interactions are modelled for up to {app.MAX_INTERACTION_FACTORS}.",
+        f"**Room for a large study.** Up to {app.MAX_FACTORS} factors.",
+        f"Interactions are modelled for up to {app.MAX_INTERACTION_FACTORS}.",
         f"interactions of up to {['', 'one', 'two', 'three'][app.MAX_ORDER]} factors",
-        f"| Up to {app.MAX_OMARS_RUNS} runs |",
-        f"up to {app.MAX_SPACE_FILLING_RUNS} runs |",
+        f"*Details:* Up to {app.MAX_OMARS_RUNS} runs.",
+        f"*Details:* Maximin; up to {app.MAX_SPACE_FILLING_RUNS} runs.",
         f"held to {megabytes} MB, {app.MAX_TABLE_COLUMNS} columns and {app.MAX_GIVEN_RUNS:,} runs",
-        f"one button adds {['', 'one', 'two', 'three'][app.CONFIRMATION_RUNS]} at the settings found",
+        f"One button adds {['', 'one', 'two', 'three'][app.CONFIRMATION_RUNS]} confirmation runs at the settings found",
         f"a note when one is above {app.VIF_HIGH:g}",
         f"{['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][len(app.SCENARIOS)]} processes with a known true model",
         f"The glossary holds {len(glossary)} terms",
-        f"The book's {len(book)} examples open with `?book=<name>`, and {len(published)} published",
-        f"the book's {len(book)} examples are held to",
+        f"The book's {len(book)} examples and {len(published)} published examples each open from a link",
+        f"For the book's {len(book)} examples the app gives the numbers the book prints",
         f"{len(graph['nodes'])} ideas of designed experiments and {len(graph['edges'])} links between them",
         f"links between them, in {len(graph['clusters'])} topics",
     ):
         assert sentence.lower() in TEXT.lower(), sentence
+
+
+#: Words for a statistician, or for the person who looks after the computers. Each is on a line of details.
+FOR_THE_DETAILS = (
+    "WebAssembly",
+    "CPython",
+    "HTTPS",
+    "SHA-256",
+    "CodeQL",
+    "access log",
+    "access-log",
+    "cookies",
+    "database",
+    "JSON",
+    "WCAG",
+    "pull request",
+    "smoke test",
+    "p-value",
+    "R²",
+    "AICc",
+    "Bonferroni",
+    "Box-Cox",
+    "Lenth",
+    "Scheffé",
+    "Tukey",
+    "Welch",
+    "Kruskal",
+    "Cook's distance",
+    "variance inflation",
+    "defining relation",
+    "aberration",
+)
+
+
+def test_what_is_in_bold_is_a_sentence_with_its_period():
+    """A point opens with a sentence in bold, which a card sets on a line of its own: none trails a comma."""
+    shown = " ".join(FEATURES.split("<!-- features.html shows what follows -->", 1)[1].split())
+    bold = re.findall(r"\*\*(.+?)\*\*", shown)
+    assert len(bold) > 120
+    assert [words for words in bold if not words.endswith(".")] == []
+    assert not re.search(r"\*\*[,:;]", shown), "and nothing but a new sentence follows it"
+
+
+def test_a_point_says_in_plain_words_what_it_means_and_keeps_such_words_for_its_details():
+    """What the page shows at first is for the person using the app: the words of statistics and servers come after."""
+    shown = FEATURES.split("<!-- features.html shows what follows -->", 1)[1]
+    plain, details, folded = [], [], False
+    for line in shown.splitlines():
+        if line.lstrip().startswith("- *Details:*"):
+            folded = True
+        elif not line.startswith("    "):  # a line of details goes on over lines indented under it
+            folded = False
+        (details if folded else plain).append(line)
+    assert len(details) > 80
+    first, rest = " ".join(plain), " ".join(details)
+    for word in FOR_THE_DETAILS:  # as each is written: a link's address holds "https" too
+        assert word not in first, word
+        assert word in rest, f"{word}: said in a line of details, for a reader who asks"
 
 
 # --------------------------------------------------------------------------- the page that shows the document
@@ -120,7 +212,8 @@ def test_the_document_is_published_with_the_page_that_shows_it(build_script, nod
     assert shows <= set(build_script.APP_FILES)
     assert shows <= set(APP_SOURCES)
     html = source("features.html")
-    assert 'import { markdown, shownPart } from "./features.js";' in html
+    assert 'import { addressOf, page, shownPart } from "./features.js";' in html
+    assert 'import { LEVEL_KEY, readLevel } from "./levels.js";' in html, "the app's own reading level"
     assert 'fetch("FEATURES.md"' in html
     (mark,) = javascript(node, source("features.js"), [("SHOWN_FROM", [])])
     assert FEATURES.count(mark) == 1, "the line after which the page shows the document"
