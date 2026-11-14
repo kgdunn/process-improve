@@ -109,3 +109,15 @@ def test_the_copy_holds_every_module_the_page_loads_on_demand():
     assert on_demand == {"figure.js", "vendor/modern-screenshot.mjs"}, "a new one is kept, or needs a network"
     kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const onDemand = .*", source("offline.js")).group()))
     assert on_demand - NEEDS_A_NETWORK == kept
+
+
+def test_the_copy_holds_the_page_the_footer_s_button_opens():
+    """The app's page never loads features.html, so a copy made of what a visit loaded left its button dead offline.
+
+    Only the live tier saw it. The page's own files are named to the copy: the page, the module it imports, the
+    document it reads and the picture it shows. Its styles are the app's, which every visit loads.
+    """
+    kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const linked = .*", source("offline.js")).group()))
+    asked = re.findall(r'(?:src=|from |fetch\()"(?:\./)?([\w.-]+)"', source("features.html"))
+    assert kept == {"features.html", *asked}
+    assert set(asked) == {"features.js", "FEATURES.md", "favicon.svg"}

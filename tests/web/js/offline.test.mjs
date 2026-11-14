@@ -160,11 +160,13 @@ describe("what the footer says of the copy", () => {
 // ---------------------------------------------------------------- installOffline, visit after visit
 /**
  * The page's own files a visit loads, as the browser's record of the visit lists them: one of them asked for and
- * refused, as an optional file is. SHELL is what the copy then holds of the app: what opens the page, the rest, and
- * the window a figure opens in, which a visit that drew no chart did not load.
+ * refused, as an optional file is. SHELL is what the copy then holds of the app: what opens the page, the rest,
+ * the window a figure opens in, which a visit that drew no chart did not load, and the page the footer's button
+ * opens, which this page never loads.
  */
 const LOADED = ["app.js", "style.css", "manifest.webmanifest", "book/absent.json", `wheels/${manifest.wheel}`, "api/feedback"].map((file) => SCOPE + file);
-const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "app.js", "style.css", "manifest.webmanifest", "figure.js"].map((file) => SCOPE + file);
+const LISTED = ["features.html", "features.js", "FEATURES.md", "favicon.svg"];
+const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "app.js", "style.css", "manifest.webmanifest", "figure.js", ...LISTED].map((file) => SCOPE + file);
 
 /** Every address a visit may ask for, each with some text; runtime.json and the lock file with their own. */
 const everything = () => ({

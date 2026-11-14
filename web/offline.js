@@ -183,6 +183,13 @@ const opening = (scope) => ["", "worker.js", "python-boot.js", "runtime.json", "
 const onDemand = (scope) => ["figure.js"].map((file) => scope + file);
 
 /**
+ * A page of the app this page never loads, which its footer's button opens: the list of what Factorial does
+ * (features.html), the module that reads its document, the document, and the mark beside its way back. A copy
+ * holds them all the same, so the button opens the list without a network.
+ */
+const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "favicon.svg"].map((file) => scope + file);
+
+/**
  * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,
  * its pictures. The record also holds what was asked for and refused. A browser that notes how each request was
  * answered has those left out here; in any other, each file is copied if it can be had.
@@ -295,7 +302,7 @@ export async function installOffline({ manifest, started, box }) {
       await caches.open(MADE); // the mark first: from here on the worker may add to the copy
       await copyInto(KEPT, files.start);
       await copyInto(APP, opening(scope));
-      await copyInto(APP, [...alsoLoaded(scope), ...onDemand(scope)], { needed: false });
+      await copyInto(APP, [...alsoLoaded(scope), ...onDemand(scope), ...linked(scope)], { needed: false });
       await prune(scope, files.now);
       if (what === "whole" && files.later) await copyInto(KEPT, files.later);
       await say(files);
