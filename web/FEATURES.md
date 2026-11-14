@@ -640,8 +640,8 @@ The library also does what the app leaves out:
 
 - **Factors that are hard to change.** A design that sets such a factor once for a group of
   runs, and the analysis that those runs need.
-  - *Details:* A split-plot or strip-plot design from `generate_design` with
-    `hard_to_change`, analysed by `analyze_experiment` with `analysis_type="split_plot"`.
+  - *Details:* A split-plot design from `generate_design` with `hard_to_change`, analysed by
+    `analyze_experiment` with `analysis_type="split_plot"`, as a strip-plot design is.
 - **Results that are counts, or pass and fail.** A model made for such results. The app
   treats every result as a measured amount.
   - *Details:* A generalized linear model: `analysis_type="glm"`, for a Poisson, binomial or

@@ -151,7 +151,7 @@ describe("the features document itself, as the page shows it", () => {
   });
 
   test("nothing of the Markdown is left as it was typed", () => {
-    assert.equal((html.match(/<table/g) ?? []).length, 1, "the limits");
+    assert.equal((html.match(/<table/g) ?? []).length, 2, "the limits, and the library's designs");
     assert.doesNotMatch(html, /\*\*|\]\(|^\||^#|<!--/m);
     assert.doesNotMatch(html.replace(/<code>.*?<\/code>/g, ""), /`|\*/);
   });
