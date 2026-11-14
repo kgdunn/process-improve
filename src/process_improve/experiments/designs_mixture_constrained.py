@@ -29,11 +29,12 @@ redundant: ``linear`` has one term per component, ``quadratic`` adds ``x_i x_j``
 
 from __future__ import annotations
 
+import ast
 import itertools
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard, cast
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,9 @@ from process_improve._random import check_random_state
 from process_improve.experiments._uniform_sampling import UniformSampler, _linear_row
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
+    _compile,
     criterion_metadata,
+    factor_lookup,
     fedorov_exchange,
     independent_columns,
     make_criterion,
@@ -55,6 +58,8 @@ from process_improve.experiments.designs_constrained import (
 from process_improve.experiments.designs_utils import refuse_budget_below_model
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from process_improve.experiments.factor import Constraint, Factor
 
 logger = logging.getLogger(__name__)
@@ -125,29 +130,110 @@ def cubic_difference_term(a: str, b: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _linear_coefficients(expression: str, names: list[str]) -> list[tuple[np.ndarray, float]]:
-    """Return ``(a, c)`` pairs with ``g(x) = a @ x + c <= 0`` for each inequality in ``expression``.
+def _affine(g: Callable, names: list[str]) -> tuple[np.ndarray, float] | None:
+    """Return ``(a, c)`` with ``g(x) = a @ x + c`` over the proportions, or None when ``g`` is not affine.
 
     The coefficients are read off by evaluating ``g`` at the origin and the unit vectors,
     then checked at points spread through the cube (the unscrambled Halton sequence, so
-    no random generator is involved); a constraint that is not affine is refused, because
-    the vertex enumeration below relies on flat faces.
+    no random generator is involved).
     """
     q = len(names)
     probe = np.vstack([np.zeros(q), np.eye(q), qmc.Halton(d=q, scramble=False).random(9)[1:]])
     env = {n: probe[:, j] for j, n in enumerate(names)}
-    pairs = []
-    for g in parse_constraint(expression, set(names)):
+    with np.errstate(divide="ignore", invalid="ignore"):  # a ratio has no value where its denominator is zero
         values = np.broadcast_to(np.asarray(g(env), dtype=float), (probe.shape[0],))
         c = float(values[0])
         a = values[1 : q + 1] - c
-        if not np.allclose(probe @ a + c, values, atol=1e-9, rtol=1e-9):
-            raise ValueError(
-                f"Constraint {expression!r} is not linear in the mixture proportions. Mixture regions "
-                "accept linear constraints only, e.g. 'x1 + 2*x2 <= 0.8'."
-            )
-        pairs.append((a, c))
-    return pairs
+        affine = np.allclose(probe @ a + c, values, atol=1e-9, rtol=1e-9)
+    return (a, c) if affine else None
+
+
+def _is_ratio(side: ast.expr) -> TypeGuard[ast.BinOp]:
+    """Whether one side of a comparison is a division, as ``A / B`` and ``(A + C) / (B + D)`` are."""
+    return isinstance(side, ast.BinOp) and isinstance(side.op, ast.Div)
+
+
+def _cleared_ratio(expression: str, factors: list[Factor]) -> str | None:
+    """Return ``expression`` multiplied through by the denominator of its ratio, or None when it has no single one.
+
+    ``"A / B <= 2.5"`` is not flat as written, but it is the flat limit ``"A <= 2.5 * B"``
+    wherever ``B`` is above zero, and ``"0.5 <= A / (B + C) <= 2"`` is two such limits.
+    Each side that is a division loses its denominator and every other side is multiplied
+    by it, which keeps the inequality only where the denominator is positive.
+
+    Raises
+    ------
+    ValueError
+        If the denominator can be zero or negative within the component bounds: the ratio
+        has no value at zero, and a negative denominator turns the inequality around.
+        The bounds are tested as a box, so every blend the design can hold is covered.
+    """
+    names = [f.name for f in factors]
+    compare = cast("ast.Compare", ast.parse(expression, mode="eval").body)  # parse_constraint has accepted it
+    sides = [compare.left, *compare.comparators]
+    denominators = {ast.unparse(side.right): side.right for side in sides if _is_ratio(side)}
+    if len(denominators) != 1:
+        return None
+    ((shown, denominator),) = denominators.items()
+    form = _affine(_compile(denominator, factor_lookup(names)), names)
+    if form is None:
+        return None
+    cleared = [side.left if _is_ratio(side) else ast.BinOp(side, ast.Mult(), denominator) for side in sides]
+    compare.left, compare.comparators = cleared[0], cleared[1:]
+    text = ast.unparse(compare)
+    slope, constant = form
+    bounds = np.array([[f.low, f.high] for f in factors], dtype=float)
+    smallest = constant + slope @ np.where(slope > 0, bounds[:, 0], bounds[:, 1])
+    if smallest <= _TOL:
+        # Multiplying through by a denominator that reaches zero keeps the blends there; a negative one would not do.
+        rewrite = "" if smallest < -_TOL else f", or write the limit without the division, as {text!r}"
+        raise ValueError(
+            f"Constraint {expression!r} divides by {shown!r}, which falls to {smallest:.4g} within the component "
+            "bounds, and a ratio is a linear limit only where its denominator is above zero. Raise the lower "
+            f"bounds until {shown!r} stays above zero{rewrite}."
+        )
+    return text
+
+
+def linear_limit(expression: str, factors: list[Factor]) -> tuple[str, list[tuple[np.ndarray, float]]]:
+    """Return a constraint on mixture components as the linear limit a mixture region holds.
+
+    The limit is the constraint as written when that is linear in the proportions, and
+    otherwise its ratio multiplied through by the denominator (see :func:`_cleared_ratio`).
+
+    Returns
+    -------
+    tuple
+        The limit's text, and one ``(a, c)`` pair with ``a @ x + c <= 0`` for each
+        inequality in it.
+
+    Raises
+    ------
+    ValueError
+        If the constraint is neither, because the vertex enumeration below relies on flat faces.
+    """
+    names = [f.name for f in factors]
+
+    def read(text: str) -> list[tuple[np.ndarray, float]] | None:
+        pairs = []
+        for g in parse_constraint(text, set(names)):
+            pair = _affine(g, names)
+            if pair is None:
+                return None
+            pairs.append(pair)
+        return pairs
+
+    pairs = read(expression)
+    if pairs is not None:
+        return expression, pairs
+    cleared = _cleared_ratio(expression, factors)
+    if cleared is None or (pairs := read(cleared)) is None:
+        raise ValueError(
+            f"Constraint {expression!r} is not linear in the mixture proportions. Mixture regions accept linear "
+            "constraints, e.g. 'x1 + 2*x2 <= 0.8', and a ratio of two linear expressions against a number, "
+            "e.g. 'x1 / x2 <= 2.5'."
+        )
+    return cleared, pairs
 
 
 def mixture_inequalities(factors: list[Factor], constraints: list[Constraint] | None) -> tuple[np.ndarray, np.ndarray]:
@@ -159,9 +245,10 @@ def mixture_inequalities(factors: list[Factor], constraints: list[Constraint] | 
     Raises
     ------
     ValueError
-        If the bounds cannot be met by any mixture (``sum(low) > 1`` or ``sum(high) < 1``).
+        If the bounds cannot be met by any mixture (``sum(low) > 1`` or ``sum(high) < 1``),
+        or a constraint is not linear in the proportions, nor a ratio that is linear once it
+        is multiplied through by a denominator the bounds keep above zero.
     """
-    names = [f.name for f in factors]
     low = np.array([f.low for f in factors], dtype=float)
     high = np.array([f.high for f in factors], dtype=float)
     if low.sum() > 1 + _TOL or high.sum() < 1 - _TOL:
@@ -172,7 +259,7 @@ def mixture_inequalities(factors: list[Factor], constraints: list[Constraint] | 
     q = len(factors)
     rows, rhs = [-np.eye(q), np.eye(q)], [-low, high]
     for constraint in constraints or []:
-        for a, c in _linear_coefficients(constraint.expression, names):
+        for a, c in linear_limit(constraint.expression, factors)[1]:
             rows.append(a[None, :])
             rhs.append(np.array([-c]))
     return _unit_rows(np.vstack(rows), np.concatenate(rhs))

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -40,6 +42,86 @@ FULL = [Factor(name=n, type="mixture") for n in "ABC"]
 
 def _feasible(x: np.ndarray, factors: list[Factor], constraints: list[Constraint] | None = None) -> np.ndarray:
     return DesignRegion(factors, constraints).feasible(x, tol=1e-7)
+
+
+# ---------------------------------------------------------------------------
+# A ratio of components, which is linear once multiplied through by its denominator
+# ---------------------------------------------------------------------------
+
+RATIOS = [
+    ("x1 / x2 <= 2.5", "x1 <= 2.5*x2"),
+    ("2.5 >= x1 / x2", "x1 <= 2.5*x2"),
+    ("x1 / x2 >= 0.4", "x1 >= 0.4*x2"),
+    ("0.4 <= x1 / x2 <= 2.5", "0.4*x2 <= x1 <= 2.5*x2"),
+    ("x1 / (x2 + x3) <= 2", "x1 <= 2*(x2 + x3)"),
+    ("2 * x1 / x2 <= 5", "2*x1 <= 5*x2"),
+    ("x1 / x2 <= x3 / x2", "x1 <= x3"),
+]
+
+
+def _limits(factors: list[Factor], expression: str) -> tuple[np.ndarray, np.ndarray]:
+    return mixture_inequalities(factors, [Constraint(expression=expression)])
+
+
+class TestRatioOfComponents:
+    @pytest.mark.parametrize(("ratio", "flat"), RATIOS)
+    def test_a_ratio_is_the_limit_it_gives_when_multiplied_through(self, ratio: str, flat: str) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # the ratio is never divided out where its denominator is zero
+            rows, bounds = _limits(BOUNDED, ratio)
+        want_rows, want_bounds = _limits(BOUNDED, flat)
+        np.testing.assert_allclose(rows, want_rows, atol=1e-12)
+        np.testing.assert_allclose(bounds, want_bounds, atol=1e-12)
+
+    @pytest.mark.parametrize("design_type", [None, "d_optimal"])
+    def test_every_run_of_a_design_keeps_the_ratio(self, design_type: str | None) -> None:
+        ratio = Constraint(expression="0.5 <= x1 / x2 <= 1.5")
+        budget = None if design_type is None else 10
+        runs = generate_design(BOUNDED, design_type=design_type, budget=budget, constraints=[ratio], random_state=1)
+        share = runs.design["x1"] / runs.design["x2"]
+        assert share.min() >= 0.5 - 1e-9
+        assert share.max() <= 1.5 + 1e-9
+        assert share.max() == pytest.approx(1.5)  # the limit binds: without it x1 / x2 reaches 5
+
+    def test_a_ratio_beside_a_process_factor(self) -> None:
+        factors = [*BOUNDED, Factor(name="T", low=20, high=80)]
+        ratio = Constraint(expression="x1 / x2 <= 1.5")
+        runs = generate_design(factors, budget=20, constraints=[ratio], random_state=1)
+        assert (runs.design["x1"] / runs.design["x2"]).max() <= 1.5 + 1e-9
+
+    @pytest.mark.parametrize("factors", [BOUNDED, [*BOUNDED, Factor(name="T", low=20, high=80)]])
+    def test_a_region_states_the_limit_it_holds(self, factors: list[Factor]) -> None:
+        region = DesignRegion(factors, [Constraint(expression="x1 / x2 <= 2.5")])
+        assert region.linear_forms() == [({"x1": 1.0, "x2": -2.5}, None, 0.0)]
+
+    def test_a_component_named_outside_nfkc(self) -> None:
+        """Python's parser writes a name in its NFKC form, so the multiplied-through text holds T for U+FF34."""
+        wide = [Factor(name="\uff34", type="mixture", low=0.1, high=0.6), *BOUNDED[1:]]
+        region = DesignRegion(wide, [Constraint(expression="\uff34 / x2 <= 2.5")])
+        assert region.linear_forms() == [({"\uff34": 1.0, "x2": -2.5}, None, 0.0)]
+
+    def test_a_denominator_that_reaches_zero_is_refused_with_the_limit_to_write(self) -> None:
+        free = [Factor(name=n, type="mixture") for n in ("x1", "x2", "x3")]
+        with pytest.raises(ValueError, match=r"divides by 'x2', which falls to 0 .* as 'x1 <= 2\.5 \* x2'\."):
+            _limits(free, "x1 / x2 <= 2.5")
+
+    def test_a_denominator_that_turns_negative_is_refused_without_a_limit_to_write(self) -> None:
+        with pytest.raises(ValueError, match=r"divides by 'x2 - 0\.5', which falls to -0\.4 .* above zero\.$"):
+            _limits(BOUNDED, "x1 / (x2 - 0.5) <= 2")
+
+    @pytest.mark.parametrize(
+        "expression", ["x1 / x2 <= x3", "x1 / x2 <= x1 / x3", "x1 / x2 * 2 <= 5", "x1 / (x2 * x3) <= 2"]
+    )
+    def test_a_ratio_that_is_not_linear_when_multiplied_through_is_refused(self, expression: str) -> None:
+        with pytest.raises(ValueError, match=r"not linear in the mixture proportions.*'x1 / x2 <= 2\.5'"):
+            _limits(BOUNDED, expression)
+
+    def test_a_division_by_a_number_is_read_as_written(self) -> None:
+        """Linear as it stands, so it is not multiplied through: a negative divisor would turn it around."""
+        rows, bounds = _limits(BOUNDED, "x1 / -2 >= -0.2")
+        want_rows, want_bounds = _limits(BOUNDED, "x1 <= 0.4")
+        np.testing.assert_allclose(rows, want_rows, atol=1e-12)
+        np.testing.assert_allclose(bounds, want_bounds, atol=1e-12)
 
 
 # ---------------------------------------------------------------------------
