@@ -149,14 +149,35 @@ h1 {
 /* The mark and the name, a link home that keeps the header's colours and spacing. */
 .brand__home { display: flex; align-items: center; gap: inherit; color: inherit; text-decoration: none; border-radius: 8px; }
 .brand__home:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
-/* Feedback, at the header's right before the colour-mode switch: its icon and its name, the icon alone on a phone. */
+/* Feedback, at the header's right before the colour-mode switch. Its slot takes the width the header has left over,
+   and that width picks the button's words: the longest of the three that fit, and the icon alone when none does. */
+.feedback-slot {
+  flex: 1 1 0; min-width: 38px; align-self: flex-start; display: flex; justify-content: flex-end;
+  container-type: inline-size;
+}
 .feedback-button {
-  margin-left: auto; align-self: flex-start; flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; display: inline-flex; align-items: center; gap: 6px;
   padding: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: none;
   color: var(--muted); font-size: 0.92rem; line-height: 1;
 }
 .feedback-button:hover, .feedback-button:focus-visible { color: var(--fg); border-bottom-color: var(--warn); }
 .feedback-button svg { width: 22px; height: 22px; flex: none; }
+/* Each width is the button's own with those words, and a tenth more for a font wider than the page's; in a font
+   wider still the words are cut short and never reach past the slot. */
+.feedback-button span { display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* No room for a word: the shortest stays as the button's name, for a screen reader. */
+span.feedback-button__short { display: block; position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
+@container (min-width: 7.5rem) {
+  span.feedback-button__short { position: static; width: auto; height: auto; clip-path: none; }
+}
+@container (min-width: 13.5rem) {
+  span.feedback-button__short { display: none; }
+  span.feedback-button__medium { display: block; }
+}
+@container (min-width: 18rem) {
+  span.feedback-button__medium { display: none; }
+  span.feedback-button__long { display: block; }
+}
 /* On a phone the name is a little smaller, so the mark, the name and the two buttons fit across a 360 px screen. */
 @media (max-width: 480px) {
   .brand { gap: 10px; }
@@ -165,7 +186,6 @@ h1 {
      is cut short only where it would reach past the screen, as in a font far wider than the page's. */
   .brand__home, .brand__home > div { min-width: 0; }
   .tagline { font-size: clamp(0.78rem, 3.9vw, 0.95rem); width: max-content; max-width: calc(100vw - 100px); overflow: hidden; }
-  .feedback-button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* The colour-mode switch, an icon at the header's right as the book has it: the mode now, and a press for the next. */
 .mode-switch {
