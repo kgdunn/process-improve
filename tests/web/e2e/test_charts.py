@@ -257,7 +257,10 @@ def test_on_a_dark_page_a_surface_is_dark_where_the_response_is_low_and_saved_as
     with page.expect_download() as svg:
         page.click("dialog.figure [data-do=svg]")
     svg.value.save_as(tmp_path / "figure.svg")
-    saved = page.evaluate("[window.__saved.data[0].colorscale[0][1], window.__saved.data[0].contours.labelfont.color]")
+    saved = page.evaluate(
+        """() => { const { data, layout } = window.__saved;
+          return [data[0].colorscale[0][1], layout.template.data.contour[0].contours.labelfont.color]; }"""
+    )
     assert [colour.lower() for colour in saved] == [LIGHT_ENDS[0], "#1d1d1f"]
 
 
@@ -277,10 +280,12 @@ def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page,
     for chart in ("contour", "prediction_variance"):
         plot = page.locator(f"figure[data-chart={chart}] .plot")
         page.wait_for_function(
-            "([plot, ink]) => plot.data[0].contours.labelfont?.color === ink", arg=[plot.element_handle(), ink]
+            "([plot, ink]) => plot._fullData[0].contours.labelfont.color === ink", arg=[plot.element_handle(), ink]
         )
-        font = plot.evaluate("(plot) => plot.data[0].contours.labelfont")
+        font = plot.evaluate("(plot) => plot._fullData[0].contours.labelfont")
         assert font["shadow"].count(panel) == 4, "a shadow to each corner"
+        own = plot.evaluate("(plot) => Object.keys(plot.data[0].contours).sort()")
+        assert own == ["end", "showlabels", "size", "start"], "the trace keeps the levels Plotly chose, and no font"
         labels = plot.locator(".contourlabels text")
         assert labels.count() >= 3
         drawn = labels.first.evaluate("(label) => [getComputedStyle(label).fill, getComputedStyle(label).textShadow]")

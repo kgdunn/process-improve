@@ -116,6 +116,17 @@ const EYE = { x: 1.65, y: 1.65, z: 1.1 };
 const SCENE_SHAPE = 0.9;
 
 /**
+ * The numbers on a contour's lines, where a figure states no font for them: in the page's ink, with a halo in the
+ * page's own colour. A ramp runs from as light as the page to as dark as its ink, so no one colour reads on every
+ * band; with a halo, one does. It is a default of the figure, not a setting of each trace: Plotly keeps the levels
+ * it chose in a trace's own ``contours``, and a copy of that with a font added would be drawn again without them.
+ */
+export function contourLabels(colours) {
+  const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
+  return { contours: { labelfont: { color: colours.fg, shadow: halo } } };
+}
+
+/**
  * Restyle a figure's layout for the room it is drawn in: the page's colours, its size, no title, the legend
  * below. ``width`` is the room's, in pixels, where it is known, and ``bar`` the part of it a colour bar takes:
  * each axis title is then wrapped to fit its axis, and a scene in three dimensions is seen whole. ``free`` is
@@ -148,6 +159,7 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
     // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
     hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
+    template: { ...layout.template, data: { ...layout.template?.data, contour: [contourLabels(colours)] } },
     xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
     yaxis: axis(layout.yaxis, height - margin.t - margin.b),
   };
@@ -288,26 +300,12 @@ export function pageData(data, colours = LIGHT) {
     const changes = {};
     if (hasBar(trace)) changes.colorbar = slim(trace.colorbar);
     if (isDark(colours) && isSurfaceRamp(trace.colorscale)) changes.colorscale = DEEP;
-    if (labelsBands(trace)) changes.contours = { ...trace.contours, labelfont: bandLabel(trace, colours) };
     return Object.keys(changes).length ? { ...trace, ...changes } : trace;
   });
 }
 
 /** Whether a figure from Python holds the library's ramp for a surface, which the page keeps a copy of. */
 const isSurfaceRamp = (scale) => JSON.stringify(scale ?? null).toLowerCase() === JSON.stringify(SURFACE).toLowerCase();
-
-/** Whether a trace is a surface in filled bands, with a number on each line between two of them. */
-const labelsBands = ({ type, contours = {} }) =>
-  type === "contour" && contours.showlabels === true && contours.type !== "constraint" && !["lines", "none"].includes(contours.coloring);
-
-/**
- * The numbers on a surface's lines: in the page's ink, with a halo in the page's own colour. A ramp runs from
- * as light as the page to as dark as its ink, so no one colour reads on every band; with a halo, one does.
- */
-function bandLabel(trace, colours) {
-  const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
-  return { color: colours.fg, shadow: halo, ...trace.contours.labelfont };
-}
 
 /**
  * A chart as the page draws it in a room ``width`` pixels by ``height``, in ``colours``: its traces and its

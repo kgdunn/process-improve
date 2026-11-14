@@ -17,6 +17,7 @@ import {
   boundaryDrawn,
   blendOverlayFigure,
   boundaryName,
+  contourLabels,
   overlayFigure,
   withAlpha,
   PALE,
@@ -463,33 +464,34 @@ describe("a surface's colours, on a light page and on a dark one", () => {
     assert.equal(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
   });
 
-  test("the numbers on a surface's lines are in the page's ink, with a halo in the page's colour", () => {
+  test("the numbers on a contour's lines are in the page's ink, with a halo in the page's colour", () => {
     for (const colours of [LIGHT, DARK]) {
-      const { labelfont, showlabels } = pageData([bands], colours)[0].contours;
-      assert.equal(showlabels, true);
-      assert.equal(labelfont.color, colours.fg);
-      assert.equal(labelfont.shadow.split(", ").length, 4, "a shadow to each corner");
-      assert.ok(labelfont.shadow.split(", ").every((part) => part.endsWith(` 1px ${colours.panel}`)));
+      const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
+      assert.deepEqual(others, []);
+      assert.deepEqual(labels, contourLabels(colours));
+      const { color, shadow } = labels.contours.labelfont;
+      assert.equal(color, colours.fg);
+      assert.equal(shadow.split(", ").length, 4, "a shadow to each corner");
+      assert.ok(shadow.split(", ").every((part) => part.endsWith(` 1px ${colours.panel}`)));
       assert.ok(contrast(colours.fg, colours.panel) > 7, "the ink reads on its halo, whatever band is under it");
     }
-    const sized = { ...bands, contours: { showlabels: true, labelfont: { size: 9, color: "#123456" } } };
-    assert.deepEqual(
-      Object.entries(pageData([sized], LIGHT)[0].contours.labelfont).filter(([key]) => key !== "shadow"),
-      [["color", "#123456"], ["size", 9]],
-      "a figure's own font is kept",
-    );
-    assert.deepEqual(bands.contours, { showlabels: true }, "the figure it was drawn from is left as it was");
   });
 
-  test("lines drawn in a colour of their own, a shaded region and a surface with no numbers keep their labels", () => {
+  test("the font is a default of the figure: what else the figure's template sets is kept", () => {
+    const own = { layout: { colorway: ["#0072B2"] }, data: { scatter: [{ mode: "lines" }] } };
+    const { template } = pageLayout({ template: own }, 300, DARK);
+    assert.deepEqual(template.layout, own.layout);
+    assert.deepEqual(template.data.scatter, own.data.scatter);
+    assert.deepEqual(template.data.contour, [contourLabels(DARK)]);
+    assert.deepEqual(own.data, { scatter: [{ mode: "lines" }] }, "the figure it was drawn from is left as it was");
+  });
+
+  test("a trace's own contours are left as they are: Plotly keeps the levels it chose there", () => {
+    const drawn = pageData([bands], DARK)[0];
+    assert.equal(drawn.contours, bands.contours, "the same object, which a figure drawn again brings back");
+    assert.deepEqual(bands.contours, { showlabels: true });
     const lines = { type: "contour", z: [[1]], showscale: false, contours: { showlabels: true, coloring: "lines" } };
-    const none = { ...lines, contours: { showlabels: true, coloring: "none", labelfont: { color: "#a35f00" } } };
-    const shaded = { ...lines, contours: { type: "constraint", showlabels: true } };
-    const bare = { ...lines, contours: { showlabels: false } };
-    const unset = { type: "contour", z: [[1]], showscale: false };
-    const all = [lines, none, shaded, bare, unset];
-    assert.deepEqual(pageData(all, DARK), all);
-    pageData(all, DARK).forEach((drawn, i) => assert.equal(drawn, all[i]));
+    assert.equal(pageData([lines], DARK)[0], lines);
   });
 
   test("the page's own surface and its correlation map take the dark page's ramp", () => {
