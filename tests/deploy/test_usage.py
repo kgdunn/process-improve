@@ -295,13 +295,14 @@ def test_keep_adds_the_finished_days_and_says_nothing_and_the_report_reads_them(
     yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M")
     log.write_text(
-        "".join(json.dumps(logged(path, when=when)) + "\n" for path, when in (("/", yesterday), ("/map/", now)))
+        "".join(json.dumps(logged(path, when=when)) + "\n" for path, when in (("/", yesterday), ("/map/", now))),
+        encoding="utf-8",
     )
     paths = ["--log", str(tmp_path / "factorial-access*.log*"), "--kept", str(kept)]
     assert usage.main([*paths, "--keep"]) == 0
     assert capsys.readouterr().out == ""
     assert list(usage.kept(kept)) == [yesterday[:10]], "the finished day, and not today"
-    log.write_text("")  # the log forgets
+    log.write_text("", encoding="utf-8")  # the log forgets
     assert usage.main([*paths, "--days", "2"]) == 0
     rows = [line.split() for line in capsys.readouterr().out.splitlines()[3:5]]
     assert [row[:3] for row in rows] == [[yesterday[:10], "1", "0"], [now[:10], "0", "0"]]
