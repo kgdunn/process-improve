@@ -71,6 +71,23 @@ const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "
 // is hidden until it is drawn; if KaTeX cannot be fetched, the formula is shown as it is written.
 const MATH = /\$([^$]+)\$|:math:`([^`]+)`/g;
 const withMath = text => esc(text).replace(MATH, (_, dollars, role) => `<span class="tex">${dollars ?? role}</span>`);
+// The line a term quotes is the book's source, reStructuredText, and the card shows it as the book prints it: a role
+// gives its words (:math: its formula), ``a literal``, **strong** and *emphasis* are set as such without their marks,
+// and a double dash is the en dash it stands for. The line is escaped first, so nothing in it is read as HTML, and
+// it is read in one pass, so a mark inside a formula or a literal is left as it is.
+const MARKUP = /:math:`([^`]+)`|:[A-Za-z][\w:.+-]*:`([^`]+)`|``(.+?)``|\*\*(\S(?:[^*]*\S)?)\*\*|\*(\S(?:[^*]*\S)?)\*|`(\S(?:[^`]*\S)?)`_{0,2}|--+/g;
+const inWord = ch => ch !== undefined && /[\w*`]/.test(ch);
+const asPrinted = line => esc(line).replace(MARKUP, (all, math, role, literal, strong, em, words, at, whole) => {
+  if (math) return `<span class="tex">${math}</span>`;
+  if (literal) return `<code>${literal}</code>`;
+  if (all.startsWith("--")) return all === "--" ? "\u2013" : all;   // an en dash; a longer run of dashes is a rule
+  // As reStructuredText reads them: marks open after a space or a bracket and close before one, tight around words
+  // (the pattern sees to "tight"), so the asterisks in a*b*c and in 2 * 3 * 4 are left as asterisks.
+  if (!role && (inWord(whole[at - 1]) || inWord(whole[at + all.length]))) return all;
+  if (strong ?? em) return strong ? `<strong>${strong}</strong>` : `<em>${em}</em>`;
+  const inner = role ?? words;   // "words <target>", as an index entry or a reference has: the words
+  return inner.replace(/\s*&lt;.*&gt;$/, "") || inner;
+});
 let katex;   // undefined: not asked for yet; then the fetch, as a promise; then KaTeX, or false when it did not come
 function typeset(root) {
   const formulas = root.querySelectorAll(".tex:not(.done)");
@@ -530,7 +547,7 @@ function render() {
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
-      <blockquote class="map-quote"><p>${withMath(n.quote)}</p></blockquote>
+      <blockquote class="map-quote"><p>${asPrinted(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {

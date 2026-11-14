@@ -1721,6 +1721,9 @@ main.map .lede { margin: 0; }
 .map-elsewhere { font-size: 0.85rem; font-style: italic; }
 .map-quote { margin: 4px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--muted); }
 .map-quote p { font-style: italic; }
+/* The quoted line is in italics, so its emphasis stands upright; a literal is in the page's code type. */
+.map-quote em, .map-quote code { font-style: normal; }
+.map-quote code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 /* A formula (map.js): out of sight until KaTeX has drawn it, so its LaTeX is not flashed first. KaTeX sets its own
    type a fifth larger than the words around it, to suit a serif text; beside the page's sans-serif a tenth is enough. */
 .tex { visibility: hidden; }

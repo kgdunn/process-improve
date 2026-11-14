@@ -1251,3 +1251,59 @@ def test_a_formula_is_shown_as_it_is_written_when_katex_cannot_be_fetched(contex
         {"where": where, "latex": None, "drawn": None, "seen": True} for where in ("strip", "definition", "quote")
     ]
     assert f"Minimize {TRACE}: the average variance of the parameters." in page.text_content("#card")
+
+
+# --------------------------------------------------------------------------- the book's markup
+# A quote is a line of the book's source. This one holds each mark such a line can: an index entry with its target,
+# a reference with its title and one without, a literal that holds asterisks, strong, emphasis, words in single
+# backquotes, both forms of the double dash, a formula, asterisks that are no marks, and text a browser could
+# take for a tag.
+TYPED = (
+    r"The **second phase** adds *sequential runs* -- the :index:`bias error <pair: bias error; experiments>` "
+    r":math:`\beta_2` of :ref:`blocking <DOE-blocking>` and :ref:`DOE-label`, with ``a * b`` and "
+    r"`simplex-lattice design` always measurable--in some way: 2 * 3 * 4, a*b*c and <b>no tag</b>"
+)
+PRINTED = (
+    "The second phase adds sequential runs \u2013 the bias error  of blocking and DOE-label, with a * b and "
+    "simplex-lattice design always measurable\u2013in some way: 2 * 3 * 4, a*b*c and <b>no tag</b>"
+)
+# The quote on the card: its words with each formula taken out, and the words set as strong, emphasis and literal.
+QUOTE = """() => { const quote = document.querySelector('#card .map-quote p'), copy = quote.cloneNode(true);
+  copy.querySelectorAll('.tex').forEach((f) => f.remove());
+  const words = (tag) => [...quote.querySelectorAll(tag)].map((e) => e.textContent);
+  return { text: copy.textContent, strong: words('strong'), em: words('em'), code: words('code'),
+           upright: [...quote.querySelectorAll('em, code')].every((e) => getComputedStyle(e).fontStyle === 'normal'),
+           italic: getComputedStyle(quote).fontStyle, formulas: quote.querySelectorAll('.tex .katex').length,
+           tags: [...new Set([...copy.querySelectorAll('*')].map((e) => e.tagName.toLowerCase()))].sort() }; }"""
+MARKS = re.compile(r"[*`]|:[a-z]+:|--")
+
+
+def test_a_quote_is_shown_as_the_book_prints_it_without_its_marks(context, site):
+    graph = json.loads(json.dumps(GRAPH))
+    next(n for n in graph["nodes"] if n["id"] == "blocking")["quote"] = TYPED
+    context.route("**/map/graph.json", lambda route: route.fulfill(json=graph))
+    page = _open(context, site)
+    _go(page, "blocking")
+    shown = page.evaluate(QUOTE)
+    assert shown["text"] == PRINTED
+    assert shown["strong"] == ["second phase"]
+    assert shown["em"] == ["sequential runs"]
+    assert shown["code"] == ["a * b"], "a literal keeps what it holds"
+    assert shown["tags"] == ["code", "em", "strong"], "and nothing typed in the line is read as a tag"
+    assert shown["formulas"] == 1
+    assert shown["italic"] == "italic", "the quoted line is in italics"
+    assert shown["upright"], "so its emphasis and its literal stand upright"
+    # The link to the book still looks for words that are on the page: none with a mark on it.
+    href = page.get_attribute("#card .map-book a", "href")
+    assert not MARKS.search(href.split(":~:text=")[1].replace("%2D", "-")), href
+
+
+def test_no_quote_of_the_graph_shows_a_mark_of_the_book_s_source(context, site):
+    page = _open(context, site)
+    typed = [n for n in GRAPH["nodes"] if MARKS.search(n["quote"])]
+    assert len(typed) >= 10, "the graph quotes lines with emphasis, index entries, formulas and double dashes"
+    for term in typed:
+        _go(page, term["id"])
+        shown = page.evaluate(QUOTE)
+        assert not MARKS.search(shown["text"]), f"{term['id']}: {shown['text']}"
+        assert shown["formulas"] == term["quote"].count(":math:"), term["id"]
