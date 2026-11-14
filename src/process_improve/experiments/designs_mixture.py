@@ -51,8 +51,9 @@ def dispatch_mixture(
     blends instead (see below), so the design never exceeds the budget. A budget below
     the number of model terms raises a ``ValueError``.
 
-    When any component has a bound inside (0, 1), or *constraints* are given, the
-    region is a polytope inside the simplex and the design comes from
+    When any component has a bound inside (0, 1) or a ``min_when_used``, or *constraints*
+    are given, the region is a polytope inside the simplex, or pieces of one, and the
+    design comes from
     :func:`~process_improve.experiments.designs_mixture_constrained.constrained_mixture_design`:
     vertices, edge midpoints and centroid without a budget, a D-optimal subset of the
     candidate blends with one.
@@ -84,7 +85,10 @@ def dispatch_mixture(
     if any(f.type != FactorType.mixture for f in factors):
         raise ValueError("A mixture design needs every factor to be a mixture component (type='mixture').")
     model = scheffe_model(model_type)
-    bounded = any((f.low or 0.0) > 0.0 or (f.high if f.high is not None else 1.0) < 1.0 for f in factors)
+    bounded = any(
+        (f.low or 0.0) > 0.0 or (f.high if f.high is not None else 1.0) < 1.0 or f.min_when_used is not None
+        for f in factors
+    )
     blend_size = SCHEFFE_DEGREE[model]
     if model == "scheffe_cubic":
         n_default = math.comb(k + 2, 3) + (k > 3)

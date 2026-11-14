@@ -503,8 +503,8 @@ def _auto_select(
     if k_mixture > 0:
         return "mixture" if k_mixture == len(factors) else "d_optimal"
 
-    # Constraints or split-plot -> D-optimal
-    if constraints or hard_to_change:
+    # Constraints, split-plot, or an ingredient that is 0 or at least a minimum -> D-optimal
+    if constraints or hard_to_change or any(f.min_when_used is not None for f in factors):
         return "d_optimal"
 
     return _auto_select_by_budget(
@@ -1179,7 +1179,7 @@ def generate_design(  # noqa: PLR0913
         )
         meta["constraints_enforced"] = False
     all_mixture = all(f.type == FactorType.mixture for f in factors)
-    if all_mixture or meta.get("constraints_enforced"):
+    if all_mixture or meta.get("constraints_enforced") or any(f.min_when_used is not None for f in factors):
         # Record the region the runs were placed in, so evaluate_design and
         # optimize_responses can work over the same region (see DesignRegion).
         from process_improve.experiments.region import DesignRegion  # noqa: PLC0415
@@ -1187,6 +1187,7 @@ def generate_design(  # noqa: PLR0913
         meta["region"] = DesignRegion(factors, constraints if meta.get("constraints_enforced") else None).to_dict()
 
     extra_center_points = _extra_center_points(design_type, n_center_points, coded_matrix, factors)
+    _refuse_traces(design_type, coded_matrix, factors, extra_center_points, int(meta.get("n_fixed_runs", 0)))
     _warn_if_no_error_df(design_type, coded_matrix, extra_center_points, n_replicates, factors)
     if not all_mixture and design_type != "mixture":
         _note_runs_beyond_ranges(design_type, coded_matrix, factors, meta)
@@ -1218,6 +1219,37 @@ def generate_design(  # noqa: PLR0913
         randomize=not split_plot,
         block_generators=block_generators,
     )
+
+
+def _refuse_traces(
+    design_type: str, coded_matrix: np.ndarray, factors: list[Factor], n_center_points: int, n_fixed: int
+) -> None:
+    """Raise when a run sets a factor between 0 and its ``min_when_used``.
+
+    The candidate exchange of the optimal designs keeps every run at 0 or at least the
+    minimum. A classical design takes its levels from the factor's range alone, so its
+    centre points or its axial runs can fall between the two, and so can the runs of a
+    split-plot design or of another backend. The first ``n_fixed`` runs are the caller's
+    ``fixed_runs``, which are kept as given.
+    """
+    traces = []
+    for j, f in enumerate(factors):
+        if f.min_when_used is None:
+            continue
+        amount = np.asarray(coded_matrix[n_fixed:, j], dtype=float)
+        if f.type != FactorType.mixture:  # a process factor is coded; a mixture component is a proportion as it is
+            coded = np.append(amount, 0.0) if n_center_points else amount
+            amount = (coded + 1.0) * f.high / 2.0  # type: ignore[operator]
+        tol = 1e-9 * f.high  # type: ignore[operator]
+        if np.any((amount > tol) & (amount < f.min_when_used - tol)):
+            traces.append(f"{f.name} (min_when_used={f.min_when_used:g})")
+    if traces:
+        raise ValueError(
+            f"design_type={design_type!r} sets {', '.join(traces)} between 0 and its minimum in some runs"
+            f"{' or centre points' if n_center_points else ''}. An optimal design ('d_optimal', 'i_optimal', "
+            "'a_optimal') built by the candidate exchange keeps every run at 0 or at least the minimum; leave "
+            "design_type unset to get one."
+        )
 
 
 def _refuse_optimal_only_arguments(

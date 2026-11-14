@@ -33,7 +33,7 @@ import numbers
 import re
 import warnings
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -793,13 +793,43 @@ def _align_goals_to_models(
     return [by_name[key] for key in model_keys]
 
 
+#: How close to 0 (coded -1) a factor with a ``min_when_used`` is taken as left out.
+_LEFT_OUT_TOL = 1e-9
+#: SLSQP iterations spent on a neighbouring set of factors before it is searched in full (if it is better by then).
+_SET_SCREEN_ITERATIONS = 8
+
+
 @dataclass
 class _SearchSpace:
-    """Where SLSQP may look: bounds, scipy constraint dicts, and feasible starting points."""
+    """Where SLSQP may look: bounds, scipy constraint dicts, and feasible starting points.
+
+    ``gaps`` holds ``(column, zero, minimum)`` for each factor with a ``min_when_used``,
+    in the search's units: ``zero`` is where the factor is left out (coded -1 for a
+    process factor, 0 for a mixture component). A search cannot cross from there to
+    the minimum, so each one keeps the set of factors its start uses (see
+    :meth:`bounds_at`), and :func:`_best_set_of_factors` then tries the neighbouring sets.
+    """
 
     bounds: list[tuple[float, float]]
     constraints: list[dict[str, Any]]
     starts: list[np.ndarray]
+    gaps: list[tuple[int, float, float]] = field(default_factory=list)
+
+    def left_out(self, x: np.ndarray, column: int, zero: float) -> bool:
+        """Whether ``x`` leaves the factor in ``column`` out."""
+        return bool(x[column] <= zero + _LEFT_OUT_TOL)
+
+    def bounds_at(self, start: np.ndarray) -> list[tuple[float, float]]:
+        """Return the bounds of a search from ``start``.
+
+        A factor with a ``min_when_used`` stays left out when ``start`` leaves it out (or
+        when the search box ends below its minimum), and at or above its minimum otherwise.
+        """
+        bounds = list(self.bounds)
+        for j, zero, minimum in self.gaps:
+            out = self.left_out(start, j, zero) or bounds[j][1] < minimum
+            bounds[j] = (zero, zero) if out else (minimum, bounds[j][1])
+        return bounds
 
 
 def _search_space(
@@ -819,6 +849,10 @@ def _search_space(
     part as a mixture region's, the process factors' as a box region's. The starts are
     then drawn uniformly from the feasible set itself, since a start outside it can
     leave SLSQP stranded at an infeasible point.
+
+    A factor with a ``min_when_used`` is left out by about half of the starts (see
+    :meth:`DesignRegion.sample`), and the space records its minimum, so each search stays
+    on the set of factors its start uses (:meth:`_SearchSpace.bounds_at`).
     """
     bounds = _resolve_search_bounds(search_bounds, factor_names)
     lows, highs = np.array(bounds).T
@@ -837,6 +871,10 @@ def _search_space(
         msg = f"The region's factors {region.names} do not match the model's factors {factor_names}."
         raise ValueError(msg)
     idx = [factor_names.index(n) for n in region.names]  # region column j is model column idx[j]
+    gaps = [(idx[j], region.bounds[j][0], minimum) for j, minimum in region.gaps]
+    for j, zero, _minimum in gaps:  # an amount is not below 0, however wide the search box
+        bounds[j] = (max(bounds[j][0], zero), bounds[j][1])
+    lows, highs = np.array(bounds).T
     components = [factor_names.index(n) for n in region.mixture_names]
     for j in components:
         bounds[j] = region.bounds[region.names.index(factor_names[j])]
@@ -845,7 +883,11 @@ def _search_space(
     ]
     if components:
         constraints.append({"type": "eq", "fun": lambda x: float(x[components].sum() - 1.0)})
-    if region.kind != "box":
+    if any(region.names[j] in region.mixture_names for j, _minimum in region.gaps):
+        # A region with such a component is not sampled: the searches start from its vertices and edge midpoints.
+        points = region.support_points()
+        samples = points[rng.choice(len(points), size=n_starts, replace=len(points) < n_starts)]
+    elif region.kind != "box":
         samples = region.sample(n_starts, rng)
     else:  # uniform over the search box cut by the constraints, which may reach beyond the coded cube
         box = (lows[idx], highs[idx])
@@ -855,11 +897,12 @@ def _search_space(
             lambda m: rng.uniform(*box, size=(m, len(idx))),
             seeds=region.seed_points,
             tolerances=region._widen(),  # so a start passes region.feasible()
+            gaps=region.gaps,  # so the starts differ in which factors with a min_when_used they leave out
         ).draw(n_starts, rng)
     starts = [np.empty(len(factor_names)) for _ in range(n_starts)]
     for start, sample in zip(starts, samples, strict=True):
         start[idx] = sample
-    return _SearchSpace(bounds, constraints, starts)
+    return _SearchSpace(bounds, constraints, starts, gaps)
 
 
 def _region_for_method(region: DesignRegion | None, method: str) -> DesignRegion | None:
@@ -885,11 +928,68 @@ def _multistart_results(
     results = []
     for x0 in space.starts:
         res = optimize.minimize(
-            objective, x0, method="SLSQP", bounds=space.bounds, constraints=space.constraints, options=options
+            objective, x0, method="SLSQP", bounds=space.bounds_at(x0), constraints=space.constraints, options=options
         )
         if accept(res.x) and np.isfinite(res.fun):
             results.append(res)
     return sorted(results, key=lambda res: res.fun)
+
+
+def _best_set_of_factors(
+    objective: Callable[[np.ndarray], float],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+    best: optimize.OptimizeResult,
+    options: dict[str, Any] | None,
+) -> optimize.OptimizeResult:
+    """Change which factors with a ``min_when_used`` are in use, one or two at a time, while that improves ``best``.
+
+    A search keeps the set of factors its start uses, and the starts cover only some of
+    the sets. From the best result, the search is run again over each neighbouring set:
+    one factor left out or brought in at its minimum, and then one factor in use
+    exchanged for one that is left out, which a limit on a total can require (bringing
+    the second in before the first is left out may not fit under the limit, or may score
+    worse on the way). A better result is taken at once, and the passes end when no
+    neighbouring set gives one. It is a local search over the sets, not a proof that no
+    better set exists.
+    """
+
+    def search(start: np.ndarray) -> optimize.OptimizeResult | None:
+        # A few iterations tell whether the set is better, since the start is next to its optimum; most are not.
+        for limit in ({"maxiter": _SET_SCREEN_ITERATIONS}, {}):
+            res = optimize.minimize(
+                objective,
+                start,
+                method="SLSQP",
+                bounds=space.bounds_at(start),
+                constraints=space.constraints,
+                options={**(options or {}), **limit},
+            )
+            better = np.isfinite(res.fun) and res.fun < best.fun - 1e-9 * max(1.0, abs(best.fun))
+            if not (better and accept(res.x)):
+                return None
+            start = res.x
+        return res
+
+    def changed(columns: tuple[int, ...]) -> np.ndarray:
+        start = best.x.copy()
+        for j in columns:
+            zero, minimum = ends[j]
+            start[j] = minimum if space.left_out(start, j, zero) else zero
+        return start
+
+    ends = {j: (zero, minimum) for j, zero, minimum in space.gaps}
+    improved = True
+    while improved:
+        improved = False
+        left_out = [j for j, (zero, _minimum) in ends.items() if space.left_out(best.x, j, zero)]
+        in_use = [j for j in ends if j not in left_out]
+        moves = [(j,) for j in ends] + [(i, j) for i in in_use for j in left_out]
+        for columns in moves:
+            if (res := search(changed(columns))) is not None:
+                best, improved = res, True
+                break  # the sets next to the new best are not the ones listed above
+    return best
 
 
 def _multistart_slsqp(
@@ -973,7 +1073,7 @@ def _closest_to_specification(
     for x0 in space.starts:
         z0 = np.append(x0, min(1.0, float(ramps(np.append(x0, 0.0)).min())))
         res = optimize.minimize(
-            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds, (None, 1.0)], constraints=constraints
+            lambda z: -z[n], z0, method="SLSQP", bounds=[*space.bounds_at(x0), (None, 1.0)], constraints=constraints
         )
         x = res.x[:n]
         t = float(ramps(res.x).min())
@@ -1162,6 +1262,8 @@ def _optimize_desirability(  # noqa: PLR0913
     results = _multistart_results(neg_composite, space, accept)
     if not results:
         raise _no_optimum(region, limits)
+    if space.gaps:
+        results.insert(0, _best_set_of_factors(neg_composite, space, accept, results[0], None))
 
     best_result = results[0]
     composite_d = float(-best_result.fun)
@@ -1675,6 +1777,8 @@ def _pareto_front(
         return _as_utilities(raw(x), senses)
 
     def best_of(objective: Callable[[np.ndarray], float]) -> np.ndarray | None:
+        # shortcut: with min_when_used factors each front point keeps the set of factors one of the 8 starts
+        # uses, upgrade by running _best_set_of_factors on each point if fronts over many such factors are needed.
         # SLSQP's default ftol of 1e-6 leaves front points a visible distance
         # short of the true frontier. These objectives cost microseconds to
         # evaluate, so there is nothing to buy by stopping early.

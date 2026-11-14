@@ -22,7 +22,9 @@ class GenerateDesignInput(BaseModel):
         description=(
             "List of factor specifications (name, type, low/high or levels, units). Add 'hard_limits': true "
             "when low and high are limits of the process (a safety limit, an instrument's range): a CCD is then "
-            "face-centred by default, and a design that would set the factor past them is refused."
+            "face-centred by default, and a design that would set the factor past them is refused. Add "
+            "'min_when_used' to an ingredient with low 0 that is either left out or used at no less than that "
+            "amount: no run then sets it between 0 and the minimum."
         ),
     )
     design_type: (

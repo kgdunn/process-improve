@@ -89,6 +89,7 @@ from process_improve.experiments.designs_constrained import (
 )
 from process_improve.experiments.designs_mixture_constrained import (
     SCHEFFE_DEGREE,
+    _traces,
     _unique_rows,
     cubic_difference_term,
     mixture_candidates,
@@ -491,7 +492,11 @@ def split_constraints(
 def _candidate_blends(mixture: list[Factor], constraints: list[Constraint]) -> np.ndarray:
     """Return every candidate blend of the constrained simplex: vertices, edge points, face centroids, centroid."""
     kinds = mixture_candidates(*mixture_inequalities(mixture, constraints))
-    return _unique_rows(np.vstack(list(kinds.values())))
+    blends = _unique_rows(np.vstack(list(kinds.values())))
+    blends = blends[~_traces(mixture, blends)]  # none with a component between 0 and its min_when_used
+    if len(blends) == 0:
+        raise ValueError("Every candidate blend has a component between 0 and its min_when_used.")
+    return blends
 
 
 def _candidate_settings(

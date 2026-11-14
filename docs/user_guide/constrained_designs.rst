@@ -69,8 +69,9 @@ How the design is chosen
 
 1. **Candidate set.** A grid over the factor box (5 levels per continuous factor,
    fewer for many factors), plus the points where each constraint boundary crosses a
-   grid edge, located by bisection. Infeasible points are dropped. The metadata
-   reports the counts:
+   grid edge, located by bisection, and the vertices where linear constraints meet
+   (see :ref:`constrained-group-totals` for a region with too many to list).
+   Infeasible points are dropped. The metadata reports the counts:
 
    .. code-block:: python
 
@@ -123,6 +124,137 @@ Combining with other options
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
   factor is refused instead, since it usually marks a combination that cannot be run
   at all.
+
+.. _constrained-group-totals:
+
+Many factors with limits on group totals
+----------------------------------------
+
+A formulation often has many ingredients in groups, with a limit on each group's total
+and on the total of them all. Below, 15 ingredients sit in 5 buckets of 3. Each bucket
+supplies between 5% and 20% of the product, so every bucket is represented, and the 15
+together supply at most 60%; the base makes up the rest.
+
+.. code-block:: python
+
+   buckets = [[f"B{b}_{i}" for i in (1, 2, 3)] for b in (1, 2, 3, 4, 5)]
+   ingredients = [name for bucket in buckets for name in bucket]
+   bucket_limits = [f"5 <= {' + '.join(bucket)} <= 20" for bucket in buckets]
+   total_limit = f"{' + '.join(ingredients)} <= 60"
+
+   screening = generate_design(
+       [Factor(name=name, low=0, high=20, units="%") for name in ingredients],
+       budget=30,
+       constraints=[*bucket_limits, total_limit],
+       model_type="main_effects",
+       random_state=1,
+   )
+   amounts = screening.design_actual[ingredients]
+   print(screening.metadata["vertices_sampled"])  # True
+   print(amounts[buckets[0]].sum(axis=1).between(5 - 1e-9, 20 + 1e-9).all())  # True
+   print(amounts.sum(axis=1).max().round(6) <= 60)  # True
+
+No point of a grid on 15 factors has every bucket's total inside its limits, and the
+region has too many vertices to list. The candidates are then vertices of the region
+found by linear programming, each one the furthest point of the region in some
+direction, with the midpoints between them. ``metadata["vertices_sampled"]`` records
+it. A region the grid covers keeps the candidates described above.
+
+The lower limit on a bucket's total is what keeps the bucket represented: a total of at
+least 5% needs at least one of its ingredients. For a main-effects model the runs sit
+on vertices, and a vertex of this region has one ingredient in most buckets. Such a
+design estimates the effect of each ingredient on its own; how two ingredients of one
+bucket act together needs their interaction in the model, and more runs.
+
+.. _constrained-min-when-used:
+
+An ingredient that is left out, or used at no less than a minimum
+-----------------------------------------------------------------
+
+An ingredient is often either left out or added in an amount that can be dosed and
+tasted: 0, or at least 5 ppm, and never a trace in between. ``min_when_used`` on the
+factor says so. It needs ``low=0``.
+
+.. code-block:: python
+
+   flavours = [
+       Factor(name="vanillin", low=0, high=50, units="ppm", min_when_used=5),
+       Factor(name="maltol", low=0, high=50, units="ppm", min_when_used=30),
+       Factor(name="sugar", low=10, high=20, units="%"),
+   ]
+   blend = generate_design(flavours, budget=14, model_type="quadratic", random_state=1)
+   print(blend.design_type)  # d_optimal, chosen because a factor has a minimum
+   print(sorted(set(blend.design_actual["vanillin"])))  # [0.0, 25.0, 50.0]
+   print(sorted(set(blend.design_actual["maltol"])))  # [0.0, 30.0, 50.0]
+
+No run sets a factor between 0 and its minimum. The middle level of ``maltol`` would
+be 25 ppm, below its minimum of 30, so the candidates hold 30 in its place: the factor
+still takes three levels, which its squared term needs. The same holds beside
+constraints, and beside limits on group totals, where a lower limit on a group's total
+equal to the smallest minimum in the group says that at least one of its ingredients is
+used.
+
+.. code-block:: python
+
+   from process_improve.experiments import DesignRegion
+
+   region = DesignRegion(flavours, ["vanillin + maltol <= 60"])
+   # vanillin at 2.5 ppm, then at 5 ppm; maltol at 0; sugar at 15%. Coded units.
+   print(region.feasible([[-0.9, -1.0, 0.0], [-0.8, -1.0, 0.0]]))  # [False  True]
+   print(region.broken_limits([[-0.9, -1.0, 0.0]]))  # [['vanillin = 0 or vanillin >= 5']]
+
+A classical design takes its levels from the factor's range alone. One that would set
+the factor between 0 and its minimum, in a run or in its centre points, is refused,
+with the factor's name; ``fixed_runs`` are kept as given.
+
+Such a region is made of pieces, one for each set of the ingredients in use, and the
+pieces have different dimensions, so no single volume measures them all.
+``DesignRegion.sample`` draws from the measure under which each such ingredient is left
+out as often as it is used, before the constraints act, and is uniform between its
+minimum and its high level when it is used. The constraints then condition it: of the
+four sets of ``vanillin`` and ``maltol``, the limit below cuts only the one that uses
+both, to a third of its settings, so each is left out in 60% of the points. I- and
+G-optimal designs, and the prediction variance ``evaluate_design`` reports, average
+over those points.
+
+.. code-block:: python
+
+   import numpy as np
+
+   points = region.sample(20_000, np.random.default_rng(1))
+   print(region.feasible(points).all())  # True
+   print(round(float((points[:, 0] == -1).mean()), 1))  # 0.6: vanillin is left out (coded -1)
+
+``optimize_responses`` searches the same region. A search cannot step from 0 to the
+minimum, so each one keeps the set of ingredients its start uses; from the best result
+the neighbouring sets are then tried, one ingredient left out or brought in, or one
+exchanged for another, until none is better. The optimum below leaves ``vanillin`` out:
+in coded units the response gains 2 from it and 3 from ``maltol``, and loses 6 times
+their product, so either alone beats both together.
+
+.. code-block:: python
+
+   from process_improve.experiments import optimize_responses
+
+   terms = {"Intercept": 10.0, "vanillin": 2.0, "maltol": 3.0, "sugar": 0.5, "vanillin:maltol": -6.0}
+   liking = {
+       "response_name": "liking",
+       "factor_names": ["vanillin", "maltol", "sugar"],
+       "coefficients": [{"term": term, "coefficient": value} for term, value in terms.items()],
+   }
+   best = optimize_responses(
+       [liking],
+       goals=[{"response": "liking", "goal": "maximize", "low": 0.0, "high": 30.0}],
+       region=region,
+       factor_ranges={f.name: {"low": f.low, "high": f.high} for f in flavours},
+   )["desirability"]
+   print({name: round(value, 6) for name, value in best["optimal_actual"].items()})
+   # {'vanillin': 0.0, 'maltol': 50.0, 'sugar': 20.0}
+
+The search over the sets is a local one: it ends at a setting that no single change of
+that kind improves, which for a model without interactions between the ingredients is
+the best there is in the cases tried against an exact method, and is not a proof in
+general. A Pareto front (``method="pareto_front"``) keeps the sets its starts use.
 
 .. _constrained-categorical-rules:
 
@@ -552,6 +684,62 @@ and Lenth's method is not applied.
 ``evaluate_design`` defaults to the Scheffé quadratic model for a mixture
 design and samples its constrained simplex. ``optimize_responses`` with the mixture
 region searches the polytope and returns a blend that sums to one.
+
+Many components, groups held to a total, and components left out
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three things happen in a blend of many components that are grouped, as when the
+ingredients of a formulation sit in buckets and the whole formulation is the mixture.
+
+*Too many vertices to list.* Fifteen components in five buckets, each bucket between 5%
+and 30% of the blend, need millions of linear systems to list every vertex. Some of the
+vertices are then found by linear programming, as for :ref:`limits on group totals
+<constrained-group-totals>`, with the points between them standing in for the edges and
+faces, and ``metadata["vertices_sampled"]`` is True. Without a budget the design is
+D-optimal, a few runs more than the model has terms.
+
+*A group held to a fixed total.* Five buckets that may each supply at most 20% of a
+blend supply exactly 20% each. The components of a bucket then sum to a constant in
+every blend, as all the components together do, and one column of each bucket but the
+first cannot be told from the others. The design is built for the columns that can be
+estimated, a warning names the others, and ``metadata["inestimable_columns"]`` lists
+them:
+
+.. code-block:: python
+
+   pairs = [[f"B{b}_{i}" for i in (1, 2)] for b in (1, 2, 3, 4, 5)]
+   components = [Factor(name=name, type="mixture", high=0.2) for pair in pairs for name in pair]
+   at_most_a_fifth = [f"{first} + {second} <= 0.2" for first, second in pairs]
+   fifths = generate_design(
+       components, budget=16, constraints=at_most_a_fifth, model_type="scheffe_linear", random_state=1
+   )
+   print(fifths.metadata["inestimable_columns"])  # ['B2_2', 'B3_2', 'B4_2', 'B5_2']
+   print(fifths.design_actual[pairs[0]].sum(axis=1).round(9).unique())  # [0.2]
+
+Whichever column of a bucket is left out, the columns kept span the same model over
+the region, so the design does not depend on the choice.
+
+*A component left out, or used at no less than a minimum.* ``min_when_used`` works on a
+mixture component as on an amount (:ref:`constrained-min-when-used`): the component is
+left out of a blend or makes up no less than that share of it. Candidate blends with a
+trace are dropped, the design is D-optimal with or without a budget (the centroid of
+the design used otherwise blends every component), and ``optimize_responses`` returns
+a blend that leaves the component out or uses at least its minimum.
+
+.. code-block:: python
+
+   trio = [
+       Factor(name="x1", type="mixture", min_when_used=0.1),
+       Factor(name="x2", type="mixture", min_when_used=0.3),
+       Factor(name="x3", type="mixture"),
+   ]
+   blended = generate_design(trio, budget=10, model_type="scheffe_quadratic", random_state=1)
+   print(sorted(set(blended.design_actual["x2"].round(6))))  # no share between 0 and 0.3
+
+Such a mixture region is not sampled, since its pieces have no common measure the
+sampler draws from: ``DesignRegion.sample`` raises, an I- or G-optimal design averages
+over the candidate blends, and a search starts from the region's vertices and edge
+midpoints.
 
 Mixture components with process factors
 ---------------------------------------

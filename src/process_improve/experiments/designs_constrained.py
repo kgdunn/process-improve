@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
@@ -410,6 +411,29 @@ class _Region:
                     cats[:, j] = [position[level] for level in table[f.name].to_numpy()[pick]]
         return cats
 
+    def gaps(self) -> list[tuple[int, float]]:
+        """Return ``(column, minimum)`` for each continuous factor with a ``min_when_used``, in coded units.
+
+        Such a factor is 0 (coded -1) or at least its minimum, so no run may set it
+        strictly between -1 and that minimum.
+        """
+        return [
+            (j, 2.0 * f.min_when_used / f.high - 1.0)  # type: ignore[operator]
+            for j, f in enumerate(self.continuous)
+            if f.min_when_used is not None
+        ]
+
+    def out_of_gaps(self, coded: np.ndarray) -> np.ndarray:
+        """Return ``coded`` with each value between 0 and its factor's ``min_when_used`` moved up to that minimum."""
+        gaps = self.gaps()
+        if not gaps:
+            return coded
+        moved = coded.copy()
+        for j, minimum in gaps:
+            inside = (moved[:, j] > -1.0 + _FEASIBILITY_TOL) & (moved[:, j] < minimum)
+            moved[inside, j] = minimum
+        return moved
+
     def actual(self, coded: np.ndarray) -> dict[str, np.ndarray]:
         """Map coded continuous columns to ``{name: actual values}``."""
         return {
@@ -439,6 +463,9 @@ class _Region:
         units, ``1e-9`` dropped vertices that lie ``1e-12`` (coded) from a steep boundary
         such as ``120*T + 33*D + 450*F <= 17000``, and let every setting pass a gentle one,
         such as ``X <= 0.5e-9`` on a factor whose range is ``1e-9``.
+
+        A factor with a ``min_when_used`` adds the distance, in coded units, from a value
+        between 0 and that minimum to the nearer of the two (see :meth:`gaps`).
         """
         env = self.actual(coded)
         rows = coded.shape[0]
@@ -450,6 +477,8 @@ class _Region:
             value = np.broadcast_to(ineq(env), (rows,)) / size
             g.append(value if clause is None else np.where(applies[:, clause], value, -np.inf))
         slack = np.max(g, axis=0) if g else np.full(rows, -np.inf)
+        for j, minimum in self.gaps():
+            slack = np.maximum(slack, np.minimum(coded[:, j] + 1.0, minimum - coded[:, j]))
         return slack if cats is None else np.where(self.allowed(cats), slack, np.inf)
 
     def _value_scales(self) -> np.ndarray:
@@ -483,11 +512,16 @@ _CANDIDATES_PER_COEFFICIENT = 200
 _VARIANCE_CRITERIA = ("i_optimal", "g_optimal")
 
 
-def _candidate_cap(region: _Region, model_type: str) -> int:
-    """Most candidates the automatic grid may hold, which grows with the number of model coefficients."""
-    n_parameters = model_matrix(
+def _n_coefficients(region: _Region, model_type: str) -> int:
+    """Return the number of columns of the model matrix."""
+    return model_matrix(
         region, np.zeros((1, len(region.continuous))), np.zeros((1, len(region.categorical)), dtype=int), model_type
     ).shape[1]
+
+
+def _candidate_cap(region: _Region, model_type: str) -> int:
+    """Most candidates the automatic grid may hold, which grows with the number of model coefficients."""
+    n_parameters = _n_coefficients(region, model_type)
     return min(MAX_CANDIDATES, max(_MIN_CANDIDATE_CAP, _CANDIDATES_PER_COEFFICIENT * n_parameters))
 
 
@@ -599,6 +633,66 @@ def _boundary_points(region: _Region, grid: np.ndarray, cat_idx: np.ndarray, ste
 #: Most vertices of a region the candidate set takes; a region with more gives none. Listing them is quick up to
 #: here (0.2 s in 10 factors with 8 limits), while the exchange's cost grows with every candidate.
 _MAX_VERTEX_CANDIDATES = 2**13
+#: Linear programmes solved to find vertices of a region with too many to list (see :func:`_sampled_vertices`).
+_SAMPLED_VERTICES = 2**10
+#: The vertices are sampled when the grid and the boundary points leave fewer candidates than this many per
+#: model coefficient: a grid on many factors has no point inside a region that limits their totals.
+_FEW_CANDIDATES_PER_COEFFICIENT = 5
+#: The smallest share of the factors one search direction moves; the share is drawn between this and all of them.
+_SMALLEST_SHARE_MOVED = 0.03
+
+
+def search_directions(k: int) -> Iterator[np.ndarray]:
+    """Yield ``_SAMPLED_VERTICES`` directions in ``k`` coordinates for linear programmes that look for vertices.
+
+    The directions are not drawn alike in every coordinate. Such a direction asks most
+    factors to move, so it nearly always ends where a limit on a total is met: in a
+    region with ``x1 + ... + xk <= c``, on the face where the total equals ``c``, and the
+    intercept cannot be told from the sum of the main effects. So each direction moves a
+    share of the factors only, drawn between ``_SMALLEST_SHARE_MOVED`` and all of them,
+    and pushes those factors all down, all up, or each its own way.
+
+    The generator is seeded here, as the sampled grid is fixed: the candidates of a region
+    do not depend on the caller's random state.
+    """
+    rng = np.random.default_rng(0)
+    for _ in range(_SAMPLED_VERTICES):
+        moved = rng.random(k) < rng.uniform(_SMALLEST_SHARE_MOVED, 1.0)
+        yield np.where(moved, rng.standard_normal(k) + rng.choice((-1.0, 0.0, 1.0)), 0.0)
+
+
+def points_between(vertices: np.ndarray) -> np.ndarray:
+    """Return ``vertices``, the midpoint of each with the next, and the mean of them all, each point once.
+
+    A convex region holds the points between its vertices too, and a model with squared
+    terms needs runs away from the vertices.
+    """
+    points = np.vstack([vertices, (vertices[:-1] + vertices[1:]) / 2.0, vertices.mean(axis=0, keepdims=True)])
+    _, first = np.unique(points.round(10), axis=0, return_index=True)
+    return points[np.sort(first)]
+
+
+def _sampled_vertices(a_mat: np.ndarray, b_vec: np.ndarray) -> np.ndarray:
+    """Return vertices of ``{x in [-1, 1]^k : a_mat @ x <= b_vec}`` found by linear programming, and points between.
+
+    For a region with more vertices than can be listed. A linear programme moves a point
+    as far as it goes in one direction, which ends at a vertex, so the directions of
+    :func:`search_directions` give that many vertices, less the repeats;
+    :func:`points_between` adds the points between them.
+
+    Returns
+    -------
+    np.ndarray
+        Points ``(n, k)`` in coded units, without duplicates; no rows when the region is empty.
+    """
+    k = a_mat.shape[1]
+    found = []
+    for direction in search_directions(k):
+        result = linprog(direction, A_ub=a_mat, b_ub=b_vec, bounds=[(-1.0, 1.0)] * k, method="highs-ds")
+        if result.status != 0:  # no point meets every row, whatever the direction
+            return np.empty((0, k))
+        found.append(result.x)
+    return points_between(np.clip(np.array(found), -1.0, 1.0))
 
 
 def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], np.ndarray]:
@@ -606,7 +700,7 @@ def _coded_inequality(region: _Region, g: _Evaluator) -> Callable[[np.ndarray], 
     return lambda x: np.broadcast_to(np.asarray(g(region.actual(np.atleast_2d(x))), dtype=float), (len(x),))
 
 
-def _polytope_vertices(region: _Region) -> np.ndarray:
+def _polytope_vertices(region: _Region, sample: bool = False) -> np.ndarray:
     """Vertices of the box cut by the region's linear constraints, in coded units.
 
     A vertex is a point where ``k`` of the hyperplanes (box faces and linear constraint
@@ -618,8 +712,9 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
     :class:`~process_improve.experiments.region.DesignRegion` uses too), so the work
     grows with the number of vertices rather than with the ways of choosing ``k``
     boundaries. Non-linear constraints only filter the result. Returns no points when
-    there is no linear constraint, or when the region has more than
-    ``_MAX_VERTEX_CANDIDATES`` vertices.
+    there is no linear constraint. A region with more than ``_MAX_VERTEX_CANDIDATES``
+    vertices gives none either, unless ``sample`` asks for some of them and points
+    between them (see :func:`_sampled_vertices`).
     """
     k = len(region.continuous)
     ones = np.ones(k)
@@ -639,21 +734,23 @@ def _polytope_vertices(region: _Region) -> np.ndarray:
         size = math.hypot(*a)
         a_rows.append(a / size)
         b_rows.append(b / size)
+    a_mat, b_vec = np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows)
     try:
-        return box_vertices(np.array(a_rows).reshape(len(a_rows), k), np.array(b_rows), _MAX_VERTEX_CANDIDATES)
+        return box_vertices(a_mat, b_vec, _MAX_VERTEX_CANDIDATES)
     except ValueError:  # more vertices than the candidate set takes
-        return np.empty((0, k))
+        return _sampled_vertices(a_mat, b_vec) if sample else np.empty((0, k))
 
 
-def _vertex_candidates(region: _Region, cat_shape: list[int]) -> tuple[np.ndarray, np.ndarray]:
+def _vertex_candidates(region: _Region, cat_shape: list[int], sample: bool = False) -> tuple[np.ndarray, np.ndarray]:
     """Return the vertices of the region at every allowed combination of levels.
 
     Without limits that apply on some levels only, the vertices are the same at every
     combination. With them, the combinations are grouped by which limits apply, and each
     group's vertices are found once: ``m`` such limits give at most ``2**m`` groups.
+    ``sample`` is passed to :func:`_polytope_vertices`.
     """
     if not region.conditional:
-        return _with_every_level(_polytope_vertices(region), cat_shape)
+        return _with_every_level(_polytope_vertices(region, sample), cat_shape)
     combos = np.indices(cat_shape).reshape(len(cat_shape), -1).T
     k = len(region.continuous)
     points, cats = [np.empty((0, k))], [np.empty((0, len(cat_shape)), dtype=int)]
@@ -663,7 +760,7 @@ def _vertex_candidates(region: _Region, cat_shape: list[int]) -> tuple[np.ndarra
     applies = region.applies(combos)
     for signature in np.unique(applies, axis=0):
         members = combos[np.all(applies == signature, axis=1)]
-        vertices = _polytope_vertices(region.given(signature))
+        vertices = _polytope_vertices(region.given(signature), sample)
         if len(vertices) * len(members) <= MAX_CANDIDATES:
             points.append(np.repeat(vertices, len(members), axis=0))
             cats.append(np.tile(members, (len(vertices), 1)))
@@ -687,6 +784,14 @@ def build_candidates(
     constraint boundary crosses a grid edge (:func:`_boundary_points`), and the
     vertices of the region cut by its linear constraints (:func:`_polytope_vertices`),
     each with every categorical level combination.
+
+    A region with too many vertices to list gives none of them, and on many factors the
+    grid can then miss the region altogether: with limits on the totals of groups of
+    factors, no grid point has every total inside its limits. When that leaves fewer than
+    ``_FEW_CANDIDATES_PER_COEFFICIENT`` candidates per model coefficient, vertices found by
+    linear programming, and points between them, are added (:func:`_sampled_vertices`), and
+    ``counts["vertices_sampled"]`` is True. A region the grid covers keeps the candidates
+    it had.
 
     Parameters
     ----------
@@ -723,23 +828,36 @@ def build_candidates(
 
     extra, extra_cat = _boundary_points(region, grid, cat_idx, step=2.0 / (levels - 1))
     corners, corner_cat = _vertex_candidates(region, shape[k_cont:])
-    coded = np.vstack([grid, extra, corners])
+    # A grid level between 0 and a factor's min_when_used moves up to that minimum, the lowest amount in use.
+    coded = np.vstack([region.out_of_gaps(grid), extra, corners])
     cats = np.vstack([cat_idx, extra_cat, corner_cat])
 
-    feasible = region.slack(coded, cats) <= _FEASIBILITY_TOL
-    coded, cats = coded[feasible], cats[feasible]
-    # Drop duplicates (a boundary point can coincide with a grid point).
-    _, unique = np.unique(np.hstack([coded.round(9), cats]), axis=0, return_index=True)
-    unique.sort()
+    coded, cats = _feasible_and_distinct(region, coded, cats)
+    vertices_sampled = False
+    if not len(corners) and len(coded) < _FEW_CANDIDATES_PER_COEFFICIENT * _n_coefficients(region, model_type):
+        corners, corner_cat = _vertex_candidates(region, shape[k_cont:], sample=True)
+        vertices_sampled = len(corners) > 0
+        coded, cats = _feasible_and_distinct(region, np.vstack([coded, corners]), np.vstack([cats, corner_cat]))
     counts = {
         "n_levels": levels,
         "n_grid_points": grid.shape[0],
         "grid_sampled": sampled,
         "n_boundary_points": extra.shape[0],
         "n_vertex_points": corners.shape[0],
-        "n_candidates": unique.size,
+        "n_candidates": len(coded),
     }
-    return coded[unique], cats[unique], counts
+    if vertices_sampled:
+        counts["vertices_sampled"] = True
+    return coded, cats, counts
+
+
+def _feasible_and_distinct(region: _Region, coded: np.ndarray, cats: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the points that satisfy the constraints, each once (a boundary point can coincide with a grid point)."""
+    feasible = region.slack(coded, cats) <= _FEASIBILITY_TOL
+    coded, cats = coded[feasible], cats[feasible]
+    _, unique = np.unique(np.hstack([coded.round(9), cats]), axis=0, return_index=True)
+    unique.sort()
+    return coded[unique], cats[unique]
 
 
 # ---------------------------------------------------------------------------
@@ -2081,6 +2199,7 @@ def _uniform_points(region: _Region, n: int, rng: np.random.Generator, seeds: np
         lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
         seeds=lambda: seeds,
         tolerances=region._value_scales()[: len(region.inequalities)],  # so a drawn point passes slack()
+        gaps=region.gaps(),  # a factor with a min_when_used is left out in about half of the points
     )
     return sampler.draw(n, rng)
 
