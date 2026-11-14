@@ -2187,6 +2187,7 @@ def _uniform_points(region: _Region, n: int, rng: np.random.Generator, seeds: np
         lambda m: rng.uniform(-1.0, 1.0, size=(m, k)),
         seeds=lambda: seeds,
         tolerances=region._value_scales()[: len(region.inequalities)],  # so a drawn point passes slack()
+        gaps=region.gaps(),  # a factor with a min_when_used is left out in about half of the points
     )
     return sampler.draw(n, rng)
 

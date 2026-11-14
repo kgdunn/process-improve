@@ -207,6 +207,55 @@ A classical design takes its levels from the factor's range alone. One that woul
 the factor between 0 and its minimum, in a run or in its centre points, is refused,
 with the factor's name; ``fixed_runs`` are kept as given.
 
+Such a region is made of pieces, one for each set of the ingredients in use, and the
+pieces have different dimensions, so no single volume measures them all.
+``DesignRegion.sample`` draws from the measure under which each such ingredient is left
+out as often as it is used, before the constraints act, and is uniform between its
+minimum and its high level when it is used. The constraints then condition it: of the
+four sets of ``vanillin`` and ``maltol``, the limit below cuts only the one that uses
+both, to a third of its settings, so each is left out in 60% of the points. I- and
+G-optimal designs, and the prediction variance ``evaluate_design`` reports, average
+over those points.
+
+.. code-block:: python
+
+   import numpy as np
+
+   points = region.sample(20_000, np.random.default_rng(1))
+   print(region.feasible(points).all())  # True
+   print(round(float((points[:, 0] == -1).mean()), 1))  # 0.6: vanillin is left out (coded -1)
+
+``optimize_responses`` searches the same region. A search cannot step from 0 to the
+minimum, so each one keeps the set of ingredients its start uses; from the best result
+the neighbouring sets are then tried, one ingredient left out or brought in, or one
+exchanged for another, until none is better. The optimum below leaves ``vanillin`` out:
+in coded units the response gains 2 from it and 3 from ``maltol``, and loses 6 times
+their product, so either alone beats both together.
+
+.. code-block:: python
+
+   from process_improve.experiments import optimize_responses
+
+   terms = {"Intercept": 10.0, "vanillin": 2.0, "maltol": 3.0, "sugar": 0.5, "vanillin:maltol": -6.0}
+   liking = {
+       "response_name": "liking",
+       "factor_names": ["vanillin", "maltol", "sugar"],
+       "coefficients": [{"term": term, "coefficient": value} for term, value in terms.items()],
+   }
+   best = optimize_responses(
+       [liking],
+       goals=[{"response": "liking", "goal": "maximize", "low": 0.0, "high": 30.0}],
+       region=region,
+       factor_ranges={f.name: {"low": f.low, "high": f.high} for f in flavours},
+   )["desirability"]
+   print({name: round(value, 6) for name, value in best["optimal_actual"].items()})
+   # {'vanillin': 0.0, 'maltol': 50.0, 'sugar': 20.0}
+
+The search over the sets is a local one: it ends at a setting that no single change of
+that kind improves, which for a model without interactions between the ingredients is
+the best there is in the cases tried against an exact method, and is not a proof in
+general. A Pareto front (``method="pareto_front"``) keeps the sets its starts use.
+
 .. _constrained-categorical-rules:
 
 Combinations of levels that cannot be run

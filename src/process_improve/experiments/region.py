@@ -281,6 +281,15 @@ class DesignRegion:
         return list(self._inequalities)
 
     @property
+    def gaps(self) -> list[tuple[int, float]]:
+        """``(column, minimum)`` per column of :attr:`names` with a ``min_when_used``, the minimum in design units.
+
+        The factor is left out at its lower bound (0, which is -1 in coded units), or set
+        between that minimum and its upper bound.
+        """
+        return list(self._gaps)
+
+    @property
     def bounds(self) -> list[tuple[float, float]]:
         """Per-column bounds in design units: ``(-1, 1)`` for a process factor, ``(low, high)`` for a component."""
         numeric = [f for f in self.factors if f.type != FactorType.categorical]
@@ -678,18 +687,22 @@ class DesignRegion:
         cheap, hit-and-run chains started from the region's support points take over
         (see :class:`UniformSampler`).
 
+        A factor with a ``min_when_used`` is left out (0) in about half of the points
+        where nothing limits it, and is uniform between its minimum and its high level
+        in the others: the measure :class:`UniformSampler` describes, on which the
+        constraints then act. So the points say what the region's formulations look
+        like, with ingredients left out, and not only its pieces of largest dimension.
+
         Raises
         ------
         ValueError
-            If no point of the region can be found, the region has rules on
-            categorical factors (use :meth:`sample_frame`, which draws the levels too),
-            or a factor has a ``min_when_used``.
+            If no point of the region can be found, or the region has rules on
+            categorical factors (use :meth:`sample_frame`, which draws the levels too).
         """
         if self.rules is not None:
             raise ValueError(
                 f"This region's rules on {self.rules.factors} tie the settings to the levels; use sample_frame()."
             )
-        self._refuse_gaps("sampled")
         k = len(self.names)
         if k == 0:  # only categorical factors: no continuous dimension to sample
             return np.empty((n, 0))
@@ -717,17 +730,9 @@ class DesignRegion:
             self.seed_points,
             on_simplex=self.kind == "mixture",
             tolerances=self._widen(),  # so a sampled point passes feasible()
+            gaps=self.gaps,
         )
         return sampler.draw(n, rng)
-
-    def _refuse_gaps(self, action: str) -> None:
-        """Raise for a region in which a factor is 0 or at least its ``min_when_used``."""
-        if self._gaps:
-            names = [self.names[j] for j, _minimum in self._gaps]
-            raise ValueError(
-                f"This region cannot be {action}: {names} are each 0 or at least their min_when_used, so the "
-                "region is made of separate pieces, one for each set of the factors in use."
-            )
 
     def seed_points(self) -> np.ndarray:
         """Return :meth:`support_points`, or none for a box too large for a boundary grid."""

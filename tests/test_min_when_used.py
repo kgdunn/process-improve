@@ -7,11 +7,21 @@ import logging
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import optimize
+from scipy.optimize import Bounds, LinearConstraint, milp
 
-from process_improve.experiments import DesignRegion, Factor, evaluate_design, generate_design
+from process_improve.experiments import (
+    DesignRegion,
+    Factor,
+    evaluate_design,
+    generate_design,
+    optimize_responses,
+)
+from process_improve.experiments import _uniform_sampling as sampling
+from process_improve.experiments._uniform_sampling import UniformSampler
 from process_improve.experiments.designs_constrained import build_candidates, region_with_rules
 from process_improve.experiments.factor import DesignResult, as_constraints
-from process_improve.experiments.optimization import _search_space
+from process_improve.experiments.optimization import _best_set_of_factors, _search_space, _SearchSpace
 
 A = Factor(name="A", low=0, high=50, units="ppm", min_when_used=5)
 B = Factor(name="B", low=0, high=50, units="ppm", min_when_used=30)  # the minimum is above the middle of the range
@@ -165,14 +175,238 @@ class TestRegion:
         coded = np.array([[-0.9, -1.0, 0.0], [-0.8, -1.0, 0.0]])
         np.testing.assert_array_equal(again.feasible(coded), [False, True])
 
-    def test_sampling_and_searching_are_refused(self) -> None:
-        region = DesignRegion(FACTORS)
-        rng = np.random.default_rng(1)
-        with pytest.raises(ValueError, match="cannot be sampled"):
-            region.sample(5, rng)
-        with pytest.raises(ValueError, match="cannot be searched"):
-            _search_space(["A", "B", "C"], None, region, rng, 3)
-
     def test_a_design_is_judged_on_its_determinant(self) -> None:
         result = generate_design(FACTORS, budget=8, model_type="main_effects", random_state=1)
         assert evaluate_design(result, model="main_effects", metric="d_efficiency")["d_efficiency"] > 50
+
+
+def _shares(points: np.ndarray) -> tuple[float, float, float]:
+    """Return the share of points that leave A out, that leave B out, and that use both."""
+    out_a, out_b = points[:, 0] <= -1 + 1e-9, points[:, 1] <= -1 + 1e-9
+    return float(out_a.mean()), float(out_b.mean()), float((~out_a & ~out_b).mean())
+
+
+class TestSampling:
+    """A factor with a minimum is left out as often as it is used, before the constraints act."""
+
+    def test_without_constraints_each_factor_is_left_out_half_the_time(self) -> None:
+        region = DesignRegion(FACTORS)
+        points = region.sample(20_000, np.random.default_rng(1))
+        assert region.feasible(points).all()
+        assert _shares(points) == pytest.approx((0.5, 0.5, 0.25), abs=0.02)
+        used = (points[points[:, 0] > -1 + 1e-9, 0] + 1.0) * 25.0
+        assert used.min() >= 5 - 1e-9
+        assert used.mean() == pytest.approx(27.5, abs=0.5)  # uniform from 5 to 50
+
+    def test_a_constraint_conditions_the_shares(self) -> None:
+        # Of the four sets of factors in use, A + B <= 60 cuts only the one with both, to a third of it:
+        # the sets weigh 1/4, 1/4, 1/4 and 1/12, so A is left out in (1/4 + 1/4) / (10/12) of the points.
+        region = DesignRegion(FACTORS, ["A + B <= 60"])
+        points = region.sample(20_000, np.random.default_rng(1))
+        assert region.feasible(points).all()
+        assert _shares(points) == pytest.approx((0.6, 0.6, 0.1), abs=0.02)
+
+    def test_the_chains_keep_those_shares(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sampling, "_REJECTION_DRAWS", 10)  # a handful of points to start 1000 chains from
+        region = DesignRegion(FACTORS, ["A + B <= 60"])
+        points = region.sample(20_000, np.random.default_rng(1))
+        assert region.feasible(points).all()
+        assert _shares(points) == pytest.approx((0.6, 0.6, 0.1), abs=0.04)
+
+    def test_the_chains_agree_with_rejection_under_a_curved_constraint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        region = DesignRegion(FACTORS, ["A * B <= 900"])
+        by_rejection = _shares(region.sample(20_000, np.random.default_rng(1)))
+        monkeypatch.setattr(sampling, "_REJECTION_DRAWS", 10)
+        points = region.sample(20_000, np.random.default_rng(2))
+        assert region.feasible(points).all()
+        assert _shares(points) == pytest.approx(by_rejection, abs=0.04)
+
+    def test_chains_started_from_seeds_reach_every_set(self) -> None:
+        # No proposal is inside the region, so the chains start from the two seeds, which use A alone.
+        region = DesignRegion([A, B], ["A + B <= 60"])
+        sampler = UniformSampler(
+            region.inequalities,
+            (np.full(2, -1.0), np.full(2, 1.0)),
+            lambda m: np.full((m, 2), 2.0),
+            seeds=lambda: np.array([[-0.8, -1.0], [1.0, -1.0]]),
+            tolerances=region._widen(),
+            gaps=region.gaps,
+        )
+        points = sampler.draw(20_000, np.random.default_rng(4))
+        assert region.feasible(points).all()
+        assert _shares(points) == pytest.approx((0.6, 0.6, 0.1), abs=0.04)
+
+    def test_a_thin_piece_is_sampled_from_the_boundary_points(self) -> None:
+        # Only the set with both in use has A + B between 59.5 and 60: B alone reaches 50.
+        region = DesignRegion([A, B], ["59.5 <= A + B <= 60"])
+        points = region.sample(300, np.random.default_rng(5))
+        assert region.feasible(points).all()
+        assert _shares(points)[2] == 1.0
+
+    def test_points_and_levels_are_drawn_together_under_rules(self) -> None:
+        catalyst = Factor(name="catalyst", type="categorical", levels=["X", "Y"])
+        region = DesignRegion([A, B, catalyst], ["not (catalyst == 'Y' and A > 20)"])
+        frame = region.sample_frame(2000, np.random.default_rng(6))
+        assert region.feasible(frame[["A", "B"]].to_numpy(dtype=float), labels=frame).all()
+        assert (frame["A"] <= -1 + 1e-9).mean() == pytest.approx(0.5, abs=0.1)
+
+
+class TestCriteria:
+    def test_an_i_optimal_design_has_no_traces(self) -> None:
+        result = generate_design(
+            FACTORS,
+            design_type="i_optimal",
+            budget=14,
+            model_type="quadratic",
+            constraints=["A + B <= 60"],
+            random_state=1,
+        )
+        assert _traces(result, FACTORS) == 0
+
+    def test_a_design_is_judged_over_the_region_with_factors_left_out(self) -> None:
+        result = generate_design(
+            FACTORS, budget=14, model_type="quadratic", constraints=["A + B <= 60"], random_state=2
+        )
+        found = evaluate_design(result, model="quadratic", metric=["g_efficiency", "average_prediction_variance"])
+        assert 0 < found["g_efficiency"] <= 100
+        assert found["average_prediction_variance"] > 0
+
+
+def _model(coefficients: dict[str, float], names: list[str]) -> dict:
+    """Return a fitted model as ``optimize_responses`` takes it."""
+    return {
+        "response_name": "y",
+        "factor_names": names,
+        "coefficients": [{"term": term, "coefficient": value} for term, value in coefficients.items()],
+    }
+
+
+RANGES = {f.name: {"low": f.low, "high": f.high} for f in FACTORS}
+GOALS = [{"response": "y", "goal": "maximize", "low": 0.0, "high": 30.0}]
+
+
+class TestSearch:
+    """The optimum leaves a factor out or uses it at no less than its minimum."""
+
+    def test_the_optimum_leaves_out_the_factor_that_does_not_pay(self) -> None:
+        # Coded: y = 10 + 2 A + 3 B + 0.5 C - 6 A B. B alone gives 17.5, A alone 15.5, both 9.5.
+        model = _model({"Intercept": 10.0, "A": 2.0, "B": 3.0, "C": 0.5, "A:B": -6.0}, ["A", "B", "C"])
+        for constraints in ([], ["A + B <= 60"]):
+            found = optimize_responses(
+                [model],
+                goals=GOALS,
+                method="desirability",
+                region=DesignRegion(FACTORS, constraints),
+                factor_ranges=RANGES,
+            )["desirability"]
+            assert found["optimal_actual"] == pytest.approx({"A": 0.0, "B": 50.0, "C": 20.0}, abs=1e-4)
+            assert found["predicted_responses"]["y"] == pytest.approx(17.5, abs=1e-4)
+            assert found["within_region"] is True
+
+    def test_a_factor_in_use_stays_at_or_above_its_minimum(self) -> None:
+        # y falls with A, yet rises by 4 when A is in use at all: A sits at its minimum of 5 ppm, coded -0.8.
+        model = _model({"Intercept": 10.0, "A": -5.0, "B": -1.0, "C": 0.5, "I(A ** 2)": 9.0}, ["A", "B", "C"])
+        found = optimize_responses(
+            [model], goals=GOALS, method="desirability", region=DesignRegion(FACTORS), factor_ranges=RANGES
+        )["desirability"]
+        amount = found["optimal_actual"]["A"]
+        assert amount == pytest.approx(0.0, abs=1e-6) or amount >= 5 - 1e-6
+        assert found["optimal_actual"]["B"] == pytest.approx(0.0, abs=1e-6)
+
+    def test_a_search_keeps_the_set_of_factors_its_start_uses(self) -> None:
+        space = _SearchSpace([(-1.0, 1.0)] * 3, [], [], [(0, -0.8), (1, 0.2)])
+        assert space.bounds_at(np.array([-1.0, 0.5, 0.0])) == [(-1.0, -1.0), (0.2, 1.0), (-1.0, 1.0)]
+        assert space.bounds_at(np.array([0.3, -1.0, 0.0])) == [(-0.8, 1.0), (-1.0, -1.0), (-1.0, 1.0)]
+
+    def test_a_search_box_that_ends_below_a_minimum_leaves_the_factor_out(self) -> None:
+        space = _SearchSpace([(-1.0, 0.0), (-1.0, 1.0)], [], [], [(0, 0.2)])
+        assert space.bounds_at(np.array([-0.5, 0.0])) == [(-1.0, -1.0), (-1.0, 1.0)]
+
+    def test_the_search_box_does_not_reach_below_0(self) -> None:
+        space = _search_space(["A", "B", "C"], (-1.5, 1.5), DesignRegion(FACTORS), np.random.default_rng(1), 6)
+        assert space.bounds[:2] == [(-1.0, 1.5), (-1.0, 1.5)]
+        assert space.bounds[2] == (-1.5, 1.5)
+        assert space.gaps == [(0, pytest.approx(-0.8)), (1, pytest.approx(0.2))]
+        assert all(start[0] <= -1 + 1e-9 or start[0] >= -0.8 - 1e-9 for start in space.starts)
+
+    def test_one_factor_is_exchanged_for_another_under_a_limit(self) -> None:
+        # At most one of A and B fits under A + B <= 40 once B is at its minimum of 30: from A alone, bringing B
+        # in breaks the limit and leaving A out scores less, so only the exchange reaches B alone.
+        region = DesignRegion([A, B], ["A + B <= 40", "A + B >= 5"])
+        space = _SearchSpace(
+            [(-1.0, 1.0)] * 2,
+            [{"type": "ineq", "fun": lambda x, g=g: -float(g(x[None, :])[0])} for g in region.inequalities],
+            [],
+            region.gaps,
+        )
+
+        def objective(x: np.ndarray) -> float:
+            return float(-(x[0] + 3.0 * x[1]))
+
+        start = np.array([0.6, -1.0])  # A alone at its largest, 40 ppm
+        best = optimize.minimize(
+            objective, start, method="SLSQP", bounds=space.bounds_at(start), constraints=space.constraints
+        )
+        assert best.x == pytest.approx([0.6, -1.0], abs=1e-6)
+        found = _best_set_of_factors(
+            objective, space, lambda x: bool(region.feasible(x[None, :], tol=1e-6)[0]), best, None
+        )
+        assert found.x == pytest.approx([-1.0, 0.6], abs=1e-6)  # B alone at 40 ppm
+
+    def test_a_pareto_front_has_no_traces(self) -> None:
+        names = ["A", "B", "C"]
+        models = [
+            _model({"Intercept": 10.0, "A": 2.0, "B": 3.0, "C": 0.5}, names),
+            {**_model({"Intercept": 5.0, "A": 1.0, "B": 2.0, "C": -0.5}, names), "response_name": "cost"},
+        ]
+        goals = [
+            {"response": "y", "goal": "maximize", "low": 0.0, "high": 30.0},
+            {"response": "cost", "goal": "minimize", "low": 0.0, "high": 10.0},
+        ]
+        region = DesignRegion(FACTORS)
+        found = optimize_responses(models, goals=goals, method="pareto_front", region=region, n_pareto_points=5)
+        front = found["pareto_front"]["front"]
+        assert len(front) >= 2
+        coded = np.array([[point["coded"][name] for name in names] for point in front])
+        assert region.feasible(coded, tol=1e-6).all()
+
+    @pytest.mark.slow
+    def test_the_optimum_over_buckets_matches_a_mixed_integer_programme(self) -> None:
+        names = [[f"B{b + 1}_{i + 1}" for i in range(3)] for b in range(5)]
+        flat = [name for bucket in names for name in bucket]
+        factors = [Factor(name=name, low=0, high=20, units="%", min_when_used=5) for name in flat]
+        limits = [f"5 <= {' + '.join(bucket)} <= 20" for bucket in names] + [f"{' + '.join(flat)} <= 60"]
+        region = DesignRegion(factors, limits)
+        slope = np.random.default_rng(7).normal(size=15).round(2)  # of the coded amounts
+        model = _model({"Intercept": 0.0} | dict(zip(flat, slope.tolist(), strict=True)), flat)
+        goals = [{"response": "y", "goal": "maximize", "low": -40.0, "high": 40.0}]
+        found = optimize_responses(
+            [model],
+            goals=goals,
+            method="desirability",
+            region=region,
+            factor_ranges={name: {"low": 0, "high": 20} for name in flat},
+        )["desirability"]
+        amounts = np.array([found["optimal_actual"][name] for name in flat])
+        assert not np.any((amounts > 1e-6) & (amounts < 5 - 1e-6))
+
+        # The same optimum, exactly: amounts a from 5 z to 20 z with z binary, and y = slope @ (a / 10 - 1).
+        cost = np.concatenate([-slope / 10.0, np.zeros(15)])
+        bucket = np.kron(np.eye(5), np.ones(3))
+        rows = np.vstack(
+            [
+                np.hstack([bucket, np.zeros((5, 15))]),
+                np.hstack([np.ones((1, 15)), np.zeros((1, 15))]),
+                np.hstack([np.eye(15), -20.0 * np.eye(15)]),
+                np.hstack([-np.eye(15), 5.0 * np.eye(15)]),
+            ]
+        )
+        lower = np.concatenate([np.full(5, 5.0), np.full(31, -np.inf)])
+        upper = np.concatenate([np.full(5, 20.0), [60.0], np.zeros(30)])
+        exact = milp(
+            cost,
+            constraints=LinearConstraint(rows, lower, upper),
+            integrality=np.concatenate([np.zeros(15), np.ones(15)]),
+            bounds=Bounds(np.zeros(30), np.concatenate([np.full(15, 20.0), np.ones(15)])),
+        )
+        assert found["predicted_responses"]["y"] == pytest.approx(-exact.fun - slope.sum(), abs=1e-3)

@@ -53,9 +53,11 @@ class Factor(BaseModel):
         The smallest amount of an ingredient that is used at all, which keeps traces out of a
         formulation: the factor is 0 (the ingredient is left out), or between this and ``high``.
         For a continuous factor with ``low=0``, and ``0 < min_when_used < high``. The optimal
-        designs then place no run between 0 and it, and
+        designs then place no run between 0 and it,
         :class:`~process_improve.experiments.region.DesignRegion` counts such a setting as
-        outside the region. Default None: every amount from ``low`` to ``high`` can be run.
+        outside the region, and ``optimize_responses`` returns an optimum that leaves the factor
+        out or uses at least the minimum. Default None: every amount from ``low`` to ``high``
+        can be run.
 
     Examples
     --------

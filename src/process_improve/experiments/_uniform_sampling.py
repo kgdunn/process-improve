@@ -182,6 +182,28 @@ class UniformSampler:
         point passes here as it passes the caller's own test: the length of a straight
         limit's gradient makes the tolerance a distance, whatever the limit's units. None
         keeps ``_TOL`` in each limit's own units.
+    gaps : list[tuple[int, float]] or None
+        ``(column, minimum)`` for each coordinate that is left out or used at no less than a
+        minimum: it sits at its lower bound, or between ``minimum`` and its upper bound,
+        and nowhere between the two. See below for what "uniform" then means.
+
+    Notes
+    -----
+    A region with ``gaps`` is made of pieces of different dimensions, one for each set of
+    the coordinates in use, and no single volume measures them all. The sampler draws from
+    the measure under which a coordinate with a gap is left out as often as it is used,
+    before the constraints are applied, and is uniform between its minimum and its upper
+    bound when it is used. The constraints then condition that measure: a set of
+    coordinates the constraints rule out is never drawn, and one they squeeze is drawn
+    less often.
+
+    Rejection draws from that measure directly. A chain alternates two moves that each
+    keep it: a hit-and-run step over the coordinates in use, which stays on the piece,
+    and a draw of one coordinate with a gap given all the others, which can leave the
+    coordinate out or bring it back in. A region whose pieces are not joined by leaving
+    out or bringing in one coordinate at a time (each of two ingredients excludes the
+    other, and one of them is required) is covered through the points the chains start
+    from, not by the moves.
     """
 
     inequalities: list[_Inequality]
@@ -190,6 +212,7 @@ class UniformSampler:
     seeds: Callable[[], np.ndarray] | None = None
     on_simplex: bool = False
     tolerances: np.ndarray | None = None
+    gaps: list[tuple[int, float]] | None = None
 
     def __post_init__(self) -> None:
         """Split the constraints into affine rows ``a @ x <= b`` and the rest."""
@@ -203,16 +226,43 @@ class UniformSampler:
         self._nonlinear = [
             (g, reach) for g, f, reach in zip(self.inequalities, forms, self._reach, strict=True) if f is None
         ]
+        self._gap_columns = np.array([j for j, _ in self.gaps or []], dtype=int)
+        self._gap_minimums = np.array([minimum for _, minimum in self.gaps or []], dtype=float)
 
     def feasible(self, x: np.ndarray) -> np.ndarray:
-        """Boolean per row: inside the bounds, on the simplex if one, and meeting every constraint."""
+        """Boolean per row: inside the bounds, on the simplex if one, out of every gap, and meeting every constraint."""
         low, high = self.bounds
         ok = np.all((x >= low - _TOL) & (x <= high + _TOL), axis=1)
         if self.on_simplex:
             ok &= np.abs(x.sum(axis=1) - 1.0) <= 1e-6
         for g, reach in zip(self.inequalities, self._reach, strict=True):
             ok &= np.asarray(g(x)) <= reach
+        if len(self._gap_columns):
+            mine = x[:, self._gap_columns]
+            ok &= ~np.any((mine > low[self._gap_columns] + _TOL) & (mine < self._gap_minimums - _TOL), axis=1)
         return ok
+
+    def _left_out(self, x: np.ndarray) -> np.ndarray:
+        """Boolean ``(n, k)``: the coordinates with a gap that sit at their lower bound, so are left out."""
+        out = np.zeros(x.shape, dtype=bool)
+        if len(self._gap_columns):
+            out[:, self._gap_columns] = x[:, self._gap_columns] <= self.bounds[0][self._gap_columns] + _TOL
+        return out
+
+    def _settle(self, points: np.ndarray) -> np.ndarray:
+        """Map points uniform on the bounds to the sampler's measure: each coordinate with a gap out half the time.
+
+        The lower half of such a coordinate's range goes to its lower bound, and the upper
+        half is stretched over the range from its minimum to its upper bound.
+        """
+        if not len(self._gap_columns):
+            return points
+        low, high = self.bounds[0][self._gap_columns], self.bounds[1][self._gap_columns]
+        share = (points[:, self._gap_columns] - low) / (high - low)
+        used = self._gap_minimums + (high - self._gap_minimums) * (2.0 * share - 1.0)
+        points = points.copy()
+        points[:, self._gap_columns] = np.where(share < 0.5, low, used)
+        return points
 
     def draw(self, n: int, rng: np.random.Generator) -> np.ndarray:
         """Return ``n`` points, ``(n, k)``.
@@ -245,7 +295,7 @@ class UniformSampler:
         batch = min(max(n, 10_000), _REJECTION_DRAWS)
         kept, drawn, accepted = [], 0, 0
         while accepted < n:
-            points = self.propose(batch)
+            points = self._settle(self.propose(batch))
             kept.append(points[self.feasible(points)])
             drawn, accepted = drawn + batch, accepted + len(kept[-1])
             if n * drawn / max(accepted, 1) > _REJECTION_DRAWS:  # projected total draws
@@ -305,9 +355,12 @@ class UniformSampler:
             return np.eye(k)
         return np.linalg.cholesky(cov + 1e-3 * scale * np.eye(k))
 
-    def _chord(self, x: np.ndarray, d: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Range of ``t`` keeping ``x + t d`` inside the bounds and every affine constraint."""
-        t_lo, t_hi = _box_chord(x, d, *self.bounds)
+    def _chord(self, x: np.ndarray, d: np.ndarray, low: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """Range of ``t`` keeping ``x + t d`` inside the bounds and every affine constraint.
+
+        ``low`` replaces the lower bounds, per chain: a coordinate in use stays at or above its minimum.
+        """
+        t_lo, t_hi = _box_chord(x, d, self.bounds[0] if low is None else low, self.bounds[1])
         if len(self._b):
             rate = d @ self._a.T  # how fast each constraint's left side grows along d
             slack = np.maximum(self._b - x @ self._a.T, 0.0)
@@ -325,8 +378,23 @@ class UniformSampler:
         d = rng.standard_normal(x.shape) @ shape.T
         if self.on_simplex:
             d -= d.mean(axis=1, keepdims=True)  # stay on the plane where the proportions sum to 1
-        d /= np.linalg.norm(d, axis=1, keepdims=True)
-        t_lo, t_hi = self._chord(x, d)
+        low = self.bounds[0]
+        if len(self._gap_columns):
+            # A coordinate that is left out does not move here, and one in use stays at or above its minimum.
+            d[self._left_out(x)] = 0.0
+            low = np.tile(low, (len(x), 1))
+            low[:, self._gap_columns] = self._gap_minimums
+        length = np.linalg.norm(d, axis=1)
+        d /= np.where(length > 0, length, 1.0)[:, None]
+        t_lo, t_hi = self._chord(x, d, low)
+        t_lo[length == 0], t_hi[length == 0] = 0.0, 0.0  # every coordinate left out: no direction to move in
+        x = self._move(x, d, t_lo, t_hi, rng)
+        return self._switch(x, rng) if len(self._gap_columns) else x
+
+    def _move(
+        self, x: np.ndarray, d: np.ndarray, t_lo: np.ndarray, t_hi: np.ndarray, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Move each chain to a uniform point of its chord ``x + t d``, shrinking the chord after a miss."""
         pending = np.arange(len(x))
         for _ in range(_SHRINK_STEPS):
             t = rng.uniform(t_lo[pending], t_hi[pending])
@@ -340,4 +408,37 @@ class UniformSampler:
             t_hi[pending] = np.where(t >= 0, t, t_hi[pending])
             if not len(pending):
                 break
+        return x
+
+    def _switch(self, x: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        """Redraw one coordinate with a gap in each chain, given the others: left out, or anywhere it may be used.
+
+        Along the coordinate's axis the bounds and the affine constraints leave an
+        interval. The coordinate may be left out when the interval reaches its lower
+        bound, and may be used over the part of the interval at or above its minimum.
+        Being left out weighs as much as the whole range from the minimum to the upper
+        bound, so the two are as likely when nothing limits the coordinate. A draw that
+        breaks a non-linear constraint is not taken, which keeps the measure invariant.
+        """
+        rows = np.arange(len(x))
+        pick = rng.integers(len(self._gap_columns), size=len(x))
+        columns, minimums = self._gap_columns[pick], self._gap_minimums[pick]
+        bottom, top = self.bounds[0][columns], self.bounds[1][columns]
+        axis = np.zeros(x.shape)
+        axis[rows, columns] = 1.0
+        t_lo, t_hi = self._chord(x, axis)
+        current = x[rows, columns]
+        may_leave_out = current + t_lo <= bottom + _TOL
+        start = np.maximum(current + t_lo, minimums)
+        span = np.maximum(current + t_hi - start, 0.0)
+        weight_out = np.where(may_leave_out, top - minimums, 0.0)
+        total = weight_out + span
+        draw = rng.uniform(size=len(x)) * np.where(total > 0, total, 1.0)
+        value = np.where(draw < weight_out, bottom, start + (draw - weight_out))
+        trial = x.copy()
+        trial[rows, columns] = np.where(total > 0, value, current)
+        ok = np.ones(len(x), dtype=bool)
+        for g, reach in self._nonlinear:
+            ok &= np.asarray(g(trial)) <= reach
+        x[ok] = trial[ok]
         return x
