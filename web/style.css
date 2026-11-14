@@ -478,6 +478,22 @@ th[aria-sort="descending"] button.sort::after { content: " ▼"; color: var(--ac
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 footer { color: var(--muted); font-size: 0.88rem; }
 footer .link { padding: 0; font: inherit; text-decoration: underline; }
+/* The app's footer: what Factorial is and the way to all it does, then groups of links to scan, each under a line
+   that names it, and what is kept on this device. The groups wrap as the page narrows, down to one column. */
+.foot { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); }
+.foot__lead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; margin-bottom: 18px; }
+.foot__lead p { flex: 1 1 320px; margin: 0; }
+.foot__lead strong { color: var(--fg); }
+.foot__groups, .foot__nav { display: flex; flex-wrap: wrap; gap: 18px 32px; }
+.foot__nav { flex: 3 1 420px; }
+.foot__nav > div { flex: 1 1 150px; }
+.foot__device { flex: 1 1 240px; }
+.foot__head { margin: 0 0 6px; color: var(--fg); font-weight: 600; }
+.foot ul { margin: 0; padding: 0; list-style: none; }
+.foot li { margin: 4px 0; }
+.foot__device p { margin: 0 0 6px; }
+.foot__actions { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.foot__actions button { padding: 4px 10px; font-size: inherit; }
 
 /* New study and the worked example: buttons in the header, and a banner while the worked example is
    the copy computed when the page was built. */
@@ -1081,6 +1097,15 @@ main.about { max-width: 780px; }
 .about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 .about__back { margin: 0; }
 .about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
+/* What Factorial does (features.html): the same column, for a list in sections. Its tables hold words, so they
+   read from the left, and the factors a design takes stay on one line; its contents fold into two columns. */
+.features h2 { margin: 28px 0 8px; }
+.features h3 { margin: 18px 0 6px; font-size: 1rem; }
+.features hr { margin: 20px 0; border: none; border-top: 1px solid var(--line); }
+#features > ol:first-child { columns: 2 260px; padding-left: 2em; }
+.features table.data { width: 100%; }
+.features table.data th, .features table.data td { text-align: left; vertical-align: top; }
+.features table.data td:nth-child(2):not(:last-child) { white-space: nowrap; }
 table.stack { width: 100%; }
 table.stack th, table.stack td { text-align: left; vertical-align: top; padding: 6px 10px; }
 table.stack th { width: 34%; font-weight: 600; }

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 
-from tests.web._support import javascript, source
+from tests.web._support import APP_SOURCES, javascript, page, source
 
 FEATURES = source("FEATURES.md")
 
@@ -65,7 +65,7 @@ def test_every_chart_is_listed_by_its_title(bootstrap, node):
     more = [title for title, shown in listed.items() if shown.startswith("More charts")]
     assert more == [charts[key]["title"] for key in bootstrap.MORE_CHARTS]
     assert f"**{len(charts)} charts.**" in TEXT, "the count in the summary"
-    assert f"**The {len(charts)} charts**" in TEXT
+    assert f"### The {len(charts)} charts" in TEXT
 
 
 def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap, node):
@@ -111,3 +111,26 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"links between them, in {len(graph['clusters'])} topics",
     ):
         assert sentence.lower() in TEXT.lower(), sentence
+
+
+# --------------------------------------------------------------------------- the page that shows the document
+def test_the_document_is_published_with_the_page_that_shows_it(build_script, node):
+    """features.html reads FEATURES.md with features.js: a build without one of the three shows no list."""
+    shows = {"features.html", "features.js", "FEATURES.md"}
+    assert shows <= set(build_script.APP_FILES)
+    assert shows <= set(APP_SOURCES)
+    html = source("features.html")
+    assert 'import { markdown, shownPart } from "./features.js";' in html
+    assert 'fetch("FEATURES.md"' in html
+    (mark,) = javascript(node, source("features.js"), [("SHOWN_FROM", [])])
+    assert FEATURES.count(mark) == 1, "the line after which the page shows the document"
+
+
+def test_the_app_s_footer_leads_to_the_page_with_a_button_and_names_each_group_of_its_links():
+    html = " ".join(source("index.html").split())
+    footer = html[html.index('<footer class="foot">') : html.index("</footer>")]
+    assert '<a class="button primary" href="features.html">See what Factorial does</a>' in footer
+    lists = re.findall(r'<ul aria-labelledby="([\w-]+)">', footer)
+    assert lists == ["foot-app", "foot-behind", "foot-help"]
+    assert set(lists) <= set(page().ids), "each list is named by the line above it"
+    assert footer.count("<p>") == 2, "one sentence on what Factorial is, and the words on the copy kept here"

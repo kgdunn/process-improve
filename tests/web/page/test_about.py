@@ -27,7 +27,7 @@ def source_of(path: str) -> str:
 
 
 def test_the_app_s_footer_links_to_it():
-    assert '<a href="about.html">how Factorial works</a>' in " ".join(source("index.html").split())
+    assert '<li><a href="about.html">How Factorial works</a></li>' in " ".join(source("index.html").split())
 
 
 def test_every_link_into_the_repository_names_a_path_that_exists():
@@ -80,7 +80,7 @@ def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     assert 'def log_message(self, *_: object) -> None:\n        """Say nothing' in relay, "no request line in the log"
     footer = " ".join(source("index.html").split())
     assert "nothing on our server" in footer
-    assert 'Send us <button type="button" class="link" data-feedback="general">Feedback</button>.' in footer, (
+    assert '<button type="button" class="link" data-feedback="general">Send feedback</button>' in footer, (
         "the footer names the one report sent to the server"
     )
 

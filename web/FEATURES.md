@@ -16,6 +16,8 @@ elsewhere. Three rules keep it true:
 
 Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow.
 
+<!-- features.html shows what follows -->
+
 1. [In one minute](#1-in-one-minute)
 2. [Designs](#2-designs)
 3. [Planning a study: Design](#3-planning-a-study-design)
@@ -139,7 +141,7 @@ Also:
 
 ## 5. Calculations: Learn
 
-**The fit**
+### The fit
 
 - **What the results say.** Sentences on which factor matters most and by how much in its own
   units, which effects are real, which depend on another factor, where the response curves,
@@ -160,7 +162,7 @@ Also:
 - **Correlated terms.** Each coefficient's variance inflation factor, with a note when one is
   above 5.
 
-**Checking the fit**
+### Checking the fit
 
 - **Each run, as the model sees it.** Fitted value, residual, leverage and Cook's distance. A
   run is marked by the Bonferroni outlier test.
@@ -172,7 +174,7 @@ Also:
 - **The spread of repeated results.** Mean, standard deviation, ln s and the signal-to-noise
   ratio at each setting, a response table, and the adjustment factor for a target.
 
-**A study of one factor**
+### A study of one factor
 
 - **Two levels.** The difference and its interval, tested four ways: the t-test, Welch's
   t-test, a randomization test and Wilcoxon's rank-sum test.
@@ -180,13 +182,13 @@ Also:
 - **Three levels or more.** One-way analysis of variance, Tukey's and Dunnett's intervals,
   Bartlett's test and the Kruskal-Wallis test.
 
-**Mixtures**
+### Mixtures
 
 - **Scheffé models**: linear, quadratic or special cubic blending, with the mixture's analysis
   of variance and each component's effect along its Cox direction.
 - **The best blend**, searched over the blends the bounds allow.
 
-**From the model to a decision**
+### From the model to a decision
 
 - **The best settings for your goal**, inside the ranges and the limits, with the prediction,
   its 95% confidence and prediction intervals, a warning when it leans on the model beyond
@@ -203,7 +205,7 @@ Also:
   (a fold-over, axial runs, center runs, runs chosen for the model, or every run again),
   confirmation runs, or a new study with its ranges moved along the steepest ascent.
 
-**Data you have already**
+### Data you have already
 
 - **Analyse data you have.** A table pasted, or a .csv or .xlsx file, of a design run
   elsewhere or of a process's records. The app guesses the factors and the responses, reads
@@ -214,7 +216,7 @@ Also:
 
 ## 6. Figures
 
-**The 17 charts**
+### The 17 charts
 
 | Chart | Shown for |
 |---|---|
@@ -241,7 +243,7 @@ curves and correlation maps of the designs compared; the correlation map of the 
 runs; how tightly to hold each factor; where every response is acceptable; and a predicted
 curve with its 95% bands.
 
-**Looking closely**
+### Looking closely
 
 - **A window for each figure.** Expand opens a figure over the page. It takes a shape (16:9,
   4:3, square or all the room) or the size its corner is dragged to, with a mouse, a finger or
@@ -259,7 +261,7 @@ curve with its 95% bands.
 - **Reading a chart.** Resting on a point names its run. A chart of several lines reads every
   line at one setting together. Each factor's effect is read with its interval.
 
-**Drawn to be read**
+### Drawn to be read
 
 - Axes and titles are in your words and units. A long title wraps.
 - Every chart fits its card and is drawn again when its room changes.
@@ -293,6 +295,8 @@ curve with its 95% bands.
 - **Every study is kept** in the browser as you work, with a draft of a brief not yet made.
   Your studies lists them, to open, share or delete.
 - **Feedback** from the header, the footer or beside a result, with a list of what is sent.
+- **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
+  groups, and what is kept on the device.
 
 ## 8. Data in and out, and reproducibility
 
@@ -320,7 +324,7 @@ curve with its 95% bands.
 
 What an organisation asks before it lets people use a tool.
 
-**Where the data goes**
+### Where the data goes
 
 - **Nowhere.** Factors, results and analyses stay in the browser. The server has no database,
   no accounts, no cookies and no tracking script.
@@ -329,17 +333,18 @@ What an organisation asks before it lets people use a tool.
 - **Feedback is the one thing sent**, only on Send, and only what the dialog lists. The relay
   emails it and keeps nothing.
 
-**Running it yourself**
+### Running it yourself
 
 - **A folder of plain files.** The app is built with one command and served by any web server,
   an internal one included.
-- **Offline.** A copy of the app, Python and its packages is kept in the browser (about 170
-  MB), and one button adds the charts and the workbooks (about 12 MB more). The footer says
-  what the copy holds, and removes it on request.
+- **Offline.** A copy of the app, Python and its packages is kept in the browser: from about
+  170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
+  workbooks (about 12 MB more). The footer says what the copy holds and what it takes of the
+  device's storage, and removes it on request.
 - **Pinned versions.** The Python release and each package are pinned, and the About page
   shows the versions a copy loads.
 
-**Safe by construction**
+### Safe by construction
 
 - A workbook's formulas are never evaluated, and a model is never read from a file as text.
 - A link is checked field by field before any of it is used.
@@ -347,7 +352,7 @@ What an organisation asks before it lets people use a tool.
 - A table of your own is held to 2 MB, 60 columns and 2,000 runs.
 - The site is served over HTTPS with strict transport security, and refuses to be framed.
 
-**Evidence it is right**
+### Evidence it is right
 
 - **About 3,500 automated tests of the app** (Nov 2026): the page's logic, every call into
   Python, the page in a real browser, and the app under real WebAssembly.
@@ -367,14 +372,16 @@ What an organisation asks before it lets people use a tool.
   in *Process Improvement using Data* (<https://learnche.org/pid>).
 - **The worked example** opens at once, and can be run again in the tab.
 - **Practice on a known process** shows the true model beside the fitted one.
-- **How Factorial works** (the About page): what runs where, what reaches a server, the
+- **What Factorial does**: this list, as a page of the app. It is drawn from the document the
+  app is described from, which a test holds to the app.
+- **[How Factorial works](about.html)** (the About page): what runs where, what reaches a server, the
   versions loaded, and how to build and serve the app yourself.
 - **The concept map**: see below.
 - **The package's documentation**: <https://kgdunn.github.io/process-improve/>.
 
 ## 11. The other pages at factori.al
 
-- **The design catalog** (`/catalog/`). More than 1,500 entries (Nov 2026): published
+- **[The design catalog](catalog/).** More than 1,500 entries (Nov 2026): published
   experiments and designs from 22 sources, 1956 to 2026, and designs the library makes.
   Search in words, filter by family, field, runs, factors and model, and see each on a map of
   runs against factors. A design's page links to where its source prints it, projects its
@@ -382,12 +389,12 @@ What an organisation asks before it lets people use a tool.
   compared side by side. More than 1,100 designs open in Factorial with one click. There is
   a page for each of 30 fields and for each source, a list of errata, a feed, and forms to
   propose a published design or share a case study.
-- **Reproduced from the books** (`/catalog/reproduced/`). How closely the library reproduces
+- **[Reproduced from the books](catalog/reproduced/).** How closely the library reproduces
   each number its sources print, in four tiers, with the reason for each difference.
-- **The concept map** (`/map/`). 237 ideas of designed experiments and 489 links between them,
+- **[The concept map](map/).** 237 ideas of designed experiments and 489 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It shares
   the app's reading level.
-- **The multivariate page** (`/mva/`). PCA and PLS on an example or your own file: a data
+- **[The multivariate page](mva/).** PCA and PLS on an example or your own file: a data
   table with each variable's distribution in its heading, linked score, loading, SPE and T²
   plots, and "Why are these rows different?". The app does not link to it yet
   ([#1227](https://github.com/kgdunn/process-improve/issues/1227)).
@@ -417,7 +424,7 @@ seconds on a first visit and about 8 seconds after (Nov 2026).
 
 ## 13. Not in the app
 
-Do not describe the app as having these.
+The app does not have these, so do not describe it as having them.
 
 - Accounts, sign-in, shared workspaces, or a record of who changed what. There is no server
   to hold them.

@@ -99,6 +99,10 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         page.locator("#charts figure.chart .expand").first.click()  # the window a figure opens in, from the copy too
         page.wait_for_selector("dialog.figure[open] .main-svg")
         page.keyboard.press("Escape")
+        listed = context.new_page()  # what Factorial does: a page of the app, and the document it reads, from the copy
+        listed.goto(f"{app_url}features.html")
+        listed.wait_for_selector("#features h2")
+        listed.close()
         assert not console.unexpected(), console.unexpected()
 
         context.set_offline(False)

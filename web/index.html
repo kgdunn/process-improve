@@ -827,18 +827,48 @@
     </details>
   </dialog>
 
-  <footer>
-    <p>Factorial is the browser app of <a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve</a>, the
-      Python package that accompanies the book <a href="https://learnche.org/pid" target="pid-book" rel="noopener">Process Improvement using Data</a>.
-      Everything here runs in your browser tab, nothing on our server: read <a href="about.html">how Factorial works</a>
-      and <a href="map/">how its ideas link</a>.
-      Something wrong or missing? Send us <button type="button" class="link" data-feedback="general">Feedback</button>.</p>
-    <!-- What is kept on this device for use without a network (offline.js), once there is a copy to speak of. -->
-    <p id="offline" hidden tabindex="-1">
-      <span role="status"></span>
-      <button type="button" class="link" id="offline-keep" hidden></button>
-      <button type="button" class="link" id="offline-remove" hidden>Remove the copy</button>
-    </p>
+  <footer class="foot">
+    <!-- What Factorial is, in a sentence, and the way to all that it does (features.html). -->
+    <div class="foot__lead">
+      <p><strong>Factorial</strong> is the browser app of process-improve, the Python package of the book
+        Process Improvement using Data. Everything here runs in your browser tab, nothing on our server.</p>
+      <a class="button primary" href="features.html">See what Factorial does</a>
+    </div>
+    <div class="foot__groups">
+      <!-- Where to go from here, in groups to scan: each list is named by the line above it. -->
+      <nav class="foot__nav" aria-label="More about Factorial">
+        <div>
+          <p class="foot__head" id="foot-app">The app</p>
+          <ul aria-labelledby="foot-app">
+            <li><a href="about.html">How Factorial works</a></li>
+            <li><a href="catalog/">The design catalog</a></li>
+            <li><a href="map/">How its ideas link</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="foot__head" id="foot-behind">Behind it</p>
+          <ul aria-labelledby="foot-behind">
+            <li><a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve, the Python package</a></li>
+            <li><a href="https://learnche.org/pid" target="pid-book" rel="noopener">Process Improvement using Data, the book</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="foot__head" id="foot-help">Something wrong or missing?</p>
+          <ul aria-labelledby="foot-help">
+            <li><button type="button" class="link" data-feedback="general">Send feedback</button></li>
+          </ul>
+        </div>
+      </nav>
+      <!-- What is kept on this device for use without a network (offline.js), once there is a copy to speak of. -->
+      <div id="offline" class="foot__device" hidden tabindex="-1">
+        <p class="foot__head">On this device</p>
+        <p><span role="status"></span></p>
+        <p class="foot__actions">
+          <button type="button" id="offline-keep" hidden></button>
+          <button type="button" id="offline-remove" hidden>Remove the copy</button>
+        </p>
+      </div>
+    </div>
   </footer>
 </main>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

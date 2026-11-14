@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What Factorial does</title>
+  <meta name="description" content="Everything Factorial does, grouped by kind: 16 experimental designs, planning a study, analysing its results, 17 charts, reproducible Python, and privacy by design. It runs in your browser tab, with nothing to install.">
+  <meta property="og:title" content="What Factorial does">
+  <meta property="og:description" content="Designed experiments in your browser: 16 designs, the analysis, 17 charts and reproducible Python. Nothing to install, and your data never leaves your device.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://factori.al/og-card.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141517" media="(prefers-color-scheme: dark)">
+  <script>
+    /* The colour mode chosen in the app (index.html), put on the page before it is drawn. */
+    try {
+      const mode = localStorage.getItem("factorial-mode");
+      if (mode === "light" || mode === "dark") document.documentElement.dataset.theme = mode;
+    } catch {
+      /* storage refused: the system's mode */
+    }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="about features">
+  <p class="about__back"><a href="./"><img src="favicon.svg" alt="" width="28" height="28"> Back to Factorial</a></p>
+  <h1>What Factorial does</h1>
+  <p class="lede">Factorial plans a designed experiment, takes its results and analyses them, in three steps: Design,
+    Run and Learn. It runs in your browser tab, so a study never reaches a server. This is everything it does today,
+    grouped by kind.</p>
+  <p><a class="button primary" href="./">Start a study</a></p>
+  <!-- The list is FEATURES.md, the document the app is described from, read by features.js: one text, so the page
+       cannot say what the document does not. tests/web/page/test_features.py holds the document to the app. -->
+  <div id="features" aria-live="polite" aria-busy="true"><p>Reading the list...</p></div>
+  <noscript><p>This page needs JavaScript to show the list. The same list is
+    <a href="https://github.com/kgdunn/process-improve/blob/main/web/FEATURES.md">in the repository</a>.</p></noscript>
+  <p class="hint">This page is drawn from
+    <a href="https://github.com/kgdunn/process-improve/blob/main/web/FEATURES.md" target="_blank" rel="noopener">the document
+    the app is described from</a>. A test fails when it names a design, a chart or a limit that the app does not have.</p>
+</main>
+<script type="module">
+  import { markdown, shownPart } from "./features.js";
+
+  const list = document.getElementById("features");
+  try {
+    const answer = await fetch("FEATURES.md", { cache: "no-cache" });
+    if (!answer.ok) throw new Error(String(answer.status));
+    list.innerHTML = markdown(shownPart(await answer.text()));
+    // The address may name a part of the list, which was not there when the browser looked for it.
+    if (location.hash.length > 1) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+  } catch {
+    list.innerHTML = "";
+    const said = document.createElement("p");
+    said.className = "error";
+    said.textContent = "The list could not be read. Reload the page, or read it in the repository, linked below.";
+    list.append(said);
+  }
+  list.setAttribute("aria-busy", "false");
+</script>
+</body>
+</html>

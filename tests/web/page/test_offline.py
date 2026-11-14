@@ -72,7 +72,10 @@ def test_the_page_registers_the_worker_it_ships_and_names_the_copies_as_it_does(
 
 def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_is_a_copy():
     html = " ".join(source("index.html").split())
-    assert '<p id="offline" hidden tabindex="-1"> <span role="status"></span>' in html, "said aloud, and focusable"
+    box = '<div id="offline" class="foot__device" hidden tabindex="-1">'
+    assert f'{box} <p class="foot__head">On this device</p> <p><span role="status"></span></p>' in html, (
+        "said aloud, and focusable; the words are in the box's first span, where offline.js writes them"
+    )
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
 
 
@@ -106,3 +109,15 @@ def test_the_copy_holds_every_module_the_page_loads_on_demand():
     assert on_demand == {"figure.js", "vendor/modern-screenshot.mjs"}, "a new one is kept, or needs a network"
     kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const onDemand = .*", source("offline.js")).group()))
     assert on_demand - NEEDS_A_NETWORK == kept
+
+
+def test_the_copy_holds_the_page_the_footer_s_button_opens():
+    """The app's page never loads features.html, so a copy made of what a visit loaded left its button dead offline.
+
+    Only the live tier saw it. The page's own files are named to the copy: the page, the module it imports, the
+    document it reads and the picture it shows. Its styles are the app's, which every visit loads.
+    """
+    kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const linked = .*", source("offline.js")).group()))
+    asked = re.findall(r'(?:src=|from |fetch\()"(?:\./)?([\w.-]+)"', source("features.html"))
+    assert kept == {"features.html", *asked}
+    assert set(asked) == {"features.js", "FEATURES.md", "favicon.svg"}
