@@ -106,6 +106,8 @@ Writing constraints
   or to limit a continuous factor on some levels only; see
   :ref:`constrained-categorical-rules`. Categorical factors that no constraint names
   are crossed with the constrained continuous region.
+* A constraint may limit how many factors a run uses, a factor at 0 being left out:
+  ``"count_nonzero(A, B, C, D) <= 2"``; see :ref:`constrained-count-rules`.
 
 The expression is parsed into an arithmetic tree and evaluated with numpy; it is never
 passed to ``eval``, so an expression from an untrusted source can only compute a number.
@@ -123,7 +125,7 @@ Combining with other options
 * Other design types do not enforce constraints. They log a warning and set
   ``metadata["constraints_enforced"] = False``. A constraint that names a categorical
   factor is refused instead, since it usually marks a combination that cannot be run
-  at all.
+  at all, and so is a limit on how many factors a run uses.
 
 .. _constrained-group-totals:
 
@@ -255,6 +257,105 @@ The search over the sets is a local one: it ends at a setting that no single cha
 that kind improves, which for a model without interactions between the ingredients is
 the best there is in the cases tried against an exact method, and is not a proof in
 general. A Pareto front (``method="pareto_front"``) keeps the sets its starts use.
+
+.. _constrained-count-rules:
+
+How many ingredients a run uses
+-------------------------------
+
+A formulation may hold at most so many of the ingredients on offer, or at least so
+many, or exactly one of a group. ``count_nonzero`` counts the factors it names that
+are above 0 in a run, and the constraint compares that count with whole numbers:
+
+* ``"count_nonzero(A, B, C, D) <= 2"``: at most two of the four are used;
+* ``"count_nonzero(A, B, C) >= 1"``: at least one of the three is used;
+* ``"8 <= count_nonzero(A, B, C, ...) <= 14"``: between 8 and 14 of them are used;
+* ``"count_nonzero(A, B, C) == 1"``: exactly one of the three is used.
+
+The factors it names are amounts: continuous factors, or mixture components, whose
+``low`` is 0 or more. A factor at 0 is left out. One with a ``min_when_used``
+(:ref:`constrained-min-when-used`) is left out or set at no less than that minimum, so
+"used" means a real amount; one without it counts as used at any amount above 0. A
+factor whose ``low`` is above 0 is in every run, and always counts.
+
+.. code-block:: python
+
+   amounts = [Factor(name=name, low=0, high=10, units="g", min_when_used=2) for name in "ABCD"]
+   at_most_two = generate_design(
+       amounts,
+       budget=14,
+       model_type="interactions",
+       constraints=["count_nonzero(A, B, C, D) <= 2"],
+       random_state=1,
+   )
+   in_use = (at_most_two.design_actual[list("ABCD")] > 1e-9).sum(axis=1)
+   print(int(in_use.max()))  # 2
+
+The settings such a constraint allows are not one region but pieces of one, a piece for
+each set of the factors in use: on a piece the factors left out are at 0, and the
+others range from their minimum to their high level, within the other constraints. The
+candidates are found piece by piece, as vertices of the piece and the points between
+them. Every allowed set gives a piece when the factors that can be left out are few
+(up to 10); with more, a sample of the allowed sets does.
+
+Two factors that no run uses together have no interaction to estimate. With exactly
+one of ``A``, ``B`` and ``C`` in use, the design is built without their three
+interactions, a warning names them, and ``metadata["inestimable_columns"]`` records
+them:
+
+.. code-block:: python
+
+   one_of_three = generate_design(
+       amounts,
+       budget=12,
+       model_type="interactions",
+       constraints=["count_nonzero(A, B, C) == 1"],
+       random_state=1,
+   )
+   print(one_of_three.metadata["inestimable_columns"])  # {'A:B': 1, 'A:C': 1, 'B:C': 1}
+
+``DesignRegion`` knows the rule. A run that uses too many factors, or too few, is
+outside the region, and ``sample`` draws only sets that the rule allows: before the
+rule acts each of the four factors is left out half the time, so the 11 sets of at most
+two of them are as likely as one another, and 6 of the 11 use two factors.
+
+.. code-block:: python
+
+   pieces = DesignRegion(amounts, ["count_nonzero(A, B, C, D) <= 2"])
+   # A, B and C at 7.5 g with D left out; then A and B at 10 g with C and D left out. Coded units.
+   print(pieces.feasible([[0.5, 0.5, 0.5, -1.0], [1.0, 1.0, -1.0, -1.0]]))  # [False  True]
+   print(pieces.broken_limits([[0.5, 0.5, 0.5, -1.0]]))  # [['count_nonzero(A, B, C, D) <= 2']]
+   drawn = pieces.sample(20_000, np.random.default_rng(1))
+   print(round(float(((drawn > -1 + 1e-9).sum(axis=1) == 2).mean()), 1))  # 0.5, as 6 of 11
+
+``optimize_responses`` returns an optimum that the rule allows: each search keeps the
+set of factors its start uses, and the neighbouring sets tried from the best result are
+the allowed ones. Below, every factor adds to the response and ``A`` adds the most, so
+with at most one factor in use the optimum is ``A`` alone.
+
+.. code-block:: python
+
+   gains = {"Intercept": 10.0, "A": 3.0, "B": 2.0, "C": 1.0, "D": 0.5}
+   yield_model = {
+       "response_name": "y",
+       "factor_names": list("ABCD"),
+       "coefficients": [{"term": term, "coefficient": value} for term, value in gains.items()],
+   }
+   one = optimize_responses(
+       [yield_model],
+       goals=[{"response": "y", "goal": "maximize", "low": 0.0, "high": 30.0}],
+       region=DesignRegion(amounts, ["count_nonzero(A, B, C, D) <= 1"]),
+       factor_ranges={name: {"low": 0, "high": 10} for name in "ABCD"},
+   )["desirability"]
+   print({name: round(value, 6) for name, value in one["optimal_actual"].items()})
+   # {'A': 10.0, 'B': 0.0, 'C': 0.0, 'D': 0.0}
+
+A design type that cannot follow the rule, such as a factorial or a central composite
+design, is refused. The descriptions of one convex region (``vertices``,
+``volume_fraction``, ``implied_bounds`` and the pictures) are refused too, since the
+rule leaves a piece for each set of factors; ``is_empty`` answers from the pieces. The
+rule works on mixture components as well, where a blend then uses an allowed number of
+them, and beside process factors.
 
 .. _constrained-categorical-rules:
 
@@ -721,7 +822,8 @@ the region, so the design does not depend on the choice.
 
 *A component left out, or used at no less than a minimum.* ``min_when_used`` works on a
 mixture component as on an amount (:ref:`constrained-min-when-used`): the component is
-left out of a blend or makes up no less than that share of it. Candidate blends with a
+left out of a blend or makes up no less than that share of it. ``count_nonzero`` limits
+how many components a blend uses (:ref:`constrained-count-rules`). Candidate blends with a
 trace are dropped, the design is D-optimal with or without a budget (the centroid of
 the design used otherwise blends every component), and ``optimize_responses`` returns
 a blend that leaves the component out or uses at least its minimum.
