@@ -70,8 +70,16 @@ export class CacheStorage {
     return new Cache(this.caches.get(name), this.network);
   };
   // As Chromium has it, and the specification does not: looking a cache up by its name makes the cache, as
-  // opening it does. A removed copy's name came back this way, empty, until sw.js stopped looking without the mark.
-  match = async (address, { cacheName }) => (await this.open(cacheName)).match(address);
+  // opening it does. A removed copy's name came back this way, empty, so sw.js looks in every cache at once, which
+  // makes none: the first cache that holds the address answers.
+  match = async (address, { cacheName } = {}) => {
+    if (cacheName !== undefined) return (await this.open(cacheName)).match(address);
+    for (const held of this.caches.values()) {
+      const found = await new Cache(held, this.network).match(address);
+      if (found) return found;
+    }
+    return undefined;
+  };
   held = (name) => [...(this.caches.get(name)?.keys() ?? [])];
 }
 
