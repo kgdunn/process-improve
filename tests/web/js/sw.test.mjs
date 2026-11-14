@@ -173,6 +173,33 @@ describe("a file whose address names its version", () => {
     assert.deepEqual(await caches.keys(), []);
   });
 
+  test("is looked for in every cache at once, and in none by its name, so a look makes no cache", async () => {
+    const { fetched, caches } = await running();
+    await fetched(WASM); // kept
+    const asked = [];
+    const match = caches.match;
+    caches.match = (address, how) => (asked.push(how), match(address, how));
+    assert.equal((await fetched(WASM)).got.body, "wasm", "from the copy");
+    await fetched(APP_JS);
+    assert.ok(asked.length >= 1);
+    assert.ok(asked.every((how) => how.cacheName === undefined && how.ignoreVary === true));
+  });
+
+  test("brings no cache back by a look, so none is left if the worker is stopped before it can delete it", async () => {
+    const { fetched, caches } = await running();
+    await fetched(WASM); // kept
+    const match = caches.match;
+    let deletes = 0;
+    caches.match = async (...asked) => {
+      for (const gone of [MADE, KEPT, APP]) await caches.delete(gone); // the reader's removal, after the mark was seen
+      const remove = caches.delete;
+      caches.delete = (name) => ((deletes += 1), remove(name)); // any the worker makes from here on
+      return match(...asked);
+    };
+    assert.equal((await fetched(WASM)).got.body, "wasm", "from the network, there being no copy");
+    assert.deepEqual([await caches.keys(), deletes], [[], 0], "there was nothing for the worker to delete");
+  });
+
   test("does not bring the copy back when it is removed just as the worker goes to look in it", async () => {
     const { fetched, caches } = await running();
     await fetched(WASM); // kept

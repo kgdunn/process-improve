@@ -65,11 +65,11 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
   const whole = (response) => response.status === 200 && response.type !== "opaque";
 
   /**
-   * Read or write one of the copies, only while the page's mark is there; resolve to what `work` gave, or to
-   * nothing without the mark. A reader may remove the copy while this worker still serves their page, and a
-   * browser makes a cache anew when it is opened and, in Chromium, when it is only looked up by its name. So the
-   * mark is looked for before the work and after it, however the work ended: without it nothing is done, and a
-   * cache the work brought back, because the copy went in between, is deleted again.
+   * Write to one of the copies, only while the page's mark is there; resolve to what `work` gave, or to nothing
+   * without the mark. A reader may remove the copy while this worker still serves their page, and a browser makes
+   * a cache anew when it is opened. So the mark is looked for before the work and after it, however the work
+   * ended: without it nothing is done, and a cache the work brought back, because the copy went in between, is
+   * deleted again.
    */
   async function inCopy(name, work) {
     if (!(await caches.has(MADE))) return undefined;
@@ -83,13 +83,24 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
   /** Keep a response under its address. A full disk, or a browser that refuses, loses the copy and not the page. */
   const keep = (name, href, response) => inCopy(name, async () => (await caches.open(name)).put(href, response)).catch(() => {});
 
-  /** The copy of a request, whatever headers it was asked with; none if the copy cannot be read. */
-  const held = (name, request) =>
-    inCopy(name, () => caches.match(address(request), { cacheName: name, ignoreVary: true })).catch(() => undefined);
+  /**
+   * The copy of a request, whatever headers it was asked with; none without the page's mark, or if the copies
+   * cannot be read. It is looked for in every cache at once, and in none by its name: in Chromium a look in a
+   * cache by its name makes the cache, and a look is all this worker does of a copy it has in full, a score of
+   * times as Python starts. A look can then bring no cache back, whatever becomes of the worker after it. An
+   * address is kept in one copy only, so the file found is the same.
+   */
+  async function held(request) {
+    try {
+      return (await caches.has(MADE)) ? await caches.match(address(request), { ignoreVary: true }) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
 
   /** A file whose address names its version: the copy, or the network's once, kept from then on. */
   async function kept(request, event) {
-    const copy = await held(KEPT, request);
+    const copy = await held(request);
     if (copy) return copy;
     const response = await fetch(request);
     if (whole(response)) event.waitUntil(keep(KEPT, request.url, response.clone()));
@@ -119,11 +130,11 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
     try {
       response = await fetch(request);
     } catch (offline) {
-      const copy = await held(APP, request);
+      const copy = await held(request);
       if (copy) return copy;
       // A page the copy lacks says so, while the copy holds the app's own page for the reader to go back to.
       const page = request.mode === "navigate" && address(request) !== scope;
-      if (page && (await held(APP, { mode: "navigate", url: scope }))) return needsNetwork();
+      if (page && (await held({ mode: "navigate", url: scope }))) return needsNetwork();
       throw offline;
     }
     if (whole(response)) event.waitUntil(keep(APP, address(request), response.clone()));
