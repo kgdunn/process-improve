@@ -1,4 +1,7 @@
-"""How Factorial works, in the browser: reached from the app's footer, listing the versions this copy loads."""
+"""How Factorial works, in the browser: reached from the app's footer, listing the versions this copy loads.
+
+Each part answers a question in plain words; what only some readers ask is under the answer, in a fold.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +21,9 @@ def test_the_footer_opens_it_with_the_versions_this_copy_loads(page, plotly_js):
     assert page.text_content("#stack-packages") == ", ".join([*runtime["packages"], *runtime["fitting"]])
     assert page.text_content("#stack-plotly-js") == f"Plotly.js {plotly_js[0]}"
     assert page.text_content("#stack-pypi").startswith(", ".join(runtime["micropip"]))
+    assert page.is_hidden("#stack"), "the versions are in a fold, for a reader who asks"
+    page.click("text=The versions this copy loads")
+    assert page.is_visible("#stack-pyodide")
     page.click("text=Back to Factorial")
     page.wait_for_selector("#go-plan")
 
@@ -33,3 +39,32 @@ def test_it_reads_on_a_phone_without_scrolling_sideways(context, site):
              .map((e) => e.tagName.toLowerCase() + (e.className ? '.' + e.className : ''))"""
     )
     assert wider == []
+    page.evaluate("() => document.querySelectorAll('details.fold').forEach((fold) => { fold.open = true; })")
+    assert (
+        page.evaluate(
+            """() => [...document.querySelectorAll('body *')]
+             .filter((e) => e.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+             .filter((e) => !e.closest('pre')).length"""
+        )
+        == 0
+    ), "with every fold open too"
+
+
+def test_each_part_shows_its_answer_and_opens_its_fold_on_a_press_or_from_the_keyboard(context, site):
+    page = context.new_page()
+    page.goto(f"{site}about.html")
+    folds = page.locator("details.fold")
+    assert folds.count() >= 8
+    assert folds.evaluate_all("(folds) => folds.every((fold) => !fold.open)"), "the page opens on its answers alone"
+    assert page.locator(".feat-cards li").count() == 6, "and on what it comes to, in short"
+    part = page.locator("section[aria-labelledby='h-servers']")
+    assert part.locator("h2").text_content() == "What does a server see?"
+    assert "nothing of your work" in part.locator("p").first.text_content()
+    assert part.locator("text=the first 24 bits").is_hidden()
+    part.locator("summary").click()
+    assert part.locator("text=the first 24 bits").is_visible()
+    part.locator("summary").press("Enter")
+    assert part.locator("text=the first 24 bits").is_hidden()
+    # The link to the study file leads to its part, from the part on where the studies are kept.
+    page.click("section[aria-labelledby='h-kept'] >> text=the study file")
+    assert page.url.endswith("#h-file")

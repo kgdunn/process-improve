@@ -1097,19 +1097,29 @@ main.about { max-width: 780px; }
 .about code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 .about__back { margin: 0; }
 .about__back a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 600; }
+/* What only some readers ask, under an answer in plain words (about.html): a fold that says what it holds. */
+details.fold { margin: 10px 0 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+details.fold > summary { padding: 10px 14px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; color: var(--accent);
+  cursor: pointer; }
+details.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.fold[open] > summary { border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+details.fold > :not(summary) { margin-left: 14px; margin-right: 14px; }
+details.fold > ul { padding-left: 20px; }
+details.fold > :last-child { margin-bottom: 12px; }
 /* What Factorial does (features.html): the same column, for a list that folds. Its headline points are cards, a
-   step of a study is a small heading, and each part under it is a fold that says, while closed, what it holds. */
+   step of a study is a small heading, and each part under it is a fold that says, while closed, what it holds.
+   How Factorial works opens on cards too. */
 .feat-tools { display: grid; gap: 8px; margin: 16px 0 4px; }
 .feat-tools .hint { margin: 0; }
 .feat-tools[hidden] { display: none; }
 .feat-find input { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px;
   background: var(--panel); color: var(--fg); }
 .features .level-switch { margin: 0; }
-.features h2.feat-step { margin: 24px 0 6px; font-family: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
+.about h2.feat-step { margin: 24px 0 6px; font-family: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--accent); }
 .feat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; padding: 0;
   list-style: none; }
-.features .feat-cards li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+.about .feat-cards li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
   font-size: 0.85rem; line-height: 1.4; color: var(--muted); }
 .feat-cards strong { display: block; margin-bottom: 2px; font-size: 1rem; color: var(--fg); }
 .feat-part { margin: 6px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }

@@ -147,6 +147,55 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         assert sentence.lower() in TEXT.lower(), sentence
 
 
+#: Words for a statistician, or for the person who looks after the computers. Each is on a line of details.
+FOR_THE_DETAILS = (
+    "WebAssembly",
+    "CPython",
+    "HTTPS",
+    "SHA-256",
+    "CodeQL",
+    "access log",
+    "access-log",
+    "cookies",
+    "database",
+    "JSON",
+    "WCAG",
+    "pull request",
+    "smoke test",
+    "p-value",
+    "R²",
+    "AICc",
+    "Bonferroni",
+    "Box-Cox",
+    "Lenth",
+    "Scheffé",
+    "Tukey",
+    "Welch",
+    "Kruskal",
+    "Cook's distance",
+    "variance inflation",
+    "defining relation",
+    "aberration",
+)
+
+
+def test_a_point_says_in_plain_words_what_it_means_and_keeps_such_words_for_its_details():
+    """What the page shows at first is for the person using the app: the words of statistics and servers come after."""
+    shown = FEATURES.split("<!-- features.html shows what follows -->", 1)[1]
+    plain, details, folded = [], [], False
+    for line in shown.splitlines():
+        if line.lstrip().startswith("- *Details:*"):
+            folded = True
+        elif not line.startswith("    "):  # a line of details goes on over lines indented under it
+            folded = False
+        (details if folded else plain).append(line)
+    assert len(details) > 80
+    first, rest = " ".join(plain), " ".join(details)
+    for word in FOR_THE_DETAILS:  # as each is written: a link's address holds "https" too
+        assert word not in first, word
+        assert word in rest, f"{word}: said in a line of details, for a reader who asks"
+
+
 # --------------------------------------------------------------------------- the page that shows the document
 def test_the_document_is_published_with_the_page_that_shows_it(build_script, node):
     """features.html reads FEATURES.md with features.js: a build without one of the three shows no list."""

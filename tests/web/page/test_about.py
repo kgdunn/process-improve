@@ -5,6 +5,9 @@ Each of those is checked here against the file it describes, so a change to the 
 configuration, the build script or the repository's layout cannot leave the page describing an
 app that no longer exists. The versions it lists are read at run time from the files the app
 loads (``runtime.json`` and ``wheels/manifest.json``), so none is written into the page.
+
+The page is written for a reader of the app: each part answers a question in plain words, and
+what only some readers ask is under the answer, in a fold. That is checked here too.
 """
 
 from __future__ import annotations
@@ -24,6 +27,53 @@ def about() -> str:
 
 def source_of(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
+
+#: Words for a reader who checks how it is done. Each is said in a fold, and none in an answer.
+FOR_THE_FOLDS = (
+    "IndexedDB",
+    "local storage",
+    "service worker",
+    "Web Worker",
+    "WebAssembly",
+    "CPython",
+    "Pyodide",
+    "Plotly.js",
+    "JSON",
+    "SHA-256",
+    "User-Agent",
+    "IPv4",
+    "MIT license",
+    "wheel",
+    ".xlsx",
+    ".ipynb",
+)
+
+
+def test_each_part_answers_a_question_in_plain_words_and_folds_the_rest():
+    text = about()
+    parts = re.findall(r'<section aria-labelledby="(h-[\w-]+)">(.*?)</section>', text)
+    assert len(parts) >= 8
+    for name, part in parts:
+        heading = re.search(rf'<h2 id="{name}">([^<]+)</h2>', part)
+        assert heading, name
+        assert heading[1].endswith("?"), f"{name}: the question a reader asks"
+        answer, fold, folded = part.partition('<details class="fold">')
+        assert "<p>" in answer, f"{name}: its answer comes first"
+        assert fold, f"{name}: the rest is in a fold"
+        assert folded.count("<summary>") == 1, f"{name}: one fold, which says what it holds"
+        assert folded.strip().endswith("</details>"), f"{name}: nothing follows the fold"
+    assert text.count('<details class="fold">') == len(parts)
+
+
+def test_the_answers_have_none_of_the_words_kept_for_the_folds():
+    """What a reader sees before opening a fold is in plain words: the words of files and servers are inside."""
+    text = about()
+    answers = re.sub(r'<details class="fold">.*?</details>|<script.*?</script>', "", text)
+    assert len(answers) < len(text) / 2, "most of the page's words are in its folds"
+    for word in FOR_THE_FOLDS:
+        assert word.lower() not in answers.lower(), word
+        assert word.lower() in text.lower(), f"{word}: said in a fold, for a reader who asks"
 
 
 def test_the_app_s_footer_links_to_it():
