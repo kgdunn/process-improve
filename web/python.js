@@ -439,6 +439,192 @@ export function figureCode(title, options, model, complete = true, spec = null) 
   ].join("\n");
 }
 
+/** A response as an axis names it: the reader's words for it, with its units. */
+function axisWords(spec) {
+  const info = spec?.response_info ?? {};
+  const label = info.label || spec?.response || "y";
+  return info.units ? `${label} (${info.units})` : label;
+}
+
+/** The lines that end a figure's code: its axes named, and the figure shown. */
+const shown = (x, y) => [`figure.update_layout(xaxis_title=${repr(x)}, yaxis_title=${repr(y)})`, "figure.show()"];
+
+/** A Scheffé model's response over the blends of the frame ``at``, from the coefficients ``of``, as Python writes it. */
+const blended = (at, of) => `sum(value * ${at}[term.split(":")].prod(axis=1) for term, value in ${of}.items())`;
+
+/** A known process as Python makes it, named ``truth``: a figure of it draws its response with no noise. */
+const knownProcess = (one) => [
+  "truth = TrueProcess(",
+  "    {",
+  ...one.truth.map((t) => `        ${repr(t.term)}: ${t.coefficient},`),
+  "    },",
+  `    sigma=${one.sigma},`,
+  ")",
+];
+
+/**
+ * The page's own figures, which the library has no plot for: each a function of the figure's title, the study's
+ * specification and what the page drew it from, giving the lines that draw it with Plotly. Each builds on step 2's
+ * ``runs``, ``X`` and ``y`` and on step 3's ``analysis``, and holds the numbers the page's figure holds.
+ */
+const OWN_FIGURES = {
+  coefficients: (title, spec) => [
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "${title}": each term's estimate with its 95% interval, from the analysis above. A fit that`,
+    "# uses every run has no interval. Sorted by size, the estimates are the page's Pareto plot.",
+    'terms = [c for c in analysis["coefficients"] if c["term"] != "Intercept"]',
+    'reach = lambda c, end: 0 if c.get(end) is None else abs(c[end] - c["coefficient"])  # none: no interval',
+    "figure = go.Figure(",
+    "    go.Scatter(",
+    '        x=[c["coefficient"] for c in terms],',
+    '        y=[c["term"] for c in terms],',
+    '        mode="markers",',
+    '        name="Estimate",',
+    "        error_x={",
+    '            "type": "data",',
+    '            "symmetric": False,',
+    '            "array": [reach(c, "ci_high") for c in terms],',
+    '            "arrayminus": [reach(c, "ci_low") for c in terms],',
+    "        },",
+    "    )",
+    ")",
+    'figure.update_yaxes(autorange="reversed")  # the first term at the top, as the page lists them',
+    ...shown(`Coefficient: ${axisWords(spec)}${transformOf(spec) ? ", on the scale the model is fitted on" : ""}`, "Term"),
+  ],
+  levels: (title, spec) => {
+    const factor = spec.factors[0];
+    return [
+      "import plotly.graph_objects as go",
+      "",
+      `# The figure "${title}": every run at its level of ${factor.name}, and each level's average.`,
+      "had = y.notna()  # the runs that have their result",
+      `levels = runs[${repr(factor.name)}][had].astype(str)`,
+      "averages = y[had].groupby(levels, sort=False).mean()",
+      "figure = go.Figure(",
+      "    [",
+      '        go.Scatter(x=levels, y=y[had], mode="markers", name="Runs"),',
+      "        go.Scatter(",
+      "            x=averages.index,",
+      "            y=averages,",
+      '            mode="markers",',
+      '            name="Average at each level",',
+      '            marker={"symbol": "line-ew", "size": 24, "line": {"width": 3}},',
+      "        ),",
+      "    ]",
+      ")",
+      ...shown(factor.units ? `${factor.name} (${factor.units})` : factor.name, axisWords(spec)),
+    ];
+  },
+  true_contour: (title, spec, { contour, process }) => {
+    if (!contour || !process) return null;
+    const [across, up] = contour.factors_to_plot;
+    const held = Object.entries(contour.hold_values ?? {});
+    return [
+      "import numpy as np",
+      "import pandas as pd",
+      "import plotly.graph_objects as go",
+      "from process_improve.experiments import TrueProcess",
+      "",
+      `# The figure "${title}": the process the results were simulated from, with no noise, over`,
+      `# ${across} and ${up} in coded units, from -1 at a factor's low setting to +1 at its high.`,
+      held.length ? "# Every other factor is held where the page holds it, in coded units too." : "# Every other factor is at its center, 0.",
+      ...knownProcess(process),
+      "side = np.linspace(-1, 1, 50)",
+      "points = pd.DataFrame({name: 0.0 for name in truth.factors}, index=range(side.size**2))",
+      `points[${repr(across)}], points[${repr(up)}] = np.tile(side, side.size), np.repeat(side, side.size)`,
+      ...held.map(([name, value]) => `points[${repr(name)}] = ${value}`),
+      "surface = np.asarray(truth.mean(points)).reshape(side.size, side.size)",
+      `figure = go.Figure(go.Contour(x=side, y=side, z=surface, colorbar={"title": {"text": ${repr(axisWords(spec))}}}))`,
+      ...shown(`${across} (coded)`, `${up} (coded)`),
+    ];
+  },
+  ternary: (title, spec, { process }, values = "fitted") => {
+    const names = spec.factors.map((f) => f.name);
+    const [a, b, c] = names.map(repr);
+    const model = values === "fitted";
+    if (!model && !process) return null;
+    return [
+      "import numpy as np",
+      "import pandas as pd",
+      "import plotly.graph_objects as go",
+      ...(model ? [] : ["from process_improve.experiments import TrueProcess"]),
+      "",
+      model
+        ? `# The figure "${title}": the fitted model's response over a grid of blends, and the runs.`
+        : `# The figure "${title}": the process the results were simulated from, with no noise, over a grid of blends.`,
+      "# The grid covers the blends the components' lower and upper proportions allow, in 40 steps a side.",
+      `low, high = np.array(${repr(spec.factors.map((f) => f.low))}), np.array(${repr(spec.factors.map((f) => f.high))})`,
+      "steps = 40",
+      "lattice = np.array([(i, j, steps - i - j) for i in range(steps + 1) for j in range(steps + 1 - i)]) / steps",
+      `grid = pd.DataFrame(low + (1 - low.sum()) * lattice, columns=${repr(names)})`,
+      "grid = grid[(grid <= high + 1e-9).all(axis=1)]",
+      ...(model
+        ? [
+            "# A Scheffé model's response at a blend: each term's coefficient times the product of its components.",
+            'fitted = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}',
+            `response = ${blended("grid", "fitted")}`,
+          ]
+        : [...knownProcess(process), "response = truth.mean(grid)"]),
+      "had = y.notna()  # the runs that have their result",
+      "figure = go.Figure(",
+      "    [",
+      "        go.Scatterternary(",
+      `            a=grid[${a}], b=grid[${b}], c=grid[${c}], mode="markers", name=${repr(model ? "Fitted response" : "True response")},`,
+      `            marker={"color": response, "colorscale": "Blues", "size": 7, "colorbar": {"title": {"text": ${repr(axisWords(spec))}}}},`,
+      "        ),",
+      "        go.Scatterternary(",
+      `            a=X[${a}][had], b=X[${b}][had], c=X[${c}][had], mode="markers", name="Runs",`,
+      '            marker={"color": "white", "size": 10, "line": {"color": "black", "width": 1.5}},',
+      "        ),",
+      "    ]",
+      ")",
+      `figure.update_layout(ternary={axis: {"title": {"text": name}} for axis, name in zip(("aaxis", "baxis", "caxis"), ${repr(names)})})`,
+      "figure.show()",
+    ];
+  },
+  true_ternary: (title, spec, about) => OWN_FIGURES.ternary(title, spec, about, "true"),
+  cox: (title, spec, { cox }) => {
+    if (!cox) return null;
+    const spans = Object.fromEntries(cox.traces.map((trace) => [trace.component, [trace.change[0], trace.change.at(-1)]]));
+    const best = cox.through === "best";
+    return [
+      "import numpy as np",
+      "import pandas as pd",
+      "import plotly.graph_objects as go",
+      "",
+      `# The figure "${title}": the fitted response as each component moves away from one blend along its`,
+      "# Cox direction, on which the other components keep their proportions to each other.",
+      `through = pd.Series(${repr(cox.reference)})  # ${best ? "the best blend" : "the blend the effects are taken from"}`,
+      `spans = ${repr(spans)}  # how far each component moves from it, as the page draws it`,
+      'fitted = {c["term"]: c["coefficient"] for c in analysis["coefficients"]}',
+      "figure = go.Figure()",
+      "for name, (start, stop) in spans.items():",
+      best
+        ? "    change = np.unique(np.append(np.linspace(start, stop, 41), 0.0))  # and the best blend itself, at 0"
+        : "    change = np.linspace(start, stop, 41)",
+      "    share = through[name] + change",
+      "    blends = pd.DataFrame(np.outer((1 - share) / (1 - through[name]), through), columns=through.index)",
+      "    blends[name] = share",
+      "    # A Scheffé model's response at a blend: each term's coefficient times the product of its components.",
+      `    figure.add_scatter(x=change, y=${blended("blends", "fitted")}, mode="lines", name=name)`,
+      ...shown("Change in a component's proportion", axisWords(spec)),
+    ];
+  },
+};
+
+/**
+ * Step 3, one of the page's own figures: the code that draws it with Plotly, after the analysis's own code. The
+ * library draws most of Learn's figures (figureCode); these the page draws itself, from the same analysis. ``about``
+ * holds what the page drew the figure from beyond the runs and their analysis: ``contour``, the two factors of the
+ * response surface and the coded values the others are held at; ``cox``, the blend a mixture's traces go through
+ * and how far each runs; and ``process``, the known process a response's results were simulated from, its terms and
+ * its noise. Null for a figure it has no code for, or one whose figure the page could not have drawn.
+ */
+export function ownFigureCode(key, title, spec, about = {}) {
+  return OWN_FIGURES[key]?.(title, spec, about)?.join("\n") ?? null;
+}
+
 /** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */
 export const SN_KINDS = { maximize: "larger", minimize: "smaller", target: "nominal" };
 
@@ -814,9 +1000,11 @@ const codeCell = (id, text) => ({ cell_type: "code", id, metadata: {}, execution
  * or read from a workbook are written out. ``model`` is the model the analysis fitted, or null
  * when there is no analysis yet, and ``vifModel`` its terms when the page shows their VIFs (see
  * analyseCode). ``analyses`` lists each response's ``{response, model, best, vifModel}`` for a
- * study of several responses; ``version`` pins the release the page ran, when known.
+ * study of several responses; ``version`` pins the release the page ran, when known. ``figures`` holds the
+ * figures the page drew of one response's analysis, ``{response, codes}`` with each figure's ``title`` and the
+ * ``code`` that draws it (figureCode, ownFigureCode): each is a cell after that analysis.
  */
-export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, spread = false, version, url, best = null, analyses = null, balance = null }) {
+export function notebook({ title, design, responses, sources, simulation, model, vifModel = null, compared = false, control = null, spread = false, version, url, best = null, analyses = null, balance = null, figures = null }) {
   const names = responseNames(design.spec);
   const results = Array.isArray(responses) ? { [names[0]]: responses } : responses;
   const marks = Array.isArray(sources) ? { [names[0]]: sources } : sources;
@@ -849,6 +1037,12 @@ export function notebook({ title, design, responses, sources, simulation, model,
       codeCell(`analysis${id}`, analyseCode(fittedModel, complete, spec, vifTerms, { compared: levels, control: base, spread: repeated })),
     );
     step += 1;
+    // The figures the page drew of this response's analysis, a cell each, so each is shown under its own code.
+    if (figures?.response === response) {
+      figures.codes.forEach(({ title: named, code }, i) => {
+        cells.push(markdownCell(`figure-step${id}-${i + 1}`, `### ${named}`), codeCell(`figure${id}-${i + 1}`, code));
+      });
+    }
     if (found?.settings) {
       cells.push(
         markdownCell(`best-step${id}`, names.length > 1 ? `## ${step}. The best settings for ${words}` : `## ${step}. The best settings for the goal`),

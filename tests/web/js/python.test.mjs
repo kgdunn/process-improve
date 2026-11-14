@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, notebook, resultsCode } from "../../../web/python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, notebook, ownFigureCode, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -182,6 +182,33 @@ describe("the analysis and the comparison", () => {
     const cell = (book) => book.cells.at(-1).source.join("");
     assert.equal(cell(notebook({ ...campaign, model: "T + P", vifModel: "T + P" })), analyseCode("T + P", true, null, "T + P"));
     assert.equal(cell(notebook({ ...campaign, model: "T + P" })), analyseCode("T + P", true));
+  });
+
+  test("the notebook draws each figure in a cell of its own, after the analysis the figure is of", () => {
+    const design = { spec: { design_type: "full_factorial", factors: FACTORS, options: {} }, columns: ["T", "P"], rows: [[150, 1]] };
+    const campaign = { title: "A study", design, responses: [1], sources: ["entered"], simulation: null, url: "https://example.org/", model: "T + P" };
+    const codes = [{ title: "Coefficients", code: "figure = 1" }, { title: "Résidus", code: "figure = 2" }];
+    const { cells } = notebook({ ...campaign, figures: { response: "y", codes } });
+    const last = cells.slice(-4);
+    assert.deepEqual(last.map((cell) => cell.cell_type), ["markdown", "code", "markdown", "code"]);
+    assert.deepEqual(last.map((cell) => cell.source.join("")), ["### Coefficients", "figure = 1", "### Résidus", "figure = 2"]);
+    assert.deepEqual(last.map((cell) => cell.id), ["figure-step-1", "figure-1", "figure-step-2", "figure-2"], "ASCII, as nbformat asks");
+    assert.equal(notebook({ ...campaign, figures: { response: "another", codes } }).cells.length, cells.length - 4);
+    assert.equal(notebook({ ...campaign, figures: null }).cells.length, cells.length - 4);
+  });
+
+  test("a figure the page draws itself has Plotly's code, and none when the page could not have drawn it", () => {
+    const spec = { response: "y", response_info: { label: "Yield", units: "%" }, factors: FACTORS };
+    const code = ownFigureCode("coefficients", "Coefficients", spec);
+    assert.match(code, /^import plotly\.graph_objects as go\n\n# The figure "Coefficients": /);
+    assert.match(code, /xaxis_title="Coefficient: Yield \(%\)", yaxis_title="Term"\)\nfigure\.show\(\)$/);
+    assert.match(ownFigureCode("coefficients", "Coefficients", { ...spec, analysis_transforms: { y: "log" } }), /on the scale the model is fitted on/);
+    for (const key of ["true_contour", "true_ternary", "cox", "contour", "no such figure"]) assert.equal(ownFigureCode(key, "A figure", spec), null, key);
+    const cox = { reference: { A: 0.5, B: 0.5 }, traces: [{ component: "A", change: [-0.5, 0, 0.5] }, { component: "B", change: [-0.2, 0.1] }] };
+    const traces = ownFigureCode("cox", "Traces", spec, { cox });
+    assert.match(traces, /^spans = \{"A": \[-0\.5, 0\.5\], "B": \[-0\.2, 0\.1\]\}/m);
+    assert.match(traces, /^ {4}change = np\.linspace\(start, stop, 41\)$/m);
+    assert.match(ownFigureCode("cox", "Traces", spec, { cox: { ...cox, through: "best" } }), /np\.unique\(np\.append\(np\.linspace\(start, stop, 41\), 0\.0\)\)/);
   });
 
   test("the steps as one script: their imports first, merged, then each step in turn", () => {
