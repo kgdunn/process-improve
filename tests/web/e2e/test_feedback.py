@@ -383,6 +383,40 @@ def test_a_copy_at_another_address_sends_nothing_itself(context, relay, plotly_j
     assert not [name for name in asked if name.startswith(("api/", "vendor/"))], "no post, and no screenshot"
 
 
+# --------------------------------------------------------------------------- the button's words
+# The words the Feedback button shows, and the name a screen reader gives it: both are the one label not switched off,
+# and with no room for a word that label is still there, out of sight.
+WORDS = """() => { const on = [...document.querySelectorAll('#feedback span')]
+    .filter((s) => getComputedStyle(s).display !== 'none');
+  return { read: on.filter((s) => getComputedStyle(s).position !== 'absolute').map((s) => s.textContent).join(' | '),
+           named: on.map((s) => s.textContent).join(' | ') }; }"""
+# The button, its words and the header's other parts, as boxes: for whether the words are cut or lie on a neighbour.
+FITS = """() => { const button = document.querySelector('#feedback'), box = (e) => e.getBoundingClientRect();
+  const row = button.closest('.feedback-slot').parentElement, b = box(button);
+  const beside = [...row.children].filter((c) => !c.contains(button)).map((c) => box(c.querySelector('h1') || c));
+  const shown = [...button.querySelectorAll('span')].filter((s) => getComputedStyle(s).position !== 'absolute');
+  return { cut: shown.some((s) => s.scrollWidth > s.clientWidth + 1),
+           on: beside.some((c) => c.left < b.right && b.left < c.right && c.top < b.bottom && b.top < c.bottom),
+           inside: b.left >= 0 && b.right <= document.documentElement.clientWidth }; }"""
+LONG, MEDIUM, SHORT = "Provide critical feedback please", "Feedback appreciated", "Feedback"
+
+
+@pytest.mark.parametrize("where", ["", "map/"], ids=["the start page", "the concept map"])
+def test_the_button_says_as_much_as_the_header_has_room_for(context, site, where):
+    page = context.new_page()
+    page.goto(f"{site}{where}")
+    page.wait_for_selector("#feedback")
+    said = []
+    for width in range(320, 1281, 8):
+        page.set_viewport_size({"width": width, "height": 800})
+        words = page.evaluate(WORDS)
+        assert words["named"] == (words["read"] or SHORT), f"one name, the words on show, at {width} px: {words}"
+        assert page.evaluate(FITS) == {"cut": False, "on": False, "inside": True}, f"at {width} px, saying {words}"
+        said += [] if said and said[-1] == words["read"] else [words["read"]]
+    # A wider window never says less. The narrowest has room for the icon alone, beside what else the header holds.
+    assert said == ["", SHORT, MEDIUM, LONG]
+
+
 # --------------------------------------------------------------------------- on a phone
 @pytest.mark.parametrize(
     "context_options",
@@ -393,9 +427,7 @@ def test_a_copy_at_another_address_sends_nothing_itself(context, relay, plotly_j
     ids=["390", "360"],
 )
 def test_on_a_phone_the_button_is_its_icon_and_nothing_scrolls_sideways(page, relay, context_options):
-    label = page.locator("#feedback span")
-    assert page.evaluate("getComputedStyle(document.querySelector('#feedback span')).position") == "absolute"
-    assert label.text_content() == "Feedback", "a screen reader still reads its name"
+    assert page.evaluate(WORDS) == {"read": "", "named": "Feedback"}, "a screen reader still reads its name"
     assert overflowing(page) == []
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     open_feedback(page)

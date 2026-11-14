@@ -35,6 +35,36 @@ def test_the_map_s_cytoscape_is_the_published_release_with_its_licence():
     assert "cytoscape" not in source("app.js"), "never the start page"
 
 
+def test_the_map_s_katex_is_the_published_release_with_its_licence_and_every_font_its_stylesheet_names():
+    """``web/vendor/katex/`` is npm's files unchanged: a header names the release and each file's digest."""
+    katex = WEB / "vendor" / "katex"
+    header, _, script = (katex / "katex.min.js").read_bytes().partition(b" */\n")
+    words = header.decode("ascii")
+    release = re.search(r"KaTeX (\d+\.\d+\.\d+), https://github\.com/KaTeX/KaTeX", words)
+    assert release
+    assert f"/katex-{release[1]}.tgz" in words
+    assert re.search(r"SHA-256 of dist/katex\.min\.js: ([0-9a-f]{64})", words)[1] == hashlib.sha256(script).hexdigest()
+    assert "The MIT License (MIT)" in words
+    assert "Copyright (c) 2013-2020 Khan Academy and other contributors" in words
+
+    header, _, sheet = (katex / "katex.min.css").read_bytes().partition(b" */\n")
+    words = header.decode("ascii")
+    assert f"KaTeX {release[1]}'s stylesheet" in words
+    assert f"/katex-{release[1]}.tgz" in words, "the same release as the script"
+    assert re.search(r"SHA-256 of dist/katex\.min\.css: ([0-9a-f]{64})", words)[1] == hashlib.sha256(sheet).hexdigest()
+    listed = dict(re.findall(r"([0-9a-f]{64})  (fonts/\S+)", words))
+    here = {f"fonts/{p.name}": hashlib.sha256(p.read_bytes()).hexdigest() for p in (katex / "fonts").iterdir()}
+    assert here == {name: digest for digest, name in listed.items()}, "each font is the published one, and none else"
+    named = set(re.findall(r"url\((fonts/[^)]+\.woff2)\)", sheet.decode("utf-8")))
+    assert named == set(here), "every font the stylesheet names for a browser of today is here"
+    assert {f"vendor/katex/{name}" for name in ("katex.min.js", "katex.min.css", *here)} <= set(APP_SOURCES)
+
+    assert 'import("./vendor/katex/katex.min.js")' in source("map.js"), "fetched when a formula is shown, not before"
+    assert '<link rel="stylesheet" href="../vendor/katex/katex.min.css">' in source("map/index.html")
+    assert "katex" not in source("app.js"), "never the start page"
+    assert "katex" not in source("index.html")
+
+
 def test_the_graph_names_its_source():
     """The copy says where in pid-book it was built, and from which commit, so it can be traced and updated."""
     assert GRAPH["source"]["repository"] == "kgdunn/pid-book"

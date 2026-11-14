@@ -57,6 +57,7 @@ def _go(page: Any, term_id: str) -> None:  # noqa: ANN401 - a Playwright Page
     name = next(n["name"] for n in GRAPH["nodes"] if n["id"] == term_id)
     page.evaluate("(h) => { location.hash = h; }", term_id.replace("_", "-"))
     page.wait_for_function("(name) => document.querySelector('#card h2').textContent === name", arg=name)
+    page.wait_for_function("() => !document.querySelector('.tex:not(.done)')")  # its formulas drawn, or given up on
     _settled(page)
 
 
@@ -223,6 +224,13 @@ def test_a_link_is_drawn_only_while_both_its_terms_are_in_view(context, site):
     assert lit["lit_leaving"], "one of them leaves the view here"
 
 
+# A part of the card as the graph writes it: each formula drawn there put back as its LaTeX, in the book's own role.
+AS_WRITTEN = """(selector) => { const copy = document.querySelector(selector).cloneNode(true);
+  const latex = (f) => f.querySelector('annotation').textContent;
+  for (const f of copy.querySelectorAll('.tex')) f.replaceWith(':math:`' + latex(f) + '`');
+  return copy.textContent; }"""
+
+
 def test_a_tap_on_a_term_shows_its_definition_its_book_line_and_lights_its_links(context, site):
     page = _open(context, site)
     _go(page, "full_factorial")
@@ -230,7 +238,7 @@ def test_a_tap_on_a_term_shows_its_definition_its_book_line_and_lights_its_links
     _settled(page)
     term = next(n for n in GRAPH["nodes"] if n["id"] == "full_factorial")
     assert page.text_content("#card h2") == term["name"]
-    assert page.text_content("#card .map-quote") == term["quote"]
+    assert page.evaluate(AS_WRITTEN, "#card .map-quote") == term["quote"]
     assert ".rst" not in page.text_content("#card"), "the book's line, not its source file"
     assert page.get_attribute("#card .map-book a", "href").startswith("https://learnche.org/pid/")
     lit = page.evaluate(
@@ -563,7 +571,7 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     _settled(page)
     spots = [k for k in page.evaluate(SPOTS) if k is not None]
     assert spots, "some links are labelled"
-    assert all(0.15 < k < 0.85 for k in spots), f"each label sits on its line, clear of both terms: {spots}"
+    assert all(0.15 < k < 0.85 for k in spots), f"each label sits along its line, clear of both terms: {spots}"
     # The test takes a middle itself: whether the drawing takes one changes with every drawing. A label with no room
     # left on its line is held back, so it tries the longest links first, which have the most room.
     moved = None
@@ -577,6 +585,48 @@ def test_a_link_label_with_its_middle_taken_slides_along_its_line(context, site)
     assert moved is not None, "a label still drawn after a term took its middle"
     assert abs(moved - 0.5) > 0.05, "a label whose middle is taken moves along its line"
     assert 0.15 < moved < 0.85, "and stays clear of both terms"
+
+
+# Each label drawn on a link of the selected term, for the labels whose place the map checked (the middle of the link
+# is in view): how far the label's middle is from its own line and from the nearest other line of that term, both as
+# a fraction of the label's size; whether it stands above its line; and whether that line is steep.
+BESIDE = """() => { const cy = window.conceptMap.cy, z = cy.zoom(), pan = cy.pan();
+  const curve = (e) => { const s = e.source().position(), t = e.target().position(), [c] = e.controlPoints();
+    return (u) => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * c.x + u * u * t.x,
+                     y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * c.y + u * u * t.y }); };
+  const gap = (on, p) => Math.min(...Array.from({ length: 401 }, (_, i) => on(i / 400))
+    .map((q) => Math.hypot(q.x - p.x, q.y - p.y)));
+  const seen = (p) => { const x = p.x * z + pan.x, y = p.y * z + pan.y;
+    return x > 0 && x < cy.width() && y > 0 && y < cy.height(); };
+  const lit = cy.edges('.link.hl').filter((e) => e.visible());
+  return lit.filter((e) => !e.hasClass('mute') && seen(curve(e)(0.5))).map((e) => {
+    const on = curve(e), s = e.source().position(), t = e.target().position();
+    const p = on((e.data('at') + e.source().width() / 2) / Math.hypot(t.x - s.x, t.y - s.y));
+    const at = { x: p.x + e.data('liftX'), y: p.y + e.data('liftY') }, size = parseFloat(e.style('font-size'));
+    return { verb: e.data('verb'), own: gap(on, at) / size, above: e.data('liftY') <= 0,
+             other: Math.min(...lit.filter((o) => o.id() !== e.id()).map((o) => gap(curve(o), at))) / size,
+             steep: Math.abs(t.y - s.y) > 2 * Math.abs(t.x - s.x) }; }); }"""
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_link_label_stands_beside_its_line_and_clear_of_the_selected_term_s_other_lines(context, site):
+    page = _open(context, site)
+    page.click(".map-verbs")
+    closer = """(k) => { const cy = window.conceptMap.cy, at = cy.nodes('.sel')[0].renderedPosition();
+      cy.zoom({ level: cy.zoom() * k, renderedPosition: at }); }"""
+    labels = []
+    for term in ("full_factorial", "blocking", "replicate"):  # terms with many links, which run every way
+        _go(page, term)
+        for k in (1, 2, 1.5):  # as selected, then closer in twice: near the term its lines run close together
+            page.evaluate(closer, k)
+            _settled(page)
+            labels += page.evaluate(BESIDE)
+    assert any(label["steep"] for label in labels), "some labelled links are steep"
+    assert any(not label["steep"] for label in labels), "and some are not"
+    # On its line, the line ran through the gaps between the label's words, in the label's own colour.
+    assert all(label["own"] > 0.8 for label in labels), f"each label is off its line, a steep line too: {labels}"
+    assert all(label["above"] for label in labels), "and above it, so a label is read with the line under it"
+    assert all(label["other"] > 0.4 for label in labels), f"no other line of the term runs through a label: {labels}"
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 1280, "height": 900}}])
@@ -1095,3 +1145,80 @@ def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(cont
     assert rows["scroll"] == rows["width"], "and the page does not scroll sideways"
     if rows["width"] >= 360:  # a narrower phone wraps the row, as it does the kinds
         assert max(rows["middles"]) - min(rows["middles"]) < 3, "the switch and the four names on one line"
+
+
+# --------------------------------------------------------------------------- formulas
+# A term of the test's own: a formula in its definition, between dollar signs as the graph writes one, and another
+# in the line it quotes, in the book's own role.
+TRACE, INVERSE = r"\operatorname{trace}\left((\mathbf{X}^T\mathbf{X})^{-1}\right)", r"\mathbf{M}^{-1}"
+
+
+def _with_formulas(graph: dict[str, Any]) -> dict[str, Any]:
+    graph = json.loads(json.dumps(graph))
+    term = next(n for n in graph["nodes"] if n["id"] == "a_optimal")
+    term["definition"] = f"Minimize ${TRACE}$: the average variance of the parameters."
+    term["quote"] = f"the sum of the coefficient variances (the diagonal entries of :math:`{INVERSE}`)"
+    return graph
+
+
+WITH_FORMULAS = _with_formulas(GRAPH)
+# Each formula on the card and in the strip under the map: where it is, the LaTeX its MathML carries, whether the
+# drawn copy is kept from a screen reader, and whether it can be seen.
+FORMULAS = """() => [...document.querySelectorAll('#card .tex, #striptext .tex')].map((f) => ({
+  where: f.closest('blockquote') ? 'quote' : f.closest('#card') ? 'definition' : 'strip',
+  latex: f.querySelector('math annotation[encoding="application/x-tex"]')?.textContent ?? null,
+  drawn: f.querySelector('.katex-html')?.getAttribute('aria-hidden') ?? null,
+  seen: getComputedStyle(f).visibility === 'visible' && f.getBoundingClientRect().width > 0 }))"""
+
+
+def _katex_asked(page: Any) -> list[str]:  # noqa: ANN401 - a Playwright Page
+    """Record what the page asks KaTeX's folder for, and where it asks."""
+    asked: list[str] = []
+    page.on("request", lambda request: asked.append(request.url) if "katex" in request.url.lower() else None)
+    return asked
+
+
+@pytest.mark.parametrize("context_options", [PHONE, {"viewport": {"width": 1280, "height": 900}}])
+def test_a_formula_on_a_card_is_drawn_and_a_screen_reader_is_given_it_as_math(context, site):
+    context.route("**/map/graph.json", lambda route: route.fulfill(json=WITH_FORMULAS))
+    page = context.new_page()
+    asked = _katex_asked(page)
+    page.goto(f"{site}map/")
+    page.wait_for_function("() => window.conceptMap && document.querySelector('#card h2')")
+    _go(page, "blocking")
+    assert [url.rsplit("/", 1)[1] for url in asked] == ["katex.min.css"], "no formula yet, so no script and no font"
+    _go(page, "a_optimal")
+    drawn = {"drawn": "true", "seen": True}
+    assert page.evaluate(FORMULAS) == [
+        {"where": "strip", "latex": TRACE, **drawn},
+        {"where": "definition", "latex": TRACE, **drawn},
+        {"where": "quote", "latex": INVERSE, **drawn},
+    ]
+    said = page.text_content("#card")
+    assert "$" not in said, "the marks around a formula are not shown"
+    assert ":math:" not in said
+    # What a screen reader is given: the words, and the formula once, as math; not the copy drawn for the eye too.
+    tree = page.locator("#card p").first.aria_snapshot()
+    assert tree.count("- math") == 1, tree
+    assert "- text: Minimize" in tree, tree
+    assert all(url.startswith(f"{site}vendor/katex/") for url in asked), "KaTeX and its fonts come from this site"
+    names = [url.rsplit("/", 1)[1] for url in asked]
+    assert "katex.min.js" in names
+    assert any(name.endswith(".woff2") for name in names)
+    assert not [name for name in names if name.endswith((".woff", ".ttf"))], "only the fonts that are here"
+    # The link to the book looks for the quote's words, and a formula is none of the page's words.
+    assert page.get_attribute("#card .map-book a", "href").endswith(
+        ":~:text=the%20sum%20of%20the,(the%20diagonal%20entries%20of"
+    )
+
+
+def test_a_formula_is_shown_as_it_is_written_when_katex_cannot_be_fetched(context, site, console):
+    console.allow(r"katex|404")  # the browser reports the script it could not load
+    context.route("**/map/graph.json", lambda route: route.fulfill(json=WITH_FORMULAS))
+    context.route("**/vendor/katex/katex.min.js", lambda route: route.fulfill(status=404, body=""))
+    page = _open(context, site)
+    _go(page, "a_optimal")
+    assert page.evaluate(FORMULAS) == [
+        {"where": where, "latex": None, "drawn": None, "seen": True} for where in ("strip", "definition", "quote")
+    ]
+    assert f"Minimize {TRACE}: the average variance of the parameters." in page.text_content("#card")

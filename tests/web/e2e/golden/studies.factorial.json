@@ -1,0 +1,2361 @@
+{
+  "format": "factorial-studies",
+  "version": 1,
+  "exported": "2026-11-13T23:45:50.444Z",
+  "app": {
+    "name": "Factorial",
+    "url": "https://factori.al/",
+    "process_improve": "2.5.0"
+  },
+  "studies": [
+    {
+      "id": "d8000915-dc60-4361-bf7b-f99b38427537",
+      "created": "2026-11-13T23:45:08.731Z",
+      "updated": "2026-11-13T23:45:29.956Z",
+      "sha256": "31f2ac3453d708700e80a66d678f0e4daf7b75ea9908f58a62e3f297aed2b5aa",
+      "study": {
+        "v": 1,
+        "title": "Yield (%), maximise: Box-Behnken in T, P and F",
+        "design": {
+          "spec": {
+            "design_type": "box_behnken",
+            "factors": [
+              {
+                "name": "T",
+                "low": 150,
+                "high": 200,
+                "units": "degC"
+              },
+              {
+                "name": "P",
+                "low": 1,
+                "high": 3,
+                "units": "bar"
+              },
+              {
+                "name": "F",
+                "low": 10,
+                "high": 20,
+                "units": "L/min"
+              }
+            ],
+            "response": "Yield",
+            "model": "quadratic",
+            "options": {
+              "random_state": 42,
+              "n_center_points": 3
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Yield",
+              "units": "%",
+              "goal": "maximize",
+              "typical": 62,
+              "noise": 1,
+              "smallest_change": 2
+            },
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "T",
+            "P",
+            "F",
+            "Yield"
+          ],
+          "rows": [
+            [
+              7,
+              1,
+              200,
+              2,
+              10,
+              null
+            ],
+            [
+              8,
+              2,
+              200,
+              2,
+              20,
+              null
+            ],
+            [
+              10,
+              3,
+              175,
+              1,
+              20,
+              null
+            ],
+            [
+              4,
+              4,
+              200,
+              3,
+              15,
+              null
+            ],
+            [
+              1,
+              5,
+              150,
+              1,
+              15,
+              null
+            ],
+            [
+              12,
+              6,
+              175,
+              3,
+              20,
+              null
+            ],
+            [
+              15,
+              7,
+              175,
+              2,
+              15,
+              null
+            ],
+            [
+              11,
+              8,
+              175,
+              3,
+              10,
+              null
+            ],
+            [
+              6,
+              9,
+              150,
+              2,
+              20,
+              null
+            ],
+            [
+              3,
+              10,
+              200,
+              1,
+              15,
+              null
+            ],
+            [
+              5,
+              11,
+              150,
+              2,
+              10,
+              null
+            ],
+            [
+              13,
+              12,
+              175,
+              2,
+              15,
+              null
+            ],
+            [
+              2,
+              13,
+              150,
+              3,
+              15,
+              null
+            ],
+            [
+              14,
+              14,
+              175,
+              2,
+              15,
+              null
+            ],
+            [
+              9,
+              15,
+              175,
+              1,
+              10,
+              null
+            ]
+          ],
+          "model": "quadratic",
+          "n_runs": 15,
+          "facts": {
+            "center_runs": 3,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          62.35,
+          66.32,
+          64.93,
+          63.1,
+          63.51,
+          58.85,
+          61.46,
+          55.48,
+          57.86,
+          67.89,
+          54.03,
+          62.55,
+          52.66,
+          61.84,
+          60.62
+        ],
+        "sources": [
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated",
+          "simulated"
+        ],
+        "simulation": {
+          "scenario": "reactor",
+          "label": "Reactor yield",
+          "sigma": 1,
+          "seed": 1,
+          "equation": "Yield = 62 + 4·T - 3.1·P + 1.75·F + 1.5·T·P - 2.25·F²",
+          "inactive": [],
+          "truth": [
+            {
+              "term": "Intercept",
+              "coefficient": 62
+            },
+            {
+              "term": "T",
+              "coefficient": 4
+            },
+            {
+              "term": "P",
+              "coefficient": -3.1
+            },
+            {
+              "term": "F",
+              "coefficient": 1.75
+            },
+            {
+              "term": "T:P",
+              "coefficient": 1.5
+            },
+            {
+              "term": "I(F ** 2)",
+              "coefficient": -2.25
+            }
+          ]
+        },
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "3f7a44a7-2836-4929-a70b-d2bac469696c",
+      "created": "2026-11-13T23:44:46.387Z",
+      "updated": "2026-11-13T23:45:06.351Z",
+      "sha256": "f51d4220c82fb17aa53de5672e471e1aba23fe4b9a4d18dfec7b9e9c21f1a14b",
+      "study": {
+        "v": 1,
+        "title": "Yield and Cost: Full factorial (2-level) in T, P and F",
+        "design": {
+          "spec": {
+            "design_type": "full_factorial",
+            "factors": [
+              {
+                "name": "T",
+                "low": 150,
+                "high": 200,
+                "units": "degC"
+              },
+              {
+                "name": "P",
+                "low": 1,
+                "high": 3,
+                "units": "bar"
+              },
+              {
+                "name": "F",
+                "low": 10,
+                "high": 20,
+                "units": "L/min"
+              }
+            ],
+            "response": "Yield",
+            "model": "interactions",
+            "options": {
+              "random_state": 1794612874,
+              "n_center_points": 3
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Yield",
+              "units": "%",
+              "goal": "maximize"
+            },
+            "responses": [
+              {
+                "name": "Yield",
+                "label": "Yield",
+                "units": "%",
+                "goal": "maximize"
+              },
+              {
+                "name": "Cost",
+                "label": "Cost",
+                "units": "$/kg",
+                "goal": "minimize"
+              }
+            ],
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "T",
+            "P",
+            "F",
+            "Yield",
+            "Cost"
+          ],
+          "rows": [
+            [
+              7,
+              1,
+              200,
+              3,
+              10,
+              null,
+              null
+            ],
+            [
+              8,
+              2,
+              200,
+              3,
+              20,
+              null,
+              null
+            ],
+            [
+              1,
+              3,
+              150,
+              1,
+              10,
+              null,
+              null
+            ],
+            [
+              11,
+              4,
+              175,
+              2,
+              15,
+              null,
+              null
+            ],
+            [
+              4,
+              5,
+              150,
+              3,
+              20,
+              null,
+              null
+            ],
+            [
+              6,
+              6,
+              200,
+              1,
+              20,
+              null,
+              null
+            ],
+            [
+              3,
+              7,
+              150,
+              3,
+              10,
+              null,
+              null
+            ],
+            [
+              5,
+              8,
+              200,
+              1,
+              10,
+              null,
+              null
+            ],
+            [
+              10,
+              9,
+              175,
+              2,
+              15,
+              null,
+              null
+            ],
+            [
+              2,
+              10,
+              150,
+              1,
+              20,
+              null,
+              null
+            ],
+            [
+              9,
+              11,
+              175,
+              2,
+              15,
+              null,
+              null
+            ]
+          ],
+          "model": "interactions",
+          "n_runs": 11,
+          "facts": {
+            "center_runs": 3,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          78.1,
+          73.6,
+          65.8,
+          71.1,
+          66.1,
+          69.3,
+          70.3,
+          73.3,
+          70.5,
+          61.8,
+          71
+        ],
+        "more_responses": {
+          "Cost": [
+            13.8,
+            14.5,
+            10.1,
+            13.1,
+            10.8,
+            12.6,
+            12.2,
+            11.4,
+            12.5,
+            8.9,
+            13
+          ]
+        },
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "more_sources": {
+          "Cost": [
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered",
+            "entered"
+          ]
+        },
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": "",
+        "more_models": {
+          "Cost": ""
+        }
+      }
+    },
+    {
+      "id": "157ab224-5b37-45a6-8e7d-904c4fc93915",
+      "created": "2026-11-13T23:44:26.321Z",
+      "updated": "2026-11-13T23:44:26.637Z",
+      "sha256": "cbf3b7bf8e4681c18e48aafc254e2ae300fe88e67baac3f18cb7b59ef6a13559",
+      "study": {
+        "v": 1,
+        "title": "Cycle (s), minimise: Plackett-Burman screening in A, B, C, D, E, F and G",
+        "design": {
+          "spec": {
+            "design_type": "plackett_burman",
+            "factors": [
+              {
+                "name": "A",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "B",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "C",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "D",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "E",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "F",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "G",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              }
+            ],
+            "response": "Cycle",
+            "model": "main_effects",
+            "options": {
+              "random_state": 1794612855,
+              "n_center_points": 0
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Cycle",
+              "units": "s",
+              "goal": "minimize"
+            },
+            "aim": "main_effects"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "Cycle"
+          ],
+          "rows": [
+            [
+              4,
+              1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              5,
+              2,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              null
+            ],
+            [
+              3,
+              3,
+              -1,
+              1,
+              -1,
+              -1,
+              1,
+              -1,
+              1,
+              null
+            ],
+            [
+              8,
+              4,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              null
+            ],
+            [
+              7,
+              5,
+              -1,
+              1,
+              -1,
+              1,
+              -1,
+              1,
+              -1,
+              null
+            ],
+            [
+              2,
+              6,
+              1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              null
+            ],
+            [
+              6,
+              7,
+              1,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              1,
+              8,
+              -1,
+              -1,
+              1,
+              -1,
+              1,
+              1,
+              -1,
+              null
+            ]
+          ],
+          "model": "main_effects",
+          "n_runs": 8,
+          "facts": {
+            "center_runs": 0,
+            "notes": [
+              "Main effects are aliased with two-factor interactions: A = B·C = D·E = F·G; B = A·C = D·F = E·G; C = A·B = D·G = E·F; D = A·E = B·F = C·G; and 3 more."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          34.1,
+          41.6,
+          40.8,
+          41.6,
+          33.1,
+          41.3,
+          44.3,
+          43.3
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "119ec4c3-7413-4c15-b16a-5b60c370f136",
+      "created": "2026-11-13T23:44:07.087Z",
+      "updated": "2026-11-13T23:44:07.399Z",
+      "sha256": "49754352913805c786db39d2960e599ec8c226438d6a1d10be3cf72a737cdd7e",
+      "study": {
+        "v": 1,
+        "title": "Viscosity (cP), minimise: Simplex centroid (mixture) in Water, Oil and Wax",
+        "design": {
+          "spec": {
+            "design_type": "simplex_centroid",
+            "factors": [
+              {
+                "name": "Water",
+                "low": 0,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "Oil",
+                "low": 0,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "Wax",
+                "low": 0,
+                "high": 1,
+                "units": ""
+              }
+            ],
+            "response": "Viscosity",
+            "model": "scheffe_quadratic",
+            "options": {
+              "random_state": 1794612900,
+              "model_type": "scheffe_special_cubic"
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Viscosity",
+              "units": "cP",
+              "goal": "minimize"
+            },
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "Water",
+            "Oil",
+            "Wax",
+            "Viscosity"
+          ],
+          "rows": [
+            [
+              4,
+              1,
+              0.5,
+              0.5,
+              0,
+              null
+            ],
+            [
+              3,
+              2,
+              0,
+              0,
+              1,
+              null
+            ],
+            [
+              7,
+              3,
+              0.333333333333,
+              0.333333333333,
+              0.333333333333,
+              null
+            ],
+            [
+              5,
+              4,
+              0.5,
+              0,
+              0.5,
+              null
+            ],
+            [
+              2,
+              5,
+              0,
+              1,
+              0,
+              null
+            ],
+            [
+              6,
+              6,
+              0,
+              0.5,
+              0.5,
+              null
+            ],
+            [
+              1,
+              7,
+              1,
+              0,
+              0,
+              null
+            ]
+          ],
+          "model": "scheffe_quadratic",
+          "n_runs": 7,
+          "facts": {
+            "center_runs": 0,
+            "notes": [
+              "Each run is a blend: its proportions sum to 1.",
+              "The simplex centroid: the 3 pure components, the 3 blends of two at 1/2 each and the overall centroid, 1/3 of each component."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          33.1,
+          59.1,
+          44.74,
+          46.1,
+          44.6,
+          55.05,
+          30.8
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "blend",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "a3028a77-83d7-490d-a444-2b45eff4b9b3",
+      "created": "2026-11-13T23:43:46.571Z",
+      "updated": "2026-11-13T23:43:46.885Z",
+      "sha256": "afcaa841d0aedcd26a849652034761dff73b671926f63545ed58951a2cb0a0eb",
+      "study": {
+        "v": 1,
+        "title": "Yield (%), maximise: Full factorial (2-level) in T, P and F",
+        "design": {
+          "spec": {
+            "design_type": "full_factorial",
+            "factors": [
+              {
+                "name": "T",
+                "low": 150,
+                "high": 200,
+                "units": "degC"
+              },
+              {
+                "name": "P",
+                "low": 1,
+                "high": 3,
+                "units": "bar"
+              },
+              {
+                "name": "F",
+                "low": 10,
+                "high": 20,
+                "units": "L/min"
+              }
+            ],
+            "response": "Yield",
+            "model": "interactions",
+            "options": {
+              "random_state": 1794612834,
+              "n_center_points": 2
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Yield",
+              "units": "%",
+              "goal": "maximize"
+            },
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "T",
+            "P",
+            "F",
+            "Yield"
+          ],
+          "rows": [
+            [
+              6,
+              1,
+              200,
+              1,
+              20,
+              null
+            ],
+            [
+              7,
+              2,
+              200,
+              3,
+              10,
+              null
+            ],
+            [
+              1,
+              3,
+              150,
+              1,
+              10,
+              null
+            ],
+            [
+              8,
+              4,
+              200,
+              3,
+              20,
+              null
+            ],
+            [
+              4,
+              5,
+              150,
+              3,
+              20,
+              null
+            ],
+            [
+              3,
+              6,
+              150,
+              3,
+              10,
+              null
+            ],
+            [
+              5,
+              7,
+              200,
+              1,
+              10,
+              null
+            ],
+            [
+              10,
+              8,
+              175,
+              2,
+              15,
+              null
+            ],
+            [
+              2,
+              9,
+              150,
+              1,
+              20,
+              null
+            ],
+            [
+              9,
+              10,
+              175,
+              2,
+              15,
+              null
+            ]
+          ],
+          "model": "interactions",
+          "n_runs": 10,
+          "facts": {
+            "center_runs": 2,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          69.9,
+          77.8,
+          67,
+          76.8,
+          64.9,
+          67.1,
+          73.1,
+          69.8,
+          64.2,
+          69.3
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "63b3657d-b373-443a-94c3-6020f0bc2e36",
+      "created": "2026-11-13T23:43:26.579Z",
+      "updated": "2026-11-13T23:43:26.892Z",
+      "sha256": "95fed4d4b003654a63d4b45416545bd0c0c0b76ba3201d02c2b19c8b21d85d0c",
+      "study": {
+        "v": 1,
+        "title": "Strength (MPa), maximise: Fractional factorial (2-level) in A, B, C, D and E",
+        "design": {
+          "spec": {
+            "design_type": "fractional_factorial",
+            "factors": [
+              {
+                "name": "A",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "B",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "C",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "D",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "E",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              }
+            ],
+            "response": "Strength",
+            "model": "interactions",
+            "options": {
+              "random_state": 1794612839,
+              "n_center_points": 3,
+              "resolution": 4
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Strength",
+              "units": "MPa",
+              "goal": "maximize"
+            },
+            "aim": "main_effects"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "Strength"
+          ],
+          "rows": [
+            [
+              15,
+              1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              10,
+              2,
+              1,
+              -1,
+              -1,
+              1,
+              1,
+              null
+            ],
+            [
+              18,
+              3,
+              0,
+              0,
+              0,
+              0,
+              0,
+              null
+            ],
+            [
+              8,
+              4,
+              -1,
+              1,
+              1,
+              1,
+              -1,
+              null
+            ],
+            [
+              13,
+              5,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              null
+            ],
+            [
+              11,
+              6,
+              1,
+              -1,
+              1,
+              -1,
+              1,
+              null
+            ],
+            [
+              7,
+              7,
+              -1,
+              1,
+              1,
+              -1,
+              1,
+              null
+            ],
+            [
+              19,
+              8,
+              0,
+              0,
+              0,
+              0,
+              0,
+              null
+            ],
+            [
+              4,
+              9,
+              -1,
+              -1,
+              1,
+              1,
+              1,
+              null
+            ],
+            [
+              1,
+              10,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              null
+            ],
+            [
+              16,
+              11,
+              1,
+              1,
+              1,
+              1,
+              1,
+              null
+            ],
+            [
+              6,
+              12,
+              -1,
+              1,
+              -1,
+              1,
+              1,
+              null
+            ],
+            [
+              12,
+              13,
+              1,
+              -1,
+              1,
+              1,
+              -1,
+              null
+            ],
+            [
+              3,
+              14,
+              -1,
+              -1,
+              1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              5,
+              15,
+              -1,
+              1,
+              -1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              17,
+              16,
+              0,
+              0,
+              0,
+              0,
+              0,
+              null
+            ],
+            [
+              2,
+              17,
+              -1,
+              -1,
+              -1,
+              1,
+              -1,
+              null
+            ],
+            [
+              14,
+              18,
+              1,
+              1,
+              -1,
+              1,
+              -1,
+              null
+            ],
+            [
+              9,
+              19,
+              1,
+              -1,
+              -1,
+              -1,
+              -1,
+              null
+            ]
+          ],
+          "model": "interactions",
+          "n_runs": 19,
+          "facts": {
+            "center_runs": 3,
+            "notes": [
+              "Resolution V, generator E = A·B·C·D.",
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          54.1,
+          51.6,
+          50.3,
+          46.6,
+          50.1,
+          54.3,
+          46.3,
+          49.8,
+          52,
+          47.8,
+          54.5,
+          42.2,
+          55.7,
+          50.5,
+          43.2,
+          49.5,
+          49.4,
+          49.7,
+          52.9
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "d87af3bd-19b9-4247-bb12-9dfacb0b1c59",
+      "created": "2026-11-13T23:43:06.501Z",
+      "updated": "2026-11-13T23:43:06.816Z",
+      "sha256": "034e91b9418114857cb6088dae56ea7ca344a8f2520ea87d6d0933e983076f27",
+      "study": {
+        "v": 1,
+        "title": "Titre (g/L), maximise: Definitive screening (DSD) in A, B, C, D, E and F",
+        "design": {
+          "spec": {
+            "design_type": "dsd",
+            "factors": [
+              {
+                "name": "A",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "B",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "C",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "D",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "E",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              },
+              {
+                "name": "F",
+                "low": -1,
+                "high": 1,
+                "units": ""
+              }
+            ],
+            "response": "Titre",
+            "model": "main_effects",
+            "options": {
+              "random_state": 1794612869,
+              "n_center_points": 1
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Titre",
+              "units": "g/L",
+              "goal": "maximize"
+            },
+            "aim": "main_effects"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "Titre"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              null
+            ],
+            [
+              13,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              null
+            ],
+            [
+              8,
+              3,
+              -1,
+              0,
+              -1,
+              1,
+              1,
+              -1,
+              null
+            ],
+            [
+              11,
+              4,
+              -1,
+              1,
+              1,
+              -1,
+              0,
+              -1,
+              null
+            ],
+            [
+              10,
+              5,
+              -1,
+              1,
+              -1,
+              0,
+              -1,
+              1,
+              null
+            ],
+            [
+              4,
+              6,
+              1,
+              -1,
+              1,
+              0,
+              1,
+              -1,
+              null
+            ],
+            [
+              7,
+              7,
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              6,
+              8,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              0,
+              null
+            ],
+            [
+              3,
+              9,
+              1,
+              1,
+              0,
+              1,
+              -1,
+              -1,
+              null
+            ],
+            [
+              5,
+              10,
+              1,
+              -1,
+              -1,
+              1,
+              0,
+              1,
+              null
+            ],
+            [
+              12,
+              11,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              0,
+              null
+            ],
+            [
+              2,
+              12,
+              1,
+              0,
+              1,
+              -1,
+              -1,
+              1,
+              null
+            ],
+            [
+              9,
+              13,
+              -1,
+              -1,
+              0,
+              -1,
+              1,
+              1,
+              null
+            ]
+          ],
+          "model": "main_effects",
+          "n_runs": 13,
+          "facts": {
+            "center_runs": 1,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          12.8,
+          11.1,
+          7.8,
+          11.4,
+          8.7,
+          11.3,
+          12.6,
+          10.3,
+          13.6,
+          10.6,
+          12.1,
+          13.8,
+          8.7
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "ba07f5b4-5aa8-44ce-95c9-f33257e286bb",
+      "created": "2026-11-13T23:42:47.167Z",
+      "updated": "2026-11-13T23:42:47.478Z",
+      "sha256": "76ca38ff367096d4fe6b34c8507a13d6f834534257e582afc99e05099d5856cb",
+      "study": {
+        "v": 1,
+        "title": "Conversion (%), maximise: Central composite (CCD) in Temperature and Time",
+        "design": {
+          "spec": {
+            "design_type": "ccd",
+            "factors": [
+              {
+                "name": "Temperature",
+                "low": 80,
+                "high": 120,
+                "units": "degC"
+              },
+              {
+                "name": "Time",
+                "low": 30,
+                "high": 90,
+                "units": "min"
+              }
+            ],
+            "response": "Conversion",
+            "model": "quadratic",
+            "options": {
+              "random_state": 1794612844,
+              "n_center_points": 3,
+              "alpha": "face_centered"
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Conversion",
+              "units": "%",
+              "goal": "maximize"
+            },
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "Temperature",
+            "Time",
+            "Conversion"
+          ],
+          "rows": [
+            [
+              7,
+              1,
+              100,
+              30,
+              null
+            ],
+            [
+              8,
+              2,
+              100,
+              90,
+              null
+            ],
+            [
+              1,
+              3,
+              80,
+              30,
+              null
+            ],
+            [
+              11,
+              4,
+              100,
+              60,
+              null
+            ],
+            [
+              4,
+              5,
+              120,
+              90,
+              null
+            ],
+            [
+              6,
+              6,
+              120,
+              60,
+              null
+            ],
+            [
+              3,
+              7,
+              120,
+              30,
+              null
+            ],
+            [
+              5,
+              8,
+              80,
+              60,
+              null
+            ],
+            [
+              10,
+              9,
+              100,
+              60,
+              null
+            ],
+            [
+              2,
+              10,
+              80,
+              90,
+              null
+            ],
+            [
+              9,
+              11,
+              100,
+              60,
+              null
+            ]
+          ],
+          "model": "quadratic",
+          "n_runs": 11,
+          "facts": {
+            "center_runs": 3,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          75.6,
+          78.1,
+          66.8,
+          81.1,
+          76.1,
+          77.8,
+          76.3,
+          72.8,
+          80.5,
+          72.8,
+          81
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "0c9ea416-c695-4114-93d4-a7125a507342",
+      "created": "2026-11-13T23:42:26.909Z",
+      "updated": "2026-11-13T23:42:27.224Z",
+      "sha256": "9d0cb6a056ac847fae3e46dddc962f4a372466540e4b2ed0147621f7b795617d",
+      "study": {
+        "v": 1,
+        "title": "Purity (%), target 98: Full factorial (2-level) in Catalyst, T and P",
+        "design": {
+          "spec": {
+            "design_type": "full_factorial",
+            "factors": [
+              {
+                "name": "Catalyst",
+                "low": "Old",
+                "high": "New",
+                "units": ""
+              },
+              {
+                "name": "T",
+                "low": 150,
+                "high": 200,
+                "units": "degC"
+              },
+              {
+                "name": "P",
+                "low": 1,
+                "high": 3,
+                "units": "bar"
+              }
+            ],
+            "response": "Purity",
+            "model": "interactions",
+            "options": {
+              "random_state": 1794612861,
+              "n_center_points": 0,
+              "n_replicates": 2
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Purity",
+              "units": "%",
+              "goal": "target",
+              "target": 98
+            },
+            "aim": "main_quadratic"
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "Catalyst",
+            "T",
+            "P",
+            "Purity"
+          ],
+          "rows": [
+            [
+              7,
+              1,
+              "New",
+              200,
+              1,
+              null
+            ],
+            [
+              16,
+              2,
+              "New",
+              200,
+              3,
+              null
+            ],
+            [
+              12,
+              3,
+              "Old",
+              200,
+              3,
+              null
+            ],
+            [
+              11,
+              4,
+              "Old",
+              200,
+              1,
+              null
+            ],
+            [
+              10,
+              5,
+              "Old",
+              150,
+              3,
+              null
+            ],
+            [
+              4,
+              6,
+              "Old",
+              200,
+              3,
+              null
+            ],
+            [
+              1,
+              7,
+              "Old",
+              150,
+              1,
+              null
+            ],
+            [
+              8,
+              8,
+              "New",
+              200,
+              3,
+              null
+            ],
+            [
+              13,
+              9,
+              "New",
+              150,
+              1,
+              null
+            ],
+            [
+              6,
+              10,
+              "New",
+              150,
+              3,
+              null
+            ],
+            [
+              3,
+              11,
+              "Old",
+              200,
+              1,
+              null
+            ],
+            [
+              5,
+              12,
+              "New",
+              150,
+              1,
+              null
+            ],
+            [
+              15,
+              13,
+              "New",
+              200,
+              1,
+              null
+            ],
+            [
+              2,
+              14,
+              "Old",
+              150,
+              3,
+              null
+            ],
+            [
+              14,
+              15,
+              "New",
+              150,
+              3,
+              null
+            ],
+            [
+              9,
+              16,
+              "Old",
+              150,
+              1,
+              null
+            ]
+          ],
+          "model": "interactions",
+          "n_runs": 16,
+          "facts": {
+            "center_runs": 0,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another.",
+              "Each run other than the center runs appears 2 times, so the repeats estimate the pure error."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          99.5,
+          97,
+          95,
+          96.8,
+          93.5,
+          93.5,
+          95.7,
+          97.7,
+          97,
+          94.8,
+          96.7,
+          96.2,
+          99.1,
+          92.9,
+          96.2,
+          94.4
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": ""
+      }
+    },
+    {
+      "id": "ccb74c0e-0bf7-46ab-901e-46c67987428c",
+      "created": "2026-11-13T23:42:05.444Z",
+      "updated": "2026-11-13T23:42:05.755Z",
+      "sha256": "93e9b840278026da3575b797c51cac77813ff8a7bb0ff2b1780085287ea049e5",
+      "study": {
+        "v": 7,
+        "title": "Haze (NTU), minimise: Full factorial (2-level) in T, P, F and S",
+        "design": {
+          "spec": {
+            "design_type": "full_factorial",
+            "factors": [
+              {
+                "name": "T",
+                "low": 150,
+                "high": 200,
+                "units": "degC"
+              },
+              {
+                "name": "P",
+                "low": 1,
+                "high": 3,
+                "units": "bar"
+              },
+              {
+                "name": "F",
+                "low": 10,
+                "high": 20,
+                "units": "L/min"
+              },
+              {
+                "name": "S",
+                "low": 100,
+                "high": 300,
+                "units": "rpm"
+              }
+            ],
+            "response": "Haze",
+            "model": "interactions",
+            "options": {
+              "random_state": 1794612848,
+              "n_center_points": 2
+            },
+            "version": 1,
+            "response_info": {
+              "label": "Haze",
+              "units": "NTU",
+              "goal": "minimize"
+            },
+            "aim": "main_quadratic",
+            "analysis_transforms": {
+              "Haze": "log"
+            }
+          },
+          "columns": [
+            "Std order",
+            "Run order",
+            "T",
+            "P",
+            "F",
+            "S",
+            "Haze"
+          ],
+          "rows": [
+            [
+              17,
+              1,
+              175,
+              2,
+              15,
+              200,
+              null
+            ],
+            [
+              18,
+              2,
+              175,
+              2,
+              15,
+              200,
+              null
+            ],
+            [
+              13,
+              3,
+              200,
+              3,
+              10,
+              100,
+              null
+            ],
+            [
+              7,
+              4,
+              150,
+              3,
+              20,
+              100,
+              null
+            ],
+            [
+              11,
+              5,
+              200,
+              1,
+              20,
+              100,
+              null
+            ],
+            [
+              10,
+              6,
+              200,
+              1,
+              10,
+              300,
+              null
+            ],
+            [
+              8,
+              7,
+              150,
+              3,
+              20,
+              300,
+              null
+            ],
+            [
+              4,
+              8,
+              150,
+              1,
+              20,
+              300,
+              null
+            ],
+            [
+              1,
+              9,
+              150,
+              1,
+              10,
+              100,
+              null
+            ],
+            [
+              15,
+              10,
+              200,
+              3,
+              20,
+              100,
+              null
+            ],
+            [
+              6,
+              11,
+              150,
+              3,
+              10,
+              300,
+              null
+            ],
+            [
+              12,
+              12,
+              200,
+              1,
+              20,
+              300,
+              null
+            ],
+            [
+              3,
+              13,
+              150,
+              1,
+              20,
+              100,
+              null
+            ],
+            [
+              5,
+              14,
+              150,
+              3,
+              10,
+              100,
+              null
+            ],
+            [
+              16,
+              15,
+              200,
+              3,
+              20,
+              300,
+              null
+            ],
+            [
+              2,
+              16,
+              150,
+              1,
+              10,
+              300,
+              null
+            ],
+            [
+              14,
+              17,
+              200,
+              3,
+              10,
+              300,
+              null
+            ],
+            [
+              9,
+              18,
+              200,
+              1,
+              10,
+              100,
+              null
+            ]
+          ],
+          "model": "interactions",
+          "n_runs": 18,
+          "facts": {
+            "center_runs": 2,
+            "notes": [
+              "No main effect or two-factor interaction is fully aliased with another."
+            ]
+          },
+          "outside_range": []
+        },
+        "responses": [
+          5.08,
+          3.58,
+          9.79,
+          5.36,
+          7.37,
+          3.51,
+          3.39,
+          1.92,
+          3.99,
+          8.79,
+          3.59,
+          4.41,
+          3.69,
+          3.26,
+          6.45,
+          1.62,
+          6.65,
+          6.97
+        ],
+        "sources": [
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered",
+          "entered"
+        ],
+        "simulation": null,
+        "simulate": {
+          "scenario": "reactor",
+          "sigma": 1,
+          "seed": 1
+        },
+        "model": "main_effects",
+        "set_aside": {
+          "Haze": [
+            2
+          ]
+        }
+      }
+    }
+  ]
+}
