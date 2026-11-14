@@ -1149,7 +1149,8 @@ def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(cont
 
 # At one width: whether the page is wider than the window, what reaches past it, and how many lines the kinds take.
 ACROSS = """() => { const page = document.documentElement, wide = page.clientWidth;
-  const box = (e) => e.getBoundingClientRect(), shown = (e) => getComputedStyle(e).display !== 'none' && box(e).width > 0;
+  const box = (e) => e.getBoundingClientRect();
+  const shown = (e) => getComputedStyle(e).display !== 'none' && box(e).width > 0;
   const past = [...document.querySelectorAll('main *')]   // not the map's own drawing, which its box cuts off
     .filter((e) => !e.closest('#cy') && shown(e) && box(e).right > wide + 1);
   const lines = new Set([...document.querySelectorAll('#legend button')].map((b) => Math.round(box(b).top)));
