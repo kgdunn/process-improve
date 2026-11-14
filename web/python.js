@@ -400,6 +400,45 @@ export function analyseCode(model, complete = true, spec = null, vifModel = null
   ].join("\n");
 }
 
+/**
+ * Step 3, one figure: the code that draws one of Learn's figures with the library, after the analysis's own code.
+ * ``options`` is what the page asked the library for beyond the runs and their analysis (``plot_options`` of
+ * bootstrap.plots): the library's name for the plot, the factors it draws, and the coded values the others are
+ * held at. The figure is the library's own: each factor in coded units, under the library's titles, where the page
+ * puts the axes in the reader's units and its own colours. It is drawn from the analysis the page draws it from:
+ * Lenth's margins for the half-normal plot of the effects, the fit and its residuals for every other figure.
+ */
+export function figureCode(title, options, model, complete = true, spec = null) {
+  const transform = transformOf(spec);
+  const X = complete ? "X" : "X[done]";
+  const y = onScale(complete ? "y" : "y[done]", transform);
+  const response = repr(spec?.response ?? "y");
+  const lenth = options.plot_type === "half_normal";
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import analyze_experiment, visualize_doe",
+    "",
+    `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
+    "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
+    // shortcut: the region of a study with limits is not written out, so the code draws the whole cube; #1242.
+    ...(spec?.constraints?.length ? ["# The page also shades the settings your limits rule out; this figure is of every setting."] : []),
+    "drawn = analyze_experiment(",
+    lenth
+      ? `    ${X}, ${y}, model=${repr(model)}, analysis_type=["effects", "lenth_method"],`
+      : `    ${X}, ${y}, model=${repr(model)}, analysis_type=["coefficients", "residual_diagnostics"], coding="actual",`,
+    ")",
+    "chart = visualize_doe(",
+    ...Object.entries(options).map(([name, value]) => `    ${name}=${repr(value)},`),
+    "    analysis_results=drawn,",
+    `    design_data=${X}.assign(**{${response}: ${y}}).to_dict("records"),`,
+    `    response_column=${response},`,
+    '    backend="plotly",',
+    ")",
+    'figure = go.Figure(chart["plotly"])',
+    "figure.show()",
+  ].join("\n");
+}
+
 /** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */
 export const SN_KINDS = { maximize: "larger", minimize: "smaller", target: "nominal" };
 

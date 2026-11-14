@@ -74,3 +74,35 @@ def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_
     html = " ".join(source("index.html").split())
     assert '<p id="offline" hidden tabindex="-1"> <span role="status"></span>' in html, "said aloud, and focusable"
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
+
+
+#: The modules the page loads on demand that a page without a network has no use for: the feedback form's
+#: picture of the page, which is sent over the network.
+NEEDS_A_NETWORK = {"vendor/modern-screenshot.mjs"}
+
+IMPORTED = re.compile(r'from "\./([\w./-]+)"')
+ON_DEMAND = re.compile(r"""import\(\s*[^)]*?["'`]\./([\w./-]+\.m?js)""")
+
+
+def test_the_copy_holds_every_module_the_page_loads_on_demand():
+    """The copy holds what a visit loaded, so a module loaded later, when a chart is drawn, must be named to it.
+
+    A first visit that drew no chart kept a copy with no ``figure.js``, and a chart drawn without a network could
+    not open in its window: only the live tier saw it. The copy is the designed-experiments page's, so the modules
+    are those ``app.js`` reaches: the concept map is a page of its own, whose files the worker keeps as they pass.
+    """
+    seen: set[str] = set()
+    on_demand: set[str] = set()
+    reached = ["app.js"]
+    while reached:
+        name = reached.pop()
+        if name in seen or "/" in name:  # a vendored file imports none of the app's modules
+            continue
+        seen.add(name)
+        later = set(ON_DEMAND.findall(source(name)))
+        on_demand |= later
+        reached += [*IMPORTED.findall(source(name)), *later]
+    assert "charts.js" in seen, "the modules app.js imports are followed"
+    assert on_demand == {"figure.js", "vendor/modern-screenshot.mjs"}, "a new one is kept, or needs a network"
+    kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const onDemand = .*", source("offline.js")).group()))
+    assert on_demand - NEEDS_A_NETWORK == kept

@@ -66,6 +66,90 @@ def test_the_further_charts_are_in_the_reader_s_words_and_units(api, held, simul
     assert len(figures["residuals_order"]["data"][-1]["x"]) == 15, "one residual a run"
 
 
+def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colours(api, held, simulated):
+    figures = {
+        k: json.loads(v)
+        for k, v in api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"].items()
+    }
+    surface, runs = figures["contour"]["data"]
+    assert runs["marker"]["color"] == "#ffffff", (
+        "a run has a white face and a dark edge, on every colour of the surface"
+    )
+    assert runs["marker"]["line"]["color"] == "#1a1a1a"
+    assert runs["opacity"] == 1
+    assert "marker" not in surface
+    assert figures["contour"]["layout"]["legend"]["y"] > 1, "the legend above the plot, clear of the axis title"
+    for key in ("perturbation", "main_effects", "interaction"):
+        dashes = [trace["line"]["dash"] for trace in figures[key]["data"]]
+        assert dashes == ["solid", "dash", "dot"], f"{key}: each line has a pattern of its own"
+        assert figures[key]["layout"]["legend"]["y"] > 1
+    assert {trace["mode"] for trace in figures["perturbation"]["data"]} == {"lines"}, "a curve: no marks along it"
+    for key in ("main_effects", "interaction"):
+        assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+
+
+def test_the_variance_of_a_prediction_is_drawn_square_as_the_surface_it_is_over(api, held, simulated):
+    figures = api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]
+    for key in ("contour", "prediction_variance"):
+        axis = json.loads(figures[key])["layout"]["yaxis"]
+        assert (axis["scaleanchor"], axis["scaleratio"]) == ("x", 1), f"{key}: one coded step is as long on each axis"
+        assert axis["ticktext"] == ["1", "2", "3"]
+
+
+RESIDUAL_FIGURES = ("residuals", "normal_probability", "residuals_order")
+
+
+def residual_points(figure: str) -> dict:
+    """Return the trace of a residual figure that draws a point for each run."""
+    return next(trace for trace in json.loads(figure)["data"] if trace["mode"] == "markers")
+
+
+def test_each_residual_names_its_run_where_the_pointer_rests_on_it(api, held, simulated):
+    """A residual out of line is a run to look at again: each figure of the residuals says which run a point is."""
+    request = {**held, "responses": simulated["responses"]}
+    residual = {row["run"]: row["residual"] for row in api.ok("api_analyze_runs", request)["diagnostics"]}
+    figures = api.ok("api_plots", request)["figures"]
+    for key in RESIDUAL_FIGURES:
+        points = residual_points(figures[key])
+        assert sorted(points["customdata"]) == sorted(residual), f"{key}: every run, once"
+        for run, drawn in zip(points["customdata"], points["y"], strict=True):
+            assert drawn == pytest.approx(residual[run]), f"{key}: run {run}"
+        assert points["hovertemplate"] == "Run %{customdata}<br>Residual %{y:.3g}<extra></extra>"
+    by_size = residual_points(figures["normal_probability"])["customdata"]
+    assert by_size != sorted(by_size), "the normal plot orders the residuals by size, not by run"
+
+
+def test_the_residuals_in_run_order_are_drawn_at_each_run_s_own_number(api, held, simulated):
+    """With runs still to do, a residual's place along the axis is its run's number, not its place among the done."""
+    responses = [None, None, *simulated["responses"][2:]]
+    points = residual_points(api.ok("api_plots", {**held, "responses": responses})["figures"]["residuals_order"])
+    assert points["x"] == list(range(3, len(responses) + 1))
+    assert points["customdata"] == points["x"]
+
+
+def test_a_chart_of_lines_reads_every_line_at_one_setting_together(api, held, simulated):
+    figures = api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]
+    for key in ("perturbation", "main_effects", "interaction"):
+        figure = json.loads(figures[key])
+        assert figure["layout"]["hovermode"] == "x unified", key
+        assert {trace["hovertemplate"] for trace in figure["data"]} == {"%{y:.4g}"}, key
+    assert "hovermode" not in json.loads(figures["residuals"])["layout"]
+
+
+def test_a_study_of_one_factor_has_no_surface_and_its_other_charts_are_drawn(api):
+    """A surface is drawn over two factors: with one, the page draws its levels, and the library the rest."""
+    design = {"design_type": "full_factorial", "factors": FACTORS[:1], "n_replicates": 3, "n_center_points": 2}
+    held = held_of(api.ok("api_make_design", design))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    result = api.ok("api_plots", {**held, "responses": responses})
+    assert result["contour_factors"] == ["T"]
+    surfaces = {"contour", "surface_3d", "interaction", "prediction_variance", "cube"}
+    assert surfaces.isdisjoint(result["figures"]), "each takes two factors, or three"
+    assert {"residuals", "perturbation", "main_effects", "normal_probability"} <= set(result["figures"])
+    assert set(result["plot_options"]) == set(result["figures"]), "each figure drawn has the code that draws it"
+    assert result["plot_options"]["perturbation"] == {"plot_type": "perturbation", "factors_to_plot": ["T"]}
+
+
 def test_a_transformed_prediction_is_drawn_in_the_response_s_units(api, held, simulated):
     """The model is fitted to ln(Yield): each prediction drawn is put back in percent, as the surface is."""
     spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}

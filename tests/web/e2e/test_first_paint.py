@@ -24,7 +24,7 @@ from tests.web.e2e._page import (
 )
 
 #: Controls that need Python, enabled once it has started.
-NEEDS_PYTHON = ("#generate", "#simulate", "#reroll", "#upload")
+NEEDS_PYTHON = ("#generate", "#simulate", "#upload")
 
 
 def open_while_python_starts(context, site):

@@ -31,6 +31,7 @@ import {
   fdsFigure,
   markBest,
   niceStep,
+  pageData,
   pageLayout,
   paretoFigure,
   prettyTerm,
@@ -38,6 +39,7 @@ import {
   sensitivityHeight,
   shareContourScale,
   ternaryFigure,
+  wrapped,
   ternaryRange,
   termRowsHeight,
 } from "../../../web/charts.js";
@@ -267,6 +269,90 @@ describe("a card's layout", () => {
     assert.equal(layout.title, undefined);
     assert.equal(layout.width, undefined);
     assert.equal(layout.xaxis.constrain, "domain", "equal axes keep their range and shrink the plot");
+  });
+
+  test("no box around the legend, which the library's figures draw in black", () => {
+    assert.equal(pageLayout({}, 300, COLOURS).legend.borderwidth, 0);
+    assert.equal(pageLayout({ legend: { y: 1.02 } }, 300, COLOURS).legend.borderwidth, 0);
+  });
+
+  test("what the pointer rests on is named in the page's colours, on a light page or a dark one", () => {
+    const dark = { ...COLOURS, fg: "#e8e8e6", panel: "#1c1e21", line: "#3a3d42" };
+    const { hoverlabel } = pageLayout({}, 300, dark);
+    assert.deepEqual(hoverlabel, { bgcolor: "#1c1e21", bordercolor: "#3a3d42", font: { color: "#e8e8e6", size: 12 } });
+    assert.equal(pageLayout({}, 300, LIGHT).hoverlabel.bgcolor, "#ffffff");
+  });
+
+  test("an axis title is wrapped to the room its axis has, once the room is known", () => {
+    const long = "Expected, were the residuals normally distributed";
+    const figure = { xaxis: { title: { text: long } }, yaxis: { title: { text: "Residual (%)" } } };
+    assert.equal(pageLayout(figure, 340, COLOURS).xaxis.title.text, long, "no room is known for a chart not yet shown");
+    const narrow = pageLayout(figure, 340, COLOURS, { width: 340 });
+    assert.equal(narrow.xaxis.title.text, "Expected, were the residuals<br>normally distributed");
+    assert.equal(narrow.yaxis.title.text, "Residual (%)", "a title that fits is left on its line");
+    assert.equal(pageLayout(figure, 340, COLOURS, { width: 900 }).xaxis.title.text, long);
+    const beside = pageLayout(figure, 340, COLOURS, { width: 404, bar: 64 }).xaxis.title.text;
+    assert.equal(beside, narrow.xaxis.title.text, "a colour bar takes its width from the axis");
+  });
+
+  test("a title with markup of its own is left as it is written", () => {
+    const marked = "Prediction variance / <i>s</i><sup>2</sup>, relative to one run's";
+    assert.equal(pageLayout({ xaxis: { title: { text: marked } } }, 300, COLOURS, { width: 200 }).xaxis.title.text, marked);
+  });
+
+  test("in a window of its own a figure's axes fill the shape the reader gives it", () => {
+    const equal = { xaxis: {}, yaxis: { scaleanchor: "x", scaleratio: 1 } };
+    const free = pageLayout(equal, 300, COLOURS, { width: 800, free: true });
+    assert.equal(free.yaxis.scaleanchor, undefined);
+    assert.equal(free.yaxis.scaleratio, undefined);
+    assert.equal(free.yaxis.constrain, undefined);
+    assert.equal(equal.yaxis.scaleanchor, "x", "the figure it was drawn from is left as it was");
+  });
+
+  test("a figure in three dimensions is seen whole: from further back in a narrow room", () => {
+    const scene = { scene: { xaxis: { title: { text: "T" } } } };
+    const eye = (room) => pageLayout(scene, 420, COLOURS, room).scene.camera.eye;
+    assert.deepEqual(eye({ width: 800 }), eye({}), "a room wider than it is tall, as one not yet known");
+    assert.deepEqual(eye({ width: 0.9 * 420 }), eye({}), "a cube seen from a corner is 0.9 times as wide as tall");
+    const narrow = eye({ width: 339, bar: 64 });
+    const back = (0.9 * 420) / (339 - 64);
+    assert.ok(Math.abs(narrow.x / eye({}).x - back) < 1e-12);
+    assert.ok(Math.abs(narrow.z / eye({}).z - back) < 1e-12, "back along the line it looks down");
+    const turned = { scene: { camera: { eye: { x: 2, y: 0, z: 0 } } } };
+    assert.deepEqual(pageLayout(turned, 420, COLOURS, { width: 300 }).scene.camera.eye, { x: 2, y: 0, z: 0 }, "a figure's own camera is kept");
+    assert.deepEqual(pageLayout(scene, 420, COLOURS).margin, { l: 0, r: 0, t: 0, b: 0 });
+  });
+});
+
+describe("an axis title wrapped to its room", () => {
+  test("broken at its spaces, into as few lines as fit", () => {
+    assert.equal(wrapped("Yield (%)", 300), "Yield (%)");
+    assert.equal(wrapped("one two three four", 70, 10), "one two<br>three four", "12 letters to a line");
+    assert.equal(wrapped("Predicted Conversion of the limiting reagent (mol %)", 200).split("<br>").length, 3);
+  });
+
+  test("a word longer than the room is left whole, and the narrowest room still holds eight letters", () => {
+    assert.equal(wrapped("Supercalifragilistic yield", 50, 10), "Supercalifragilistic<br>yield");
+    assert.equal(wrapped("a b c d e f", 1, 10), "a b c d<br>e f");
+  });
+});
+
+describe("a figure's traces, as the page draws them", () => {
+  test("a colour bar is narrow, with its title along its side", () => {
+    const contour = { type: "contour", z: [[1]], colorbar: { title: { text: "Yield (%)" } } };
+    const [drawn] = pageData([contour]);
+    assert.deepEqual(drawn.colorbar, { thickness: 12, outlinewidth: 0, title: { side: "right", text: "Yield (%)" } });
+    assert.deepEqual(contour.colorbar, { title: { text: "Yield (%)" } }, "the figure it was drawn from is left as it was");
+    assert.equal(pageData([{ type: "surface", z: [[1]] }])[0].colorbar.title.side, "right", "one with no title yet");
+    assert.equal(pageData([{ type: "heatmap", colorbar: { thickness: 20 } }])[0].colorbar.thickness, 20, "a figure's own width is kept");
+  });
+
+  test("a trace with no colour bar is drawn as it is", () => {
+    const hidden = { type: "heatmap", z: [[1]], showscale: false };
+    const line = { type: "scatter", x: [1], y: [1] };
+    const [first, second] = pageData([hidden, line]);
+    assert.equal(first, hidden);
+    assert.equal(second, line);
   });
 });
 

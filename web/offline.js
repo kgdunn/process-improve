@@ -177,6 +177,12 @@ async function prune(scope, now) {
 const opening = (scope) => ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json"].map((file) => scope + file);
 
 /**
+ * The app's modules a visit loads only when it has drawn a chart: the window a figure opens in (figure.js). A
+ * copy made by a visit that drew none holds them all the same, so a chart drawn without a network opens.
+ */
+const onDemand = (scope) => ["figure.js"].map((file) => scope + file);
+
+/**
  * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,
  * its pictures. The record also holds what was asked for and refused. A browser that notes how each request was
  * answered has those left out here; in any other, each file is copied if it can be had.
@@ -289,7 +295,7 @@ export async function installOffline({ manifest, started, box }) {
       await caches.open(MADE); // the mark first: from here on the worker may add to the copy
       await copyInto(KEPT, files.start);
       await copyInto(APP, opening(scope));
-      await copyInto(APP, alsoLoaded(scope), { needed: false });
+      await copyInto(APP, [...alsoLoaded(scope), ...onDemand(scope)], { needed: false });
       await prune(scope, files.now);
       if (what === "whole" && files.later) await copyInto(KEPT, files.later);
       await say(files);

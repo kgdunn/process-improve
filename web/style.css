@@ -282,6 +282,15 @@ section {
 .equation { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
 .row > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; min-width: 0; max-width: 100%; }
+/* Practising: the process and its noise side by side. A browser draws a list shorter than a box to type in, so
+   the two are given one height, and sit on one line with their labels on one line above them. */
+#panel-simulate .row { align-items: flex-end; }
+#panel-simulate .row select, #panel-simulate .row input { height: 2.4rem; }
+/* A button that shows a part of the page and hides it again, marked as the browser marks a summary. */
+.reveal::before { content: "\25B8"; display: inline-block; width: 1em; }
+.reveal[aria-expanded="true"]::before { content: "\25BE"; }
+.truth { margin: 0 0 10px; }
+.truth p { margin: 4px 0; }
 [hidden] { display: none !important; }
 
 /* A word with a definition: a dotted underline, and its definition in a small pop-up beside it on a press
@@ -781,6 +790,26 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
   dialog.sheet { width: 100vw; max-width: 100vw; max-height: 100vh; max-height: 100dvh; border-radius: 0; padding: 14px 12px; }
 }
 
+/* A figure in a window of its own (figure.js): a sheet as wide as the page allows, whatever the figure's size, so
+   its buttons and its caption stay where they are while the reader sizes the figure by its corner. */
+.figure__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0; }
+.figure__frame {
+  position: relative; box-sizing: content-box; margin: 0 auto; border: 1px dashed var(--line); border-radius: 6px;
+}
+.figure__frame .plot { width: 100%; height: 100%; min-height: 0; }
+.figure__grip {
+  position: absolute; right: -8px; bottom: -8px; width: 32px; height: 32px; padding: 0;
+  border: none; background: none; cursor: nwse-resize; touch-action: none;
+}
+/* The corner's mark: two strokes, as a window's own corner has. */
+.figure__grip::before {
+  content: ""; position: absolute; right: 10px; bottom: 10px; width: 12px; height: 12px;
+  border-right: 3px solid var(--muted); border-bottom: 3px solid var(--muted); border-radius: 0 0 4px 0;
+}
+.figure__grip:hover::before, .figure__grip:focus-visible::before { border-color: var(--accent); }
+.figure__caption { margin: 8px 0 0; }
+@media (pointer: coarse) { .figure__grip { width: 44px; height: 44px; } }
+
 /* The Feedback dialog (feedback.js): a narrower sheet, each box as wide as it is, the lists in the page's small type. */
 dialog.feedback { width: min(640px, 100vw - 32px); }
 .feedback__topics { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 10px 0 4px; padding: 0; border: none; }
@@ -839,8 +868,10 @@ table.runs input.sim { font-style: italic; color: var(--muted); }
 .chart.wide { grid-column: 1 / -1; }
 .chart h3 { margin: 0 0 6px; font-size: 0.98rem; }
 /* A card's title, with the views it can show at the right: the coefficients' estimates, or the book's Pareto plot. */
-.chart__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 6px; }
-.chart__head h3 { margin: 0; }
+.chart__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 6px; }
+/* The title takes the left, and what follows it the right: the views, and the button that opens the figure's own window. */
+.chart__head h3, .chart__head h4 { margin: 0; flex: 1 1 8em; min-width: 0; }
+.chart__head .expand { margin-left: auto; font-size: 0.85rem; }
 .views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .views button { border: none; border-radius: 0; padding: 4px 10px; font-size: 0.85rem; background: var(--bg); color: var(--muted); }
 .views button + button { border-left: 1px solid var(--line); }

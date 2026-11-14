@@ -86,6 +86,7 @@ APP_FILES = (
     "glossary.js",
     "terms.js",
     "dialogs.js",
+    "figure.js",
     "levels.js",
     "import.js",
     "worker-rpc.js",

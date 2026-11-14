@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import functools
 import io
 import json
 
@@ -22,6 +23,7 @@ from tests.web._support import (
     FACTORS,
     coded,
     correlated_study,
+    factors_named,
     generate_all,
     held_of,
     javascript,
@@ -30,6 +32,7 @@ from tests.web._support import (
     source,
 )
 from tests.web.api.test_book_examples import catalogue
+from tests.web.api.test_charts import _limited
 
 
 def page_code(node: str, function: str, *args: object) -> str:
@@ -1105,3 +1108,139 @@ def test_the_what_if_code_predicts_at_each_kept_setting_as_the_list_shows_it(api
             p = ast.literal_eval(printed[f"{fit['name']}, {one['name']}"])
             assert p["predicted"] == pytest.approx(at["predicted"], abs=1e-9), (fit["name"], one["name"])
             assert [p["pi_low"], p["pi_high"]] == pytest.approx(at["prediction"], abs=1e-9)
+
+
+# --------------------------------------------------------------------------- the code of each figure
+def figure_drawn(node, monkeypatch, steps: tuple, options: dict, model: str, complete: bool, spec: dict):
+    """Return the figure that a figure's code draws, run after the code of the steps it builds on."""
+    go = pytest.importorskip("plotly.graph_objects", reason="the page installs plotly for its first chart")
+    monkeypatch.setattr(go.Figure, "show", lambda *_, **__: None)  # a reader's own window, which a test has none of
+    code = panel(node, *steps, ("figureCode", ["A figure", options, model, complete, spec]))
+    return run(code)["figure"]
+
+
+def assert_same_figure(drawn, shown: dict, key: str, values: tuple[str, ...] = ("y", "z")) -> None:
+    """Assert that the library's figure holds the numbers of the page's: trace for trace, what each one draws."""
+    assert len(drawn.data) == len(shown["data"]), key
+    for mine, theirs in zip(drawn.data, shown["data"], strict=True):
+        assert mine.type == theirs["type"], key
+        for name in values:
+            if theirs.get(name) is not None and mine.type != "scatter3d":
+                np.testing.assert_allclose(
+                    np.asarray(mine[name], dtype=float), np.asarray(theirs[name], dtype=float), atol=1e-9, err_msg=key
+                )
+        if theirs.get("text") is not None:
+            assert list(mine.text) == theirs["text"], f"{key}: the numbers printed on it"
+
+
+@pytest.mark.slow
+def test_each_figure_s_code_draws_the_figure_the_page_draws(api, node, monkeypatch):
+    """The window of each figure shows the code that draws it with the library: the same numbers, in coded units."""
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})
+    analysis = api.ok("api_analyze_runs", {**held, "responses": simulation["responses"]})
+    plots = api.ok("api_plots", {**held, "responses": simulation["responses"], "truth": simulation["truth"]})
+    figures = {key: json.loads(text) for key, text in plots["figures"].items()}
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, simulation["responses"]]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    assert set(plots["plot_options"]) == set(figures) - {"true_contour"}, "each figure drawn from the analysis"
+    for key, options in plots["plot_options"].items():
+        drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+        assert_same_figure(drawn, figures[key], key)
+    assert plots["plot_options"]["contour"] == {"plot_type": "contour", "factors_to_plot": ["T", "P"]}
+    assert plots["plot_options"]["residuals"] == {"plot_type": "residuals_vs_fitted"}
+
+
+@pytest.mark.slow
+def test_a_surface_s_code_holds_the_other_factors_where_the_page_holds_them(api, node, monkeypatch):
+    """With the best settings found, the page draws its surfaces through them: the code holds the others there too."""
+    demo = api.ok("api_catalogue")["demo"]
+    held = held_of(api.ok("api_make_design", demo["design"]))
+    responses = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    best = {"T": 1.0, "P": -1.0, "F": 0.6}
+    plots = api.ok("api_plots", {**held, "responses": responses, "best": best})
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    for key in ("contour", "surface_3d", "prediction_variance"):
+        options = plots["plot_options"][key]
+        assert options["hold_values"] == {"F": 0.6}, key
+        drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+        assert_same_figure(drawn, json.loads(plots["figures"][key]), key)
+    assert "hold_values" not in plots["plot_options"]["perturbation"], "each factor moves, the others at their center"
+
+
+@pytest.mark.slow
+def test_a_figure_s_code_leaves_out_the_runs_still_to_do_and_fits_on_the_scale_the_page_fits_on(api, node, monkeypatch):
+    held = held_of(api.ok("api_make_design", {"design_type": "ccd", "factors": FACTORS}))
+    held = {**held, "spec": {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}}
+    simulation = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 2})
+    responses = [None, *simulation["responses"][1:-1], None]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses})
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], False, held["spec"]]),
+    )
+    figure = functools.partial(figure_drawn, node, monkeypatch, steps)
+    residuals = figure(plots["plot_options"]["residuals"], analysis["formula"], False, held["spec"])
+    assert_same_figure(residuals, json.loads(plots["figures"]["residuals"]), "residuals", values=("x", "y"))
+    assert len(residuals.data[0].y) == len(responses) - 2, "a residual for each run that has a result"
+    # The page puts a prediction back in the response's units; the library draws it on the scale it is fitted on.
+    effect = figure(plots["plot_options"]["perturbation"], analysis["formula"], False, held["spec"])
+    shown = json.loads(plots["figures"]["perturbation"])["data"]
+    for mine, theirs in zip(effect.data, shown, strict=True):
+        np.testing.assert_allclose(np.exp(np.asarray(mine.y, dtype=float)), theirs["y"], rtol=1e-9)
+
+
+@pytest.mark.slow
+def test_the_half_normal_plot_s_code_judges_the_effects_by_lenth_s_margins_as_the_page_does(api, node, monkeypatch):
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses})
+    options = plots["plot_options"]["half_normal"]
+    assert options == {"plot_type": "half_normal"}
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+    assert_same_figure(drawn, json.loads(plots["figures"]["half_normal"]), "half_normal", values=("x", "y"))
+    margins = {shape["y0"] for shape in drawn.layout.shapes}
+    assert margins == {shape["y0"] for shape in json.loads(plots["figures"]["half_normal"])["layout"]["shapes"]}
+
+
+@pytest.mark.slow
+def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_setting(api, node, monkeypatch):
+    """The page shades the settings the limits rule out; the code says it does not, and draws the same surface."""
+    design, responses = _limited(api, "T + 25 * P <= 250")
+    held = held_of(design)
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses})
+    assert plots["shaded"]
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    options = plots["plot_options"]["contour"]
+    assert options == {"plot_type": "contour", "factors_to_plot": ["T", "P"]}, "the region is not one of them"
+    code = panel(node, *steps, ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]))
+    assert "# The page also shades the settings your limits rule out" in code
+    drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+    shown = json.loads(plots["figures"]["contour"])["data"]
+    assert [trace["name"] for trace in shown if trace["name"] not in {t.name for t in drawn.data}] == ["Cannot be run"]
+    np.testing.assert_allclose(
+        np.asarray(drawn.data[0].z, dtype=float), np.asarray(shown[0]["z"], dtype=float), atol=1e-9
+    )

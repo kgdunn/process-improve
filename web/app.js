@@ -27,7 +27,6 @@ import {
   paretoFigure,
   prettyTerm,
   redrawAll,
-  resizeWithin,
   sensitivityFigure,
   shareContourScale,
   ternaryFigure,
@@ -284,7 +283,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -621,7 +620,6 @@ function showPhase(phase) {
     tab.tabIndex = on ? 0 : -1;
     $(pane).hidden = !on;
   }
-  resizeWithin($(PANES[phase]));
   if (phase !== "plan") cancelCandidates();
   // The top of the workspace in view, under the study bar, when the phase starts above the window's top.
   const top = $("#workspace").getBoundingClientRect().top - $("#studybar").offsetHeight - 8;
@@ -2415,10 +2413,7 @@ async function showComparison() {
   if (!c?.result) return;
   const dialog = $("#compare-dialog");
   if (!dialog.open) dialog.showModal();
-  if (dialog.dataset.key === c.key) {
-    resizeWithin(dialog);
-    return;
-  }
+  if (dialog.dataset.key === c.key) return;
   dialog.dataset.key = c.key;
   c.hidden ??= new Set(); // the designs the reader has hidden, kept while this comparison stands
   renderComparison(c.result, c.made, c.notes, c.hidden);
@@ -2621,11 +2616,7 @@ function slideColumns(t, before) {
 /** Show the designs shown, and only those, in the charts: their curves in the FDS plot, and their correlation maps. */
 function showComparedCharts(result, hidden) {
   const box = $("#compare-charts");
-  for (const card of box.querySelectorAll("figure[data-design]")) {
-    const was = card.hidden;
-    card.hidden = hidden.has(card.dataset.design);
-    if (was && !card.hidden) resizeWithin(card); // a map drawn or resized while hidden is fitted to its card again
-  }
+  for (const card of box.querySelectorAll("figure[data-design]")) card.hidden = hidden.has(card.dataset.design);
   const fds = box.querySelector("figure.fds .plot");
   if (fds && state.plotlyJs) draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380);
 }
@@ -2911,10 +2902,26 @@ function describeSource() {
   $("#run-source").textContent = text;
 }
 
-/** The true process behind the simulated results, behind a reveal: each response's, while some of its results are. */
+/** What the button that simulates says: at first, and once the run sheet holds simulated results. */
+const SIMULATE = "Simulate the results";
+const SIMULATE_AGAIN = "Simulate again, with new noise";
+
+/** Show the true process, or hide it, by its button: the button says which a press will do. */
+function showTruth(open) {
+  $("#truth").hidden = !open;
+  $("#truth-toggle").setAttribute("aria-expanded", String(open));
+  $("#truth-toggle").textContent = `${open ? "Hide" : "Show"} the true process`;
+}
+
+/**
+ * The true process behind the simulated results, behind a reveal: each response's, while some of its results are.
+ * While some are, the button that simulates says a press draws new noise: as it does (see its handler).
+ */
 function renderTruth() {
   const shown = resultNames().filter((name) => processOf(name) && state.marks[name]?.includes("simulated"));
-  $("#truth").hidden = !shown.length; // gone with the last simulated result
+  $("#simulate").textContent = shown.length ? SIMULATE_AGAIN : SIMULATE;
+  $("#truth-toggle").hidden = !shown.length; // gone with the last simulated result
+  if (!shown.length) showTruth(false);
   if (!shown.length) return;
   const [first, ...more] = shown.map((name) => processOf(name));
   $("#truth-equation").textContent = first.equation;
@@ -4242,6 +4249,7 @@ function setModel(model) {
 // ---------------------------------------------------------------- charts
 function chartCard(key, caption, wide = false) {
   const card = el("figure", wide ? "chart wide" : "chart", "");
+  card.dataset.chart = key;
   const plot = el("div", "plot", "");
   const { title: words, glossary } = CHARTS[key];
   const title = el("h3", "", glossary ? "" : words);
@@ -4367,12 +4375,13 @@ async function drawCharts(request, mine, given = null) {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
       return chartCard(key, caption);
     };
+    const python = (key) => figurePython(key, plots.plot_options?.[key]);
     for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const card = captioned(key);
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
       charts.append(card.card);
-      await draw(card.plot, figures[key], version);
+      await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
     }
     state.plots = plots; // drawn again, from these, when the reading level changes
@@ -4380,17 +4389,32 @@ async function drawCharts(request, mine, given = null) {
     const drawable = MORE_CHARTS.filter((key) => figures[key]);
     const more = drawable.filter((key) => chartLevel(key) <= pageLevel());
     const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map(chartLevel), "chart");
-    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond));
+    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond, python));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
 
 /**
+ * What gives the Python that draws one of Learn's figures, for the figure's own window: the code of the design,
+ * its results and their analysis, as the analysis's panel shows it, then the figure's own. ``options`` is what
+ * the page asked the library for (``plot_options`` of the charts' reply); null for a figure it has none for,
+ * which the page draws itself. The code is written when it is asked for, from the analysis shown then.
+ */
+function figurePython(key, options) {
+  if (!options) return null;
+  return () => {
+    const { formula, model } = state.analysis;
+    const figure = figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, shownSpec());
+    return cumulative(...["design", "run", "analyse"].map((step) => stepCode[step]).filter(Boolean), figure);
+  };
+}
+
+/**
  * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
  * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
  */
-function moreCharts(keys, figures, captioned, version, beyond = "") {
+function moreCharts(keys, figures, captioned, version, beyond, python) {
   const box = el("details", "more-charts", "");
   box.id = "more-charts";
   box.append(el("summary", "", `More charts (${keys.length})`));
@@ -4404,9 +4428,8 @@ function moreCharts(keys, figures, captioned, version, beyond = "") {
     shown = true;
     for (const key of keys) {
       const card = captioned(key);
-      card.card.dataset.chart = key;
       grid.append(card.card);
-      await draw(card.plot, figures[key], version, chartHeight(key));
+      await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
     }
   };
   box.addEventListener("toggle", () => {
@@ -6725,11 +6748,13 @@ $("#compare").onclick = showComparison;
 $("#compare-close").onclick = () => $("#compare-dialog").close();
 closeOnBackdrop($("#compare-dialog"));
 $("#run-example").onclick = runExample;
-$("#simulate").onclick = simulateResults;
-$("#reroll").onclick = () => {
-  seed += 1;
+// A press always changes the results: the first simulates them, and one more draws new noise for the same
+// process. With the seed as it was, a second press gave the same results, and looked as if it did nothing.
+$("#simulate").onclick = () => {
+  if (someSimulated()) seed += 1;
   simulateResults();
 };
+$("#truth-toggle").onclick = () => showTruth($("#truth").hidden);
 $("#scenario").onchange = () => {
   showScenarioHint();
   if (someSimulated()) simulateResults();
@@ -6884,7 +6909,7 @@ call("api_catalogue").then((reply) => {
   state.version = catalogue.version ?? null;
   state.runtime = catalogue.runtime ?? null;
   pythonReady = true;
-  for (const id of ["#upload", "#simulate", "#reroll"]) $(id).disabled = false;
+  for (const id of ["#upload", "#simulate"]) $(id).disabled = false;
   refreshDesign();
   scheduleCandidates();
   resolveReady();

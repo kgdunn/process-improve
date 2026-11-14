@@ -5,12 +5,17 @@
 // chart is built or drawn, so tests/web/js imports this module under Node.
 
 const CDN = (version) => `https://cdn.jsdelivr.net/npm/plotly.js-dist-min@${version}/plotly.min.js`;
-/** Plotly's settings for a chart on this page; on a phone the toolbar would sit over the chart for good. */
-const plotConfig = () => ({
-  responsive: true,
+/**
+ * Plotly's settings for a chart. A card has no toolbar, which sat over its legend and its colour bar's title: a
+ * figure's own window (figure.js) has one, with room for it. Two of Plotly's buttons are never shown. The one to
+ * save an image saves the shape on the screen: the window saves the figure in a shape the reader chooses. The
+ * one to share a chart sends it to Plotly's servers, and a study's data stays in the reader's browser.
+ */
+const plotConfig = (toolbar) => ({
   displaylogo: false,
-  displayModeBar: window.matchMedia("(max-width: 600px)").matches ? false : "hover",
-  modeBarButtonsToRemove: ["select2d", "lasso2d"],
+  displayModeBar: toolbar,
+  showSendToCloud: false,
+  modeBarButtonsToRemove: ["select2d", "lasso2d", "toImage", "sendChartToCloud"],
 });
 
 let loading = null;
@@ -39,6 +44,7 @@ export function palette() {
     fg: read("--fg"),
     muted: read("--muted"),
     line: read("--line"),
+    panel: read("--panel"),
     accent: read("--accent"),
     warn: read("--warn"),
     ok: read("--ok"),
@@ -67,16 +73,54 @@ export const legendKey = (name, color, dash = "solid") => ({
   hoverinfo: "skip",
 });
 
-/** Restyle a figure's layout for a card on the page: its colours, its size, no title, the legend below. */
-export function pageLayout(layout, height, colours = palette()) {
-  const axis = (given) => ({
-    ...(given || {}),
-    gridcolor: colours.line,
-    zerolinecolor: colours.muted,
-    linecolor: colours.line,
-    color: colours.muted,
-    automargin: true,
-  });
+/** The size of an axis title's letters, which Plotly draws a fifth larger than the figure's other text. */
+const TITLE_SIZE = 14;
+
+/**
+ * ``text`` on as many lines as it takes to fit in ``room`` pixels, broken at its spaces. Plotly draws an axis
+ * title on one line and cuts what does not fit, and a title holds the reader's own names and units, of any
+ * length. A letter is taken as 0.55 of its size wide, which is a little more than this text averages.
+ */
+export function wrapped(text, room, size = TITLE_SIZE) {
+  const most = Math.max(8, Math.floor(room / (0.55 * size)));
+  const lines = [];
+  for (const word of String(text).split(" ")) {
+    const last = lines.length - 1;
+    if (last >= 0 && lines[last].length + 1 + word.length <= most) lines[last] += ` ${word}`;
+    else lines.push(word);
+  }
+  return lines.join("<br>");
+}
+
+/**
+ * Where a figure in three dimensions is seen from: far enough back that its corners and their labels are in
+ * view. Plotly fits the scene to the room's height, and cuts its sides off in a narrow room: a cube seen from
+ * here is 0.9 times as wide as it is tall, so in a room narrower than that the camera stands back by as much.
+ */
+const EYE = { x: 1.65, y: 1.65, z: 1.1 };
+const SCENE_SHAPE = 0.9;
+
+/**
+ * Restyle a figure's layout for the room it is drawn in: the page's colours, its size, no title, the legend
+ * below. ``width`` is the room's, in pixels, where it is known, and ``bar`` the part of it a colour bar takes:
+ * each axis title is then wrapped to fit its axis, and a scene in three dimensions is seen whole. ``free`` is
+ * for a figure in a window of its own, whose shape is the reader's to give: its axes fill the room.
+ */
+export function pageLayout(layout, height, colours = palette(), { width = 0, bar = 0, free = false } = {}) {
+  const margin = { l: 56, r: 16, t: 12, b: 52, ...(layout.margin || {}) };
+  const axis = (given, room = 0) => {
+    const title = given?.title?.text;
+    return {
+      ...(given || {}),
+      // A title with markup of its own is left as it is written.
+      ...(title && room > 0 && !title.includes("<") ? { title: { ...given.title, text: wrapped(title, room) } } : {}),
+      gridcolor: colours.line,
+      zerolinecolor: colours.muted,
+      linecolor: colours.line,
+      color: colours.muted,
+      automargin: true,
+    };
+  };
   const restyled = {
     ...layout,
     height,
@@ -84,21 +128,28 @@ export function pageLayout(layout, height, colours = palette()) {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { ...(layout.font || {}), color: colours.fg, size: 12 },
-    margin: { l: 56, r: 16, t: 12, b: 52, ...(layout.margin || {}) },
-    legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", ...(layout.legend || {}) },
-    xaxis: axis(layout.xaxis),
-    yaxis: axis(layout.yaxis),
+    margin,
+    // No box around the legend: the library's own figures draw one, in black on a white page.
+    legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
+    // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
+    hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
+    xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
+    yaxis: axis(layout.yaxis, height - margin.t - margin.b),
   };
   // A figure drawn with equal axes (a response surface in coded units) keeps its data
   // range and shrinks its plot area instead, rather than stretching an axis to fill a card.
-  if (restyled.yaxis.scaleanchor || restyled.xaxis.scaleanchor) {
+  if (free) {
+    for (const key of ["scaleanchor", "scaleratio"]) for (const axis of [restyled.xaxis, restyled.yaxis]) delete axis[key];
+  } else if (restyled.yaxis.scaleanchor || restyled.xaxis.scaleanchor) {
     restyled.xaxis.constrain = "domain";
     restyled.yaxis.constrain = "domain";
   }
   if (layout.scene) {
     // A chart in three dimensions has its axes in a scene of its own, and needs no room for the flat ones.
     const { xaxis, yaxis, zaxis } = layout.scene;
-    restyled.scene = { ...layout.scene, xaxis: axis(xaxis), yaxis: axis(yaxis), zaxis: axis(zaxis) };
+    const back = width > bar ? Math.max(1, (SCENE_SHAPE * height) / (width - bar)) : 1;
+    const camera = { eye: { x: EYE.x * back, y: EYE.y * back, z: EYE.z * back } };
+    restyled.scene = { camera, ...layout.scene, xaxis: axis(xaxis), yaxis: axis(yaxis), zaxis: axis(zaxis) };
     restyled.margin = { l: 0, r: 0, t: 0, b: 0 };
   }
   delete restyled.width;
@@ -106,19 +157,173 @@ export function pageLayout(layout, height, colours = palette()) {
   return restyled;
 }
 
-/** Draw a figure ({data, layout}) into a card's plot area. */
-/** What each chart on the page was drawn from, so a change of theme can draw it again in the new colours. */
+/** The kinds of trace that show their values on a colour bar beside the plot. */
+const SCALED = new Set(["contour", "heatmap", "surface"]);
+const hasBar = (trace) => SCALED.has(trace.type) && trace.showscale !== false;
+
+/** The width a colour bar takes from the plot, as pageData() draws it: the bar, its numbers and its title. */
+const BAR = 64;
+
+/**
+ * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
+ * is wide, with its title on top, and takes a third of a card's width from the plot.
+ */
+export function pageData(data) {
+  const slim = (bar = {}) => ({ thickness: 12, outlinewidth: 0, ...bar, title: { side: "right", ...(bar.title || {}) } });
+  return data.map((trace) => (hasBar(trace) ? { ...trace, colorbar: slim(trace.colorbar) } : trace));
+}
+
+/**
+ * A chart as the page draws it in a room ``width`` pixels by ``height``, in ``colours``: its traces and its
+ * layout. A chart with Plotly's toolbar is the one in a figure's own window, where the reader gives it its shape.
+ */
+function dressed(shown, height, colours, width) {
+  const figure = shown.make();
+  const data = pageData(figure.data);
+  const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
+  return { data, layout: pageLayout(figure.layout || {}, height, colours, room) };
+}
+
+/**
+ * What each chart on the page was drawn from, so it can be drawn again: in the new colours when the theme
+ * changes, and to fit when its room does.
+ */
 const drawn = new Map();
+let draws = 0;
+
+/** The room a chart has: its width, and its height too where the chart fills it (``height`` null). */
+const roomOf = (div, shown) => `${div.clientWidth}x${shown.height ?? div.clientHeight}`;
+
+/**
+ * Watches every chart's room. Plotly draws a chart at the width its box has at that moment and leaves it there,
+ * so the first chart of a row, drawn before its neighbour was added, stayed a whole row wide; and one drawn while
+ * its part of the page was hidden had no width to take. A chart whose room changes is drawn again to fit it.
+ */
+let rooms = null;
+const watch = (div) => {
+  rooms ??= new ResizeObserver((entries) => {
+    for (const { target } of entries) {
+      const shown = drawn.get(target);
+      if (!shown) rooms.unobserve(target);
+      else if (target.clientWidth && roomOf(target, shown) !== shown.room) refit(target, shown);
+    }
+  });
+  rooms.observe(div);
+};
+
+/** Draw a chart again in the room it has now; a change of room while it is drawing is drawn once more, after. */
+async function refit(div, shown) {
+  shown.again = true;
+  if (shown.fitting) return;
+  shown.fitting = true;
+  try {
+    while (shown.again && drawn.get(div) === shown) {
+      shown.again = false;
+      await react(div, shown);
+    }
+  } finally {
+    shown.fitting = false;
+  }
+}
 
 /**
  * Draw a figure into a div. ``figure`` is the figure, or a function that makes it, for one whose
- * colours are the page's own (palette()): it is made again whenever the chart is redrawn.
+ * colours are the page's own (palette()): it is made again whenever the chart is redrawn. A ``height`` of null
+ * fills the div's own height. With ``toolbar``, Plotly's buttons to zoom and turn the figure are shown.
+ * ``python`` gives the code that draws the figure with the library, for the figure's own window to show.
  */
-export async function draw(div, figure, version, height = 340) {
+export async function draw(div, figure, version, height = 340, { toolbar = false, python = null } = {}) {
   const make = typeof figure === "function" ? figure : () => figure;
-  for (const old of drawn.keys()) if (!old.isConnected) drawn.delete(old);
-  drawn.set(div, { make, version, height });
-  await react(div, make(), version, height);
+  for (const old of drawn.keys()) if (!old.isConnected) forget(old);
+  // The reader's zoom, or the way a figure is turned, is kept while this figure is drawn again, and no longer.
+  const shown = { make, version, height, toolbar, python, revision: ++draws };
+  drawn.set(div, shown);
+  offerWindow(div);
+  // To a reader who cannot see it, a chart is one picture, named by its heading: its numbers are in a table beside it.
+  if (!div.hasAttribute("role")) div.setAttribute("role", "img");
+  if (!div.hasAttribute("aria-label")) div.setAttribute("aria-label", wordsOf(div).title);
+  await react(div, shown);
+  watch(div);
+  (window.requestIdleCallback ?? setTimeout)(() => figureWindow().catch(() => {})); // asked for again at a press
+}
+
+/**
+ * The module of a figure's own window (figure.js), asked for once: when the browser is first idle after a chart
+ * is drawn, so it costs the page's start nothing and a first press of Expand opens at once. A load that fails,
+ * with no network and no copy of the page kept, is tried again the next time it is asked for: under an address
+ * of its own, since a browser keeps a module's failure as long as the page is open.
+ */
+let windowModule = null;
+let loads = 0;
+function figureWindow() {
+  windowModule ??= import(loads++ ? `./figure.js?load=${loads}` : "./figure.js").catch((error) => {
+    windowModule = null;
+    throw error;
+  });
+  return windowModule;
+}
+
+/** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
+export const figureOf = (div) => drawn.get(div);
+
+/** Forget what a chart was drawn from, and stop watching its room: a chart that has left the page is let go. */
+function forget(div) {
+  drawn.delete(div);
+  rooms?.unobserve(div);
+}
+
+/** Take a chart down, and forget what it was drawn from. */
+export function erase(div) {
+  forget(div);
+  window.Plotly?.purge(div);
+}
+
+/** A chart's heading and what is written under it, as its card has them, for its own window. */
+function wordsOf(div) {
+  const card = div.closest("figure.chart");
+  const said = (node) => node?.textContent.replace(/\s+/g, " ").trim();
+  const title =
+    said(card?.querySelector("h3, h4")) ||
+    div.getAttribute("aria-label") ||
+    said(div.closest("details")?.querySelector("summary")) ||
+    "Figure";
+  const captions = [...(card?.querySelectorAll("figcaption") ?? [])].filter((caption) => !caption.hidden);
+  return { title, caption: captions.map(said).join(" ") };
+}
+
+/**
+ * Put the button that opens a chart in a window of its own (figure.js) at the right of its heading, once. Every
+ * chart is drawn by draw(), so every chart has one. A chart in a card has the card's heading; one with no card
+ * has the button alone, above it.
+ */
+function offerWindow(div) {
+  if (div.closest("dialog.figure")) return; // the window's own chart
+  const card = div.closest("figure.chart");
+  const above = div.previousElementSibling;
+  let head = card ? card.querySelector(".chart__head") : above?.matches(".chart__head") ? above : null;
+  if (head?.querySelector(".expand")) return;
+  if (!head) {
+    head = document.createElement("div");
+    head.className = "chart__head";
+    const heading = card?.querySelector("h3, h4");
+    if (heading) heading.replaceWith(head);
+    else div.before(head);
+    if (heading) head.append(heading);
+  }
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "link expand";
+  button.textContent = "Expand";
+  button.setAttribute("aria-label", "Expand this figure: open it in a window of its own, to look at it closely");
+  button.onclick = async () => {
+    try {
+      (await figureWindow()).openFigure(div, wordsOf(div));
+    } catch {
+      button.textContent = "Could not open: no network";
+      setTimeout(() => (button.textContent = "Expand"), 4000);
+    }
+  };
+  head.append(button);
 }
 
 /** The light theme's colours, as style.css gives them: a report is read on white, whatever theme the page shows. */
@@ -126,6 +331,7 @@ export const LIGHT = {
   fg: "#1d1d1f",
   muted: "#5f6368",
   line: "#dcd8ce",
+  panel: "#ffffff",
   accent: "#2c5f7c",
   warn: "#a35f00",
   ok: "#1e7b3a",
@@ -133,48 +339,49 @@ export const LIGHT = {
 };
 
 /**
- * A chart the page drew, as a PNG on white in the light theme's axes and text, for a report: a data URL. It is
- * ``width`` CSS pixels wide, at its height on the page, and drawn at twice that for print. Null for a div no chart
- * was drawn in.
+ * A chart the page drew, as an image on white in the light theme's axes and text, for a report or a file: a data
+ * URL. It is ``width`` CSS pixels wide and ``height`` tall (its height on the page, when none is given), and drawn
+ * ``scale`` times that for print. With a ``title``, the image carries it, as one that leaves the page must. Null
+ * for a div no chart was drawn in.
  */
-export async function chartImage(div, width = 720) {
+export async function chartImage(div, width = 720, { height = null, title = "", format = "png", scale = 2 } = {}) {
   const shown = drawn.get(div);
   if (!shown || !window.Plotly) return null;
-  const figure = shown.make();
-  const layout = {
-    ...pageLayout(figure.layout || {}, shown.height, LIGHT),
-    width,
-    autosize: false,
-    paper_bgcolor: "#ffffff",
-    plot_bgcolor: "#ffffff",
-  };
-  return window.Plotly.toImage({ data: figure.data, layout }, { format: "png", width, height: shown.height, scale: 2 });
+  const tall = height ?? shown.height ?? div.clientHeight;
+  const { data, layout: fitted } = dressed(shown, tall, LIGHT, width);
+  const layout = { ...fitted, width, autosize: false, paper_bgcolor: "#ffffff", plot_bgcolor: "#ffffff" };
+  if (title) {
+    const head = 34; // room for the title, above a legend that sits over the plot
+    layout.margin = { ...layout.margin, t: layout.margin.t + head };
+    layout.title = { text: title, x: 0.01, xanchor: "left", y: 1, yref: "container", yanchor: "top", pad: { t: 10 } };
+    layout.title.font = { size: 16, color: LIGHT.fg };
+  }
+  return window.Plotly.toImage({ data, layout }, { format, width, height: tall, scale });
 }
 
 /** Draw every chart on the page again, in the colours of the theme it shows now. */
 export async function redrawAll() {
-  for (const [div, { make, version, height }] of drawn) {
-    if (div.isConnected) await react(div, make(), version, height);
-    else drawn.delete(div);
+  for (const [div, shown] of drawn) {
+    if (div.isConnected) await react(div, shown);
+    else forget(div);
   }
 }
 
-/**
- * Fit the charts inside ``root`` to the room they have now: a chart drawn while its phase was hidden
- * took Plotly's default width, and a phase shown again gives it its own. A chart hidden itself, such
- * as a curve its study no longer has, is left as it is: Plotly refuses to resize it.
- */
-export function resizeWithin(root) {
-  const Plotly = window.Plotly;
-  if (!Plotly) return;
-  for (const div of root.querySelectorAll(".js-plotly-plot")) {
-    if (getComputedStyle(div).display !== "none") Plotly.Plots.resize(div);
+async function react(div, shown) {
+  const Plotly = await loadPlotly(shown.version);
+  shown.room = roomOf(div, shown);
+  const { data, layout } = dressed(shown, shown.height ?? div.clientHeight, palette(), div.clientWidth);
+  layout.uirevision = shown.revision;
+  // Under a finger, a drag on a card scrolls the page, as a drag anywhere else on it does, and does not zoom the
+  // chart: the figure's own window is where it is zoomed. A chart in three dimensions is still turned by a drag.
+  if (!shown.toolbar && window.matchMedia("(pointer: coarse)").matches) layout.dragmode = false;
+  if (shown.toolbar) {
+    // The toolbar has a row of its own above the plot, in the page's colours.
+    const { muted, accent } = palette();
+    layout.margin = { ...layout.margin, t: Math.max(layout.margin.t, 36) };
+    layout.modebar = { bgcolor: "rgba(0,0,0,0)", color: muted, activecolor: accent };
   }
-}
-
-async function react(div, figure, version, height) {
-  const Plotly = await loadPlotly(version);
-  await Plotly.react(div, figure.data, pageLayout(figure.layout || {}, height), plotConfig());
+  await Plotly.react(div, data, layout, plotConfig(shown.toolbar));
 }
 
 /**

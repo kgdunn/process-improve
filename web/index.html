@@ -517,27 +517,29 @@
                   <option value="interaction" data-hint="The effect of the first factor depends on the level of the second.">An interaction</option>
                   <option value="optimum" data-hint="A curved surface in the first two factors, highest at a point inside their ranges.">A maximum inside the ranges</option>
                   <option value="nothing" data-hint="No factor changes the response: whatever the analysis finds is noise.">Nothing active</option>
-                  <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; new noise draws a new process.">A random process</option>
+                  <option value="random" data-hint="Two or three active factors drawn at random, with an interaction or curvature; simulating again draws a new process.">A random process</option>
                   <!-- bootstrap.MIXTURE_SCENARIOS: offered for a mixture's run sheet only, in place of the ones above. -->
                   <option value="blend" data-mixture hidden data-hint="The first two components blend in synergy, and the second and third against each other.">A synergy and an antagonism</option>
                 </select>
               </label>
-              <label><span class="term" data-term="noise">Noise</span> (standard deviation)
+              <!-- The label's words are one line, so the two boxes of this row sit side by side at one height. -->
+              <label><span><span class="term" data-term="noise">Noise</span> (standard deviation)</span>
                 <span class="with-unit"><input id="sigma" type="number" min="0.01" step="any" value="1"><span class="unit" id="sigma-unit"></span></span>
               </label>
             </div>
             <p id="scenario-hint" class="hint"></p>
+            <!-- One button simulates: pressed again, it draws new noise, so a press always changes the results
+                 (app.js). Beside it, the true process behind them, shown and hidden by its own button. -->
             <div class="actions">
               <button type="button" id="simulate" class="primary" disabled>Simulate the results</button>
-              <button type="button" id="reroll" class="link" disabled>New noise</button>
+              <button type="button" id="truth-toggle" class="link reveal" aria-expanded="false" aria-controls="truth" hidden>Show the true process</button>
             </div>
-            <details id="truth" hidden>
-              <summary>Show the true process</summary>
+            <div id="truth" class="truth" hidden>
               <p id="truth-equation" class="equation"></p>
               <div id="truth-more"></div>
               <p id="truth-inactive" hidden></p>
               <p id="truth-units" class="hint">In coded units. The analysis estimates these coefficients from the noisy results.</p>
-            </details>
+            </div>
           </div>
           <p id="run-source" class="hint"></p>
           <div class="scroll"><table id="design-table" class="data runs"></table></div>
