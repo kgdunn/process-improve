@@ -245,8 +245,7 @@ class UniformSampler:
     def _left_out(self, x: np.ndarray) -> np.ndarray:
         """Boolean ``(n, k)``: the coordinates with a gap that sit at their lower bound, so are left out."""
         out = np.zeros(x.shape, dtype=bool)
-        if len(self._gap_columns):
-            out[:, self._gap_columns] = x[:, self._gap_columns] <= self.bounds[0][self._gap_columns] + _TOL
+        out[:, self._gap_columns] = x[:, self._gap_columns] <= self.bounds[0][self._gap_columns] + _TOL
         return out
 
     def _settle(self, points: np.ndarray) -> np.ndarray:

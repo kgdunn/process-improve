@@ -150,6 +150,15 @@ class TestGroupsHeldToATotal:
         assert "d" in lost
         assert any(":" in label for label in lost)  # a product of two components
 
+    def test_a_region_that_supports_the_model_loses_no_column(self, caplog: pytest.LogCaptureFixture) -> None:
+        factors = [Factor(name=name, type="mixture") for name in "abc"]
+        pool = np.vstack(list(mixture_candidates(*mixture_inequalities(factors, None)).values()))
+        with caplog.at_level(logging.WARNING):
+            kept, lost = _estimable_columns(factors, pool, "scheffe_quadratic")
+        assert kept.tolist() == list(range(6))
+        assert lost == []
+        assert "inestimable" not in caplog.text
+
     @pytest.mark.slow
     def test_thirty_five_components_in_buckets_of_seven(self) -> None:
         factors, limits, flat = _buckets(7, 0.2)
