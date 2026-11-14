@@ -333,9 +333,10 @@ What an organisation asks before it lets people use a tool.
 
 - **A folder of plain files.** The app is built with one command and served by any web server,
   an internal one included.
-- **Offline.** A copy of the app, Python and its packages is kept in the browser (about 170
-  MB), and one button adds the charts and the workbooks (about 12 MB more). The footer says
-  what the copy holds, and removes it on request.
+- **Offline.** A copy of the app, Python and its packages is kept in the browser: from about
+  170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
+  workbooks (about 12 MB more). The footer says what the copy holds and what it takes of the
+  device's storage, and removes it on request.
 - **Pinned versions.** The Python release and each package are pinned, and the About page
   shows the versions a copy loads.
 
