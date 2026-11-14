@@ -14,6 +14,7 @@ import contextlib
 import functools
 import io
 import json
+import re
 
 import numpy as np
 import pytest
@@ -1121,16 +1122,18 @@ def figure_drawn(node, monkeypatch, steps: tuple, options: dict, model: str, com
 
 def assert_same_figure(drawn, shown: dict, key: str, values: tuple[str, ...] = ("y", "z")) -> None:
     """Assert that the library's figure holds the numbers of the page's: trace for trace, what each one draws."""
-    assert len(drawn.data) == len(shown["data"]), key
-    for mine, theirs in zip(drawn.data, shown["data"], strict=True):
+    theirs_drawn = [trace for trace in shown["data"] if trace.get("meta") != "interval"]  # the page's own bands
+    assert len(drawn.data) == len(theirs_drawn), key
+    for mine, theirs in zip(drawn.data, theirs_drawn, strict=True):
         assert mine.type == theirs["type"], key
         for name in values:
             if theirs.get(name) is not None and mine.type != "scatter3d":
                 np.testing.assert_allclose(
                     np.asarray(mine[name], dtype=float), np.asarray(theirs[name], dtype=float), atol=1e-9, err_msg=key
                 )
-        if theirs.get("text") is not None:
-            assert list(mine.text) == theirs["text"], f"{key}: the numbers printed on it"
+        if theirs.get("text") is not None:  # the page names each run at the head of its words
+            words = [re.sub(r"^Run \d+<br>", "", said) for said in theirs["text"]]
+            assert list(mine.text) == words, f"{key}: the numbers printed on it"
 
 
 @pytest.mark.slow
@@ -1196,7 +1199,7 @@ def test_a_figure_s_code_leaves_out_the_runs_still_to_do_and_fits_on_the_scale_t
     assert len(residuals.data[0].y) == len(responses) - 2, "a residual for each run that has a result"
     # The page puts a prediction back in the response's units; the library draws it on the scale it is fitted on.
     effect = figure(plots["plot_options"]["perturbation"], analysis["formula"], False, held["spec"])
-    shown = json.loads(plots["figures"]["perturbation"])["data"]
+    shown = [t for t in json.loads(plots["figures"]["perturbation"])["data"] if t.get("meta") != "interval"]
     for mine, theirs in zip(effect.data, shown, strict=True):
         np.testing.assert_allclose(np.exp(np.asarray(mine.y, dtype=float)), theirs["y"], rtol=1e-9)
 

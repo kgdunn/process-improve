@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
+import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.experiments import DesignRegion, Factor
-from tests.web._support import FACTORS, factors_named, held_of, run_sheet
+from tests.web._support import FACTORS, coded, factors_named, held_of, run_sheet
 
 pytest.importorskip("plotly", reason="the page installs plotly for its first chart")
 
@@ -80,12 +83,80 @@ def test_the_charts_read_on_a_light_page_and_a_dark_one_and_without_their_colour
     assert "marker" not in surface
     assert figures["contour"]["layout"]["legend"]["y"] > 1, "the legend above the plot, clear of the axis title"
     for key in ("perturbation", "main_effects", "interaction"):
-        dashes = [trace["line"]["dash"] for trace in figures[key]["data"]]
+        dashes = [trace["line"]["dash"] for trace in lines_of(figures[key])]
         assert dashes == ["solid", "dash", "dot"], f"{key}: each line has a pattern of its own"
         assert figures[key]["layout"]["legend"]["y"] > 1
-    assert {trace["mode"] for trace in figures["perturbation"]["data"]} == {"lines"}, "a curve: no marks along it"
+    assert {trace["mode"] for trace in lines_of(figures["perturbation"])} == {"lines"}, "a curve: no marks along it"
     for key in ("main_effects", "interaction"):
         assert {trace["mode"] for trace in figures[key]["data"]} == {"lines+markers"}, f"{key}: a mark at each average"
+
+
+def lines_of(figure: dict) -> list[dict]:
+    """Return the lines the library drew in a figure: not the bands the page draws around them, nor their key."""
+    return [trace for trace in figure["data"] if trace.get("meta") != "interval"]
+
+
+def test_each_factor_s_effect_has_its_95_percent_confidence_interval_as_a_band(api, held, simulated):
+    """The band is the interval of the prediction: checked here against least squares worked out from the runs."""
+    responses = np.asarray(simulated["responses"])
+    figure = json.loads(api.ok("api_plots", {**held, "responses": simulated["responses"]})["figures"]["perturbation"])
+    runs = coded(run_sheet(held), held["spec"]["factors"])
+    names = list(runs.columns)
+
+    def matrix(settings: pd.DataFrame) -> np.ndarray:
+        """Return the full quadratic model's columns: 1, each factor, each pair's product, each square."""
+        pairs = [settings[a] * settings[b] for i, a in enumerate(names) for b in names[i + 1 :]]
+        columns = [np.ones(len(settings)), *(settings[n] for n in names), *pairs, *(settings[n] ** 2 for n in names)]
+        return np.column_stack(columns)
+
+    x = matrix(runs)
+    beta, *_ = np.linalg.lstsq(x, responses, rcond=None)
+    left = len(responses) - x.shape[1]
+    mse = float(np.sum((responses - x @ beta) ** 2) / left)
+    t = stats.t.ppf(0.975, left)
+    lines = lines_of(figure)
+    assert [line["name"] for line in lines] == names
+    for line in lines:
+        along = pd.DataFrame(0.0, index=range(len(line["x"])), columns=names)
+        along[line["name"]] = line["x"]
+        at = matrix(along)
+        half = t * np.sqrt(mse * np.einsum("ij,jk,ik->i", at, np.linalg.inv(x.T @ x), at))
+        np.testing.assert_allclose(line["y"], at @ beta, atol=1e-8, err_msg="the line is the fit's prediction")
+        low, high = np.asarray(line["customdata"]).T
+        np.testing.assert_allclose(low, at @ beta - half, atol=1e-8, err_msg=line["name"])
+        np.testing.assert_allclose(high, at @ beta + half, atol=1e-8, err_msg=line["name"])
+        assert line["hovertemplate"] == "%{y:.4g} (%{customdata[0]:.4g} to %{customdata[1]:.4g})"
+
+    bands = [trace for trace in figure["data"] if trace.get("meta") == "interval" and "fill" in trace]
+    assert len(bands) == len(lines), "a band a line, each filled down to its lower edge"
+    assert [band["fillcolor"] for band in bands] == [
+        "rgba(37,99,235,0.16)",
+        "rgba(220,38,38,0.16)",
+        "rgba(5,150,105,0.16)",
+    ], "in its line's colour, seen through"
+    assert figure["data"][-1]["name"] == "95% interval", "the legend says what a band is"
+    assert figure["layout"]["xaxis"]["hoverformat"] == "+.2f", "a coded setting, to two places, where the pointer rests"
+    assert all(trace["hoverinfo"] == "skip" for trace in figure["data"] if trace.get("meta") == "interval")
+
+
+def test_a_fit_that_uses_every_run_draws_its_lines_without_a_band(api):
+    """No runs are left to estimate the error from, so there is no interval to draw."""
+    spec = {"design_type": "plackett_burman", "factors": factors_named(*"ABCDEFG"), "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    responses = api.ok("api_simulate", {**held, "scenario": "main_effects", "seed": 1})["responses"]
+    figure = json.loads(api.ok("api_plots", {**held, "responses": responses})["figures"]["perturbation"])
+    assert lines_of(figure) == figure["data"]
+    assert len(figure["data"]) == 7
+
+
+def test_a_band_on_a_transformed_fit_is_put_back_in_the_response_s_units_with_its_line(api, held, simulated):
+    spec = {**held["spec"], "analysis_transforms": {held["spec"]["response"]: "log"}}
+    result = api.ok("api_plots", {**held, "spec": spec, "responses": simulated["responses"]})
+    for line in lines_of(json.loads(result["figures"]["perturbation"])):
+        low, high = np.asarray(line["customdata"]).T
+        assert np.all(low < line["y"]), "in percent, as the line"
+        assert np.all(np.asarray(line["y"]) < high)
+        assert low.min() > 40, "of the size of the results, and not of their logarithms"
 
 
 def test_the_variance_of_a_prediction_is_drawn_square_as_the_surface_it_is_over(api, held, simulated):
@@ -153,7 +224,8 @@ def test_a_chart_of_lines_reads_every_line_at_one_setting_together(api, held, si
     for key in ("perturbation", "main_effects", "interaction"):
         figure = json.loads(figures[key])
         assert figure["layout"]["hovermode"] == "x unified", key
-        assert {trace["hovertemplate"] for trace in figure["data"]} == {"%{y:.4g}"}, key
+        value = "%{y:.4g} (%{customdata[0]:.4g} to %{customdata[1]:.4g})" if key == "perturbation" else "%{y:.4g}"
+        assert {trace["hovertemplate"] for trace in lines_of(figure)} == {value}, key
     assert "hovermode" not in json.loads(figures["residuals"])["layout"]
 
 

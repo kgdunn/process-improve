@@ -210,6 +210,24 @@ def test_more_charts_are_drawn_when_their_heading_is_opened(page):
     assert kinds == ["scatter", "scatter", "scatter", "surface", "scatter3d", "scatter", "scatter", "contour"]
 
 
+def test_each_factor_s_effect_is_drawn_with_the_band_of_its_interval_which_its_caption_explains(page):
+    open_more(page)
+    card = page.locator("figure[data-chart=perturbation]")
+    drawn = card.locator(".plot").evaluate(
+        "(plot) => plot.data.map((trace) => [trace.name ?? '', trace.meta ?? '', trace.fill ?? ''])"
+    )
+    assert [name for name, meta, _ in drawn if meta != "interval"] == ["T", "P", "F"]
+    assert [fill for _, meta, fill in drawn if meta == "interval" and fill] == ["tonexty"] * 3, "a band a line"
+    assert drawn[-1][:2] == ["95% interval", "interval"], "which the legend names"
+    assert (
+        card.locator("figcaption")
+        .text_content()
+        .endswith(
+            "The band around a line is how well the model knows it: a wide band is a line that could lie elsewhere."
+        )
+    )
+
+
 def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):
     assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
     open_more(page)

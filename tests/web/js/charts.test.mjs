@@ -37,6 +37,8 @@ import {
   pageLayout,
   pressRun,
   restOnRun,
+  runRings,
+  RUN_RING,
   paretoFigure,
   prettyTerm,
   sensitivityFigure,
@@ -329,27 +331,38 @@ describe("a card's layout", () => {
 });
 
 describe("one run, marked wherever it is drawn", () => {
-  const runs = { type: "scatter", mode: "markers", meta: "runs", customdata: [3, 1, 2, 1], marker: { size: 8 } };
-  const levels = { type: "scatter", meta: "runs", customdata: [[2, "Low"], [5, "High"]] };
+  const runs = { type: "scatter", mode: "markers", meta: "runs", customdata: [3, 1, 2, 1], x: [10, 20, 30, 40], y: [0.1, 0.2, 0.3, 0.4] };
+  const levels = { type: "scatter", meta: "runs", customdata: [[2, "Low"], [5, "High"]], x: [0, 1], y: [7, 9], xaxis: "x2" };
   const heard = [];
   onRunMarked((run) => heard.push(run));
 
-  test("no run is marked at first, and a trace of the runs is drawn as it is", () => {
-    assert.equal(markedRun(), null);
-    const [drawn] = pageData([runs], COLOURS);
-    assert.equal(drawn.selectedpoints, null);
-    assert.deepEqual(drawn.selected, { marker: { color: COLOURS.warn, size: 13, opacity: 1 } }, "larger, in the warning colour");
-    assert.deepEqual(drawn.unselected, { marker: { opacity: 0.55 } });
-    assert.equal(pageData([{ type: "scatter", customdata: [1] }], COLOURS)[0].selected, undefined, "not a trace of the runs");
+  test("a ring around each point that is the run's, a fixed size on the screen, in the colour given", () => {
+    const rings = runRings([runs, { type: "scatter", customdata: [1], x: [5], y: [5] }], 1, COLOURS.warn);
+    assert.deepEqual(rings.map((ring) => [ring.xanchor, ring.yanchor]), [[20, 0.2], [40, 0.4]], "not of a trace that draws no runs");
+    const [ring] = rings;
+    assert.deepEqual([ring.type, ring.name, ring.xsizemode, ring.ysizemode], ["circle", RUN_RING, "pixel", "pixel"]);
+    assert.deepEqual([ring.x0, ring.x1, ring.y0, ring.y1], [-9, 9, -9, 9]);
+    assert.deepEqual(ring.line, { color: COLOURS.warn, width: 3 });
+    assert.equal(ring.fillcolor, undefined, "a ring, which leaves its point to be seen");
   });
 
-  test("the run the pointer rests on is marked, on each of its points, and let go when it moves off", () => {
+  test("no ring for no run, or on a chart without the run; a point may hold its run with other words", () => {
+    assert.deepEqual(runRings([runs], null, COLOURS.warn), []);
+    assert.deepEqual(runRings([runs], 9, COLOURS.warn), []);
+    const [ring] = runRings([levels], 5, COLOURS.warn);
+    assert.deepEqual([ring.xanchor, ring.yanchor, ring.xref, ring.yref], [1, 9, "x2", "y"], "on the trace's own axes");
+  });
+
+  test("the traces of the runs are drawn as they are: a mark leaves them, and the pointer on them, alone", () => {
+    const [drawn] = pageData([runs]);
+    assert.equal(drawn, runs);
+  });
+
+  test("the run the pointer rests on is marked, and let go when it moves off", () => {
+    assert.equal(markedRun(), null);
     restOnRun(1);
     assert.equal(markedRun(), 1);
-    assert.deepEqual(pageData([runs], COLOURS)[0].selectedpoints, [1, 3]);
-    assert.equal(pageData([levels], COLOURS)[0].selectedpoints, null, "a chart without the run is left as it is");
     restOnRun(2);
-    assert.deepEqual(pageData([levels], COLOURS)[0].selectedpoints, [0], "a point that holds its run with other words");
     restOnRun(null);
     assert.equal(markedRun(), null);
     assert.deepEqual(heard, [1, 2, null], "the app hears each change, to mark the run's rows");

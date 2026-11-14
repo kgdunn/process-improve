@@ -4386,6 +4386,8 @@ async function drawCharts(request, mine, given = null) {
     if (levels) figures.levels = () => levelsFigure(levels, comparisonWords());
     const limits = { shaded: plots.shaded, held: plots.held, factors: state.design.spec.factors, starred };
     limits.chosen = Boolean(plots.contour_chosen);
+    // The bands around the lines of each factor's effect, which its caption says how to read: none without error left.
+    limits.banded = Boolean(figures.perturbation?.data.some((trace) => trace.meta === "interval"));
     const captions = plots.held_best ? { ...CAPTIONS, contour: bestContourCaption } : CAPTIONS;
     const captioned = (key) => {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];

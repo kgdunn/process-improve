@@ -1328,9 +1328,10 @@ export const CHARTS = {
     more: true,
     level: 2,
     term: "response_surface",
-    caption:
+    caption: (_, { banded = false } = {}) =>
       "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
-      "factor that matters; a bent one has an optimum inside its range.",
+      "factor that matters; a bent one has an optimum inside its range." +
+      (banded ? " The band around a line is how well the model knows it: a wide band is a line that could lie elsewhere." : ""),
   },
   main_effects: {
     title: "Average result at each setting",

@@ -15,12 +15,15 @@ from tests.web.e2e.test_figure_window import SHOWN
 #: The charts of the worked example that draw a point for each run.
 RUN_CHARTS = ["contour", "true_contour", "residuals", "normal_probability", "residuals_order"]
 
-#: The run each chart marks, by the chart's key: null for a chart that draws the runs and marks none.
+#: The run each chart marks, by the chart's key: null for a chart that draws the runs and marks none. A mark is a
+#: ring among the chart's shapes, around a point of its trace of the runs: the run is that point's.
 MARKS = """() => Object.fromEntries([...document.querySelectorAll('#charts figure.chart')].flatMap((card) => {
   const plot = card.querySelector('.plot');
   const runs = (plot.data ?? []).filter((trace) => trace.meta === 'runs');
   if (!runs.length) return [];
-  const marked = runs.flatMap((trace) => (trace.selectedpoints ?? []).map((i) => [trace.customdata[i]].flat()[0]));
+  const rings = (plot.layout.shapes ?? []).filter((shape) => shape.name === 'marked-run');
+  const marked = rings.flatMap((ring) => runs.flatMap((trace) => trace.customdata.filter((_, i) =>
+    trace.x[i] === ring.xanchor && trace.y[i] === ring.yanchor).map((held) => [held].flat()[0])));
   return [[card.dataset.chart, marked.length ? marked[0] : null]];
 }))"""
 
@@ -84,19 +87,43 @@ def test_each_chart_of_the_runs_marks_the_run_its_own_point_is(page, chart):
     assert marked_rows(page)["sheet"] == [str(run)]
 
 
-def test_the_marked_run_is_drawn_larger_in_the_warning_colour_and_the_others_fainter(page):
+def test_the_mark_is_a_ring_in_the_warning_colour_drawn_beside_the_chart_s_own_shapes(page):
+    """The ring is a shape of the chart, which leaves the points alone: restyling them would let go of the pointer."""
     open_more(page)
+    shapes = "(plot) => plot.layout.shapes.map((shape) => shape.name ?? shape.type)"
+    chart = page.locator("figure[data-chart=residuals_order] .plot")
+    own = chart.evaluate(shapes)
+    assert own == ["line"], "the line at zero"
     spot, _ = point(page, "normal_probability", 2)
     rest_on(page, spot)
     page.wait_for_function(MARKED)
-    styles = page.locator("figure[data-chart=residuals_order] .plot").evaluate(
-        """(plot) => {
-             const { selected, unselected, marker } = plot._fullData.find((trace) => trace.meta === 'runs');
-             return [selected.marker.color, selected.marker.size, marker.size, unselected.marker.opacity];
-           }"""
-    )
+    assert chart.evaluate(shapes) == [*own, "marked-run"]
+    ring = chart.evaluate("(plot) => plot.layout.shapes.at(-1)")
     warn = page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--warn').trim()")
-    assert styles == [warn, 13, 8, 0.55]
+    assert (ring["type"], ring["line"], ring["xsizemode"]) == ("circle", {"color": warn, "width": 3}, "pixel")
+    assert chart.locator(".shapelayer path, .shape-group path").count() >= 2, "drawn on the chart"
+
+    page.mouse.move(2, 2)
+    page.wait_for_function(LET_GO)
+    assert chart.evaluate(shapes) == own
+
+
+def test_resting_on_a_run_draws_no_chart_s_points_again(page):
+    """A mark that drew the points again made Plotly let go of the pointer and take it up, and chased itself."""
+    open_more(page)
+    page.evaluate(
+        """() => { window.__drawn = 0;
+          for (const plot of document.querySelectorAll('#charts .js-plotly-plot')) {
+            plot.on('plotly_restyle', () => window.__drawn++);
+            plot.on('plotly_hover', () => window.__drawn++);
+          } }"""
+    )
+    spot, run = point(page, "contour", 3)
+    rest_on(page, spot)
+    page.wait_for_function(MARKED)
+    page.wait_for_timeout(600)
+    assert page.evaluate("window.__drawn") == 1, "the pointer came to rest on the run once, and nothing was restyled"
+    assert marks(page) == dict.fromkeys(RUN_CHARTS, run)
 
 
 def test_a_press_keeps_the_run_marked_until_it_is_pressed_again(page):
@@ -187,7 +214,8 @@ def test_a_figure_s_window_shows_the_run_marked(page):
     page.wait_for_function(SHOWN)
     in_window = """(plot) => {
       const runs = plot.data.find((trace) => trace.meta === 'runs');
-      return runs.selectedpoints.map((i) => runs.customdata[i]);
+      return plot.layout.shapes.filter((shape) => shape.name === 'marked-run')
+        .map((ring) => runs.customdata[runs.x.indexOf(ring.xanchor)]);
     }"""
     assert page.locator("dialog.figure .plot").evaluate(in_window) == [run]
 

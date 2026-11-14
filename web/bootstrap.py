@@ -5281,16 +5281,69 @@ def _runs_on_surface(rows: list[dict], pair: list[str], order: list[int]) -> lis
     return [run for runs in places.values() for run in runs]
 
 
+#: How a figure's trace says it is part of an interval drawn around a line, and no line of the library's own.
+INTERVAL = "interval"
+
+#: The name, in a figure's legend, of the band drawn around each of its lines.
+INTERVAL_WORDS = "95% interval"
+
+
+def _seen_through(colour: str, alpha: float = 0.16) -> str:
+    """Return a colour as the fill of a band around a line of that colour: the same, seen through."""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", colour):
+        return f"rgba(128,128,128,{alpha})"
+    red, green, blue = (int(colour[at : at + 2], 16) for at in (1, 3, 5))
+    return f"rgba({red},{green},{blue},{alpha})"
+
+
+def _interval_bands(figure: dict, fitted: _FittedModel, transform: str | None) -> None:
+    """Draw the 95% confidence interval of each line of the chart of each factor's effect, as a band around it.
+
+    A line alone says where the model puts the response and not how well it knows it there. The band is the
+    interval of the prediction, from the fit's own covariance, put back in the response's units with the line;
+    each point of a line says its interval where the pointer rests on it. A fit that uses every run has no
+    estimate of the error, and its lines have no band.
+    """
+    lines = figure["data"]
+    bands = []
+    for line in lines:
+        predicted, half = fitted.along(line["name"], np.asarray(line["x"], dtype=float))
+        if half is None:
+            return
+        low, high = (_put_back((predicted + side * half).tolist(), transform) for side in (-1, 1))
+        edge = {"type": "scatter", "mode": "lines", "x": line["x"], "line": {"width": 0}, "meta": INTERVAL}
+        edge.update(showlegend=False, hoverinfo="skip", legendgroup=line["name"])
+        bands += [
+            {**edge, "y": low},
+            {**edge, "y": high, "fill": "tonexty", "fillcolor": _seen_through(line["line"]["color"])},
+        ]
+        line.update(
+            customdata=list(zip(low, high, strict=True)),
+            legendgroup=line["name"],
+            hovertemplate="%{y:.4g} (%{customdata[0]:.4g} to %{customdata[1]:.4g})",
+        )
+    key = {"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": INTERVAL_WORDS, "meta": INTERVAL}
+    key.update(line={"width": 10, "color": _seen_through("", 0.4)}, hoverinfo="skip")
+    figure["data"] = [*bands, *lines, key]
+    # Where the pointer rests is a coded setting, which the axis marks only at its ends and its middle.
+    figure["layout"]["xaxis"].update(
+        hoverformat="+.2f", unifiedhovertitle={"text": "At %{x:+.2f}, from -1 (low) to +1 (high)"}
+    )
+
+
 class _Figures:
     """The figures of one analysis, drawn with the library's plots from its runs (``rows``, in coded units).
 
-    ``order`` numbers each run by its place in the order the runs were made. ``drawn`` holds each figure by the
-    page's key for it, as JSON text for Plotly.js; ``asked`` holds what each asked the library for beyond the runs
-    and their analysis (see :data:`STATED_OPTIONS`), under its ``plot_type``.
+    ``order`` numbers each run by its place in the order the runs were made, and ``fitted`` is the fit the figures
+    are drawn from. ``drawn`` holds each figure by the page's key for it, as JSON text for Plotly.js; ``asked``
+    holds what each asked the library for beyond the runs and their analysis (see :data:`STATED_OPTIONS`), under
+    its ``plot_type``.
     """
 
-    def __init__(self, spec: dict, rows: list[dict], order: list[int], plotly: ModuleType) -> None:
-        self.spec, self.rows, self.order, self.plotly = spec, rows, order, plotly
+    def __init__(
+        self, spec: dict, rows: list[dict], order: list[int], plotly: ModuleType, fitted: _FittedModel
+    ) -> None:
+        self.spec, self.rows, self.order, self.plotly, self.fitted = spec, rows, order, plotly, fitted
         self.drawn: dict[str, str] = {}
         self.asked: dict[str, dict[str, Any]] = {}
 
@@ -5306,6 +5359,8 @@ class _Figures:
         )
         dressed = _dressed(figure.to_plotly(), kind, self.spec, options.get("factors_to_plot", []), scale)
         _name_runs(dressed, kind, results, self.order)
+        if kind == "perturbation":
+            _interval_bands(dressed, self.fitted, scale)
         if kind == "contour":
             runs = _runs_on_surface(self.rows, options["factors_to_plot"], self.order)
             for trace in dressed["data"]:
@@ -5374,7 +5429,7 @@ def plots(request: dict) -> dict:
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    figures = _Figures(spec, rows, order, plotly)
+    figures = _Figures(spec, rows, order, plotly, _FittedModel(fit, coded, columns))
     draw = figures.draw
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
@@ -7397,6 +7452,19 @@ class _FittedModel:
         mean = self.t * math.sqrt(self.mse * leverage)
         single = self.t * math.sqrt(self.mse * (1 + leverage))
         return predicted, [predicted - mean, predicted + mean], [predicted - single, predicted + single], leverage
+
+    def along(self, name: str, settings: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
+        """Return the prediction as one column moves over ``settings``, and half the width of its confidence interval.
+
+        Every other column is at 0: a factor at its center, a factor of several levels at its average level. The
+        half-width is None without residual degrees of freedom, which leave no estimate of the error.
+        """
+        frame = pd.DataFrame(0.0, index=range(len(settings)), columns=self.names)
+        frame[name] = settings
+        x = _model_matrix(frame, self.terms, self.names)
+        if self.mse is None or self.t is None:
+            return x @ self.beta, None
+        return x @ self.beta, self.t * np.sqrt(self.mse * np.einsum("ij,jk,ik->i", x, self.inverse, x))
 
     def average_of(self, point: dict[str, float], runs: int) -> list[float] | None:
         """Return the prediction interval for the average of ``runs`` new runs at a point; None without error left."""

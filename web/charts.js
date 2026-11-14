@@ -169,6 +169,11 @@ const BAR = 64;
 // A trace that draws a point for each run says so (meta "runs") and holds each point's run in its customdata: the
 // library's plots of the residuals and of the runs on a response surface (bootstrap.py), and the page's own chart of
 // the runs at each level. The run the pointer rests on is marked on every such chart; a press keeps it marked.
+//
+// The mark is a ring around the run's point, drawn as a shape of the chart's layout. Restyling the points
+// themselves would draw the chart's traces again, which makes Plotly let go of the point under the pointer and
+// take it up again: each of those is the pointer leaving a run and resting on it, as far as a listener can tell,
+// and the mark would chase itself. A shape is drawn over the traces and leaves them, and the pointer, alone.
 let marked = null; // the run marked now, by its place in the order the runs were made
 let pinned = false; // whether a press marked it: it then stays when the pointer moves off
 
@@ -182,23 +187,50 @@ export const onRunMarked = (heard) => (onMark = heard);
 const drawsRuns = (trace) => trace.meta === "runs";
 const runAt = (held) => (Array.isArray(held) ? held[0] : held);
 
-/** The points of a trace that are the marked run's: null for none, which leaves the trace as it is drawn. */
-function markedPoints(trace) {
-  const points = (trace.customdata ?? []).flatMap((held, i) => (runAt(held) === marked ? [i] : []));
-  return marked === null || !points.length ? null : points;
+/** How the ring of a marked run is named among a chart's shapes, and its radius in pixels: a point's is 4. */
+export const RUN_RING = "marked-run";
+const RING_RADIUS = 9;
+
+/**
+ * The rings that mark ``run`` on a chart with these traces, in ``colour``: one around each point that is the
+ * run's, a fixed size on the screen whatever the chart's axes. None for no run, or for a chart without the run.
+ */
+export function runRings(data, run, colour) {
+  if (run === null) return [];
+  return data.filter(drawsRuns).flatMap((trace) =>
+    (trace.customdata ?? []).flatMap((held, i) => {
+      if (runAt(held) !== run) return [];
+      const ring = { type: "circle", name: RUN_RING, xref: trace.xaxis ?? "x", yref: trace.yaxis ?? "y", layer: "above" };
+      const size = { xsizemode: "pixel", ysizemode: "pixel", x0: -RING_RADIUS, x1: RING_RADIUS, y0: -RING_RADIUS, y1: RING_RADIUS };
+      return [{ ...ring, ...size, xanchor: trace.x[i], yanchor: trace.y[i], line: { color: colour, width: 3 } }];
+    }),
+  );
 }
 
-/** Mark ``run`` on every chart and tell the app, unless it is marked already. */
+/** Draw the marked run's rings on every chart of the runs, in place of the rings before. */
+function drawRings() {
+  for (const [div, shown] of drawn) {
+    if (div.isConnected && div.data?.some(drawsRuns)) {
+      const shapes = [...shown.shapes, ...runRings(div.data, marked, palette().warn)];
+      Promise.resolve(window.Plotly.relayout(div, { shapes })).catch(() => {}); // a chart taken down meanwhile
+    }
+  }
+}
+
+/**
+ * Mark ``run`` on every chart and tell the app, unless it is marked already. The app hears at once. The charts
+ * are drawn a moment later, and once for a pointer that crosses several runs on its way: a chart drawn while
+ * Plotly is still handling the press that marked the run, which a browser plays a second time as a mouse's after a
+ * tap, is drawn in the middle of Plotly's own work on it.
+ */
+const RINGS_AFTER = 40; // milliseconds
+let rings = null;
 function mark(run) {
   if (run === marked) return;
   marked = run;
-  for (const [div] of drawn) {
-    const traces = (div.data ?? []).flatMap((trace, i) => (drawsRuns(trace) ? [i] : []));
-    if (div.isConnected && traces.length) {
-      window.Plotly.restyle(div, { selectedpoints: traces.map((i) => markedPoints(div.data[i])) }, traces);
-    }
-  }
   onMark(marked);
+  clearTimeout(rings);
+  rings = setTimeout(drawRings, RINGS_AFTER);
 }
 
 /** The pointer rests on ``run``, or on none (null): marked while it does, unless a press holds another. */
@@ -232,23 +264,12 @@ function listenForRuns(div) {
 let lastPress = { run: null, at: 0 };
 
 /**
- * A figure's traces as the page draws them, in ``colours``. A colour bar is narrow, with its title along its
- * side: Plotly's own is wide, with its title on top, and takes a third of a card's width from the plot. A trace
- * of the runs shows the marked run larger and in the page's warning colour, and the others fainter.
+ * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
+ * is wide, with its title on top, and takes a third of a card's width from the plot.
  */
-export function pageData(data, colours = {}) {
+export function pageData(data) {
   const slim = (bar = {}) => ({ thickness: 12, outlinewidth: 0, ...bar, title: { side: "right", ...(bar.title || {}) } });
-  return data.map((trace) => {
-    if (hasBar(trace)) return { ...trace, colorbar: slim(trace.colorbar) };
-    if (!drawsRuns(trace)) return trace;
-    const size = (trace.marker?.size ?? 8) + 5;
-    return {
-      ...trace,
-      selectedpoints: markedPoints(trace),
-      selected: { marker: { color: colours.warn, size, opacity: 1 } },
-      unselected: { marker: { opacity: 0.55 } },
-    };
-  });
+  return data.map((trace) => (hasBar(trace) ? { ...trace, colorbar: slim(trace.colorbar) } : trace));
 }
 
 /**
@@ -257,9 +278,11 @@ export function pageData(data, colours = {}) {
  */
 function dressed(shown, height, colours, width) {
   const figure = shown.make();
-  const data = pageData(figure.data, colours);
+  const data = pageData(figure.data);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
-  return { data, layout: pageLayout(figure.layout || {}, height, colours, room) };
+  const layout = pageLayout(figure.layout || {}, height, colours, room);
+  shown.shapes = layout.shapes ?? []; // the figure's own, which the ring of a marked run is drawn after
+  return { data, layout: { ...layout, shapes: [...shown.shapes, ...runRings(data, marked, colours.warn)] } };
 }
 
 /**

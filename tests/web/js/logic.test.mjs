@@ -535,6 +535,8 @@ describe("words and numbers", () => {
       assert.match(caption, /\.$/, `${key} has a caption`);
     }
     assert.match(CAPTIONS.interaction(["T", "P"]), /the effect of P depends on T/);
+    assert.match(CAPTIONS.perturbation([], { banded: true }), /inside its range\. The band around a line is how well the model knows it/);
+    assert.match(CAPTIONS.perturbation([]), /inside its range\.$/, "a fit with no error left draws no band, and says nothing of one");
   });
 
   test("a mixture's captions say what the star marks once the best blend is found", () => {
