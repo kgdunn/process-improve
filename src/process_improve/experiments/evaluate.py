@@ -2449,7 +2449,13 @@ def evaluate_design(  # noqa: PLR0913
         Results keyed by metric name.  The structure of each value depends
         on the metric - see individual metric documentation.  A metric that
         needs to explain its result (for example a rank-deficient model) adds
-        its note to ``result["notes"][metric_name]``.
+        its note to ``result["notes"][metric_name]``.  When the region's
+        constraints leave model columns that no design over it can estimate
+        (a combination of levels the rules do not allow, two factors that a
+        ``count_nonzero`` rule keeps from being used together, a group of
+        mixture components held to a fixed total), the metrics are for the
+        model without those columns, and
+        ``result["notes"]["inestimable_columns"]`` names them.
 
     Raises
     ------
