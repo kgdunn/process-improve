@@ -171,6 +171,8 @@ def _cleared_ratio(expression: str, factors: list[Factor]) -> str | None:
     names = [f.name for f in factors]
     compare = cast("ast.Compare", ast.parse(expression, mode="eval").body)  # parse_constraint has accepted it
     sides = [compare.left, *compare.comparators]
+    # shortcut: the division must be a whole side of the comparison, so "A / B * 2 <= 5" is refused as not linear;
+    # collect the divisions inside a side too once someone writes a ratio that way.
     denominators = {ast.unparse(side.right): side.right for side in sides if _is_ratio(side)}
     if len(denominators) != 1:
         return None

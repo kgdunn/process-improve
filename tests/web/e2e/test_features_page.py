@@ -95,7 +95,8 @@ def test_on_a_phone_the_footer_and_the_list_fit_the_screen(page, context, site):
     assert overflowing(listed) == []
     listed.evaluate("() => document.querySelectorAll('details').forEach((fold) => { fold.open = true; })")
     assert overflowing(listed) == [], "with every part and every line of details open too"
-    assert listed.locator("#features .scroll table").count() == 1, "the limits, in a box that scrolls if it must"
+    tables = listed.locator("#features .scroll table")
+    assert tables.count() == 2, "the limits and the library's designs, each in a box that scrolls if it must"
     level = listed.locator("#level label").evaluate_all("(labels) => labels.map((l) => l.getBoundingClientRect().top)")
     assert len(set(level)) == 1, "the three levels on one line"
 

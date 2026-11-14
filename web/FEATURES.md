@@ -12,7 +12,8 @@ rules keep it true:
 - A change to the app that a reader of the app would notice changes this document in the same
   pull request ([`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)).
 - [`tests/web/page/test_features.py`](../tests/web/page/test_features.py) fails when a design,
-  a chart, a process to practise on, a limit or a count below is not what the app has.
+  a chart, a process to practise on, a limit or a count below is not what the app has, or
+  when a design the library makes is not listed beside what the app takes for it.
 
 The app's own page, [features.html](features.html), shows this document to its readers, so it
 is written for them:
@@ -596,6 +597,65 @@ What a careful reader, or an organisation, asks before using a tool.
 The first visit takes longest, as Python and its packages are fetched. In Chromium the app
 was ready in about 11 seconds on a first visit and about 8 seconds after (Nov 2026).
 
+### More in the Python library
+
+*The limits above are the app's own. The library it runs has more designs and analyses.*
+
+Factorial is one way to use `process-improve`, the Python library that it runs in your
+browser. The app keeps a study small enough for a web page to stay quick, so its limits are
+not the library's. An optimal design takes up to 8 factors in the app. In Python, with
+`pip install process-improve`, it takes as many as its runs can estimate.
+
+Each design the library makes, by the name its `generate_design` takes, and what the app
+takes for it:
+
+| Design in the library | In the app |
+|---|---|
+| `full_factorial` | 1 to 7 factors |
+| `fractional_factorial` | 3 to 24 factors |
+| `plackett_burman` | 2 to 40 factors |
+| `box_behnken` | 3 to 7 factors |
+| `ccd` | 2 to 7 factors |
+| `dsd` | 3 to 40 factors |
+| `omars` | 3 to 5 factors |
+| `omars_ilp` | Not in the app |
+| `d_optimal` | 2 to 8 factors |
+| `i_optimal` | 2 to 6 factors |
+| `a_optimal` | 2 to 6 factors |
+| `e_optimal` | Not in the app |
+| `g_optimal` | Not in the app |
+| `k_optimal` | Not in the app |
+| `mixture` | 3 to 6 components |
+| `taguchi` | 2 to 40 factors |
+| `supersaturated` | Not in the app |
+| `latin_hypercube` | Not in the app |
+| `maximin_lhs` | 2 to 8 factors |
+| `uniform` | Not in the app |
+| `sobol` | 2 to 8 factors |
+| `halton` | Not in the app |
+| `maximin` | Not in the app |
+| `maxpro` | Not in the app |
+
+The library also does what the app leaves out:
+
+- **Factors that are hard to change.** A design that sets such a factor once for a group of
+  runs, and the analysis that those runs need.
+  - *Details:* A split-plot or strip-plot design from `generate_design` with
+    `hard_to_change`, analysed by `analyze_experiment` with `analysis_type="split_plot"`.
+- **Results that are counts, or pass and fail.** A model made for such results. The app
+  treats every result as a measured amount.
+  - *Details:* A generalized linear model: `analysis_type="glm"`, for a Poisson, binomial or
+    gamma response.
+- **Recipes with process settings.** The parts of a recipe beside factors such as a
+  temperature, in one design, and a recipe of more than 6 parts.
+  - *Details:* Mixture components and process factors given to `generate_design` together.
+- **Sources of variation.** How much of the spread in a result comes from the batch, the
+  operator or the measurement.
+  - *Details:* `variance_components`, and `multistratum_anova` for runs made in groups.
+- **Experiments on a computer model.** A fit that passes through every run, for a simulation
+  that gives the same answer each time.
+  - *Details:* A Gaussian process: `fit_gaussian_process`.
+
 ### What it does not do
 
 *Said plainly, so that nobody has to find out.*
@@ -605,7 +665,8 @@ The app does not have these, so do not describe it as having them.
 - Accounts, sign-in, shared workspaces, or a record of who changed what. There is no server
   to hold them.
 - Split-plot designs for hard-to-change factors, and supersaturated designs
-  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)).
+  ([#1225](https://github.com/kgdunn/process-improve/issues/1225)). The library makes both:
+  see [More in the Python library](#more-in-the-python-library).
 - An assistant that turns a typed description into a brief
   ([#1224](https://github.com/kgdunn/process-improve/issues/1224)).
 - A guided plan for a whole campaign of studies

@@ -3,7 +3,8 @@
 Most of the document is prose, kept true by review: a change to the app a reader would notice changes it in the
 same pull request (``CONTRIBUTING.md``, "The browser app is tested"). What can be counted is checked here: a
 design, a chart or a process to practise on that the document leaves out, and a limit or a count it states that
-is no longer the app's.
+is no longer the app's. One part sets the library beside the app, so that the app's limits are not read as
+the library's: its table is checked against the tools the library registers.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 import json
 import re
 
+from process_improve import experiments
+from process_improve.tool_spec import get_tool_specs
 from tests.web._support import APP_SOURCES, javascript, page, source
 
 FEATURES = source("FEATURES.md")
@@ -35,6 +38,22 @@ LIMITS = {
     "Runs at each level of a one-factor study": lambda app: app.MAX_LEVEL_RUNS,
     "Points along a curve": lambda app: app.MAX_CURVE_POINTS,
     "Components of a mixture": lambda app: max(info["max_factors"] for info in app.MIXTURES.values()),
+}
+
+
+#: The part of the document that sets the library beside the app.
+LIBRARY = "### More in the Python library"
+
+#: Each point of that part on what the library does and the app does not, and the names its details give.
+#: A name is the library's while a registered tool or ``process_improve.experiments`` holds it, and the app is
+#: without it while ``web/bootstrap.py`` never writes it. The app's refusal of a process factor beside a
+#: mixture's components, which has no name of its own, is in ``tests/web/api/test_errors.py``.
+ONLY_IN_THE_LIBRARY = {
+    "Factors that are hard to change.": ("hard_to_change", "split_plot"),
+    "Results that are counts, or pass and fail.": ("glm",),
+    "Recipes with process settings.": (),
+    "Sources of variation.": ("variance_components", "multistratum_anova"),
+    "Experiments on a computer model.": ("fit_gaussian_process",),
 }
 
 
@@ -112,6 +131,49 @@ def test_the_limits_are_the_app_s(bootstrap):
     assert list(stated) == list(LIMITS), "a row the document adds or drops is added to LIMITS, or dropped from it"
     for what, most in LIMITS.items():
         assert int(stated[what].replace(",", "")) == most(bootstrap), what
+
+
+def test_each_design_the_library_makes_is_listed_beside_what_the_app_takes_for_it(bootstrap):
+    """The library's designs are those its ``generate_design`` tool names: a new one fails here until it is listed."""
+    (tool,) = (spec for spec in get_tool_specs() if spec["name"] == "generate_design")
+    (named,) = (
+        choice["enum"] for choice in tool["input_schema"]["properties"]["design_type"]["anyOf"] if "enum" in choice
+    )
+    assert set(bootstrap.DESIGNS) <= set(named), "the app makes each of its designs by the library's name for it"
+    made = {design: [info] for design, info in bootstrap.DESIGNS.items()}
+    made[bootstrap.MIXTURE] = list(
+        bootstrap.MIXTURES.values()
+    )  # the app's three mixture designs are one to the library
+
+    def in_the_app(design: str) -> str:
+        if design not in made:
+            return "Not in the app"
+        low = min(info["min_factors"] for info in made[design])
+        high = max(info["max_factors"] for info in made[design])
+        return f"{low} to {high} {'components' if design == bootstrap.MIXTURE else 'factors'}"
+
+    assert table(LIBRARY) == {f"`{design}`": in_the_app(design) for design in named}
+
+
+def test_what_the_library_alone_does_is_the_library_s_and_is_not_in_the_app(bootstrap):
+    part, tools, app = under(LIBRARY), json.dumps(get_tool_specs()), source("bootstrap.py")
+    said = [re.match(r"\*\*(.+?)\*\*", point).group(1) for point in points(LIBRARY)]
+    assert said == list(ONLY_IN_THE_LIBRARY), "a point the document adds or drops is added here, or dropped"
+    for name in (name for names in ONLY_IN_THE_LIBRARY.values() for name in names):
+        assert re.search(rf"`[^`]*\b{name}\b[^`]*`", part), f"{name}: named in the document, in code"
+        assert name in tools or hasattr(experiments, name), f"{name}: the library's"
+        assert name not in app, f"{name}: the app writes it now, so it is no longer the library's alone"
+
+
+def test_the_library_makes_an_optimal_design_in_more_factors_than_the_app_takes(bootstrap):
+    """The document's own example of a limit that is the app's, set by the time a search takes in a browser."""
+    most = bootstrap.DESIGNS["d_optimal"]["max_factors"]
+    assert f"An optimal design takes up to {most} factors in the app." in TEXT
+    factors = [experiments.Factor(name=f"x{i}", low=0, high=1) for i in range(most + 1)]
+    design = experiments.generate_design(
+        factors, design_type="d_optimal", model_type="main_effects", budget=most + 4, random_state=1
+    )
+    assert design.design[[f.name for f in factors]].shape == (most + 4, most + 1)
 
 
 def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstrap, node):
