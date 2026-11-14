@@ -226,6 +226,53 @@ describe("one of the app's own files", () => {
   });
 });
 
+describe("a page asked for with no network that the copy does not hold", () => {
+  const CATALOG = `${SCOPE}catalog/?q=dsd`;
+
+  test("says that it needs a network, with the way back to the app", async () => {
+    const { fetched, network } = await running();
+    await fetched(SCOPE, { mode: "navigate" }); // the app's own page, kept
+    network.down = true;
+    const { got } = await fetched(CATALOG, { mode: "navigate" });
+    assert.equal(got.status, 503);
+    assert.match(got.headers.get("Content-Type"), /^text\/html/);
+    const said = await got.text();
+    assert.match(said, /<h1>This page needs a network<\/h1>/);
+    assert.ok(said.includes(`<a href="${SCOPE}">Back to Factorial</a>`));
+  });
+
+  test("is served as any page is, once a visit with a network has opened it", async () => {
+    const { fetched, network } = await running({ [SCOPE]: "the page", [`${SCOPE}catalog/`]: "the catalog" });
+    await fetched(SCOPE, { mode: "navigate" });
+    await fetched(CATALOG, { mode: "navigate" });
+    network.down = true;
+    assert.equal((await fetched(`${SCOPE}catalog/`, { mode: "navigate" })).got.body, "the catalog");
+  });
+
+  test("is a page only: a file the copy lacks fails as it would without the worker", async () => {
+    const { fetched, network } = await running();
+    await fetched(SCOPE, { mode: "navigate" });
+    network.down = true;
+    assert.match((await fetched(`${SCOPE}catalog/index.json`)).error.message, /Failed to fetch/);
+  });
+
+  test("fails as it would without the worker when the copy does not hold the app's page to go back to", async () => {
+    const { fetched, network } = await running();
+    network.down = true;
+    assert.match((await fetched(CATALOG, { mode: "navigate" })).error.message, /Failed to fetch/);
+    assert.match((await fetched(SCOPE, { mode: "navigate" })).error.message, /Failed to fetch/, "nor the app's own page");
+  });
+
+  test("fails the same way once the copy is removed, and brings no copy back", async () => {
+    const { fetched, network, caches } = await running();
+    await fetched(SCOPE, { mode: "navigate" });
+    for (const name of [MADE, KEPT, APP]) await caches.delete(name);
+    network.down = true;
+    assert.match((await fetched(CATALOG, { mode: "navigate" })).error.message, /Failed to fetch/);
+    assert.deepEqual(await caches.keys(), []);
+  });
+});
+
 describe("a request the worker leaves alone", () => {
   test("is not answered by it: a report sent, another site's file, and the feedback relay", async () => {
     const { fetched, network } = await running();

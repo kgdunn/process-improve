@@ -102,6 +102,13 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         listed = context.new_page()  # what Factorial does: a page of the app, and the document it reads, from the copy
         listed.goto(f"{app_url}features.html")
         listed.wait_for_selector("#features h2")
+        listed.goto(f"{app_url}about.html")  # how Factorial works, which reads the versions from files the copy holds
+        listed.wait_for_function("document.querySelector('#stack-pyodide').textContent.startsWith('Pyodide ')")
+        answer = listed.goto(f"{app_url}catalog/")  # a page no visit has opened: the worker says it is not in the copy
+        assert answer.status == 503
+        assert listed.text_content("h1") == "This page needs a network"
+        listed.click("text=Back to Factorial")
+        listed.wait_for_url(app_url)
         listed.close()
         assert not console.unexpected(), console.unexpected()
 

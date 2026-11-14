@@ -8,6 +8,7 @@
 //   app's wheel and its own Python in their folder named by digest, Plotly.js, and PyPI's files.
 // - The app's own files, and PyPI's index pages, come from the network whenever it answers, and the copy is the
 //   last one it gave: a deploy reaches a reader at their next visit with a network, as it does without this worker.
+//   A page asked for with no network that the copy does not hold is answered with a few words and the way back.
 // - Any other request, and any that is not a GET, is left alone: the feedback form's among them.
 //
 // What the copy holds is the page's business (offline.js): it makes the copy, drops what earlier builds left in
@@ -95,6 +96,23 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
     return response;
   }
 
+  /**
+   * What a reader is told of a page asked for with no network that the copy does not hold: the design catalog or
+   * the concept map, say, which are kept once a visit with a network has opened them. It names the way back to
+   * the app, where the browser's own page for a site it cannot reach names none.
+   */
+  const needsNetwork = () =>
+    new Response(
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><title>This page needs a network</title>' +
+        "<style>:root{color-scheme:light dark}body{font:1rem/1.5 system-ui,sans-serif;max-width:34rem;margin:15vh auto;" +
+        "padding:0 1rem}</style></head><body><h1>This page needs a network</h1>" +
+        "<p>Factorial opens on this device without a network, from a copy of it kept here. This page is not in the " +
+        "copy yet: it is kept once it has been opened with a network.</p>" +
+        `<p><a href="${scope}">Back to Factorial</a></p></body></html>`,
+      { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+    );
+
   /** One of the app's own files: the network's whenever it answers, kept for when it does not. */
   async function fresh(request, event) {
     let response;
@@ -103,6 +121,9 @@ if (typeof ServiceWorkerGlobalScope !== "undefined") {
     } catch (offline) {
       const copy = await held(APP, request);
       if (copy) return copy;
+      // A page the copy lacks says so, while the copy holds the app's own page for the reader to go back to.
+      const page = request.mode === "navigate" && address(request) !== scope;
+      if (page && (await held(APP, { mode: "navigate", url: scope }))) return needsNetwork();
       throw offline;
     }
     if (whole(response)) event.waitUntil(keep(APP, address(request), response.clone()));

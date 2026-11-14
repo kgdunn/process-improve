@@ -88,7 +88,7 @@ export function serviceWorker(file, { caches, network, scope }) {
     skipWaiting: () => (self.skipped = true),
     addEventListener: (type, listener) => (listeners[type] = listener),
   };
-  const globals = { self, caches, fetch: network.fetch, URL, ServiceWorkerGlobalScope: class {} };
+  const globals = { self, caches, fetch: network.fetch, URL, Response, ServiceWorkerGlobalScope: class {} };
   vm.runInNewContext(fs.readFileSync(file, "utf8"), globals);
   const fire = async (type, event = {}) => {
     const waits = [];
