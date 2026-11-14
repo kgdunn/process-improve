@@ -350,6 +350,7 @@ def test_a_chart_with_no_card_has_the_button_above_it(page):
     button.click()
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "Which terms these runs tell apart"
+    assert page.is_hidden("dialog.figure .figure__steps"), "the one chart on show: there is none to step to"
 
 
 def test_a_figure_s_window_shows_the_python_that_draws_it(page):
@@ -391,3 +392,92 @@ def test_a_figure_the_page_draws_itself_shows_no_python(page):
     page.keyboard.press("Escape")
     expand(page, "true_contour")
     assert page.locator("dialog.figure details.python").is_hidden(), "drawn from the simulation, not from the results"
+
+
+def place(page) -> list[str]:
+    """Return the window's heading and where its figure is among those beside it."""
+    return [page.text_content("#figure-title"), page.text_content("dialog.figure [data-part=place]")]
+
+
+def test_the_window_steps_through_the_figures_beside_the_one_opened(page):
+    """A reader looks at each figure large without closing the window between them: by its arrows, or the keys."""
+    expand(page, "contour")
+    assert place(page) == ["Fitted response surface", "2 of 5"], "the charts on show: More charts is shut"
+    page.click("dialog.figure [data-do=after]")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["True response surface", "3 of 5"]
+    assert page.locator("dialog.figure .figure__caption").text_content().startswith("The process the results were")
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('Residuals')")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["Residuals against fitted values", "4 of 5"]
+    assert page.locator("dialog.figure .plot").evaluate("(plot) => plot.data[0].name") == "Residuals"
+
+    page.click("dialog.figure [data-do=after]")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["How tightly to hold each factor", "5 of 5"], "the chart of the best settings, further down"
+    page.click("dialog.figure [data-do=after]")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["Coefficients", "1 of 5"], "after the last, the first"
+    assert page.locator("dialog.figure details.python").is_hidden(), "the page's own figure: no code of the library's"
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('How tightly')")
+    assert place(page)[1] == "5 of 5"
+
+
+def test_the_window_steps_through_the_further_charts_once_they_are_open(page):
+    open_more(page)
+    expand(page, "residuals")
+    assert place(page) == ["Residuals against fitted values", "4 of 13"]
+    page.click("dialog.figure [data-do=after]")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["Each factor's effect on the prediction", "5 of 13"]
+
+
+def test_the_arrow_keys_on_the_corner_resize_the_figure_and_do_not_step(page):
+    expand(page, "contour")
+    page.focus("dialog.figure .figure__grip")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function(SHOWN)
+    assert place(page) == ["Fitted response surface", "2 of 5"]
+
+
+def test_the_shape_a_reader_gave_a_figure_is_kept_for_the_next_visit(page):
+    expand(page, "contour")
+    page.click("dialog.figure [data-shape='16:9']")
+    page.wait_for_function(SHOWN)
+    page.reload()
+    first_paint_done(page)
+    expand(page, "residuals")
+    assert pressed(page) == ["16:9"]
+
+    grip = page.locator("dialog.figure .figure__grip").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(grip["x"] - 80, grip["y"] - 60, steps=4)
+    page.mouse.up()
+    page.wait_for_function(SHOWN)
+    dragged = frame(page)
+    page.reload()
+    first_paint_done(page)
+    expand(page, "contour")
+    assert pressed(page) == []
+    assert frame(page) == dragged, "a size of the reader's own, too"
+
+
+def test_a_figure_saved_from_a_dark_page_has_the_light_theme_s_marks(page, tmp_path):
+    """The page's own figures read the page's colours as they are made: an image on white is made in the light ones."""
+    page.emulate_media(color_scheme="dark")
+    dark, light = "rgb(127, 176, 234)", "rgb(44, 95, 124)"  # the accent of each theme (style.css)
+    page.wait_for_function(  # the page's chart, drawn again in the dark theme's accent
+        "(dark) => document.querySelector('#charts .chart.wide .plot').data.some((t) => t.marker?.color === dark)",
+        arg="#7fb0ea",
+    )
+    page.click("figure[data-chart=coefficients] .expand")
+    page.wait_for_function(SHOWN)
+    with page.expect_download() as svg:
+        page.click("dialog.figure [data-do=svg]")
+    svg.value.save_as(tmp_path / "figure.svg")
+    drawing = (tmp_path / "figure.svg").read_text(encoding="utf-8")
+    assert light in drawing
+    assert dark not in drawing

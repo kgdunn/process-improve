@@ -268,6 +268,14 @@ When you change the app, the tests move with it:
   printed in the book, so keep it once published: the book checks every name it uses
   against `book/index.json` on factori.al.
 
+The app is described from one document, [`web/FEATURES.md`](web/FEATURES.md): what it does
+today, grouped by kind. A change a reader of the app would notice (a design, a chart, a
+calculation, a control, a file it reads or writes, a limit: added, changed or taken away)
+changes that document in the same pull request, and nothing planned goes in it.
+`tests/web/page/test_features.py` fails while a design, a chart, a process to practise on, a
+limit or a count the document states is not the app's. The rest is prose, which a reviewer
+reads against the change.
+
 The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
 start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode
 already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,

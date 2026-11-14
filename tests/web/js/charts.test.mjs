@@ -17,12 +17,17 @@ import {
   boundaryDrawn,
   blendOverlayFigure,
   boundaryName,
+  contourLabels,
   overlayFigure,
   withAlpha,
   PALE,
   SIGN_COLOURS,
   TRUE_MARKER,
   SURFACE,
+  DEEP,
+  isDark,
+  lightness,
+  rampFor,
   coefficientFigure,
   correlationFigure,
   coxFigure,
@@ -31,8 +36,14 @@ import {
   fdsFigure,
   markBest,
   niceStep,
+  markedRun,
+  onRunMarked,
   pageData,
   pageLayout,
+  pressRun,
+  restOnRun,
+  runRings,
+  RUN_RING,
   paretoFigure,
   prettyTerm,
   sensitivityFigure,
@@ -324,6 +335,63 @@ describe("a card's layout", () => {
   });
 });
 
+describe("one run, marked wherever it is drawn", () => {
+  const runs = { type: "scatter", mode: "markers", meta: "runs", customdata: [3, 1, 2, 1], x: [10, 20, 30, 40], y: [0.1, 0.2, 0.3, 0.4] };
+  const levels = { type: "scatter", meta: "runs", customdata: [[2, "Low"], [5, "High"]], x: [0, 1], y: [7, 9], xaxis: "x2" };
+  const heard = [];
+  onRunMarked((run) => heard.push(run));
+
+  test("a ring around each point that is the run's, a fixed size on the screen, in the colour given", () => {
+    const rings = runRings([runs, { type: "scatter", customdata: [1], x: [5], y: [5] }], 1, COLOURS.warn);
+    assert.deepEqual(rings.map((ring) => [ring.xanchor, ring.yanchor]), [[20, 0.2], [40, 0.4]], "not of a trace that draws no runs");
+    const [ring] = rings;
+    assert.deepEqual([ring.type, ring.name, ring.xsizemode, ring.ysizemode], ["circle", RUN_RING, "pixel", "pixel"]);
+    assert.deepEqual([ring.x0, ring.x1, ring.y0, ring.y1], [-9, 9, -9, 9]);
+    assert.deepEqual(ring.line, { color: COLOURS.warn, width: 3 });
+    assert.equal(ring.fillcolor, undefined, "a ring, which leaves its point to be seen");
+  });
+
+  test("no ring for no run, or on a chart without the run; a point may hold its run with other words", () => {
+    assert.deepEqual(runRings([runs], null, COLOURS.warn), []);
+    assert.deepEqual(runRings([runs], 9, COLOURS.warn), []);
+    const [ring] = runRings([levels], 5, COLOURS.warn);
+    assert.deepEqual([ring.xanchor, ring.yanchor, ring.xref, ring.yref], [1, 9, "x2", "y"], "on the trace's own axes");
+  });
+
+  test("the traces of the runs are drawn as they are: a mark leaves them, and the pointer on them, alone", () => {
+    const [drawn] = pageData([runs]);
+    assert.equal(drawn, runs);
+  });
+
+  test("the run the pointer rests on is marked, and let go when it moves off", () => {
+    assert.equal(markedRun(), null);
+    restOnRun(1);
+    assert.equal(markedRun(), 1);
+    restOnRun(2);
+    restOnRun(null);
+    assert.equal(markedRun(), null);
+    assert.deepEqual(heard, [1, 2, null], "the app hears each change, to mark the run's rows");
+  });
+
+  test("a press keeps a run marked while the pointer rests elsewhere, until it is pressed again", () => {
+    heard.length = 0;
+    pressRun(3);
+    restOnRun(1);
+    restOnRun(null);
+    assert.equal(markedRun(), 3);
+    pressRun(2);
+    assert.equal(markedRun(), 2, "a press on another run marks that one");
+    pressRun(2);
+    assert.equal(markedRun(), null);
+    restOnRun(1);
+    assert.equal(markedRun(), 1, "and the pointer marks again");
+    pressRun(1);
+    pressRun(null);
+    assert.equal(markedRun(), null, "Escape lets go of a run a press marked");
+    assert.deepEqual(heard, [3, 2, null, 1, null], "the app hears a change once");
+  });
+});
+
 describe("an axis title wrapped to its room", () => {
   test("broken at its spaces, into as few lines as fit", () => {
     assert.equal(wrapped("Yield (%)", 300), "Yield (%)");
@@ -353,6 +421,90 @@ describe("a figure's traces, as the page draws them", () => {
     const [first, second] = pageData([hidden, line]);
     assert.equal(first, hidden);
     assert.equal(second, line);
+  });
+});
+
+describe("a surface's colours, on a light page and on a dark one", () => {
+  const DARK = { ...LIGHT, fg: "#e8e8e6", panel: "#1c1e21" };
+  // The contrast of two colours as WCAG measures it, from each one's luminance: 1 for the same colour, 21 at most.
+  const linear = (part) => (part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
+  const luminance = (hex) => [0.2126, 0.7152, 0.0722].reduce((sum, w, i) => sum + w * linear(parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255), 0);
+  const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+  const bands = { type: "contour", z: [[1]], colorscale: SURFACE.map(([at, hex]) => [at, hex]), contours: { showlabels: true } };
+
+  test("a page is dark when its text is the light part of it", () => {
+    assert.equal(lightness("#000000"), 0);
+    assert.equal(lightness("#ffffff"), 1);
+    assert.equal(lightness("#fff"), 1, "a colour of three digits");
+    assert.equal(isDark(LIGHT), false);
+    assert.equal(isDark(DARK), true);
+    assert.equal(isDark(COLOURS), false);
+  });
+
+  test("each ramp starts as near nothing as its page: low is light on a light page, and dark on a dark one", () => {
+    const steps = (ramp) => ramp.map(([, hex]) => lightness(hex));
+    const falls = steps(SURFACE).every((light, i, all) => i === 0 || light < all[i - 1]);
+    const rises = steps(DEEP).every((light, i, all) => i === 0 || light > all[i - 1]);
+    assert.ok(falls && rises, "one way all along, so that an order of colours is an order of values");
+    assert.deepEqual(DEEP.map(([at]) => at), SURFACE.map(([at]) => at));
+    assert.ok(contrast(SURFACE[0][1], LIGHT.panel) < 1.15);
+    assert.ok(contrast(DEEP[0][1], DARK.panel) < 1.15, "no glare where the response is low");
+    assert.ok(contrast(DEEP.at(-1)[1], DARK.panel) > 7, "and high stands out");
+    assert.equal(rampFor(SURFACE, LIGHT), SURFACE);
+    assert.equal(rampFor(SURFACE, DARK), DEEP);
+  });
+
+  test("a figure from Python in the library's ramp is drawn in the dark page's ramp, on a dark page only", () => {
+    assert.equal(pageData([bands], LIGHT)[0].colorscale, bands.colorscale);
+    assert.equal(pageData([bands], DARK)[0].colorscale, DEEP);
+    assert.equal(pageData([{ ...bands, type: "surface" }], DARK)[0].colorscale, DEEP);
+    const other = [[0, "#DC2626"], [1, "#059669"]];
+    assert.equal(pageData([{ ...bands, colorscale: other }], DARK)[0].colorscale, other, "a ramp with a meaning of its own");
+    assert.equal(pageData([{ ...bands, colorscale: "Blues" }], DARK)[0].colorscale, "Blues");
+    assert.equal(pageData([bands])[0].colorscale, bands.colorscale, "a report's figure is the light page's");
+  });
+
+  test("the numbers on a contour's lines are in the page's ink, with a halo in the page's colour", () => {
+    for (const colours of [LIGHT, DARK]) {
+      const [labels, ...others] = pageLayout({}, 300, colours).template.data.contour;
+      assert.deepEqual(others, []);
+      assert.deepEqual(labels, contourLabels(colours));
+      const { color, shadow } = labels.contours.labelfont;
+      assert.equal(color, colours.fg);
+      assert.equal(shadow.split(", ").length, 4, "a shadow to each corner");
+      assert.ok(shadow.split(", ").every((part) => part.endsWith(` 1px ${colours.panel}`)));
+      assert.ok(contrast(colours.fg, colours.panel) > 7, "the ink reads on its halo, whatever band is under it");
+    }
+  });
+
+  test("the font is a default of the figure: what else the figure's template sets is kept", () => {
+    const own = { layout: { colorway: ["#0072B2"] }, data: { scatter: [{ mode: "lines" }] } };
+    const { template } = pageLayout({ template: own }, 300, DARK);
+    assert.deepEqual(template.layout, own.layout);
+    assert.deepEqual(template.data.scatter, own.data.scatter);
+    assert.deepEqual(template.data.contour, [contourLabels(DARK)]);
+    assert.deepEqual(own.data, { scatter: [{ mode: "lines" }] }, "the figure it was drawn from is left as it was");
+  });
+
+  test("a trace's own contours are left as they are: Plotly keeps the levels it chose there", () => {
+    const drawn = pageData([bands], DARK)[0];
+    assert.equal(drawn.contours, bands.contours, "the same object, which a figure drawn again brings back");
+    assert.deepEqual(bands.contours, { showlabels: true });
+    const lines = { type: "contour", z: [[1]], showscale: false, contours: { showlabels: true, coloring: "lines" } };
+    assert.equal(pageData([lines], DARK)[0], lines);
+  });
+
+  test("the page's own surface and its correlation map take the dark page's ramp", () => {
+    const ternary = {
+      components: ["A", "B", "C"],
+      grid: { a: [1, 0, 0], b: [0, 1, 0], c: [0, 0, 1], fitted: [30, 25, 20], true: null },
+      runs: { a: [1], b: [0], c: [0], y: [30.2] },
+    };
+    assert.equal(ternaryFigure(ternary, { response: "Hardness" }, DARK).data[0].marker.colorscale, DEEP);
+    const map = (colours) => correlationFigure(["A", "B"], [[1, 0], [0, 1]], 2, colours).data[0].colorscale;
+    assert.equal(map(DARK), DEEP);
+    assert.notEqual(map(LIGHT), DEEP);
+    assert.ok(lightness(map(LIGHT)[0][1]) > 0.9, "no correlation is near white on a light page");
   });
 });
 

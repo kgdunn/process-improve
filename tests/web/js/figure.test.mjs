@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { FIRST_SHAPE, SHAPES, SMALLEST, blobOf, fileName, fitted, within } from "../../../web/figure.js";
+import { FIRST_SHAPE, SHAPES, SHAPE_KEY, SMALLEST, blobOf, fileName, fitted, keptShape, within } from "../../../web/figure.js";
 
 describe("the shapes a figure can be given", () => {
   test("each is a width over a height, and one fills the room", () => {
@@ -34,6 +34,22 @@ describe("a size the reader drags to", () => {
 
   test("a room smaller than the smallest figure gives the room", () => {
     assert.deepEqual(within({ width: 500, height: 400 }, { width: 200, height: 150 }), { width: 200, height: 150 });
+  });
+});
+
+describe("the shape kept for the next visit", () => {
+  test("is a shape by its name, or the size the corner was dragged to", () => {
+    assert.equal(SHAPE_KEY, "factorial-figure-shape");
+    assert.deepEqual(keptShape('"16:9"'), { shape: "16:9", chosen: null });
+    assert.deepEqual(keptShape('"Fill"'), { shape: "Fill", chosen: null });
+    assert.deepEqual(keptShape('{"width":500,"height":300}'), { shape: null, chosen: { width: 500, height: 300 } });
+  });
+
+  test("nothing kept, or what this page did not keep, opens a figure in its first shape", () => {
+    const first = { shape: FIRST_SHAPE, chosen: null };
+    for (const kept of [null, "", "nonsense", '"7:1"', "{}", '{"width":0,"height":300}', "[1,2]", "12"]) {
+      assert.deepEqual(keptShape(kept), first, String(kept));
+    }
   });
 });
 

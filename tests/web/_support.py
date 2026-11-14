@@ -66,6 +66,7 @@ APP_SOURCES = (
     "terms.js",
     "dialogs.js",
     "figure.js",
+    "FEATURES.md",
     "levels.js",
     "import.js",
     "worker-rpc.js",

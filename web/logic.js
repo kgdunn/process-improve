@@ -1328,9 +1328,10 @@ export const CHARTS = {
     more: true,
     level: 2,
     term: "response_surface",
-    caption:
+    caption: (_, { banded = false } = {}) =>
       "Each line moves one factor from its low to its high setting with the others at their center. A steep line is a " +
-      "factor that matters; a bent one has an optimum inside its range.",
+      "factor that matters; a bent one has an optimum inside its range." +
+      (banded ? " The band around a line is how well the model knows it: a wide band is a line that could lie elsewhere." : ""),
   },
   main_effects: {
     title: "Average result at each setting",
@@ -1371,7 +1372,9 @@ export const CHARTS = {
     more: true,
     level: 1,
     term: "residual_analysis",
-    caption: "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again.",
+    caption:
+      "Residuals that follow the line behave as random noise does. One far from the line is a run to look at again: " +
+      "press it, and it is marked on every chart and in the run sheet.",
   },
   residuals_order: {
     title: "Residuals in the order the runs were made",

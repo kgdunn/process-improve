@@ -27,6 +27,7 @@ rule is how they drift apart.
 | sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
 | Adding a case to the reference catalogue, and the `cause` each number records | [`CONTRIBUTING.md`](CONTRIBUTING.md#adding-a-case-to-the-reference-catalogue) |
 | The browser app in `web/`: its tests, and what a change to it adds to them | [`CONTRIBUTING.md`](CONTRIBUTING.md#the-browser-app-is-tested) |
+| What factori.al does, feature by feature; a change to the app updates it | [`web/FEATURES.md`](web/FEATURES.md) |
 | factori.al: how the app is deployed and rolled back, and the server's one-time setup | [`deploy/factorial/README.md`](deploy/factorial/README.md) |
 
 ## Package Structure

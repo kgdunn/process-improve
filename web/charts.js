@@ -36,8 +36,23 @@ export function loadPlotly(version) {
   return loading;
 }
 
+/**
+ * The colours a figure is being made in, while it is: a figure whose colours are the page's own reads them with
+ * palette() as it is made, and an image of it for a report or a file is made in the light theme's (chartImage).
+ */
+let making = null;
+function madeIn(colours, make) {
+  making = colours;
+  try {
+    return make();
+  } finally {
+    making = null;
+  }
+}
+
 /** The page's colours, read from its CSS, so the charts follow the light and dark themes. */
 export function palette() {
+  if (making) return making;
   const css = getComputedStyle(document.documentElement);
   const read = (name) => css.getPropertyValue(name).trim();
   return {
@@ -101,6 +116,17 @@ const EYE = { x: 1.65, y: 1.65, z: 1.1 };
 const SCENE_SHAPE = 0.9;
 
 /**
+ * The numbers on a contour's lines, where a figure states no font for them: in the page's ink, with a halo in the
+ * page's own colour. A ramp runs from as light as the page to as dark as its ink, so no one colour reads on every
+ * band; with a halo, one does. It is a default of the figure, not a setting of each trace: Plotly keeps the levels
+ * it chose in a trace's own ``contours``, and a copy of that with a font added would be drawn again without them.
+ */
+export function contourLabels(colours) {
+  const halo = ["1px 1px", "-1px -1px", "1px -1px", "-1px 1px"].map((at) => `${at} 1px ${colours.panel}`).join(", ");
+  return { contours: { labelfont: { color: colours.fg, shadow: halo } } };
+}
+
+/**
  * Restyle a figure's layout for the room it is drawn in: the page's colours, its size, no title, the legend
  * below. ``width`` is the room's, in pixels, where it is known, and ``bar`` the part of it a colour bar takes:
  * each axis title is then wrapped to fit its axis, and a scene in three dimensions is seen whole. ``free`` is
@@ -133,6 +159,7 @@ export function pageLayout(layout, height, colours = palette(), { width = 0, bar
     legend: { orientation: "h", x: 0, y: -0.22, bgcolor: "rgba(0,0,0,0)", borderwidth: 0, ...(layout.legend || {}) },
     // What the pointer rests on is named in the page's own colours: the library's label is white, for a white page.
     hoverlabel: { bgcolor: colours.panel, bordercolor: colours.line, font: { color: colours.fg, size: 12 } },
+    template: { ...layout.template, data: { ...layout.template?.data, contour: [contourLabels(colours)] } },
     xaxis: axis(layout.xaxis, width && width - margin.l - margin.r - bar),
     yaxis: axis(layout.yaxis, height - margin.t - margin.b),
   };
@@ -164,24 +191,133 @@ const hasBar = (trace) => SCALED.has(trace.type) && trace.showscale !== false;
 /** The width a colour bar takes from the plot, as pageData() draws it: the bar, its numbers and its title. */
 const BAR = 64;
 
+// ---------------------------------------------------------------- one run, marked wherever it is drawn
+// A point out of line on one chart is a run, and the reader wants that run on the other charts and in the run sheet.
+// A trace that draws a point for each run says so (meta "runs") and holds each point's run in its customdata: the
+// library's plots of the residuals and of the runs on a response surface (bootstrap.py), and the page's own chart of
+// the runs at each level. The run the pointer rests on is marked on every such chart; a press keeps it marked.
+//
+// The mark is a ring around the run's point, drawn as a shape of the chart's layout. Restyling the points
+// themselves would draw the chart's traces again, which makes Plotly let go of the point under the pointer and
+// take it up again: each of those is the pointer leaving a run and resting on it, as far as a listener can tell,
+// and the mark would chase itself. A shape is drawn over the traces and leaves them, and the pointer, alone.
+let marked = null; // the run marked now, by its place in the order the runs were made
+let pinned = false; // whether a press marked it: it then stays when the pointer moves off
+
+/** The run marked now, or null. */
+export const markedRun = () => marked;
+
+/** What an app does when the marked run changes: mark the run's row in its tables. */
+let onMark = () => {};
+export const onRunMarked = (heard) => (onMark = heard);
+
+const drawsRuns = (trace) => trace.meta === "runs";
+const runAt = (held) => (Array.isArray(held) ? held[0] : held);
+
+/** How the ring of a marked run is named among a chart's shapes, and its radius in pixels: a point's is 4. */
+export const RUN_RING = "marked-run";
+const RING_RADIUS = 9;
+
+/**
+ * The rings that mark ``run`` on a chart with these traces, in ``colour``: one around each point that is the
+ * run's, a fixed size on the screen whatever the chart's axes. None for no run, or for a chart without the run.
+ */
+export function runRings(data, run, colour) {
+  if (run === null) return [];
+  return data.filter(drawsRuns).flatMap((trace) =>
+    (trace.customdata ?? []).flatMap((held, i) => {
+      if (runAt(held) !== run) return [];
+      const ring = { type: "circle", name: RUN_RING, xref: trace.xaxis ?? "x", yref: trace.yaxis ?? "y", layer: "above" };
+      const size = { xsizemode: "pixel", ysizemode: "pixel", x0: -RING_RADIUS, x1: RING_RADIUS, y0: -RING_RADIUS, y1: RING_RADIUS };
+      return [{ ...ring, ...size, xanchor: trace.x[i], yanchor: trace.y[i], line: { color: colour, width: 3 } }];
+    }),
+  );
+}
+
+/** Draw the marked run's rings on every chart of the runs, in place of the rings before. */
+function drawRings() {
+  for (const [div, shown] of drawn) {
+    if (div.isConnected && div.data?.some(drawsRuns)) {
+      const shapes = [...shown.shapes, ...runRings(div.data, marked, palette().warn)];
+      Promise.resolve(window.Plotly.relayout(div, { shapes })).catch(() => {}); // a chart taken down meanwhile
+    }
+  }
+}
+
+/**
+ * Mark ``run`` on every chart and tell the app, unless it is marked already. The app hears at once. The charts
+ * are drawn a moment later, and once for a pointer that crosses several runs on its way: a chart drawn while
+ * Plotly is still handling the press that marked the run, which a browser plays a second time as a mouse's after a
+ * tap, is drawn in the middle of Plotly's own work on it.
+ */
+const RINGS_AFTER = 40; // milliseconds
+let rings = null;
+function mark(run) {
+  if (run === marked) return;
+  marked = run;
+  onMark(marked);
+  clearTimeout(rings);
+  rings = setTimeout(drawRings, RINGS_AFTER);
+}
+
+/** The pointer rests on ``run``, or on none (null): marked while it does, unless a press holds another. */
+export function restOnRun(run) {
+  if (!pinned) mark(run);
+}
+
+/** A press on ``run``: it stays marked until it is pressed again. Null lets go of the run a press marked. */
+export function pressRun(run) {
+  pinned = run !== null && !(pinned && run === marked);
+  mark(pinned ? run : null);
+}
+
+/** Have a chart mark the run its points are rested on and pressed: once for each chart. */
+const listening = new WeakSet();
+function listenForRuns(div) {
+  if (listening.has(div)) return;
+  listening.add(div);
+  const run = (event) => event.points.filter((point) => drawsRuns(point.data)).map((point) => runAt(point.customdata))[0];
+  div.on("plotly_hover", (event) => run(event) !== undefined && restOnRun(run(event)));
+  div.on("plotly_unhover", () => restOnRun(null));
+  div.on("plotly_click", (event) => {
+    const pressed = run(event);
+    // A tap raises Plotly's click twice, for the touch and for the mouse a browser plays after it: one press.
+    const again = pressed === lastPress.run && performance.now() - lastPress.at < 700;
+    if (pressed === undefined || again) return;
+    lastPress = { run: pressed, at: performance.now() };
+    pressRun(pressed);
+  });
+}
+let lastPress = { run: null, at: 0 };
+
 /**
  * A figure's traces as the page draws them: a colour bar is narrow, with its title along its side. Plotly's own
  * is wide, with its title on top, and takes a third of a card's width from the plot.
  */
-export function pageData(data) {
+export function pageData(data, colours = LIGHT) {
   const slim = (bar = {}) => ({ thickness: 12, outlinewidth: 0, ...bar, title: { side: "right", ...(bar.title || {}) } });
-  return data.map((trace) => (hasBar(trace) ? { ...trace, colorbar: slim(trace.colorbar) } : trace));
+  return data.map((trace) => {
+    const changes = {};
+    if (hasBar(trace)) changes.colorbar = slim(trace.colorbar);
+    if (isDark(colours) && isSurfaceRamp(trace.colorscale)) changes.colorscale = DEEP;
+    return Object.keys(changes).length ? { ...trace, ...changes } : trace;
+  });
 }
+
+/** Whether a figure from Python holds the library's ramp for a surface, which the page keeps a copy of. */
+const isSurfaceRamp = (scale) => JSON.stringify(scale ?? null).toLowerCase() === JSON.stringify(SURFACE).toLowerCase();
 
 /**
  * A chart as the page draws it in a room ``width`` pixels by ``height``, in ``colours``: its traces and its
  * layout. A chart with Plotly's toolbar is the one in a figure's own window, where the reader gives it its shape.
  */
 function dressed(shown, height, colours, width) {
-  const figure = shown.make();
-  const data = pageData(figure.data);
+  const figure = madeIn(colours, shown.make);
+  const data = pageData(figure.data, colours);
   const room = { width, bar: data.some(hasBar) ? BAR : 0, free: shown.toolbar };
-  return { data, layout: pageLayout(figure.layout || {}, height, colours, room) };
+  const layout = pageLayout(figure.layout || {}, height, colours, room);
+  shown.shapes = layout.shapes ?? []; // the figure's own, which the ring of a marked run is drawn after
+  return { data, layout: { ...layout, shapes: [...shown.shapes, ...runRings(data, marked, colours.warn)] } };
 }
 
 /**
@@ -275,11 +411,23 @@ function forget(div) {
 /** Take a chart down, and forget what it was drawn from. */
 export function erase(div) {
   forget(div);
+  listening.delete(div); // Plotly takes a chart's listeners down with it
   window.Plotly?.purge(div);
 }
 
+/**
+ * The charts a reader can see beside ``div``, in the page's order, ``div`` among them: those of the same dialog,
+ * or of the page when it is in none. A figure's window steps through them.
+ */
+export function figuresBeside(div) {
+  const beside = [...drawn.keys()].filter(
+    (other) => other.isConnected && other.getClientRects().length && !other.closest("dialog.figure") && other.closest("dialog") === div.closest("dialog"),
+  );
+  return beside.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
 /** A chart's heading and what is written under it, as its card has them, for its own window. */
-function wordsOf(div) {
+export function wordsOf(div) {
   const card = div.closest("figure.chart");
   const said = (node) => node?.textContent.replace(/\s+/g, " ").trim();
   const title =
@@ -317,7 +465,7 @@ function offerWindow(div) {
   button.setAttribute("aria-label", "Expand this figure: open it in a window of its own, to look at it closely");
   button.onclick = async () => {
     try {
-      (await figureWindow()).openFigure(div, wordsOf(div));
+      (await figureWindow()).openFigure(div);
     } catch {
       button.textContent = "Could not open: no network";
       setTimeout(() => (button.textContent = "Expand"), 4000);
@@ -382,6 +530,7 @@ async function react(div, shown) {
     layout.modebar = { bgcolor: "rgba(0,0,0,0)", color: muted, activecolor: accent };
   }
   await Plotly.react(div, data, layout, plotConfig(shown.toolbar));
+  listenForRuns(div);
 }
 
 /**
@@ -597,6 +746,31 @@ export const SURFACE = [
   [1, "#1E3A8A"],
 ];
 
+/**
+ * The ramp of a dark page, for a surface and for a correlation map: dark for low, as near nothing as the page
+ * itself, and light for high. A light page's ramps start in near white, which glares where the page is dark.
+ */
+export const DEEP = [
+  [0, "#1a2436"],
+  [0.25, "#1e40af"],
+  [0.5, "#2563eb"],
+  [0.75, "#60a5fa"],
+  [1, "#bfdbfe"],
+];
+
+/** How light a colour written as #rgb or #rrggbb is: 0 for black, 1 for white. */
+export function lightness(hex) {
+  const digits = hex.length === 4 ? [...hex.slice(1)].map((digit) => digit + digit).join("") : hex.slice(1);
+  const [red, green, blue] = [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16) / 255);
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+/** Whether ``colours`` are a dark page's: its text is the light part of it. */
+export const isDark = (colours) => lightness(colours.fg) > 0.5;
+
+/** The ramp to draw in ``colours``: a ``light`` page's own, or the dark page's. */
+export const rampFor = (light, colours) => (isDark(colours) ? DEEP : light);
+
 /** A run's marker on a surface: a white face and a dark edge, which read on its light and its dark blues alike. */
 const RUN_MARKER = { symbol: "circle", size: 10, color: "#ffffff", line: { width: 1.5, color: "#1a1a1a" } };
 
@@ -647,7 +821,7 @@ export function ternaryFigure(
           symbol: "circle",
           size: 7,
           color: grid[values],
-          colorscale: SURFACE,
+          colorscale: rampFor(SURFACE, colours),
           cmin: range[0],
           cmax: range[1],
           line: { width: 0 },
@@ -781,6 +955,7 @@ export function levelsFigure(comparison, { response, units = "", factorUnits = "
     type: "scatter",
     mode: "markers",
     name: "Runs",
+    meta: "runs", // each point is a run, named in its customdata: marked with the run on every other chart
     x: levels.flatMap((level, i) => level.runs.map((r) => i + spreadOf(r.run))),
     y: levels.flatMap((level) => level.runs.map((r) => r.value)),
     customdata: levels.flatMap((level, i) => level.runs.map((r) => [r.run, named[i]])),
@@ -884,7 +1059,7 @@ export function correlationFigure(terms, matrix, k, colours = palette()) {
         z: matrix,
         zmin: 0,
         zmax: 1,
-        colorscale: BLUES,
+        colorscale: rampFor(BLUES, colours),
         showscale: false,
         hovertemplate: "%{y} with %{x}: |r| = %{z:.2f}<extra></extra>",
       },

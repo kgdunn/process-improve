@@ -2,7 +2,7 @@
 // in a shape the reader chooses, with Plotly's buttons to zoom and turn it, and saved as an image in that shape.
 // charts.js loads this module once a first chart is drawn and the browser is idle, so the page's start waits for none of it.
 
-import { chartImage, draw, erase, figureOf } from "./charts.js";
+import { chartImage, draw, erase, figureOf, figuresBeside, wordsOf } from "./charts.js";
 import { closeOnBackdrop } from "./dialogs.js";
 
 /** The shapes a figure can be given at a press, each as its width over its height; "Fill" takes all the room there is. */
@@ -53,6 +53,11 @@ export function blobOf(dataUrl) {
 const MARKUP = `
   <div class="sheet__head">
     <h2 id="figure-title"></h2>
+    <span class="figure__steps">
+      <button type="button" class="link" data-do="before" aria-label="The figure before this one">‹</button>
+      <span class="hint" data-part="place"></span>
+      <button type="button" class="link" data-do="after" aria-label="The figure after this one">›</button>
+    </span>
     <button type="button" class="link" data-do="close" aria-label="Close this figure">✕</button>
   </div>
   <div class="figure__tools">
@@ -83,6 +88,30 @@ let dialog = null;
 let opened = null; // what the window shows: {title, size}
 let shape = FIRST_SHAPE; // the shape last chosen, which the next figure opens in; null once one is resized by hand
 let chosen = null; // the size last dragged to, when ``shape`` is null
+
+/** Where the shape a reader last gave a figure is kept, so the next visit's figures open in it. */
+export const SHAPE_KEY = "factorial-figure-shape";
+
+/** The shape kept, as ``{shape, chosen}``: a name of SHAPES, or a size dragged to. The first shape for none, or one unread. */
+export function keptShape(text) {
+  try {
+    const kept = JSON.parse(text);
+    if (kept in SHAPES) return { shape: kept, chosen: null };
+    if (kept.width > 0 && kept.height > 0) return { shape: null, chosen: { width: kept.width, height: kept.height } };
+  } catch {
+    /* nothing kept, or not as this page keeps it */
+  }
+  return { shape: FIRST_SHAPE, chosen: null };
+}
+
+/** Keep the shape for the next visit; a browser that refuses storage keeps it for this one. */
+function keepShape() {
+  try {
+    localStorage.setItem(SHAPE_KEY, JSON.stringify(shape ?? chosen));
+  } catch {
+    /* storage refused */
+  }
+}
 
 const part = (selector) => dialog.querySelector(selector);
 
@@ -118,6 +147,13 @@ function drag(size) {
   chosen = size;
   resize(size);
   chosen = opened.size;
+}
+
+/** Show the figure ``by`` places on from this one, among those the reader can see beside it: round to the first. */
+function step(by) {
+  const beside = figuresBeside(opened.source);
+  const at = beside.indexOf(opened.source);
+  if (beside.length > 1) show(beside[(Math.max(at, 0) + by + beside.length) % beside.length]);
 }
 
 const say = (text) => (part("[role=status]").textContent = text);
@@ -161,7 +197,15 @@ async function copyCode() {
   }
 }
 
-const DOES = { close: () => dialog.close(), png: () => save("png"), svg: () => save("svg"), copy: copyImage, code: copyCode };
+const DOES = {
+  close: () => dialog.close(),
+  before: () => step(-1),
+  after: () => step(1),
+  png: () => save("png"),
+  svg: () => save("svg"),
+  copy: copyImage,
+  code: copyCode,
+};
 
 /** The corner that resizes the figure: dragged with a mouse, a finger or a pen, or moved with the arrow keys. */
 function installGrip(grip) {
@@ -175,13 +219,20 @@ function installGrip(grip) {
     // The window stays in the middle of the screen, so its corner moves half as far as the figure grows.
     if (from) drag({ width: from.width + 2 * (event.clientX - from.x), height: from.height + 2 * (event.clientY - from.y) });
   });
-  for (const end of ["pointerup", "pointercancel"]) grip.addEventListener(end, () => (from = null));
+  for (const end of ["pointerup", "pointercancel"]) {
+    grip.addEventListener(end, () => {
+      if (from) keepShape();
+      from = null;
+    });
+  }
   const KEYS = { ArrowRight: [STEP, 0], ArrowLeft: [-STEP, 0], ArrowDown: [0, STEP], ArrowUp: [0, -STEP] };
   grip.addEventListener("keydown", (event) => {
     const [wider, taller] = KEYS[event.key] ?? [];
     if (wider === undefined) return;
     event.preventDefault();
+    event.stopPropagation(); // the arrows resize here: on the rest of the window they step through the figures
     drag({ width: opened.size.width + wider, height: opened.size.height + taller });
+    keepShape();
   });
 }
 
@@ -197,35 +248,59 @@ function build() {
     const button = event.target.closest("button");
     if (button?.dataset.shape) {
       shape = button.dataset.shape;
+      keepShape();
       reshape();
     } else if (button?.dataset.do) {
       DOES[button.dataset.do]();
     }
   });
+  // The arrow keys step through the figures, except where they have work of their own: in the code, which they scroll.
+  dialog.addEventListener("keydown", (event) => {
+    const by = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (by && !event.target.closest("pre, input, select, textarea")) step(by);
+  });
   // The chart is taken down with the window: a browser keeps only so many charts in three dimensions at once.
   dialog.addEventListener("close", () => erase(part(".plot")));
   window.addEventListener("resize", () => dialog.open && reshape());
   part("[data-do=copy]").hidden = !(window.ClipboardItem && navigator.clipboard?.write);
+  let kept = null;
+  try {
+    kept = localStorage.getItem(SHAPE_KEY);
+  } catch {
+    /* storage refused */
+  }
+  ({ shape, chosen } = keptShape(kept));
 }
 
-/**
- * Open the chart drawn in ``div`` in a window of its own, under ``title`` and over its ``caption``. It is drawn
- * again there from what the page drew it from, with ``python``, the code that draws it, when it has some.
- */
-export async function openFigure(div, { title, caption = "" }) {
+/** Show the chart drawn in ``div`` in the window, in place of the one it shows: its words, its code and its figure. */
+async function show(div) {
   const shown = figureOf(div);
   if (!shown) return;
-  if (!dialog) build();
-  opened = { title };
+  const { title, caption } = wordsOf(div);
+  const beside = figuresBeside(div);
+  opened = { title, source: div };
   part("#figure-title").textContent = title;
   part(".figure__caption").textContent = caption;
   part(".plot").setAttribute("aria-label", title);
+  part(".figure__steps").hidden = beside.length < 2;
+  part("[data-part=place]").textContent = `${beside.indexOf(div) + 1} of ${beside.length}`;
   const code = shown.python?.() ?? "";
   part("details.python").hidden = !code;
   part("details.python").open = false;
   part("code").textContent = code;
   say("");
-  dialog.showModal();
-  reshape();
+  reshape(); // the caption's lines decide the room the figure has
   await draw(part(".plot"), shown.make, shown.version, null, { toolbar: true });
+}
+
+/**
+ * Open the chart drawn in ``div`` in a window of its own, under its card's heading and over its caption. It is
+ * drawn again there from what the page drew it from, with the code that draws it, when it has some. From there the
+ * reader steps to the charts beside it on the page.
+ */
+export async function openFigure(div) {
+  if (!figureOf(div)) return;
+  if (!dialog) build();
+  if (!dialog.open) dialog.showModal();
+  await show(div);
 }
