@@ -244,16 +244,24 @@ export async function draw(div, figure, version, height = 340, { toolbar = false
   if (!div.hasAttribute("aria-label")) div.setAttribute("aria-label", wordsOf(div).title);
   await react(div, shown);
   watch(div);
-  (window.requestIdleCallback ?? setTimeout)(figureWindow);
+  (window.requestIdleCallback ?? setTimeout)(() => figureWindow().catch(() => {})); // asked for again at a press
 }
 
 /**
  * The module of a figure's own window (figure.js), asked for once: when the browser is first idle after a chart
- * is drawn, so it costs the page's start nothing, a first press of Expand opens at once, and the copy of the page
- * kept for use without a network holds it, which copies what a visit loaded (offline.js).
+ * is drawn, so it costs the page's start nothing and a first press of Expand opens at once. A load that fails,
+ * with no network and no copy of the page kept, is tried again the next time it is asked for: under an address
+ * of its own, since a browser keeps a module's failure as long as the page is open.
  */
 let windowModule = null;
-const figureWindow = () => (windowModule ??= import("./figure.js"));
+let loads = 0;
+function figureWindow() {
+  windowModule ??= import(loads++ ? `./figure.js?load=${loads}` : "./figure.js").catch((error) => {
+    windowModule = null;
+    throw error;
+  });
+  return windowModule;
+}
 
 /** What a chart was drawn from, as draw() was given it; undefined for a div with no chart. */
 export const figureOf = (div) => drawn.get(div);
@@ -301,7 +309,14 @@ function offerWindow(div) {
   button.className = "link expand";
   button.textContent = "Expand";
   button.setAttribute("aria-label", "Expand this figure: open it in a window of its own, to look at it closely");
-  button.onclick = async () => (await figureWindow()).openFigure(div, wordsOf(div));
+  button.onclick = async () => {
+    try {
+      (await figureWindow()).openFigure(div, wordsOf(div));
+    } catch {
+      button.textContent = "Could not open: no network";
+      setTimeout(() => (button.textContent = "Expand"), 4000);
+    }
+  };
   head.append(button);
 }
 

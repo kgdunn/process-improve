@@ -11,7 +11,7 @@ import struct
 
 import pytest
 
-from tests.web.e2e._page import reveal
+from tests.web.e2e._page import first_paint_done, reveal
 from tests.web.e2e.test_charts import MORE_TITLES, open_more
 
 #: Whether every chart on the page is drawn at the width its box has now.
@@ -133,6 +133,23 @@ def test_the_window_s_module_is_loaded_once_a_chart_is_drawn_and_the_browser_is_
     page.wait_for_function(loaded)
     assert "figure.js" not in page.content().split("</head>")[0], "no module the page asks for at once"
     assert page.locator("dialog.figure").count() == 0, "the window itself is made when a figure is first opened"
+
+
+def test_a_window_that_cannot_be_loaded_says_so_and_opens_at_the_next_press(context, site, console):
+    """With no network and no copy of the page kept, the window's module cannot be had: it is asked for again."""
+    console.allow(r"net::ERR_FAILED")  # the browser reports each request the lost network refuses
+    page = context.new_page()
+    page.route("**/figure.js*", lambda route: route.abort())
+    page.goto(f"{site}?example=worked")
+    first_paint_done(page)
+    button = "document.querySelector('figure[data-chart=contour] .expand').textContent"
+    page.click("figure[data-chart=contour] .expand")
+    page.wait_for_function(f"{button} === 'Could not open: no network'")
+    assert page.locator("dialog.figure").count() == 0
+    page.unroute("**/figure.js*")
+    page.wait_for_function(f"{button} === 'Expand'", timeout=10_000)
+    expand(page, "contour")
+    assert page.text_content("#figure-title") == "Fitted response surface"
 
 
 def test_each_chart_is_one_picture_named_by_its_heading(page):
