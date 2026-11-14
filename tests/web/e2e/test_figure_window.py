@@ -150,8 +150,8 @@ def test_a_figure_opens_in_four_by_three_and_takes_the_shape_pressed(page):
     page.click("dialog.figure [data-shape=Fill]")
     page.wait_for_function(SHOWN)
     filled = frame(page)
-    assert filled["width"] >= size["width"]
-    assert filled["height"] > size["height"]
+    assert filled["width"] > size["width"], "all the width there is, which 16:9 left some of"
+    assert filled["height"] >= size["height"]
     box = page.locator("dialog.figure").bounding_box()
     assert box["y"] >= 0, "as large as the browser's window allows, and no larger"
     assert box["y"] + box["height"] <= page.viewport_size["height"]
@@ -295,3 +295,44 @@ def test_a_chart_with_no_card_has_the_button_above_it(page):
     button.click()
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "Which terms these runs tell apart"
+
+
+def test_a_figure_s_window_shows_the_python_that_draws_it(page):
+    """The code of the design, its results and their analysis, then the figure's own: it runs as it is copied."""
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    open_more(page)
+    expand(page, "interaction")
+    panel = page.locator("dialog.figure details.python")
+    assert panel.is_visible()
+    assert not panel.evaluate("(details) => details.open"), "shut until the reader asks for it"
+    panel.locator("summary").click()
+    code = panel.locator("code").text_content()
+    assert "result = generate_design(" in code
+    assert "analysis = analyze_experiment(" in code
+    assert '# The figure "Interaction of the two factors", as the library draws it' in code
+    assert 'plot_type="interaction",\n    factors_to_plot=["T", "P"],' in code
+    assert code.count("import plotly.graph_objects as go") == 1
+    assert code.rstrip().endswith("figure.show()")
+
+    panel.locator("[data-do=code]").click()
+    page.wait_for_function(
+        "document.querySelector('dialog.figure [role=status]').textContent.startsWith('Code copied')"
+    )
+    assert page.evaluate("navigator.clipboard.readText()") == code
+
+
+def test_a_surface_s_code_holds_the_others_at_the_best_settings_as_its_caption_says(page):
+    expand(page, "contour")
+    assert "with F at 18.04 L/min, its best setting" in page.text_content("dialog.figure .figure__caption")
+    held = page.locator("dialog.figure code").text_content().split('hold_values={"F": ')[1].split("}")[0]
+    assert float(held) == pytest.approx((18.04 - 15) / 5, abs=1e-3), "18.04 L/min, in coded units"
+
+
+def test_a_figure_the_page_draws_itself_shows_no_python(page):
+    """The coefficients' chart is the page's own: the analysis's panel holds the code of its numbers."""
+    page.click("figure[data-chart=coefficients] .expand")
+    page.wait_for_function(SHOWN)
+    assert page.locator("dialog.figure details.python").is_hidden()
+    page.keyboard.press("Escape")
+    expand(page, "true_contour")
+    assert page.locator("dialog.figure details.python").is_hidden(), "drawn from the simulation, not from the results"

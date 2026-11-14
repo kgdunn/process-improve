@@ -5235,6 +5235,30 @@ def _more_charts(
     return {key: drawn[key] for key in MORE_CHARTS if drawn[key] is not None}
 
 
+class _Figures:
+    """The figures of one analysis, drawn with the library's plots from its runs (``rows``, in coded units).
+
+    ``drawn`` holds each figure by the page's key for it, as JSON text for Plotly.js; ``asked`` holds what each
+    asked the library for beyond the runs and their analysis (see :data:`STATED_OPTIONS`), under its ``plot_type``.
+    """
+
+    def __init__(self, spec: dict, rows: list[dict], plotly: ModuleType) -> None:
+        self.spec, self.rows, self.plotly = spec, rows, plotly
+        self.drawn: dict[str, str] = {}
+        self.asked: dict[str, dict[str, Any]] = {}
+
+    def draw(self, key: str, kind: str, results: dict, scale: str | None, **options: Any) -> None:  # noqa: ANN401
+        """Draw the library's plot ``kind`` of ``results`` as the page's figure ``key``, on a transform's ``scale``."""
+        from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415 - imports plotly
+
+        figure = create_plot(
+            kind, analysis_results=results, design_data=self.rows, response_column=self.spec["response"], **options
+        )
+        dressed = _dressed(figure.to_plotly(), kind, self.spec, options.get("factors_to_plot", []), scale)
+        self.drawn[key] = json.dumps(dressed, cls=self.plotly.utils.PlotlyJSONEncoder)
+        self.asked[key] = {"plot_type": kind, **{name: options[name] for name in STATED_OPTIONS if name in options}}
+
+
 def plots(request: dict) -> dict:
     """Draw the analysis of the page's runs with the library's plots, as Plotly figures.
 
@@ -5256,10 +5280,12 @@ def plots(request: dict) -> dict:
     With limits on the settings, the surfaces are ``shaded`` where a setting cannot be run;
     when the centre of the ranges cannot be run either, the other factors are held at a
     central setting that can, which ``held`` lists in their own units.
+
+    ``plot_options`` holds, for each figure drawn from the analysis, what the library was asked
+    for beyond the runs and their analysis: its ``plot_type``, the factors it draws and the coded
+    values the others are held at. The page writes the Python that draws each figure from it.
     """
     plotly = _installed("plotly")  # before the library's charts, which import it
-    from process_improve.experiments.visualization.plots import create_plot  # noqa: PLC0415
-
     spec = _checked_spec(request.get("spec") or {})
     every_run, _ = _on_model_scale(_runs_frame(request, spec), spec)
     spec = _for_response(spec, request.get("response"))  # the response drawn: the first, or the one named
@@ -5290,13 +5316,12 @@ def plots(request: dict) -> dict:
     if best := _held_at_best(request.get("best"), spec, pair):
         shading, held = {**shading, "hold_values": best[0]}, best[1]
 
-    def draw(kind: str, results: dict, scale: str | None, drawn: list[str] = pair, **options: Any) -> str:  # noqa: ANN401
-        figure = create_plot(kind, analysis_results=results, design_data=rows, response_column=response, **options)
-        return json.dumps(_dressed(figure.to_plotly(), kind, spec, drawn, scale), cls=plotly.utils.PlotlyJSONEncoder)
-
+    figures = _Figures(spec, rows, plotly)
+    draw = figures.draw
     # One factor has no surface to draw: the page draws its levels, from the analysis's comparison.
     surface = len(pair) > 1
-    figures = {"contour": draw("contour", out, transform, factors_to_plot=pair, **shading)} if surface else {}
+    if surface:
+        draw("contour", "contour", out, transform, factors_to_plot=pair, **shading)
     truth = request.get("truth")
     if truth and surface:
         process = TrueProcess({t["term"]: t["coefficient"] for t in truth}, sigma=1.0)
@@ -5304,26 +5329,27 @@ def plots(request: dict) -> dict:
         if missing:
             raise ValueError(f"The true process names factors the design does not have: {missing}.")
         # the simulated process is in the response's units: its surface has nothing to put back
-        true = {"coefficients": _truth(process)}
-        figures["true_contour"] = draw("contour", true, None, factors_to_plot=pair, **shading)
+        draw("true_contour", "contour", {"coefficients": _truth(process)}, None, factors_to_plot=pair, **shading)
+        del figures.asked["true_contour"]  # drawn from the simulation, which a reader's own analysis does not have
     if fit["out"]["model_summary"]["df_residual"] > 0:
-        figures["residuals"] = draw("residuals_vs_fitted", out, transform)
+        draw("residuals", "residuals_vs_fitted", out, transform)
     if fit["lenth"]:
         effects = doe.analyze_experiment(coded, y, model=fit["formula"], analysis_type="effects")["effects"]
-        figures["half_normal"] = draw("half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
+        draw("half_normal", "half_normal", {"effects": effects, "lenth_method": fit["lenth"]}, transform)
     more = _more_charts(spec, axes, pair, coded, transform, fit["out"]["model_summary"]["df_residual"])
     for key, drawn in more.items():
         chart = MORE_CHARTS[key]
         options = {**({"factors_to_plot": drawn} if drawn else {}), **(shading if chart.on_surface else {})}
-        figures[key] = draw(chart.plot, out, transform if chart.scaled else None, drawn, **options)
+        draw(key, chart.plot, out, transform if chart.scaled else None, **options)
     return {
-        "figures": figures,
+        "figures": figures.drawn,
         "contour_factors": pair,
         "contour_chosen": chosen is not None,
         "axes": axes,
         "shaded": "region" in shading,
         "held": held,
         "held_best": best is not None,
+        "plot_options": figures.asked,
         "plotly_js": plotly.offline.get_plotlyjs_version(),
     }
 
@@ -5544,6 +5570,10 @@ def _setting_words(factor: dict, coded: float) -> str:
         return _level_at(factor, coded)
     return f"{(factor['low'] + factor['high']) / 2 + coded * (factor['high'] - factor['low']) / 2:.4g}"
 
+
+#: What a figure asks of the library beyond the runs and their analysis, and a reader's own code can state: the
+#: factors it draws, and the coded values the others are held at. The region of a study with limits is not one.
+STATED_OPTIONS = ("factors_to_plot", "hold_values")
 
 #: A legend above the plot, where it meets neither the axis title under the plot nor, in a narrow card, the plot.
 LEGEND_ABOVE = {"legend": {"y": 1.02, "yanchor": "bottom"}, "margin": {"t": 40}}

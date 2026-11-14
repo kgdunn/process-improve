@@ -283,7 +283,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -4359,12 +4359,13 @@ async function drawCharts(request, mine, given = null) {
       const caption = typeof captions[key] === "function" ? captions[key](plots.contour_factors, limits) : captions[key];
       return chartCard(key, caption);
     };
+    const python = (key) => figurePython(key, plots.plot_options?.[key]);
     for (const key of ["levels", "contour", "true_contour", "ternary", "true_ternary", "cox", "residuals", "half_normal"]) {
       if (!figures[key]) continue;
       const card = captioned(key);
       if (key === "contour" && plots.axes?.length > 2) card.card.append(contourPicker(plots));
       charts.append(card.card);
-      await draw(card.plot, figures[key], version);
+      await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
       if (overtaken()) return;
     }
     state.plots = plots; // drawn again, from these, when the reading level changes
@@ -4372,17 +4373,32 @@ async function drawCharts(request, mine, given = null) {
     const drawable = MORE_CHARTS.filter((key) => figures[key]);
     const more = drawable.filter((key) => chartLevel(key) <= pageLevel());
     const beyond = moreWords(drawable.filter((key) => !more.includes(key)).map(chartLevel), "chart");
-    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond));
+    if (drawable.length) charts.append(moreCharts(more, figures, captioned, version, beyond, python));
   } catch (err) {
     charts.append(el("p", "hint", `The charts could not be drawn (${err.message}); the tables above hold the numbers.`));
   }
 }
 
 /**
+ * What gives the Python that draws one of Learn's figures, for the figure's own window: the code of the design,
+ * its results and their analysis, as the analysis's panel shows it, then the figure's own. ``options`` is what
+ * the page asked the library for (``plot_options`` of the charts' reply); null for a figure it has none for,
+ * which the page draws itself. The code is written when it is asked for, from the analysis shown then.
+ */
+function figurePython(key, options) {
+  if (!options) return null;
+  return () => {
+    const { formula, model } = state.analysis;
+    const figure = figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, shownSpec());
+    return cumulative(...["design", "run", "analyse"].map((step) => stepCode[step]).filter(Boolean), figure);
+  };
+}
+
+/**
  * The further charts, under a heading the reader opens. Each is drawn when the heading is first opened, since a
  * chart drawn while hidden has no width to fit; the heading stays open or shut as the charts are drawn again.
  */
-function moreCharts(keys, figures, captioned, version, beyond = "") {
+function moreCharts(keys, figures, captioned, version, beyond, python) {
   const box = el("details", "more-charts", "");
   box.id = "more-charts";
   box.append(el("summary", "", `More charts (${keys.length})`));
@@ -4397,7 +4413,7 @@ function moreCharts(keys, figures, captioned, version, beyond = "") {
     for (const key of keys) {
       const card = captioned(key);
       grid.append(card.card);
-      await draw(card.plot, figures[key], version, chartHeight(key));
+      await draw(card.plot, figures[key], version, chartHeight(key), { python: python(key) });
     }
   };
   box.addEventListener("toggle", () => {

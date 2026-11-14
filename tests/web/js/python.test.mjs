@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, notebook, resultsCode } from "../../../web/python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, notebook, resultsCode } from "../../../web/python.js";
 
 const FACTORS = [
   { name: "T", low: 150, high: 200, units: "degC" },
@@ -111,6 +111,44 @@ describe("the results", () => {
     const long = { spec: { factors: [FACTORS[0]], options: {} }, columns: ["T"], rows };
     const lines = resultsCode(long, rows.map(() => 1)).split("\n");
     assert.ok(lines.every((line) => line.length <= 100));
+  });
+});
+
+describe("the code of one figure", () => {
+  const surface = { plot_type: "contour", factors_to_plot: ["T", "P"], hold_values: { F: 0.6 } };
+
+  test("asks the library for what the page asked it for, from the fit and its residuals", () => {
+    const code = figureCode("Fitted response surface", surface, "quadratic", true, { response: "Yield" });
+    assert.match(code, /^import plotly\.graph_objects as go\nfrom process_improve\.experiments import analyze_experiment, visualize_doe\n/);
+    assert.match(code, /# The figure "Fitted response surface", as the library draws it/);
+    assert.match(code, /X, y, model="quadratic", analysis_type=\["coefficients", "residual_diagnostics"\], coding="actual",/);
+    assert.match(code, /visualize_doe\(\n {4}plot_type="contour",\n {4}factors_to_plot=\["T", "P"\],\n {4}hold_values=\{"F": 0\.6\},\n/);
+    assert.match(code, /design_data=X\.assign\(\*\*\{"Yield": y\}\)\.to_dict\("records"\),\n {4}response_column="Yield",/);
+    assert.match(code, /figure = go\.Figure\(chart\["plotly"\]\)\nfigure\.show\(\)$/);
+  });
+
+  test("a figure of the residuals asks for no factors", () => {
+    const code = figureCode("Residuals against fitted values", { plot_type: "residuals_vs_fitted" }, "T + P", true, { response: "y" });
+    assert.match(code, /visualize_doe\(\n {4}plot_type="residuals_vs_fitted",\n {4}analysis_results=drawn,/);
+  });
+
+  test("the half-normal plot is drawn from the effects and Lenth's margins", () => {
+    const code = figureCode("Half-normal plot of the effects", { plot_type: "half_normal" }, "A + B", true, { response: "y" });
+    assert.match(code, /X, y, model="A \+ B", analysis_type=\["effects", "lenth_method"\],\n\)/);
+    assert.doesNotMatch(code, /coding=/);
+  });
+
+  test("leaves out the runs still to do, and fits on the scale the page fits on", () => {
+    const spec = { response: "Yield", analysis_transforms: { Yield: "log" } };
+    const code = figureCode("Each factor's effect on the prediction", { plot_type: "perturbation" }, "T + P", false, spec);
+    assert.match(code, /X\[done\], np\.log\(y\[done\]\), model="T \+ P"/);
+    assert.match(code, /design_data=X\[done\]\.assign\(\*\*\{"Yield": np\.log\(y\[done\]\)\}\)\.to_dict\("records"\)/);
+  });
+
+  test("follows the analysis's code as one script, each import once", () => {
+    const script = cumulative(analyseCode("T + P"), figureCode("A figure", { plot_type: "perturbation" }, "T + P"));
+    assert.equal(script.match(/^from process_improve\.experiments import .*$/gm).length, 1);
+    assert.match(script, /^import plotly\.graph_objects as go\nfrom process_improve\.experiments import analyze_experiment, visualize_doe\n\nanalysis = /);
   });
 });
 

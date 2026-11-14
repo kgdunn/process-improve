@@ -233,11 +233,13 @@ READS: dict[str, list[str]] = {
         "shaded: bool",
         "held: list",
         "held_best: bool",
+        "plot_options{}.plot_type: str",
     ],
     "charts through the best settings": [
         "held[].name: str",
         "held[].value: any",
         "held_best: bool",
+        "plot_options.contour.hold_values{}: number",
     ],
     "best settings": [
         "goal: str",
