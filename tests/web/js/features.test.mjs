@@ -4,16 +4,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-import { SHOWN_FROM, markdown, shownPart, slug } from "../../../web/features.js";
+import { MOVED, SHOWN_FROM, addressOf, markdown, page, shownPart, slug } from "../../../web/features.js";
 
 const DOCUMENT = readFileSync(new URL("../../../web/FEATURES.md", import.meta.url), "utf8");
 
 describe("the Markdown of the features document, as HTML", () => {
   test("a heading has the address GitHub gives it, so the document's own links to its parts hold on the page", () => {
-    assert.equal(slug("11. The other pages at factori.al"), "11-the-other-pages-at-factorial");
-    assert.equal(slug("9. Enterprise: privacy, security and operation"), "9-enterprise-privacy-security-and-operation");
-    assert.equal(markdown("## 2. Designs"), '<h2 id="2-designs">2. Designs</h2>');
-    assert.equal(markdown("### The fit"), '<h3 id="the-fit">The fit</h3>');
+    assert.equal(slug("More at factori.al"), "more-at-factorial");
+    assert.equal(slug("See it: 17 charts"), "see-it-17-charts");
+    assert.equal(markdown("## Design"), '<h2 id="design">Design</h2>');
+    assert.equal(markdown("#### Checking the fit"), '<h4 id="checking-the-fit">Checking the fit</h4>');
   });
 
   test("lines with no blank line between them are one paragraph", () => {
@@ -23,6 +23,15 @@ describe("the Markdown of the features document, as HTML", () => {
   test("a list's item goes on over its indented lines, and a numbered list is numbered", () => {
     assert.equal(markdown("- **First.** It goes\n  on here.\n- Second."), "<ul><li><strong>First.</strong> It goes on here.</li><li>Second.</li></ul>");
     assert.equal(markdown("1. [One](#one)\n2. Two"), '<ol><li><a href="#one">One</a></li><li>Two</li></ol>');
+  });
+
+  test("a point's line of details is folded under it, and goes on over its own indented lines", () => {
+    assert.equal(
+      markdown("- **Plain.** For all.\n  - *Details:* For `some`,\n    over two lines.\n- Next."),
+      '<ul><li><strong>Plain.</strong> For all.<details class="more"><summary>Details</summary>' +
+        "<p>For <code>some</code>, over two lines.</p></details></li><li>Next.</li></ul>",
+    );
+    assert.doesNotMatch(markdown("- A point.\n  It goes on."), /<details/, "a point with no such line has no fold");
   });
 
   test("a table has its head, and scrolls sideways where it is too wide", () => {
@@ -56,34 +65,94 @@ describe("the Markdown of the features document, as HTML", () => {
   });
 });
 
-describe("the features document itself, as the page shows it", () => {
-  const html = markdown(shownPart(DOCUMENT));
-  const ids = [...html.matchAll(/<h\d id="([^"]+)"/g)].map(([, id]) => id);
+describe("the document as the page: steps, parts that fold, and cards", () => {
+  const text = [
+    "Kept for a page with no step.",
+    "## In brief",
+    "- **One.** A card.",
+    "## Learn",
+    "### Understand it",
+    "*What it says while closed.*",
+    "A line inside.",
+    "#### A heading inside",
+    "- A point.",
+    "### No line of its own",
+    "- Another.",
+  ].join("\n\n");
+  const html = page(text);
 
-  test("the page shows the document from its list of contents: what comes before is for those who keep it", () => {
+  test("a step is a heading, and the points of a step with no part are cards", () => {
+    assert.match(html, /^<p>Kept for a page with no step\.<\/p>\n<h2 class="feat-step" id="in-brief">In brief<\/h2>\n<ul class="feat-cards"><li>/);
+    assert.match(html, /<h2 class="feat-step" id="learn">Learn<\/h2>\n<details/);
+    assert.equal((html.match(/feat-cards/g) ?? []).length, 1, "a list inside a part is no card");
+  });
+
+  test("a part folds, closed, under its name and the line in italics that says what it holds", () => {
+    assert.match(
+      html,
+      /<details class="feat-part"><summary><h3 id="understand-it">Understand it<\/h3><span class="feat-says">What it says while closed\.<\/span><\/summary><div class="feat-body"><p>A line inside\.<\/p>\n<h4 id="a-heading-inside">A heading inside<\/h4>\n<ul><li>A point\.<\/li><\/ul><\/div><\/details>/,
+    );
+    assert.match(html, /<summary><h3 id="no-line-of-its-own">No line of its own<\/h3><\/summary>/, "a part with no such line");
+    assert.doesNotMatch(html, /<details[^>]* open/);
+  });
+
+  test("an address kept from when the parts were numbered leads to the part it named", () => {
+    const ids = ["limits", "see-it-17-charts", "the-17-charts"];
+    assert.equal(addressOf("#limits", ids), "limits");
+    assert.equal(addressOf("#12-limits", ids), "limits");
+    assert.equal(addressOf("#6-figures", ids), "see-it-17-charts", "whatever the count in its name is now");
+    assert.equal(addressOf("#the-17-charts", ids), "the-17-charts");
+    assert.equal(addressOf("#no-such-part", ids), null);
+    assert.equal(addressOf("#%E0%A4%A", ids), null, "an address no page made");
+    assert.equal(addressOf("", ids), null);
+  });
+});
+
+describe("the features document itself, as the page shows it", () => {
+  const shown = shownPart(DOCUMENT);
+  const html = page(shown);
+  const ids = [...html.matchAll(/<h\d[^>]* id="([^"]+)"/g)].map(([, id]) => id);
+
+  test("the page shows the document from its headline points: what comes before is for those who keep it", () => {
     assert.equal(DOCUMENT.split(SHOWN_FROM).length, 2, "the line that parts the document is in it once");
-    assert.ok(html.startsWith("<ol><li><a href=\"#1-in-one-minute\">In one minute</a></li>"));
+    assert.ok(html.startsWith('<h2 class="feat-step" id="in-one-minute">In one minute</h2>\n<ul class="feat-cards"><li><strong>'));
     assert.doesNotMatch(html, /CONTRIBUTING|test_features/, "how the document is kept is not on the page");
     assert.equal(shownPart("No such line"), "No such line");
   });
 
-  test("each entry of the contents leads to a heading, and no heading's address is used twice", () => {
-    const contents = [...html.slice(0, html.indexOf("</ol>")).matchAll(/href="#([^"]+)"/g)].map(([, id]) => id);
-    assert.equal(contents.length, 13);
-    assert.deepEqual(contents, ids.filter((id) => /^\d+-/.test(id)));
-    assert.equal(new Set(ids).size, ids.length);
+  test("the steps are those of a study, and each part under them folds with a line that says what it holds", () => {
+    const steps = [...html.matchAll(/<h2 class="feat-step" id="[^"]+">([^<]+)<\/h2>/g)].map(([, name]) => name);
+    assert.deepEqual(steps, ["In one minute", "Design", "Run", "Learn", "Around the study", "The fine print"]);
+    const parts = [...html.matchAll(/<details class="feat-part"><summary><h3 id="([^"]+)">[^<]+<\/h3>(<span class="feat-says">[^<]+<\/span>)?<\/summary>/g)];
+    assert.equal(parts.length, (shown.match(/^### /gm) ?? []).length);
+    assert.ok(parts.length >= 12);
+    assert.ok(parts.every(([, , says]) => says), "each says what it holds while closed");
+    assert.equal(new Set(ids).size, ids.length, "no heading's address is used twice");
+  });
+
+  test("every line of details is folded under its point, and none is left as it was typed", () => {
+    assert.equal((html.match(/<details class="more">/g) ?? []).length, (shown.match(/^ +- \*Details:\* /gm) ?? []).length);
+    assert.doesNotMatch(html, /Details:/);
+    assert.ok((html.match(/<details class="more">/g) ?? []).length > 50);
+  });
+
+  test("each address the parts had while they were numbered still leads to a part, and no two to one", () => {
+    const now = Object.keys(MOVED).map((old) => addressOf(`#${old}`, ids));
+    assert.ok(now.every(Boolean), JSON.stringify(now));
+    assert.equal(new Set(now).size, 13);
   });
 
   test("every link is to another site, to a part of the page or to a page of the app: none leads into the repository", () => {
     const links = [...html.matchAll(/href="([^"]+)"/g)].map(([, href]) => href);
-    assert.ok(links.length > 13, "more than the contents");
+    assert.ok(links.length > 8);
     for (const href of links) assert.match(href, /^(https:\/\/|#|about\.html$|catalog\/|map\/$|mva\/$)/, href);
-    assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((page) => links.includes(page)));
+    assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
+    for (const href of links.filter((to) => to.startsWith("#"))) assert.ok(ids.includes(href.slice(1)), href);
   });
 
   test("nothing of the Markdown is left as it was typed", () => {
-    assert.equal((html.match(/<table/g) ?? []).length, 3, "the designs, the charts and the limits");
+    assert.equal((html.match(/<table/g) ?? []).length, 1, "the limits");
     assert.doesNotMatch(html, /\*\*|\]\(|^\||^#|<!--/m);
-    assert.doesNotMatch(html.replace(/<code>.*?<\/code>/g, ""), /`/);
+    assert.doesNotMatch(html.replace(/<code>.*?<\/code>/g, ""), /`|\*/);
   });
 });
