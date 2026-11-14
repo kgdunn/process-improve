@@ -496,7 +496,7 @@ def _interactions_the_cells_lose(df: pd.DataFrame, factor_cols: list[str]) -> li
     however few the runs. A pair with a cell missing does not: catalyst at 3 levels and
     solvent at 2 with one pair never run leave 5 cells for the 6 coefficients, and no
     number of runs over those 5 cells changes that. So does a continuous factor held at
-    one value on some level of the other.
+    one value on some level of the other, as two amounts are when no run uses both.
     """
     lost = []
     for first, second in itertools.combinations(factor_cols, 2):
@@ -511,10 +511,15 @@ def _interactions_the_cells_lose(df: pd.DataFrame, factor_cols: list[str]) -> li
 
 
 def _missing_cells_text(df: pd.DataFrame, lost: list[str]) -> str:
-    """Say which combinations of levels were never run, for each lost interaction of two categorical factors."""
+    """Say why each lost interaction is lost: combinations of levels never run, or two factors never both raised."""
     parts = []
     for term in lost:
         first, second = term.split(":")
+        if _is_numeric(df[first]) and _is_numeric(df[second]):
+            both = (df[first] > df[first].min()) & (df[second] > df[second].min())
+            if not both.any():  # as a limit on how many factors a run uses leaves them
+                parts.append(f"no run has {first} and {second} both above their lowest values")
+                continue
         if _is_numeric(df[first]) or _is_numeric(df[second]):
             parts.append(f"{term} has a factor that takes one value on a level of the other")
             continue
