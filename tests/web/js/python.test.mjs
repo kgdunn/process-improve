@@ -145,6 +145,13 @@ describe("the code of one figure", () => {
     assert.match(code, /design_data=X\[done\]\.assign\(\*\*\{"Yield": np\.log\(y\[done\]\)\}\)\.to_dict\("records"\)/);
   });
 
+  test("says what it leaves out for a study with limits on its settings", () => {
+    const limited = { response: "y", constraints: [{ expression: "T + P <= 1" }] };
+    const note = /# The page also shades the settings your limits rule out; this figure is of every setting\./;
+    assert.match(figureCode("Fitted response surface", surface, "T + P", true, limited), note);
+    assert.doesNotMatch(figureCode("Fitted response surface", surface, "T + P", true, { response: "y", constraints: [] }), note);
+  });
+
   test("follows the analysis's code as one script, each import once", () => {
     const script = cumulative(analyseCode("T + P"), figureCode("A figure", { plot_type: "perturbation" }, "T + P"));
     assert.equal(script.match(/^from process_improve\.experiments import .*$/gm).length, 1);

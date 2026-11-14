@@ -420,6 +420,8 @@ export function figureCode(title, options, model, complete = true, spec = null) 
     "",
     `# The figure "${title}", as the library draws it: under its own titles, with each factor in`,
     "# coded units, from -1 at its low setting to +1 at its high. The page puts the axes in your own units.",
+    // shortcut: the region of a study with limits is not written out, so the code draws the whole cube; #1242.
+    ...(spec?.constraints?.length ? ["# The page also shades the settings your limits rule out; this figure is of every setting."] : []),
     "drawn = analyze_experiment(",
     lenth
       ? `    ${X}, ${y}, model=${repr(model)}, analysis_type=["effects", "lenth_method"],`

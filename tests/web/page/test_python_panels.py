@@ -32,6 +32,7 @@ from tests.web._support import (
     source,
 )
 from tests.web.api.test_book_examples import catalogue
+from tests.web.api.test_charts import _limited
 
 
 def page_code(node: str, function: str, *args: object) -> str:
@@ -1218,3 +1219,28 @@ def test_the_half_normal_plot_s_code_judges_the_effects_by_lenth_s_margins_as_th
     assert_same_figure(drawn, json.loads(plots["figures"]["half_normal"]), "half_normal", values=("x", "y"))
     margins = {shape["y0"] for shape in drawn.layout.shapes}
     assert margins == {shape["y0"] for shape in json.loads(plots["figures"]["half_normal"])["layout"]["shapes"]}
+
+
+@pytest.mark.slow
+def test_a_figure_s_code_for_a_study_with_limits_draws_the_surface_over_every_setting(api, node, monkeypatch):
+    """The page shades the settings the limits rule out; the code says it does not, and draws the same surface."""
+    design, responses = _limited(api, "T + 25 * P <= 250")
+    held = held_of(design)
+    analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
+    plots = api.ok("api_plots", {**held, "responses": responses})
+    assert plots["shaded"]
+    steps = (
+        ("designCode", [held["spec"]]),
+        ("resultsCode", [held, responses]),
+        ("analyseCode", [analysis["formula"], True]),
+    )
+    options = plots["plot_options"]["contour"]
+    assert options == {"plot_type": "contour", "factors_to_plot": ["T", "P"]}, "the region is not one of them"
+    code = panel(node, *steps, ("figureCode", ["A figure", options, analysis["formula"], True, held["spec"]]))
+    assert "# The page also shades the settings your limits rule out" in code
+    drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
+    shown = json.loads(plots["figures"]["contour"])["data"]
+    assert [trace["name"] for trace in shown if trace["name"] not in {t.name for t in drawn.data}] == ["Cannot be run"]
+    np.testing.assert_allclose(
+        np.asarray(drawn.data[0].z, dtype=float), np.asarray(shown[0]["z"], dtype=float), atol=1e-9
+    )
