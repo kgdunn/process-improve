@@ -81,10 +81,10 @@ sudo factorial-usage --days 366 --by month  # a year, a row a month
 ```
 
 Each page has a column: the app (Home), the concept map (Map), the design catalog's pages
-(Catalog), the multivariate page, About, and any other page (Other). Readers are distinct
-networks and browsers in a day, and over a week or a month their average a day; Python counts
-the app's worker starting Python. Under the table, a line of bars for each page shows its use
-over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
+(Catalog), the multivariate page, About, the list of what Factorial does (Features), and any
+other page (Other). Readers are distinct networks and browsers in a day, and over a week or a
+month their average a day; Python counts the app's worker starting Python. Under the table, a
+line of bars for each page shows its use over the period. Robots, link-preview fetchers and the deploy's own checks are not counted.
 The report reads the log for the days it holds and the kept counts for older days. It is the
 `factorial-usage` that `setup.sh` installed: run `setup.sh` again to install a newer one.
 

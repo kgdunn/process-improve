@@ -80,13 +80,16 @@ def test_each_page_of_the_site_is_counted_under_its_own_name():
         logged("/catalog/index.json"),
         logged("/mva/"),
         logged("/about.html"),
+        logged("/features.html"),
+        logged("/features.html", status=304),
+        logged("/FEATURES.md"),  # the document the page reads, not a page
         logged("/a-page-added-later/"),
         logged("/style.css"),
         logged("/no-such-page/", status=404),
     )
-    assert seen.pages == {"Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Other": 1}
+    assert seen.pages == {"Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Features": 2, "Other": 1}
     assert seen.counts() == {
-        "Home": 0, "Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Other": 1,
+        "Home": 0, "Map": 2, "Catalog": 3, "Multivariate": 1, "About": 1, "Features": 2, "Other": 1,
         "Readers": 1, "Python": 0, "Previews": 0,
     }  # fmt: skip
     assert tuple(seen.counts()) == usage.COLUMNS, "in the order of the report's columns"
@@ -186,7 +189,7 @@ def three_days():
     )
 
 
-HEAD = "Day         Home  Map  Catalog  Multivariate  About  Other  Readers  Python  Previews"
+HEAD = "Day         Home  Map  Catalog  Multivariate  About  Features  Other  Readers  Python  Previews"
 
 
 def test_the_report_has_a_row_for_every_day_the_periods_totals_and_a_bar_a_day_for_each_page():
@@ -195,10 +198,10 @@ def test_the_report_has_a_row_for_every_day_the_periods_totals_and_a_bar_a_day_f
         "factori.al, 2026-10-10 to 2026-10-12 (UTC), a row a day",
         "",
         HEAD,
-        "2026-10-10     0    0        0             0      0      0        0       0         0",
-        "2026-10-11     1    0        0             0      0      0        1       1         0",
-        "2026-10-12     2    1        0             0      0      0        2       0         0",
-        "All            3    1        0             0      0      0      1.0       1         0",
+        "2026-10-10     0    0        0             0      0         0      0        0       0         0",
+        "2026-10-11     1    0        0             0      0         0      0        1       1         0",
+        "2026-10-12     2    1        0             0      0         0      0        2       0         0",
+        "All            3    1        0             0      0         0      0      1.0       1         0",
         "",
         "Readers are distinct networks and browsers in a day: approximate. Over several days, the average a day.",
         "",
@@ -208,6 +211,7 @@ def test_the_report_has_a_row_for_every_day_the_periods_totals_and_a_bar_a_day_f
         "  Catalog",
         "  Multivariate",
         "  About",
+        "  Features",
         "  Other",
         "  Readers        ▄█",
         "",
@@ -255,8 +259,8 @@ def test_the_finished_days_are_kept_once_and_today_is_not(tmp_path):
     kept = tmp_path / "usage.csv"
     assert usage.keep(kept, days, date(2026, 10, 12)) == ["2026-10-11"]
     assert kept.read_text(encoding="utf-8").splitlines() == [
-        "Day,Home,Map,Catalog,Multivariate,About,Other,Readers,Python,Previews",
-        "2026-10-11,1,0,0,0,0,0,1,1,0",
+        "Day,Home,Map,Catalog,Multivariate,About,Features,Other,Readers,Python,Previews",
+        "2026-10-11,1,0,0,0,0,0,0,1,1,0",
     ]
     assert usage.keep(kept, days, date(2026, 10, 13)) == ["2026-10-12"]
     forgotten = {"2026-10-12": usage.Day()}  # the log has since forgotten most of the day
@@ -272,8 +276,8 @@ def test_a_column_the_file_lacks_counts_nothing_and_is_added_when_the_file_is_ne
     days, _ = three_days()
     usage.keep(kept, days, date(2026, 10, 12))
     assert kept.read_text(encoding="utf-8").splitlines()[:2] == [
-        "Day,Home,Map,Catalog,Multivariate,About,Other,Readers,Python,Previews",
-        "2026-09-01,7,0,0,0,0,0,3,0,0",
+        "Day,Home,Map,Catalog,Multivariate,About,Features,Other,Readers,Python,Previews",
+        "2026-09-01,7,0,0,0,0,0,0,3,0,0",
     ]
 
 
@@ -283,9 +287,9 @@ def test_the_report_reads_the_kept_counts_for_the_days_the_log_no_longer_holds(t
     keeps["2026-10-11"] = {**dict.fromkeys(usage.COLUMNS, 0), "Home": 1, "Readers": 1, "Python": 1}
     lines = usage.report(days, keeps, referrers, date(2026, 10, 10), date(2026, 10, 12)).splitlines()
     assert lines[3:6] == [
-        "2026-10-10     9    4        0             0      0      0        5       0         0",
-        "2026-10-11     1    0        0             0      0      0        1       1         0",
-        "2026-10-12     2    1        0             0      0      0        2       0         0",
+        "2026-10-10     9    4        0             0      0         0      0        5       0         0",
+        "2026-10-11     1    0        0             0      0         0      0        1       1         0",
+        "2026-10-12     2    1        0             0      0         0      0        2       0         0",
     ]
 
 
@@ -318,7 +322,8 @@ def test_the_report_reads_the_live_log_and_the_rolled_ones_gzipped(tmp_path, cap
     (tmp_path / "other-site.log").write_text(json.dumps(logged("/", when=now)) + "\n", encoding="utf-8")
     log = ["--log", str(tmp_path / "factorial-access*.log*"), "--kept", str(tmp_path / "none.csv")]
     assert usage.main([*log, "--days", "1"]) == 0
-    assert capsys.readouterr().out.splitlines()[4].split() == ["All", "2", *["0"] * 5, "2", "0", "0"]
+    others = ["0"] * (len(usage.PAGES) - 1)  # every page but Home
+    assert capsys.readouterr().out.splitlines()[4].split() == ["All", "2", *others, "2", "0", "0"]
 
 
 def test_the_report_says_when_no_log_matches(tmp_path, capsys):
