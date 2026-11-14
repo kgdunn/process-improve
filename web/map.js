@@ -137,14 +137,26 @@ const bookName = b => BOOK_NAME[b] || `Book ${BOOKS.indexOf(b) + 2}`;
 const COUNT = ["two", "three", "four", "five"];
 const booksOfLink = e => BOOKS.filter(b => (e.also || []).includes(b));
 const booksOfTerm = n => BOOKS.filter(b => (n.also || []).includes(b) || linksOf(n.id).some(e => (e.also || []).includes(b)));
-// shortcut: with three or more other texts, a link some but not all of them state is drawn as the first of them, upgrade when a third text is reviewed
-const bookClass = (books, stem) => ` ${stem}-${!books.length ? "own" : books.length === BOOKS.length && BOOKS.length > 1 ? "all" : BOOKS.indexOf(books[0])}`;
 const inBooks = books => { const names = books.map(bookName);
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]; };
-// What the row above the map can show or fade: what this book alone has, what each textbook also has, and what all have.
-const BOOK_KINDS = [["own", "This book"], ...BOOKS.map((b, k) => [String(k), bookName(b)]), ...(BOOKS.length > 1 ? [["all", `All ${BOOKS.length + 1}`]] : [])];
-// The colour of each while the other textbooks are shown: a neutral for this book alone, the strongest ink for all of them.
-const BOOK_INK = { own: "--muted", all: "--fg", ...Object.fromEntries(BOOKS.map((_, k) => [k, `--map-book${k + 2}`])) };
+// Compared with the other textbooks, each topic and each term carries a ring: one sector per book, clockwise from 12
+// o'clock, this book first. A term's sector is filled when that book has the term; `ringKey` says which are, so
+// "10" is a term the first textbook has and the second has not.
+const termBooks = new Map(DATA.nodes.map(n => [n.id, booksOfTerm(n)]));
+const ringKey = id => BOOKS.map(b => Number(termBooks.get(id).includes(b))).join("");
+const RING_KEYS = [...new Set(DATA.nodes.map(n => ringKey(n.id)))];
+const RING_GAP = 9;   // degrees left open between two sectors
+// The ring, drawn. `filled` is how much of each sector is in its book's ink, from 0 to 1, with the rest in `track`;
+// `width` is the ring's as a fraction of the drawing's, and at 0.5 the sectors reach the middle.
+const ringSvg = (filled, inks, track, width) => {
+  const r = 50 - width * 50, turn = Math.PI / 180;
+  const at = a => `${(50 + r * Math.sin(a * turn)).toFixed(2)} ${(50 - r * Math.cos(a * turn)).toFixed(2)}`;
+  const arc = (a, b, ink) => (b - a < 0.4 ? "" : `<path d="M${at(a)} A${r.toFixed(2)} ${r.toFixed(2)} 0 ${b - a > 180 ? 1 : 0} 1 ${at(b)}" style="stroke:${ink}"/>`);
+  const sectors = filled.map((share, i) => { const a = (i * 360) / filled.length + RING_GAP / 2, b = ((i + 1) * 360) / filled.length - RING_GAP / 2,
+    full = a + (b - a) * share; return arc(a, full, inks[i]) + arc(full, b, track); }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke-width="${(width * 100).toFixed(2)}">${sectors}</g></svg>`;
+};
+const asImage = svg => "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 
 // Reading level: Beginner, Intermediate or Adventurous; each shows every level below it (the book's build sets each
 // term's level from where chapter 5 introduces it). A first visit opens on Beginner; the reader's choice is kept.
@@ -212,11 +224,11 @@ const elements = [
   // The same names as markers of their own, drawn above terms and links while the names sit mid-circle.
   ...[...subtopics.values()].map(s => ({ group: "nodes", classes: "subname", position: { x: s.x, y: s.y },
     data: { id: `${s.id}-name`, label: `${s.name}\n[${sizeAt(s.id)}]`, w: 1.6 * s.r } })),
-  ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}${bookClass(booksOfTerm(n), "book")}`, position: { x: n.x, y: n.y },
-    data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length } })),
+  ...DATA.nodes.map(n => ({ group: "nodes", classes: `term fam-${fam(n)}`, position: { x: n.x, y: n.y },
+    data: { id: n.id, label: n.name, rank: n.rank, topic: n.cluster, sub: n.sub, fam: fam(n), level: n.level || LEVELS.length, books: ringKey(n.id) } })),
   ...DATA.edges.map((e, i) => ({ group: "edges", data: { id: `l${i}`, source: e.source, target: e.target, verb: read(e.type, 0), at: 0, liftX: 0, liftY: 0,
     bow: bowOf(terms.get(e.source), terms.get(e.target)) },
-    classes: (terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross") + bookClass(booksOfLink(e), "also") })),
+    classes: terms.get(e.source).cluster === terms.get(e.target).cluster ? "link" : "link cross" })),
   ...DATA.cluster_links.map((e, i) => ({ group: "edges", classes: "between",
     data: { id: `b${i}`, source: e.a, target: e.b, n: e.n, bow: bowOf(topics.get(e.a), topics.get(e.b)) } })),
 ];
@@ -231,10 +243,8 @@ try { labelsOn = localStorage.getItem("factorial-map-labels") !== "off"; } catch
 let stripWas = null;   // the strip's own text, while it reads out a link
 let verbsOn = false;   // each link's verb along its line, with an arrow to show which way it reads
 try { verbsOn = localStorage.getItem("factorial-map-verbs") === "on"; } catch {}
-let othersOn = false;   // who else states a link or covers a term: colour says it, and the kinds keep their shapes alone
+let othersOn = false;   // the other textbooks compared with this one: no links, and a ring on each topic and term says who has it
 try { othersOn = BOOKS.length > 0 && localStorage.getItem("factorial-map-others") === "on"; } catch {}
-const booksOff = new Set();   // of BOOK_KINDS, those the reader has faded
-try { (localStorage.getItem("factorial-map-books-off") || "").split(",").filter(k => BOOK_KINDS.some(([kind]) => kind === k)).forEach(k => booksOff.add(k)); } catch {}
 const DETAIL_GAP = 19;   // on-screen distance between terms at which they, and the sub-topics, appear
 const SUB_LABEL_GAP = 45;   // ... and at which sub-topic names move to their edge, and their terms are named
 
@@ -245,6 +255,44 @@ function grow(z, base, power, max) {
 // Label font, term dot and link width on screen; slow enough to keep growing up to the deepest zoom.
 const sizes = z => ({ font: grow(z, 11, 0.25, 19), dot: grow(z, 7, 0.5, 22), line: grow(z, 1, 0.4, 2.6) });
 
+// The rules while books are compared. No link is drawn but the selected term's own, in a neutral: colour is the
+// books' now. A topic's ring is two images: its sectors, which reach the middle, and over them a disc of the topic's
+// own fill that leaves a rim of them showing. Neither image changes with the zoom, only the size of the disc, so the
+// rim keeps its width on screen and no image is loaded, and so missing for a frame, while the reader zooms.
+function ringRules(z, px, overview, dot) {
+  const inks = [css("--accent"), ...BOOKS.map((_, k) => css(`--map-book${k + 2}`))], track = css("--line");
+  const image = { "background-fit": "none", "background-position-x": "50%", "background-position-y": "50%", "background-image-opacity": 1 };
+  const disc = asImage(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${css("--panel")}"/>`
+    + `<circle cx="50" cy="50" r="50" fill="${css("--map-bubble")}" fill-opacity="${overview ? 0.9 : 0.55}"/></svg>`);
+  // A topic's sector is filled as far as the share of the topic's terms, of those drawn, that the book has.
+  const share = id => { const all = DATA.nodes.filter(n => n.cluster === id && onMap.has(n.id));
+    return BOOKS.map(b => (all.length ? all.filter(n => termBooks.get(n.id).includes(b)).length / all.length : 0)); };
+  return [
+    { selector: ".link, .between", style: { display: "none" } },
+    { selector: ".link.hl", style: { display: "element", "line-color": css("--muted"), "target-arrow-color": css("--muted") } },
+    ...DATA.clusters.map(c => {
+      const d = 2 * c.r * z, rim = overview ? Math.min(9, Math.max(3, 0.075 * d)) : 6, inner = `${100 * (1 - 2 * rim / d)}%`;
+      // Zoomed out, the topic's name is inside the rim, in a size that fits there: a word to a line at the least.
+      const words = c.short.split(" "), room = d - 2 * rim - 8;
+      const fits = Math.min(13 * room / Math.max(...words.map(w => textWidth(w, 13, "600"))), room / (1.2 * (words.length + 1)));
+      return { selector: `#${c.id}`, style: { ...image, "background-image": [asImage(ringSvg([1, ...share(c.id)], inks, track, 0.5)), disc],
+        "background-width": ["100%", inner], "background-height": ["100%", inner], "background-clip": "node",
+        ...(overview ? { "font-size": px(Math.min(13, Math.max(9, fits))), "text-max-width": px(room), "text-background-opacity": 0,
+          ...HALO(px), "text-outline-opacity": 0.95 } : {}) } };
+    }),
+    // A term keeps its kind's shape and gives up its colour; its ring is outside it.
+    { selector: ".term", style: { ...image, "background-color": css("--muted"), "background-clip": "none", "background-image-containment": "over",
+      "background-width": "215%", "background-height": "215%", "bounds-expansion": px(dot * 0.7) } },
+    ...RING_KEYS.flatMap(k => { const has = [1, ...k].map(Number); return [
+      { selector: `.term[books = "${k}"]`, style: { "background-image": asImage(ringSvg(has, inks, track, 0.125)) } },
+      { selector: `.term.sel[books = "${k}"]`, style: { "background-image": asImage(ringSvg(has, inks, track, 0.085)),
+        "background-width": "190%", "background-height": "190%" } }]; }),
+    { selector: ".term.lab", style: { "text-margin-y": px(3 + dot * 0.6) } },   // a name is outside its term's ring
+    { selector: ".term.sel.lab", style: { "text-margin-y": px(3 + dot * 0.9) } },
+    { selector: ".term.lab.up", style: { "text-valign": "top", "text-margin-y": px(-(1 + dot * 0.6)) } },
+  ];
+}
+
 function sheet(z) {
   const px = v => v / z;                 // screen pixels to drawing units
   const overview = TERM_GAP * z < DETAIL_GAP;
@@ -254,7 +302,6 @@ function sheet(z) {
   // An arrowhead `length` px long on a line `width` px wide. Cytoscape draws it 0.3 x max((13.37 x width)^0.9, 29) drawing
   // units long, a floor that grows on screen with the zoom, so the scale is solved for the length wanted.
   const arrow = (width, length) => length / (0.3 * Math.max(Math.pow(13.37 * px(width), 0.9), 29) * z);
-  const faded = othersOn ? [...booksOff] : [];
   const famRules = Object.entries(FAMILIES).map(([k, [, shape]]) =>
     ({ selector: `.fam-${k}`, style: { shape, "background-color": css(`--map-${k}`) } }));
   return [
@@ -289,8 +336,6 @@ function sheet(z) {
     { selector: ".term", style: { display: overview ? "none" : "element", width: size, height: size, "z-index": 10, label: "",
       "border-width": 0 } },
     ...famRules,
-    // With the other textbooks shown, a term keeps its kind's shape and takes the colour of who covers it.
-    ...(othersOn ? BOOK_KINDS.map(([k]) => ({ selector: `.term.book-${k}`, style: { "background-color": css(BOOK_INK[k]) } })) : []),
     { selector: ".term.lab", style: { label: "data(label)", color: css("--fg"), "font-family": FONT,
       "font-size": px(font), "text-wrap": "wrap", "text-max-width": px(font * LABEL_EMS),
       "text-valign": "bottom", "text-margin-y": px(3), ...HALO(px) } },
@@ -309,22 +354,12 @@ function sheet(z) {
     { selector: ".link.away", style: { display: "none" } },   // a term of it is out of view (linksInView); the selected term's links stay, by the next rule
     { selector: ".link.hl", style: { display: "element", width: px(line * 1.25), "line-color": css("--accent"), "target-arrow-shape": "triangle",
       "target-arrow-color": css("--accent"), "arrow-scale": arrow(line * 1.25, dot), "line-opacity": 1, "z-index": 15 } },
-    ...(othersOn ? [
-      { selector: ".link", style: { "line-opacity": middle ? 0.18 : 0.32 } },
-      { selector: ".link.cross", style: { "line-opacity": middle ? 0.07 : 0.14 } },
-      { selector: ".link.hl", style: { "line-color": css(BOOK_INK.own), "target-arrow-color": css(BOOK_INK.own) } },   // not the accent: colour says who states it
-      ...BOOK_KINDS.filter(([k]) => k !== "own").flatMap(([k]) => [
-        { selector: `.link.also-${k}`, style: { "line-color": css(BOOK_INK[k]), "target-arrow-color": css(BOOK_INK[k]), width: px(line * (k === "all" ? 2.1 : 1.5)),
-          "line-opacity": k === "all" ? 0.95 : 0.9, "z-index": k === "all" ? 8 : 7 } },
-        { selector: `.link.cross.also-${k}`, style: { "line-opacity": k === "all" ? (middle ? 0.6 : 0.78) : (middle ? 0.45 : 0.6) } }]),
-      { selector: ".link.hl", style: { "line-opacity": 1, "z-index": 15 } },   // the selected term's links stay in front, in their colour
-    ] : []),
     { selector: ".between", style: { display: overview ? "element" : "none", ...ARC, "z-index": 1,
       width: `mapData(n, 1, 14, ${px(1)}, ${px(7)})`, "line-color": css("--muted"), opacity: 0.45 } },
-    { selector: [".dim", ...faded.map(k => `.term.book-${k}`)].join(", "), style: { opacity: 0.18 } },
+    ...(othersOn ? ringRules(z, px, overview, dot) : []),
+    { selector: ".dim", style: { opacity: 0.18 } },
     { selector: ".topic.empty, .subtopic.empty, .subname.empty", style: { opacity: 0.35 } },
-    { selector: [".link.dim", ...faded.map(k => `.link.also-${k}`)].join(", "), style: { opacity: 0.08, "source-label": "" } },
-    ...(faded.length ? [{ selector: ".term.sel", style: { opacity: 1 } }] : []),   // the selected term is never faded
+    { selector: ".link.dim", style: { opacity: 0.08, "source-label": "" } },
     { selector: ".link.mute", style: { "source-label": "" } },   // its label would land on a term or another label (settleLinkLabels)
     { selector: ".term.off", style: { display: "none" } },   // its links go with it
   ];
@@ -349,14 +384,16 @@ function placeLabels(z) {
     const shown = gap < 40 ? 3 : gap < 60 ? 8 : Infinity;   // per topic, by rank, before space decides
     const W = cy.width(), H = cy.height();
     const candidates = [];
+    const rings = [], reach = dot * 1.1;   // while books are compared: the terms in view, and how far a ring reaches from its term
     cy.nodes(".term").forEach(n => {
       if (n.hasClass("off")) return;
+      const p = n.renderedPosition();
+      if (p.x < -160 || p.x > W + 160 || p.y < -160 || p.y > H + 160) return;
+      if (othersOn) rings.push({ n, p });
       const sel = n.hasClass("sel"), forced = sel || (labelsOn && n.hasClass("nb"));
       if (!sel && !labelsOn) return;
       if (!forced && n.data("rank") >= shown) return;
       if (!forced && n.data("sub") && gap < SUB_LABEL_GAP) return;   // the sub-topic's name stands for its terms
-      const p = n.renderedPosition();
-      if (p.x < -160 || p.x > W + 160 || p.y < -160 || p.y > H + 160) return;
       candidates.push({ n, p, sel, forced, order: sel ? -2 : forced ? -1 : n.data("rank") });
     });
     candidates.sort((a, b) => a.order - b.order || b.n.degree() - a.n.degree());
@@ -365,10 +402,17 @@ function placeLabels(z) {
       const f = c.sel ? font * 1.12 : font;
       const w = textWidth(c.n.data("label"), f);
       const lines = w <= wrap ? 1 : Math.ceil((w / wrap) * 1.15);
-      const half = Math.min(w, wrap) / 2 + 4, top = c.p.y + (c.sel ? dot * 1.9 : dot) / 2 + 1;
-      const box = { x1: c.p.x - half, x2: c.p.x + half, y1: top, y2: top + lines * f * 1.3 + 4 };
-      if (c.forced || !boxes.some(o => box.x1 < o.x2 && o.x1 < box.x2 && box.y1 < o.y2 && o.y1 < box.y2)) {
-        boxes.push(box); show.add(c.n.id());
+      const half = Math.min(w, wrap) / 2 + 4, high = lines * f * 1.3 + 4;
+      const off = (c.sel ? dot * 1.9 : dot) / 2 + 1 + (othersOn ? dot * (c.sel ? 0.9 : 0.6) : 0);   // past its own ring
+      const below = { x1: c.p.x - half, x2: c.p.x + half, y1: c.p.y + off, y2: c.p.y + off + high };
+      const above = { ...below, y1: c.p.y - off - high, y2: c.p.y - off };
+      const free = b => !boxes.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2)
+        && !rings.some(r => r.n !== c.n && r.p.x + reach > b.x1 && r.p.x - reach < b.x2 && r.p.y + reach > b.y1 && r.p.y - reach < b.y2);
+      // The rings take room that names had, so while books are compared a name goes above its term when below is taken.
+      const fits = free(below), up = othersOn && !c.sel && !fits && free(above);
+      c.n.toggleClass("up", up);
+      if (c.forced || fits || up) {
+        boxes.push(up ? above : below); show.add(c.n.id());
         placed.push(c);
       }
     }
@@ -415,9 +459,7 @@ function settleLinkLabels(kept) {
   const hit = p => (grid.get(`${square(p.x)},${square(p.y)}`) || []).some(b => p.x > b.x1 - pad && p.x < b.x2 + pad && p.y > b.y1 - pad && p.y < b.y2 + pad);
   kept.forEach(take);
   cy.nodes(".term").filter(n => n.visible()).forEach(n => take(n.renderedBoundingBox({ includeLabels: false })));
-  // A link whose textbooks the reader has faded is drawn without its label, so it is given no place here either.
-  const faded = e => othersOn && [...booksOff].some(k => e.hasClass(`also-${k}`));
-  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim") && !faded(e));
+  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
   // A link as Cytoscape draws it: the quadratic from where the line leaves its source term, through its control point,
   // to where it meets its target. `along(u)` is how far along the line the point at u is, by Cytoscape's measure.
   const pan = cy.pan(), shown = p => ({ x: p.x * z + pan.x, y: p.y * z + pan.y });
@@ -428,11 +470,9 @@ function settleLinkLabels(kept) {
     const along = u => { let d = 0, i = 0; while (u > MEASURED[i + 1]) d += chords[i++];
       return d + chords[i] * (u - MEASURED[i]) / (MEASURED[i + 1] - MEASURED[i]); };
     return { s, t, cx, cy_, on, along, len: chords.reduce((a, b) => a + b, 0) }; };
-  // A line in a strong colour is kept clear of as well, its own label's line and every other: the selected term's
-  // lines, which are in the labels' colour, and, with the other textbooks shown, the lines another textbook states.
-  // A point every `pad` along a line leaves no gap a label's point could pass through.
-  const strong = e => e.hasClass("hl") || (othersOn && !e.hasClass("also-own"));
-  links.filter(strong).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
+  // The selected term's lines are kept clear of as well, a label's own line and every other: they are drawn at full
+  // strength, in the labels' colour. A point every `pad` along a line leaves no gap a label's point could pass through.
+  links.filter(e => e.hasClass("hl")).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
     for (let i = 0; i <= n; i++) { const p = on(i / n); take({ x1: p.x, x2: p.x, y1: p.y, y2: p.y }); } });
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
     const { s, t, cx, cy_, len, on, along } = path(e), w = textWidth(e.data("verb"), f, "italic 600") + 4;
@@ -578,7 +618,7 @@ function render() {
     card.innerHTML = `<span class="map-type">${n.type.replace(/([a-z])([A-Z])/g, "$1 $2")} · chapter ${n.chapter}</span><h2>${esc(n.name)}</h2><p>${withMath(n.definition)}</p>
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
-      ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
+      ${termBooks.get(n.id).length ? `<p class="map-aka map-backed">Also in ${inBooks(termBooks.get(n.id))}</p>` : ""}
       <blockquote class="map-quote"><p>${asPrinted(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
@@ -596,7 +636,8 @@ function render() {
     const near = DATA.cluster_links.filter(l => l.a === c.id || l.b === c.id).sort((a, b) => b.n - a.n).map(l => (l.a === c.id ? l.b : l.a));
     card.style.removeProperty("--fam");
     card.innerHTML = `<span class="map-type">${isSub ? `Sub-topic of ${esc(topics.get(c.topic).short)}` : "Topic"}</span><h2>${esc(c.name)}</h2>
-      <p>${members.length} terms${level < LEVELS.length ? ` at the ${LEVELS[level - 1].toLowerCase()} level` : ""}. The most connected are ${members.slice(0, 3).map(id => esc(terms.get(id).name).toLowerCase()).join(", ")}.</p>`;
+      <p>${members.length} terms${level < LEVELS.length ? ` at the ${LEVELS[level - 1].toLowerCase()} level` : ""}. The most connected are ${members.slice(0, 3).map(id => esc(terms.get(id).name).toLowerCase()).join(", ")}.</p>
+      ${BOOKS.length ? `<p class="map-aka map-backed">${BOOKS.map((b, i) => `${bookName(b)} has ${members.filter(id => termBooks.get(id).includes(b)).length}${i ? "" : " of these terms"}`).join(", ")}.</p>` : ""}`;
     links.innerHTML = isSub ? group("Terms, most connected first", members) + group("Topic", [c.topic])
       : group("Sub-topics", (c.subs || []).map(s => s.id)) + group("Terms, most connected first", members)
         + group("Linked topics, most links first", near);
@@ -801,28 +842,23 @@ verbsSwitch.addEventListener("change", () => {
 });
 const othersSwitch = document.getElementById("others"), bookKey = document.getElementById("bookkey");
 document.getElementById("books").hidden = BOOKS.length === 0;
-// One button for this book alone, one for each textbook and one for what all of them state: its colour on the map, and
-// its name. They work while the switch is on, and a tap fades or shows that colour's lines and terms.
+// The key to the rings: a ring with every sector filled, then each book's name beside its colour, in the order the
+// sectors go round. Its colours are the page's own, so it follows the colour mode with no redrawing.
+const RING_INKS = ["--accent", ...BOOKS.map((_, k) => `--map-book${k + 2}`)].map(name => `var(${name})`);
+const RING_NAMES = ["This book", ...BOOKS.map(bookName)];
+bookKey.setAttribute("aria-label", `Each ring, clockwise from the top: ${RING_NAMES.join(", ")}`);
+bookKey.innerHTML = ringSvg(RING_NAMES.map(() => 1), RING_INKS, "none", 0.19)
+  + RING_NAMES.map((name, i) => `<span><i style="background:${RING_INKS[i]}"></i>${name}</span>`).join("");
 const showOthers = () => {
   othersSwitch.checked = othersOn;
-  const what = (k, name) => (k === "own" ? "this book alone states" : k === "all" ? "every textbook states" : `${name} also states`);
-  bookKey.innerHTML = BOOK_KINDS.map(([k, name]) => `<button type="button" data-book="${k}" aria-pressed="${!booksOff.has(k)}"${othersOn ? "" : " disabled"}
-    title="${booksOff.has(k) ? "Show" : "Fade"} what ${what(k, name)}"><i class="b-${k}"></i>${name}</button>`).join("");
-  drawLegend();   // the kinds' shapes lose their colours while the other textbooks are shown
+  bookKey.classList.toggle("waits", !othersOn);
+  drawLegend();   // the kinds' shapes lose their colours while books are compared
 };
 showOthers();
 othersSwitch.addEventListener("change", () => {
   othersOn = othersSwitch.checked;
   try { localStorage.setItem("factorial-map-others", othersOn ? "on" : "off"); } catch {}
   showOthers(); refresh(true);
-});
-bookKey.addEventListener("click", ev => {
-  const b = ev.target.closest("button"); if (!b || b.disabled) return;
-  const k = b.dataset.book;
-  if (!booksOff.delete(k)) booksOff.add(k);
-  try { localStorage.setItem("factorial-map-books-off", [...booksOff].join(",")); } catch {}
-  showOthers(); refresh(true);
-  bookKey.querySelector(`button[data-book="${k}"]`).focus();   // keep the keyboard where it was
 });
 document.getElementById("zin").addEventListener("click", () => zoomBy(1.6));
 document.getElementById("zout").addEventListener("click", () => zoomBy(1 / 1.6));
@@ -909,10 +945,11 @@ function renderHow() {
       <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>
     </details>
     ${BOOKS.length ? `<p>${BOOKS.length === 1 ? "Another textbook was" : `${COUNT[BOOKS.length - 2][0].toUpperCase()}${COUNT[BOOKS.length - 2].slice(1)} other textbooks were`}
-      read against the map, named ${inBooks(BOOKS)} here. Switch ${BOOKS.length === 1 ? "it" : "them"} on above the map: the kinds of term keep their shapes and give up
-      their colours, and a colour then says who states a line or covers a term: this book alone,
-      ${BOOKS.length === 1 ? `or ${bookName(BOOKS[0])} too` : `${BOOKS.map(b => `${bookName(b)} too`).join(", ")}, or all ${COUNT[BOOKS.length - 1]}`}.
-      Tap a name there to fade or show its lines and terms.</p>` : ""}
+      read against the map, named ${inBooks(BOOKS)} here. Switch "Compare books" on above the map: the lines go, the kinds of term
+      keep their shapes and give up their colours, and a ring around each topic and each term says which books have it.
+      A ring has one part for each book, clockwise from the top: ${RING_NAMES.map(n => n.replace("This", "this")).join(", ")}. A term's part is in the book's colour when
+      that book has the term. A topic's part is in the book's colour as far round as the share of the topic's terms
+      that book has. Tap a term to see its own lines again.</p>` : ""}
 
     <h3>3. How the topics are found</h3>
     <p>A topic is a group of ideas that are more related to each other than to the rest. A computer finds the groups,
