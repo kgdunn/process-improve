@@ -106,7 +106,7 @@ def test_the_page_shows_the_document_from_its_headline_points_on(context, site):
     document = (WEB / "FEATURES.md").read_text(encoding="utf-8")
     designs = page.locator(".feat-part").first.locator(".feat-body ul").first.locator("li > strong").all_text_contents()
     assert len(designs) == 16
-    assert all(f"- **{design}**, " in document for design in designs), "each is a point of the document"
+    assert all(f"- **{design}** For " in document for design in designs), "each is a point of the document"
     said = page.text_content("#features")
     assert said.lstrip().startswith("In one minute"), "the headline points come first"
     assert "CONTRIBUTING" not in said, "how the document is kept is for those who keep it"

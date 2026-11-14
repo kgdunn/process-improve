@@ -17,7 +17,8 @@ rules keep it true:
 The app's own page, [features.html](features.html), shows this document to its readers, so it
 is written for them:
 
-- **Plain words first.** Each point opens with what it means for the person using the app.
+- **Plain words first.** Each point opens with what it means for the person using the app, as
+  a sentence in bold that ends with its period.
   What only a statistician asks, or the person who looks after the computers, goes on an
   indented line under the point that starts with *Details:*. The page shows that line when
   it is asked for, and at once at the Adventurous reading level.
@@ -36,8 +37,8 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
   browser.
 - **Works with no network.** After one visit the app opens and runs offline: in a plant, a
   lab or a plane.
-- **16 designs** from one form, from a full factorial to optimal, space-filling and mixture
-  designs, also when some settings cannot be run.
+- **16 designs.** One form makes them all, from a full factorial to optimal, space-filling and
+  mixture designs, also when some settings cannot be run.
 - **From a question to a recommendation.** Say what you want to learn. The app lists the
   designs that can answer it, analyses your results, finds the best settings, and says what
   to run next.
@@ -59,46 +60,45 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
 
 The design list holds 16 designs. The reading level sets how many of them show.
 
-- **Full factorial (2-level)**, 1 to 7 factors. Every combination of low and high: the whole
-  picture, for a few factors.
+- **Full factorial (2-level).** For 1 to 7 factors. Every combination of low and high: the
+  whole picture, for a few factors.
   - *Details:* Mixed levels with a categorical factor of 3 to 8 levels.
-- **Fractional factorial (2-level)**, 3 to 24 factors. A chosen part of the full factorial:
+- **Fractional factorial (2-level).** For 3 to 24 factors. A chosen part of the full factorial:
   many factors in few runs, at the price of some effects being mixed together.
   - *Details:* Resolution III, IV or V; minimum aberration; chosen on a grid of runs against
     factors.
-- **Plackett-Burman screening**, 2 to 40 factors. Finds which of many factors matter, in
+- **Plackett-Burman screening.** For 2 to 40 factors. Finds which of many factors matter, in
   very few runs.
-- **Taguchi orthogonal array**, 2 to 40 factors. A standard array for the effect of each
+- **Taguchi orthogonal array.** For 2 to 40 factors. A standard array for the effect of each
   factor on its own.
   - *Details:* Each numeric factor at two levels or at three.
-- **Definitive screening (DSD)**, 3 to 40 factors. Screens many factors at three levels, so
+- **Definitive screening (DSD).** For 3 to 40 factors. Screens many factors at three levels, so
   an effect that curves shows too.
-- **OMARS (three levels, runs you choose)**, 3 to 5 factors. As a definitive screening
-  design, in the number of runs you choose: more runs sharpen the curves and the
-  interactions.
+- **OMARS (three levels, runs you choose).** For 3 to 5 factors. As a definitive screening
+  design, in the number of runs you choose: more runs sharpen the curves and the interactions.
   - *Details:* Up to 41 runs.
-- **Box-Behnken**, 3 to 7 factors. For a response that curves, to find its best point, with
+- **Box-Behnken.** For 3 to 7 factors. For a response that curves, to find its best point, with
   no run at the extreme corners.
-- **Central composite (CCD)**, 2 to 7 factors. For a response that curves, to find its best
+- **Central composite (CCD).** For 2 to 7 factors. For a response that curves, to find its best
   point: a factorial with runs added along each factor and at the center.
   - *Details:* Face-centred, rotatable, orthogonal, or an axial distance you type.
-- **D-optimal**, 2 to 8 factors. The runs that pin down your model's effects best, for the
+- **D-optimal.** For 2 to 8 factors. The runs that pin down your model's effects best, for the
   number of runs you can afford, inside any limits on the settings.
-- **I-optimal**, 2 to 6 factors. The runs that predict best across the ranges, for the
+- **I-optimal.** For 2 to 6 factors. The runs that predict best across the ranges, for the
   number of runs you can afford, inside any limits on the settings.
-- **A-optimal**, 2 to 6 factors. The runs that know every effect of your model about equally
-  well, for the number of runs you can afford, inside any limits on the settings.
-- **Space-filling (Latin hypercube)**, 2 to 8 factors. Runs spread evenly through the ranges,
-  for a response whose shape is unknown, or for a machine-learning model.
+- **A-optimal.** For 2 to 6 factors. The runs that know every effect of your model about
+  equally well, for the number of runs you can afford, inside any limits on the settings.
+- **Space-filling (Latin hypercube).** For 2 to 8 factors. Runs spread evenly through the
+  ranges, for a response whose shape is unknown, or for a machine-learning model.
   - *Details:* Maximin; up to 200 runs.
-- **Space-filling (Sobol sequence)**, 2 to 8 factors. Runs spread through the ranges so that
-  runs added later fall between the first.
+- **Space-filling (Sobol sequence).** For 2 to 8 factors. Runs spread through the ranges so
+  that runs added later fall between the first.
   - *Details:* Up to 200 runs.
-- **Simplex lattice (mixture)**, 3 to 6 factors. For a recipe whose parts add up to a whole:
-  each part alone and the even blends of them.
+- **Simplex lattice (mixture).** For 3 to 6 factors. For a recipe whose parts add up to a
+  whole: each part alone and the even blends of them.
   - *Details:* Degree 1 or 2.
-- **Simplex centroid (mixture)**, 3 or 4 factors. For a recipe: every blend of equal parts.
-- **Extreme vertices (mixture with bounds)**, 3 to 6 factors. For a recipe in which each
+- **Simplex centroid (mixture).** For 3 or 4 factors. For a recipe: every blend of equal parts.
+- **Extreme vertices (mixture with bounds).** For 3 to 6 factors. For a recipe in which each
   part has a least and a most.
   - *Details:* A lower and an upper proportion for each component.
 
@@ -135,7 +135,7 @@ Also:
   run to run, and the smallest change worth finding. The app then says how likely each
   design is to find that change.
   - *Details:* They give each design's power.
-- **Up to 5 responses**, each with its own units and goal.
+- **Up to 5 responses.** Each has its own units and goal.
 - **Numbers and categories.** A factor can be a number, such as a temperature, or a
   category, such as a supplier. A categorical factor has 2 to 8 levels of any text, shown as
   chips to type, paste, remove and reorder.
@@ -173,7 +173,8 @@ Also:
 
 *A run sheet to fill in: type, paste or upload your results.*
 
-- **A run sheet in the order to run it**, with a column for each response. Its columns sort.
+- **A run sheet in the order to run it.** It has a column for each response, and its columns
+  sort.
   - *Details:* The order is the randomised one.
 - **Type, paste or upload your results.** A block pasted from a spreadsheet fills the sheet,
   and a workbook filled in elsewhere is read back.
@@ -188,8 +189,8 @@ Also:
     has one of its own (a synergy and an antagonism).
 - **A whole curve as a result.** A response that is a curve at each run, such as a spectrum
   or a colour over time, pasted under the run sheet.
-- **Runs added later** join the run sheet as a block of their own, and confirmation runs go
-  at its end.
+- **Runs added later join the run sheet.** They are a block of their own, and confirmation runs
+  go at its end.
 - **A changed plan is flagged.** The run sheet is marked as out of date, with one button to
   make the new one and one to put the design back.
 
@@ -211,7 +212,8 @@ Also:
 - **The size of each effect, and how sure it is.** A table of the effects, the surest
   first. With simulated results each stands beside its true value.
   - *Details:* Coefficients with 95% intervals and p-values, ordered by p-value.
-- **How well the model fits**, and whether repeated runs say that it misses something.
+- **How well the model fits.** The app also says whether repeated runs show that it misses
+  something.
   - *Details:* Analysis of variance, a lack-of-fit test when runs are repeated, R², adjusted
     R², predicted R² and the residual degrees of freedom.
 - **Results that span a wide range.** When the results call for it, the app offers to
@@ -219,8 +221,7 @@ Also:
   the response's own units.
   - *Details:* The response as measured, or its log, square root or inverse. Box-Cox's
     interval offers the transform.
-- **Effects that cannot be told apart are shown as one**, so that neither is given the
-  credit alone.
+- **Effects that cannot be told apart are shown as one.** Neither is given the credit alone.
   - *Details:* Aliased terms are estimated once, as their chain (`T + P·F`).
 - **A design with no spare runs is still judged.**
   - *Details:* Saturated designs are judged with Lenth's method.
@@ -258,7 +259,7 @@ Also:
 - **Two levels.** The difference between them and how sure it is, tested four ways.
   - *Details:* The difference and its interval; the t-test, Welch's t-test, a randomization
     test and Wilcoxon's rank-sum test.
-- **Paired runs**, such as before and after on the same unit.
+- **Paired runs.** For example, before and after on the same unit.
   - *Details:* The paired t-test, a randomization test and Wilcoxon's signed-rank test.
 - **Three levels or more.** Which levels differ from which, and from a reference level.
   - *Details:* One-way analysis of variance, Tukey's and Dunnett's intervals, Bartlett's test
@@ -270,13 +271,13 @@ Also:
   against each other, and what each part does as its share grows.
   - *Details:* Scheffé models: linear, quadratic or special cubic blending, with the
     mixture's analysis of variance and each component's effect along its Cox direction.
-- **The best blend**, searched over the blends the bounds allow.
+- **The best blend.** It is searched for over the blends the bounds allow.
 
 #### From the results to a decision
 
-- **The best settings for your goal**, inside the ranges and the limits, with what to
-  expect there and how far a single run may fall from it. The app warns when the answer
-  leans on the model beyond the runs, and says how tightly to hold each factor.
+- **The best settings for your goal.** They are inside the ranges and the limits, with what to
+  expect there and how far a single run may fall from it. The app warns when the answer leans
+  on the model beyond the runs, and says how tightly to hold each factor.
   - *Details:* The prediction with its 95% confidence and prediction intervals.
 - **More than one goal at once.** With two or more responses, the settings that serve them
   best together. You set each response's acceptable range and its importance, and a picture
@@ -354,9 +355,9 @@ Also:
   drag it to, and keeps that shape for the next visit.
   - *Details:* The shapes are 16:9, 4:3, square or all the room, or the size its corner is
     dragged to, with a mouse, a finger or the arrow keys. Plotly's tools zoom and turn it.
-- **Step through the figures** with the window's arrows or the left and right keys.
-- **Save or copy a figure** for a report or a slide: an image file, or an image on the
-  clipboard to paste.
+- **Step through the figures.** Use the window's arrows or the left and right keys.
+- **Save or copy a figure.** Take an image file, or an image on the clipboard to paste, for a
+  report or a slide.
   - *Details:* A PNG or an SVG in the shape shown, on white under its title. An image saved
     from a dark page has the light theme's colours.
 - **The Python that draws it.** Each of the 17 charts shows code that runs as it is.
@@ -391,15 +392,16 @@ Also:
 - **A workbook for the lab.** The run sheet as a spreadsheet to fill in, which the app reads
   back.
   - *Details:* An .xlsx file. Two downloads of one study are the same file.
-- **Run sheet (.csv)**, for any spreadsheet or program.
-- **A notebook** of the study's code, with a cell that draws each figure of the analysis.
+- **Run sheet (.csv).** It opens in any spreadsheet or program.
+- **A notebook.** It holds the study's code, with a cell that draws each figure of the
+  analysis.
   - *Details:* An .ipynb file.
 - **A report to hand over.** One page that needs nothing else: the question, the design, the
   results, the analysis with its charts, the best settings, the next step and the code.
   - *Details:* An .html file. A stamp gives the versions, the seed, the SHA-256 of the
     study's inputs and a link that opens the same study.
-- **A link to a study**, with its results or without. Whoever opens it has the same study,
-  and the study in the link reaches no server.
+- **A link to a study.** It carries the results or leaves them out. Whoever opens it has the
+  same study, and the study in the link reaches no server.
   - *Details:* The study is packed after the `#`, which a browser sends to no server.
 - **Move your studies.** One study or all of them as a file, to take to another browser or
   another computer.
@@ -408,7 +410,7 @@ Also:
   later one.
   - *Details:* An earlier version refuses a newer study in a sentence, and opens no part of
     it.
-- **Share** hands a study to the device's share sheet where the browser has one.
+- **Share.** It hands a study to the device's share sheet where the browser has one.
 - **Examples by name.** The book's 19 examples and 3 published examples each open from a
   link.
   - *Details:* With `?book=<name>` and with `?example=<name>`.
@@ -431,20 +433,21 @@ Also:
   - *Details:* The glossary holds 78 terms. A definition opens on a hover, a press or the
     keyboard.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
-- **Light, dark or the system's colours**, kept in the browser.
+- **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
   - *Details:* A link past the header, sortable headings, labelled controls, and text that
     meets WCAG AA contrast in both themes.
-- **Tables that sort**, and a table of the effects that downloads for a spreadsheet.
+- **Tables that sort.** The table of the effects also downloads for a spreadsheet.
   - *Details:* The coefficients table downloads as .csv.
 - **The page does not freeze.** It scrolls and takes typing while it computes, and a long
   search can be stopped.
   - *Details:* Python runs in a worker.
-- **Errors in one sentence**, with what to change. A name the analysis would refuse is refused
-  as it is typed, with a name that works.
+- **Errors in one sentence.** Each says what to change. A name the analysis would refuse is
+  refused as it is typed, with a name that works.
 - **Your work is kept.** Every study is saved in the browser as you work, with a draft of a
   question not yet finished. Your studies lists them, to open, share or delete.
-- **Feedback** from the header, the footer or beside a result, with a list of what is sent.
+- **Feedback.** Send it from the header, the footer or beside a result. A list shows what is
+  sent.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
   groups, and what is kept on the device.
 
@@ -454,17 +457,17 @@ Also:
 
 - **Links into the book.** Each design, each measure and each defined word links to its place
   in *Process Improvement using Data* (<https://learnche.org/pid>).
-- **The worked example** opens at once, and can be run again in the tab.
-- **Practice on a known process** shows the true model beside the fitted one.
-- **What Factorial does**: this list, as a page of the app.
+- **The worked example.** It opens at once, and can be run again in the tab.
+- **Practice on a known process.** It shows the true model beside the fitted one.
+- **What Factorial does.** This list, as a page of the app.
   - *Details:* It is drawn from the document the app is described from, which a test holds to
     the app.
-- **[How Factorial works](about.html)**: what runs where, what is sent and what is not, and
-  how to run a copy of your own.
+- **[How Factorial works](about.html).** What runs where, what is sent and what is not, and how
+  to run a copy of your own.
   - *Details:* The About page: what runs where, what reaches a server, the versions loaded,
     and how to build and serve the app yourself.
-- **The concept map**: under [More at factori.al](#more-at-factorial).
-- **The package's documentation**: <https://kgdunn.github.io/process-improve/>.
+- **The concept map.** It is under [More at factori.al](#more-at-factorial).
+- **The package's documentation.** It is at <https://kgdunn.github.io/process-improve/>.
 
 ### Your data and your trust
 
@@ -485,7 +488,8 @@ What a careful reader, or an organisation, asks before using a tool.
     it is written, kept for 366 days to count visits. A usage report for the operator gives
     the visits to each page by day, week or month, from the access log, with nothing of a
     reader's in it.
-- **Feedback is the one thing sent**, only when you press Send, and only what the form lists.
+- **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
+  form lists.
   - *Details:* The relay emails it and keeps nothing.
 
 #### With no network, or on your own server
@@ -535,7 +539,7 @@ What a careful reader, or an organisation, asks before using a tool.
 - **A faulty version can be taken back at once.**
   - *Details:* Deploys can be undone with one action, to the build before or to a named
     commit.
-- **The code is checked for security faults** on every change and every week.
+- **The code is checked for security faults.** This is done on every change and every week.
   - *Details:* The code is scanned with CodeQL on every pull request and every week.
 
 ### More at factori.al

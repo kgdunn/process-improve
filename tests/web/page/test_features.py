@@ -77,10 +77,10 @@ def test_every_design_the_app_makes_is_listed_with_the_factors_it_takes(bootstra
         low, high = info["min_factors"], info["max_factors"]
         return f"{low} or {high}" if high == low + 1 else f"{low} to {high}"
 
-    listed = [re.match(r"\*\*(.+)\*\*, (.+) factors\. \S", point) for point in points("### Choose a design")]
+    listed = [re.match(r"\*\*(.+)\.\*\* For (.+) factors\. \S", point) for point in points("### Choose a design")]
     assert all(listed), "each design is named in bold, then the factors it takes, then what it is for"
     assert dict(found.groups() for found in listed) == {info["label"]: factors(info) for info in made.values()}
-    assert f"**{len(made)} designs**" in TEXT, "the count in the summary"
+    assert f"**{len(made)} designs.**" in TEXT, "the count in the summary"
     assert f"*{len(made)} designs in one list" in TEXT, "and on the fold"
     assert f"The design list holds {len(made)} designs" in TEXT
 
@@ -124,7 +124,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
     )
     megabytes = app.MAX_TABLE_BYTES // 1_000_000
     for sentence in (
-        f"**Up to {app.MAX_RESPONSES} responses**",
+        f"**Up to {app.MAX_RESPONSES} responses.**",
         f"has 2 to {app.MAX_LEVELS} levels of any text",
         f"repeats of every run (up to {app.MAX_REPLICATES})",
         f"blocks such as days or batches (up to {app.MAX_BLOCKS})",
@@ -177,6 +177,15 @@ FOR_THE_DETAILS = (
     "defining relation",
     "aberration",
 )
+
+
+def test_what_is_in_bold_is_a_sentence_with_its_period():
+    """A point opens with a sentence in bold, which a card sets on a line of its own: none trails a comma."""
+    shown = " ".join(FEATURES.split("<!-- features.html shows what follows -->", 1)[1].split())
+    bold = re.findall(r"\*\*(.+?)\*\*", shown)
+    assert len(bold) > 120
+    assert [words for words in bold if not words.endswith(".")] == []
+    assert not re.search(r"\*\*[,:;]", shown), "and nothing but a new sentence follows it"
 
 
 def test_a_point_says_in_plain_words_what_it_means_and_keeps_such_words_for_its_details():

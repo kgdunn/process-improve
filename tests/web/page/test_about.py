@@ -66,6 +66,15 @@ def test_each_part_answers_a_question_in_plain_words_and_folds_the_rest():
     assert text.count('<details class="fold">') == len(parts)
 
 
+def test_what_is_in_bold_is_a_sentence_with_its_period():
+    """A point opens with a sentence in bold: none trails a comma. The names in the drawing's boxes are no points."""
+    text = re.sub(r'<div class="flow__box[^"]*"><strong>[^<]+</strong>', "", about())
+    bold = [re.sub(r"<[^>]+>", "", words) for words in re.findall(r"<strong>(.+?)</strong>", text)]
+    assert len(bold) > 25
+    assert [words for words in bold if not words.endswith(".")] == []
+    assert not re.search(r"</strong>[,:;]", text), "and nothing but a new sentence follows it"
+
+
 def test_the_answers_have_none_of_the_words_kept_for_the_folds():
     """What a reader sees before opening a fold is in plain words: the words of files and servers are inside."""
     text = about()
@@ -116,8 +125,9 @@ def test_what_it_says_the_server_keeps_is_what_the_server_is_configured_to_keep(
 def test_what_it_says_of_feedback_is_what_the_dialog_and_the_relay_do():
     """Sent only on Send, the screenshot unless unticked, the study only if ticked, and the relay's code a link away."""
     text = about()
-    bullet = re.search(r"<li><strong>Feedback</strong>(.+?)</li>", text)[1]
-    assert "only when you press Send" in bullet
+    bullet = re.search(r"<li><strong>Feedback reaches factori\.al only when you press Send\.</strong>(.+?)</li>", text)[
+        1
+    ]
     form = " ".join(source("feedback.js").split())
     assert '<input type="checkbox" id="feedback-screenshot" name="screenshot" checked>' in form
     assert "a screenshot of the tab unless you untick it" in bullet
