@@ -1147,6 +1147,34 @@ def test_on_a_phone_the_kinds_are_large_and_the_other_textbooks_are_one_row(cont
         assert max(rows["middles"]) - min(rows["middles"]) < 3, "the switch and the four names on one line"
 
 
+# At one width: whether the page is wider than the window, what reaches past it, and how many lines the kinds take.
+ACROSS = """() => { const page = document.documentElement, wide = page.clientWidth;
+  const box = (e) => e.getBoundingClientRect(), shown = (e) => getComputedStyle(e).display !== 'none' && box(e).width > 0;
+  const past = [...document.querySelectorAll('main *')]   // not the map's own drawing, which its box cuts off
+    .filter((e) => !e.closest('#cy') && shown(e) && box(e).right > wide + 1);
+  const lines = new Set([...document.querySelectorAll('#legend button')].map((b) => Math.round(box(b).top)));
+  return { scrolls: page.scrollWidth > wide, past: [...new Set(past.map((e) => e.closest('[id]')?.id ?? e.tagName))],
+           lines: lines.size, stacked: getComputedStyle(document.querySelector('#legend button')).flexDirection }; }"""
+
+
+@pytest.mark.parametrize("others", [False, True], ids=["this book alone", "with the other textbooks"])
+def test_at_no_width_does_the_map_s_page_scroll_sideways(context, site, others):
+    context.route("**/map/graph.json", lambda route: route.fulfill(json=TWO_OTHERS))  # two textbooks: the longest row
+    page = _open(context, site)
+    if others:
+        page.click("#books .switch")
+    forms = []
+    for width in range(320, 1281, 8):  # a phone on its side and a window beside another are between the two layouts
+        page.set_viewport_size({"width": width, "height": 800})
+        across = page.evaluate(ACROSS)
+        assert not across["scrolls"], f"at {width} px the page is wider than the window: {across['past']}"
+        assert across["past"] == [], f"at {width} px: {across}"
+        if width >= 360:
+            assert across["lines"] == 1, f"at {width} px the five kinds are on one line"
+        forms += [] if forms and forms[-1] == across["stacked"] else [across["stacked"]]
+    assert forms == ["column", "row"], "each shape above its name while that is what fits, then beside it"
+
+
 # --------------------------------------------------------------------------- formulas
 # A term of the test's own: a formula in its definition, between dollar signs as the graph writes one, and another
 # in the line it quotes, in the book's own role.
