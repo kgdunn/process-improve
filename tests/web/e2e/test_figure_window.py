@@ -335,6 +335,9 @@ def test_the_charts_of_the_detailed_comparison_open_over_it(page, first_paint):
     page.click("#compare-charts figure.fds .expand")
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "Fraction of design space (FDS)"
+    code = page.locator("dialog.figure code").text_content()
+    assert "comparison = compare_designs(designs" in code, "after the code of the comparison"
+    assert "curve = evaluate_design(" in code
     page.keyboard.press("Escape")
     page.wait_for_selector("dialog.figure", state="hidden")
     assert page.is_visible("#compare-dialog"), "Escape closed the figure, and not the comparison under it"
@@ -350,6 +353,8 @@ def test_a_chart_with_no_card_has_the_button_above_it(page):
     button.click()
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "Which terms these runs tell apart"
+    code = page.locator("dialog.figure code").text_content()
+    assert 'compared = compare_designs({"runs": X[["T", "P", "F"]]})' in code, "from the runs of step 2"
     assert page.is_hidden("dialog.figure .figure__steps"), "the one chart on show: there is none to step to"
 
 
@@ -403,7 +408,17 @@ def test_a_figure_the_page_draws_itself_shows_the_python_that_draws_it_too(page)
     page.click("#best-chart .expand")
     page.wait_for_function(SHOWN)
     assert page.text_content("#figure-title") == "How tightly to hold each factor"
-    assert page.locator("dialog.figure details.python").is_hidden(), "a figure of the best settings, with no code yet"
+    code = page.locator("dialog.figure code").text_content()
+    assert "best = optimize_responses(" in code, "after the code of the best settings it is drawn at"
+    assert '# The figure "How tightly to hold each factor": how much the prediction changes' in code
+    assert code.rstrip().endswith("figure.show()")
+    page.keyboard.press("Escape")
+    # The coefficients' other view has its own code: their sizes, the largest first.
+    page.click("figure[data-chart=coefficients] button[data-view=pareto]")
+    page.click("figure[data-chart=coefficients] .expand")
+    page.wait_for_function(SHOWN)
+    code = page.locator("dialog.figure code").text_content()
+    assert '# The figure "Coefficients", as a Pareto plot: each term\'s size as a bar' in code
 
 
 def place(page) -> list[str]:
@@ -428,11 +443,12 @@ def test_the_window_steps_through_the_figures_beside_the_one_opened(page):
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
     assert place(page) == ["How tightly to hold each factor", "5 of 5"], "the chart of the best settings, further down"
-    assert page.locator("dialog.figure details.python").is_hidden(), "a figure with no code: its panel goes"
+    code = page.locator("dialog.figure code")
+    assert '# The figure "How tightly to hold each factor"' in code.text_content(), "each figure with its own code"
     page.click("dialog.figure [data-do=after]")
     page.wait_for_function(SHOWN)
     assert place(page) == ["Coefficients", "1 of 5"], "after the last, the first"
-    assert page.locator("dialog.figure details.python").is_visible(), "and comes back with a figure that has some"
+    assert '# The figure "Coefficients"' in code.text_content()
     page.keyboard.press("ArrowLeft")
     page.wait_for_function("document.querySelector('#figure-title').textContent.startsWith('How tightly')")
     assert place(page)[1] == "5 of 5"
