@@ -183,11 +183,13 @@ const opening = (scope) => ["", "worker.js", "python-boot.js", "runtime.json", "
 const onDemand = (scope) => ["figure.js"].map((file) => scope + file);
 
 /**
- * A page of the app this page never loads, which its footer's button opens: the list of what Factorial does
- * (features.html), the module that reads its document, the document, and the mark beside its way back. A copy
- * holds them all the same, so the button opens the list without a network.
+ * The pages of the app this page never loads, which its footer leads to and which are small: the list of what
+ * Factorial does (features.html), with the module that reads its document and the document; how Factorial works
+ * (about.html), which reads only files the copy holds; and the mark beside their way back. A copy holds them all
+ * the same, so both open without a network. The design catalog and the concept map are megabytes each: they are
+ * kept once a visit with a network opens them, and until then the worker says they need one (sw.js).
  */
-const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "favicon.svg"].map((file) => scope + file);
+const linked = (scope) => ["features.html", "features.js", "FEATURES.md", "about.html", "favicon.svg"].map((file) => scope + file);
 
 /**
  * What else this visit loaded of the app, as the browser's record of the visit has it: its modules, its styles,

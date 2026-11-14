@@ -165,7 +165,7 @@ describe("what the footer says of the copy", () => {
  * opens, which this page never loads.
  */
 const LOADED = ["app.js", "style.css", "manifest.webmanifest", "book/absent.json", `wheels/${manifest.wheel}`, "api/feedback"].map((file) => SCOPE + file);
-const LISTED = ["features.html", "features.js", "FEATURES.md", "favicon.svg"];
+const LISTED = ["features.html", "features.js", "FEATURES.md", "about.html", "favicon.svg"];
 const SHELL = ["", "worker.js", "python-boot.js", "runtime.json", "wheels/manifest.json", "app.js", "style.css", "manifest.webmanifest", "figure.js", ...LISTED].map((file) => SCOPE + file);
 
 /** Every address a visit may ask for, each with some text; runtime.json and the lock file with their own. */

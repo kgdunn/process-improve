@@ -305,8 +305,11 @@ A copy of the built app is kept in the reader's browser, so it opens without a n
 builds left in it, and says in the footer what it holds by reading the copy, never a note of
 what was once copied. A service worker, `web/sw.js`, serves it. The worker holds no list of
 files and reads none: a file whose address names its version is served from the copy, and the
-app's own files come from the network whenever it answers. A new address the page loads from
-needs its rule there, which `tests/web/page/test_offline.py` checks for the ones it knows.
+app's own files come from the network whenever it answers. A page asked for with no network
+that the copy does not hold is answered by the worker with a few words and the way back to the
+app; a page small enough to keep unasked is named to the copy instead (`linked` in
+`web/offline.js`). A new address the page loads from needs its rule there, which
+`tests/web/page/test_offline.py` checks for the ones it knows.
 Both files run under Node.js against a stand-in for the browser (`offline.test.mjs` and
 `sw.test.mjs` in `tests/web/js`), visit after visit; the live tier opens the built app without
 a network (`tests/web/live/test_offline.py`). The stand-in does what a browser does, which is

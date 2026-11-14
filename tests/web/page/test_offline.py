@@ -111,13 +111,19 @@ def test_the_copy_holds_every_module_the_page_loads_on_demand():
     assert on_demand - NEEDS_A_NETWORK == kept
 
 
-def test_the_copy_holds_the_page_the_footer_s_button_opens():
-    """The app's page never loads features.html, so a copy made of what a visit loaded left its button dead offline.
+def test_the_copy_holds_the_small_pages_the_footer_leads_to():
+    """The app's page never loads its other pages, so a copy made of what a visit loaded left their links dead offline.
 
-    Only the live tier saw it. The page's own files are named to the copy: the page, the module it imports, the
-    document it reads and the picture it shows. Its styles are the app's, which every visit loads.
+    Only the live tier saw it. The two small ones are named to the copy, each with the files it asks for that the
+    copy does not hold already: what opens the app is kept first, and the app's styles are loaded by every visit.
     """
-    kept = set(re.findall(r'"([\w./-]+)"', re.search(r"const linked = .*", source("offline.js")).group()))
-    asked = re.findall(r'(?:src=|from |fetch\()"(?:\./)?([\w.-]+)"', source("features.html"))
-    assert kept == {"features.html", *asked}
-    assert set(asked) == {"features.js", "FEATURES.md", "favicon.svg"}
+
+    def named(line: str) -> set[str]:
+        return set(re.findall(r'"([\w./-]+)"', re.search(line, source("offline.js")).group()))
+
+    kept, opening = named(r"const linked = .*"), named(r"const opening = .*")
+    pages = ("features.html", "about.html")
+    asks = re.compile(r'(?:src=|from |fetch\(|read\()"(?:\./)?([\w./-]+)"')
+    asked = {file for page in pages for file in asks.findall(source(page))}
+    assert {"features.js", "FEATURES.md", "favicon.svg", "runtime.json", "wheels/manifest.json"} <= asked
+    assert kept == {*pages, *(asked - opening)}

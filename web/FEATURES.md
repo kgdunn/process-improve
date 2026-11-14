@@ -340,7 +340,9 @@ What an organisation asks before it lets people use a tool.
 - **Offline.** A copy of the app, Python and its packages is kept in the browser: from about
   170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
   workbooks (about 12 MB more). The footer says what the copy holds and what it takes of the
-  device's storage, and removes it on request.
+  device's storage, and removes it on request. The copy holds this list and How Factorial
+  works too. A larger page, such as the design catalog, is kept once it has been opened with
+  a network; until then it says that it needs one, with the way back to the app.
 - **Pinned versions.** The Python release and each package are pinned, and the About page
   shows the versions a copy loads.
 
