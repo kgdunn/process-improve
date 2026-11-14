@@ -11,11 +11,14 @@ from process_improve.experiments import DesignRegion, Factor, generate_design, o
 from process_improve.experiments import designs_constrained as engine
 from process_improve.experiments.designs_mixture_constrained import (
     TooManyVertices,
+    _column_labels,
+    _estimable_columns,
     _SampledCandidates,
     extreme_vertices,
     mixture_candidates,
     mixture_inequalities,
     sampled_vertices,
+    scheffe_matrix,
 )
 from process_improve.experiments.factor import as_constraints
 
@@ -120,6 +123,33 @@ class TestGroupsHeldToATotal:
         result = generate_design(factors, budget=16, model_type="main_effects", constraints=limits, random_state=1)
         assert "inestimable_columns" not in result.metadata
 
+    @pytest.mark.parametrize(
+        ("model", "some_labels"),
+        [
+            ("scheffe_linear", ["a", "c"]),
+            ("scheffe_quadratic", ["a:b", "b:c"]),
+            ("scheffe_special_cubic", ["a:b", "a:b:c"]),
+            ("scheffe_cubic", ["a:b", "I(a * b * (a - b))", "a:b:c"]),
+        ],
+    )
+    def test_every_column_of_a_model_has_a_label(self, model: str, some_labels: list[str]) -> None:
+        labels = _column_labels(["a", "b", "c"], model)
+        assert len(labels) == scheffe_matrix(np.full((1, 3), 1 / 3), model).shape[1]
+        assert len(set(labels)) == len(labels)
+        assert set(some_labels) <= set(labels)
+
+    def test_the_products_a_fixed_total_leaves_inestimable_are_named(self) -> None:
+        # Two groups of two, each held to half of the blend: a + b = c + d = 0.5 in every blend.
+        factors = [Factor(name=name, type="mixture", high=0.5) for name in "abcd"]
+        limits = as_constraints(["a + b <= 0.5", "c + d <= 0.5"])
+        candidates = mixture_candidates(*mixture_inequalities(factors, limits))
+        pool = np.vstack(list(candidates.values()))
+        kept, lost = _estimable_columns(factors, pool, "scheffe_quadratic")
+        assert len(kept) + len(lost) == 10
+        assert len(kept) == np.linalg.matrix_rank(scheffe_matrix(pool, "scheffe_quadratic"))
+        assert "d" in lost
+        assert any(":" in label for label in lost)  # a product of two components
+
     @pytest.mark.slow
     def test_thirty_five_components_in_buckets_of_seven(self) -> None:
         factors, limits, flat = _buckets(7, 0.2)
@@ -173,6 +203,15 @@ class TestComponentsLeftOut:
         tight = [Factor(name="x1", type="mixture", high=0.2, min_when_used=0.15), Factor(name="x2", type="mixture")]
         with pytest.raises(ValueError, match="Every candidate blend has a component between 0 and its min_when_used"):
             generate_design(tight, budget=4, model_type="scheffe_linear", constraints=["0.05 <= x1 <= 0.1"])
+
+    def test_blends_that_all_hold_a_trace_are_refused_beside_a_process_factor(self) -> None:
+        factors = [
+            Factor(name="x1", type="mixture", high=0.2, min_when_used=0.15),
+            Factor(name="x2", type="mixture"),
+            Factor(name="T", low=20, high=80),
+        ]
+        with pytest.raises(ValueError, match="Every candidate blend has a component between 0 and its min_when_used"):
+            generate_design(factors, budget=8, model_type="main_effects", constraints=["0.05 <= x1 <= 0.1"])
 
     def test_a_trace_is_outside_the_region(self) -> None:
         region = DesignRegion(COMPONENTS)
