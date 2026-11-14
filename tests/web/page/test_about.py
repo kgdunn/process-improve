@@ -78,11 +78,12 @@ def test_what_is_in_bold_is_a_sentence_with_its_period():
 def test_the_answers_have_none_of_the_words_kept_for_the_folds():
     """What a reader sees before opening a fold is in plain words: the words of files and servers are inside."""
     text = about()
-    answers = re.sub(r'<details class="fold">.*?</details>|<script.*?</script>', "", text)
-    assert len(answers) < len(text) / 2, "most of the page's words are in its folds"
+    shown = text[text.index("<main") : text.index("</main>")]  # what the page says: its scripts are outside it
+    answers = re.sub(r'<details class="fold">.*?</details>', "", shown)
+    assert len(answers) < len(shown) / 2, "most of the page's words are in its folds"
     for word in FOR_THE_FOLDS:
         assert word.lower() not in answers.lower(), word
-        assert word.lower() in text.lower(), f"{word}: said in a fold, for a reader who asks"
+        assert word.lower() in shown.lower(), f"{word}: said in a fold, for a reader who asks"
 
 
 def test_the_app_s_footer_links_to_it():
