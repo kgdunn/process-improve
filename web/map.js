@@ -71,6 +71,23 @@ const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "
 // is hidden until it is drawn; if KaTeX cannot be fetched, the formula is shown as it is written.
 const MATH = /\$([^$]+)\$|:math:`([^`]+)`/g;
 const withMath = text => esc(text).replace(MATH, (_, dollars, role) => `<span class="tex">${dollars ?? role}</span>`);
+// The line a term quotes is the book's source, reStructuredText, and the card shows it as the book prints it: a role
+// gives its words (:math: its formula), ``a literal``, **strong** and *emphasis* are set as such without their marks,
+// and a double dash is the en dash it stands for. The line is escaped first, so nothing in it is read as HTML, and
+// it is read in one pass, so a mark inside a formula or a literal is left as it is.
+const MARKUP = /:math:`([^`]+)`|:[A-Za-z][\w:.+-]*:`([^`]+)`|``(.+?)``|\*\*(\S(?:[^*]*\S)?)\*\*|\*(\S(?:[^*]*\S)?)\*|`(\S(?:[^`]*\S)?)`_{0,2}|--+/g;
+const inWord = ch => ch !== undefined && /[\w*`]/.test(ch);
+const asPrinted = line => esc(line).replace(MARKUP, (all, math, role, literal, strong, em, words, at, whole) => {
+  if (math) return `<span class="tex">${math}</span>`;
+  if (literal) return `<code>${literal}</code>`;
+  if (all.startsWith("--")) return all === "--" ? "\u2013" : all;   // an en dash; a longer run of dashes is a rule
+  // As reStructuredText reads them: marks open after a space or a bracket and close before one, tight around words
+  // (the pattern sees to "tight"), so the asterisks in a*b*c and in 2 * 3 * 4 are left as asterisks.
+  if (!role && (inWord(whole[at - 1]) || inWord(whole[at + all.length]))) return all;
+  if (strong ?? em) return strong ? `<strong>${strong}</strong>` : `<em>${em}</em>`;
+  const inner = role ?? words;   // "words <target>", as an index entry or a reference has: the words
+  return inner.replace(/\s*&lt;.*&gt;$/, "") || inner;
+});
 let katex;   // undefined: not asked for yet; then the fetch, as a promise; then KaTeX, or false when it did not come
 function typeset(root) {
   const formulas = root.querySelectorAll(".tex:not(.done)");
@@ -378,40 +395,72 @@ function settleOverlaps() {
 // On the line itself the line ran through the gaps between the words, in the label's own colour. The label is drawn
 // `at` drawing units along the line from where it leaves its source term, and moved (`liftX`, `liftY`) units off it:
 // Cytoscape adds a label's margin along the map's axes and turns the text afterwards, so "above" needs both.
-const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way from the source term to the target
+// Cytoscape measures "along the line" over the chords between a few fixed points of the curve (MEASURED), so the
+// same measure is used here: on a long, bowed line a plain fraction of its length is tens of pixels out.
+// "The middle" is the middle of what can be seen of the line. A selected term keeps its links to terms out of view,
+// and a label at the middle of such a line would be out of view with them.
+const SPOTS = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];   // fractions of the way along the part of the line that is in view
+const MEASURED = [0, 0.05, 0.225, 0.4, 0.5, 0.6, 0.775, 0.95, 1];   // as Cytoscape's own bezierProjPcts, with both ends
+const ALONG = [-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45];   // the points of a label that are tried, as fractions of its width
 function settleLinkLabels(kept) {
   const z = cy.zoom(), { font, dot } = sizes(z), f = font * VERB_EM, pad = f * 0.5, lift = f * VERB_LIFT;   // pad: half the text's height
   if (TERM_GAP * z < SUB_LABEL_GAP) return;   // no labels drawn yet
-  const W = cy.width(), H = cy.height();
-  const taken = [...kept, ...cy.nodes(".term").filter(n => n.visible()).map(n => n.renderedBoundingBox({ includeLabels: false }))];
-  const hit = (x, y) => taken.some(b => x > b.x1 - pad && x < b.x2 + pad && y > b.y1 - pad && y < b.y2 + pad);
-  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim"));
-  // A link as Cytoscape draws it: the quadratic through its own control point, from the centre of one term to the
-  // other's, close enough to the arc length for a label's few points.
-  const pan = cy.pan(), path = e => { const s = e.source().renderedPosition(), t = e.target().renderedPosition();
-    const [c] = e.controlPoints() || [{ x: ((s.x + t.x) / 2 - pan.x) / z, y: ((s.y + t.y) / 2 - pan.y) / z }], cx = c.x * z + pan.x, cy_ = c.y * z + pan.y;
-    return { s, t, cx, cy_, len: Math.hypot(t.x - s.x, t.y - s.y),
-      on: u => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * cx + u * u * t.x, y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * cy_ + u * u * t.y }) }; };
-  // The selected term's lines are in the labels' own colour, so a label keeps clear of each of them: of the others as
-  // of its own. A point every `pad` along a line leaves no gap a label's point could pass through.
-  links.filter(e => e.hasClass("hl")).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
-    for (let i = 0; i <= n; i++) { const p = on(i / n); if (p.x > 0 && p.x < W && p.y > 0 && p.y < H) taken.push({ x1: p.x, x2: p.x, y1: p.y, y2: p.y }); } });
+  const W = cy.width(), H = cy.height(), inView = p => p.x > pad && p.x < W - pad && p.y > pad && p.y < H - pad;
+  // What a label keeps clear of, as boxes. Each is filed under the squares of a coarse grid that it reaches, so a
+  // point is tried against the few boxes near it and not against every box on the map.
+  const SQUARE = 48, grid = new Map(), square = v => Math.floor(v / SQUARE);
+  const take = b => { if (b.x2 < 0 || b.x1 > W || b.y2 < 0 || b.y1 > H) return;   // out of view, where no label goes
+    for (let i = square(b.x1 - pad); i <= square(b.x2 + pad); i++) for (let j = square(b.y1 - pad); j <= square(b.y2 + pad); j++) {
+      const here = `${i},${j}`; if (!grid.has(here)) grid.set(here, []); grid.get(here).push(b); } };
+  const hit = p => (grid.get(`${square(p.x)},${square(p.y)}`) || []).some(b => p.x > b.x1 - pad && p.x < b.x2 + pad && p.y > b.y1 - pad && p.y < b.y2 + pad);
+  kept.forEach(take);
+  cy.nodes(".term").filter(n => n.visible()).forEach(n => take(n.renderedBoundingBox({ includeLabels: false })));
+  // A link whose textbooks the reader has faded is drawn without its label, so it is given no place here either.
+  const faded = e => othersOn && [...booksOff].some(k => e.hasClass(`also-${k}`));
+  const links = cy.edges(".link").filter(e => e.visible() && !e.hasClass("dim") && !faded(e));
+  // A link as Cytoscape draws it: the quadratic from where the line leaves its source term, through its control point,
+  // to where it meets its target. `along(u)` is how far along the line the point at u is, by Cytoscape's measure.
+  const pan = cy.pan(), shown = p => ({ x: p.x * z + pan.x, y: p.y * z + pan.y });
+  const path = e => { const s = shown(e.sourceEndpoint()), t = shown(e.targetEndpoint());
+    const [c] = (e.controlPoints() || []).map(shown), cx = c ? c.x : (s.x + t.x) / 2, cy_ = c ? c.y : (s.y + t.y) / 2;
+    const on = u => ({ x: (1 - u) ** 2 * s.x + 2 * u * (1 - u) * cx + u * u * t.x, y: (1 - u) ** 2 * s.y + 2 * u * (1 - u) * cy_ + u * u * t.y });
+    const marks = MEASURED.map(on), chords = marks.slice(1).map((p, i) => Math.hypot(p.x - marks[i].x, p.y - marks[i].y));
+    const along = u => { let d = 0, i = 0; while (u > MEASURED[i + 1]) d += chords[i++];
+      return d + chords[i] * (u - MEASURED[i]) / (MEASURED[i + 1] - MEASURED[i]); };
+    return { s, t, cx, cy_, on, along, len: chords.reduce((a, b) => a + b, 0) }; };
+  // A line in a strong colour is kept clear of as well, its own label's line and every other: the selected term's
+  // lines, which are in the labels' colour, and, with the other textbooks shown, the lines another textbook states.
+  // A point every `pad` along a line leaves no gap a label's point could pass through.
+  const strong = e => e.hasClass("hl") || (othersOn && !e.hasClass("also-own"));
+  links.filter(strong).forEach(e => { const { len, on } = path(e), n = Math.ceil(len / pad);
+    for (let i = 0; i <= n; i++) { const p = on(i / n); take({ x1: p.x, x2: p.x, y1: p.y, y2: p.y }); } });
   links.sort((a, b) => Number(b.hasClass("hl")) - Number(a.hasClass("hl"))).forEach(e => {
-    const { s, t, cx, cy_, len, on } = path(e), w = textWidth(e.data("verb"), f, "italic 600") + 4;
-    const from = e.source().renderedWidth() / 2, to = len - e.target().renderedWidth() / 2 - dot;   // clear of the arrowhead
+    const { s, t, cx, cy_, len, on, along } = path(e), w = textWidth(e.data("verb"), f, "italic 600") + 4;
+    if (!(len > 0)) { e.addClass("mute"); return; }   // its terms lie on each other: no line to stand beside
     // The text is straight: it runs along the line's direction where it sits, left to right, and stands above it. Where
     // the line bows upwards its two ends rise towards the text, so the text is raised by that much more.
     const spot = k => { const dx = (1 - k) * (cx - s.x) + k * (t.x - cx), dy = (1 - k) * (cy_ - s.y) + k * (t.y - cy_), d = Math.hypot(dx, dy) * (dx < 0 ? -1 : 1) || 1;
       const p = on(k), ax = dx / d, ay = dy / d, rise = q => (q.x - p.x) * ay - (q.y - p.y) * ax;   // how far above p, as the text stands
       const h = lift + Math.max(0, ...[-0.5, 0.5].map(j => rise(on(Math.min(1, Math.max(0, k + (w * j) / len))))));
-      return { x: ay * h, y: -ax * h, points: [-0.45, -0.2, 0, 0.2, 0.45].map(j => ({ x: p.x + ay * h + ax * w * j, y: p.y - ax * h + ay * w * j })) }; };
-    const mid = on(0.5), off = mid.x < 0 || mid.x > W || mid.y < 0 || mid.y > H;
-    const k = off ? 0.5 : SPOTS.find(k => k * len - w / 2 >= from && k * len + w / 2 <= to && !spot(k).points.some(p => hit(p.x, p.y)));
+      return { x: ay * h, y: -ax * h, points: ALONG.map(j => ({ x: p.x + ay * h + ax * w * j, y: p.y - ax * h + ay * w * j })) }; };
+    // The part of the line that is in view: all of it when both its terms are, else its longest run that is, found by
+    // walking the line in steps a label's height long.
+    let first = 0, last = 1;
+    if (!inView(s) || !inView(t)) {
+      const n = Math.min(400, Math.max(16, Math.ceil(len / (2 * pad)))); let start = -1; [first, last] = [0, -1];
+      for (let i = 0; i <= n + 1; i++) { const inside = i <= n && inView(on(i / n));
+        if (inside && start < 0) start = i;
+        if (!inside && start >= 0) { if (i - 1 - start > (last - first) * n) [first, last] = [start / n, (i - 1) / n]; start = -1; } }
+    }
+    const clear = k => { const d = along(k); if (d - w / 2 < 0 || d + w / 2 > len - dot) return false;   // clear of its terms and its arrowhead
+      return spot(k).points.every(p => inView(p) && !hit(p)); };
+    const k = SPOTS.map(part => first + part * (last - first)).find(clear);
     e.toggleClass("mute", k === undefined);
     if (k === undefined) return;
     const { x, y, points } = spot(k);
-    for (const [key, to] of [["at", (k * len - from) / z], ["liftX", x / z], ["liftY", y / z]]) if (Math.abs(e.data(key) - to) > 0.01) e.data(key, to);
-    if (!off) taken.push(...points.map(p => ({ x1: p.x - pad / 2, x2: p.x + pad / 2, y1: p.y - pad / 2, y2: p.y + pad / 2 })));
+    for (const [key, to] of [["at", along(k) / z], ["liftX", x / z], ["liftY", y / z]]) if (Math.abs(e.data(key) - to) > 0.01) e.data(key, to);
+    // Another label keeps a line of text's height from this one's middle line: a box 1.4 `pad` each way round each point.
+    points.forEach(p => take({ x1: p.x - 1.4 * pad, x2: p.x + 1.4 * pad, y1: p.y - 1.4 * pad, y2: p.y + 1.4 * pad }));
   });
 }
 
@@ -530,7 +579,7 @@ function render() {
       ${n.aliases.length ? `<p class="map-aka">Also called: ${esc(n.aliases.join(", "))}</p>` : ""}
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       ${booksOfTerm(n).length ? `<p class="map-aka map-backed">Also in ${inBooks(booksOfTerm(n))}</p>` : ""}
-      <blockquote class="map-quote"><p>${withMath(n.quote)}</p></blockquote>
+      <blockquote class="map-quote"><p>${asPrinted(n.quote)}</p></blockquote>
       <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {

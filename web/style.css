@@ -1669,7 +1669,7 @@ main.map .lede { margin: 0; }
 .map-controls { display: flex; gap: 6px; flex: none; }
 .map-controls button { width: 42px; height: 42px; min-height: 0; padding: 0; display: grid; place-items: center; font-size: 1.15rem; }
 .map-controls button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.map-legend { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 6px; margin-top: -6px; font-size: 0.85rem; color: var(--muted); }
+.map-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: -6px; font-size: 0.85rem; color: var(--muted); }
 .map-legend button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent;
   color: var(--fg); font: inherit; padding: 5px 8px; min-height: 0; border-radius: 6px; cursor: pointer; }
 .map-legend button:hover { border-color: var(--line); }
@@ -1681,8 +1681,10 @@ main.map .lede { margin: 0; }
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 .map-legend .map-short { display: inline; }
-@media (max-width: 480px) {   /* one line from a 360 px phone up; a narrower one wraps it rather than scroll sideways */
-  .map-legend { flex-wrap: wrap; justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
+/* Side by side, each kind's shape and name need about 600 px between them: below that the shape sits above its name,
+   which is one line from a 360 px phone up. In either form the row wraps rather than reach past the screen. */
+@media (max-width: 639px) {
+  .map-legend { justify-content: space-between; gap: 0; font-size: min(0.75rem, 3.1vw); }
   .map-legend > span { display: none; }   /* "Show:"; the group's label says it */
   .map-legend button { padding: 4px 1px; gap: 2px; border-width: 0; flex-direction: column; }   /* the shape above its name */
   .map-legend svg { width: 24px; height: 24px; }
@@ -1719,6 +1721,9 @@ main.map .lede { margin: 0; }
 .map-elsewhere { font-size: 0.85rem; font-style: italic; }
 .map-quote { margin: 4px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); color: var(--muted); }
 .map-quote p { font-style: italic; }
+/* The quoted line is in italics, so its emphasis stands upright; a literal is in the page's code type. */
+.map-quote em, .map-quote code { font-style: normal; }
+.map-quote code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.9em; }
 /* A formula (map.js): out of sight until KaTeX has drawn it, so its LaTeX is not flashed first. KaTeX sets its own
    type a fifth larger than the words around it, to suit a serif text; beside the page's sans-serif a tenth is enough. */
 .tex { visibility: hidden; }
