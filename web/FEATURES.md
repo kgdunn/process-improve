@@ -24,7 +24,7 @@ Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow
 6. [Figures](#6-figures)
 7. [Interaction and ease of use](#7-interaction-and-ease-of-use)
 8. [Data in and out, and reproducibility](#8-data-in-and-out-and-reproducibility)
-9. [Privacy, security and operation](#9-privacy-security-and-operation)
+9. [Enterprise: privacy, security and operation](#9-enterprise-privacy-security-and-operation)
 10. [Learning and documentation](#10-learning-and-documentation)
 11. [The other pages at factori.al](#11-the-other-pages-at-factorial)
 12. [Limits](#12-limits)
@@ -316,7 +316,7 @@ curve with its 95% bands.
 - **Links by name.** The book's 19 examples open with `?book=<name>`, and 3 published
   examples with `?example=<name>`.
 
-## 9. Privacy, security and operation
+## 9. Enterprise: privacy, security and operation
 
 What an organisation asks before it lets people use a tool.
 
