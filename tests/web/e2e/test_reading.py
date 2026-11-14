@@ -37,19 +37,19 @@ PROSE = r"""
 
 #: The most words of running text each screen may show, in a desktop window or on a phone: about a tenth
 #: more than it shows now. On a desktop the brief stays beside Run and Learn, so a screen there reads a
-#: little more; on a phone the comparison says that its table scrolls sideways. The footer's words on
-#: how Factorial works and on Feedback, the one report sent to the server, are on every screen.
+#: little more; on a phone the comparison says that its table scrolls sideways. The footer's one sentence,
+#: on what Factorial is and that nothing runs on a server, is on every screen; its links are lists, not text.
 BUDGET = {
-    "a first visit": 92,  # with the footer's words on Feedback
-    "the designs for a brief": 155,  # with the sentence on why Design picked the design it holds
-    "a brief with a limit": 240,
-    "a limit proposed from a corner": 270,
-    "a new run sheet": 136,  # with the footer's words on Feedback
-    "practising": 150,
+    "a first visit": 76,  # with the footer's sentence
+    "the designs for a brief": 139,  # with the sentence on why Design picked the design it holds
+    "a brief with a limit": 224,
+    "a limit proposed from a corner": 254,
+    "a new run sheet": 120,  # with the footer's sentence
+    "practising": 134,
     # With the best settings for its goal, which add some 55 words, and the what-if panel, some 23: its hint, and its
     # warning that the best settings lie beyond the runs. With "What the results say", some 70: the sentences a
     # reader would else have to work out of the tables below them.
-    "the worked example's analysis": 415,
+    "the worked example's analysis": 399,
     "the comparison in detail": 175,
 }
 
