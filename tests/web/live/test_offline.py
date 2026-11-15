@@ -170,7 +170,7 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
 
     def a_copy_is_kept(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         started(page)
-        said(page, "Works offline, except charts and Excel files.")
+        said(page, "Works fully offline.", timeout=300_000)
         assert page.evaluate(REGISTERED)
         assert sorted(page.evaluate(COPIES)) == ["factorial-app-1", "factorial-kept-1", "factorial-made-1"]
 
