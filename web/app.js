@@ -5930,6 +5930,7 @@ function targetTyped(e) {
   state.target = { ...state.target, targets: Number.isFinite(value) ? { ...others, [tr.dataset.response]: value } : others };
   $("#target-match").value = "";
   showTargets();
+  scheduleSave(); // the targets go with the study
   clearTimeout(targetTimer);
   targetTimer = setTimeout(findSettings, 400);
 }
@@ -5942,6 +5943,7 @@ function targetMatched() {
   const at = targetResponses().flatMap((r) => (Number.isFinite(results[r.name][Number(place)]) ? [[r.name, results[r.name][Number(place)]]] : []));
   state.target = { ...state.target, targets: Object.fromEntries(at) };
   showTargets();
+  scheduleSave();
   findSettings();
 }
 
@@ -5950,6 +5952,7 @@ function targetCleared() {
   state.target = { ...state.target, targets: {} };
   $("#target-match").value = "";
   showTargets();
+  scheduleSave();
   findSettings();
 }
 
@@ -6180,6 +6183,7 @@ function windowTyped(e) {
     return Number.isFinite(value) ? value : null;
   });
   state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
+  scheduleSave(); // the windows go with the study
   scheduleWindow();
 }
 
@@ -6196,6 +6200,7 @@ function scheduleWindow() {
 function windowCleared() {
   state.window = { ...state.window, windows: {} };
   showWindows();
+  scheduleSave();
   findWindow();
 }
 
@@ -6812,7 +6817,7 @@ function currentCampaign() {
   const { spec, columns, rows, model, facts, outside_range: outside } = state.design;
   const [first, ...more] = resultNames();
   return {
-    v: studyFormat(spec, state.scenarios, keptAside()),
+    v: studyFormat(spec, { what_if: state.scenarios, set_aside: keptAside(), ...keptAsked() }),
     title: state.campaign?.title ?? titleOf(spec),
     design: { spec, columns, rows, model, n_runs: rows.length, facts: facts ?? null, outside_range: outside ?? [] },
     ...sentResults(),
@@ -6824,8 +6829,17 @@ function currentCampaign() {
     ...(state.campaign?.source ? { source: state.campaign.source } : {}),
     ...(state.scenarios.length ? { what_if: state.scenarios } : {}),
     ...(Object.keys(keptAside()).length ? { set_aside: keptAside() } : {}),
+    ...keptAsked(),
     ...sentCurves(),
   };
+}
+
+/** The targets and the windows typed in Learn, as a study keeps them: those of the responses it measures, if any. */
+function keptAsked() {
+  const names = resultNames();
+  const mine = (byName) => Object.fromEntries(Object.entries(byName).filter(([name]) => names.includes(name)));
+  const [targets, windows] = [mine(state.target.targets), mine(sentWindows())];
+  return { ...(Object.keys(targets).length ? { targets } : {}), ...(Object.keys(windows).length ? { windows } : {}) };
 }
 
 /** The runs set aside as a study keeps them: for each response with some, those that have a result. */
@@ -7073,8 +7087,8 @@ async function openCampaign(c, record, message) {
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
   state.trade = newTrade();
-  state.target = newTarget();
-  state.window = newWindow();
+  state.target = { ...newTarget(), targets: structuredClone(c.targets ?? {}) };
+  state.window = { ...newWindow(), windows: structuredClone(c.windows ?? {}) };
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();

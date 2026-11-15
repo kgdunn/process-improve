@@ -825,7 +825,7 @@ describe("settings kept from the what-if panel", () => {
     assert.deepEqual(checked.what_if, withKept().what_if);
     assert.equal(checked.v, WHAT_IF_FORMAT);
     assert.equal(WHAT_IF_FORMAT, MANY_FACTORS_FORMAT + 1, "later than any an earlier page reads");
-    assert.equal(studyFormat(campaign().design.spec, withKept().what_if), WHAT_IF_FORMAT);
+    assert.equal(studyFormat(campaign().design.spec, withKept()), WHAT_IF_FORMAT);
     assert.equal(checkCampaign({ ...campaign(), what_if: [] }).v, 1, "none kept: the format the study had");
     assert.equal(checkCampaign({ ...campaign(), what_if: [] }).what_if, undefined);
     assert.equal(checkCampaign({ ...campaign(), what_if: null }).what_if, undefined);

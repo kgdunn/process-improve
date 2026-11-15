@@ -14,8 +14,9 @@
  * Format 4 holds a study of more than FEW_FACTORS factors, whose factor list an earlier page refuses as too long.
  * Format 5 holds the settings the reader kept from the what-if panel, which an earlier page would drop on its next save.
  * Format 6 holds a curve each run gives (``spec.curve`` and ``curves``), which an earlier page would drop too.
+ * Format 7 holds the runs set aside from a fit, and format 8 the targets and the windows typed in Learn: dropped too.
  */
-export const CAMPAIGN_VERSION = 7;
+export const CAMPAIGN_VERSION = 8;
 
 /** The format of a study of one factor; a study of more factors keeps format 1. */
 export const ONE_FACTOR_FORMAT = 2;
@@ -35,15 +36,23 @@ export const CURVE_FORMAT = 6;
 /** The format of a study with runs set aside from a fit (``set_aside``); a study without any keeps an earlier format. */
 export const SET_ASIDE_FORMAT = 7;
 
+/** The format of a study that keeps a response's target or its window, typed in Learn (``targets``, ``windows``). */
+export const TARGETS_FORMAT = 8;
+
 /** The most factors a study of format 3 or earlier holds: a page of those formats refuses more. */
 export const FEW_FACTORS = 12;
 
 /** The most points along a curve a study reads each run's curve at; mirrors bootstrap.MAX_CURVE_POINTS. */
 export const CURVE_POINTS_HELD = 1000;
 
-/** The lowest format that holds a study of this specification and these kept settings, which the study is saved in. */
-export function studyFormat(spec, kept = [], setAside = {}) {
-  if (Object.values(setAside ?? {}).some((runs) => runs.length)) return SET_ASIDE_FORMAT;
+/**
+ * The lowest format that holds a study of this specification, which the study is saved in. ``study`` holds what it
+ * keeps besides its runs and results, under the study's own keys: ``what_if``, ``set_aside``, ``targets``, ``windows``.
+ */
+export function studyFormat(spec, study = {}) {
+  const { what_if: kept = [], set_aside: setAside = {}, targets = {}, windows = {} } = study;
+  if (Object.keys(targets).length || Object.keys(windows).length) return TARGETS_FORMAT;
+  if (Object.values(setAside).some((runs) => runs.length)) return SET_ASIDE_FORMAT;
   if (spec.curve) return CURVE_FORMAT;
   if (kept.length) return WHAT_IF_FORMAT;
   if (spec.factors.length > FEW_FACTORS) return MANY_FACTORS_FORMAT;
@@ -412,8 +421,9 @@ export function checkCampaign(data) {
   const factorNames = s.factors.map((f) => f.name);
   const kept = data.what_if === undefined || data.what_if === null ? [] : keptSettings(data.what_if);
   const aside = setAside(data.set_aside, names, n);
+  const [targets, windows] = [typedTargets(data.targets, names), typedWindows(data.windows, names)];
   const out = {
-    v: studyFormat(s, kept, aside),
+    v: studyFormat(s, { what_if: kept, set_aside: aside, targets, windows }),
     title: data.title === undefined ? "" : text(data.title, "its title", 200),
     design: {
       spec: s,
@@ -436,6 +446,8 @@ export function checkCampaign(data) {
   if (data.source !== undefined && data.source !== null) out.source = studySource(data.source);
   if (kept.length) out.what_if = kept;
   if (Object.keys(aside).length) out.set_aside = aside;
+  if (Object.keys(targets).length) out.targets = targets;
+  if (Object.keys(windows).length) out.windows = windows;
   if (s.curve) out.curves = curvesOf(data.curves, n, s.curve.argument.values.length);
   return out;
 }
@@ -473,6 +485,37 @@ function setAside(data, names, n) {
     if (sorted.length) out[name] = sorted;
   }
   return out;
+}
+
+/** What a study keeps by its responses' columns, as pairs: refused when it names a response the study does not measure. */
+function byResponse(value, names, what) {
+  if (value === undefined || value === null) return [];
+  if (!isObject(value)) refuse(`${what} are not listed by response`);
+  const stray = Object.keys(value).find((name) => !names.includes(name));
+  if (stray !== undefined) refuse(`${what} name ${JSON.stringify(stray)}, which the study does not measure`);
+  return Object.entries(value);
+}
+
+/**
+ * What each response should be, as the reader typed it in Learn's "Settings that give a target": a number, by the
+ * response's column. The settings that give them are not kept: Learn finds them again from the results.
+ */
+function typedTargets(value, names) {
+  const kept = byResponse(value, names, "its targets");
+  return Object.fromEntries(kept.map(([name, target]) => [name, isFiniteNumber(target) ? target : refuse(`the target of ${name} is not a number`)]));
+}
+
+/**
+ * The window each response must fall in, as typed in Learn's "Settings that meet a specification": its least and its
+ * greatest value, by the response's column, an end left open being null. A window with neither end is not kept.
+ * Only their kind is checked: Python says when an end lies past the other, as it does while one is typed.
+ */
+function typedWindows(value, names) {
+  const end = (v) => v === null || isFiniteNumber(v);
+  const kept = byResponse(value, names, "its windows").map(([name, ends]) =>
+    Array.isArray(ends) && ends.length === 2 && ends.every(end) ? [name, [...ends]] : refuse(`the window of ${name} is not its two ends`),
+  );
+  return Object.fromEntries(kept.filter(([, ends]) => ends.some((v) => v !== null)));
 }
 
 /** One response's results and their sources: a number or a blank per run, and where each came from. */
@@ -620,6 +663,8 @@ export function shareable(campaign, withResults) {
   if (campaign.more_models) out.more_models = campaign.more_models;
   if (campaign.goals) out.goals = campaign.goals;
   if (campaign.what_if) out.what_if = campaign.what_if; // settings: what they predict is worked out from the results
+  if (campaign.targets) out.targets = campaign.targets; // what Learn was asked: its answers are found again
+  if (campaign.windows) out.windows = campaign.windows;
   if (withResults) {
     Object.assign(out, { responses: campaign.responses, sources: campaign.sources, simulation: campaign.simulation });
     if (campaign.more_responses) Object.assign(out, { more_responses: campaign.more_responses, more_sources: campaign.more_sources });

@@ -13,6 +13,7 @@ import {
   LEVELS_FORMAT,
   MANY_FACTORS_FORMAT,
   SET_ASIDE_FORMAT,
+  TARGETS_FORMAT,
   WHAT_IF_FORMAT,
   checkCampaign,
   packCampaign,
@@ -251,6 +252,39 @@ describe("the study file", () => {
     assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: { cost: [0] } }), /which the study does not measure/);
     assert.throws(() => checkCampaign({ ...study, v: SET_ASIDE_FORMAT, set_aside: [0] }), /not listed by response/);
     assert.equal(checkCampaign({ ...study, set_aside: { y: [] } }).set_aside, undefined, "none set aside is not kept");
+  });
+
+  test("an earlier Factorial, of format 7, refuses a study with a target or a window as saved by a later one", async () => {
+    await refusedByAnEarlierPage(TARGETS_FORMAT - 1, { ...record("aimed", "Aimed"), v: TARGETS_FORMAT, targets: { y: 12 } });
+    await refusedByAnEarlierPage(TARGETS_FORMAT - 1, { ...record("held", "Held"), v: TARGETS_FORMAT, windows: { y: [10, null] } });
+  });
+
+  test("writes the targets and the windows typed in Learn and reads them back, in the format that holds them", async () => {
+    const study = { ...record("asked"), v: TARGETS_FORMAT, targets: { y: 12 }, windows: { y: [10, null] } };
+    const { studies, refused } = await readStudyFile(await asText([study, record("none", "Without")]));
+    assert.deepEqual(refused, []);
+    assert.deepEqual(studies[0].study.targets, { y: 12 });
+    assert.deepEqual(studies[0].study.windows, { y: [10, null] }, "an end left open stays open");
+    assert.equal(studies[0].study.v, TARGETS_FORMAT);
+    assert.equal(TARGETS_FORMAT, SET_ASIDE_FORMAT + 1, "later than any an earlier page reads");
+    assert.deepEqual([studies[1].study.targets, studies[1].study.windows, studies[1].study.v], [undefined, undefined, 1]);
+    for (const withResults of [true, false]) {
+      const carried = shareable(studies[0].study, withResults);
+      assert.deepEqual([carried.targets, carried.windows], [{ y: 12 }, { y: [10, null] }], "a link asks the same of its results");
+    }
+  });
+
+  test("a target is a number and a window two ends, for a response the study measures", () => {
+    const { id, created, updated, ...study } = record();
+    const refused = (asked, why) => assert.throws(() => checkCampaign({ ...study, v: TARGETS_FORMAT, ...asked }), why);
+    refused({ targets: { cost: 3 } }, /its targets name "cost", which the study does not measure/);
+    refused({ windows: { cost: [1, 2] } }, /its windows name "cost", which the study does not measure/);
+    refused({ targets: [12] }, /its targets are not listed by response/);
+    for (const target of ["12", null, Infinity]) refused({ targets: { y: target } }, /the target of y is not a number/);
+    for (const ends of [[1], [1, 2, 3], ["1", 2], 5, null]) refused({ windows: { y: ends } }, /the window of y is not its two ends/);
+    const empty = checkCampaign({ ...study, targets: {}, windows: { y: [null, null] } });
+    assert.deepEqual([empty.targets, empty.windows, empty.v], [undefined, undefined, 1], "nothing typed is not kept");
+    assert.deepEqual(checkCampaign({ ...study, windows: { y: [14, 10] } }).windows, { y: [14, 10] }, "ends past each other open: Python says so");
   });
 
   test("names its file from the study's title", () => {
