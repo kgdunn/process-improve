@@ -386,6 +386,22 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         lambda ex: {"spec": ex["held"]["spec"], "settings": {"T": 210, "P": 2, "F": 15}},
         "Set T to a number from 150 to 200.",
     ),
+    # The trade-offs between the responses, which the page asks for at the balanced settings it holds.
+    "trade-offs with no balanced settings": (
+        "api_trade_offs",
+        _balanced(),
+        "The page sent balanced settings this page did not write.",
+    ),
+    "trade-offs at settings past the ranges": (
+        "api_trade_offs",
+        _balanced(at={"T": 0.2, "P": 1.5, "F": 0.0}),
+        "The page sent balanced settings this page did not write.",
+    ),
+    "trade-offs with one response aimed": (
+        "api_trade_offs",
+        _balanced({"name": "Cost", "label": "Cost", "goal": "learn"}, at={"T": 0.0, "P": 0.0, "F": 0.0}),
+        "The trade-offs are drawn for two responses or more with a goal, over factors with ranges.",
+    ),
     # The settings that balance the responses, and the goals the reader sets for them.
     "goals that are not goals": (
         "api_balance",
