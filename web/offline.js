@@ -244,6 +244,12 @@ export async function installOffline({ manifest, started, box }) {
   if (!globalThis.navigator?.serviceWorker || !globalThis.caches || !manifest.wheel) return;
   if (manifest.service_worker === false) {
     await removeCopy().catch(() => {}); // the build retires the worker; what the reader wished of the copy stays noted
+    // The worker serves this page until it is closed. A look it had begun in the copies as they went can bring one
+    // of them back, empty, some tens of milliseconds later (Chromium, issue 1248): no call of the page or of the
+    // worker makes it, and so none can be guarded. By the time Python has started, or has failed to, every file
+    // the page asked for as it opened has arrived and no such look is left: what came back meanwhile goes then.
+    await started.catch(() => {});
+    await removeCopy().catch(() => {});
     return;
   }
   const scope = new URL(".", location.href).href;
