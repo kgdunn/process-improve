@@ -289,10 +289,10 @@ import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
 import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, ownFigureCode, resultsCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
-import { GLOSSARY, MARKED } from "./glossary.js";
+import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
-import { LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
+import { FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
@@ -2259,7 +2259,8 @@ function candidateList(c, current) {
       radio.name = "candidate";
       radio.value = r.design_type;
       radio.disabled = !current;
-      label.append(radio, term(r.label, { definition: designHint(r.design_type) }));
+      const concept = FEATURES[`design:${r.design_type}`]?.term; // the design's term in the concept map
+      label.append(radio, term(r.label, { definition: designHint(r.design_type), concept }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
@@ -6706,7 +6707,7 @@ applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.docum
 setLevel(pageLevel(), false);
 
 // ---------------------------------------------------------------- wiring
-installTerms(GLOSSARY);
+installTerms(GLOSSARY, CONTEXT);
 // A press and hold is not something a page shows, so a touch screen is told of it once, on a first visit.
 const TERMS_HINTED = "factorial-terms-hinted";
 try {

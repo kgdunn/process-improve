@@ -125,7 +125,10 @@ def test_the_comparison_in_detail(page):
 # --------------------------------------------------------------------------- definitions on request
 PHONE = {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True}
 TIP = ".term-tip:popover-open"
+MORE = f"{TIP} a.term-more"  # under a definition, the way to its word's term in the concept map
 HINT = "Press and hold a dotted word to see what it means."
+# The concept map's own box is at the top of the window, not a screen or more below the page's title.
+AT_THE_MAP = "(({ top }) => top >= 0 && top <= 16)(document.querySelector('.map-box').getBoundingClientRect())"
 
 
 def press_and_hold(page, selector: str, ms: int = 700) -> None:
@@ -139,6 +142,17 @@ def press_and_hold(page, selector: str, ms: int = 700) -> None:
     page.wait_for_timeout(ms)
     touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     touch.detach()
+
+
+def said(tip) -> str:
+    """Return what a pop-up says of its word: its definition, without the link under it."""
+    return tip.evaluate("(tip) => tip.firstChild.textContent")
+
+
+def at_term(the_map, name: str) -> None:
+    """Wait until the concept map shows the term ``name``, with the map at the top of the window."""
+    the_map.wait_for_function("(name) => document.querySelector('#card h2')?.textContent === name", arg=name)
+    the_map.wait_for_function(AT_THE_MAP)
 
 
 def inside_the_window(page, box: dict) -> bool:
@@ -157,7 +171,7 @@ def test_a_press_and_hold_opens_a_word_s_definition_above_it_and_leaves_its_choi
     word = '#aim-card .term[data-term="interaction"]'
     press_and_hold(page, word)
     tip = page.locator(TIP)
-    assert tip.text_content() == "Two factors interact when the effect of one depends on the level of the other."
+    assert said(tip) == "Two factors interact when the effect of one depends on the level of the other."
     at, shown = page.locator(word).bounding_box(), tip.bounding_box()
     assert shown["y"] + shown["height"] <= at["y"], "above the word, where the finger does not cover it"
     assert inside_the_window(page, shown)
@@ -222,6 +236,91 @@ def test_the_keyboard_opens_the_definition_of_the_box_it_reaches_and_a_screen_re
     assert described.startswith(noise)
     page.keyboard.press("Escape")
     assert page.locator(TIP).count() == 0
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_a_definition_leads_to_its_word_s_term_in_the_concept_map_in_a_tab_of_its_own(fresh_page, context):
+    page = fresh_page
+    press_and_hold(page, '#aim-card .term[data-term="interaction"]')
+    link = page.locator(MORE)
+    assert link.text_content() == "See it in context"
+    assert link.get_attribute("aria-label") == "See it in context: two-factor interactions"
+    assert page.locator(TIP).get_attribute("role") == "group", "a tooltip holds nothing a reader can go into"
+    assert inside_the_window(page, page.locator(TIP).bounding_box())
+    with context.expect_page() as opened:
+        link.tap()  # at once: not taken for the end of the press that opened the definition
+    the_map = opened.value
+    at_term(the_map, "Interaction")
+    assert the_map.url.endswith("map/#interaction")
+    assert the_map.is_visible("#card >> text=Read it in the book"), "and from there, the book"
+    assert page.is_checked('input[name="aim"][value="main_quadratic"]'), "the study is as it was"
+
+
+def test_a_second_word_s_term_opens_in_the_tab_of_the_first_and_a_word_the_map_lacks_has_no_link(blank_page, context):
+    page = blank_page
+    page.hover('#aim-card .term[data-term="interaction"]')
+    with context.expect_page() as opened:
+        page.click(MORE)
+    the_map = opened.value
+    at_term(the_map, "Interaction")
+    the_map.evaluate("scrollTo(0, document.body.scrollHeight)")  # the reader read on, down the page
+
+    page.bring_to_front()
+    page.mouse.move(5, 5)  # off the definition, which closes: here it lay over the next word
+    page.locator(".term-tip").wait_for(state="hidden")
+    page.hover('#aim-card .term[data-term="main-effect"]')
+    page.wait_for_function("document.querySelector('.term-tip a')?.hash === '#main-effect'")
+    page.click(MORE)
+    at_term(the_map, "Main effect")
+    assert len(context.pages) == 2, "one tab for the map, however many words open it"
+
+    # A design's name in the list of designs leads to the design's term.
+    page.mouse.move(5, 5)
+    page.locator(".term-tip").wait_for(state="hidden")
+    design = page.locator("#candidates tbody label .term[data-concept]").first
+    term = design.get_attribute("data-concept")
+    design.hover()
+    page.wait_for_function(
+        "(hash) => document.querySelector('.term-tip a')?.hash === hash", arg=f"#{term.replace('_', '-')}"
+    )
+    # A word the map has no term for says what it means, and no more.
+    page.click("#response-known summary")
+    page.hover('.term[data-term="typical"]')
+    page.wait_for_function("document.querySelector('.term-tip').textContent.startsWith('Where the response sits now')")
+    assert page.locator(MORE).count() == 0
+    assert page.locator(TIP).get_attribute("role") == "tooltip"
+
+
+def test_tab_goes_from_a_box_into_its_definition_s_link_and_on_from_there(fresh_page, context):
+    page = fresh_page
+    focused = "document.activeElement.id || document.activeElement.className"
+    page.click("#response-known summary")
+    page.focus("#response-typical")
+    page.keyboard.press("Tab")  # to the noise, whose word has a term in the map
+    assert page.locator(MORE).count() == 1
+    page.keyboard.press("Tab")
+    assert page.evaluate(focused) == "term-more", "into the definition, which stays while the keyboard is on its link"
+    assert said(page.locator(TIP)).startswith("How much the response varies when one run is repeated")
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(focused) == "response-noise", "and back to the box it came from"
+    assert page.locator(MORE).count() == 1, "whose definition is open again"
+
+    page.keyboard.press("Tab")
+    with context.expect_page() as opened:
+        page.keyboard.press("Enter")
+    at_term(opened.value, "Noise standard deviation")
+    page.bring_to_front()
+    page.keyboard.press("Tab")
+    assert page.evaluate(focused) == "response-change", "on from the link: the box after the one it belongs to"
+    assert said(page.locator(TIP)).startswith("The smallest difference in the response")
+
+    page.keyboard.press("Tab")
+    assert page.evaluate(focused) == "term-more"
+    page.keyboard.press("Escape")
+    assert page.locator(TIP).count() == 0
+    assert page.evaluate(focused) == "response-change", (
+        "Escape closes the definition and leaves the keyboard on its box"
+    )
 
 
 def test_every_dotted_word_has_a_definition_its_control_describes(page):

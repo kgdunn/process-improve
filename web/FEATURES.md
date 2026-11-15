@@ -432,6 +432,11 @@ Also:
   opens its definition, in the book's words.
   - *Details:* The glossary holds 78 terms. A definition opens on a hover, a press or the
     keyboard.
+- **A definition leads to its idea.** Under most definitions, "See it in context" opens the
+  concept map at that idea, with the ideas around it and the way into the book.
+  - *Details:* 61 of the 78 terms have the link, and so does a design's name in the list of
+    designs. It opens in a tab of its own, so the study stays as it is. A finger, a mouse and
+    the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
@@ -455,8 +460,9 @@ Also:
 
 *A worked example, a free textbook, and every word defined.*
 
-- **Links into the book.** Each design, each measure and each defined word links to its place
-  in *Process Improvement using Data* (<https://learnche.org/pid>).
+- **Links into the book.** Each design and each measure links to its place in *Process
+  Improvement using Data* (<https://learnche.org/pid>). A defined word leads there by way of
+  its idea in the concept map.
 - **The worked example.** It opens at once, and can be run again in the tab.
 - **Practice on a known process.** It shows the true model beside the fitted one.
 - **What Factorial does.** This list, as a page of the app.
@@ -561,8 +567,9 @@ What a careful reader, or an organisation, asks before using a tool.
 - **[The concept map](map/).** 237 ideas of designed experiments and 489 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It shares
   the app's reading level.
-  - *Details:* "Compare books" sets two other textbooks beside this one: the links go, and a
-    ring on each topic and each term says which of the three books has it.
+  - *Details:* An address that names an idea opens at the map, on that idea. "Compare
+    books" sets two other textbooks beside this one: the links go, and a ring on each topic
+    and each term says which of the three books has it.
 - **[The multivariate page](mva/).** For data with many measurements of each row: PCA and
   PLS on an example or your own file.
   - *Details:* A data table with each variable's distribution in its heading, linked score,
