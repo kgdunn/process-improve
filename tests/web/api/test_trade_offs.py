@@ -136,3 +136,26 @@ def test_settings_that_differ_only_in_a_factor_no_model_holds_are_not_other_sett
     balance = api.ok("api_balance", request)
     assert not next(s for s in balance["settings"] if s["name"] == "F")["in_model"]
     assert api.ok("api_trade_offs", {**request, "at": balance["coded"]})["alternatives"] == []
+
+
+def test_a_factor_of_several_levels_is_held_at_the_level_the_balance_found(api):
+    """The settings tried are at the balanced level, written over the factor's contrasts as each model is fitted."""
+    levels = {"name": "S", "type": "categorical", "levels": ["a", "b", "c"], "units": ""}
+    spec = {"design_type": "full_factorial", "factors": [*FACTORS[:2], levels], "responses": TWO, "n_center_points": 0}
+    held = held_of(api.ok("api_make_design", spec))
+    sheet = run_sheet(held)
+    x = coded(sheet, FACTORS[:2])
+    lift = {"a": 0.0, "b": 2.0, "c": 4.0}
+    at_level = sheet["S"].map(lift)
+    results = {
+        "responses": (60 + 4 * x["T"] + 2 * x["P"] + at_level).tolist(),
+        "more_responses": {"Cost": (20 + 3 * x["T"] + x["P"] + 0.5 * at_level).tolist()},
+    }
+    request = {**held, **results, "models": {"Yield": "main_effects", "Cost": "main_effects"}}
+    balance = api.ok("api_balance", request)
+    found = api.ok("api_trade_offs", {**request, "at": balance["coded"]})
+    level = next(s["value"] for s in balance["settings"] if s["name"] == "S")
+    assert found["held"] == [{"name": "S", "value": level}]
+    t, p = coded_settings(found["candidates"])
+    np.testing.assert_allclose(found["candidates"]["responses"]["Yield"], 60 + 4 * t + 2 * p + lift[level], rtol=1e-4)
+    assert set(found["candidates"]["far"]) == {0}, "inside the runs made at that level"
