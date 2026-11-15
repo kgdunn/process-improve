@@ -215,7 +215,7 @@ def test_when_the_designs_cannot_be_made_the_page_says_why(blank_page):
 
 
 @pytest.mark.slow
-def test_with_five_factors_the_optimal_designs_wait_to_be_searched_for(fresh_page):
+def test_with_five_factors_the_i_optimal_design_waits_to_be_searched_for_and_says_how_long(fresh_page):
     page = fresh_page
     set_factors(page, factors_named(*"ABCDE"))
     candidates_done(page)
@@ -223,8 +223,13 @@ def test_with_five_factors_the_optimal_designs_wait_to_be_searched_for(fresh_pag
     assert "d_optimal" in listed(page), "an optimal design for main effects is quick to search for"
     set_aim(page, "main_quadratic")
     candidates_done(page)
-    assert "d_optimal" not in listed(page)
-    assert "designs take a while to search for with 5 factors" in page.text_content("#candidates")
+    assert "d_optimal" in listed(page), "and so is a D-optimal design for the quadratic model's 21 coefficients"
+    assert "i_optimal" not in listed(page)
+    said = (
+        "The I-optimal design takes up to about 10 seconds to search for with 5 factors. The search starts when you "
+        "ask for it, and you can stop it."
+    )
+    assert said in page.text_content("#candidates")
     page.click("#search")
     page.wait_for_function("window.__pi.count('api_candidates') === 3", timeout=10_000)
     candidates_done(page)

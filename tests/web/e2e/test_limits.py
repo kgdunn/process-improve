@@ -94,8 +94,8 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
 
 
 @pytest.mark.slow
-def test_with_limits_and_five_factors_the_designs_wait_for_their_search(fresh_page):
-    """Only the optimal designs keep to limits, and from five factors they wait until the reader asks."""
+def test_with_limits_and_five_factors_the_i_optimal_design_waits_for_its_search(fresh_page):
+    """Only the optimal designs keep to limits, and the one whose search takes long waits until the reader asks."""
     page = fresh_page
     set_factors(page, factors_named(*"ABCDE"))
     candidates_done(page)
@@ -103,7 +103,7 @@ def test_with_limits_and_five_factors_the_designs_wait_for_their_search(fresh_pa
     type_limit(page, "A + B <= 1")
     candidates_done(page)
     shown = page.text_content("#candidates")
-    assert "The D-optimal and I-optimal designs take a while to search for with 5 factors." in shown
+    assert "The I-optimal design takes up to about 10 seconds to search for with 5 factors." in shown
     assert page.is_visible("#search")
     assert page.is_hidden("#plan-empty")
     page.click("#search")

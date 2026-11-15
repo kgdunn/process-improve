@@ -86,6 +86,39 @@ def test_a_screening_design_of_many_factors_is_briefed_made_and_analysed(fresh_p
     assert saved[0]["v"] == 4, "saved in the format an earlier Factorial refuses as a later one's"
 
 
+def test_the_form_says_how_long_a_search_takes_before_the_reader_starts_it(fresh_page):
+    """Six factors, a quadratic model of 28 coefficients: a D-optimal design is quick, and an I-optimal one is not."""
+    page = fresh_page
+    set_factors(page, factors(6))
+    choose(page, design_type="d_optimal", model_type="quadratic")
+    assert page.is_hidden("#search-wait")
+    choose(page, design_type="i_optimal")
+    assert page.text_content("#search-wait") == (
+        "The search for this design takes up to about 10 seconds in a browser: its model has 28 coefficients in 6 "
+        "factors. It starts when you make the run sheet, and you can stop it."
+    )
+    assert page.is_enabled("#generate"), "the wait is said, and the search is the reader's to start"
+    choose(page, model_type="main_effects")
+    assert page.is_hidden("#search-wait"), "a model of 7 coefficients is quick to search for"
+
+
+def test_past_12_factors_an_optimal_design_is_made_for_the_main_effects(fresh_page, bootstrap):
+    """The optimal designs take as many factors as a study has: what limits them is the size of their model."""
+    page = fresh_page
+    set_factors(page, factors(13))
+    choose(page, design_type="d_optimal")
+    assert not page.locator("#design-type option:checked").is_disabled(), "13 factors used to be past its most"
+    off = page.locator("#model_type option").evaluate_all("(all) => all.filter((o) => o.disabled).map((o) => o.value)")
+    assert off == ["quadratic", "interactions"], "each has more coefficients than an optimal design is made for"
+    assert page.input_value("#model_type") == "main_effects"
+    assert page.text_content("#budget-hint") == (
+        "The model has 14 coefficients. With 13 factors a larger model has more than "
+        f"{bootstrap.MAX_OPTIMAL_TERMS}, the most an optimal design is made for here."
+    )
+    generate(page)
+    assert len(run_sheet(page)) == 14 + bootstrap.SPARE_RUNS
+
+
 def test_the_brief_stops_at_40_factors_and_a_fraction_at_24_each_saying_so(fresh_page):
     page = fresh_page
     set_factors(page, factors(40))
