@@ -1373,30 +1373,54 @@ def test_while_books_are_compared_a_term_s_name_keeps_clear_of_the_rings_above_i
     assert page.evaluate(NAMES_ON_RINGS)["above"] == 0, "with no rings, every name is below its term"
 
 
+# The row that compares books, as it is drawn: the kinds above it and the map below, the switch and its key, the
+# words the switch shows, the middle of each part of the key, and whether the page is wider than its window.
+BOOKS_ROW = """() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
+  const page = document.documentElement;
+  const middle = (e) => { const b = e.getBoundingClientRect(); return (b.top + b.bottom) / 2; };
+  const shown = [...document.querySelectorAll('#books .switch__text span')]
+    .filter((s) => s.getBoundingClientRect().width > 2).map((s) => s.textContent);
+  return { icon: box('#legend svg').width, legend: box('#legend'), books: box('#books'), key: box('#bookkey'),
+    switch: box('#books .switch'), shown,
+    middles: [...document.querySelectorAll('#bookkey svg, #bookkey span')].map(middle),
+    map: box('#cy'), width: page.clientWidth, scroll: page.scrollWidth }; }"""
+
+
 @pytest.mark.parametrize(
-    "context_options", [{"viewport": {"width": 320, "height": 700}, "is_mobile": True}, SMALL_PHONE, PHONE]
+    ("context_options", "one_row"),
+    [({"viewport": {"width": 320, "height": 700}, "is_mobile": True}, False), (SMALL_PHONE, False), (PHONE, True)],
+    ids=["320 px", "360 px", "390 px"],
 )
-def test_on_a_phone_the_kinds_are_large_and_the_key_to_the_rings_is_one_row_under_its_switch(context, site):
+def test_on_a_phone_the_kinds_are_large_and_the_switch_and_the_key_to_the_rings_share_a_row(context, site, one_row):
+    """The switch says "Compare" on a phone, and everything stands closer, so that it and its key fit one line.
+
+    In a font of the usual width they do from 360 px; in DejaVu Sans, wider than any phone's own font, from 375 px.
+    Where the line is too short for both, the key goes under the switch, on one line of its own.
+    """
     context.route("**/map/graph.json", lambda route: route.fulfill(json=TWO_OTHERS))  # two textbooks: the longest row
     page = _open(context, site)
     page.click(SWITCH)
-    # The names in DejaVu Sans, wider than any phone's own font: one line here is one line on any phone.
-    page.evaluate("""() => { document.querySelector('#books').style.fontFamily = '"DejaVu Sans", sans-serif'; }""")
-    rows = page.evaluate("""() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
-      const page = document.documentElement;
-      const middle = (e) => { const b = e.getBoundingClientRect(); return (b.top + b.bottom) / 2; };
-      return { icon: box('#legend svg').width, legend: box('#legend'), books: box('#books'), key: box('#bookkey'),
-        switch: box('#books .switch'), words: box('#books .switch__text').width,
-        middles: [...document.querySelectorAll('#bookkey svg, #bookkey span')].map(middle),
-        map: box('#cy'), width: page.clientWidth, scroll: page.scrollWidth }; }""")
-    assert rows["icon"] >= 22, "each kind's shape is large enough to tell apart and to tap"
-    assert rows["legend"]["bottom"] <= rows["books"]["top"], "the kinds, then the other textbooks"
-    assert rows["books"]["bottom"] <= rows["map"]["top"], "both above the map"
-    assert rows["words"] > 60, "the switch says what it does"
-    assert rows["switch"]["bottom"] <= rows["key"]["top"] + 1, "the key is under its switch"
-    assert rows["key"]["right"] <= rows["width"] - 16 + 0.5, "the row ends inside the page's side margin"
-    assert rows["scroll"] == rows["width"], "and the page does not scroll sideways"
-    assert max(rows["middles"]) - min(rows["middles"]) < 3, "the ring and the three names on one line"
+    assert page.get_by_role("checkbox", name="Compare books").count() == 1, "a screen reader hears the whole name"
+    for font in ("", '"DejaVu Sans", sans-serif'):  # the page's own font, and one wider than any phone's
+        page.evaluate("(font) => { document.querySelector('#books').style.fontFamily = font; }", font)
+        rows = page.evaluate(BOOKS_ROW)
+        assert rows["icon"] >= 22, "each kind's shape is large enough to tell apart and to tap"
+        assert rows["legend"]["bottom"] <= rows["books"]["top"], "the kinds, then the other textbooks"
+        assert rows["books"]["bottom"] <= rows["map"]["top"], "both above the map"
+        assert rows["shown"] == ["Compare"], "the switch says what it does, in a word"
+        assert rows["key"]["right"] <= rows["width"] - 16 + 0.5, "the row ends inside the page's side margin"
+        assert rows["scroll"] == rows["width"], "and the page does not scroll sideways"
+        assert max(rows["middles"]) - min(rows["middles"]) < 3, "the ring and the three names on one line"
+        beside = rows["key"]["top"] < rows["switch"]["bottom"] - 8
+        assert beside or rows["switch"]["bottom"] <= rows["key"]["top"] + 1, "the key is beside its switch, or under it"
+        if one_row:
+            assert beside, "from 375 px the switch and its key share the line, whatever the font"
+
+
+def test_wider_than_a_phone_the_switch_has_its_whole_name(context, site):
+    page = _open(context, site)
+    shown = page.evaluate(BOOKS_ROW)["shown"]
+    assert shown == ["Compare books"]
 
 
 # At one width: whether the page is wider than the window, what reaches past it, and how many lines the kinds take.

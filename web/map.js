@@ -1042,7 +1042,7 @@ function renderHow() {
       <p>${E} links using ${verbs} verbs, each citing its line of the book. A definition is at most 32 words.</p>
     </details>
     ${BOOKS.length ? `<p>${BOOKS.length === 1 ? "Another textbook was" : `${COUNT[BOOKS.length - 2][0].toUpperCase()}${COUNT[BOOKS.length - 2].slice(1)} other textbooks were`}
-      read against the map, named ${inBooks(BOOKS)} here. Switch "Compare books" on above the map: the lines go, the kinds of term
+      read against the map, named ${inBooks(BOOKS)} here. Switch "Compare books" on above the map ("Compare", on a phone): the lines go, the kinds of term
       keep their shapes and give up their colours, and a ring around each topic and each term says which books have it.
       A ring has one part for each book, clockwise from the top: ${RING_NAMES.map(n => n.replace("This", "this")).join(", ")}. A term's part is in the book's colour when
       that book has the term. A topic's part is in the book's colour as far round as the share of the topic's terms
