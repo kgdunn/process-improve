@@ -20,7 +20,7 @@ TIMES = [0, 2, 4, 6, 8, 10]
 
 
 def curve_at(t: float, p: float, wobble: int = 0) -> list[float]:
-    """Return the curve at settings in the factors' units: Temperature sets its height, Pressure how it drifts late."""
+    """Return the curve at settings in the factors' units: the first sets its height, the second how it drifts late."""
     level, drift = 2 + 0.8 * (t - 175) / 25, 0.3 * (p - 2)
     return [
         round(level * (1 - math.exp(-x / 3)) + drift * x / 10 + 0.01 * ((wobble + i) % 3 - 1), 4)
@@ -42,7 +42,8 @@ def paste_curves(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
         page.click("#curves summary")
     columns = headers(page)
     runs = [dict(zip(columns, row, strict=True)) for row in run_sheet(page)]
-    curves = [curve_at(float(r["Temperature"]), float(r["Pressure"]), i) for i, r in enumerate(runs)]
+    first, second = columns[2:4]  # the study's first two factors, whatever it names them
+    curves = [curve_at(float(r[first]), float(r[second]), i) for i, r in enumerate(runs)]
     page.fill("#curve-label", "Colour")
     page.fill("#curve-along", "Time")
     page.fill("#curve-along-units", "min")
