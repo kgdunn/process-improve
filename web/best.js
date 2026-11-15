@@ -791,3 +791,48 @@ export function whatIfSentences(responses, broken = []) {
   }
   return said;
 }
+
+// ---------------------------------------------------------------- the trade-offs between the responses
+/**
+ * How far a response's value falls short of what its goal asks for, to compare two values by: the smaller, the
+ * better. To maximise, a larger value is better; to minimise, a smaller one; for a target, one nearer the target.
+ */
+export const shortfall = (goal, value) =>
+  goal.goal === "maximize" ? -value : goal.goal === "minimize" ? value : Math.abs(value - goal.target);
+
+/**
+ * Which candidate settings meet every limit the reader typed: ``responses`` holds each response's prediction at
+ * every candidate (bootstrap.trade_offs), and ``limits`` a response's two ends, the least and the most it may be,
+ * null for an end left open. A candidate with no prediction for a limited response, one past its transform's range,
+ * does not meet the limit.
+ */
+export function meetsLimits(responses, limits) {
+  const n = Object.values(responses)[0]?.length ?? 0;
+  const ends = Object.entries(limits).filter(([name, [low, high]]) => name in responses && (low !== null || high !== null));
+  return Array.from({ length: n }, (_, i) =>
+    ends.every(([name, [low, high]]) => {
+      const value = responses[name][i];
+      return value !== null && (low === null || value >= low) && (high === null || value <= high);
+    }),
+  );
+}
+
+/**
+ * The best trade-off between two responses among the candidates kept: those that no other candidate kept beats
+ * on both. ``across`` and ``up`` are each candidate's shortfall on the two responses (see ``shortfall``). Returns
+ * their places among the candidates, from the best on the first response to the best on the second. It is found
+ * among the settings tried, so it is as close to the true trade-off as they are dense.
+ */
+export function frontier(across, up, kept) {
+  const order = across.map((_, i) => i).filter((i) => kept[i] && across[i] !== null && up[i] !== null);
+  order.sort((a, b) => across[a] - across[b] || up[a] - up[b]);
+  const front = [];
+  let best = Infinity;
+  for (const i of order) {
+    if (up[i] < best) {
+      front.push(i);
+      best = up[i];
+    }
+  }
+  return front;
+}

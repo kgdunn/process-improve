@@ -871,3 +871,32 @@ describe("what if", () => {
     ]);
   });
 });
+
+describe("the trade-offs between the responses", async () => {
+  const { frontier, meetsLimits, shortfall } = await import("../../../web/best.js");
+
+  test("a value's shortfall is smaller where its goal is better met", () => {
+    assert.ok(shortfall({ goal: "maximize" }, 70) < shortfall({ goal: "maximize" }, 60));
+    assert.ok(shortfall({ goal: "minimize" }, 60) < shortfall({ goal: "minimize" }, 70));
+    assert.ok(shortfall({ goal: "target", target: 63 }, 62) < shortfall({ goal: "target", target: 63 }, 65));
+    assert.equal(shortfall({ goal: "target", target: 63 }, 63), 0);
+  });
+
+  test("a candidate meets the limits when each limited response is between its two ends", () => {
+    const responses = { Yield: [60, 65, 70, null], Cost: [50, 55, 60, 52] };
+    assert.deepEqual(meetsLimits(responses, {}), [true, true, true, true]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [62, null] }), [false, true, true, false]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [62, null], Cost: [null, 58] }), [false, true, false, false]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [null, null], Other: [1, 2] }), [true, true, true, true]);
+  });
+
+  test("the best trade-off holds the candidates no other beats on both responses, in order", () => {
+    // Shortfalls: smaller is better on both. Candidate 3 is beaten by 1 on both; 4 ties 0 across and is worse up.
+    const across = [1, 2, 3, 2.5, 1];
+    const up = [9, 5, 2, 6, 10];
+    assert.deepEqual(frontier(across, up, [true, true, true, true, true]), [0, 1, 2]);
+    assert.deepEqual(frontier(across, up, [false, true, true, true, true]), [4, 1, 2], "without the first");
+    assert.deepEqual(frontier(across, up, [false, false, false, false, false]), []);
+    assert.deepEqual(frontier([1, null, 3], [3, 1, null], [true, true, true]), [0], "one with no prediction is left out");
+  });
+});

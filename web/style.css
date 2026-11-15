@@ -326,6 +326,14 @@ button.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .term-more::after { content: " \2192"; }
 .term-more:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 3px; }
 @media (pointer: coarse) { .term-more { padding: 11px 0 5px; } }
+/* The trade-offs between the responses: what the chart shows, in a row that wraps, and each response's two limits. */
+.trade-offs { margin: 16px 0; }
+.trade-view { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
+.trade-view label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.trade-view select { width: auto; max-width: 14em; }
+.trade-limits input { width: 6.5em; }
+.trade-limits td, .trade-limits th { white-space: nowrap; }
+#trade-chosen .actions { margin-top: 6px; }
 /* The terms a reader ticks for the model: one group per kind of term, wrapping on a phone. */
 .terms { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; max-width: 100%; }
 .terms legend { font-size: 0.9rem; padding: 0 4px; }
