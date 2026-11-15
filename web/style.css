@@ -1829,9 +1829,16 @@ main.map .lede { margin: 0; }
 .map-bookkey span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .map-bookkey i { width: 14px; height: 6px; border-radius: 3px; flex: none; }
 .map-bookkey svg { width: 24px; height: 24px; flex: none; }
-@media (max-width: 480px) {   /* the key on one line from a 320 px phone up, in a font wider than the page's own too */
-  .map-books { font-size: min(0.9rem, 3.8vw); }
-  .map-bookkey { gap: 2px 8px; }
+/* On a phone the switch says "Compare" (the full name stays for a screen reader) and everything stands closer, so
+   that the switch and its key share the line on a phone of 360 px and up. The key is on one line from 320 px up,
+   in a font wider than the page's own too. */
+@media (max-width: 480px) {
+  .map-books { font-size: clamp(11.5px, 3.4vw, 0.9rem); gap: 2px 6px; }
+  .map-books .switch { gap: 6px; }
+  .map-bookkey { gap: 2px 4px; }
+  .map-bookkey span { gap: 3px; }
+  .map-bookkey i { width: 9px; }
+  .map-bookkey svg { width: 20px; height: 20px; }
 }
 .map-backed { font-size: 0.85rem; color: var(--muted); }
 }
