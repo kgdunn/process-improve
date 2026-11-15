@@ -42,6 +42,12 @@ def logged(uri: str, agent: str = BROWSER, *, when: str = "2026-10-12T10:00", **
             "request": request, "status": fields.get("status", 200), "size": 10, "duration": 0.001}  # fmt: skip
 
 
+def visit(uri: str, agent: str = BROWSER, **fields) -> list[dict]:
+    """Return a reader's visit as Caddy logs it: the page, then the stylesheet the reader's browser asks for."""
+    sheet = {**fields, "referer": f"https://factori.al{uri.partition('?')[0]}"}
+    return [logged(uri, agent, **fields), logged("/style.css", agent, **sheet)]
+
+
 def day(*entries: dict, on: str = "2026-10-12"):
     days, _ = usage.tally(entries, SINCE)
     return days.get(on, usage.Day())
@@ -159,29 +165,59 @@ def test_a_link_card_fetched_by_a_chat_or_social_site_is_a_preview():
 def test_readers_name_the_sites_they_came_from_but_not_factori_al_itself():
     _, referrers = usage.tally(
         [
-            logged("/", referer="https://learnche.org/pid/design-analysis-experiments/index"),
-            logged("/map/", PHONE, referer="https://learnche.org/pid/contents"),
-            logged("/", referer="https://github.com/kgdunn/process-improve"),
-            logged("/", referer="https://factori.al/"),
-            logged("/catalog/", referer="https://www.factori.al/"),
-            logged("/"),
+            *visit("/", referer="https://learnche.org/pid/design-analysis-experiments/index"),
+            *visit("/map/", PHONE, referer="https://learnche.org/pid/contents"),
+            *visit("/", referer="https://github.com/kgdunn/process-improve"),
+            *visit("/", referer="https://factori.al/"),
+            *visit("/catalog/", referer="https://www.factori.al/"),
+            *visit("/"),
         ],
         SINCE,
     )
     assert dict(referrers) == {"learnche.org": 2, "github.com": 1}
 
 
+def test_a_robot_that_names_a_site_to_be_listed_is_not_where_a_reader_came_from():
+    """Referrer spam: a robot asks for a page alone, with a made-up Referer, to be listed in reports like this one.
+
+    A reader's browser goes on to ask for the page's stylesheet and scripts, so only such a visit says where it
+    came from. The robot's page views are counted as before: it is the list of places that it is kept out of.
+    """
+    robot = {"ip": "198.51.100.0"}
+    spam = [
+        logged("/", referer="https://growyoursitetraffic.shop/", **robot),
+        logged("/?ref=linkedin", **robot),
+        logged("/favicon.svg", **robot),  # an icon is not a stylesheet or a script
+    ]
+    days, referrers = usage.tally([*spam, *visit("/", PHONE, referer="https://learnche.org/pid/contents")], SINCE)
+    assert dict(referrers) == {"learnche.org": 1}
+    assert days["2026-10-12"].pages["Home"] == 3
+
+
+def test_a_reader_is_known_by_a_stylesheet_or_a_script_its_own_browser_asks_for():
+    """Whenever in the period it is asked for, a script as well as a stylesheet; another reader's does not count."""
+    entries = [
+        logged("/map/", when="2026-10-12T10:00:00", referer="https://github.com/kgdunn/process-improve"),
+        logged("/map.js", when="2026-10-12T10:00:02", referer="https://factori.al/map/"),
+        logged("/", ip="198.51.100.0", referer="https://newsmarketing.cyou/"),
+        logged("/style.css", PHONE, ip="198.51.100.0"),  # another browser on the robot's network
+        logged("/app.js", "Googlebot/2.1", ip="198.51.100.0"),  # and a robot that says it is one
+    ]
+    _, referrers = usage.tally(entries, SINCE)
+    assert dict(referrers) == {"github.com": 1}
+
+
 def test_a_tagged_link_is_counted_by_its_tag_on_whichever_page_it_opens():
     """A link says where it was posted (?ref=linkedin), which an app's own browser, sending no Referer, cannot."""
     _, referrers = usage.tally(
         [
-            logged("/?ref=linkedin"),
-            logged("/?example=worked&ref=LinkedIn", PHONE),
-            logged("/features.html?ref=linkedin"),
-            logged("/?ref=newsletter", referer="https://mail.example.com/inbox"),  # by its tag alone, counted once
-            logged("/", referer="https://www.linkedin.com/feed/"),
-            logged("/about.html", referer="https://factori.al/?ref=linkedin"),  # a page opened from the app after
-            logged("/?ref=linkedin", "Googlebot/2.1"),
+            *visit("/?ref=linkedin"),
+            *visit("/?example=worked&ref=LinkedIn", PHONE),
+            *visit("/features.html?ref=linkedin"),
+            *visit("/?ref=newsletter", referer="https://mail.example.com/inbox"),  # by its tag alone, counted once
+            *visit("/", referer="https://www.linkedin.com/feed/"),
+            *visit("/about.html", referer="https://factori.al/?ref=linkedin"),  # a page opened from the app after
+            *visit("/?ref=linkedin", "Googlebot/2.1"),
         ],
         SINCE,
     )
@@ -200,13 +236,13 @@ def test_the_app_drops_from_its_address_the_parameter_the_report_reads():
 )
 def test_a_tag_that_is_no_short_plain_word_is_not_counted(tag):
     """The log holds whatever a request sent and the report prints it, so a tag is letters, digits, - and _."""
-    _, alone = usage.tally([logged(f"/?ref={tag}")], SINCE)
-    _, linked = usage.tally([logged(f"/?ref={tag}", referer="https://learnche.org/pid/contents")], SINCE)
+    _, alone = usage.tally(visit(f"/?ref={tag}"), SINCE)
+    _, linked = usage.tally(visit(f"/?ref={tag}", referer="https://learnche.org/pid/contents"), SINCE)
     assert (dict(alone), dict(linked)) == ({}, {"learnche.org": 1}), "the view is still a view, from the site it names"
 
 
 def test_the_longest_tag_fits_the_reports_column():
-    _, referrers = usage.tally([logged(f"/?ref={'a' * 24}"), logged("/?ref=q4_2026-launch")], SINCE)
+    _, referrers = usage.tally([*visit(f"/?ref={'a' * 24}"), *visit("/?ref=q4_2026-launch")], SINCE)
     assert dict(referrers) == {f"?ref={'a' * 24}": 1, "?ref=q4_2026-launch": 1}
     days, _ = three_days()
     rows = usage.report(days, {}, referrers, date(2026, 10, 10), date(2026, 10, 12)).splitlines()
@@ -221,7 +257,7 @@ def test_requests_before_the_period_are_left_out():
 def three_days():
     return usage.tally(
         [
-            logged("/", when="2026-10-11T09:00", referer="https://learnche.org/pid/contents"),
+            *visit("/", when="2026-10-11T09:00", referer="https://learnche.org/pid/contents"),
             logged("/runtime.json", when="2026-10-11T09:01", referer=FROM_THE_WORKER),
             logged("/", when="2026-10-12T09:00"),  # the same reader the next day
             logged("/", PHONE, when="2026-10-12T10:00"),
