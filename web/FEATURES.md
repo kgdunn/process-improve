@@ -605,8 +605,10 @@ What a careful reader, or an organisation, asks before using a tool.
   says in plain words whether Factorial works without internet here and how much room it
   takes, and each button says what it does.
   - *Details:* A copy of the app, Python and its packages is saved in the browser: from about
-    170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. One button
-    adds the charts and Excel files (12 MB more). One removes Factorial from the device, and
+    170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. The charts
+    and Excel files are saved with it, about 12 MB of that, so the whole app works offline
+    with nothing to press. A browser set to save data is not sent them unasked: there, a
+    button adds them. One button removes Factorial from the device, and
     a line under it says what follows: the space is freed, Factorial then needs internet to
     open, and saved studies stay. The copy holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;

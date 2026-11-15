@@ -1,7 +1,7 @@
-"""The built app without a network: it opens from the copy the page keeps, and with the whole copy it works.
+"""The built app without a network: it opens from the copy the page keeps, and works there.
 
 Once Python has started, a first visit registers ``sw.js`` and copies what it loaded: the page's own files, the
-Pyodide release with its packages, the wheel. The reader asks for the charts and workbooks too,
+Pyodide release with its packages, the wheel. It copies the charts and workbooks too, unasked,
 which need plotly, openpyxl and Plotly.js. Then the network goes: the page opens again, Python starts from the
 copy, and a design is made, analysed, drawn and written to a workbook.
 
@@ -86,10 +86,8 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Works offline, except charts and Excel files.")
+        said(page, "Works fully offline.", timeout=300_000)  # the whole copy, made unasked: nothing to press
         assert page.evaluate(REGISTERED)
-        page.click("#offline-keep")
-        said(page, "Works fully offline.", timeout=300_000)
         assert page.is_hidden("#offline-keep"), "nothing more to keep"
         assert page.is_visible("#offline-remove")
 
@@ -128,7 +126,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
         context.close()
 
 
-def test_the_whole_copy_is_whole_whatever_the_visit_had_installed_before_it_was_asked_for(chromium, app_url):
+def test_the_copy_is_whole_whatever_the_visit_had_installed_before_it_was_asked_for(chromium, app_url):
     """A copy asked for after the charts and a workbook were made holds their packages all the same.
 
     Python had installed plotly and openpyxl while no copy was kept, so nothing of them passed through the worker
@@ -138,15 +136,13 @@ def test_the_whole_copy_is_whole_whatever_the_visit_had_installed_before_it_was_
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Works offline, except charts and Excel files.")
+        said(page, "Works fully offline.", timeout=300_000)
         page.click("#offline-remove")
         said(page, "Needs internet. Factorial is not saved on this device.")
         a_study_with_its_charts_and_its_workbook(page)  # installed with no copy to keep them in
         assert page.evaluate(COPIES) == [], "nothing is kept that the reader removed"
 
-        page.click("#offline-keep")  # "Save Factorial for offline use"
-        said(page, "Works offline, except charts and Excel files.")
-        page.click("#offline-keep")  # "Add charts and Excel files"
+        page.click("#offline-keep")  # "Save Factorial for offline use": one press, and the whole of it
         said(page, "Works fully offline.", timeout=300_000)
 
         context.set_offline(True)
