@@ -146,6 +146,10 @@ def test_one_factor_is_solved_for_where_the_surface_crosses_the_target(api):
     # The yield along T, 60 + 4 t - 3 t^2, is 61 twice: at t = 1/3 and at the high end of the range.
     twice = [s["value"] for s in solved(api, held, "Yield", 61.0)["solutions"]]
     assert twice == pytest.approx([175 + 25 / 3, 200.0], abs=1e-3)
+    # The second is at the end of the range, where the yield comes down onto 61: a hair's breadth above it, as
+    # rounding leaves the prediction on some machines, it is still the solution.
+    barely = [s["value"] for s in solved(api, held, "Yield", 61.0 - 1e-11)["solutions"]]
+    assert barely == pytest.approx([175 + 25 / 3, 200.0], abs=1e-3)
     # With P at its low end the yield is 4 lower along T, and 61 is out of reach: its peak, 57.33, is the nearest.
     none = solved(api, held, "Yield", 61.0, settings={"P": 1})
     assert none["solutions"] == []

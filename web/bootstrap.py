@@ -8538,6 +8538,10 @@ TARGET_SEED = 1
 TARGET_NEAR = 0.02
 SOLVE_POINTS = 401
 
+#: How near its target a prediction counts as on it when one factor is solved for, as a share of the larger of the
+#: target and the range of the predictions: what rounding leaves.
+SOLVE_ON = 1e-9
+
 
 def target_settings(request: dict) -> dict:
     """Find the settings at which each response named is predicted at its target: the models run backwards.
@@ -8849,6 +8853,9 @@ def solve_for(request: dict) -> dict:
             "no setting of it gives the target more than another."
         )
     gap = predicted - target
+    # A prediction within rounding of the target is on it: a target met at the very end of the range is then a
+    # solution whichever side of it the arithmetic lands, as it differs between machines.
+    gap[np.abs(gap) <= SOLVE_ON * max(abs(target), float(np.ptp(predicted)), 1.0)] = 0.0
     half = None if fit.mse is None or fit.t is None else fit.t * np.sqrt(fit.mse * leverage)
     in_units = lambda coded: float((factor["low"] + factor["high"]) / 2 + coded * (factor["high"] - factor["low"]) / 2)  # noqa: E731
 
