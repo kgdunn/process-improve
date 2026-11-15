@@ -83,7 +83,9 @@ def test_the_library_s_warnings_are_listed_under_the_design(page):
 
 def test_runs_outside_the_ranges_are_pointed_out(page):
     generate(page, design_type="ccd", alpha="rotatable")
-    assert "Some runs of T, P, F lie outside the ranges you entered" in page.text_content("#design-summary")
+    assert "Some runs of Temperature, Pressure, Flow lie outside the ranges you entered" in page.text_content(
+        "#design-summary"
+    )
 
 
 def test_replicates_and_a_typed_axial_distance_reach_python(blank_page, api):

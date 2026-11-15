@@ -58,7 +58,9 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     name, html = download_report(page)
     assert name == "box_behnken-15-runs-report.html"
     report = opened(page, html)
-    assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in T, P and F", "the study's title"
+    assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in Temperature, Pressure and Flow", (
+        "the study's title"
+    )
     assert headings(report) == [
         "The brief",
         "The design: Box-Behnken, 15 runs",
@@ -80,7 +82,7 @@ def test_the_worked_example_s_report_holds_the_study_and_what_learn_makes_of_it(
     learn = report.locator("section:nth-of-type(3)")
     heads = ["What the results say", "Coefficients", "ANOVA", "The best settings for your goal"]
     assert learn.locator("h3").all_text_contents() == heads
-    assert learn.locator("li").first.text_content().startswith("T matters most: ")
+    assert learn.locator("li").first.text_content().startswith("Temperature matters most: ")
     assert learn.locator("details[open] tbody tr").count() == 15, "each run as the model sees it, opened for paper"
     assert learn.locator(".equation").text_content() == page.text_content("#analysis .equation")
     coefficients = learn.locator("table").first.locator("thead th").all_text_contents()
@@ -104,7 +106,7 @@ def test_the_report_opens_in_a_tab_of_its_own_to_read(page):
         report = popup.value
         report.wait_for_url("blob:**")
         report.wait_for_load_state()
-        assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in T, P and F", button
+        assert report.text_content("h1") == "Yield (%), maximise: Box-Behnken in Temperature, Pressure and Flow", button
         assert "The next step" in headings(report)
         settled(page)
         assert status(page)[0].startswith("The report is open in a tab of its own")

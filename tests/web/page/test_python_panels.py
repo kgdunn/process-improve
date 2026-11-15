@@ -36,6 +36,10 @@ from tests.web.api.test_book_examples import catalogue
 from tests.web.api.test_charts import _limited
 from tests.web.api.test_contract import curved
 
+#: Best settings for the worked example as the catalogue gives it, its factors named in full: coded, as the page
+#: sends them. The tests that make the example themselves, not through the shared fixtures, read the page's names.
+EXAMPLE_BEST = {"Temperature": 1.0, "Pressure": -1.0, "Flow": 0.6}
+
 
 def page_code(node: str, function: str, *args: object) -> str:
     """Return the code one of ``web/python.js``'s writers gives for the page's state."""
@@ -1155,7 +1159,7 @@ def test_each_figure_s_code_draws_the_figure_the_page_draws(api, node, monkeypat
     for key, options in plots["plot_options"].items():
         drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
         assert_same_figure(drawn, figures[key], key)
-    assert plots["plot_options"]["contour"] == {"plot_type": "contour", "factors_to_plot": ["T", "P"]}
+    assert plots["plot_options"]["contour"] == {"plot_type": "contour", "factors_to_plot": ["Temperature", "Pressure"]}
     assert plots["plot_options"]["residuals"] == {"plot_type": "residuals_vs_fitted"}
 
 
@@ -1166,8 +1170,7 @@ def test_a_surface_s_code_holds_the_other_factors_where_the_page_holds_them(api,
     held = held_of(api.ok("api_make_design", demo["design"]))
     responses = api.ok("api_simulate", {**held, "scenario": "reactor", "sigma": 1.0, "seed": 1})["responses"]
     analysis = api.ok("api_analyze_runs", {**held, "responses": responses})
-    best = {"T": 1.0, "P": -1.0, "F": 0.6}
-    plots = api.ok("api_plots", {**held, "responses": responses, "best": best})
+    plots = api.ok("api_plots", {**held, "responses": responses, "best": EXAMPLE_BEST})
     steps = (
         ("designCode", [held["spec"]]),
         ("resultsCode", [held, responses]),
@@ -1175,7 +1178,7 @@ def test_a_surface_s_code_holds_the_other_factors_where_the_page_holds_them(api,
     )
     for key in ("contour", "surface_3d", "prediction_variance"):
         options = plots["plot_options"][key]
-        assert options["hold_values"] == {"F": 0.6}, key
+        assert options["hold_values"] == {"Flow": 0.6}, key
         drawn = figure_drawn(node, monkeypatch, steps, options, analysis["formula"], True, held["spec"])
         assert_same_figure(drawn, json.loads(plots["figures"][key]), key)
     assert "hold_values" not in plots["plot_options"]["perturbation"], "each factor moves, the others at their center"
@@ -1313,7 +1316,7 @@ def test_the_levels_code_draws_every_run_at_its_level_and_each_level_s_average(a
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("best", [None, {"T": 1.0, "P": -1.0, "F": 0.6}], ids=["at the center", "at the best settings"])
+@pytest.mark.parametrize("best", [None, EXAMPLE_BEST], ids=["at the center", "at the best settings"])
 def test_the_true_surface_s_code_draws_the_process_the_results_were_simulated_from(api, node, monkeypatch, best):
     demo = api.ok("api_catalogue")["demo"]
     held = held_of(api.ok("api_make_design", demo["design"]))

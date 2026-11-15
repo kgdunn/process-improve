@@ -257,6 +257,11 @@ describe("the study file", () => {
     assert.equal(fileStem("Yield (%), maximise: CCD in T, P and F"), "yield-maximise-ccd-in-t-p-and-f");
     assert.equal(fileStem("Débit à 25 °C"), "debit-a-25-c");
     assert.equal(fileStem("---"), "study");
-    assert.ok(fileStem("x".repeat(100)).length <= 60);
+    assert.equal(fileStem("x".repeat(100)), "x".repeat(60));
+    // A long title ends on a whole word: 61 characters to "pressure", so the name stops at the word before it.
+    const long = "Yield (%), maximise: Full factorial (2-level) in Temperature, Pressure and Flow";
+    assert.equal(fileStem(long), "yield-maximise-full-factorial-2-level-in-temperature");
+    assert.equal(fileStem(`${"a".repeat(58)} b c`), `${"a".repeat(58)}-b`); // a word that ends on the 60th character stays
+    assert.equal(fileStem(`${"a".repeat(59)} b c`), "a".repeat(59)); // and one that would end on the 61st goes
   });
 });

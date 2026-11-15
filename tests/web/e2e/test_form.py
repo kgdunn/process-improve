@@ -184,8 +184,8 @@ def test_a_factor_s_name_is_checked_as_it_is_typed(page):
     name.fill("lambda")
     assert problems(page) == "lambda: Python keeps this word for itself, so a model cannot name it; try lambda_."
     assert page.is_disabled("#generate")
-    name.fill("P")
-    assert problems(page) == "P: two factors cannot share a name."
+    name.fill("Pressure")
+    assert problems(page) == "Pressure: two factors cannot share a name."
     name.fill("Temp_2")
     assert problems(page) is None
     assert page.is_enabled("#generate")
@@ -295,7 +295,7 @@ def levels(factor) -> list[str]:
 
 def test_choosing_categorical_gives_two_levels_as_chips_and_takes_the_units_away(page):
     flip(row(page, 1))
-    assert factor_table(page)[1] == {"name": "P", "levels": ["A", "B"]}
+    assert factor_table(page)[1] == {"name": "Pressure", "levels": ["A", "B"]}
     assert row(page, 1).locator("[name=units]").is_hidden()
     assert row(page, 1).locator("td[data-label=Levels]").get_attribute("colspan") == "3", "the chips take the row"
     assert page.evaluate("document.activeElement.name") == "level", "the keyboard is ready for a third level"
@@ -304,7 +304,9 @@ def test_choosing_categorical_gives_two_levels_as_chips_and_takes_the_units_away
     page.keyboard.type("C")
     page.keyboard.press("Enter")
     flip(row(page, 1))
-    assert factor_table(page)[1] == {"name": "P", "low": "1", "high": "3", "units": "bar"}, "its numbers come back"
+    assert factor_table(page)[1] == {"name": "Pressure", "low": "1", "high": "3", "units": "bar"}, (
+        "its numbers come back"
+    )
     flip(row(page, 1))
     assert factor_table(page)[1]["levels"] == ["A", "B", "C"], "and so do its levels"
 
@@ -315,16 +317,16 @@ def test_typing_two_labels_makes_a_factor_categorical_its_labels_its_first_level
     assert types(page)[0] == "numeric", "one label beside a number keeps the type chosen"
     assert (
         problems(page)
-        == "T: give a number for both the low and the high value, or make it categorical to give it labels."
+        == "Temperature: give a number for both the low and the high value, or make it categorical to give it labels."
     )
     assert page.is_disabled("#generate")
     factor.locator("[name=high]").fill("new")
     assert types(page)[0] == "categorical"
-    assert factor_table(page)[0] == {"name": "T", "levels": ["old", "new"]}
+    assert factor_table(page)[0] == {"name": "Temperature", "levels": ["old", "new"]}
     assert page.evaluate("document.activeElement.name") == "level", "the keyboard is ready for a third level"
     assert problems(page) is None
     flip(factor)
-    assert factor_table(page)[0] == {"name": "T", "low": "", "high": "", "units": "degC"}, (
+    assert factor_table(page)[0] == {"name": "Temperature", "low": "", "high": "", "units": "degC"}, (
         "the units put aside come back"
     )
 

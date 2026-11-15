@@ -56,7 +56,7 @@ def test_each_chart_has_its_title_and_caption(page):
     assert page.locator("#charts figure h3").all_text_contents() == TITLES
     assert page.locator("#charts .chart.wide figcaption").count() == 0, "the coefficients' legend says it all"
     captions = page.locator("#charts figcaption").all_text_contents()
-    assert "over T and P, the two factors with the largest main effects" in captions[0]
+    assert "over Temperature and Pressure, the two factors with the largest main effects" in captions[0]
 
 
 def test_the_coefficient_chart_marks_the_true_values(page):
@@ -216,7 +216,7 @@ def test_each_factor_s_effect_is_drawn_with_the_band_of_its_interval_which_its_c
     drawn = card.locator(".plot").evaluate(
         "(plot) => plot.data.map((trace) => [trace.name ?? '', trace.meta ?? '', trace.fill ?? ''])"
     )
-    assert [name for name, meta, _ in drawn if meta != "interval"] == ["T", "P", "F"]
+    assert [name for name, meta, _ in drawn if meta != "interval"] == ["Temperature", "Pressure", "Flow"]
     assert [fill for _, meta, fill in drawn if meta == "interval" and fill] == ["tonexty"] * 3, "a band a line"
     assert drawn[-1][:2] == ["95% interval", "interval"], "which the legend names"
     assert (
@@ -294,14 +294,17 @@ def test_the_numbers_on_a_surface_s_lines_have_a_halo_in_the_page_s_colour(page,
 
 
 def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):
-    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["Temperature", "Pressure"]
     open_more(page)
     plotted = page.evaluate("window.__pi.count('api_plots')")
-    page.select_option("#contour-factor-2", "F")
+    page.select_option("#contour-factor-2", "Flow")
     page.wait_for_function(f"window.__pi.count('api_plots') > {plotted} && window.__pi.idle()")
     page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
-    assert calls(page, "api_plots")[-1]["payload"]["contour_factors"] == ["T", "F"]
-    assert "over T and F, the two factors you chose" in page.locator("#charts figcaption").first.text_content()
+    assert calls(page, "api_plots")[-1]["payload"]["contour_factors"] == ["Temperature", "Flow"]
+    assert (
+        "over Temperature and Flow, the two factors you chose"
+        in page.locator("#charts figcaption").first.text_content()
+    )
     assert page.locator("#more-charts").evaluate("(box) => box.open"), "it stays open as the charts are drawn again"
     page.wait_for_function(
         "(n) => document.querySelectorAll('#more-charts .js-plotly-plot').length === n", arg=len(MORE_TITLES)
@@ -309,20 +312,20 @@ def test_the_reader_chooses_the_two_factors_the_surface_is_drawn_over(page):
 
 
 def test_choosing_the_factor_the_other_box_holds_makes_the_two_change_places(page):
-    page.select_option("#contour-factor-1", "P")
+    page.select_option("#contour-factor-1", "Pressure")
     page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
-    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["P", "T"]
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["Pressure", "Temperature"]
 
 
 def test_a_button_takes_the_reader_s_choice_of_factors_back_to_the_two_largest(page):
     assert page.locator("#contour-largest").count() == 0, "nothing is chosen, so there is nothing to take back"
-    page.select_option("#contour-factor-2", "F")
+    page.select_option("#contour-factor-2", "Flow")
     page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('you chose')")
     plotted = page.evaluate("window.__pi.count('api_plots')")
     page.click("#contour-largest")
     page.wait_for_function(f"window.__pi.count('api_plots') > {plotted} && window.__pi.idle()")
     page.wait_for_function("document.querySelector('#charts figcaption').textContent.includes('largest main effects')")
     assert "contour_factors" not in calls(page, "api_plots")[-1]["payload"]
-    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["T", "P"]
+    assert [page.input_value(f"#contour-factor-{at}") for at in (1, 2)] == ["Temperature", "Pressure"]
     assert page.locator("#contour-largest").count() == 0
     page.wait_for_function("document.activeElement.id === 'contour-factor-1'")  # the button went with the choice
