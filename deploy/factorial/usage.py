@@ -13,6 +13,11 @@ The log has one line per request, written with the reader's address cut to its n
                starts
     previews   the link card fetched by a chat or a social site, to show a link to the app
 
+Under the table it lists where readers came from: the site that linked here, or the tag a link
+carried. A link posted somewhere can name the place, as ``https://factori.al/?ref=linkedin``,
+which counts its visits apart even when the browser names no site, as an app's own browser
+often does not. A tag is a word for a place, never for a person: the report counts visits.
+
 Robots, link-preview fetchers and the deploy's own checks (headless Chromium, Python's urllib)
 are not readers. Run it on the server, as a user that can read the log:
 
@@ -37,7 +42,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -67,6 +72,12 @@ COLUMNS = (*PAGES, "Readers", "Python", "Previews")
 PYTHON = "/runtime.json"
 WORKER = "/worker.js"
 CARD = "/og-card.png"
+#: The query parameter a link says where it was posted by, and the tag it can hold. The app drops the parameter
+#: from its address once open (REF_PARAM in web/campaign.js), so a reload is not one more visit from that place.
+#: The log holds whatever a request sent and the report prints to a terminal, so a tag is a short plain word;
+#: anything else is not counted.
+REF = "ref"
+TAG = re.compile(r"[a-z0-9][a-z0-9_-]{0,23}")
 #: A bar for each row of the report, from none to the most a page had in a row.
 BARS = " ▁▂▃▄▅▆▇█"
 #: User agents that are not a reader at a browser: robots, link-preview fetchers, monitors, and
@@ -132,8 +143,17 @@ def header(request: dict, name: str) -> str:
     return (request.get("headers", {}).get(name) or [""])[0]
 
 
+def came_from(query: str, referer: str) -> str | None:
+    """Name where a page view came from: the tag its link carried, else the site that linked here, else None."""
+    tag = parse_qs(query).get(REF, [""])[0].lower()
+    if TAG.fullmatch(tag):
+        return f"?{REF}={tag}"
+    host = urlsplit(referer).hostname
+    return host if host and host != SITE and not host.endswith(f".{SITE}") else None
+
+
 def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Counter[str]]:
-    """Add up the requests made since ``since``: what each day saw, and which sites readers came from."""
+    """Add up the requests made since ``since``: what each day saw, and where readers came from."""
     days: dict[str, Day] = defaultdict(Day)
     referrers: Counter[str] = Counter()
     for entry in entries:
@@ -142,7 +162,8 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
         if when < since or request.get("method") != "GET" or entry.get("status") not in {200, 304}:
             continue
         day = days[when.strftime("%Y-%m-%d")]
-        path, agent = urlsplit(request.get("uri", "")).path, header(request, "User-Agent")
+        asked, agent = urlsplit(request.get("uri", "")), header(request, "User-Agent")
+        path = asked.path
         if path == CARD and PREVIEWER.search(agent):
             day.previews += 1
         elif NOT_A_READER.search(agent):
@@ -150,9 +171,8 @@ def tally(entries: Iterable[dict], since: datetime) -> tuple[dict[str, Day], Cou
         elif name := page(path):
             day.pages[name] += 1
             day.readers.add((request.get("client_ip") or request.get("remote_ip", ""), agent))
-            came_from = urlsplit(header(request, "Referer")).hostname
-            if came_from and came_from != SITE and not came_from.endswith(f".{SITE}"):
-                referrers[came_from] += 1
+            if source := came_from(asked.query, header(request, "Referer")):
+                referrers[source] += 1
         elif path == PYTHON and urlsplit(header(request, "Referer")).path == WORKER:
             day.python += 1
     return days, referrers
