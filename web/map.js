@@ -265,6 +265,22 @@ const sizes = z => ({ font: grow(z, 11, 0.25, 19), dot: grow(z, 7, 0.5, 22), lin
 // topic looks as it does without one. No image changes with the zoom, only the size of the discs: the rim keeps its
 // width on screen, and no image is loaded, and so missing for a frame, while the reader zooms.
 // shortcut: two other textbooks have a colour (--map-book2, --map-book3), give a third --map-book4 when it is reviewed
+// A name is under its term. One that has to be drawn, and finds that place taken, is above its term, beside it or
+// at one of its corners (PLACES): these rules put it there, by the classes of its place. `rim` is the term's size
+// while books are compared, when its ring reaches past it, and nothing otherwise. A name beside its term is `edge`
+// off it; one at a corner starts three quarters of the way from the term's middle to its edge, each way (CORNER).
+const CORNER = (dot, rim) => 2 - dot * 0.125 + rim * 0.45;
+const sideRules = (px, dot, rim) => { const edge = 3 + rim * 0.6, corner = CORNER(dot, rim); return [
+  { selector: ".term.lab.up", style: { "text-valign": "top", "text-margin-y": px(2 - edge) } },
+  { selector: ".term.lab.right", style: { "text-valign": "center", "text-halign": "right", "text-margin-y": 0, "text-margin-x": px(edge),
+    "text-justification": "left" } },
+  { selector: ".term.lab.left", style: { "text-valign": "center", "text-halign": "left", "text-margin-y": 0, "text-margin-x": px(-edge),
+    "text-justification": "right" } },
+  { selector: ".term.lab.low", style: { "text-valign": "bottom", "text-margin-y": px(corner) } },
+  { selector: ".term.lab.up.right, .term.lab.up.left", style: { "text-valign": "top", "text-margin-y": px(-corner) } },
+  { selector: ".term.lab.low.right, .term.lab.up.right", style: { "text-margin-x": px(corner) } },
+  { selector: ".term.lab.low.left, .term.lab.up.left", style: { "text-margin-x": px(-corner) } },
+]; };
 const RIM_MOST = 0.13;   // of a topic's width: the broadest its rim is drawn, on the smallest topic at the furthest zoom
 // Zoomed out, a topic's name is inside its rim. The name of a small topic is wider than the topic even in the
 // smallest size a reader makes out, and covered the rim's sides. It goes beside the topic instead: on the first
@@ -325,9 +341,7 @@ function ringRules(z, px, overview, dot) {
         "background-width": "190%", "background-height": "190%" } }]; }),
     { selector: ".term.lab", style: { "text-margin-y": px(3 + dot * 0.6) } },   // a name is outside its term's ring
     { selector: ".term.sel.lab", style: { "text-margin-y": px(3 + dot * 0.9) } },
-    { selector: ".term.lab.up", style: { "text-valign": "top", "text-margin-y": px(-(1 + dot * 0.6)) } },
-    { selector: ".term.lab.right", style: { "text-margin-x": px(3 + dot * 0.6), "text-margin-y": 0 } },
-    { selector: ".term.lab.left", style: { "text-margin-x": px(-(3 + dot * 0.6)), "text-margin-y": 0 } },
+    ...sideRules(px, dot, dot),
   ];
 }
 
@@ -377,12 +391,7 @@ function sheet(z) {
     { selector: ".term.lab", style: { label: "data(label)", color: css("--fg"), "font-family": FONT,
       "font-size": px(font), "text-wrap": "wrap", "text-max-width": px(font * LABEL_EMS),
       "text-valign": "bottom", "text-margin-y": px(3), ...HALO(px) } },
-    // A name is under its term. One that has to be drawn, and finds that place taken, is above it or beside it.
-    { selector: ".term.lab.up", style: { "text-valign": "top", "text-margin-y": px(-3) } },
-    { selector: ".term.lab.right", style: { "text-valign": "center", "text-halign": "right", "text-margin-y": 0, "text-margin-x": px(3),
-      "text-justification": "left" } },
-    { selector: ".term.lab.left", style: { "text-valign": "center", "text-halign": "left", "text-margin-y": 0, "text-margin-x": px(-3),
-      "text-justification": "right" } },
+    ...sideRules(px, dot, 0),
     { selector: ".term.sel", style: { width: size * 1.9, height: size * 1.9, "border-width": px(2.5), "border-color": css("--fg"),
       "font-weight": 600, "font-size": px(font * 1.12), "z-index": 30 } },
     { selector: ".term.nb", style: { "z-index": 20 } },
@@ -454,7 +463,7 @@ function placeLabels(z) {
       // The rings take room that names had, so while books are compared a name goes above its term when below is taken.
       const fits = free(below), side = othersOn && !c.sel && !fits && free(above) ? "up" : null;
       for (const name of SIDES) c.n.toggleClass(name, name === side);
-      c.off = off;
+      c.off = off; c.corner = dot / 2 + CORNER(dot, othersOn ? dot : 0);
       if (c.forced || fits || side) {
         boxes.push(side ? above : below); show.add(c.n.id());
         placed.push(c);
@@ -472,8 +481,12 @@ let rings = [];
 const onRing = (n, b) => rings.some(r => r.n !== n && r.p.x + r.reach > b.x1 && r.p.x - r.reach < b.x2 && r.p.y + r.reach > b.y1 && r.p.y - r.reach < b.y2);
 // The terms in view, each as far as its own mark reaches: a name put above or beside its term keeps clear of them.
 let marks = [];
-// The sides of its term a name can be on, other than below: each is a class the styles place it by.
-const SIDES = ["up", "right", "left"];
+// The places a name can take by its term, each with the classes the styles put it there by (sideRules): below its
+// term, where every name is that has the room; above it and beside it; and at its four corners. In the order they
+// are tried.
+const PLACES = { below: [], up: ["up"], right: ["right"], left: ["left"],
+  "low right": ["low", "right"], "low left": ["low", "left"], "up right": ["up", "right"], "up left": ["up", "left"] };
+const SIDES = ["up", "right", "left", "low"];
 function settleOverlaps() {
   // Topic and sub-topic names are placed first: term names give way to them.
   const kept = cy.nodes(".topic, .subtopic, .subname").filter(n => n.visible() && n.style("label"))
@@ -487,22 +500,27 @@ function settleOverlaps() {
   if (verbsOn) settleLinkLabels(kept);
 }
 
-// A name that is drawn whatever it lands on (a selected term's neighbour) takes the side of its term where it lands
-// on least: below, above, right or left of it, each tried with the name's size as drawn (`b`), against the names
-// already placed (`kept`) and every term in view, with its ring while books are compared. Below wins a tie, so a name
-// with room is where every other name is. Returns the place it takes.
+// A name that is drawn whatever it lands on (a selected term's neighbour) takes the place by its term where it lands
+// on least: each of PLACES is tried with the name's size as drawn (`b`), against the names already placed (`kept`)
+// and every term in view, with its ring while books are compared. The first of them wins a tie, so a name with room
+// is under its term, where every other name is. Returns the place it takes.
 function clearestSide(c, b, kept) {
-  const w = b.x2 - b.x1, h = b.y2 - b.y1, { x, y } = c.p, off = c.off;
+  const w = b.x2 - b.x1, h = b.y2 - b.y1, { x, y } = c.p, { off, corner } = c;
   const across = { x1: x - w / 2, x2: x + w / 2 }, level = { y1: y - h / 2, y2: y + h / 2 };
+  const east = { x1: x + corner, x2: x + corner + w }, west = { x1: x - corner - w, x2: x - corner };
+  const south = { y1: y + corner, y2: y + corner + h }, north = { y1: y - corner - h, y2: y - corner };
   const places = { below: { ...across, y1: y + off, y2: y + off + h }, up: { ...across, y1: y - off - h, y2: y - off },
-    right: { ...level, x1: x + off, x2: x + off + w }, left: { ...level, x1: x - off - w, x2: x - off } };
+    right: { ...level, x1: x + off, x2: x + off + w }, left: { ...level, x1: x - off - w, x2: x - off },
+    "low right": { ...east, ...south }, "low left": { ...west, ...south }, "up right": { ...east, ...north }, "up left": { ...west, ...north } };
   const terms = (othersOn ? rings : marks).filter(m => m.n !== c.n)
     .map(m => ({ x1: m.p.x - m.reach, x2: m.p.x + m.reach, y1: m.p.y - m.reach, y2: m.p.y + m.reach }));
   const shared = (a, o) => Math.max(0, Math.min(a.x2, o.x2) - Math.max(a.x1, o.x1)) * Math.max(0, Math.min(a.y2, o.y2) - Math.max(a.y1, o.y1));
-  const covered = a => [...kept, ...terms].reduce((sum, o) => sum + shared(a, o), 0);
+  // A place counts as taken from two pixels off what is there: a name is drawn a little off where it is reckoned to be.
+  const covered = a => { const near = { x1: a.x1 - 2, x2: a.x2 + 2, y1: a.y1 - 2, y2: a.y2 + 2 };
+    return [...kept, ...terms].reduce((sum, o) => sum + shared(near, o), 0); };
   let side = "below", least = Infinity;
-  for (const name of ["below", ...SIDES]) { const area = covered(places[name]); if (area < least) [side, least] = [name, area]; }
-  for (const name of SIDES) c.n.toggleClass(name, name === side);
+  for (const name of Object.keys(PLACES)) { const area = covered(places[name]); if (area < least) [side, least] = [name, area]; }
+  for (const name of SIDES) c.n.toggleClass(name, PLACES[side].includes(name));
   return places[side];
 }
 

@@ -637,7 +637,7 @@ What a careful reader, or an organisation, asks before using a tool.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
     and each term says which of the three books has it. The names of a selected idea's
-    neighbours take whichever side of their idea is clear, and a topic's name too wide for
+    neighbours take whichever place by their idea is clear, and a topic's name too wide for
     its ring is beside the topic.
 - **[The multivariate page](mva/).** For data with many measurements of each row: PCA and
   PLS on an example or your own file.
