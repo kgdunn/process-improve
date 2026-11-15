@@ -25,6 +25,7 @@ import {
   markBest,
   markedRun,
   onRunMarked,
+  FOUND,
   overlayFigure,
   paretoFigure,
   pressRun,
@@ -33,6 +34,7 @@ import {
   restOnRun,
   sensitivityFigure,
   shareContourScale,
+  targetName,
   ternaryFigure,
   ternaryRange,
   tradeOffFigure,
@@ -96,6 +98,11 @@ import {
   settingsFit,
   settingsWords,
   sliderStep,
+  solveSentences,
+  targetCaption,
+  targetLead,
+  targetRows,
+  targetShare,
   whatIfRows,
   whatIfSentences,
   whatIfStart,
@@ -293,7 +300,7 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, tradeOffCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
 import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
@@ -520,6 +527,9 @@ const state = {
   // The trade-offs between them: what api_trade_offs returned (tried), the two responses on the chart's axes and the
   // one it is coloured by, each response's two limits, and the candidate setting or the alternative the reader chose.
   trade: newTrade(),
+  // The settings that give a target: each response's target as typed, what api_target_settings returned (found),
+  // and the two factors the reader chose to draw its chart over.
+  target: newTarget(),
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
@@ -1392,6 +1402,7 @@ function showRenamed({ spec, simulation, ...design }, names) {
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
   // The what-if fits and the balance, and any still on their way, name the old factors: the analysis below finds them again.
   clearWhatIf();
+  clearTarget();
   clearBalance();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
@@ -1983,11 +1994,13 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.models = {};
   state.goals = {};
   state.trade = newTrade();
+  state.target = newTarget();
   state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
   clearBalance();
   clearWhatIf();
+  clearTarget();
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
@@ -3400,9 +3413,11 @@ async function readUpload(file) {
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
   state.trade = newTrade();
+  state.target = newTarget();
   state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
+  clearTarget();
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -3496,6 +3511,7 @@ async function analyseRuns() {
     clearAnalysis();
     clearBalance();
     clearWhatIf();
+    clearTarget();
     setStatus("No results to analyse yet.");
     return;
   }
@@ -3511,6 +3527,7 @@ async function analyseRuns() {
     await findCurve();
     await findWhatIf();
     findTradeOffs();
+    showTarget();
     return;
   }
   const mine = ++ticket;
@@ -3535,7 +3552,8 @@ async function analyseRuns() {
   await findBalance();
   await findCurve();
   await findWhatIf(); // after the best settings and the balance, which it opens at, and the curves it draws
-  findTradeOffs(); // last: the settings it tries take a moment, and nothing above waits for them
+  findTradeOffs(); // the settings it tries take a moment, and nothing above waits for them
+  showTarget(); // last, on the what-if panel's fits: its search takes a moment too
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -5521,6 +5539,7 @@ function renderWhatIf() {
   if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
   else hidePython("what-if");
   renderCurve(at);
+  scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -5742,6 +5761,278 @@ async function checkKeptLimits() {
     renderWhatIf();
     renderKept();
   }
+}
+
+// ---------------------------------------------------------------- the settings that give a target
+// The reader types what a response should be, or several; Python runs their models backwards
+// (bootstrap.target_settings) and answers with settings, which the page says, draws and offers to confirm. One factor
+// is then solved for from the others (bootstrap.solve_for), at the settings the what-if panel holds.
+let targetTicket = 0;
+let targetTimer = null;
+let solveTicket = 0;
+let solveTimer = null;
+
+/** What the section holds for a study with no target typed yet: the targets by column, and what Python answered. */
+function newTarget() {
+  return { targets: {}, found: null, pair: null };
+}
+
+/** What a call that fits each response is sent: the study, its results, and each response's model. */
+const fitsAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName() });
+
+/** The responses a target can be typed for: each one with a result, with the least and the greatest of its results. */
+function targetResponses() {
+  const results = fitted();
+  return studyResponses().flatMap((r) => {
+    const values = (results[r.name] ?? []).filter(Number.isFinite);
+    return values.length ? [{ name: r.name, ...wordsOf(r.name), least: Math.min(...values), most: Math.max(...values) }] : [];
+  });
+}
+
+/** The study's factors with a range, by their names. */
+const rangedFactors = () => tradeFactors().filter((f) => f.kind !== "categorical");
+
+/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+function clearTarget() {
+  targetTicket += 1;
+  solveTicket += 1;
+  clearTimeout(targetTimer);
+  clearTimeout(solveTimer);
+  // The settings found name the study's factors as they were: they are found again when the section comes back.
+  state.target = { ...state.target, found: null };
+  renderTargetFound();
+  $("#target").hidden = true;
+}
+
+/**
+ * Show the section, after each analysis: a box and a slider for each response's target, the runs to match, and then
+ * the settings for the targets typed so far, found again on the results as they are now.
+ */
+function showTarget() {
+  const responses = state.design && !blendStudy() ? targetResponses() : [];
+  if (!responses.length || !rangedFactors().length) {
+    clearTarget();
+    return;
+  }
+  const names = responses.map((r) => r.name);
+  const ranged = rangedFactors().map((f) => f.name);
+  const targets = Object.fromEntries(Object.entries(state.target.targets).filter(([name]) => names.includes(name)));
+  const pair = state.target.pair?.every((name) => ranged.includes(name)) ? state.target.pair : null;
+  state.target = { ...state.target, targets, pair };
+  $("#target").hidden = false;
+  const t = $("#target-goals");
+  const key = JSON.stringify(responses);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const span = `${num(r.least)} to ${withUnit(r.most, r.units)}`;
+      const step = r.most > r.least ? sliderStep({ low: r.least, high: r.most }) : "any";
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="Should be"><input type="number" step="any" name="target" aria-label="${escape(r.label)}: what it should be"></td>` +
+        `<td data-label="Or move it"><input type="range" name="slider" min="${r.least}" max="${r.most}" step="${step}" aria-label="${escape(r.label)}: what it should be, from ${escape(span)}"></td>` +
+        `<td data-label="Your results">${escape(span)}</td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Response</th><th scope="col">Should be</th><th scope="col">Or move it</th><th scope="col">Your results</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  showTargets();
+  const results = fitted();
+  const said = (place) => responses.flatMap((r) => (Number.isFinite(results[r.name][place]) ? [`${r.label} ${withUnit(results[r.name][place], r.units)}`] : []));
+  const runs = state.design.rows.flatMap((_, place) => (said(place).length ? [[String(place), `Run ${runOrderOf(place)}: ${said(place).join(", ")}`]] : []));
+  $("#target-match").replaceChildren(new Option("Choose a run", ""), ...runs.map(([place, text]) => new Option(text, place)));
+  findSettings();
+}
+
+/** Show the targets the section holds in their boxes and on their sliders; a box the reader is typing in keeps what is typed. */
+function showTargets() {
+  for (const tr of $("#target-goals").tBodies[0]?.rows ?? []) {
+    const target = state.target.targets[tr.dataset.response] ?? null;
+    const [box, slider] = [tr.querySelector('[name="target"]'), tr.querySelector('[name="slider"]')];
+    if (box !== document.activeElement) box.value = target === null ? "" : String(target);
+    if (target !== null) slider.value = String(target);
+  }
+  const typed = Object.keys(state.target.targets).length > 0;
+  $("#target-clear").hidden = !typed;
+  $("#target").classList.toggle("in-use", typed); // targets typed stay on the page at every reading level
+}
+
+/** The reader typed a target or moved its slider: the settings follow a moment after the last move. */
+function targetTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr) return;
+  const value = numberOrNull(e.target.value);
+  const { [tr.dataset.response]: _, ...others } = state.target.targets;
+  state.target = { ...state.target, targets: Number.isFinite(value) ? { ...others, [tr.dataset.response]: value } : others };
+  $("#target-match").value = "";
+  showTargets();
+  clearTimeout(targetTimer);
+  targetTimer = setTimeout(findSettings, 400);
+}
+
+/** The reader chose a run to match: every response with a result at it takes that result as its target. */
+function targetMatched() {
+  const place = $("#target-match").value;
+  if (place === "") return;
+  const results = fitted();
+  const at = targetResponses().flatMap((r) => (Number.isFinite(results[r.name][Number(place)]) ? [[r.name, results[r.name][Number(place)]]] : []));
+  state.target = { ...state.target, targets: Object.fromEntries(at) };
+  showTargets();
+  findSettings();
+}
+
+/** The reader cleared the targets: the boxes empty, and the settings found go. */
+function targetCleared() {
+  state.target = { ...state.target, targets: {} };
+  $("#target-match").value = "";
+  showTargets();
+  findSettings();
+}
+
+/** Find the settings that give the targets typed (bootstrap.target_settings), and show them; with none typed, nothing. */
+async function findSettings() {
+  clearTimeout(targetTimer);
+  const { targets, pair } = state.target;
+  const mine = ++targetTicket;
+  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), targets, ...(pair ? { pair } : {}) }) : null;
+  if (mine !== targetTicket) return;
+  $("#target-problems").textContent = reply && !reply.ok ? reply.error : "";
+  $("#target-problems").hidden = !reply || reply.ok;
+  state.target = { ...state.target, found: reply?.ok ? reply.result : null };
+  renderTargetFound();
+  solveFactor();
+}
+
+/** Where a numeric factor's setting lies in its range: a bar from its low end, and the range in words. */
+function rangeMark(setting, factor, units) {
+  if (setting.kind === "categorical") return "";
+  const [low, high] = [Math.min(factor.low, factor.high), Math.max(factor.low, factor.high)];
+  const span = `${num(low)} to ${withUnit(high, units)}`;
+  const meter = el("meter", "range-mark", "");
+  Object.assign(meter, { min: low, max: high, value: setting.value });
+  meter.setAttribute("aria-label", `${setting.name} at ${withUnit(setting.value, units)}, in its range of ${span}`);
+  const cell = el("span", "range-cell", "");
+  cell.append(meter, ` ${span}`);
+  return cell;
+}
+
+/** Show the settings found: whether they give the targets, each factor's setting, each response there, and the chart. */
+function renderTargetFound() {
+  const found = state.target.found;
+  for (const id of ["#target-actions", "#target-solve"]) $(id).hidden = !found;
+  if (!found) {
+    $("#target-out").replaceChildren();
+    $("#target-chart").hidden = true;
+    hidePython("target");
+    return;
+  }
+  const units = factorUnits();
+  const factors = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
+  const settings = found.settings.map((s) => [
+    s.name,
+    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
+    rangeMark(s, factors[s.name], units[s.name]),
+  ]);
+  $("#target-out").replaceChildren(
+    said("lead", targetLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
+    builtTable(["Factor", "Setting", "In its range"], settings),
+    table(["Response", "Target", "Predicted at these settings", "95% prediction interval"], targetRows(found), { "95% prediction interval": "prediction-interval" }),
+    ...[targetShare(found)].filter(Boolean).map((text) => said("hint", text)),
+    said("hint", balanceLeverage(found)),
+    ...noteList(balanceWhere(found)),
+    ...noteList([extrapolationSentence(found)].filter(Boolean), "warnings"),
+  );
+  $("#target-confirm").hidden = confirmedAt(state.design, found.confirm_at); // runs there already: their results are what is wanted
+  showPython("target", targetCode(found, state.design.spec));
+  drawTargetChart();
+}
+
+/** Draw each response's line of settings that give its target over two factors; nothing with one numeric factor. */
+async function drawTargetChart() {
+  const found = state.target.found;
+  const card = $("#target-chart");
+  if (!found?.overlay || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const { overlay } = found;
+  const units = factorUnits();
+  const ranged = rangedFactors().map((f) => f.name);
+  const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
+  $("#target-across").innerHTML = options(overlay.x);
+  $("#target-up").innerHTML = options(overlay.y);
+  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
+  card.hidden = false;
+  card.querySelector("figcaption").textContent = targetCaption(overlay, state.design.spec.factors, found.responses);
+  const python = figureAfter("target", () => targetOverlayCode(overlay, state.design.spec));
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
+  } catch {
+    card.hidden = true; // the tables above hold what it shows
+  }
+}
+
+/** The reader chose the two factors the chart is drawn over: choosing one axis's factor for the other swaps them. */
+function targetPairChanged() {
+  const overlay = state.target.found?.overlay;
+  if (!overlay) return;
+  let [across, up] = [$("#target-across").value, $("#target-up").value];
+  if (across === up) [across, up] = across === overlay.x ? [overlay.y, up] : [across, overlay.x];
+  state.target = { ...state.target, pair: [across, up] };
+  findSettings();
+}
+
+/** The settings found, by each factor's name, as the what-if panel holds settings. */
+const foundSettings = () => Object.fromEntries(state.target.found.settings.map((s) => [s.name, s.value]));
+
+/** Move the what-if panel to the settings found, and go to it. */
+function targetToWhatIf() {
+  const w = state.whatIf;
+  if (!state.target.found || !w || !settingsFit(w.factors, foundSettings())) return;
+  w.settings = foundSettings();
+  renderWhatIf();
+  checkWhatIfLimits();
+  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Solve for one factor a moment after the what-if panel's settings last moved. */
+function scheduleSolve() {
+  clearTimeout(solveTimer);
+  if (state.target.found) solveTimer = setTimeout(solveFactor, 400);
+}
+
+/**
+ * Say what one factor must be for a response to meet its target (bootstrap.solve_for), with every other factor where
+ * the what-if panel has it: after the settings are found, and when the reader picks the factor or the response.
+ */
+async function solveFactor() {
+  clearTimeout(solveTimer);
+  const { found, targets } = state.target;
+  const w = state.whatIf;
+  const box = $("#target-solve");
+  const mine = ++solveTicket;
+  box.hidden = !found || !w;
+  if (box.hidden) return;
+  const units = factorUnits();
+  const keep = (select, list) => {
+    const chosen = list.some(([value]) => value === select.value) ? select.value : list[0][0];
+    select.replaceChildren(...list.map(([value, text]) => new Option(text, value, false, value === chosen)));
+    return chosen;
+  };
+  const factor = keep($("#solve-factor"), rangedFactors().map((f) => [f.name, withUnits(f.name, units[f.name])]));
+  const response = keep($("#solve-response"), found.responses.map((r) => [r.name, withUnits(r.label, r.units)]));
+  const asked = { ...fitsAsked(), response, target: targets[response], factor, settings: w.settings };
+  const reply = await call("api_solve_for", asked);
+  if (mine !== solveTicket) return;
+  if (!reply.ok) {
+    $("#solve-out").replaceChildren(said("hint", reply.error));
+    return;
+  }
+  const others = Object.fromEntries(Object.entries(w.settings).filter(([name]) => name !== factor));
+  const { label, units: responseUnits } = wordsOf(response);
+  const words = { held: settingsWords(w.factors, others, units), units: units[factor], label, responseUnits };
+  $("#solve-out").replaceChildren(...solveSentences(reply.result, words).map((text) => said("", text)));
 }
 
 // ---------------------------------------------------------------- the next step
@@ -6019,6 +6310,7 @@ async function showBuiltExample() {
     renderBest({ ok: true, result: example.best });
   }
   showWhatIf(example.predictors ?? null); // the build's fit, so the panel follows each move before Python starts
+  showTarget(); // the boxes for a target: nothing is asked of Python until one is typed
   if (example.next) state.next = { design: state.design, key: null, ...nextOf(example.next) }; // asked again on a change
   renderNext(); // what its results call for; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -6120,6 +6412,7 @@ function newStudy() {
   clearAnalysis();
   clearBalance();
   clearWhatIf();
+  clearTarget();
   renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
@@ -6529,9 +6822,11 @@ async function openCampaign(c, record, message) {
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
   state.trade = newTrade();
+  state.target = newTarget();
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
+  clearTarget();
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -6736,6 +7031,7 @@ const BUILDS_ON = {
   best: ["design", "run", "analyse"],
   balance: ["design", "run"],
   "what-if": ["design", "run"],
+  target: ["design", "run"],
 };
 const stepCode = {};
 
@@ -7268,6 +7564,13 @@ for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEvent
 $("#trade-limits").addEventListener("input", tradeLimitTyped);
 $("#trade-chosen").addEventListener("click", tradeChosenPressed);
 $("#trade-nearly").addEventListener("click", tradeNearlyPressed);
+$("#target-goals").addEventListener("input", targetTyped);
+$("#target-match").addEventListener("change", targetMatched);
+$("#target-clear").addEventListener("click", targetCleared);
+for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("change", targetPairChanged);
+$("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
+$("#target-what-if").addEventListener("click", targetToWhatIf);
+for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#csv").onclick = downloadCsv;

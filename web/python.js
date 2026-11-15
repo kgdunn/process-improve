@@ -865,6 +865,121 @@ export function tradeOffCode(view, balance, spec) {
 const axisOf = (r) => (r.units ? `${r.label} (${r.units})` : r.label);
 
 /**
+ * The settings that give each response its target, after step 2's ``runs`` and ``X``: each response with a target
+ * fitted with its own model, the settings the page tried, those at which every response is predicted within reach of
+ * its target, the one of them nearest the center of the ranges, and the least-squares step from it that meets the
+ * targets where the models can. ``found`` is what bootstrap.target_settings answered: its ``search`` holds each
+ * response's fitted formula, its target and its reach on its model's scale, what the page held each categorical
+ * factor and block at, and how the settings tried were drawn. Null for a mixture.
+ */
+export function targetCode(found, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const names = numeric.map((f) => f.name);
+  const { held, formulas, targets, reach, drawn, seed } = found.search;
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const levels = spec.factors.filter((f) => labelled(f) && columnsOf(f).every((name) => name in held)).map((f) => `${f.name} at ${heldLevel(f, held)}`);
+  return [
+    ...(holds ? ["import math"] : []),
+    "import numpy as np",
+    "import pandas as pd",
+    "from scipy.optimize import least_squares",
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment`,
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
+    ...(holds
+      ? [
+          `# ${levels.length ? `The page tried each level: these settings are with ${levels.join(" and ")}. ` : ""}The blocks, if any, are held at the average block.`,
+          ...HELD_AT,
+        ]
+      : []),
+    "# What each response should be, and how near counts as giving it: 2% of the range of its results.",
+    ...(scale.lines.length ? ["# A transformed response's target and reach are on its scale, as the page searches."] : []),
+    `targets = ${repr(targets)}`,
+    `reach = ${repr(reach)}`,
+    "# Each response with a target, fitted with its own model to the runs that have its result.",
+    "models = {}",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    models[name] = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
+    "",
+    "",
+    "def predicted(coefficients, at):",
+    "    # A model's prediction at the settings at: each coefficient times its term; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: 1.0 if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
+    "",
+    "",
+    "def missed(at):",
+    "    # How far each response is predicted from its target at the settings at, in units of its reach.",
+    "    return pd.DataFrame({name: (predicted(models[name], at) - targets[name]) / reach[name] for name in targets})",
+    "",
+    "",
+    `# ${drawn} settings drawn evenly from the factors' ranges, in coded units: -1 is a factor's low end, +1 its high end.`,
+    `names = ${repr(names)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${seed}).uniform(-1, 1, size=(${drawn}, ${names.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "miss = missed(tried)",
+    "giving = miss.abs().max(axis=1) <= 1  # the settings that give every target",
+    "print(giving.mean())  # the share of the settings tried that do",
+    "# Of those, the settings nearest the center of the ranges; with none, the settings that miss by least.",
+    "start = tried.loc[(tried[giving] ** 2).sum(axis=1).idxmin() if giving.any() else (miss**2).sum(axis=1).idxmin()]",
+    "# From there, a least-squares step meets the targets where the models can; a small pull keeps it by that setting.",
+    "one = lambda x: pd.DataFrame([x], columns=names)",
+    "step = least_squares(lambda x: np.concatenate([missed(one(x)).iloc[0], 0.01 * (x - start)]), start.to_numpy(), bounds=(-1, 1))",
+    limits.length
+      ? "found = one(step.x) if region.feasible(one(step.x)[list(region.names)].to_numpy())[0] else one(start.to_numpy())  # inside the limits"
+      : "found = one(step.x)",
+    `ranges = ${repr(Object.fromEntries(numeric.map((f) => [f.name, [f.low, f.high]])))}`,
+    "settings = {name: low + (found[name][0] + 1) / 2 * (high - low) for name, (low, high) in ranges.items()}",
+    "print(settings)  # the settings that give the targets, in the factors' own units",
+    `reached = {name: ${scale.back("predicted(models[name], found)[0]")} for name in targets}`,
+    "print(reached)  # what each model predicts there",
+  ].join("\n");
+}
+
+/**
+ * The chart of where the settings give the targets, after the code of the settings found (targetCode), which leaves
+ * each response's ``models`` entry, its target, ``predicted`` and the settings ``found``: each response's prediction
+ * over the two factors the page draws (``overlay.x`` and ``overlay.y``), on the page's grid, the others at the
+ * settings found, with one line where it is predicted at its target. Null without an overlay, and for a mixture.
+ */
+export function targetOverlayCode(overlay, spec) {
+  if (isMixture(spec) || !overlay) return null;
+  const scale = scaleLines(spec, overlay.responses.map((r) => r.name));
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "Where the settings give the targets" over ${overlay.x} and ${overlay.y}, in coded units, the other factors at`,
+    "# the settings found: each response's line is where its model predicts its target, so every setting on it gives",
+    "# that target, and where the lines cross, the settings give every target.",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    `axis = np.linspace(-1, 1, ${overlay.grid.length})`,
+    "across, up = np.meshgrid(axis, axis)",
+    "over = pd.concat([found] * across.size, ignore_index=True)",
+    "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
+    "surfaces, figure = {}, go.Figure()",
+    "for name in targets:",
+    `    surfaces[name] = np.reshape(${scale.back("np.zeros(across.size) + predicted(models[name], over)")}, across.shape)`,
+    `    line = {"coloring": "none", "start": ${scale.back("targets[name]")}, "end": ${scale.back("targets[name]")}, "size": 1}`,
+    "    figure.add_trace(go.Contour(x=axis, y=axis, z=surfaces[name], name=name, contours=line, showscale=False, showlegend=True))",
+    'star = {"symbol": "star", "size": 16}',
+    'figure.add_trace(go.Scatter(x=found[pair[0]], y=found[pair[1]], mode="markers", name="Settings found", marker=star))',
+    ...shown(`${overlay.x} (coded)`, `${overlay.y} (coded)`),
+  ].join("\n");
+}
+
+/**
  * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
  * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the
  * page models it (``fit``: bootstrap.functional's reply, for its formula and its number of replicates), and the

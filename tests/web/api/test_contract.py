@@ -348,6 +348,55 @@ READS: dict[str, list[str]] = {
         "held[].name: str",
         "held[].value: str",
     ],
+    "settings for targets": [
+        "responses[].name: str",
+        "responses[].label: str",
+        "responses[].units: str",
+        "responses[].target: number",
+        "responses[].predicted: number",
+        "responses[].prediction[]: number",
+        "reached: bool",
+        "settings[].name: str",
+        "settings[].kind: str",
+        "settings[].value: any",
+        "leverage: number",
+        "max_leverage: number",
+        "leverage_of: str",
+        "extrapolating: bool",
+        "share: number",
+        "tried: int",
+        "near: number",
+        "confirm_at{}: any",
+        "overlay.x: str",
+        "overlay.y: str",
+        "overlay.grid[]: number",
+        "overlay.ticks{}.tickvals[]: number",
+        "overlay.ticks{}.ticktext[]: str",
+        "overlay.responses[].name: str",
+        "overlay.responses[].z[].[]: number",
+        "overlay.responses[].levels[]: number",
+        "overlay.acceptable: list?",
+        "overlay.runnable: list?",
+        "overlay.runs[].[]: number",
+        "overlay.at[]: number",
+        "overlay.held[].name: str",
+        "overlay.held[].value: any",
+        "search.held: dict",
+        "search.formulas{}: str",
+        "search.targets{}: number",
+        "search.reach{}: number",
+        "search.drawn: int",
+        "search.seed: int",
+    ],
+    "one factor solved for": [
+        "response: str",
+        "factor: str",
+        "target: number",
+        "solutions[].value: number",
+        "solutions[].interval[]: number?",
+        "nearest.value: number",
+        "nearest.predicted: number",
+    ],
     "balance": [
         "balanced: bool",
         "aimed[]: str",
@@ -867,6 +916,8 @@ ENTRY_POINTS = {
     "balance": "api_balance",
     "trade-offs": "api_trade_offs",
     "trade-offs with other settings as good": "api_trade_offs",
+    "settings for targets": "api_target_settings",
+    "one factor solved for": "api_solve_for",
     "balance confirmed": "api_balance",
     "nothing to balance": "api_balance",
     "mixture design": "api_make_design",
@@ -956,6 +1007,10 @@ def values_at(result: dict, path: str) -> list[Any]:
 THREE_DESIGN = {"design_type": "box_behnken", "factors": FACTORS, "responses": THREE}
 
 
+#: What the page asks to solve one factor from the others: T, for the yield to be 62%, with P and F where they are.
+SOLVED_FOR = {"response": "Yield", "target": 62.0, "factor": "T", "settings": {"P": 2, "F": 15}}
+
+
 def several_responses(api) -> dict[str, Callable[[], dict]]:
     """Return the requests about a study of three responses: its design, its simulation, its workbook and a renaming."""
 
@@ -1027,6 +1082,8 @@ def several_responses(api) -> dict[str, Callable[[], dict]]:
         "balance": balanced,
         "trade-offs": traded,
         "trade-offs with other settings as good": traded_twice,
+        "settings for targets": lambda: {**balanced(), "targets": {"Yield": 62.0, "Cost": 60.0}},
+        "one factor solved for": lambda: {**balanced(), **SOLVED_FOR},
         "balance confirmed": confirmed,
         "nothing to balance": learning,
     }

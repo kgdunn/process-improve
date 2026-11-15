@@ -1181,6 +1181,13 @@ export const BALANCED_BLEND = "Balanced blend";
 
 /** What the overlay's shading means, as its legend says it. */
 export const SHADED = "Every response acceptable";
+/** What the dots of the runs are, as a legend names them. */
+export const RUNS_MADE = "Runs you made";
+/** What the star of the chart of the settings that give the targets marks. */
+export const FOUND = "Settings found";
+
+/** A response's line on that chart, as the legend names it: the response at its target, in its units. */
+export const targetName = (r) => `${r.label} at ${Number(Number(r.target).toPrecision(4))}${r.units === "%" ? "%" : r.units ? ` ${r.units}` : ""}`;
 export const GREYED = "Outside your limits";
 
 /**
@@ -1206,9 +1213,12 @@ export function boundaryDrawn(surface) {
  * every response is acceptable (a desirability above 0), each response's acceptable boundary a labelled line, greyed
  * where a limit on the settings rules the setting out, and a star at the balanced settings. ``overlay`` is
  * bootstrap.balance's, in coded units, ticked with the factors' own settings; ``responses`` are the reply's, for each
- * response's words and range; ``axes`` names each axis with its units.
+ * response's words and range; ``axes`` names each axis with its units. The settings that give a target draw the same
+ * picture (bootstrap.target_settings): there each response has one line, along which it is predicted at its target,
+ * ``named`` as the legend should have it; nothing is shaded (the overlay's ``acceptable`` is null); ``star`` says what
+ * the star marks; and the overlay's ``runs`` are drawn as dots.
  */
-export function overlayFigure(overlay, responses, axes, colours = palette()) {
+export function overlayFigure(overlay, responses, axes, colours = palette(), { shaded = SHADED, star = BALANCED, named = boundaryName } = {}) {
   const { grid } = overlay;
   const byName = Object.fromEntries(responses.map((r) => [r.name, r]));
   const lineColours = responseColours(colours);
@@ -1231,7 +1241,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
     fillcolor: fill,
     line: { width: 0 },
   });
-  const data = [region(overlay.acceptable, withAlpha(colours.accent, 0.22), SHADED)];
+  const data = overlay.acceptable ? [region(overlay.acceptable, withAlpha(colours.accent, 0.22), shaded)] : [];
   if (overlay.runnable) data.push(region(overlay.runnable.map((row) => row.map((v) => 1 - v)), withAlpha(colours.muted, 0.45), GREYED));
   overlay.responses.forEach((surface, i) => {
     const r = byName[surface.name];
@@ -1246,7 +1256,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       x: grid,
       y: grid,
       z: surface.z,
-      name: boundaryName(r),
+      name: named(r),
       showscale: false,
       showlegend: false,
       autocontour: false,
@@ -1264,31 +1274,40 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
     });
   });
   data.push(
-    {
-      type: "scatter",
-      mode: "markers",
-      name: SHADED,
-      x: [null],
-      y: [null],
-      marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) },
-      hoverinfo: "skip",
-    },
+    ...(overlay.acceptable
+      ? [{ type: "scatter", mode: "markers", name: shaded, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.accent, 0.35) }, hoverinfo: "skip" }]
+      : []),
     ...(overlay.runnable
       ? [{ type: "scatter", mode: "markers", name: GREYED, x: [null], y: [null], marker: { symbol: "square", size: 12, color: withAlpha(colours.muted, 0.55) }, hoverinfo: "skip" }]
       : []),
     // A boundary that misses the settings drawn has no line, so no key: the caption says why.
     ...overlay.responses.flatMap((surface, i) =>
-      boundaryDrawn(surface) ? [legendKey(boundaryName(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
+      boundaryDrawn(surface) ? [legendKey(named(byName[surface.name]), lineColours[i % lineColours.length], RESPONSE_DASHES[i % RESPONSE_DASHES.length])] : [],
     ),
+    // The runs the models are fitted to, where the overlay has them: each place over the two factors, once.
+    ...(overlay.runs?.length
+      ? [
+          {
+            type: "scatter",
+            mode: "markers",
+            name: RUNS_MADE,
+            x: overlay.runs.map(([x]) => x),
+            y: overlay.runs.map(([, y]) => y),
+            marker: { color: colours.fg, size: 7 },
+            cliponaxis: false,
+            hoverinfo: "skip",
+          },
+        ]
+      : []),
     {
       type: "scatter",
       mode: "markers",
-      name: BALANCED,
+      name: star,
       x: [overlay.at[0]],
       y: [overlay.at[1]],
       marker: BEST_MARKER,
       cliponaxis: false,
-      hovertemplate: `${BALANCED}<extra></extra>`,
+      hovertemplate: `${star}<extra></extra>`,
     },
   );
   const axis = (name) => ({
@@ -1307,7 +1326,7 @@ export function overlayFigure(overlay, responses, axes, colours = palette()) {
       showlegend: true,
       margin: { t: 8 },
     },
-    height: 420 + 22 * Math.ceil((overlay.responses.length + 2) / 2),
+    height: 420 + 22 * Math.ceil((overlay.responses.length + 1 + (overlay.acceptable ? 1 : 0) + (overlay.runs?.length ? 1 : 0)) / 2),
   };
 }
 
@@ -1390,7 +1409,7 @@ export const TRADE_MARKS = {
   tried: "Settings tried",
   far: "Tried, far from your runs",
   front: "Best trade-off",
-  runs: "Runs you made",
+  runs: RUNS_MADE,
   chosen: "Settings chosen",
   nearly: "Nearly as good",
 };
