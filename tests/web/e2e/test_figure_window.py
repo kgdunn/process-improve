@@ -325,6 +325,34 @@ def test_under_a_finger_a_drag_on_a_card_scrolls_the_page_and_the_window_zooms(p
     assert page.locator("dialog.figure .plot").evaluate(mode) == "zoom"
 
 
+@pytest.mark.parametrize("context_options", [TOUCH])
+def test_under_a_finger_a_card_in_three_dimensions_is_still_turned(page):
+    """Plotly gives a scene its figure's drag mode: with that off, so the page scrolls, no scene could be turned."""
+    open_more(page)
+    page.wait_for_function(FITTED, arg="#charts")
+    turns = "(plot) => plot._fullLayout.scene.dragmode"
+    for chart in ("surface_3d", "cube"):
+        assert page.locator(f"figure[data-chart={chart}] .plot").evaluate(turns) == "turntable"
+    expand(page, "cube")
+    assert page.locator("dialog.figure .plot").evaluate(turns) == "turntable", "and in its window"
+
+
+@pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
+def test_the_links_that_save_and_copy_a_figure_share_one_line_on_a_phone(page):
+    open_more(page)
+    expand(page, "perturbation")
+    links = page.locator("dialog.figure .figure__saves .link")
+    shown = links.all_text_contents()
+    assert shown == ["Save image", "Save as vector", "Copy"]
+    tops = links.evaluate_all("(all) => all.map((link) => link.getBoundingClientRect().top)")
+    assert len(set(tops)) == 1, "on one line"
+    named = links.evaluate_all("(all) => all.map((link) => link.getAttribute('aria-label'))")
+    assert named == ["Save image, as a PNG file", "Save as vector, an SVG file", "Copy the image"]
+    assert all(name.startswith(words) for name, words in zip(named, shown, strict=True)), (
+        "a name read out begins with the words shown, so a reader who speaks to the page can press it"
+    )
+
+
 def test_the_charts_of_the_detailed_comparison_open_over_it(page, first_paint):
     """A window opened from a dialog sits over it, and closing it leaves the dialog as it was."""
     reveal(page, "#compare")
