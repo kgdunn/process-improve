@@ -260,6 +260,7 @@ import {
   CAMPAIGN_VERSION,
   AIMS,
   BOOK_PARAM,
+  BOOK_TAB,
   EXAMPLE_PARAM,
   LINK_KEY,
   SCENARIOS_HELD,
@@ -7113,14 +7114,14 @@ function el(tag, cls, text) {
 }
 
 /**
- * A link to the book, or to another source, opening in a tab of its own so the page keeps its
- * state: the same tab each time, rather than a new one per link.
+ * A link to the book, or to another source, opening in a tab of its own so the page keeps its state. The book's
+ * is one tab, the same each time (campaign.tabOf says how); a link to another source opens a new one.
  */
-function link(href, text, target = "pid-book") {
+function link(href, text, target = BOOK_TAB) {
   const a = el("a", "", text);
   a.href = href;
   a.target = target;
-  a.rel = "noopener";
+  a.rel = target === BOOK_TAB ? "opener" : "noopener";
   return a;
 }
 

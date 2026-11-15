@@ -127,6 +127,10 @@ const bookUrl = n => {
   const label = n.book_label && file === n.book_file ? n.book_label.toLowerCase().replaceAll("_", "-") : "";
   return label || fragment ? `${page}#${label}${fragment}` : page;
 };
+// A link into the book opens in the book's tab, the one the app's own links to the book use: a later link finds
+// the tab by its name and goes to it. A browser finds it only from the tab that opened it, so the tie is kept
+// (rel="opener"); the book is this app's own site. A link to any other site opens a new tab that has no such tie.
+const BOOK_TAB = 'target="pid-book" rel="opener"';
 const linksOf = id => DATA.edges.filter(e => e.source === id || e.target === id);
 // The other textbooks checked against the graph (build_kg.py: sources, and each link's and term's `also`). A link is
 // one a text also states; a term is one a text defines as the book does, or one end of a link it states. The page
@@ -625,7 +629,7 @@ function render() {
       ${(n.found_as || []).length ? `<p class="map-aka map-elsewhere">In other texts: ${esc(n.found_as.join(", "))}</p>` : ""}
       ${termBooks.get(n.id).length ? `<p class="map-aka map-backed">Also in ${inBooks(termBooks.get(n.id))}</p>` : ""}
       <blockquote class="map-quote"><p>${asPrinted(n.quote)}</p></blockquote>
-      <p class="map-book"><a href="${bookUrl(n)}" target="_blank" rel="noopener">Read it in the book</a></p>`;
+      <p class="map-book"><a href="${bookUrl(n)}" ${BOOK_TAB}>Read it in the book</a></p>`;
     const groups = new Map();
     for (const e of linksOf(selected)) {
       const [rel, other] = e.source === selected ? [read(e.type, 0), e.target] : [read(e.type, 1), e.source];
@@ -937,7 +941,7 @@ function renderHow() {
     <h2 id="how-title">How this map was made</h2>
 
     <h3>1. Where the ideas come from</h3>
-    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" target="_blank" rel="noopener">learnche.org/pid</a>, mostly
+    <p>Every term comes from <em>Process Improvement using Data</em>, the open textbook at <a href="https://learnche.org/pid" ${BOOK_TAB}>learnche.org/pid</a>, mostly
       from its chapter on designing and analysing experiments. Each term, and each link between two terms, quotes the
       line of the book it rests on, and the map is checked against the book each time it is built.</p>
     <details><summary>How it was checked</summary>

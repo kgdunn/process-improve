@@ -222,7 +222,9 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     assert inside == ["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
     outside = page.locator("#features a[href^='http']")
     assert outside.count() >= 5
-    assert outside.evaluate_all("(links) => links.every((link) => link.target === '_blank' && link.rel === 'noopener')")
+    tabs = outside.evaluate_all("(links) => links.map((link) => [new URL(link.href).hostname, link.target, link.rel])")
+    assert {(target, rel) for host, target, rel in tabs if host == "learnche.org"} == {("pid-book", "opener")}
+    assert {(target, rel) for host, target, rel in tabs if host != "learnche.org"} == {("_blank", "noopener")}
     page.click("text=Start a study")
     page.wait_for_url(site)
 
@@ -247,6 +249,88 @@ def test_show_me_opens_the_app_on_an_example_of_the_point_at_the_part_that_has_i
     assert page.locator(f"#{part}").evaluate("(e) => e.checkVisibility()")
     assert page.url.startswith(site), "in this copy of the app, whatever address the document names"
     assert "show=" not in page.url
+
+
+# --------------------------------------------------------------------------- the charts' pictures
+#: The charts' cards as a reader sees them: each picture's size as loaded and as drawn, and whether it is turned over.
+PICTURES = """() => [...document.querySelectorAll('.feat-pictures > li')].map((card) => {
+  const picture = card.querySelector('img');
+  return { title: card.querySelector('strong').textContent, file: picture?.getAttribute('src'),
+    loaded: picture ? [picture.naturalWidth, picture.naturalHeight] : null, alt: picture?.getAttribute('alt'),
+    wide: picture ? picture.getBoundingClientRect().width / card.getBoundingClientRect().width : 0,
+    filter: picture ? getComputedStyle(picture).filter : null }; })"""
+
+#: Every picture on the page has loaded, or has gone.
+LOADED = (
+    "[...document.querySelectorAll('.feat-pictures img')].every((picture) => picture.complete && picture.naturalWidth)"
+)
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_each_chart_has_its_picture_in_the_page_s_colours(context, site, scheme):
+    page = context.new_page()
+    page.emulate_media(color_scheme=scheme)
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    page.goto(f"{site}features.html")
+    page.wait_for_function(SHOWN)
+    assert not [url for url in fetched if ".webp" in url], "none is fetched while its fold is closed"
+    page.goto(f"{site}features.html#the-17-charts")
+    page.wait_for_function(SHOWN)
+    page.evaluate("document.querySelectorAll('.feat-pictures img').forEach((picture) => (picture.loading = 'eager'))")
+    page.wait_for_function(LOADED)
+    cards = page.evaluate(PICTURES)
+    size = page.evaluate("async () => (await import('./features.js')).PICTURE_SIZE")
+    assert len(cards) == 17
+    assert cards[0]["title"] == "Coefficients."
+    assert cards[0]["file"] == "./chart-pictures/coefficients.webp"
+    for card in cards:
+        assert card["loaded"] == size, card["title"]
+        assert card["alt"] == "", "the words beside it say what it shows"
+        assert card["wide"] > 0.85, "it fills its card"
+        assert (card["filter"] != "none") == (scheme == "dark"), "turned over in the dark, as the app draws the chart"
+    assert (
+        page.locator(".feat-pictures").evaluate(
+            "(list) => getComputedStyle(list).gridTemplateColumns.split(' ').length"
+        )
+        == 3
+    )
+    assert not overflowing(page)
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_on_a_phone_the_charts_are_two_to_a_row_and_fit_the_screen(context, site):
+    page = features(context, site, "#the-17-charts")
+    columns = page.locator(".feat-pictures").evaluate(
+        "(list) => getComputedStyle(list).gridTemplateColumns.split(' ').length"
+    )
+    assert columns == 2
+    assert not overflowing(page)
+
+
+def test_a_picture_that_cannot_be_had_leaves_its_card_to_its_words(context, site, console):
+    console.allow(r"net::ERR_FAILED")  # the browser reports the picture it could not fetch
+    context.route("**/chart-pictures/contour.webp", lambda route: route.abort())
+    page = features(context, site, "#the-17-charts")
+    page.evaluate("document.querySelectorAll('.feat-pictures img').forEach((picture) => (picture.loading = 'eager'))")
+    page.wait_for_function("document.querySelectorAll('.feat-pictures img').length === 16")
+    page.wait_for_function(LOADED)
+    card = page.locator(".feat-pictures > li", has_text="Fitted response surface.").first
+    assert card.locator("img").count() == 0
+    assert card.text_content().startswith("Fitted response surface. A map of the response")
+
+
+def test_the_box_finds_a_chart_and_shows_its_card_alone(context, site):
+    page = features(context, site)
+    page.fill("#find", "half-normal")
+    shown = page.locator(".feat-pictures > li").evaluate_all(
+        "(cards) => cards.filter((c) => c.checkVisibility()).map((c) => c.querySelector('strong').textContent)"
+    )
+    assert shown == ["Half-normal plot of the effects."]
+    page.fill("#find", "no such word at all")
+    assert page.locator(".feat-pictures").evaluate("(list) => list.checkVisibility()") is False, (
+        "the set of cards goes with its points"
+    )
 
 
 def test_a_list_that_cannot_be_read_says_so(context, site, console):

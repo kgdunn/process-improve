@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 
-from tests.web._support import APP_SOURCES, javascript, page, source
+from tests.web._support import APP_SOURCES, WEB, javascript, page, source
 
 FEATURES = source("FEATURES.md")
 
@@ -53,8 +53,15 @@ def table(heading: str) -> dict[str, str]:
     return {row[0]: row[1] for row in rows[2:]}  # after the head and the rule under it
 
 
+#: A point's picture, on a line of its own under it, as ``web/features.js`` reads it.
+PICTURE = re.compile(r"^\s+!\[\]\(chart-pictures/([a-z0-9_]+)\.webp\)$")
+
+#: Where the pictures are, and the size ``web/features.js`` gives each on the page.
+PICTURES = WEB / "chart-pictures"
+
+
 def points(heading: str) -> list[str]:
-    """Return the points of the first list under a heading, each on one line and without its line of details."""
+    """Return the points of the first list under a heading, each on one line, without its details or its picture."""
     section = under(heading)
     first = section[section.index("\n- ") :].lstrip("\n").split("\n\n", 1)[0]
     found: list[str] = []
@@ -65,6 +72,8 @@ def points(heading: str) -> list[str]:
             details = False
         elif line.lstrip().startswith("- *Details:*"):
             details = True
+        elif PICTURE.match(line):
+            continue
         elif not details:
             found[-1] += f" {line.strip()}"
     return found
@@ -98,6 +107,43 @@ def test_every_chart_is_listed_by_its_title(bootstrap, node):
     assert first in TEXT
     assert f"**{len(charts)} charts.**" in TEXT, "the count in the summary"
     assert f"### See it: {len(charts)} charts" in TEXT, "and on the fold"
+
+
+def webp_size(picture: bytes) -> tuple[int, int]:
+    """Return the width and height a WebP file states in its head, whichever of the format's three kinds it is."""
+    assert picture[:4] == b"RIFF", "a WebP file"
+    assert picture[8:12] == b"WEBP", "a WebP file"
+    kind, data = picture[12:16], picture[20:]
+    if kind == b"VP8X":  # the extended kind: each size less one, in three bytes
+        return int.from_bytes(data[4:7], "little") + 1, int.from_bytes(data[7:10], "little") + 1
+    if kind == b"VP8L":  # without loss: both sizes less one, fourteen bits each, after a byte that marks the kind
+        bits = int.from_bytes(data[1:5], "little")
+        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    assert kind == b"VP8 ", "one of the three kinds"
+    return int.from_bytes(data[6:8], "little") & 0x3FFF, int.from_bytes(data[8:10], "little") & 0x3FFF
+
+
+def test_every_chart_has_its_picture_under_its_point_and_in_the_build(node, build_script):
+    (charts,) = javascript(node, source("logic.js"), [("CHARTS", [])])
+    (size,) = javascript(node, source("features.js"), [("PICTURE_SIZE", [])])
+    section = under(f"#### The {len(charts)} charts")
+    pictured: dict[str, str] = {}
+    for line in section.splitlines():
+        title = re.match(r"- \*\*(.+?)\.\*\*", line)
+        if title:
+            last = title.group(1)
+        elif PICTURE.match(line):
+            assert last not in pictured, "one picture to a chart"
+            pictured[last] = PICTURE.match(line).group(1)
+    assert pictured == {chart["title"]: key for key, chart in charts.items()}, "each chart's own picture, by its key"
+    assert sorted(file.name for file in PICTURES.iterdir()) == sorted(f"{key}.webp" for key in charts), "and no other"
+    for key in charts:
+        assert f"chart-pictures/{key}.webp" in build_script.APP_FILES, "the build ships it"
+        file = PICTURES / f"{key}.webp"
+        assert webp_size(file.read_bytes()) == tuple(size), "the size the page keeps room for"
+        assert file.stat().st_size < 80_000, "a picture to glance at, not the chart itself"
+    shown = FEATURES.split("<!-- features.html shows what follows -->", 1)[1]
+    assert shown.count("![](") == len(charts), "no picture the page would show as it is typed"
 
 
 def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap, node):

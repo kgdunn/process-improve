@@ -1161,6 +1161,22 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body h4 { margin: 16px 0 4px; font-size: 1rem; }
 .feat-body ul { padding-left: 20px; }
 .feat-body [hidden], .feat-cards [hidden] { display: none; }
+/* The charts, each a card with its picture above its words. A picture is drawn in the light colours on no ground
+   of its own, so it takes the page's; in the dark it is turned over, which is how the app draws the same chart. */
+.feat-body ul.feat-pictures { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px;
+  margin: 8px 0; padding: 0; list-style: none; font-size: 0.9rem; line-height: 1.4; }
+.feat-body ul.feat-pictures[hidden] { display: none; }
+.feat-pictures > li { margin: 0; padding: 8px 10px 9px; border: 1px solid var(--line); border-radius: 10px; }
+.feat-pictures img { display: block; width: 100%; height: auto; margin-bottom: 6px; }
+:root[data-theme="dark"] .feat-pictures img { filter: invert(1) hue-rotate(180deg); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .feat-pictures img { filter: invert(1) hue-rotate(180deg); }
+}
+/* A phone has room for two: one to a row would be ten screens of charts. */
+@media (max-width: 600px) {
+  .feat-body ul.feat-pictures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .feat-pictures > li { padding: 6px 8px 8px; overflow-wrap: anywhere; }
+}
 /* What only some readers ask for, under its point: a word to press at Intermediate, open at Adventurous, and not
    there at Beginner, but where the reader's own search found its words. */
 /* "Show me", at the end of a point: the way to the app, on an example of the point. */

@@ -2,8 +2,8 @@
 // from, so the two cannot differ. This is a reader of the Markdown that document is written in: headings,
 // paragraphs, lists, tables and rules, with bold, italic, code and links inside them. It is no reader of
 // Markdown at large: what the document does not use is shown as it is typed. The document's own top says how it
-// is written for the page: a point in plain words, with a line of details under it, and headings that are the
-// page's parts. This module needs no document, so it is tested under Node.js.
+// is written for the page: a point in plain words, with a line of details under it, a chart's picture under its
+// point, and headings that are the page's parts. This module needs no document, so it is tested under Node.js.
 
 /** The line of the document after which the page shows it: what comes before is for those who keep it. */
 export const SHOWN_FROM = "<!-- features.html shows what follows -->";
@@ -28,7 +28,8 @@ export const slug = (heading) =>
 const APP = "https://factori.al/";
 
 /**
- * A link: one to another site opens in a tab of its own, and an address of any other scheme is not followed. A
+ * A link: one to another site opens in a tab of its own, the book's in the one tab the book has, and an address
+ * of any other scheme is not followed. A
  * link to the app is one within the copy this page is served from. One named "Show me" opens the app on an
  * example of its point (app.js, ?show=), and is marked for the page to style.
  */
@@ -37,7 +38,9 @@ function anchor(words, to) {
   const outside = /^https?:\/\//i.test(href);
   if (!outside && /^[a-z][a-z0-9+.-]*:/i.test(href)) return words;
   const show = words === "Show me" ? ' class="show-me"' : "";
-  return `<a${show} href="${href}"${outside ? ' target="_blank" rel="noopener"' : ""}>${words}</a>`;
+  // The book has one tab, which the app's other links to it use too (campaign.tabOf says why its tie is kept).
+  const tab = /^https:\/\/learnche\.org\/pid(?:[/?#]|$)/.test(href) ? ' target="pid-book" rel="opener"' : ' target="_blank" rel="noopener"';
+  return `<a${show} href="${href}"${outside ? tab : ""}>${words}</a>`;
 }
 
 /** The marks inside a line: code first, since what is inside it is not Markdown. */
@@ -60,16 +63,23 @@ const RULE = /^-{3,}\s*$/;
 const opens = (line) => HEADING.test(line) || RULE.test(line) || ITEM.test(line) || line.startsWith("|");
 
 const DETAIL = /^\s+- \*Details:\* +/;
+/** A point's picture, on a line of its own under it: one of the app's own, in chart-pictures/, and no other address. */
+const PICTURE = /^\s+!\[\]\((chart-pictures\/[a-z0-9_]+\.webp)\)\s*$/;
+/** The size every picture is drawn at (tests/web/e2e/test_chart_pictures.py), so the page keeps its room before it loads. */
+export const PICTURE_SIZE = [640, 420];
 
 /**
  * A list: each line that opens with a mark is an item, and an indented line under it goes on with it. An indented
  * line that opens with "- *Details:*" starts what only some readers ask for: the page folds it under its item.
+ * An indented line that is a picture puts it above its item, and makes the list a set of cards. The words beside
+ * a picture say what it shows, so it has no words of its own for a screen reader to say twice.
  */
 function list(lines) {
   const items = [];
   for (const line of lines) {
     const last = items.at(-1);
-    if (ITEM.test(line)) items.push({ says: line.replace(ITEM, ""), details: null });
+    if (ITEM.test(line)) items.push({ says: line.replace(ITEM, ""), details: null, picture: null });
+    else if (PICTURE.test(line)) last.picture = line.match(PICTURE)[1];
     else if (DETAIL.test(line)) last.details = line.replace(DETAIL, "");
     else if (last.details === null) last.says += ` ${line.trim()}`;
     else last.details += ` ${line.trim()}`;
@@ -81,8 +91,13 @@ function list(lines) {
     const html = inline(says);
     return opening ? html.replace('<a class="show-me" ', `<a class="show-me" aria-label="Show me: ${escaped(opening)}" `) : html;
   };
+  const [width, height] = PICTURE_SIZE;
+  const drawn = (picture) =>
+    picture === null ? "" : `<img src="./${picture}" alt="" width="${width}" height="${height}" loading="lazy" decoding="async">`;
   const kind = /^\d/.test(lines[0]) ? "ol" : "ul";
-  return `<${kind}>${items.map((item) => `<li>${said(item.says)}${more(item.details)}</li>`).join("")}</${kind}>`;
+  const cards = items.some((item) => item.picture) ? ' class="feat-pictures"' : "";
+  const item = ({ says, details, picture }) => `<li>${drawn(picture)}${said(says)}${more(details)}</li>`;
+  return `<${kind}${cards}>${items.map(item).join("")}</${kind}>`;
 }
 
 /** A table: its first line is its head and its second the rule under it. It scrolls sideways where it is too wide. */

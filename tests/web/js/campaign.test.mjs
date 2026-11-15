@@ -18,6 +18,9 @@ import {
   SCENARIOS_HELD,
   SHOW_PARAM,
   WHAT_IF_FORMAT,
+  BOOK_TAB,
+  inBook,
+  tabOf,
   bookName,
   campaignDone,
   campaignTitle,
@@ -423,6 +426,18 @@ describe("one of the book's examples, named in a link", () => {
     assert.equal(partName("what-if"), "what-if");
     assert.equal(partName("py-analyse"), "py-analyse");
     for (const text of [null, undefined, "", "Best", "a b", "#best", "best>", "a--b", "x".repeat(41), 7]) assert.equal(partName(text), null);
+  });
+
+  test("a link into the book opens in the book's one tab and keeps the tie that finds it again; any other opens a new tab", () => {
+    assert.equal(BOOK_TAB, "pid-book");
+    for (const href of ["https://learnche.org/pid", "https://learnche.org/pid/", "https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars", "https://learnche.org/pid?x=1"]) {
+      assert.ok(inBook(href), href);
+      assert.deepEqual(tabOf(href), { target: "pid-book", rel: "opener" });
+    }
+    for (const href of ["https://learnche.org/", "https://learnche.org/pidgin", "https://learnche.org.example/pid", "http://learnche.org/pid", "https://example.org/?to=https://learnche.org/pid", "", null, undefined]) {
+      assert.ok(!inBook(href), String(href));
+      assert.deepEqual(tabOf(href), { target: "_blank", rel: "noopener" });
+    }
   });
 
   test("only a name the index lists is fetched, as the index gives it", () => {

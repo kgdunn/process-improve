@@ -5,7 +5,7 @@
 // the index arrives. Every address is taken from this module's own, which sits beside the app's
 // index.html, so the page works wherever the app is served from.
 
-import { LINK_KEY, packCampaign } from "./campaign.js";
+import { LINK_KEY, packCampaign, tabOf } from "./campaign.js";
 import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
 import {
   COMPARED_FACTORS,
@@ -782,7 +782,7 @@ function printedIn(detail) {
   const [first, ...rest] = whereParts(detail.where);
   const url = detail.where_url;
   if (!first && !url) return null;
-  const place = url ? element("a", { href: url, target: "_blank", rel: "noopener", text: first ?? "the source's page" }) : first;
+  const place = url ? element("a", { href: url, ...tabOf(url), text: first ?? "the source's page" }) : first;
   return element("p", { class: "detail__where" }, "Printed in ", place, placesAfter(rest));
 }
 
@@ -815,7 +815,7 @@ function detailHead(design, detail, source) {
 
   const from = source
     ? [
-        element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, target: "_blank", rel: "noopener", text: source.cite }) : source.cite),
+        element("p", { class: "detail__cite" }, source.url ? element("a", { href: source.url, ...tabOf(source.url), text: source.cite }) : source.cite),
         printedIn(detail),
       ]
     : [element("p", { text: "Made by process-improve's generate_design, with the call in Python, below." })];

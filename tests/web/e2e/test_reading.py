@@ -258,6 +258,9 @@ def test_a_definition_leads_to_its_word_s_term_in_the_concept_map_in_a_tab_of_it
 
 def test_a_second_word_s_term_opens_in_the_tab_of_the_first_and_a_word_the_map_lacks_has_no_link(blank_page, context):
     page = blank_page
+    # The line that says the designs are listed goes after five seconds, and the page moves up into its room: out
+    # from under a mouse that rests on a word, whose definition then never opens. No word moves once it has gone.
+    page.locator("#status").wait_for(state="hidden")
     page.hover('#aim-card .term[data-term="interaction"]')
     with context.expect_page() as opened:
         page.click(MORE)

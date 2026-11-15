@@ -27,6 +27,10 @@ is written for them:
 - **A point can end with "Show me".** It is a link to `https://factori.al/?example=<name>&show=<part>`
   (or `?book=<name>`): the app opens that example at the part of its page with that id. On the
   page the link stays within the copy of the app it is served from.
+- **A chart has its picture.** It is on a line of its own under the chart's point,
+  `![](chart-pictures/<key>.webp)`, where the key is the chart's in `CHARTS` (`web/logic.js`). The
+  page puts it above the point. [`CONTRIBUTING.md`](../CONTRIBUTING.md#the-browser-app-is-tested)
+  says how the pictures are drawn again.
 
 Counts marked "(Nov 2026)" come from the build of 14 November 2026 and only grow.
 
@@ -350,31 +354,48 @@ Nine charts come with the analysis. Eight more are one press away, under More ch
 
 - **Coefficients.** How large each effect is, and how sure. Every fit has it, and it switches
   to the book's Pareto plot. [Show me](https://factori.al/?example=worked&show=charts)
+  ![](chart-pictures/coefficients.webp)
 - **The runs at each level.** The results at each level, side by side, for a study of one
   factor.
+  ![](chart-pictures/levels.webp)
 - **Fitted response surface.** A map of the response over two factors of your choice, the
   others held at the best settings.
+  ![](chart-pictures/contour.webp)
 - **True response surface.** With simulated results: the true process, on the fitted
   surface's colour scale.
+  ![](chart-pictures/true_contour.webp)
 - **Fitted response over the blends.** For a mixture of three components: the response at
   every blend.
+  ![](chart-pictures/ternary.webp)
 - **True response over the blends.** For a mixture with simulated results.
+  ![](chart-pictures/true_ternary.webp)
 - **Fitted response along each Cox direction.** For a mixture of four components or more:
   what each part does as its share grows.
+  ![](chart-pictures/cox.webp)
 - **Residuals against fitted values.** What the model leaves unexplained, to see whether it
   misses a pattern. Every fit has it.
+  ![](chart-pictures/residuals.webp)
 - **Half-normal plot of the effects.** For a saturated two-level design: the effects that stand
   out from the noise. [Show me](https://factori.al/?book=saturated-screening&show=charts)
+  ![](chart-pictures/half_normal.webp)
 - **Each factor's effect on the prediction.** One line for each factor, with a 95% band.
   *More charts.*
+  ![](chart-pictures/perturbation.webp)
 - **Average result at each setting.** *More charts.*
+  ![](chart-pictures/main_effects.webp)
 - **Interaction of the two factors.** Whether one factor's effect depends on the other.
   *More charts.*
+  ![](chart-pictures/interaction.webp)
 - **Fitted response surface, in three dimensions.** *More charts.*
+  ![](chart-pictures/surface_3d.webp)
 - **Predictions at the corners.** *More charts.*
+  ![](chart-pictures/cube.webp)
 - **Residuals against the normal distribution.** *More charts.*
+  ![](chart-pictures/normal_probability.webp)
 - **Residuals in the order the runs were made.** To see a drift over time. *More charts.*
+  ![](chart-pictures/residuals_order.webp)
 - **Where the predictions are least certain.** *More charts.*
+  ![](chart-pictures/prediction_variance.webp)
 
 Also:
 
@@ -504,11 +525,13 @@ Also:
 
 - **Links into the book.** Each design and each measure links to its place in *Process
   Improvement using Data* (<https://learnche.org/pid>). A defined word leads there by way of
-  its idea in the concept map.
+  its idea in the concept map. The book opens in one tab beside the app, and a later link goes
+  to that tab.
 - **The worked example.** It opens at once, and can be run again in the tab.
 - **Practice on a known process.** It shows the true model beside the fitted one.
 - **What Factorial does.** This list, as a page of the app. A point that ends with Show me
-  opens the app on an example of it, at the part of the page that has it.
+  opens the app on an example of it, at the part of the page that has it. Each of the 17
+  charts has its picture.
   - *Details:* It is drawn from the document the app is described from, which a test holds to
     the app.
 - **[How Factorial works](about.html).** What runs where, what is sent and what is not, and how
