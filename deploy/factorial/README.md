@@ -110,12 +110,12 @@ The report reads the log for the days it holds and the kept counts for older day
 ## Setting it up, once
 
 **1. The files and a deploy key**, on your machine, in a folder outside the repository so the
-key cannot be committed (`~/code/process-improve` stands for your checkout):
+key cannot be committed (`~/process-improve` stands for your checkout):
 
 ```bash
 mkdir -p ~/factorial-deploy && cd ~/factorial-deploy
-git -C ~/code/process-improve fetch origin
-git -C ~/code/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
+git -C ~/process-improve fetch origin
+git -C ~/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
 ssh-keygen -t ed25519 -N '' -C 'github-actions@kgdunn/process-improve' -f factorial_deploy
 cp factorial_deploy.pub factorial/
 scp -r factorial deploy@factori.al:factorial-setup
@@ -224,10 +224,10 @@ key cannot change it: from your machine, a fresh copy of this folder with the de
 public half (step 1 without `ssh-keygen`), and then step 2, which restarts the relay.
 
 ```bash
-cd ~/factorial-deploy && git -C ~/code/process-improve fetch origin
-rm -r factorial && git -C ~/code/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
+cd ~/factorial-deploy && git -C ~/process-improve fetch origin
+rm -rf factorial && git -C ~/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
 cp factorial_deploy.pub factorial/
-ssh deploy@factori.al rm -r factorial-setup && scp -r factorial deploy@factori.al:factorial-setup
+ssh deploy@factori.al rm -rf factorial-setup && scp -r factorial deploy@factori.al:factorial-setup
 ```
 
 ## Retiring the old app

@@ -548,7 +548,7 @@ Also:
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
   groups, what is kept on the device, and which version of the app you have.
   - *Details:* The version is the commit the app was built from, as a link to it, and the day of
-    that commit. A report sent from Feedback names the same commit and day.
+    that commit. A report sent from Feedback ends with the same version.
 
 ### Learn the method
 

@@ -54,7 +54,6 @@ export const CONTEXT = {
 
 /** How a report names each of the context's texts, as the relay's email does; the stamp's rows name themselves. */
 const CONTEXT_LABELS = {
-  commit: "App commit",
   plotly_js: "Plotly.js",
   tab: "Tab on show",
   model: "Model",
@@ -185,7 +184,10 @@ export function fitContext(context = {}) {
   return fitted;
 }
 
-/** The context as lines of text, each labelled as the relay's email labels it, the stamp's rows and the errors last. */
+/**
+ * The context as lines of text, each labelled as the relay's email labels it: the stamp's rows, the errors, and
+ * last the version of the app, which is the commit it was built from and the day of that commit.
+ */
 export function contextLines(context = {}) {
   const fitted = fitContext(context);
   const lines = [];
@@ -196,6 +198,7 @@ export function contextLines(context = {}) {
   const errors = fitted.errors ?? [];
   if (!errors.length) lines.push("Last Python errors: none");
   for (const error of errors) lines.push(`Python error: ${error}`);
+  if ("commit" in fitted) lines.push(`Version: ${fitted.commit}`);
   return lines;
 }
 
