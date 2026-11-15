@@ -287,13 +287,20 @@ const RIM_MOST = 0.13;   // of a topic's width: the broadest its rim is drawn, o
 // side (below, above, right, left) that is clear of the other topics, of the names already put outside (`taken`)
 // and of the map's edge. Returns that side, or nothing where no side is clear: the name then stays inside.
 const BESIDE = { font: 9, wide: 84, gap: 4 };   // in screen pixels: the name's size, where it wraps, and how far off the rim
+// How far right and down of a topic's centre a name off its corner starts, for a radius as drawn: on the diagonal
+// it is off the rim by the gap, and by the 3 pixels its halo reaches past its letters.
+const CORNER_OUT = r => (r + BESIDE.gap) / Math.SQRT2 + 3;
 function besideTopic(c, z, taken) {
   const pan = cy.pan(), drawn = k => ({ x: k.x * z + pan.x, y: k.y * z + pan.y, r: k.r * z });
   const { x, y, r } = drawn(c), text = textWidth(c.short, BESIDE.font, "600"), far = r + BESIDE.gap;
   const w = Math.min(text, BESIDE.wide) + 4, h = (Math.ceil(text / BESIDE.wide) + 1) * BESIDE.font * 1.25 + 2;
   const across = { x1: x - w / 2, x2: x + w / 2 }, level = { y1: y - h / 2, y2: y + h / 2 };
+  // Below, above and at either side first; then off the four corners, where a neighbour has taken those.
+  const out = CORNER_OUT(r), east = { x1: x + out, x2: x + out + w }, west = { x1: x - out - w, x2: x - out };
+  const south = { y1: y + out, y2: y + out + h }, north = { y1: y - out - h, y2: y - out };
   const places = { below: { ...across, y1: y + far, y2: y + far + h }, up: { ...across, y1: y - far - h, y2: y - far },
-    right: { ...level, x1: x + far, x2: x + far + w }, left: { ...level, x1: x - far - w, x2: x - far } };
+    right: { ...level, x1: x + far, x2: x + far + w }, left: { ...level, x1: x - far - w, x2: x - far },
+    "low right": { ...east, ...south }, "low left": { ...west, ...south }, "up right": { ...east, ...north }, "up left": { ...west, ...north } };
   const others = DATA.clusters.filter(k => k !== c).map(drawn);
   const onTopic = b => others.some(o => Math.hypot(Math.max(b.x1 - o.x, 0, o.x - b.x2), Math.max(b.y1 - o.y, 0, o.y - b.y2)) < o.r + 2);
   const inView = b => b.x1 > 2 && b.y1 > 2 && b.x2 < cy.width() - 2 && b.y2 < cy.height() - 2;
@@ -302,12 +309,18 @@ function besideTopic(c, z, taken) {
   if (side) taken.push(places[side]);
   return side;
 }
-// How a name beside its topic is placed, for each side.
-const BESIDE_STYLE = px => ({
-  below: { "text-valign": "bottom", "text-margin-y": px(BESIDE.gap) }, up: { "text-valign": "top", "text-margin-y": px(-BESIDE.gap) },
-  right: { "text-halign": "right", "text-margin-x": px(BESIDE.gap), "text-justification": "left" },
-  left: { "text-halign": "left", "text-margin-x": px(-BESIDE.gap), "text-justification": "right" },
-});
+// How a name beside its topic is placed, for each side. Off a corner, the name starts at the corner of the box
+// around the topic, which is further out than the rim: `r` is the topic's radius as drawn, and brings it back.
+const BESIDE_STYLE = (px, r = 0) => { const off = px(CORNER_OUT(r) - r);
+  const low = { "text-valign": "bottom", "text-margin-y": off }, high = { "text-valign": "top", "text-margin-y": -off };
+  const east = { "text-halign": "right", "text-margin-x": off, "text-justification": "left" };
+  const west = { "text-halign": "left", "text-margin-x": -off, "text-justification": "right" };
+  return {
+    below: { "text-valign": "bottom", "text-margin-y": px(BESIDE.gap) }, up: { "text-valign": "top", "text-margin-y": px(-BESIDE.gap) },
+    right: { "text-halign": "right", "text-margin-x": px(BESIDE.gap), "text-justification": "left" },
+    left: { "text-halign": "left", "text-margin-x": px(-BESIDE.gap), "text-justification": "right" },
+    "low right": { ...low, ...east }, "low left": { ...low, ...west }, "up right": { ...high, ...east }, "up left": { ...high, ...west },
+  }; };
 function ringRules(z, px, overview, dot) {
   const inks = [css("--accent"), ...BOOKS.map((_, k) => css(`--map-book${k + 2}`))], track = css("--line");
   const disc = ink => asImage(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${ink}"/></svg>`);
@@ -315,7 +328,7 @@ function ringRules(z, px, overview, dot) {
   // A topic's sector is filled as far as the share of the topic's terms, of those drawn, that the book has.
   const share = id => { const all = DATA.nodes.filter(n => n.cluster === id && onMap.has(n.id));
     return BOOKS.map(b => (all.length ? all.filter(n => termBooks.get(n.id).includes(b)).length / all.length : 0)); };
-  const taken = [], beside = BESIDE_STYLE(px);
+  const taken = [];
   return [
     { selector: ".link, .between", style: { display: "none" } },
     { selector: ".link.hl", style: { display: "element", "line-color": css("--muted"), "target-arrow-color": css("--muted") } },
@@ -330,7 +343,7 @@ function ringRules(z, px, overview, dot) {
         "background-image-opacity": [1, 1, overview ? 0.9 : 0.55],   // the last as the topic's own fill is
         ...(overview ? { "font-size": px(Math.min(13, Math.max(BESIDE.font, fits))), "text-max-width": px(room), "text-background-opacity": 0,
           ...HALO(px), "text-outline-opacity": 0.95 } : {}),
-        ...(side ? { "text-max-width": px(BESIDE.wide), ...beside[side] } : {}) } };
+        ...(side ? { "text-max-width": px(BESIDE.wide), ...BESIDE_STYLE(px, d / 2)[side] } : {}) } };
     }),
     // A term keeps its kind's shape and gives up its colour; its ring is outside it.
     { selector: ".term", style: { "background-color": css("--muted"), "background-clip": "none", "background-image-containment": "over",

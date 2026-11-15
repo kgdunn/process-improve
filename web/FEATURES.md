@@ -672,7 +672,7 @@ What a careful reader, or an organisation, asks before using a tool.
 - **[Reproduced from the books](catalog/reproduced/).** How closely the library reproduces
   each number its sources print, with the reason for each difference.
   - *Details:* In four tiers.
-- **[The concept map](map/).** 237 ideas of designed experiments and 489 links between them,
+- **[The concept map](map/).** 237 ideas of designed experiments and 490 links between them,
   in 13 topics, each with its definition, the book's line and a link into the book. It shares
   the app's reading level.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
