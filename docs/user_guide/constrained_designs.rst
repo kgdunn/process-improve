@@ -273,7 +273,12 @@ the setting together with the proof that no setting of the region scores higher 
 one part in a million of the composite desirability). Several responses, targets,
 ``in_range`` limits, weights and importances are all covered, as are ingredients left
 out or used at no less than a minimum, limits on how many are used, group totals, and
-blends beside process factors. ``proven_optimal`` is True. One condition: every
+blends beside process factors. Where ingredients can be left out, that setting is the
+one reported and ``proven_optimal`` is True. Where none can, the region is one piece
+and the setting reported is still the search's own, so that a study kept earlier shows
+the settings it showed; ``proven_optimal`` then says whether that setting reaches the
+bound (the search can stop a little short along a factor of small effect). One
+condition for the proof where ingredients are left out: every
 ingredient that a ``count_nonzero`` rule counts has a ``min_when_used``. Without one
 the ingredient counts as used at any amount above 0, the best setting may be one that
 is approached and never reached, and the optimum is searched for instead.

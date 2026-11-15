@@ -1523,7 +1523,7 @@ def _optimize_desirability(  # noqa: PLR0913
         space.constraints.extend(limits)
         if (first := _first_start(exact, evaluators, goals, space, accept)) is not None:
             space.starts.insert(0, first)
-        results = _with_exact(_multistart_results(neg_composite, space, accept), exact)
+        results = _with_exact(_multistart_results(neg_composite, space, accept), exact, bool(space.gaps))
     if not results:
         raise _no_optimum(region, limits)
     proven = _is_proven(-results[0].fun, exact)
@@ -1587,16 +1587,24 @@ _AS_GOOD = 1e-6
 
 
 def _with_exact(
-    searched: list[optimize.OptimizeResult], exact: optimize.OptimizeResult | None
+    searched: list[optimize.OptimizeResult], exact: optimize.OptimizeResult | None, left_out: bool
 ) -> list[optimize.OptimizeResult]:
-    """Return the search's results, best first, with the exact one ahead of them unless the search did as well.
+    """Return the search's results, best first, with the exact one ahead of them where it is the one to report.
 
-    Where many settings score alike (a factor without an effect), the search leaves such a
-    factor where it began, in the middle of its range, and the exact search puts it at an
-    end of it. The searched setting is the one reported then, as it was before there was
-    an exact search, and the exact one says that nothing scores higher.
+    Where no factor can be left out (``left_out`` is False) the search's best setting is
+    reported as it was before there was an exact search, which then only says whether
+    that setting is proven: a kept study opens with the settings it showed. Such a region
+    is one piece, in which the search does not end at a poorer set of factors; it can
+    stop a little short along a factor of small effect, and it leaves a factor without
+    an effect where it began, in the middle of its range, where the exact search would
+    put it at an end.
+
+    Where factors can be left out the exact setting is reported, unless the search did
+    as well.
     """
-    if exact is None or (searched and searched[0].fun <= exact.fun * (1.0 - _AS_GOOD)):
+    if exact is None or (searched and not left_out):
+        return searched
+    if searched and searched[0].fun <= exact.fun * (1.0 - _AS_GOOD):
         return searched
     return [exact, *searched]
 
@@ -2586,14 +2594,18 @@ def optimize_responses(  # noqa: PLR0913
         result then carries ``within_region``. Other methods ignore it, with a
         warning.
 
-        The desirability result also carries ``proven_optimal``. It is True
-        when every model is a straight line in the factors (no interaction or
-        squared term) and every constraint is one: the optimum is then found
-        by mixed-integer linear programming, which proves that no setting of
-        the region scores higher, whichever factors are left out
-        (``Factor(min_when_used=...)``, ``count_nonzero`` limits). With a
-        curved model or constraint the optimum is searched for from starting
-        points, and it is False unless the composite desirability reaches 1.
+        The desirability result also carries ``proven_optimal``: whether no
+        setting of the region scores higher than the one reported, to one
+        part in a million. When every model is a straight line in the factors
+        (no interaction or squared term) and every constraint is one, the
+        best setting and that bound are found by mixed-integer linear
+        programming. Where factors can be left out
+        (``Factor(min_when_used=...)``, ``count_nonzero`` limits) that
+        setting is the one reported, and it is proven. Elsewhere the setting
+        reported is the search's, as before, and is proven when it reaches
+        the bound. With a curved model or constraint the optimum is searched
+        for from starting points, and ``proven_optimal`` is False unless the
+        composite desirability reaches 1.
     random_state : int, Generator, or None
         Seed for the random starting points of the multistart search used by
         ``"desirability"`` and ``"pareto_front"``; the other methods are

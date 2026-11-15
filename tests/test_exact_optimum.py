@@ -349,6 +349,21 @@ class TestOptimizeResponses:
         assert best["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0)
         assert -1.0 < best["desirability"]["optimal_coded"]["B"] < 1.0
 
+    def test_where_no_factor_can_be_left_out_the_setting_is_the_search_s_own(self) -> None:
+        # The search stops short of the end of D's range, whose effect is small, as it did before there was an
+        # exact search: a kept study opens with the settings it showed. The exact search says it is not proven.
+        terms = {"Intercept": 11.14, "A": 1.09, "B": 0.15, "C": 1.14, "D": 0.01, "E": -0.99, "F": -0.21}
+        model = {
+            "response_name": "y",
+            "factor_names": list("ABCDEF"),
+            "coefficients": [{"term": term, "coefficient": value} for term, value in terms.items()],
+        }
+        best = optimize_responses([model], goals=[{"response": "y", "goal": "maximize", "low": 0.0, "high": 30.0}])
+        coded = best["desirability"]["optimal_coded"]
+        assert {name: coded[name] for name in "ABCEF"} == pytest.approx({"A": 1, "B": 1, "C": 1, "E": -1, "F": -1})
+        assert 0.5 < coded["D"] < 0.9
+        assert not best["desirability"]["proven_optimal"]
+
     def test_a_model_with_an_interaction_is_searched_for_and_not_proven(self) -> None:
         amounts = [Factor(name=n, low=0, high=10, min_when_used=2) for n in "AB"]
         terms = {"Intercept": 10.0, "A": 2.0, "B": 3.0, "A:B": -6.0}
