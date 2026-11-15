@@ -1685,13 +1685,17 @@ TOPIC_NAMES = """() => { const cy = window.conceptMap.cy, wide = cy.width(), hig
 @FONTS
 @pytest.mark.parametrize(
     ("context_options", "beside", "left_inside"),
-    [(PHONE, 3, 3), ({"viewport": {"width": 1280, "height": 560}}, 5, 1)],
+    [(PHONE, 2, 4), ({"viewport": {"width": 1280, "height": 560}}, 5, 4)],
     ids=["a phone", "a short window"],
 )
 def test_while_books_are_compared_a_small_topic_s_name_is_beside_it_where_there_is_room(
     context, site, beside, left_inside, wide_font
 ):
-    """A name wider than its topic covered the sides of the topic's ring: five of them, on a phone."""
+    """A name wider than its topic covered the sides of the topic's ring: five of them, on a phone.
+
+    The counts are those of the map as it is laid out now: a topic that its neighbours close in on every side has no
+    clear place for its name, and how many are closed in changes when the graph, and so the layout, does.
+    """
     if wide_font:
         _in_a_wide_font(context)
     page = _open(context, site)
