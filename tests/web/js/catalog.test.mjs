@@ -35,6 +35,14 @@ import {
   MAP_TERMS_FACTORS,
   mapTermsSentence,
   markInSource,
+  MAP_ROWS,
+  RUN_BANDS,
+  bandPlace,
+  bandRuns,
+  modelStep,
+  rowFactors,
+  runBand,
+  sizeMap,
   nextSteps,
   projected,
   projectionSummary,
@@ -301,6 +309,84 @@ describe("the filters", () => {
     assert.deepEqual(bins[0], { from: 1975, to: 1979, count: 1, families: { full_factorial: 1 } });
     assert.deepEqual(bins.at(-1), { from: 2010, to: 2014, count: 1, families: { dsd: 1 } });
     assert.equal(bins.reduce((n, b) => n + b.count, 0), 2);
+  });
+});
+
+describe("the map of factors and runs", () => {
+  const cellOf = (map, factors, runs) => map[Math.min(factors, MAP_ROWS + 1) - 1].cells[runBand(runs)];
+
+  test("a run size is in the column whose largest size it does not pass", () => {
+    assert.deepEqual([1, 4, 5, 8, 16, 17, 128, 129, 5000].map(runBand), [0, 0, 1, 1, 3, 4, 7, 8, 8]);
+    assert.equal(RUN_BANDS.length, 9);
+  });
+
+  test("a cell filters to its band of runs and its row of factors, open at the ends", () => {
+    assert.deepEqual(bandRuns(0), [null, 4]);
+    assert.deepEqual(bandRuns(3), [13, 16]);
+    assert.deepEqual(bandRuns(8), [129, null]);
+    assert.deepEqual(rowFactors(5), [5, 5]);
+    assert.deepEqual(rowFactors(MAP_ROWS + 1), [13, null], "the last row holds every design of more factors");
+  });
+
+  test("each run size has a place of its own across its band", () => {
+    assert.deepEqual([13, 14, 15, 16].map(bandPlace), [3.125, 3.375, 3.625, 3.875]);
+    assert.equal(bandPlace(1), 0.125, "the first band begins at one run");
+    assert.ok(bandPlace(129) > 8 && bandPlace(100000) < 9, "a size past the last band's start stays in the last column");
+    assert.ok(bandPlace(256) > bandPlace(129));
+  });
+
+  test("a design's step is the largest model it estimates", () => {
+    const stepOf = (models) => modelStep(design({ models }));
+    assert.equal(stepOf({ main_effects: true, interactions: true, quadratic: true }), 3);
+    assert.equal(stepOf({ main_effects: true, interactions: true, quadratic: false }), 2);
+    assert.equal(stepOf({ main_effects: true, interactions: false, quadratic: false }), 1);
+    assert.equal(stepOf({ main_effects: false, interactions: false, quadratic: false }), 0);
+    assert.equal(stepOf({ main_effects: null, interactions: null, quadratic: null }), 0, "a mixture, whose models are not stated");
+  });
+
+  test("the map counts each design in the row of its factors and the band of its runs", () => {
+    const map = sizeMap(CATALOG, state());
+    assert.equal(map.length, MAP_ROWS + 1);
+    assert.deepEqual(map.map((row) => row.count).filter(Boolean), [2, 1], "two designs of 3 factors, one of 5");
+    assert.deepEqual(cellOf(map, 3, 8), { count: 1, step: 2, listed: 1 }, "the pilot plant: interactions, no quadratic");
+    assert.deepEqual(cellOf(map, 3, 17), { count: 1, step: 3, listed: 1 }, "the central composite design");
+    assert.deepEqual(cellOf(map, 5, 14), { count: 1, step: 2, listed: 1 });
+    assert.deepEqual(map[2].fewest, [4, 10], "3 factors: 4 runs for the main effects, 10 for the full quadratic");
+  });
+
+  test("a filter on the size dims the other cells and takes none away, and another filter does", () => {
+    const sized = sizeMap(CATALOG, state({ factors: [5, 5] }));
+    assert.deepEqual(cellOf(sized, 3, 8), { count: 1, step: 2, listed: 0 }, "still counted, and not in the list");
+    assert.equal(cellOf(sized, 5, 14).listed, 1);
+    const asked = sizeMap(CATALOG, state({ query: "3 factors" }));
+    assert.equal(cellOf(asked, 5, 14).listed, 0, "a size asked for in the search box dims as one chosen does");
+    const generated = sizeMap(CATALOG, state({ collection: "generated" }));
+    assert.deepEqual(generated.map((row) => row.count).filter(Boolean), [1], "the central composite design alone");
+  });
+
+  test("a design of more factors than the map has rows is in the last row", () => {
+    const many = { ...CATALOG, designs: [design({ id: "many", n_factors: 31, n_runs: 32 }), design({ id: "no-size", n_runs: null })] };
+    const map = sizeMap(many, state());
+    assert.equal(map.at(-1).count, 1);
+    assert.equal(map.at(-1).cells[runBand(32)].count, 1);
+    assert.deepEqual(map.at(-1).fewest, [14, 105], "the lines of the last row are those of 13 factors");
+    assert.equal(map.reduce((n, row) => n + row.count, 0), 1, "an entry with no runs is in the list alone");
+  });
+
+  test("a row opens into its families, the small designs first, with a mark for each run size", () => {
+    const more = {
+      ...CATALOG,
+      designs: [
+        ...CATALOG.designs,
+        design({ id: "cube-again", n_runs: 8 }),
+        design({ id: "screen", n_runs: 8, models: { main_effects: true, interactions: false, quadratic: false } }),
+        design({ id: "odd", family: "other", n_runs: 4 }),
+      ],
+    };
+    const [, , three] = sizeMap(more, state({ runs: [8, 8] }));
+    assert.deepEqual(three.lanes.map((lane) => [lane.label, lane.count]), [["Full factorial", 3], ["Central composite", 1], ["other", 1]]);
+    assert.deepEqual(three.lanes[0].marks, [{ runs: 8, count: 3, step: 2, listed: 3 }], "what most of the three estimate");
+    assert.deepEqual(three.lanes[1].marks, [{ runs: 17, count: 1, step: 3, listed: 0 }]);
   });
 });
 
