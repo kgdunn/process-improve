@@ -8470,12 +8470,15 @@ def trade_offs(request: dict) -> dict:
             n_alternatives=TRADE_OFF_ALTERNATIVES,
         )["desirability"]
     balanced = np.array([point[n] for n in names])
+    in_model = set().union(*(_factors_in(fit.out["coefficients"], spec) for fit in fits.values()))
     others = []
     for other in [
         found,
         *found.get("alternatives", []),
     ]:  # the search's own best is another choice when it is elsewhere
-        x = np.array([other["optimal_coded"][n] for n in names])
+        # A factor in no model changes nothing, so a search stops anywhere along it: it is at the center here, as
+        # at the balanced settings, and settings that differ in it alone are not other settings.
+        x = _unmodelled_at_centre(np.array([other["optimal_coded"][n] for n in names]), names, in_model, region)
         if all(float(np.linalg.norm(x - seen)) >= TRADE_OFF_APART for seen in [balanced, *(o["x"] for o in others)]):
             others.append({"x": x, **other})
 

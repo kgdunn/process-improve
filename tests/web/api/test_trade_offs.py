@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tests.web._support import FACTORS, held_of
+from tests.web._support import FACTORS, coded, held_of, run_sheet
 from tests.web.api.test_balance import SURFACES, TWO, balanced, design_of, overall, results_of
 
 
@@ -121,3 +121,18 @@ def test_other_settings_nearly_as_good_are_listed_far_from_the_balanced_ones(api
 def test_a_balance_with_one_best_lists_no_other_settings(api):
     _, found = tried(api, design_of(api, TWO))
     assert found["alternatives"] == []
+
+
+def test_settings_that_differ_only_in_a_factor_no_model_holds_are_not_other_settings(api):
+    """A search stops anywhere along a factor that changes nothing: the same settings, not settings nearly as good."""
+    held = held_of(api.ok("api_make_design", {"design_type": "box_behnken", "factors": FACTORS, "responses": TWO}))
+    x = coded(run_sheet(held), FACTORS)
+    results = {
+        "responses": (60 + 4 * x["T"] + 2 * x["P"] - 3 * x["T"] ** 2).tolist(),
+        "more_responses": {"Cost": (20 + 3 * x["T"] + x["P"]).tolist()},
+    }
+    without_f = {"terms": [["T"], ["P"], ["T", "T"]]}
+    request = {**held, **results, "models": {"Yield": without_f, "Cost": without_f}}
+    balance = api.ok("api_balance", request)
+    assert not next(s for s in balance["settings"] if s["name"] == "F")["in_model"]
+    assert api.ok("api_trade_offs", {**request, "at": balance["coded"]})["alternatives"] == []

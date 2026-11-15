@@ -1447,12 +1447,15 @@ export function tradeOffFigure({ across, up, tried, front, colour = null, runs =
   });
   const spread = (half) => (half === null || half === undefined ? { visible: false } : { type: "data", array: [half], color: colours.fg, thickness: 1.5, width: 5 });
   const data = [cloud(true), cloud(false)].filter((trace) => trace.x.length);
+  // The line is joined from left to right: a response with a target is as good on either side of it, so the best
+  // settings in order of how good they are would cross the target and come back.
+  const joined = [...front].sort((a, b) => tried[a].across - tried[b].across);
   data.push({
     type: "scatter",
     mode: "lines",
     name: TRADE_MARKS.front,
-    x: front.map((i) => tried[i].across),
-    y: front.map((i) => tried[i].up),
+    x: joined.map((i) => tried[i].across),
+    y: joined.map((i) => tried[i].up),
     line: { color: colours.accent, width: 2.5 },
     hoverinfo: "skip",
   });

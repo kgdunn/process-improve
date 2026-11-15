@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
+from tests.web.e2e.test_rename import rename
 from tests.web.e2e.test_responses import three_responses
 
 PLOT = "document.querySelector('#trade-chart .plot')"
@@ -136,3 +137,17 @@ def test_other_settings_nearly_as_good_are_listed_each_with_a_button_that_choose
     row.get_by_role("button", name="Choose the settings of row 1").click()
     page.wait_for_selector("#trade-chosen table")
     assert page.text_content("#trade-chosen .lead") == f"Settings chosen: {row.locator('td').first.text_content()}."
+
+
+def test_the_settings_chosen_go_when_a_factor_is_renamed(traded):
+    """The settings chosen name the factors as they were: a rename lets go of them, and the chart is drawn again."""
+    page = traded
+    page.evaluate(f"{PLOT}.emit('plotly_click', {{ points: [{{ data: {{ meta: 'tried' }}, customdata: 7 }}] }})")
+    page.wait_for_selector("#trade-chosen table")
+    before = page.evaluate("window.__pi.count('api_trade_offs')")
+    rename(page, 0, "Temperature")
+    page.wait_for_function(f"window.__pi.count('api_trade_offs') > {before}")
+    settled(page)
+    assert page.locator("#trade-chosen table").count() == 0
+    assert "Settings chosen" not in names(page)
+    assert "Temperature" in last_reply(page, "api_trade_offs")["result"]["candidates"]["settings"]

@@ -1624,6 +1624,7 @@ def test_the_trade_off_chart_s_code_tries_the_page_s_settings_and_draws_its_line
     assert namespace["front"].tolist() == front
     cloud, line, star = namespace["figure"].data
     assert len(cloud.x) == sum(meets)
-    np.testing.assert_allclose(line.x, np.asarray(candidates["responses"]["Yield"])[front], rtol=1e-5)
+    np.testing.assert_allclose(line.x, np.sort(np.asarray(candidates["responses"]["Yield"])[front]), rtol=1e-5)
+    assert (np.diff(line.x) >= 0).all(), "joined from left to right"
     by = {r["name"]: r["predicted"] for r in balance["responses"]}
     assert [star.x[0], star.y[0]] == pytest.approx([by["Yield"], by["Cost"]], abs=1e-6)

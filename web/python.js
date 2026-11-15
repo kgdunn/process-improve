@@ -796,7 +796,7 @@ export function overlayCode(overlay, spec) {
  * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
  * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
  * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
- * The points are coloured by ``view.colour``, a response, when one is given. Null for a mixture.
+ * The points are coloured by ``view.colour`` when it is a response's column. Null for a mixture.
  */
 export function tradeOffCode(view, balance, spec) {
   if (isMixture(spec)) return null;
@@ -813,7 +813,7 @@ export function tradeOffCode(view, balance, spec) {
     ...(low === null ? [] : [`(cloud[${repr(name)}] >= ${low})`]),
     ...(high === null ? [] : [`(cloud[${repr(name)}] <= ${high})`]),
   ]);
-  const tint = view.colour && view.colour !== "d" ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
+  const tint = view.colour in balance.search.formulas ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
   const [across, up] = [repr(view.across), repr(view.up)];
   return [
     "import numpy as np",
@@ -849,10 +849,11 @@ export function tradeOffCode(view, balance, spec) {
     "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
     `shortfall = pd.DataFrame({"across": ${short(view.across)}, "up": ${short(view.up)}}).sort_values(["across", "up"])`,
     'front = shortfall[shortfall["up"] < shortfall["up"].cummin().shift(fill_value=np.inf)].index',
+    `line = kept.loc[front].sort_values(${across})  # joined from left to right, as the page draws it`,
     "figure = go.Figure(",
     "    [",
     `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
-    `        go.Scatter(x=kept[${across}][front], y=kept[${up}][front], mode="lines", name="Best trade-off"),`,
+    `        go.Scatter(x=line[${across}], y=line[${up}], mode="lines", name="Best trade-off"),`,
     `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
     "    ]",
     ")",

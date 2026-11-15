@@ -4849,11 +4849,16 @@ function clearBalance() {
 // ---------------------------------------------------------------- the trade-offs between the responses
 let tradeTicket = 0;
 let tradeTimer = null;
+/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
+const OVERALL_D = "(D)";
 
 /** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
 function clearTradeOffs() {
   tradeTicket += 1;
   clearTimeout(tradeTimer);
+  // What was tried and the settings chosen are the balance's: with it gone they name factors and responses that may
+  // be renamed or removed by the time there is one again. The limits typed stay, for the same responses.
+  state.trade = { ...state.trade, tried: null, chosen: null };
   $("#trade-offs").hidden = true;
 }
 
@@ -4881,7 +4886,7 @@ async function findTradeOffs() {
   const kept = (name, otherwise) => (names.includes(name) ? name : otherwise);
   const across = kept(state.trade.across, names[0]);
   const up = kept(state.trade.up === across ? null : state.trade.up, names.find((name) => name !== across));
-  const colour = state.trade.colour === "d" || names.includes(state.trade.colour) ? state.trade.colour : "";
+  const colour = state.trade.colour === OVERALL_D || names.includes(state.trade.colour) ? state.trade.colour : "";
   const limits = Object.fromEntries(names.map((name) => [name, state.trade.limits[name] ?? [null, null]]));
   // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
   const before = state.trade.tried?.candidates.d;
@@ -4914,7 +4919,7 @@ function renderTradeOffs() {
   const named = responses.map((r) => [r.name, withUnits(r.label, r.units)]);
   $("#trade-across").innerHTML = options(across, named);
   $("#trade-up").innerHTML = options(up, named);
-  $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, ["d", "Overall desirability, D"]]);
+  $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
   const t = $("#trade-limits");
   const key = JSON.stringify(named);
   if (t.dataset.key !== key) {
@@ -4928,9 +4933,12 @@ function renderTradeOffs() {
       );
     });
     t.innerHTML = `<thead><tr><th scope="col">Keep only settings where</th><th scope="col">is at least</th><th scope="col">and at most</th></tr></thead><tbody>${rows.join("")}</tbody>`;
-    for (const r of responses) {
-      const tr = t.querySelector(`tr[data-response="${CSS.escape(r.name)}"]`);
-      for (const [i, end] of ["low", "high"].entries()) tr.querySelector(`[name="${end}"]`).value = limits[r.name][i] ?? "";
+  }
+  // Each box shows the limit the chart keeps to, unless the reader is typing in it: a study made again starts with none.
+  for (const tr of t.tBodies[0].rows) {
+    for (const [i, end] of ["low", "high"].entries()) {
+      const box = tr.querySelector(`[name="${end}"]`);
+      if (box !== document.activeElement) box.value = limits[tr.dataset.response][i] ?? "";
     }
   }
   renderTradeNearly();
@@ -4953,10 +4961,10 @@ function tradeDrawn() {
     points.map((p) => shortfall(goalUp, p.up)),
     points.map(() => true),
   );
-  const values = colour === "d" ? d : colour ? responses[colour] : null;
+  const values = colour === OVERALL_D ? d : colour ? responses[colour] : null;
   const shown = values ? at.map((i) => values[i]).filter((v) => v !== null) : [];
   const tint = values && {
-    ...(colour === "d" ? { label: "Overall desirability, D", units: "" } : wordsOf(colour)),
+    ...(colour === OVERALL_D ? { label: "Overall desirability, D", units: "" } : wordsOf(colour)),
     values,
     least: Math.min(...shown),
     most: Math.max(...shown),
@@ -5200,6 +5208,7 @@ function renderBalance(reply) {
   if (!reply.ok) {
     // The responses cannot be balanced yet, as when one has no results: say why, and keep the goals as they are.
     state.balance = null;
+    clearTradeOffs(); // drawn at a balance that is no more
     $("#balance-out").replaceChildren(said("hint", reply.error));
     for (const id of ["#balance-chart", "#balance-confirm"]) $(id).hidden = true;
     hidePython("balance");
