@@ -515,6 +515,37 @@ describe("a later build", () => {
   });
 });
 
+describe("a copy that comes back as the build retires the worker", () => {
+  // In Chromium a look the worker had begun in the copies, as the page deleted them, brings one back, empty, a
+  // moment later (issue 1248). The page looks again once Python has started, or has failed to.
+  const retired = { ...manifest, service_worker: false };
+  const comesBack = async (browser, started, settle) => {
+    const visiting = browser.visit({ build: retired, started });
+    while ((await browser.caches.keys()).length) await new Promise((soon) => setTimeout(soon, 1)); // the copies are gone
+    await browser.caches.open(KEPT); // and one is back, with nothing in it
+    assert.deepEqual(await browser.caches.keys(), [KEPT]);
+    settle();
+    return visiting;
+  };
+
+  test("is deleted once Python has started", async () => {
+    const browser = new Browser();
+    await browser.visit();
+    let start;
+    const page = await comesBack(browser, new Promise((resolve) => (start = resolve)), () => start());
+    assert.deepEqual([await browser.caches.keys(), browser.worker, page.box.hidden], [[], null, true]);
+  });
+
+  test("is deleted when Python cannot start, too", async () => {
+    const browser = new Browser();
+    await browser.visit();
+    let fail;
+    const started = new Promise((_, reject) => (fail = reject));
+    await comesBack(browser, started, () => fail(new Error("Could not start Python: no network")));
+    assert.deepEqual([await browser.caches.keys(), browser.worker], [[], null]);
+  });
+});
+
 describe("a page that keeps no copy", () => {
   test("is a plain preview of web/, which has no build to copy", async () => {
     const browser = new Browser();
