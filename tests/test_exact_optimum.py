@@ -197,6 +197,18 @@ class TestTheBound:
         assert exact_optimum(UNIT, [UP], [out_of_reach], None, _judge([UP], [out_of_reach])) is None
         assert len(calls) == 1
 
+    def test_a_set_whose_programme_is_not_solved_keeps_the_setting_it_began_with(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        solve = exact._Programme.solve
+
+        def only_the_whole_programme(self: exact._Programme, used: np.ndarray | None = None, **more: object):
+            return solve(self, used, **more) if used is None else None  # type: ignore[arg-type]
+
+        monkeypatch.setattr(exact._Programme, "solve", only_the_whole_programme)
+        found = _found(UNIT, [UP, DOWN], [_maximize("up"), _maximize("down")])
+        assert 0.0 < found.x[0] < 1.0
+
     def test_time_that_runs_out_leaves_the_best_setting_unproven(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(exact, "_SECONDS", 0.0)
         monkeypatch.setattr(exact, "_AGREEMENT", 0.0)
@@ -293,6 +305,26 @@ class TestOptimizeResponses:
         )["desirability"]
         assert best["proven_optimal"]
         assert best["optimal_coded"] == pytest.approx({"A": 1.0, "B": 1.0, "C": -1.0, "D": -1.0})
+
+    def test_alternatives_are_searched_for_beside_the_proven_setting(self) -> None:
+        amounts = [Factor(name=n, low=0, high=10, min_when_used=2) for n in "ABC"]
+        gains = {"Intercept": 10.0, "A": 3.0, "B": 2.9, "C": 1.0}
+        model = {
+            "response_name": "y",
+            "factor_names": list("ABC"),
+            "coefficients": [{"term": term, "coefficient": value} for term, value in gains.items()],
+        }
+        best = optimize_responses(
+            [model],
+            goals=[{"response": "y", "goal": "maximize", "low": 0.0, "high": 30.0}],
+            region=DesignRegion(amounts, ["count_nonzero(A, B, C) <= 1"]),
+            n_alternatives=1,
+        )["desirability"]
+        assert best["proven_optimal"]
+        assert best["optimal_coded"] == pytest.approx({"A": 1.0, "B": -1.0, "C": -1.0})
+        assert [round(other["optimal_coded"]["B"], 6) for other in best["alternatives"]] == [
+            1.0
+        ]  # B alone, nearly as good
 
     def test_without_a_region_the_search_box_is_the_region(self) -> None:
         model = {

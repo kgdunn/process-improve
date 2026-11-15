@@ -16,6 +16,7 @@ from process_improve.experiments.optimization import (
     _ranges_from_coding,
     _search_space,
     _SearchSpace,
+    _SetSearch,
     _slsqp_inequality,
     _straight_form,
     _tangent,
@@ -265,6 +266,41 @@ class TestCurvedModels:
         kept = _of_different_sets(results, space, 2)
         assert [res.fun for res in kept] == [-0.9, -0.7]  # the second uses the set of the first
         assert len(_of_different_sets(results, space, 5)) == 3
+
+    def _tied(self, low: float, high: float) -> tuple:
+        """Return the search's result from A alone, where the only other set is B and C together in equal amounts.
+
+        No single change of the factors in use joins the two sets.
+        """
+        amounts = [Factor(name=n, low=0, high=10, min_when_used=2) for n in "ABC"]
+        rules = ["B - C <= 0", "C - B <= 0", "count_nonzero(A, B) <= 1", "count_nonzero(A, C) <= 1"]
+        region = DesignRegion(amounts, rules)
+        terms = {"Intercept": 10.0, "A": 2.0, "B": 2.5, "C": 2.5, "B:C": -0.2}
+        model = {
+            "response_name": "y",
+            "factor_names": list("ABC"),
+            "coefficients": [{"term": term, "coefficient": value} for term, value in terms.items()],
+        }
+        goals = [{"response": "y", "goal": "maximize", "low": low, "high": high}]
+
+        def objective(x: np.ndarray) -> float:
+            y = 10.0 + 2.0 * x[0] + 2.5 * x[1] + 2.5 * x[2] - 0.2 * x[1] * x[2]
+            return -individual_desirability(float(y), goals[0])
+
+        space = _search_space(list("ABC"), None, region, np.random.default_rng(0), 4)
+        a_alone = np.array([1.0, -1.0, -1.0])  # y = 6.8, and B and C together reach 12.8
+        start = optimize.OptimizeResult(x=a_alone, fun=objective(a_alone))
+        search = _SetSearch([model], list("ABC"), goals, None)
+        return search.best(objective, space, lambda x: bool(region.feasible(x[None, :], tol=1e-6)[0]), start)
+
+    def test_the_tangents_reach_a_set_that_no_neighbouring_change_does(self) -> None:
+        best = self._tied(0.0, 20.0)
+        np.testing.assert_allclose(best.x, [-1.0, 1.0, 1.0], atol=1e-6)
+        assert best.fun == pytest.approx(-0.64)
+
+    def test_tangents_that_score_nothing_leave_the_result_as_it_was(self) -> None:
+        best = self._tied(50.0, 60.0)  # no setting comes near 50: the exact search has nothing to return
+        np.testing.assert_allclose(best.x, [1.0, -1.0, -1.0])
 
     @pytest.mark.slow
     def test_the_starts_are_the_most_promising_settings_of_different_sets(self) -> None:
