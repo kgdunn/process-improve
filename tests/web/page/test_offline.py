@@ -73,10 +73,18 @@ def test_the_page_registers_the_worker_it_ships_and_names_the_copies_as_it_does(
 def test_the_footer_has_the_copy_s_words_and_its_two_buttons_hidden_until_there_is_a_copy():
     html = " ".join(source("index.html").split())
     box = '<div id="offline" class="foot__device" hidden tabindex="-1">'
-    assert f'{box} <p class="foot__head">On this device</p> <p><span role="status"></span></p>' in html, (
+    assert f'{box} <p class="foot__head">Use without internet</p> <p><span role="status"></span></p>' in html, (
         "said aloud, and focusable; the words are in the box's first span, where offline.js writes them"
     )
     assert {"offline-keep", "offline-remove"} <= set(page().ids)
+    # The button that removes says what it removes, and a line under it what follows: shown only where the button is.
+    assert '<button type="button" id="offline-remove" hidden>Remove Factorial from this device</button>' in html
+    note = "Removing frees the space. Factorial then needs internet to open. Your saved studies stay."
+    assert f'<p class="foot__note">{note}</p>' in html
+    rule = (
+        '#offline:not([data-state="opens"], [data-state="whole"], [data-state="failed"]) .foot__note { display: none; }'
+    )
+    assert rule in source("style.css"), "the states that offer the button, as tests/web/js/offline.test.mjs holds them"
 
 
 #: The modules the page loads on demand that a page without a network has no use for: the feedback form's

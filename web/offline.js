@@ -106,31 +106,28 @@ export const loadedNow = (runtime, manifest) => ({
   wheels: manifest.on_demand ? Object.values(manifest.on_demand).flatMap((group) => group.wheels) : undefined,
 });
 
-/** The words on the button that keeps more than is kept, or tries again what could not be finished. */
-const KEEP_PAGE = "Keep a copy, to open it without a network";
-const KEEP_WHOLE = "Keep its charts and workbooks too (about 12 MB)";
+/** The words on the button that saves more than is saved, or tries again what could not be finished. */
+const KEEP_PAGE = "Save Factorial for offline use";
+const KEEP_WHOLE = "Add charts and Excel files (12 MB more)";
 const TRY_AGAIN = "Try again";
 
 /**
- * What the footer says of the copy in each state, and the buttons it offers: `keep` holds the words of the button
- * that keeps more, or none, and `remove` says whether the copy can be removed. `exact` says whether the build names
- * the files of the charts and workbooks: only then can they be kept for certain, and the button offered. `size` is
- * what the copy takes of the device's storage, in MB, where the browser says: the copy is made unasked, so a
- * reader is told what it costs beside the button that removes it.
+ * What the footer says of the copy in each state, and the buttons it offers. Each state opens with the answer to
+ * the one question a reader has, whether Factorial works without internet here, and each button says what pressing
+ * it does. `keep` holds the words of the button that saves more, or none, and `remove` says whether the copy can
+ * be removed. `exact` says whether the build names the files of the charts and Excel files: only then can they be
+ * saved for certain, and the button offered. `size` is what the copy takes of the device's storage, in MB, where the
+ * browser says: the copy is made unasked, so a reader is told what it costs beside the button that removes it.
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
-  const kept = size ? `a copy of it, about ${size} MB, is kept here` : "a copy of it is kept here";
+  const saved = size ? `Factorial is saved on this device (about ${size} MB).` : "Factorial is saved on this device.";
   return {
-    none: { said: "Factorial keeps no copy of itself on this device.", keep: KEEP_PAGE, remove: false },
-    copying: { said: "Keeping a copy of Factorial...", keep: null, remove: false },
-    opens: { said: `Factorial opens on this device without a network: ${kept}.`, keep: exact ? KEEP_WHOLE : null, remove: true },
-    keeping: { said: "Keeping the charts and the workbooks, about 12 MB...", keep: null, remove: false },
-    whole: {
-      said: `Factorial opens and works on this device without a network: ${kept}, with its charts and workbooks.`,
-      keep: null,
-      remove: true,
-    },
-    failed: { said: `The copy of Factorial on this device is not whole: ${reason}`, keep: TRY_AGAIN, remove: true },
+    none: { said: "Needs internet. Factorial is not saved on this device.", keep: KEEP_PAGE, remove: false },
+    copying: { said: "Saving Factorial for offline use...", keep: null, remove: false },
+    opens: { said: `Works offline, except charts and Excel files. ${saved}`, keep: exact ? KEEP_WHOLE : null, remove: true },
+    keeping: { said: "Adding charts and Excel files, about 12 MB...", keep: null, remove: false },
+    whole: { said: `Works fully offline. ${saved}`, keep: null, remove: true },
+    failed: { said: `Not fully saved: ${reason}`, keep: TRY_AGAIN, remove: true },
   }[state];
 }
 
