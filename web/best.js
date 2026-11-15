@@ -946,6 +946,24 @@ export function windowLead(found, { limits = false } = {}) {
 }
 
 /**
+ * What the windows give at each combination of the categorical factors' levels, as a table's columns and rows: the
+ * share of the settings predicted inside every window there, the highest chance that one new run meets them ("none
+ * given" without runs to estimate the noise), and which combination What if has, since the sentences and the chart
+ * are of that one. ``found`` is bootstrap.specification's reply. Null for a study with no categorical factor.
+ */
+export function windowLevels(found) {
+  const levels = found.levels ?? [];
+  if (!levels.length) return null;
+  const rows = levels.map((row) => [
+    ...row.levels.map((level) => String(level.value)),
+    shareWords(row.share),
+    row.surest === null ? "none given" : shareWords(row.surest),
+    row.here ? "yes" : "",
+  ]);
+  return { columns: [...levels[0].levels.map((level) => level.name), "Settings that meet it", "Highest chance", "Under What if"], rows };
+}
+
+/**
  * How surely one new run meets the windows: the share of the settings at which it does with each chance drawn, or why
  * no chance can be given. Nothing when no setting is predicted inside the windows.
  */

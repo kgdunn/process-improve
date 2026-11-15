@@ -8569,7 +8569,7 @@ def _point_sent(raw: object, spec: dict) -> dict[str, float]:
 #: range of its results; and how many settings of one factor a response is followed over to find where it meets a
 #: target.
 TARGET_DRAWN = 20_000
-TARGET_LEVELS = 12
+TARGET_LEVELS = 400
 TARGET_SEED = 1
 TARGET_NEAR = 0.02
 SOLVE_POINTS = 401
@@ -8579,9 +8579,10 @@ SOLVE_POINTS = 401
 SOLVE_ON = 1e-9
 
 #: How many settings are judged against a specification, for the share of the ranges that meets it, and the seed
-#: they are drawn with.
+#: they are drawn with; and the most combinations of the categorical factors' levels it is judged at, a row each.
 SPECIFICATION_DRAWN = 20_000
 SPECIFICATION_SEED = 1
+SPECIFICATION_LEVELS = 12
 
 #: The chances that one new run meets a specification, each drawn as a line and counted: 0.9 is the design space.
 CHANCES = (0.5, 0.9)
@@ -8789,8 +8790,10 @@ def _target_fits(
 def _level_combinations(spec: dict) -> list[dict[str, float]]:
     """Return each combination of the categorical factors' levels, coded: the first :data:`TARGET_LEVELS` of them.
 
-    shortcut: a study with more combinations than that has only the first tried; try them all once such a study
-    asks for the settings of a target.
+    Each combination has its share of the settings tried, which leaves 50 or more of them to each.
+
+    shortcut: a study with more combinations than that (five factors of four levels, say) has only the first
+    tried; search the levels in two passes once such a study asks for the settings of a target.
     """
     coded = [
         [(f["name"], -1.0 + 2.0 * i / (len(_levels_of(f)) - 1)) for i in range(len(_levels_of(f)))]
@@ -8962,6 +8965,8 @@ def specification(request: dict) -> dict:
     design's without one) to the runs that have its result. ``at`` holds every factor's setting, as the
     what-if panel has them: a categorical factor is at its level there throughout, and the chart holds the
     numeric factors it is not drawn over there. ``search["at"]`` holds them as the columns the models are fitted on.
+    ``levels`` says what the windows give at each combination of the categorical factors' levels beside it
+    (see :func:`_windows_by_level`), since a level is chosen, not moved to.
 
     :data:`SPECIFICATION_DRAWN` settings of the numeric factors are drawn evenly from their ranges, without
     those the limits on the settings rule out, and judged with the library's ``feasible_region``: ``share`` is
@@ -8992,7 +8997,7 @@ def specification(request: dict) -> dict:
     if not len(drawn):
         raise ValueError("The limits on the settings leave no setting to try.")
     models = _region_models(fits)
-    judge = lambda settings: feasible_region(models, windows, _region_frame(fits, point, names, settings))  # noqa: E731
+    judge = lambda settings, at=point: feasible_region(models, windows, _region_frame(fits, at, names, settings))  # noqa: E731
     tried = judge(drawn)
     chance = tried["probability"].to_numpy()
     known = not bool(np.isnan(chance).any())
@@ -9027,6 +9032,7 @@ def specification(request: dict) -> dict:
         "held": [
             {"name": f["name"], "value": _in_units(f, point[f["name"]])} for f in whole["factors"] if _categorical(f)
         ],
+        "levels": _windows_by_level(whole, point, lambda at: judge(drawn, at)),
         "overlay": _window_overlay(
             whole,
             fits,
@@ -9047,6 +9053,35 @@ def specification(request: dict) -> dict:
         surfaces = reply["overlay"]["responses"]
         reply["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
     return reply
+
+
+def _windows_by_level(
+    spec: dict, point: dict[str, float], judged: Callable[[dict[str, float]], pd.DataFrame]
+) -> list[dict[str, Any]]:
+    """Return what the windows give at each combination of the categorical factors' levels; none without such a factor.
+
+    For each combination: its ``levels``, by their factors; ``share``, the part of the settings tried at which
+    every prediction is inside its window there; ``surest``, the highest chance that one new run meets every
+    window there, None when no chance can be given; and ``here``, whether it is the combination ``point`` holds,
+    whose share is the reply's own. ``judged`` judges the settings tried with every factor as at a point.
+
+    shortcut: the first :data:`SPECIFICATION_LEVELS` combinations are judged, each a row of a table; give the
+    table a way to show more once a study with more of them is judged against a specification.
+    """
+    categorical = [f for f in spec["factors"] if _categorical(f)]
+    out = []
+    for levels in _level_combinations(spec)[:SPECIFICATION_LEVELS] if categorical else []:
+        tried = judged({**point, **levels})
+        chance = tried["probability"].to_numpy()
+        out.append(
+            {
+                "levels": [{"name": f["name"], "value": _in_units(f, levels[f["name"]])} for f in categorical],
+                "share": float(tried["feasible"].mean()),
+                "surest": None if np.isnan(chance).any() else float(chance.max()),
+                "here": all(math.isclose(levels[f["name"]], point[f["name"]], abs_tol=1e-9) for f in categorical),
+            }
+        )
+    return out
 
 
 def _windows_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[str, tuple[float | None, float | None]]:

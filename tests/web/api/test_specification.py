@@ -173,6 +173,19 @@ def test_a_categorical_factor_is_held_at_the_level_the_reader_has_it_at(api):
     assert with_b["held"] == [{"name": "S", "value": "B"}]
     assert with_b["overlay"]["held"] == [{"name": "S", "value": "B"}]
     assert with_b["search"]["at"] == {"T": 0.0, "P": 0.0, "S": 1.0}, "as the columns the model is fitted on"
+    # Beside it, what the window gives at each level: a level is chosen, not moved to.
+    for reply, here in ((with_a, "A"), (with_b, "B")):
+        rows = {row["levels"][0]["value"]: row for row in reply["levels"]}
+        assert [row["levels"] for row in reply["levels"]] == [[{"name": "S", "value": level}] for level in "AB"]
+        assert {level: row["here"] for level, row in rows.items()} == {"A": here == "A", "B": here == "B"}
+        assert rows["A"]["share"] == 0
+        assert rows["B"]["share"] == with_b["share"], "the share where What if has the level is the reply's own"
+        assert rows["B"]["surest"] == with_b["surest"]["probability"]
+        assert rows["A"]["surest"] < rows["B"]["surest"]
+
+
+def test_a_study_with_no_categorical_factor_has_no_levels_to_judge_at(api):
+    assert judged(api, design_of(api, TWO[:1]), {"Yield": [60.0, None]})["levels"] == []
 
 
 def test_a_transformed_response_s_window_is_typed_and_drawn_in_its_own_units(api):

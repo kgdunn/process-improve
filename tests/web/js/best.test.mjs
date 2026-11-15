@@ -964,7 +964,7 @@ describe("the settings that give a target", async () => {
 });
 
 describe("the settings that meet a specification", async () => {
-  const { shareWords, surestSentence, windowCaption, windowChance, windowLead } = await import("../../../web/best.js");
+  const { shareWords, surestSentence, windowCaption, windowChance, windowLead, windowLevels } = await import("../../../web/best.js");
   const one = { responses: [{ name: "Yield" }], held: [], share: 0.17325, likely: { 0.5: 0.1702, 0.9: 0.08655 } };
   const two = { ...one, responses: [{ name: "Yield" }, { name: "Cost" }], held: [{ name: "S", value: "B" }] };
 
@@ -987,6 +987,22 @@ describe("the settings that meet a specification", async () => {
     assert.match(windowChance({ ...one, likely: { 0.5: 0, 0.9: 0 } }), /with a chance of 90% or more, nor of 50%\. The noise is wide/);
     assert.equal(windowChance({ ...one, likely: null }), "No runs are left to estimate the noise, so the chance that a new run meets its window cannot be given.");
     assert.equal(windowChance({ ...one, share: 0 }), "");
+  });
+
+  test("each combination of levels has a row: its share, its highest chance, and whether What if has it", () => {
+    const at = (supplier, lot) => [{ name: "S", value: supplier }, { name: "Lot", value: lot }];
+    const levels = [
+      { levels: at("A", 1), share: 0, surest: 0.0312, here: false },
+      { levels: at("B", 2), share: 0.17325, surest: 0.9925, here: true },
+    ];
+    assert.deepEqual(windowLevels({ ...two, levels }), {
+      columns: ["S", "Lot", "Settings that meet it", "Highest chance", "Under What if"],
+      rows: [["A", "1", "0%", "3.1%", ""], ["B", "2", "17%", "99%", "yes"]],
+    });
+    const unknown = windowLevels({ ...two, levels: [{ ...levels[0], surest: null }] });
+    assert.equal(unknown.rows[0][3], "none given", "no runs are left to estimate the noise");
+    assert.equal(windowLevels({ ...one, levels: [] }), null, "a study with no categorical factor has no table");
+    assert.equal(windowLevels(one), null, "nor has a reply from before the levels were judged");
   });
 
   test("the surest settings are said with their chance", () => {

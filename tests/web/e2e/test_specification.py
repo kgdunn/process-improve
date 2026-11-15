@@ -12,7 +12,8 @@ from typing import Any
 
 import pytest
 
-from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
+from tests.web._support import FACTORS
+from tests.web.e2e._page import generate, last_reply, practise, reveal, run_sheet, set_factors, settled
 from tests.web.e2e.test_responses import three_responses
 
 PLOT = "document.querySelector('#window-chart .plot')"
@@ -133,3 +134,25 @@ def test_a_window_refused_and_then_emptied_leaves_nothing_behind(studied):
     page.wait_for_selector("#window-problems", state="hidden")
     assert page.locator("#window-clear").is_hidden()
     assert page.locator("#window-out .lead").count() == 0
+
+
+def test_a_study_with_a_categorical_factor_says_what_the_window_gives_at_each_level(fresh_page):
+    """A level is chosen, not moved to: beside the level What if has, each other level has its share and its chance."""
+    page = fresh_page
+    set_factors(page, [*FACTORS[:2], {"name": "Supplier", "low": "A", "high": "B"}])
+    generate(page, design_type="full_factorial", n_center_points=0, n_replicates=2)
+    practise(page)
+    page.wait_for_selector("#window-limits tbody tr", state="attached")  # the section comes once What if has its fits
+    reveal(page, "#window")
+    settled(page)
+    low = page.evaluate("Number(document.querySelector('#window-limits tr td:last-child').textContent.split(' ')[0])")
+    response = page.get_attribute("#window-limits tbody tr", "data-response")
+    found = window(page, response, "low", str(low + 1))
+    assert page.text_content("#window-out h4") == "At each level"
+    heads = page.locator("#window-out table thead th").all_text_contents()
+    assert [head.strip() for head in heads] == ["Supplier", "Settings that meet it", "Highest chance", "Under What if"]
+    rows = [row.locator("td").all_text_contents() for row in page.locator("#window-out table tbody tr").all()]
+    assert [row[0] for row in rows] == ["A", "B"]
+    here = found["held"][0]["value"]
+    assert {row[0]: row[3] for row in rows} == {here: "yes", "B" if here == "A" else "A": ""}
+    assert [row["share"] for row in found["levels"] if row["here"]] == [found["share"]]

@@ -325,8 +325,8 @@ Also:
   be, or pick a run to match. The app runs the models backwards and gives the settings, with
   each response's target beside what the models predict there.
   [Show me](https://factori.al/?example=worked&show=target)
-  - *Details:* 20,000 settings tried on the models, inside the limits and at each level of a
-    categorical factor. Settings give a target when the response is predicted within 2% of
+  - *Details:* 20,000 settings tried on the models, inside the limits and at every
+    combination of the categorical factors' levels, up to 400 of them. Settings give a target when the response is predicted within 2% of
     the range of its results from it. Of those, the answer is the one nearest the center of
     the ranges, moved by least squares to meet the targets exactly where the models can. The
     app says when no setting gives the targets, and when the settings lie beyond the runs. A
@@ -348,7 +348,9 @@ Also:
     the settings at which that chance is 50% or more and 90% or more, and the settings at
     which it is highest, which go to the what-if panel or get confirmation runs. A chart
     shades the settings that meet the windows over two factors of your choice, the others
-    where What if has them, with a line for each chance and the runs. No chance is given
+    where What if has them, with a line for each chance and the runs. A study with a
+    categorical factor is judged at the level What if has, and a table beside it gives the
+    share and the highest chance at each of the other levels. No chance is given
     when the fit leaves no run to estimate the noise. The section and its chart show their
     Python. The windows typed are kept with the study, as the targets are, and the report
     holds what they gave and the chart.

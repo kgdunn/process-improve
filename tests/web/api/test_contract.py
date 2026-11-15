@@ -402,6 +402,7 @@ READS: dict[str, list[str]] = {
         "surest.responses{}: number",
         "tried: int",
         "held: list",
+        "levels: list",
         "overlay.x: str",
         "overlay.y: str",
         "overlay.grid[]: number",

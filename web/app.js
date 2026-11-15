@@ -110,6 +110,7 @@ import {
   windowCaption,
   windowChance,
   windowLead,
+  windowLevels,
   whatIfRows,
   whatIfSentences,
   whatIfStart,
@@ -6257,9 +6258,12 @@ function renderWindow() {
     return;
   }
   const more = [windowChance(found), surestSentence(found, tradeFactors(), factorUnits())].filter(Boolean);
+  // A level is chosen, not moved to: beside the level What if has, what the windows give at each of the others.
+  const levels = windowLevels(found);
   $("#window-out").replaceChildren(
     said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
     ...more.map((text) => said("", text)),
+    ...(levels ? [el("h4", "", "At each level"), table(levels.columns, levels.rows)] : []),
   );
   if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
   showPython("window", windowCode(found, state.design.spec));
