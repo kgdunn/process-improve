@@ -235,6 +235,31 @@ def test_a_message_too_short_or_an_address_that_is_not_one_is_said_and_nothing_i
     assert len(relay.reports) == 1
 
 
+def test_a_link_opens_feedback_with_a_request_for_a_design_written_and_sends_nothing_itself(context, site, relay):
+    """What Factorial does links each design the app does not make this way: the reader reads it, and sends it."""
+    page = context.new_page()
+    page.goto(f"{site}?request=supersaturated")
+    page.wait_for_selector(f"{DIALOG}[open]")
+    asked = "Please add the supersaturated design, which the process-improve library makes, to Factorial."
+    assert page.input_value("#feedback-message") == asked
+    assert topic(page) == "interface"
+    assert "request" not in page.url, "a reload, or a link copied from here, asks nothing"
+    assert relay.reports == [], "nothing goes until Send is pressed"
+    page.wait_for_function("document.querySelector('#feedback-sent').textContent.includes('Tab on show')")
+    page.click("#feedback-send")
+    page.wait_for_selector(SENT, state="visible")
+    assert [(report["topic"], report["message"]) for report in relay.reports] == [("interface", asked)]
+
+
+def test_a_link_that_asks_for_no_design_of_the_library_opens_no_dialog(context, site, relay):
+    """A name is lower-case letters and underscores, so an address writes no words of its own into a report."""
+    page = context.new_page()
+    page.goto(f"{site}?request=Please%20visit%20https%3A%2F%2Fx.test")
+    page.wait_for_function("window.__pi.count('api_catalogue') >= 1")
+    assert page.locator(f"{DIALOG}[open]").count() == 0
+    assert "request" not in page.url
+
+
 def test_the_message_written_stays_until_it_is_sent(page, relay):
     open_feedback(page)
     page.fill("#feedback-message", MESSAGE)

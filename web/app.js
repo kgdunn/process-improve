@@ -321,7 +321,7 @@ import { FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLeve
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
-import { installFeedback, keepError } from "./feedback.js";
+import { REQUEST_PARAM, installFeedback, keepError, requestWords } from "./feedback.js";
 
 // Where Process Improvement using Data explains each design, method and measure the page uses.
 const BOOK = "https://learnche.org/pid/design-analysis-experiments";
@@ -7902,7 +7902,7 @@ document.addEventListener("visibilitychange", () => {
 });
 installLimits({ call, factors: readFactors, changed: limitsChanged, runs: picturedRuns });
 // A report of a problem: the study goes only when the reader ticks it, with its results, packed as a link carries it.
-installFeedback({
+const feedback = installFeedback({
   context: feedbackContext,
   study: () => packCampaign(shareable(currentCampaign(), true)),
   hasStudy: () => Boolean(state.design),
@@ -7967,12 +7967,17 @@ function showPart(id) {
 // The part a link asks for is read before the study opens, which clears the address of some links. The address
 // then loses the word: a reload, or a link copied from here, opens the study without the jump.
 const partAsked = partName(new URLSearchParams(location.search).get(SHOW_PARAM));
-if (new URLSearchParams(location.search).has(SHOW_PARAM)) {
+// A request for a design the app does not make opens Feedback with the request written, for the reader to send.
+const requestAsked = requestWords(new URLSearchParams(location.search).get(REQUEST_PARAM));
+if ([SHOW_PARAM, REQUEST_PARAM].some((word) => new URLSearchParams(location.search).has(word))) {
   const address = new URL(location.href);
-  address.searchParams.delete(SHOW_PARAM);
+  for (const word of [SHOW_PARAM, REQUEST_PARAM]) address.searchParams.delete(word);
   history.replaceState(null, "", address);
 }
-start().then(() => showPart(partAsked));
+start().then(() => {
+  showPart(partAsked);
+  if (requestAsked) feedback.open("interface", requestAsked);
+});
 loadFields();
 
 call("api_catalogue").then((reply) => {

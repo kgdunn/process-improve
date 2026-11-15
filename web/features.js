@@ -31,16 +31,20 @@ const APP = "https://factori.al/";
  * A link: one to another site opens in a tab of its own, the book's in the one tab the book has, and an address
  * of any other scheme is not followed. A
  * link to the app is one within the copy this page is served from. One named "Show me" opens the app on an
- * example of its point (app.js, ?show=), and is marked for the page to style.
+ * example of its point (app.js, ?show=), and is marked for the page to style. One that requests a design opens
+ * the app's Feedback with the request written (app.js, ?request=), and names its design for a screen reader.
  */
 function anchor(words, to) {
   const href = to.startsWith(APP) ? `./${to.slice(APP.length)}` : to;
   const outside = /^https?:\/\//i.test(href);
   if (!outside && /^[a-z][a-z0-9+.-]*:/i.test(href)) return words;
   const show = words === "Show me" ? ' class="show-me"' : "";
+  // "Request it" is said beside each design the app does not make (app.js, ?request=): a screen reader is told which.
+  const asked = href.match(/^\.\/\?request=([a-z_]+)$/);
+  const which = asked ? ` aria-label="${words}: ${asked[1].replaceAll("_", " ")}"` : "";
   // The book has one tab, which the app's other links to it use too (campaign.tabOf says why its tie is kept).
   const tab = /^https:\/\/learnche\.org\/pid(?:[/?#]|$)/.test(href) ? ' target="pid-book" rel="opener"' : ' target="_blank" rel="noopener"';
-  return `<a${show} href="${href}"${outside ? tab : ""}>${words}</a>`;
+  return `<a${show}${which} href="${href}"${outside ? tab : ""}>${words}</a>`;
 }
 
 /** The marks inside a line: code first, since what is inside it is not Markdown. */

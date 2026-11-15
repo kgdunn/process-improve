@@ -29,6 +29,9 @@ import {
   messageProblem,
   relayUrl,
   reportText,
+  MESSAGE_MIN,
+  REQUEST_PARAM,
+  requestWords,
   screenshotProblem,
   screenshotScale,
   sentLines,
@@ -69,6 +72,23 @@ describe("the report", () => {
 
   test("names each topic as the relay does", () => {
     assert.deepEqual(TOPICS, { algorithm: "Algorithm or model", interface: "Interface suggestion", general: "General" });
+  });
+});
+
+describe("a request for a design the app does not make", () => {
+  test("is written for the reader to send, in a sentence long enough to go", () => {
+    const words = requestWords("supersaturated");
+    assert.equal(words, "Please add the supersaturated design, which the process-improve library makes, to Factorial.");
+    assert.ok(words.length >= MESSAGE_MIN);
+    assert.equal(messageProblem(words), "");
+    assert.equal(REQUEST_PARAM, "request");
+  });
+
+  test("takes a design's name as the library writes one, and no other words from an address", () => {
+    for (const name of ["omars_ilp", "e_optimal", "latin_hypercube", "maxpro"]) assert.ok(requestWords(name), name);
+    for (const not of [null, "", "x", "Supersaturated", "a design", "<b>", "9lives", "a".repeat(41), "see https://x.test"]) {
+      assert.equal(requestWords(not), null, String(not));
+    }
   });
 });
 

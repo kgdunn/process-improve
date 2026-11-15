@@ -539,6 +539,8 @@ Also:
   [Show me](https://factori.al/?example=worked&show=library)
 - **Feedback.** Send it from the header, the footer or beside a result. A list shows what is
   sent.
+  - *Details:* A link can open the form with a request written, as "Request it" does beside
+    each design the app does not make yet. Nothing is sent until you press Send.
 - **A footer to scan.** What Factorial is in a sentence, a button to this list, links in named
   groups, and what is kept on the device.
 
@@ -715,23 +717,23 @@ takes for it and what the app takes:
 | `ccd` | 2 factors or more | 2 to 7 factors |
 | `dsd` | 3 factors or more | 3 to 40 factors |
 | `omars` | 3 factors or more | 3 to 5 factors |
-| `omars_ilp` | 3 to 15 factors | Not in the app |
+| `omars_ilp` | 3 to 15 factors | Not in the app yet. [Request it](https://factori.al/?request=omars_ilp). |
 | `d_optimal` | 1 factor or more | 2 to 40 factors |
 | `i_optimal` | 1 factor or more | 2 to 40 factors |
 | `a_optimal` | 1 factor or more | 2 to 40 factors |
-| `e_optimal` | 1 factor or more | Not in the app |
-| `g_optimal` | 1 factor or more | Not in the app |
-| `k_optimal` | 1 factor or more | Not in the app |
+| `e_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=e_optimal). |
+| `g_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=g_optimal). |
+| `k_optimal` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=k_optimal). |
 | `mixture` | 2 components or more | 3 to 6 components |
 | `taguchi` | 1 to 42 factors | 2 to 40 factors |
-| `supersaturated` | 4 factors or more | Not in the app |
-| `latin_hypercube` | 1 factor or more | Not in the app |
+| `supersaturated` | 4 factors or more | Not in the app yet. [Request it](https://factori.al/?request=supersaturated). |
+| `latin_hypercube` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=latin_hypercube). |
 | `maximin_lhs` | 1 factor or more | 2 to 8 factors |
-| `uniform` | 1 factor or more | Not in the app |
+| `uniform` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=uniform). |
 | `sobol` | 1 factor or more | 2 to 8 factors |
-| `halton` | 1 factor or more | Not in the app |
-| `maximin` | 1 factor or more | Not in the app |
-| `maxpro` | 1 factor or more | Not in the app |
+| `halton` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=halton). |
+| `maximin` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=maximin). |
+| `maxpro` | 1 factor or more | Not in the app yet. [Request it](https://factori.al/?request=maxpro). |
 
 Where the library takes a number of factors or more, it sets no most of its own. The number
 of runs, and the time a search takes, are what limit a design then. In the app an optimal

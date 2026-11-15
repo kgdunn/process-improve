@@ -202,12 +202,28 @@ def test_each_design_the_library_makes_is_listed_beside_what_the_app_takes_for_i
 
     def in_the_app(design: str) -> str:
         if design not in made:
-            return "Not in the app"
+            return f"Not in the app yet. [Request it](https://factori.al/?request={design})."
         low = min(info["min_factors"] for info in made[design])
         high = max(info["max_factors"] for info in made[design])
         return f"{low} to {high} {'components' if design == bootstrap.MIXTURE else 'factors'}"
 
     assert {design: app for design, _library, app in rows(LIBRARY)} == {f"`{d}`": in_the_app(d) for d in named}
+
+
+def test_a_design_the_app_does_not_make_links_to_feedback_with_the_request_written(node):
+    """The link's word is the one the page reads, and the page writes a request for each design the table names."""
+    asked = [re.search(r"\[Request it\]\(https://factori\.al/\?(\w+)=(\w+)\)\.$", app) for *_, app in rows(LIBRARY)]
+    words = {found[1] for found in asked if found}
+    designs = [found[2] for found in asked if found]
+    assert len(designs) >= 5, "the designs of the library that the app does not make"
+    (word, *written) = javascript(
+        node, source("feedback.js"), [("REQUEST_PARAM", []), *(("requestWords", [design]) for design in designs)]
+    )
+    assert words == {word}
+    assert written == [
+        f"Please add the {design} design, which the process-improve library makes, to Factorial." for design in designs
+    ]
+    assert "import { REQUEST_PARAM, installFeedback, keepError, requestWords }" in source("app.js"), "the app opens it"
 
 
 def test_what_the_library_alone_does_is_the_library_s_and_is_not_in_the_app(bootstrap):

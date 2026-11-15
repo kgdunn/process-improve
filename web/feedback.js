@@ -10,6 +10,21 @@
 /** The topics, by the name a report gives, as the relay names them (feedback_relay.TOPICS). */
 export const TOPICS = { algorithm: "Algorithm or model", interface: "Interface suggestion", general: "General" };
 
+/**
+ * The word in an address that opens Feedback with a request written: ?request=supersaturated asks for a design the
+ * library makes and the app does not. FEATURES.md links each such design this way.
+ */
+export const REQUEST_PARAM = "request";
+
+/**
+ * The message a request opens with, or null for a name that is not a design's as the library writes one: lower-case
+ * letters and underscores, so an address can put no words of its own into a report.
+ */
+export function requestWords(design) {
+  if (!/^[a-z][a-z_]{1,39}$/.test(design ?? "")) return null;
+  return `Please add the ${design} design, which the process-improve library makes, to Factorial.`;
+}
+
 /** A message's length in characters: at least MESSAGE_MIN once its spaces are trimmed, and at most MESSAGE_MAX. */
 export const MESSAGE_MIN = 10;
 export const MESSAGE_MAX = 5000;
@@ -519,14 +534,18 @@ export function installFeedback({ context, study = null, hasStudy = () => false 
     }
   }
 
-  /** Open the dialog on ``chosen``, a topic; a message written before and not sent is kept. */
-  async function open(chosen) {
+  /**
+   * Open the dialog on ``chosen``, a topic; a message written before and not sent is kept. ``words`` are a message to
+   * start from, which a message already written is not replaced by.
+   */
+  async function open(chosen, words = null) {
     if (!dialog) build();
     if (!part("sent").hidden) {
       part("sent").hidden = true;
       part("write").hidden = false;
     }
     field("topic").value = chosen in TOPICS ? chosen : "general";
+    if (words && !field("message").value.trim()) field("message").value = words;
     part("fallback").hidden = true;
     dialog.querySelector("#feedback-copied").hidden = true;
     if (!relay) fallBack(MIRROR);
