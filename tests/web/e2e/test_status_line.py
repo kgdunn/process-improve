@@ -20,7 +20,8 @@ WORD = '#aim-card .term[data-term="main-effect"]'
 TIP = ".term-tip:popover-open"
 
 #: Where the page is: how far it is scrolled, how tall the bar is, whether the line shows, and where two things under
-#: the bar are in the window: a word of the brief, which is pinned beside Run and Learn, and the run sheet, which is not.
+#: the bar are in the window: a word of the brief, which is pinned beside Run and Learn, and the run sheet, which
+#: is not.
 WHERE = f"""() => ({{ y: scrollY, bar: document.querySelector('#studybar').offsetHeight,
   line: !document.querySelector('#status').hidden, pinned: getComputedStyle(document.querySelector('#brief')).position,
   word: document.querySelector('{WORD}').getBoundingClientRect().top,
@@ -44,7 +45,7 @@ def gone(page) -> dict:
 
 
 def come(page) -> dict:
-    """Ask for simulated results and hold Python's answer until the line has come to say so; return where the page is."""
+    """Ask for simulated results, hold Python's answer until the line has come to say so; return where the page is."""
     page.evaluate("window.__pi.hold('api_simulate')")
     page.evaluate("document.querySelector('#simulate').click()")  # where the page is: a pointer would scroll to it
     page.locator("#status").wait_for(state="visible")
