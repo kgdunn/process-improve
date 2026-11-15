@@ -216,7 +216,7 @@ def test_the_box_finds_a_word_and_shows_what_mentions_it_alone(context, site):
 
 def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     page = features(context, site)
-    inside = page.locator("#features a:not([href^='#']):not([href^='http'])").evaluate_all(
+    inside = page.locator("#features a:not([href^='#']):not([href^='http']):not(.show-me)").evaluate_all(
         "(links) => links.map((link) => link.getAttribute('href'))"
     )
     assert inside == ["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
@@ -225,6 +225,28 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     assert outside.evaluate_all("(links) => links.every((link) => link.target === '_blank' && link.rel === 'noopener')")
     page.click("text=Start a study")
     page.wait_for_url(site)
+
+
+#: Each "Show me" of the document: the example it opens and the part of the app's page it asks for.
+SHOW_ME = re.findall(
+    r"\[Show me\]\(https://factori\.al/\?((?:book|example)=[a-z0-9-]+)&show=([a-z0-9-]+)\)",
+    (WEB / "FEATURES.md").read_text(encoding="utf-8"),
+)
+
+
+@pytest.mark.parametrize(("example", "part"), SHOW_ME, ids=[f"{example}, {part}" for example, part in SHOW_ME])
+def test_show_me_opens_the_app_on_an_example_of_the_point_at_the_part_that_has_it(context, site, example, part):
+    page = features(context, site)
+    link = page.locator(f"#features a.show-me[href='./?{example}&show={part}']")
+    assert link.count() == 1
+    assert link.text_content() == "Show me"
+    assert link.get_attribute("aria-label").startswith("Show me: "), "a screen reader is told which point it shows"
+    link.evaluate("(a) => { a.closest('details.feat-part').open = true; }")  # as a reader who opened its part
+    link.click()
+    page.wait_for_selector(f"#{part}.shown-part", timeout=30_000)
+    assert page.locator(f"#{part}").evaluate("(e) => e.checkVisibility()")
+    assert page.url.startswith(site), "in this copy of the app, whatever address the document names"
+    assert "show=" not in page.url
 
 
 def test_a_list_that_cannot_be_read_says_so(context, site, console):

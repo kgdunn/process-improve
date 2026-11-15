@@ -206,6 +206,26 @@ def test_a_point_says_in_plain_words_what_it_means_and_keeps_such_words_for_its_
         assert word in rest, f"{word}: said in a line of details, for a reader who asks"
 
 
+def test_each_show_me_names_an_example_the_app_opens_and_a_part_of_its_page():
+    """A point's "Show me" opens the app on an example, at a part of the page: both are there to be opened."""
+    shown = " ".join(FEATURES.split("<!-- features.html shows what follows -->", 1)[1].split())
+    links = re.findall(r"\[Show me\]\(([^)]+)\)", shown)
+    assert len(links) >= 15
+    assert len(set(links)) == len(links), "no two points show the same part of the same example"
+    book, published = (
+        {example["name"] for example in json.loads(source(name))["examples"]}
+        for name in ("book-examples.json", "published-examples.json")
+    )
+    opens = {"book": book, "example": published | {"worked"}}
+    parts = set(re.findall(r'\bid="([\w-]+)"', source("index.html")))
+    for link in links:
+        asked = re.fullmatch(r"https://factori\.al/\?(book|example)=([a-z0-9-]+)&show=([a-z0-9-]+)", link)
+        assert asked, link
+        kind, name, part = asked.groups()
+        assert name in opens[kind], link
+        assert part in parts, f"{link}: no part of the page has this id"
+
+
 # --------------------------------------------------------------------------- the page that shows the document
 def test_the_document_is_published_with_the_page_that_shows_it(build_script, node):
     """features.html reads FEATURES.md with features.js: a build without one of the three shows no list."""

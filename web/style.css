@@ -1146,6 +1146,9 @@ details.fold > :last-child { margin-bottom: 12px; }
 .feat-body [hidden], .feat-cards [hidden] { display: none; }
 /* What only some readers ask for, under its point: a word to press at Intermediate, open at Adventurous, and not
    there at Beginner, but where the reader's own search found its words. */
+/* "Show me", at the end of a point: the way to the app, on an example of the point. */
+.show-me { margin-left: 2px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.show-me::after { content: "\00a0\2192"; }
 details.more { display: inline; }
 details.more > summary { display: inline; margin-left: 4px; padding: 10px 4px; font-size: 0.85rem; color: var(--accent);
   text-decoration: underline; white-space: nowrap; list-style: none; cursor: pointer; }
@@ -1865,6 +1868,8 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 :root[data-level="1"] [data-level="2"]:not(.in-use),
 :root[data-level="1"] [data-level="3"]:not(.in-use),
 :root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
+/* The part of the page a link asked to be shown (?show=): outlined for a moment, so the reader sees where they are. */
+.shown-part { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
 .level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
 .level-switch legend { float: left; padding: 0; margin-right: 4px; color: var(--muted); font-size: 0.9rem; }
 /* On a phone its name is read out, not drawn: the three levels then fit one line of a 360 px screen. */

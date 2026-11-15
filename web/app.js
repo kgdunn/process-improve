@@ -252,6 +252,7 @@ import {
   EXAMPLE_PARAM,
   LINK_KEY,
   SCENARIOS_HELD,
+  SHOW_PARAM,
   WORKED,
   bookName,
   campaignDone,
@@ -264,6 +265,7 @@ import {
   indexedName,
   mergeResults,
   packCampaign,
+  partName,
   progress,
   sameCampaign,
   shareable,
@@ -6978,7 +6980,59 @@ renderStudyBar();
 const whenLoaded = Promise.all([whenReady, whenWarm]);
 whenLoaded.catch(() => {}); // Python did not start: the status line says so
 readManifest().then((manifest) => installOffline({ manifest, started: whenLoaded, box: $("#offline") }));
-start();
+/**
+ * Bring a part of the page into view, as a link asks with ?show=: its step is shown, the folds it is in are opened,
+ * and it is outlined for a moment. The part may not be there yet, as an analysis Python has still to make, so it is
+ * waited for. A reader who has begun to scroll, press or type by then is left where they are.
+ */
+const SHOW_WAIT = 60_000; // ms: as long as Python takes to start and to fit, on a first visit over a slow line
+function showPart(id) {
+  const part = id && document.getElementById(id);
+  if (!part) return;
+  let left = false;
+  const leave = () => {
+    left = true;
+  };
+  const acts = ["pointerdown", "keydown", "wheel", "touchstart"];
+  for (const act of acts) window.addEventListener(act, leave, { once: true, capture: true, passive: true });
+  const started = Date.now();
+  // Shown once nothing between it and its step is hidden: the step itself is shown here.
+  const there = () => {
+    for (let at = part; at && !at.dataset.pane; at = at.parentElement) if (at.hidden) return false;
+    return true;
+  };
+  const look = () => {
+    if (left || Date.now() - started > SHOW_WAIT) return;
+    if (!there()) {
+      setTimeout(look, 200);
+      return;
+    }
+    const pane = part.closest("[data-pane]")?.dataset.pane;
+    if (pane && state.phase !== pane) showPhase(pane);
+    for (let fold = part.closest("details"); fold; fold = fold.parentElement.closest("details")) fold.open = true;
+    // Under the study's bar, and once more when the step's charts have taken their room.
+    const under = () => {
+      if (!left) window.scrollBy({ top: part.getBoundingClientRect().top - $("#studybar").offsetHeight - 12, behavior: "instant" });
+    };
+    under();
+    setTimeout(under, 300);
+    if (!part.hasAttribute("tabindex")) part.tabIndex = -1;
+    part.focus({ preventScroll: true }); // a screen reader goes on from here
+    part.classList.add("shown-part");
+    setTimeout(() => part.classList.remove("shown-part"), 4000);
+  };
+  look();
+}
+
+// The part a link asks for is read before the study opens, which clears the address of some links. The address
+// then loses the word: a reload, or a link copied from here, opens the study without the jump.
+const partAsked = partName(new URLSearchParams(location.search).get(SHOW_PARAM));
+if (new URLSearchParams(location.search).has(SHOW_PARAM)) {
+  const address = new URL(location.href);
+  address.searchParams.delete(SHOW_PARAM);
+  history.replaceState(null, "", address);
+}
+start().then(() => showPart(partAsked));
 loadFields();
 
 call("api_catalogue").then((reply) => {
