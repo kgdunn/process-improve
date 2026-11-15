@@ -222,7 +222,6 @@ describe("the context", () => {
 
   test("reads as the relay's email lists it", () => {
     assert.deepEqual(contextLines(CONTEXT_SENT), [
-      "App commit: 9f3827d1c0ffee",
       "Plotly.js: 3.1.0",
       "Tab on show: Learn",
       "Model: As designed",
@@ -232,8 +231,10 @@ describe("the context", () => {
       "Made: 2026-10-18 21:04 UTC",
       "Inputs, SHA-256: 5e2a",
       "Python error: api_analyze_runs: Python stopped with LinAlgError: Singular matrix",
+      "Version: 9f3827d1c0ffee",
     ]);
     assert.deepEqual(contextLines({ tab: "Design" }), ["Tab on show: Design", "Last Python errors: none"]);
+    assert.equal(contextLines({ commit: "9f3827d, 13 November 2026" }).at(-1), "Version: 9f3827d, 13 November 2026");
   });
 });
 
