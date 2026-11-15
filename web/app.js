@@ -2221,12 +2221,14 @@ function candidateList(c, current) {
     // What spare runs and power are depends on the brief: the model's size, and the change worth finding.
     const spare = term("Spare runs", {
       alone: true,
+      concept: "degrees_of_freedom",
       definition:
         `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
         `run-to-run noise. Fewer than ${SPARE_FOR_NOISE} are marked.`,
     });
     const power = term(`Power to find ${changeWords(info)}`, {
       alone: true,
+      concept: "statistical_power",
       definition:
         `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
         `the ${Math.round(100 * c.result.significance_level)}% level.` +
@@ -2301,6 +2303,7 @@ function levelPlan(c, current) {
   const change = changeWords(info);
   const power = term(`Power to find ${change}`, {
     alone: true,
+    concept: "statistical_power",
     definition:
       (k === 2
         ? `The chance that the t-test of the two levels finds ${change} between them, at the `

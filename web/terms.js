@@ -4,7 +4,8 @@
 // - on a phone, when a finger rests on it (a press and hold), which does not also press the button
 //   or the choice the word is part of;
 // - with a mouse, when the pointer rests on it; the pointer can move onto the pop-up to read it;
-// - from the keyboard, when the control the word names is reached with Tab or an arrow key;
+// - from the keyboard, when the control the word names is reached with Tab or an arrow key: the
+//   pop-up then opens clear of the control too, so it never covers the box being typed in;
 // - for a word that stands alone, outside any control, with a tap, a click or Enter as well: it
 //   is a button whose one task is its definition.
 //
@@ -35,6 +36,7 @@ let glossary = {};
 let context = {}; // each glossary word's term in the concept map
 let tip = null; // the one pop-up every definition opens in
 let shown = null; // the word whose definition is open
+let beside = null; // with the keyboard, the control the word names: the pop-up opens clear of it too
 let hold = null; // a finger resting on a word: { word, x, y, timer }
 let swallowUntil = 0;
 let keyboard = false; // whether the reader last moved with the keyboard rather than a pointer
@@ -112,13 +114,14 @@ function wordFor(control) {
 /**
  * Put the pop-up beside its word, inside the window: above a word under a finger, which would
  * cover it otherwise, and below a word under the mouse or the keyboard; on the other side when
- * there is no room.
+ * there is no room. With the keyboard it is the word and its control together it opens beside.
  */
 function place(word, above) {
   const at = word.getBoundingClientRect();
+  const box = beside?.isConnected ? beside.getBoundingClientRect() : at;
   const { offsetWidth: w, offsetHeight: h } = tip;
-  const up = at.top - 8 - h;
-  const down = at.bottom + 8;
+  const up = Math.min(at.top, box.top) - 8 - h;
+  const down = Math.max(at.bottom, box.bottom) + 8;
   const fitsUp = up >= 8;
   const fitsDown = down + h <= innerHeight - 8;
   const top = above ? (fitsUp || !fitsDown ? Math.max(8, up) : down) : fitsDown || !fitsUp ? down : up;
@@ -126,12 +129,16 @@ function place(word, above) {
   tip.style.top = `${top}px`;
 }
 
-/** Open ``word``'s definition; ``how`` it was asked for decides where it opens and whether it can be hovered. */
-function show(word, how) {
+/**
+ * Open ``word``'s definition; ``how`` it was asked for decides where it opens and whether it can be hovered.
+ * ``control`` is the box the keyboard is on, when it is the keyboard that asked.
+ */
+function show(word, how, control = null) {
   const text = definitionOf(word);
   if (!text) return;
   shown?.classList.remove("shown");
   shown = word;
+  beside = control;
   word.classList.add("shown");
   // Inside an open dialog the rest of the page is inert, so the pop-up goes into the dialog.
   const home = word.closest("dialog[open]") ?? document.body;
@@ -311,7 +318,7 @@ export function installTerms(entries, terms = {}) {
   document.addEventListener("focusin", (e) => {
     if (!keyboard || tip.contains(e.target)) return;
     const word = wordFor(e.target);
-    if (word) show(word, "keyboard");
+    if (word) show(word, "keyboard", e.target);
     else if (tip.dataset.how === "keyboard") hide();
   });
   document.addEventListener("focusout", (e) => {

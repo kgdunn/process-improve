@@ -204,3 +204,10 @@ def test_each_word_s_context_is_a_term_of_the_map_and_the_words_with_none_are_na
     assert not [word for word in context if word not in glossary], "each word is the glossary's"
     assert not {word: term for word, term in context.items() if term not in terms}, "each term is the map's"
     assert set(glossary) - set(context) == NO_CONTEXT
+
+
+def test_a_word_defined_where_the_page_draws_it_names_a_term_of_the_map():
+    """``term(..., { concept })`` in ``app.js`` gives such a word its term, as ``CONTEXT`` does a glossary word."""
+    named = set(re.findall(r'concept: "([a-z_]+)"', source("app.js")))
+    assert named == {"degrees_of_freedom", "statistical_power"}, "Spare runs, and the power of a design"
+    assert named <= {term["id"] for term in GRAPH["nodes"]}

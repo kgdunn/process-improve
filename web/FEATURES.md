@@ -447,9 +447,9 @@ Also:
     keyboard.
 - **A definition leads to its idea.** Under most definitions, "See it in context" opens the
   concept map at that idea, with the ideas around it and the way into the book.
-  - *Details:* 61 of the 78 terms have the link, and so does a design's name in the list of
-    designs. It opens in a tab of its own, so the study stays as it is. A finger, a mouse and
-    the keyboard each reach it.
+  - *Details:* 61 of the 78 terms have the link, and so do a design's name in the list of
+    designs and the words over that list, Spare runs and Power. It opens in a tab of its own,
+    so the study stays as it is. A finger, a mouse and the keyboard each reach it.
 - **A phone, a tablet or a desk.** The layout, the tables and the charts fit each.
 - **Light, dark or the system's colours.** The choice is kept in the browser.
 - **The keyboard and a screen reader.** Every control can be reached and has a name.
