@@ -844,7 +844,12 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
 
 /* A figure in a window of its own (figure.js): a sheet as wide as the page allows, whatever the figure's size, so
    its buttons and its caption stay where they are while the reader sizes the figure by its corner. */
-.figure__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 8px 0; }
+.figure__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; }
+/* Save and copy keep to one line, in the letters of the shapes beside them. With the shapes a little closer, the
+   whole row is one line on a phone 400 px wide; on a narrower one the shapes take the first line. */
+.figure__tools .views button { padding: 4px 7px; }
+.figure__saves { display: inline-flex; gap: 6px; white-space: nowrap; }
+.figure__saves .link { padding: 4px 3px; font-size: 0.85rem; }
 /* The figure before, where this one is among those beside it, the figure after: at the right of the head, by Close. */
 .figure__steps { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; white-space: nowrap; }
 .figure__steps .link { font-size: 1.5rem; line-height: 1; padding: 0 8px; }
@@ -1261,6 +1266,8 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
   margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 }
 .catalog__map figcaption { margin: 4px 4px 0; }
+/* Under a finger a drag on the map scrolls the page, as on every card (charts.js): no box is drawn there. */
+@media (pointer: coarse) { .map__box { display: none; } }
 #map { min-height: 380px; }
 .catalog__listhead { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }

@@ -15,6 +15,7 @@ import pytest
 
 from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN
 from tests.web.e2e._page import headers, run_sheet, settled
+from tests.web.e2e.test_figure_window import SHOWN as WINDOW_SHOWN
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
 
@@ -443,6 +444,7 @@ BOXES = "document.querySelector('#map')._fullLayout.selections?.length ?? 0"
 def test_a_box_on_the_map_filters_and_the_reset_puts_the_map_back(context, site):
     page = open_catalog(context, site)
     page.wait_for_selector("#map .scatterlayer")
+    assert page.is_visible(".map__box"), "with a mouse, the caption says a box filters"
     _drag_a_box(page, (2.5, 3.5), (4, 64))
     counted(page, "3 of 5")
     assert set(shown(page)) == {PILOT, CCD, CUBE}, "the designs of 3 factors"
@@ -464,6 +466,50 @@ def test_a_box_around_no_design_stays_drawn_until_the_map_is_reset(context, site
     page.click("#map-reset")
     page.wait_for_function(f"({BOXES}) === 0")
     assert page.text_content("#count").startswith("5 of 5")
+
+
+def test_in_the_map_s_window_a_drag_zooms_and_leaves_no_box(context, site):
+    """On the card a box filters the list. In the window nothing reads one, and Plotly left it drawn: a drag zooms."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    page.click(".catalog__map .expand")
+    page.wait_for_function(WINDOW_SHOWN)
+    assert page.text_content("#figure-title") == "Designs by factors and runs"
+    plot = page.locator("dialog.figure .plot")
+    whole = plot.evaluate("(plot) => plot._fullLayout.xaxis.range")
+    area = page.locator("dialog.figure .nsewdrag").bounding_box()
+    page.mouse.move(area["x"] + 0.2 * area["width"], area["y"] + 0.2 * area["height"])
+    page.mouse.down()
+    page.mouse.move(area["x"] + 0.6 * area["width"], area["y"] + 0.8 * area["height"], steps=8)
+    page.mouse.up()
+    page.wait_for_function(
+        "(whole) => document.querySelector('dialog.figure .plot')._fullLayout.xaxis.range[1] < whole[1]", arg=whole
+    )
+    assert plot.evaluate("(plot) => plot._fullLayout.selections?.length ?? 0") == 0, "no box is left drawn"
+    assert page.text_content("#count").startswith("5 of 5"), "the list is as it was"
+    names = plot.evaluate("(plot) => plot.data.filter((trace) => trace.mode === 'lines').map((trace) => trace.name)")
+    assert names == ["Fewest runs: main effects", "+ two-factor interactions", "+ quadratic terms"]
+
+
+#: Whether a chart's legend begins under its horizontal axis's title: neither is drawn over the other.
+LEGEND_CLEAR = """(plot) => {
+  const box = (part) => plot.querySelector(part).getBoundingClientRect();
+  return box('.legend').top >= box('.g-xtitle').bottom;
+}"""
+
+PHONE = {"viewport": {"width": 390, "height": 844}, "has_touch": True, "is_mobile": True}
+
+
+@pytest.mark.parametrize("context_options", [PHONE])
+def test_on_a_phone_the_map_s_legend_is_clear_of_its_axis_title(context, site):
+    """The legend sat a share of the plot's height under it: on a short plot, that put it over the axis's title."""
+    page = open_catalog(context, site)
+    page.wait_for_selector("#map .scatterlayer")
+    assert page.locator("#map").evaluate(LEGEND_CLEAR)
+    assert page.is_hidden(".map__box"), "under a finger a drag scrolls the page: the caption promises no box"
+    page.click(".catalog__map .expand")
+    page.wait_for_function(WINDOW_SHOWN)
+    assert page.locator("dialog.figure .plot").evaluate(LEGEND_CLEAR)
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])

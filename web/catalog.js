@@ -630,10 +630,13 @@ function mapFigure(list) {
   }));
   const ks = Array.from({ length: most }, (_, i) => i + 1);
   const dashes = { main_effects: "dot", interactions: "dash", quadratic: "solid" };
+  // The legend lists the lines in one column, so each name adds to the one above it: short enough for a phone.
+  const names = { main_effects: "Fewest runs: main effects", interactions: "+ two-factor interactions", quadratic: "+ quadratic terms" };
   const lines = Object.keys(MODELS).map((model) => ({
     type: "scatter",
     mode: "lines",
-    name: `Fewest runs: ${MODELS[model]}`,
+    name: names[model],
+    legendgroup: "lines",
     x: ks,
     y: ks.map((k) => minimumRuns(k, model)),
     line: { color: colours.muted, width: 1.2, dash: dashes[model], shape: "spline" },
@@ -643,6 +646,7 @@ function mapFigure(list) {
     type: "scatter",
     mode: "markers",
     name,
+    legendgroup: "marks",
     x: [null],
     y: [null],
     marker: { size: 9, symbol, color: colours.muted, line: { width: 1.6, color: colours.muted } },
@@ -659,7 +663,10 @@ function mapFigure(list) {
       hovermode: "closest",
       xaxis: { title: { text: "Factors" }, dtick: 1, range: [0.4, most + 0.6] },
       yaxis: { title: { text: "Runs" }, type: "log", tickvals: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024] },
-      legend: { orientation: "h", y: -0.2 },
+      // At the foot of the figure, where it meets no axis title however short the plot: the lines in one column and
+      // the marks in the next, side by side where both fit (a phone 400 px wide, with these letters), or one over the
+      // other. A press on a name still shows or hides that one line.
+      legend: { orientation: "h", yref: "container", y: 0, yanchor: "bottom", font: { size: 11 }, tracegroupgap: 0, groupclick: "toggleitem" },
       margin: { t: 8 },
       annotations: note,
     },

@@ -66,9 +66,11 @@ const MARKUP = `
         .map((name) => `<button type="button" data-shape="${name}" aria-pressed="false">${name}</button>`)
         .join("")}
     </span>
-    <button type="button" class="link" data-do="png">Save image (.png)</button>
-    <button type="button" class="link" data-do="svg">Save as vector (.svg)</button>
-    <button type="button" class="link" data-do="copy">Copy image</button>
+    <span class="figure__saves">
+      <button type="button" class="link" data-do="png" aria-label="Save image, as a PNG file">Save image</button>
+      <button type="button" class="link" data-do="svg" aria-label="Save as vector, an SVG file">Save as vector</button>
+      <button type="button" class="link" data-do="copy" aria-label="Copy the image">Copy</button>
+    </span>
     <span class="hint" role="status"></span>
   </div>
   <div class="figure__frame">
