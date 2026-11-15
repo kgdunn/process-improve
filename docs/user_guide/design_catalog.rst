@@ -11,8 +11,9 @@ generated ones are the designs :func:`~process_improve.experiments.generate_desi
 each family and size in :data:`~process_improve.experiments.design_catalog.GENERATED`.
 
 A reader filters the designs by family, application, size, the model they estimate, what they
-withstand, their structure, their source and the year it appeared; sees each one on a map of runs
-against factors; and opens a design in Factorial, the browser app, with a click. A design's page
+withstand, their structure, their source and the year it appeared; sees them counted on a map of
+factors by runs, each row of which opens into its families of design; and opens a design in
+Factorial, the browser app, with a click. A design's page
 links to the place its source prints it: for the book and the NIST e-Handbook, the section itself.
 The same records are available in Python and, through the ``search_design_catalog`` tool, to an
 agent.

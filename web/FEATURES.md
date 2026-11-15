@@ -660,7 +660,9 @@ What a careful reader, or an organisation, asks before using a tool.
   (Nov 2026) to search, compare and open in Factorial with one click.
   - *Details:* Published experiments and designs from 22 sources, 1956 to 2026, and designs
     the library makes. Search in words, filter by family, field, runs, factors and model, and
-    see each on a map of runs against factors. A design's page links to where its source
+    see them counted on a map of factors by runs: a row opens into its families of design,
+    each mark coloured by what the design truly estimates, and a press on a cell or a mark
+    lists its designs. A design's page links to where its source
     prints it, projects its runs onto two or three factors, and draws its correlation map. Up
     to four designs are compared side by side. More than 1,100 designs open in Factorial with
     one click. There is a page for each of 30 fields and for each source, a list of errata, a
