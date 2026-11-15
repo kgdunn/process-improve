@@ -791,6 +791,79 @@ export function overlayCode(overlay, spec) {
 }
 
 /**
+ * The chart of the trade-offs between the responses, after the balance's code (balanceCode), which leaves each
+ * response's ``models`` entry and the ``balanced`` settings: the settings the page tried (``view.asked``, what
+ * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
+ * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
+ * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
+ * The points are coloured by ``view.colour``, a response, when one is given. Null for a mixture.
+ */
+export function tradeOffCode(view, balance, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f)).map((f) => f.name);
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(balance.search.formulas));
+  const goalOf = (name) => balance.responses.find((r) => r.name === name);
+  const short = (name) => {
+    const { goal, target } = goalOf(name);
+    const column = `kept[${repr(name)}]`;
+    return goal === "maximize" ? `-${column}` : goal === "minimize" ? column : `(${column} - ${target}).abs()`;
+  };
+  const ends = Object.entries(view.limits ?? {}).flatMap(([name, [low, high]]) => [
+    ...(low === null ? [] : [`(cloud[${repr(name)}] >= ${low})`]),
+    ...(high === null ? [] : [`(cloud[${repr(name)}] <= ${high})`]),
+  ]);
+  const tint = view.colour && view.colour !== "d" ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
+  const [across, up] = [repr(view.across), repr(view.up)];
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "What one response costs another": ${view.asked.drawn} settings drawn evenly from the factors' ranges, in`,
+    "# coded units, and each response's prediction at each, on the models of the balance.",
+    `names = ${repr(numeric)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${view.asked.seed}).uniform(-1, 1, size=(${view.asked.drawn}, ${numeric.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "",
+    "",
+    "def predicted(coefficients, at):",
+    "    # A model's prediction at each row of at: each coefficient times its term; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: 1.0 if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
+    "",
+    "",
+    "cloud, star = pd.DataFrame(index=tried.index), {}",
+    "for model in models:",
+    '    name = model["response_name"]',
+    `    cloud[name] = ${scale.back('predicted(model["coefficients"], tried)')}`,
+    `    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`,
+    ends.length ? `kept = cloud[${ends.join(" & ")}]  # the settings that meet your limits` : "kept = cloud",
+    `# The best trade-off between ${view.across} and ${view.up}: the settings tried that no other betters on both.`,
+    "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
+    `shortfall = pd.DataFrame({"across": ${short(view.across)}, "up": ${short(view.up)}}).sort_values(["across", "up"])`,
+    'front = shortfall[shortfall["up"] < shortfall["up"].cummin().shift(fill_value=np.inf)].index',
+    "figure = go.Figure(",
+    "    [",
+    `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
+    `        go.Scatter(x=kept[${across}][front], y=kept[${up}][front], mode="lines", name="Best trade-off"),`,
+    `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
+    "    ]",
+    ")",
+    ...shown(axisOf(goalOf(view.across)), axisOf(goalOf(view.up))),
+  ].join("\n");
+}
+
+/** A response of the balance as an axis names it: its label, with its units. */
+const axisOf = (r) => (r.units ? `${r.label} (${r.units})` : r.label);
+
+/**
  * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
  * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the
  * page models it (``fit``: bootstrap.functional's reply, for its formula and its number of replicates), and the
