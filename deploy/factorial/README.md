@@ -230,6 +230,19 @@ cp factorial_deploy.pub factorial/
 ssh deploy@factori.al rm -rf factorial-setup && scp -r factorial deploy@factori.al:factorial-setup
 ```
 
+**On the server itself**, with the checkout at `~/process-improve`, nothing is copied over the
+network, and the deploy key is read back from where `setup.sh` put it, so the key GitHub Actions
+deploys with stays the one installed:
+
+```bash
+mkdir -p ~/factorial-deploy && cd ~/factorial-deploy && git -C ~/process-improve fetch origin
+rm -rf factorial && git -C ~/process-improve archive origin/main deploy/factorial | tar -x --strip-components=1
+sed 's/^restrict //' /etc/ssh/authorized_keys/factorial > factorial/factorial_deploy.pub
+sudo sh factorial/setup.sh factorial/factorial_deploy.pub
+```
+
+Then send a report with the Feedback button: its email is written by the relay just installed.
+
 ## Retiring the old app
 
 The old app ran from `/home/deploy/factorial` under Docker Compose, with nightly backups to
