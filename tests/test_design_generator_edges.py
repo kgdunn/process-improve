@@ -340,16 +340,11 @@ def test_pyoptex_quadratic_model_gives_a_categorical_factor_no_square() -> None:
     assert len(np.unique(b)) >= 3
 
 
-@pytest.mark.parametrize(
-    "options",
-    [{"fixed_runs": pd.DataFrame({"A": [1.0], "B": [0.0], "C": [0.0]})}, {"hard_to_change": ["A"]}],
-    ids=["fixed-runs", "hard-to-change"],
-)
-def test_mixture_optimal_designs_refuse_fixed_runs_and_hard_to_change(options: dict) -> None:
-    """An optimal mixture design neither augments runs already made nor makes a split-plot design."""
+def test_mixture_optimal_designs_refuse_hard_to_change() -> None:
+    """An optimal mixture design is not a split-plot design; it does keep runs already made (``fixed_runs``)."""
     blends = [Factor(name=n, type="mixture") for n in "ABC"]
-    with pytest.raises(ValueError, match="fixed_runs and hard_to_change are not supported for mixture designs"):
-        generate_design(blends, "d_optimal", budget=10, **options)
+    with pytest.raises(ValueError, match="hard_to_change is not supported for mixture designs"):
+        generate_design(blends, "d_optimal", budget=10, hard_to_change=["A"])
 
 
 @pytest.mark.parametrize(

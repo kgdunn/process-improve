@@ -857,6 +857,30 @@ sampler draws from: ``DesignRegion.sample`` raises, an I- or G-optimal design av
 over the candidate blends, and a search starts from the region's vertices and edge
 midpoints.
 
+A component that a ``count_nonzero`` rule counts should have a ``min_when_used``.
+Without one it counts as used at any share above 0, so "at least three components" is
+met by two of them and a trace of the third.
+
+*More blends beside the ones already made.* Pass the blends that were made as
+``fixed_runs``, with an optimal ``design_type``. They are the first runs of the new
+design, as given, the budget counts them, and the other runs are the blends that add
+most to them for the model, under the same constraints. The model may be larger than
+the one the first blends were chosen for.
+
+.. code-block:: python
+
+   made = blended.design_actual[["x1", "x2", "x3"]]
+   more = generate_design(
+       trio,
+       design_type="d_optimal",
+       budget=14,
+       model_type="scheffe_quadratic",
+       fixed_runs=made,
+       random_state=1,
+   )
+   print(more.metadata["n_fixed_runs"], len(more.design_actual))  # 10 14
+   print(more.design_actual[["x1", "x2", "x3"]].iloc[:10].equals(made))  # True
+
 Mixture components with process factors
 ---------------------------------------
 
