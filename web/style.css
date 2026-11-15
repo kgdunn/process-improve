@@ -1261,6 +1261,8 @@ main.catalog h1 { margin: 8px 0; font-size: 2rem; }
   margin: 0 0 12px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
 }
 .catalog__map figcaption { margin: 4px 4px 0; }
+/* Under a finger a drag on the map scrolls the page, as on every card (charts.js): no box is drawn there. */
+@media (pointer: coarse) { .map__box { display: none; } }
 #map { min-height: 380px; }
 .catalog__listhead { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 0.9rem; }
 .catalog__listhead select { margin-left: 6px; }
