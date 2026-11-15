@@ -282,6 +282,19 @@ line `<!-- features.html shows what follows -->` on, so below that line it is wr
 reader of the app: no path into the repository, and only the Markdown `web/features.js`
 reads (headings, paragraphs, lists, tables, bold, italic, code and links).
 
+That page shows a picture of each chart, from `web/chart-pictures/`, named by the chart's key
+in `CHARTS` (`web/logic.js`). `tests/web/e2e/test_chart_pictures.py` draws them from the app
+itself. Draw them again after a change to how a chart looks, and commit the files:
+
+```bash
+PI_WRITE_CHART_PICTURES=1 uv run --with playwright==1.64.1 pytest tests/web/e2e/test_chart_pictures.py --e2e --no-cov
+```
+
+A new chart adds its key to one of the studies in that file, the line of its picture under
+its point in the document, and its file to `APP_FILES` (`scripts/build_web_app.py`) and
+`APP_SOURCES` (`tests/web/_support.py`). `tests/web/page/test_features.py` fails until each
+is there.
+
 The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
 start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode
 already. The build compiles the app's own Python the same way, the wheel and `bootstrap.py`,
