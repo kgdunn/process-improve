@@ -53,7 +53,11 @@ describe("the Markdown of the features document, as HTML", () => {
   test("a link to another site opens in a tab of its own, and one within the app in this one", () => {
     const outside = ' target="_blank" rel="noopener"';
     assert.equal(markdown("[#1225](https://github.com/x/y/issues/1225)"), `<p><a href="https://github.com/x/y/issues/1225"${outside}>#1225</a></p>`);
-    assert.equal(markdown("at <https://learnche.org/pid>."), `<p>at <a href="https://learnche.org/pid"${outside}>https://learnche.org/pid</a>.</p>`);
+    assert.equal(markdown("at <https://kgdunn.github.io/process-improve/>."), `<p>at <a href="https://kgdunn.github.io/process-improve/"${outside}>https://kgdunn.github.io/process-improve/</a>.</p>`);
+    const book = ' target="pid-book" rel="opener"';
+    assert.equal(markdown("in <https://learnche.org/pid>."), `<p>in <a href="https://learnche.org/pid"${book}>https://learnche.org/pid</a>.</p>`, "the book's one tab");
+    assert.equal(markdown("[a page](https://learnche.org/pid/design-analysis-experiments#x)"), `<p><a href="https://learnche.org/pid/design-analysis-experiments#x"${book}>a page</a></p>`);
+    assert.match(markdown("[no book](https://learnche.org.example/pid)"), /target="_blank" rel="noopener"/, "an address that only begins as the book's");
     assert.equal(markdown("[the catalog](catalog/)"), '<p><a href="catalog/">the catalog</a></p>');
     assert.equal(markdown("[Limits](#12-limits)"), '<p><a href="#12-limits">Limits</a></p>');
   });

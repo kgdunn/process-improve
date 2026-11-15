@@ -222,7 +222,9 @@ def test_the_page_s_links_go_to_the_app_and_its_other_pages(context, site):
     assert inside == ["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"]
     outside = page.locator("#features a[href^='http']")
     assert outside.count() >= 5
-    assert outside.evaluate_all("(links) => links.every((link) => link.target === '_blank' && link.rel === 'noopener')")
+    tabs = outside.evaluate_all("(links) => links.map((link) => [new URL(link.href).hostname, link.target, link.rel])")
+    assert {(target, rel) for host, target, rel in tabs if host == "learnche.org"} == {("pid-book", "opener")}
+    assert {(target, rel) for host, target, rel in tabs if host != "learnche.org"} == {("_blank", "noopener")}
     page.click("text=Start a study")
     page.wait_for_url(site)
 

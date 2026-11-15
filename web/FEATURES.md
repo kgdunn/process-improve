@@ -476,7 +476,8 @@ Also:
 
 - **Links into the book.** Each design and each measure links to its place in *Process
   Improvement using Data* (<https://learnche.org/pid>). A defined word leads there by way of
-  its idea in the concept map.
+  its idea in the concept map. The book opens in one tab beside the app, and a later link goes
+  to that tab.
 - **The worked example.** It opens at once, and can be run again in the tab.
 - **Practice on a known process.** It shows the true model beside the fitted one.
 - **What Factorial does.** This list, as a page of the app. A point that ends with Show me
