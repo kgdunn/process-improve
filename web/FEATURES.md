@@ -333,9 +333,10 @@ Also:
     chart draws each response's line of settings over two factors of your choice, with the
     runs. The settings go to the what-if panel, or are tested with confirmation runs. One
     factor can be solved for from the others, with the settings around it at which the 95%
-    confidence interval of the prediction still holds the target. The section and its chart
-    show their Python. The targets typed are kept with the study, in this browser, in its
-    link and in its file; the settings are found again when it opens.
+    confidence interval of the prediction still holds the target; a button sets the factor
+    there under What if. The section and its chart show their Python. The targets typed are
+    kept with the study, in this browser, in its link and in its file; the settings are found
+    again when it opens. The report holds the settings, the chart and the factor solved for.
 - **Settings that meet a specification.** Type the window a response must fall in, or the
   windows of several, either end or both. The app says what share of the settings the models
   put inside every window, and how surely one new run there meets them.
@@ -349,7 +350,8 @@ Also:
     shades the settings that meet the windows over two factors of your choice, the others
     where What if has them, with a line for each chance and the runs. No chance is given
     when the fit leaves no run to estimate the noise. The section and its chart show their
-    Python. The windows typed are kept with the study, as the targets are.
+    Python. The windows typed are kept with the study, as the targets are, and the report
+    holds what they gave and the chart.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)

@@ -15,6 +15,7 @@ import pytest
 
 from tests.web.e2e._page import last_reply, practise, reveal, run_sheet, settled
 from tests.web.e2e.test_rename import rename
+from tests.web.e2e.test_report import download_report, headings, opened
 from tests.web.e2e.test_responses import three_responses
 from tests.web.e2e.test_specification import window
 
@@ -182,3 +183,44 @@ def test_a_target_and_a_window_go_with_the_study_by_link_and_in_this_browser(ope
         assert last_reply(again, "api_specification")["result"]["share"] == judged["share"]
         assert again.locator("#target-clear").is_visible()
         assert again.locator("#window-clear").is_visible()
+
+
+def test_a_factor_solved_for_is_set_under_what_if_at_one_press(studied):
+    """The sentence says what the factor must be; its button puts the factor there, the others where they were."""
+    page = studied
+    aim(page, "Yield", "62")
+    boxes = "[...document.querySelectorAll('#what-if-settings input[type=number]')].map((box) => Number(box.value))"
+    before = page.evaluate(boxes)
+    page.wait_for_selector("#solve-out button[data-value]")
+    solved = last_reply(page, "api_solve_for")["result"]["solutions"][0]["value"]
+    use = page.locator("#solve-out button[data-value]").first
+    assert use.text_content().startswith("Set T to ")
+    assert use.text_content().endswith(" degC under What if")
+    use.click()
+    page.wait_for_function(f"{boxes}[0] !== {before[0]}")
+    after = page.evaluate(boxes)
+    assert after[0] == pytest.approx(solved, rel=1e-3)
+    assert after[1:] == before[1:], "the other factors stay where What if had them"
+
+
+def test_the_report_holds_what_the_targets_and_the_windows_gave(studied):
+    page = studied
+    aim(page, "Yield", "62")
+    page.wait_for_selector("#solve-out button[data-value]")
+    reveal(page, "#window")
+    window(page, "Yield", "low", "60")
+    page.wait_for_selector("#window-chart .js-plotly-plot")
+    _, html = download_report(page)
+    report = opened(page, html)
+    asked = ["Settings that give a target", "Settings that meet a specification"]
+    assert [heading for heading in headings(report) if heading in asked] == asked
+    assert headings(report)[-2:] == ["The next step", "The Python code"], "after them, as on the page"
+    target, specification = (report.locator(f"section:has(> h2:text-is('{heading}'))") for heading in asked)
+    assert target.locator("p").first.text_content() == "These settings give the target, by the models."
+    assert target.locator("table").count() == 2, "each factor's setting, and each response there beside its target"
+    assert target.locator("h3").all_text_contents()[-1] == "One factor from the others"
+    assert " gives Yield 62%, by the model." in target.text_content()
+    assert specification.locator("p").first.text_content() == page.text_content("#window-out .lead")
+    for section in (target, specification):
+        assert section.locator("figure img").count() == 1, "its chart, as an image"
+    assert report.locator("button, input, select, script").count() == 0, "nothing to use, only to read"

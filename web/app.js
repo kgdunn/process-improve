@@ -3282,7 +3282,7 @@ async function learnSections() {
 
 /**
  * The sections a report ends with, after the analysis: the balance of the responses, the settings kept with the study,
- * the next step and the code.
+ * what the targets and the windows typed gave, the next step and the code.
  */
 async function closingSections() {
   const sections = [];
@@ -3292,6 +3292,13 @@ async function closingSections() {
   }
   if (!$("#what-if").hidden && !$("#what-if-kept").hidden) {
     sections.push({ heading: $("#h-what-if-kept").textContent, html: reportCopy($("#what-if-kept-list")) });
+  }
+  // What Learn was asked, with what it answered: the sentences name the targets and the windows themselves.
+  for (const [id, asked] of [["target", state.target], ["window", state.window]]) {
+    if ($(`#${id}`).hidden || !asked.found) continue;
+    const html = [reportCopy($(`#${id}-out`)), chartsHtml(await chartsWithin($(`#${id}`)))];
+    if (id === "target" && !$("#target-solve").hidden) html.push(`<h3>${$("#target-solve h4").textContent}</h3>`, reportCopy($("#solve-out")));
+    sections.push({ heading: $(`#h-${id}`).textContent, html: html.join("\n") });
   }
   if (!$("#next").hidden) sections.push({ heading: $("#h-next").textContent, html: reportCopy($("#next-out")) });
   const code = cumulative(...REPORT_STEPS.map((step) => stepCode[step]).filter(Boolean));
@@ -6053,14 +6060,23 @@ function targetPairChanged() {
 /** The settings found, by each factor's name, as the what-if panel holds settings. */
 const foundSettings = () => Object.fromEntries(state.target.found.settings.map((s) => [s.name, s.value]));
 
-/** Move the what-if panel to the settings found, and go to it. */
-function targetToWhatIf() {
+/** Move the what-if panel to these settings, when they are settings of its factors, and go to it. */
+function toWhatIf(settings) {
   const w = state.whatIf;
-  if (!state.target.found || !w || !settingsFit(w.factors, foundSettings())) return;
-  w.settings = foundSettings();
+  if (!settings || !w || !settingsFit(w.factors, settings)) return;
+  w.settings = { ...settings };
   renderWhatIf();
   checkWhatIfLimits();
   $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Move the what-if panel to the settings found. */
+const targetToWhatIf = () => toWhatIf(state.target.found && foundSettings());
+
+/** Set the factor solved for where the reader pressed, under What if: the other factors are there already. */
+function solvedToWhatIf(e) {
+  const value = e.target.closest("button[data-value]")?.dataset.value;
+  if (value !== undefined && state.whatIf) toWhatIf({ ...state.whatIf.settings, [$("#solve-factor").value]: Number(value) });
 }
 
 /** Solve for one factor a moment after the what-if panel's settings last moved. */
@@ -6099,7 +6115,15 @@ async function solveFactor() {
   const others = Object.fromEntries(Object.entries(w.settings).filter(([name]) => name !== factor));
   const { label, units: responseUnits } = wordsOf(response);
   const words = { held: settingsWords(w.factors, others, units), units: units[factor], label, responseUnits };
-  $("#solve-out").replaceChildren(...solveSentences(reply.result, words).map((text) => said("", text)));
+  const sentences = solveSentences(reply.result, words).map((text) => said("", text));
+  // Each setting that gives the target can be set under What if, to see every response there.
+  reply.result.solutions.forEach((solution, place) => {
+    const use = el("button", "link", `Set ${factor} to ${withUnit(solution.value, units[factor])} under What if`);
+    use.type = "button";
+    use.dataset.value = solution.value;
+    sentences[place].append(" ", use);
+  });
+  $("#solve-out").replaceChildren(...sentences);
 }
 
 // ---------------------------------------------------------------- the settings that meet a specification
@@ -6279,15 +6303,7 @@ function windowPairChanged() {
 }
 
 /** Move the what-if panel to the settings at which a new run is surest to meet the windows, and go to it. */
-function windowToWhatIf() {
-  const w = state.whatIf;
-  const surest = state.window.found?.surest;
-  if (!surest || !w || !settingsFit(w.factors, surest.settings)) return;
-  w.settings = { ...surest.settings };
-  renderWhatIf();
-  checkWhatIfLimits();
-  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
-}
+const windowToWhatIf = () => toWhatIf(state.window.found?.surest?.settings);
 
 // ---------------------------------------------------------------- the next step
 // What the analysis points to next: a new study whose ranges move the way the best settings point (best.js), and the
@@ -7859,6 +7875,7 @@ for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("chang
 $("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
 $("#target-what-if").addEventListener("click", targetToWhatIf);
 for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
+$("#solve-out").addEventListener("click", solvedToWhatIf);
 $("#window-limits").addEventListener("input", windowTyped);
 $("#window-clear").addEventListener("click", windowCleared);
 for (const id of ["#window-across", "#window-up"]) $(id).addEventListener("change", windowPairChanged);
@@ -7994,6 +8011,8 @@ function showPart(id) {
   const acts = ["pointerdown", "keydown", "wheel", "touchstart"];
   for (const act of acts) window.addEventListener(act, leave, { once: true, capture: true, passive: true });
   const started = Date.now();
+  // A part above the page's reading level is shown all the same, for this visit: the link asked for it.
+  for (let at = part; at; at = at.parentElement) if (at.dataset.level) at.classList.add("asked");
   // Shown once nothing between it and its step is hidden: the step itself is shown here.
   const there = () => {
     for (let at = part; at && !at.dataset.pane; at = at.parentElement) if (at.hidden) return false;

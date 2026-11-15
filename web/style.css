@@ -1958,10 +1958,11 @@ main.map section.map-how { margin: 6px 0 0; display: grid; gap: 10px; }
 }
 
 /* The reading level (levels.js). A part of the page tagged with a level is shown from that level up; a part the
-   study on the page uses (.in-use) is shown at every level, so a study never loses what it was made with. */
-:root[data-level="1"] [data-level="2"]:not(.in-use),
-:root[data-level="1"] [data-level="3"]:not(.in-use),
-:root[data-level="2"] [data-level="3"]:not(.in-use) { display: none !important; }
+   study on the page uses (.in-use) is shown at every level, so a study never loses what it was made with; so is a
+   part a link asked to be shown (.asked), which would else open the page on nothing. */
+:root[data-level="1"] [data-level="2"]:not(.in-use, .asked),
+:root[data-level="1"] [data-level="3"]:not(.in-use, .asked),
+:root[data-level="2"] [data-level="3"]:not(.in-use, .asked) { display: none !important; }
 /* The part of the page a link asked to be shown (?show=): outlined for a moment, so the reader sees where they are. */
 .shown-part { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
 .level-switch { border: 0; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
