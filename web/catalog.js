@@ -6,7 +6,7 @@
 // index.html, so the page works wherever the app is served from.
 
 import { LINK_KEY, packCampaign, tabOf } from "./campaign.js";
-import { correlationFigure, draw, fdsFigure, palette } from "./charts.js";
+import { correlationFigure, draw, fdsFigure } from "./charts.js";
 import {
   COMPARED_FACTORS,
   DEFAULT_STATE,
@@ -17,6 +17,7 @@ import {
   OTHER_COLOUR,
   SORTS,
   applicationLine,
+  bandRuns,
   caseFacts,
   applications,
   checkIndex,
@@ -38,7 +39,6 @@ import {
   limitInUnits,
   limitLine,
   limitOutcome,
-  minimumRuns,
   nextSteps,
   parseLimit,
   labelOf,
@@ -49,10 +49,13 @@ import {
   projectionLines,
   pythonCode,
   results,
+  rowFactors,
   runLossLine,
   sameDesigns,
   settingColour,
   sharedModel,
+  sizeMap,
+  sizeSentence,
   sourceLine,
   switchCount,
   toHash,
@@ -63,7 +66,7 @@ import {
   whereParts,
   yearBins,
 } from "./catalog-logic.js";
-import { compareTable, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
+import { compareTable, drawSizeMap, drawTimeline, element, errataTable, projectionExplorer, table } from "./catalog-views.js";
 import { closeOnBackdrop } from "./dialogs.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -76,8 +79,6 @@ const app = (path) => new URL(path, import.meta.url).href;
 const PAGE = 48;
 /** The most places a design's detail lists where the same design is printed or made. */
 const TWINS_SHOWN = 15;
-/** The most factors the map draws: a design with more is in the list, and the map says how many. */
-const MAP_FACTORS = 16;
 /** How many errata the table shows at first. */
 const ERRATA_SHOWN = 200;
 /** How many applications the filter lists at first, those of the most designs; the rest are a click away. */
@@ -86,10 +87,14 @@ const TOPICS_SHOWN = 8;
 let catalog = null;
 let state = structuredClone({ ...DEFAULT_STATE });
 let shown = PAGE;
-let plotlyVersion = null;
 /** Resolves to the Plotly.js version once the app's manifest is read, or to null when it cannot be. */
 let plotlyReady = Promise.resolve(null);
-let mapWired = false;
+/** The rows of the map opened into their families, what a cell's colour says, and the width the map is drawn at. */
+const openedRows = new Set();
+let mapShade = "model";
+let mapWidth = 0;
+/** The family a mark of the map keeps in the list: it goes when another size is kept, or the map is reset. */
+let mapFamily = null;
 let errata = null;
 const shards = new Map();
 /** The limit whose outcome each design carries now (limit_outside), and the outcomes by design. */
@@ -355,7 +360,10 @@ function render() {
   renderTimeline();
   renderList(list);
   renderTray();
-  drawMap(list);
+  renderMap();
+  const said = sizeSentence(catalog, state, list.length);
+  $("#map-said").hidden = !said;
+  $("#map-said-text").textContent = said ?? "";
 }
 
 function update({ keepPage = false } = {}) {
@@ -585,158 +593,131 @@ async function openErrata() {
 }
 
 // ---------------------------------------------------------------- the map
-/** A design's place across, nudged by a fixed amount of its own, so designs of one size do not sit on one point. */
-function nudge(id) {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 9973;
-  return (h / 9973 - 0.5) * 0.56;
-}
+/** A button, a cell or a mark of the map, as the selector that finds it again once the map is drawn anew. */
+const mapKey = (node) => Object.entries(node.dataset).map(([name, value]) => `[data-${name}="${value}"]`).join("");
 
-function mapFigure(list) {
-  const colours = palette();
-  const placed = (d) => d.n_runs && d.n_factors;
-  const everyone = catalog.designs.filter((d) => placed(d) && (state.collection === "both" || d.collection === state.collection));
-  const kept = list.filter(placed);
-  const most = MAP_FACTORS;
-  const beyond = kept.filter((d) => d.n_factors > most).length;
-  const background = {
-    type: "scatter",
-    mode: "markers",
-    name: "Filtered out",
-    x: everyone.map((d) => Math.min(d.n_factors, most + 0.5) + nudge(d.id)),
-    y: everyone.map((d) => d.n_runs),
-    marker: { size: 5, color: colours.line },
-    hoverinfo: "skip",
-    showlegend: false,
-  };
-  const byFamily = new Map();
-  for (const d of kept) byFamily.set(d.family, [...(byFamily.get(d.family) ?? []), d]);
-  const marks = [...byFamily].map(([family, designs]) => ({
-    type: "scatter",
-    mode: "markers",
-    name: catalog.families[family]?.label ?? family,
-    x: designs.map((d) => d.n_factors + nudge(d.id)),
-    y: designs.map((d) => d.n_runs),
-    customdata: designs.map((d) => d.id),
-    text: designs.map((d) => `${d.title}<br>${factLine(d, catalog)}`),
-    hovertemplate: "%{text}<extra></extra>",
-    showlegend: false,
-    marker: {
-      size: 9,
-      color: FAMILY_COLOURS[family] ?? OTHER_COLOUR,
-      symbol: designs.map((d) => (d.collection === "generated" ? "diamond-open" : d.has_responses ? "circle" : "circle-open")),
-      line: { width: 1.6, color: FAMILY_COLOURS[family] ?? OTHER_COLOUR },
-    },
-  }));
-  const ks = Array.from({ length: most }, (_, i) => i + 1);
-  const dashes = { main_effects: "dot", interactions: "dash", quadratic: "solid" };
-  // The legend lists the lines in one column, so each name adds to the one above it: short enough for a phone.
-  const names = { main_effects: "Fewest runs: main effects", interactions: "+ two-factor interactions", quadratic: "+ quadratic terms" };
-  const lines = Object.keys(MODELS).map((model) => ({
-    type: "scatter",
-    mode: "lines",
-    name: names[model],
-    legendgroup: "lines",
-    x: ks,
-    y: ks.map((k) => minimumRuns(k, model)),
-    line: { color: colours.muted, width: 1.2, dash: dashes[model], shape: "spline" },
-    hoverinfo: "skip",
-  }));
-  const key = (name, symbol) => ({
-    type: "scatter",
-    mode: "markers",
-    name,
-    legendgroup: "marks",
-    x: [null],
-    y: [null],
-    marker: { size: 9, symbol, color: colours.muted, line: { width: 1.6, color: colours.muted } },
-    hoverinfo: "skip",
-  });
-  const keys = [key("Printed with results", "circle"), key("Published design", "circle-open"), key("Generated", "diamond-open")];
-  const note = beyond
-    ? [{ text: `${beyond} with more than ${most} factors: in the list`, xref: "paper", yref: "paper", x: 1, y: 0.02, xanchor: "right", yanchor: "bottom", showarrow: false, font: { size: 11, color: colours.muted } }]
-    : [];
-  return {
-    data: [background, ...lines, ...keys, ...marks],
-    layout: {
-      dragmode: "select",
-      hovermode: "closest",
-      xaxis: { title: { text: "Factors" }, dtick: 1, range: [0.4, most + 0.6] },
-      yaxis: { title: { text: "Runs" }, type: "log", tickvals: [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024] },
-      // At the foot of the figure, where it meets no axis title however short the plot: the lines in one column and
-      // the marks in the next, side by side where both fit (a phone 400 px wide, with these letters), or one over the
-      // other. A press on a name still shows or hides that one line.
-      legend: { orientation: "h", yref: "container", y: 0, yanchor: "bottom", font: { size: 11 }, tracegroupgap: 0, groupclick: "toggleitem" },
-      margin: { t: 8 },
-      annotations: note,
-    },
-  };
-}
-
-function drawMap(list) {
-  if (!plotlyVersion) return;
-  const div = $("#map");
-  draw(div, () => mapFigure(list), plotlyVersion, 380).then(() => {
-    if (mapWired || !div.on) return;
-    mapWired = true;
-    div.on("plotly_click", (event) => {
-      const id = event?.points?.[0]?.customdata;
-      if (id) openDetail(id);
-    });
-    div.on("plotly_selected", (event) => {
-      const points = (event?.points ?? []).filter((p) => p.customdata);
-      if (!points.length) return;
-      const chosen = points.map((p) => catalog.designs.find((d) => d.id === p.customdata));
-      const span = (key) => [Math.min(...chosen.map((d) => d[key])), Math.max(...chosen.map((d) => d[key]))];
-      state.factors = span("n_factors");
-      state.runs = span("n_runs");
-      writeForm();
-      update();
-    });
-    // A double click clears the box Plotly drew; the runs and factors it kept go with it.
-    div.on("plotly_deselect", () => {
-      if ([...state.factors, ...state.runs].every((v) => v === null)) return;
-      state.factors = [null, null];
-      state.runs = [null, null];
-      writeForm();
-      update();
-    });
-  });
+/**
+ * Draw the map of the designs by their factors and runs, at the width it has; ``moved`` is the row just opened
+ * or shut. What held the keyboard's focus holds it again in the new drawing.
+ */
+function renderMap(moved = null) {
+  const holder = $("#map");
+  mapWidth = holder.clientWidth;
+  if (!mapWidth) return; // not on show: it is drawn when it has a width (wireMap)
+  const held = holder.contains(document.activeElement) ? mapKey(document.activeElement) : "";
+  drawSizeMap(holder, sizeMap(catalog, state), { opened: openedRows, shade: mapShade, moved });
+  if (held) $(held, holder)?.focus({ preventScroll: true });
 }
 
 /**
- * Put the map back as it opened: no box drawn, the whole range in view, and no filter on runs or factors.
- * Plotly keeps a drawn box and a zoom across redraws, so the map is drawn again from nothing.
+ * Keep the designs of one size in the list, and of one family when a mark names it: the designs under the
+ * mark. A second press on what is kept shows every size again.
  */
-function resetMap() {
-  clearMap();
-  state.factors = [null, null];
-  state.runs = [null, null];
+function keepSize(factors, runs, family = null) {
+  const kept = String([state.factors, state.runs]) === String([factors, runs]) && family === mapFamily;
+  state.families = state.families.filter((f) => f !== mapFamily);
+  mapFamily = kept ? null : family;
+  if (mapFamily) state.families = [mapFamily];
+  state.factors = kept ? [null, null] : factors;
+  state.runs = kept ? [null, null] : runs;
   writeForm();
   update();
 }
 
-/** Drop the map's drawing, with any box and zoom on it, so the next render draws it afresh. */
-function clearMap() {
-  const div = $("#map");
-  if (!window.Plotly || !div.data) return;
-  window.Plotly.purge(div);
-  mapWired = false;
+/** Put the map back as it opens: every row shut, and no size or family of its own kept. */
+function resetMap() {
+  openedRows.clear();
+  keepSize([null, null], [null, null]);
 }
 
-function startMap() {
+/** The map's nearest button, cell or mark in the direction of an arrow key, from the one that has the focus. */
+function mapNeighbour(from, [across, down]) {
+  const centre = (node) => {
+    const box = node.getBoundingClientRect();
+    return [box.left + box.width / 2, box.top + box.height / 2];
+  };
+  const [x0, y0] = centre(from);
+  let nearest = null;
+  let least = Infinity;
+  for (const node of $$("[role=button]", $("#map"))) {
+    const [x, y] = centre(node);
+    const along = (x - x0) * across + (y - y0) * down;
+    const aside = Math.abs((x - x0) * down) + Math.abs((y - y0) * across);
+    // The next one in the same row or column, however far; with none, the nearest row or column ahead, and in
+    // it the one least off to the side.
+    const far = aside <= 12 ? along : 1e6 + 1000 * along + aside;
+    if (node !== from && along > 1 && far < least) [nearest, least] = [node, far];
+  }
+  return nearest;
+}
+
+const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+/**
+ * Let a reader use the map: a row's number opens the row into its families, or shuts it; a cell keeps the
+ * designs of its factors and its band of runs; a mark keeps those of its factors and its run size. A press
+ * beside a mark, in its lane, counts as one on the nearest. The arrow keys move between them all.
+ */
+function wireMap() {
+  const holder = $("#map");
+  const press = (target, clientX) => {
+    let button = target.closest("[role=button]");
+    const lane = target.closest(".sizemap__lane");
+    if (lane) {
+      const at = clientX - holder.getBoundingClientRect().left;
+      const away = (mark) => Math.abs(Number(mark.getAttribute("cx")) - at);
+      const marks = $$(`.sizemap__mark[data-row="${lane.dataset.row}"][data-lane="${lane.dataset.lane}"]`, holder);
+      button = marks.reduce((best, mark) => (away(mark) < away(best) ? mark : best));
+    }
+    if (!button) return;
+    const { unfold, row, band, runs, family } = button.dataset;
+    if (unfold) {
+      if (!openedRows.delete(Number(unfold))) openedRows.add(Number(unfold));
+      renderMap(Number(unfold));
+    } else {
+      keepSize(rowFactors(Number(row)), runs ? [Number(runs), Number(runs)] : bandRuns(Number(band)), family ?? null);
+    }
+  };
+  holder.addEventListener("click", (event) => press(event.target, event.clientX));
+  holder.addEventListener("keydown", (event) => {
+    const button = event.target.closest("[role=button]");
+    if (!button) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      press(button);
+    } else if (ARROWS[event.key]) {
+      event.preventDefault();
+      mapNeighbour(button, ARROWS[event.key])?.focus();
+    }
+  });
+  for (const choice of $$("[data-shade]")) {
+    choice.addEventListener("click", () => {
+      mapShade = choice.dataset.shade;
+      for (const other of $$("[data-shade]")) other.setAttribute("aria-pressed", String(other === choice));
+      for (const key of $$("[data-key]")) key.hidden = key.dataset.key !== mapShade;
+      renderMap();
+    });
+  }
+  $("#map-reset").addEventListener("click", resetMap);
+  // The designs a press kept are in the list, further down the page: its first one, for the keyboard too.
+  $("#map-list").addEventListener("click", () => {
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    $(".catalog__listhead").scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+    $("#results .result__title")?.focus({ preventScroll: true });
+  });
+  // The map is drawn to the width it has: again when that changes, and first when the page gives it one.
+  new ResizeObserver(() => holder.clientWidth !== mapWidth && renderMap()).observe(holder);
+}
+
+/** Read the version of Plotly.js the app draws its charts with: a design's correlations, and the comparison's curves. */
+function readPlotlyVersion() {
   plotlyReady = fetch(app("wheels/manifest.json"), { cache: "no-cache" })
     .then((res) => res.json())
     .then((manifest) => {
       if (!manifest.plotly_js) throw new Error("no Plotly.js version");
-      plotlyVersion = manifest.plotly_js;
-      return plotlyVersion;
+      return manifest.plotly_js;
     })
     .catch(() => null);
-  plotlyReady.then((version) => {
-    if (version) drawMap(results(catalog, state));
-    else $(".catalog__map").hidden = true; // the list holds every design the map would show
-  });
 }
 
 // ---------------------------------------------------------------- one design
@@ -1129,11 +1110,10 @@ function wire() {
   $("#reset").addEventListener("click", (event) => {
     event.preventDefault();
     state = { ...structuredClone({ ...DEFAULT_STATE }), collection: state.collection, sort: state.sort };
-    clearMap();
     writeForm();
     update();
   });
-  $("#map-reset").addEventListener("click", resetMap);
+  wireMap();
   $("#sort").addEventListener("change", () => {
     state.sort = $("#sort").value;
     update();
@@ -1289,7 +1269,7 @@ async function start() {
   writeForm();
   wire();
   render();
-  startMap();
+  readPlotlyVersion();
   openViews();
 }
 

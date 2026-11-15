@@ -24,7 +24,7 @@ export const COLLECTIONS = ["published", "generated", "both"];
 /** How the list can be ordered. */
 export const SORTS = { default: "Catalogue order", runs: "Fewest runs", factors: "Fewest factors", newest: "Most recent", title: "Title" };
 
-/** The colour of each family on the map: the Okabe-Ito colours first, for the families most designs are in. */
+/** The colour of each family on the timeline: the Okabe-Ito colours first, for the families most designs are in. */
 export const FAMILY_COLOURS = {
   full_factorial: "#0072B2",
   fractional_factorial: "#56B4E9",
@@ -356,6 +356,129 @@ export function familyMarks(catalog, bins) {
     .filter(([, f]) => f.year && f.year >= first && f.year <= last)
     .map(([family, f]) => ({ family, year: f.year, label: f.label }))
     .sort((a, b) => a.year - b.year);
+}
+
+// ---------------------------------------------------------------- the map of factors and runs
+/** The most factors the map gives a row of their own: a design of more is in the row after. */
+export const MAP_ROWS = 12;
+
+/** The largest run size in each column of the map: the last column holds every larger design. */
+export const RUN_BANDS = [4, 8, 12, 16, 24, 32, 64, 128, Infinity];
+
+/** The column of the map a run size is in. */
+export const runBand = (runs) => RUN_BANDS.findIndex((most) => runs <= most);
+
+/** The run sizes of a column, as a filter keeps them: no least in the first, and no most in the last. */
+export const bandRuns = (band) => [band ? RUN_BANDS[band - 1] + 1 : null, Number.isFinite(RUN_BANDS[band]) ? RUN_BANDS[band] : null];
+
+/** The factors of a row of the map, as a filter keeps them: the last row holds every design of more. */
+export const rowFactors = (row) => [row, row > MAP_ROWS ? null : row];
+
+/** The whole numbers a filter keeps, in words: "1 factor", "13 to 16 runs", "up to 4 runs", "13 factors or more"; "" for all of them. */
+function spanWords([least, most], one) {
+  if (least === null && most === null) return "";
+  if (least === most) return `${least} ${one}${least === 1 ? "" : "s"}`;
+  return least === null ? `up to ${most} ${one}s` : most === null ? `${least} ${one}s or more` : `${least} to ${most} ${one}s`;
+}
+
+/** A column of the map, in words: "up to 4 runs", "13 to 16 runs", "129 runs or more". */
+export const bandWords = (band) => spanWords(bandRuns(band), "run");
+
+/** A row of the map, in words: "1 factor", "5 factors", "13 factors or more". */
+export const rowWords = (row) => spanWords(rowFactors(row), "factor");
+
+/**
+ * What the list holds once a size is kept, by the map or by the filters beside the list: "19 listed: Fractional
+ * factorial, 5 factors, 16 runs." Null when no size is kept: the map then says nothing under itself.
+ */
+export function sizeSentence(catalog, state, count) {
+  const { factors, runs, families } = filtersOf(state);
+  const size = [spanWords(factors, "factor"), spanWords(runs, "run")].filter(Boolean);
+  if (!size.length) return null;
+  return `${count} listed: ${[...families.map((f) => catalog.families?.[f]?.label ?? f), ...size].join(", ")}.`;
+}
+
+/** What the designs of each step of the map's colours estimate, in words. */
+export const STEP_WORDS = ["none of these models, or none is stated", "the main effects", "the main effects and the two-factor interactions", "the full quadratic"];
+
+/**
+ * Where a run size sits across the map, in columns from its left edge: each size has a place of its own in
+ * its band, so the marks of a band are not all on one point. Past the last band's first size, a doubling of
+ * the runs is a fifth of a column.
+ */
+export function bandPlace(runs) {
+  const band = runBand(runs);
+  const least = band ? RUN_BANDS[band - 1] + 1 : 1;
+  const most = RUN_BANDS[band];
+  const within = Number.isFinite(most) ? (runs - least + 0.5) / (most - least + 1) : Math.min(0.9, 0.1 + 0.2 * Math.log2(runs / least));
+  return band + within;
+}
+
+/** What a design estimates, as a step of the map's colours: 3 the full quadratic, 2 interactions, 1 main effects, 0 none or not stated. */
+export const modelStep = (design) => ["main_effects", "interactions", "quadratic"].indexOf(largestModel(design.models)) + 1;
+
+/** The step most of these designs are at; of two steps as common, the higher. */
+const commonStep = (designs) => {
+  const counts = [0, 0, 0, 0];
+  for (const d of designs) counts[modelStep(d)] += 1;
+  return counts.lastIndexOf(Math.max(...counts));
+};
+
+/** The items of a list by what ``key`` gives for each, in the order first met. */
+function grouped(list, key) {
+  const groups = new Map();
+  for (const item of list) groups.set(key(item), [...(groups.get(key(item)) ?? []), item]);
+  return groups;
+}
+
+/** The run size of a family's middle design: the families of small designs come first. */
+const middleRuns = (designs) => designs.map((d) => d.n_runs).sort((a, b) => a - b)[Math.floor(designs.length / 2)];
+
+/**
+ * A row of the map opened into its families: a lane for each, the families of small designs first and "other"
+ * last, with a mark for each run size. A mark says how many designs it holds, what most of them estimate, and
+ * how many are in the list.
+ */
+function familyLanes(designs, listed, catalog) {
+  const byFamily = grouped(designs, (d) => d.family);
+  const order = [...byFamily.keys()].sort((a, b) => (a === "other") - (b === "other") || middleRuns(byFamily.get(a)) - middleRuns(byFamily.get(b)) || a.localeCompare(b));
+  return order.map((family) => ({
+    family,
+    label: catalog.families?.[family]?.label ?? family,
+    count: byFamily.get(family).length,
+    marks: [...grouped(byFamily.get(family), (d) => d.n_runs)]
+      .map(([runs, same]) => ({ runs, count: same.length, step: commonStep(same), listed: same.filter((d) => listed.has(d)).length }))
+      .sort((a, b) => a.runs - b.runs),
+  }));
+}
+
+/**
+ * The map of the designs by their factors and runs: a row for each number of factors, and in it a cell for
+ * each band of runs. It counts with every filter as it is but the three it shows, the runs, the factors and the
+ * families, as the timeline counts with every filter but the years: a reader sees what the other sizes and
+ * families hold. A cell says how many designs it holds, what most of them estimate, and how many are in the
+ * list; a row names the fewest runs the main effects and the full quadratic need, and holds its families' lanes.
+ */
+export function sizeMap(catalog, state) {
+  const filters = filtersOf(state);
+  const shown = { ...filters, runs: [null, null], factors: [null, null], families: [] };
+  const placed = catalog.designs.filter((d) => d.n_runs && d.n_factors && passes(d, shown, catalog));
+  const kept = (d) => between(d.n_runs, filters.runs) && between(d.n_factors, filters.factors) && (!filters.families.length || filters.families.includes(d.family));
+  const listed = new Set(placed.filter(kept));
+  return Array.from({ length: MAP_ROWS + 1 }, (_, i) => {
+    const row = i + 1;
+    const designs = placed.filter((d) => Math.min(d.n_factors, MAP_ROWS + 1) === row);
+    return {
+      row,
+      count: designs.length,
+      fewest: [minimumRuns(row, "main_effects"), minimumRuns(row, "quadratic")],
+      cells: RUN_BANDS.map((_, band) => {
+        const inside = designs.filter((d) => runBand(d.n_runs) === band);
+        return { count: inside.length, step: inside.length ? commonStep(inside) : 0, listed: inside.filter((d) => listed.has(d)).length };
+      }),
+      lanes: familyLanes(designs, listed, catalog),
+    };
+  });
 }
 
 // ---------------------------------------------------------------- the address

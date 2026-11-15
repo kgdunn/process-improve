@@ -170,10 +170,32 @@
 
     <div class="catalog__main">
       <figure class="catalog__map">
-        <div id="map" aria-hidden="true" aria-label="Designs by factors and runs"></div>
-        <figcaption class="hint">Each mark is a design, placed by its factors and runs. The lines are the fewest
-          runs each model needs: a design below a line cannot estimate that model. Click a mark to open its
-          design<span class="map__box">, or drag a box to filter</span>. <button type="button" class="link map__reset" id="map-reset">Reset the map</button></figcaption>
+        <div class="sizemap__tools">
+          <span class="views" role="group" aria-label="Colour the cells by">
+            <button type="button" data-shade="model" aria-pressed="true">What they estimate</button>
+            <button type="button" data-shade="count" aria-pressed="false">How many</button>
+          </span>
+          <button type="button" class="link map__reset" id="map-reset">Reset the map</button>
+        </div>
+        <ul class="sizemap__key" aria-label="What the map's colours and lines say">
+          <li data-key="model">Most designs of a cell estimate:</li>
+          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-0" x="1" y="1" width="10" height="10" rx="2"></rect></svg>none of these, or none is stated</li>
+          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-2" width="12" height="12" rx="2"></rect></svg>main effects</li>
+          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-3" width="12" height="12" rx="2"></rect></svg>+ two-factor interactions</li>
+          <li data-key="model"><svg viewBox="0 0 12 12" aria-hidden="true"><rect class="fill-4" width="12" height="12" rx="2"></rect></svg>the full quadratic</li>
+          <li data-key="count" hidden><svg class="sizemap__ramp" viewBox="0 0 48 12" aria-hidden="true"><rect class="fill-1" width="12" height="12"></rect><rect class="fill-2" x="12" width="12" height="12"></rect><rect class="fill-3" x="24" width="12" height="12"></rect><rect class="fill-4" x="36" width="12" height="12"></rect></svg>1 to 4, 5 to 19, 20 to 49, and 50 or more designs</li>
+          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line sizemap__line--main" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest runs for the main effects</li>
+          <li><svg class="sizemap__stroke" viewBox="0 0 26 8" aria-hidden="true"><line class="sizemap__line" x1="2" x2="24" y1="4" y2="4"></line></svg>fewest runs for the full quadratic</li>
+        </ul>
+        <div id="map" class="sizemap" role="group" aria-label="Designs by factors and runs"></div>
+        <p class="sizemap__said" id="map-said" hidden><span id="map-said-text" role="status"></span>
+          <button type="button" class="link" id="map-list">See them in the list</button></p>
+        <figcaption class="hint">A row is a number of factors, and a column a band of runs, named by its largest
+          size. A cell counts its designs; a pale one has none in the list. Press a row's number to open the row
+          into its families, where a mark is one run size. Press a cell or a mark to list its designs below, each
+          with its details and a button that opens it in Factorial. A design left of a line has too few runs for
+          that model; one right of it has enough, and may still not estimate it. The arrow keys move between the
+          cells.</figcaption>
       </figure>
       <figure class="catalog__timeline">
         <svg id="year-bars" class="timeline" role="group" aria-label="Published designs by the year their source appeared"></svg>

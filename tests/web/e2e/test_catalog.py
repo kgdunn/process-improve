@@ -15,7 +15,6 @@ import pytest
 
 from tests.web._support import BLOCKED_DESIGN, BOOK_DESIGN, CATALOG_SAMPLE, PAIRED_DESIGN
 from tests.web.e2e._page import headers, run_sheet, settled
-from tests.web.e2e.test_figure_window import SHOWN as WINDOW_SHOWN
 
 PILOT, COMPARISON, CCD, OMARS, CUBE = CATALOG_SAMPLE
 
@@ -410,106 +409,209 @@ def test_a_generated_design_opens_in_factorial_ready_to_run(context, site):
     assert len(run_sheet(page)) == 17
 
 
-def test_the_map_draws_a_mark_for_every_design_listed(context, site):
+#: What each cell of the map says of itself: its factors, its band of runs, how many designs, what most estimate.
+CELLS = "(cells) => cells.map((cell) => cell.getAttribute('aria-label'))"
+
+
+def open_map(context, site: str) -> object:
+    """Open the catalog, and wait until its map is drawn."""
     page = open_catalog(context, site)
-    page.wait_for_selector("#map .scatterlayer")
-    marks = page.evaluate(
-        "document.querySelector('#map').data.filter((t) => t.customdata).flatMap((t) => t.customdata).sort()"
-    )
-    assert marks == sorted(CATALOG_SAMPLE)
+    page.wait_for_selector("#map .sizemap__cell")
+    return page
 
 
-def _drag_a_box(page, factors: tuple[float, float], runs: tuple[float, float]) -> None:
-    """Drag a box on the map over a span of factors and runs, as a reader does with the mouse."""
-    page.locator("#map").scroll_into_view_if_needed()  # the mouse reaches only what is in the window
-    corners = page.evaluate(
-        """([factors, runs]) => {
-          const div = document.querySelector('#map');
-          const { xaxis, yaxis } = div._fullLayout;
-          const area = div.querySelector('.nsewdrag').getBoundingClientRect();
-          const at = (k, n) => [area.left + xaxis.l2p(k), area.top + yaxis.l2p(Math.log10(n))];
-          return [at(factors[0], runs[0]), at(factors[1], runs[1])];
-        }""",
-        [list(factors), list(runs)],
-    )
-    page.mouse.move(*corners[0])
-    page.mouse.down()
-    page.mouse.move(*corners[1], steps=8)
-    page.mouse.up()
+def cell(row: int, band: int) -> str:
+    """Return the selector of the map's cell in a row of factors and a band of runs, both counted as the map does."""
+    return f"#map .sizemap__cell[data-row='{row}'][data-band='{band}']"
 
 
-BOXES = "document.querySelector('#map')._fullLayout.selections?.length ?? 0"
+def test_the_map_counts_every_design_in_the_cell_of_its_factors_and_runs(context, site):
+    page = open_map(context, site)
+    assert page.locator("#map .sizemap__cell").evaluate_all(CELLS) == [
+        "1 factor, 17 to 24 runs: 1 design. Most estimate the main effects. Press to list it.",
+        (
+            "3 factors, 5 to 8 runs: 2 designs. Most estimate the main effects and the two-factor interactions. "
+            "Press to list them."
+        ),
+        "3 factors, 17 to 24 runs: 1 design. Most estimate the full quadratic. Press to list it.",
+        "4 factors, 9 to 12 runs: 1 design. Most estimate the main effects. Press to list it.",
+    ]
+    assert page.locator("#map .sizemap__count").all_text_contents() == ["1", "2", "1", "1"]
+    assert page.locator("#map [data-unfold]").count() == 13, "a row for 1 to 12 factors, and one for more"
+    lines = page.locator("#map path.sizemap__line:not(.sizemap__line--under)")
+    assert lines.count() == 2, "the fewest runs for the main effects, and for the full quadratic"
+    assert page.locator("#map .sizemap__name").all_text_contents() == ["main effects", "full quadratic"]
 
 
-def test_a_box_on_the_map_filters_and_the_reset_puts_the_map_back(context, site):
-    page = open_catalog(context, site)
-    page.wait_for_selector("#map .scatterlayer")
-    assert page.is_visible(".map__box"), "with a mouse, the caption says a box filters"
-    _drag_a_box(page, (2.5, 3.5), (4, 64))
-    counted(page, "3 of 5")
-    assert set(shown(page)) == {PILOT, CCD, CUBE}, "the designs of 3 factors"
-    page.wait_for_timeout(500)
-    assert page.text_content("#count").startswith("3 of 5"), "the map's redraw keeps the filter"
+def test_a_cell_of_the_map_lists_its_designs_and_a_second_press_or_the_reset_lists_them_all(context, site):
+    page = open_map(context, site)
+    page.click(cell(3, 1))
+    counted(page, "2 of 5")
+    assert set(shown(page)) == {PILOT, CUBE}, "the designs of 3 factors in 5 to 8 runs"
+    assert "runs=5-8" in page.url, "the address keeps the cell"
+    assert "k=3-3" in page.url
+    assert [page.input_value(f"#{box}") for box in ("factors-min", "factors-max", "runs-min", "runs-max")] == [
+        "3",
+        "3",
+        "5",
+        "8",
+    ], "and the filters beside the list say it"
+    assert page.locator("#map .sizemap__cell").count() == 4, "the other cells are still counted"
+    assert page.locator("#map .sizemap__cell.out").count() == 3, "and pale: none of theirs is in the list"
+    page.click(cell(3, 1))
+    counted(page, "5 of 5")
+    assert page.locator("#map .sizemap__cell.out").count() == 0
+
+    page.click(cell(4, 2))
+    counted(page, "1 of 5")
+    assert shown(page) == [OMARS]
     page.click("#map-reset")
     counted(page, "5 of 5")
-    assert "runs=" not in page.url, "the address loses the box's filter"
+    assert "runs=" not in page.url, "the address loses the cell"
     assert "k=" not in page.url
 
 
-def test_a_box_around_no_design_stays_drawn_until_the_map_is_reset(context, site):
-    """A box that catches no design filters nothing, and Plotly leaves it on the map: the reset takes it away."""
-    page = open_catalog(context, site)
-    page.wait_for_selector("#map .scatterlayer")
-    _drag_a_box(page, (5.5, 6.5), (100, 400))
-    page.wait_for_function(f"({BOXES}) === 1")
-    assert page.text_content("#count").startswith("5 of 5")
+def test_a_row_of_the_map_opens_into_its_families_and_a_mark_lists_its_size(context, site):
+    page = open_map(context, site)
+    row = page.locator("#map [data-unfold='3']")
+    assert row.get_attribute("aria-expanded") == "false", "every row is shut at first"
+    assert page.locator("#map .sizemap__mark").count() == 0
+    row.click()
+    assert page.locator("#map [data-unfold='3']").get_attribute("aria-expanded") == "true"
+    assert page.locator("#map .sizemap__family").all_text_contents() == ["Full factorial · 2", "Central composite · 1"]
+    marks = page.locator("#map .sizemap__mark").evaluate_all(CELLS)
+    assert marks == [
+        (
+            "8 runs, Full factorial: 2 designs of 3 factors. Most estimate the main effects and the two-factor "
+            "interactions. Press to list them."
+        ),
+        "17 runs, Central composite: 1 design of 3 factors. It estimates the full quadratic. Press to list it.",
+    ]
+    assert page.locator("#map .sizemap__fewest").all_text_contents() == ["4", "10"], "the fewest runs, by the lines"
+    assert page.text_content("#count").startswith("5 of 5"), "opening a row filters nothing"
+
+    page.click("#map .sizemap__mark[data-runs='17']")
+    counted(page, "1 of 5")
+    assert shown(page) == [CCD], "the design under the mark"
+    assert "runs=17-17" in page.url
+    assert "fam=ccd" in page.url, "its family too: a mark is one family's designs of one size"
+    assert page.locator("#map [data-unfold='3']").get_attribute("aria-expanded") == "true", "the row stays open"
+    assert page.locator("#map .sizemap__family").count() == 2, "and keeps the lanes of its other families"
+    assert page.locator("#map .sizemap__mark.out").count() == 1, "whose marks are pale"
+    # A press beside a mark, in its lane, is one on the nearest: marks of neighbouring sizes are a few pixels apart.
+    page.locator("#map .sizemap__lane[data-row='3'][data-lane='0']").click(position={"x": 4, "y": 4})
+    counted(page, "2 of 5")
+    assert "runs=8-8" in page.url
+    assert "fam=full_factorial" in page.url
+    # A cell after a mark lists every family of the cell: the family went with the mark.
+    page.click(cell(3, 4))
+    counted(page, "1 of 5")
+    assert "fam=" not in page.url
+
+    page.click("#map [data-unfold='3']")
+    assert page.locator("#map .sizemap__mark").count() == 0, "a second press shuts the row"
+    page.click("#map [data-unfold='3']")
     page.click("#map-reset")
-    page.wait_for_function(f"({BOXES}) === 0")
-    assert page.text_content("#count").startswith("5 of 5")
+    counted(page, "5 of 5")
+    assert page.locator("#map [aria-expanded=true]").count() == 0, "the reset shuts every row"
 
 
-def test_in_the_map_s_window_a_drag_zooms_and_leaves_no_box(context, site):
-    """On the card a box filters the list. In the window nothing reads one, and Plotly left it drawn: a drag zooms."""
-    page = open_catalog(context, site)
-    page.wait_for_selector("#map .scatterlayer")
-    page.click(".catalog__map .expand")
-    page.wait_for_function(WINDOW_SHOWN)
-    assert page.text_content("#figure-title") == "Designs by factors and runs"
-    plot = page.locator("dialog.figure .plot")
-    whole = plot.evaluate("(plot) => plot._fullLayout.xaxis.range")
-    area = page.locator("dialog.figure .nsewdrag").bounding_box()
-    page.mouse.move(area["x"] + 0.2 * area["width"], area["y"] + 0.2 * area["height"])
-    page.mouse.down()
-    page.mouse.move(area["x"] + 0.6 * area["width"], area["y"] + 0.8 * area["height"], steps=8)
-    page.mouse.up()
-    page.wait_for_function(
-        "(whole) => document.querySelector('dialog.figure .plot')._fullLayout.xaxis.range[1] < whole[1]", arg=whole
+def test_the_map_says_what_a_press_listed_and_leads_to_the_list_where_a_design_opens(context, site):
+    """The list is a screen or more below the map: the map says what it kept there, with the way down to it."""
+    page = open_map(context, site)
+    assert page.is_hidden("#map-said"), "nothing kept, nothing said"
+    page.click("#map [data-unfold='3']")
+    page.click("#map .sizemap__mark[data-runs='8']")
+    counted(page, "2 of 5")
+    assert page.text_content("#map-said-text") == "2 listed: Full factorial, 3 factors, 8 runs."
+    page.click("#map-list")
+    page.wait_for_function("document.querySelector('.catalog__listhead').getBoundingClientRect().top < innerHeight / 2")
+    first = page.locator("#results .result__title").first
+    assert first.evaluate("(title) => title === document.activeElement"), "the first design listed has the focus"
+    assert set(shown(page)) == {PILOT, CUBE}
+    assert page.locator("#results [data-open]").count() == 2, "each with its button that opens it in Factorial"
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#detail[open]")
+    page.keyboard.press("Escape")
+    page.click("#map-reset")
+    counted(page, "5 of 5")
+    assert page.is_hidden("#map-said")
+    assert "fam=" not in page.url, "the reset takes the mark's family with its size"
+
+
+def test_the_map_s_cells_are_coloured_by_what_they_estimate_or_by_how_many_they_hold(context, site):
+    page = open_map(context, site)
+    fills = "(cells) => cells.map((cell) => [...cell.classList].find((name) => name.startsWith('fill-')))"
+    assert page.get_attribute("[data-shade=model]", "aria-pressed") == "true", "what they estimate, at first"
+    assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-2", "fill-3", "fill-4", "fill-2"]
+    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 5
+    assert page.is_hidden(".sizemap__key [data-key=count]")
+    page.click("[data-shade=count]")
+    assert page.get_attribute("[data-shade=count]", "aria-pressed") == "true"
+    assert page.locator("#map .sizemap__cell").evaluate_all(fills) == ["fill-1"] * 4, "one to four designs each"
+    assert page.is_visible(".sizemap__key [data-key=count]")
+    assert page.locator(".sizemap__key [data-key=model]:visible").count() == 0
+    assert page.locator(".sizemap__key li:visible").count() == 3, "the two lines' key is there for both"
+
+
+def test_the_map_is_used_from_the_keyboard(context, site):
+    """The arrow keys move between the rows' buttons, the cells and the marks; Enter and Space press one."""
+    page = open_map(context, site)
+    focused = "JSON.stringify({ ...document.activeElement.dataset })"
+    page.focus("#map [data-unfold='3']")
+    page.keyboard.press("ArrowRight")
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "band": "1"}, "the row's first cell"
+    page.keyboard.press("Enter")
+    counted(page, "2 of 5")
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "band": "1"}, (
+        "the cell keeps the focus when it is redrawn"
     )
-    assert plot.evaluate("(plot) => plot._fullLayout.selections?.length ?? 0") == 0, "no box is left drawn"
-    assert page.text_content("#count").startswith("5 of 5"), "the list is as it was"
-    names = plot.evaluate("(plot) => plot.data.filter((trace) => trace.mode === 'lines').map((trace) => trace.name)")
-    assert names == ["Fewest runs: main effects", "+ two-factor interactions", "+ quadratic terms"]
+    page.keyboard.press("ArrowRight")
+    assert json.loads(page.evaluate(focused)) == {"row": "3", "band": "4"}
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("ArrowLeft")
+    assert json.loads(page.evaluate(focused)) == {"unfold": "3"}
+    page.keyboard.press("ArrowDown")
+    assert json.loads(page.evaluate(focused)) == {"unfold": "4"}
+    page.keyboard.press("Space")
+    assert page.get_attribute("#map [data-unfold='4']", "aria-expanded") == "true"
+    assert json.loads(page.evaluate(focused)) == {"unfold": "4"}, "the button keeps the focus as its row opens"
+    assert page.locator("#map .sizemap__family").all_text_contents() == ["OMARS · 1"]
+    assert page.locator("#map [data-unfold][tabindex='0']").count() == 13, "Tab stops at each row's button"
+    assert page.locator("#map .sizemap__cell[tabindex='0']").count() == 0, "and the arrows reach the cells"
 
 
-#: Whether a chart's legend begins under its horizontal axis's title: neither is drawn over the other.
-LEGEND_CLEAR = """(plot) => {
-  const box = (part) => plot.querySelector(part).getBoundingClientRect();
-  return box('.legend').top >= box('.g-xtitle').bottom;
-}"""
+def test_a_design_of_more_factors_than_the_map_has_rows_is_in_its_last_row(many_context, site):
+    page = open_map(many_context, site)
+    labels = page.locator("#map .sizemap__cell[data-row='13']").evaluate_all(CELLS)
+    assert labels == [
+        "13 factors or more, 25 to 32 runs: 1 design. Most estimate the main effects. Press to list it.",
+        "13 factors or more, 65 to 128 runs: 1 design. Most estimate the main effects. Press to list it.",
+    ]
+    page.click(cell(13, 5))
+    counted(page, "1 of 7")
+    assert "k=13-" in page.url, "13 factors and more"
+
 
 PHONE = {"viewport": {"width": 390, "height": 844}, "has_touch": True, "is_mobile": True}
 
 
 @pytest.mark.parametrize("context_options", [PHONE])
-def test_on_a_phone_the_map_s_legend_is_clear_of_its_axis_title(context, site):
-    """The legend sat a share of the plot's height under it: on a short plot, that put it over the axis's title."""
-    page = open_catalog(context, site)
-    page.wait_for_selector("#map .scatterlayer")
-    assert page.locator("#map").evaluate(LEGEND_CLEAR)
-    assert page.is_hidden(".map__box"), "under a finger a drag scrolls the page: the caption promises no box"
-    page.click(".catalog__map .expand")
-    page.wait_for_function(WINDOW_SHOWN)
-    assert page.locator("dialog.figure .plot").evaluate(LEGEND_CLEAR)
+def test_on_a_phone_the_map_fits_its_card_and_a_row_opens_under_a_finger(context, site):
+    page = open_map(context, site)
+    fits = """() => {
+      const [map, drawn] = [document.querySelector('#map'), document.querySelector('#map svg')];
+      const widths = [...map.querySelectorAll('.sizemap__cell rect')].map((cell) => cell.getBoundingClientRect().width);
+      return [drawn.getBoundingClientRect().width <= map.clientWidth + 0.5, Math.min(...widths)];
+    }"""
+    fitted, narrowest = page.evaluate(fits)
+    assert fitted, "the map is drawn at the width of its card"
+    assert narrowest >= 24, "and each cell is wide enough for a finger"
+    page.tap("#map [data-unfold='3']")
+    page.wait_for_selector("#map .sizemap__mark")
+    page.tap(cell(3, 4))
+    counted(page, "1 of 5")
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 
 @pytest.mark.parametrize("context_options", [{"viewport": {"width": 390, "height": 844}, "is_mobile": True}])
