@@ -114,8 +114,8 @@ describe("which kept files a later build leaves behind", () => {
 describe("what the footer says of the copy", () => {
   test("a page that opens without a network offers its charts and workbooks, and to remove the copy", () => {
     const words = copyWords("opens");
-    assert.match(words.said, /^Factorial opens on this device without a network/);
-    assert.equal(words.keep, "Keep its charts and workbooks too (about 12 MB)");
+    assert.match(words.said, /^Works offline, except charts and Excel files\. /);
+    assert.equal(words.keep, "Add charts and Excel files (12 MB more)");
     assert.ok(words.remove);
   });
 
@@ -125,7 +125,7 @@ describe("what the footer says of the copy", () => {
 
   test("the whole copy offers nothing more to keep", () => {
     const words = copyWords("whole");
-    assert.match(words.said, /opens and works on this device without a network/);
+    assert.match(words.said, /^Works fully offline\. /);
     assert.deepEqual([words.keep, words.remove], [null, true]);
   });
 
@@ -134,24 +134,37 @@ describe("what the footer says of the copy", () => {
   });
 
   test("a copy says what it takes of the device's storage, where the browser says", () => {
-    assert.equal(copyWords("opens", { size: 170 }).said, "Factorial opens on this device without a network: a copy of it, about 170 MB, is kept here.");
+    assert.equal(copyWords("opens", { size: 170 }).said, "Works offline, except charts and Excel files. Factorial is saved on this device (about 170 MB).");
     assert.equal(
       copyWords("whole", { size: 190 }).said,
-      "Factorial opens and works on this device without a network: a copy of it, about 190 MB, is kept here, with its charts and workbooks.",
+      "Works fully offline. Factorial is saved on this device (about 190 MB).",
     );
-    assert.equal(copyWords("none", { size: 10 }).said, "Factorial keeps no copy of itself on this device.");
+    assert.equal(copyWords("none", { size: 10 }).said, "Needs internet. Factorial is not saved on this device.");
   });
 
   test("a copy that could not be finished says why, and can be tried again or removed", () => {
     const words = copyWords("failed", { reason: "Request failed: numpy.whl" });
-    assert.equal(words.said, "The copy of Factorial on this device is not whole: Request failed: numpy.whl");
+    assert.equal(words.said, "Not fully saved: Request failed: numpy.whl");
     assert.deepEqual([words.keep, words.remove], ["Try again", true]);
+  });
+
+  test("each state says first whether Factorial works without internet here, and each button what it does", () => {
+    const first = (state) => copyWords(state, { reason: "no room left" }).said.split(/(?<=[.:]) /)[0];
+    assert.deepEqual(
+      ["none", "opens", "whole", "failed"].map(first),
+      ["Needs internet.", "Works offline, except charts and Excel files.", "Works fully offline.", "Not fully saved:"],
+    );
+    assert.equal(copyWords("opens").keep, "Add charts and Excel files (12 MB more)");
+    assert.equal(copyWords("none").keep, "Save Factorial for offline use");
+    // The line under the button that removes is shown by the page's style in these states: those that offer it.
+    const states = ["none", "copying", "opens", "keeping", "whole", "failed"];
+    assert.deepEqual(states.filter((state) => copyWords(state).remove), ["opens", "whole", "failed"]);
   });
 
   test("a reader who removed the copy is offered one again", () => {
     assert.deepEqual(copyWords("none"), {
-      said: "Factorial keeps no copy of itself on this device.",
-      keep: "Keep a copy, to open it without a network",
+      said: "Needs internet. Factorial is not saved on this device.",
+      keep: "Save Factorial for offline use",
       remove: false,
     });
   });
@@ -249,9 +262,9 @@ describe("a first visit", () => {
   test("copies what Python started from and the page's own files, and says the page opens without a network", () => {
     assert.deepEqual(browser.caches.held(KEPT).sort(), [...START].sort());
     assert.deepEqual(browser.caches.held(APP).sort(), [...SHELL].sort(), "not the wheel's folder, a reader's report, or a file the server refused");
-    assert.deepEqual(page.seen, ["Factorial opens on this device without a network: a copy of it is kept here."]);
+    assert.deepEqual(page.seen, ["Works offline, except charts and Excel files. Factorial is saved on this device."]);
     assert.deepEqual([page.box.hidden, page.keep.hidden, page.remove.hidden], [false, false, false]);
-    assert.equal(page.keep.textContent, "Keep its charts and workbooks too (about 12 MB)");
+    assert.equal(page.keep.textContent, "Add charts and Excel files (12 MB more)");
   });
 
   test("registers the worker before it copies anything, so no copy is made that no worker could serve", () => {
@@ -270,7 +283,7 @@ describe("a first visit", () => {
 
   test("says what the copy takes of the device's storage, to the nearest ten MB, in a browser that says", async () => {
     const page = await new Browser().visit({ usage: 169_400_000 });
-    assert.equal(page.said.textContent, "Factorial opens on this device without a network: a copy of it, about 170 MB, is kept here.");
+    assert.equal(page.said.textContent, "Works offline, except charts and Excel files. Factorial is saved on this device (about 170 MB).");
   });
 
   test("is followed by visits that copy nothing again", async () => {
@@ -294,28 +307,28 @@ describe("the whole copy", () => {
     await page.keep.onclick();
     assert.deepEqual(browser.downloaded(before).sort(), [...LATER].sort());
     assert.deepEqual(page.seen.slice(1), [
-      "Keeping the charts and the workbooks, about 12 MB...",
-      "Factorial opens and works on this device without a network: a copy of it is kept here, with its charts and workbooks.",
+      "Adding charts and Excel files, about 12 MB...",
+      "Works fully offline. Factorial is saved on this device.",
     ]);
     assert.deepEqual([page.keep.hidden, page.remove.hidden], [true, false]);
   });
 
   test("is what the footer says only while the copy holds every file of it: nothing is taken from a note", async () => {
     await page.keep.onclick();
-    assert.match((await browser.visit()).said.textContent, /^Factorial opens and works/);
+    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /);
     await (await browser.caches.open(KEPT)).delete(PLOTLY);
-    assert.match((await browser.visit()).said.textContent, /^Factorial opens on this device/, "a browser may drop what it kept");
+    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /, "a browser may drop what it kept");
   });
 
   test("is what the footer says once the files have all passed through the worker, unasked", async () => {
     const kept = await browser.caches.open(KEPT);
     for (const address of LATER) await kept.put(address, { body: "kept as it passed" });
-    assert.match((await browser.visit()).said.textContent, /^Factorial opens and works/);
+    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /);
   });
 
   test("is not offered by a build that could not name its files", async () => {
     const unnamed = await new Browser().visit({ build: { ...manifest, on_demand: null } });
-    assert.match(unnamed.said.textContent, /^Factorial opens on this device/);
+    assert.match(unnamed.said.textContent, /^Works offline, except charts and Excel files\. /);
     assert.deepEqual([unnamed.keep.hidden, unnamed.remove.hidden], [true, false]);
   });
 });
@@ -328,7 +341,7 @@ describe("a copy the browser has lost part of", () => {
     const before = browser.network.asked.length;
     const page = await browser.visit();
     assert.deepEqual(browser.downloaded(before), [`${RELEASE}pyodide.asm.wasm`]);
-    assert.match(page.said.textContent, /^Factorial opens on this device/);
+    assert.match(page.said.textContent, /^Works offline, except charts and Excel files\. /);
   });
 
   test("is made again when the browser dropped it all, though the worker's empty copies are there", async () => {
@@ -345,11 +358,11 @@ describe("a copy that cannot be finished", () => {
     const browser = new Browser();
     browser.network.files.delete(`${RELEASE}numpy.whl`);
     const page = await browser.visit();
-    assert.equal(page.said.textContent, `The copy of Factorial on this device is not whole: Request failed: ${RELEASE}numpy.whl`);
+    assert.equal(page.said.textContent, `Not fully saved: Request failed: ${RELEASE}numpy.whl`);
     assert.deepEqual([page.keep.textContent, page.keep.hidden, page.remove.hidden], ["Try again", false, false]);
     browser.network.files.set(`${RELEASE}numpy.whl`, "numpy");
     await page.keep.onclick();
-    assert.deepEqual(page.seen.slice(1), ["Keeping a copy of Factorial...", "Factorial opens on this device without a network: a copy of it is kept here."]);
+    assert.deepEqual(page.seen.slice(1), ["Saving Factorial for offline use...", "Works offline, except charts and Excel files. Factorial is saved on this device."]);
   });
 
   test("can be removed, with the worker that was to serve it", async () => {
@@ -364,11 +377,11 @@ describe("a copy that cannot be finished", () => {
   test("for want of a file the page opens with says so, where one it merely loaded is left out", async () => {
     const browser = new Browser();
     browser.network.files.delete(`${SCOPE}style.css`); // gone since the visit loaded it
-    assert.match((await browser.visit()).said.textContent, /^Factorial opens on this device/);
+    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /);
     assert.ok(!browser.caches.held(APP).includes(`${SCOPE}style.css`));
     const without = new Browser();
     without.network.files.delete(`${SCOPE}worker.js`);
-    assert.equal((await without.visit()).said.textContent, `The copy of Factorial on this device is not whole: Request failed: ${SCOPE}worker.js`);
+    assert.equal((await without.visit()).said.textContent, `Not fully saved: Request failed: ${SCOPE}worker.js`);
   });
 
   test("of the charts and workbooks keeps the page's copy, and Try again tries the whole of it", async () => {
@@ -376,10 +389,10 @@ describe("a copy that cannot be finished", () => {
     const page = await browser.visit();
     browser.network.files.delete(PLOTLY);
     await page.keep.onclick();
-    assert.equal(page.said.textContent, `The copy of Factorial on this device is not whole: Request failed: ${PLOTLY}`);
+    assert.equal(page.said.textContent, `Not fully saved: Request failed: ${PLOTLY}`);
     browser.network.files.set(PLOTLY, "plotly");
     await page.keep.onclick();
-    assert.match(page.said.textContent, /^Factorial opens and works/);
+    assert.match(page.said.textContent, /^Works fully offline\. /);
   });
 
   test("is not spoken of on a first visit where Python did not start: there is no copy, and none was promised", async () => {
@@ -392,7 +405,7 @@ describe("a copy that cannot be finished", () => {
     const browser = new Browser();
     await browser.visit();
     const page = await browser.visit({ started: Promise.reject(new Error("Could not start Python: the wasm is cut short")) });
-    assert.equal(page.said.textContent, "The copy of Factorial on this device is not whole: Could not start Python: the wasm is cut short");
+    assert.equal(page.said.textContent, "Not fully saved: Could not start Python: the wasm is cut short");
     assert.equal(page.remove.hidden, false);
   });
 });
@@ -420,8 +433,8 @@ describe("a reader who removes the copy", () => {
   test("has the copies deleted and the worker unregistered, and is told so", async () => {
     assert.deepEqual(await browser.caches.keys(), []);
     assert.equal(browser.worker, null);
-    assert.equal(page.said.textContent, "Factorial keeps no copy of itself on this device.");
-    assert.deepEqual([page.keep.textContent, page.remove.hidden], ["Keep a copy, to open it without a network", true]);
+    assert.equal(page.said.textContent, "Needs internet. Factorial is not saved on this device.");
+    assert.deepEqual([page.keep.textContent, page.remove.hidden], ["Save Factorial for offline use", true]);
   });
 
   test("has a cache that came back after the removal deleted at the next visit, asking nothing of the network", async () => {
@@ -432,17 +445,17 @@ describe("a reader who removes the copy", () => {
     const later = await left.visit();
     assert.deepEqual(await left.caches.keys(), []);
     assert.deepEqual(left.network.asked.slice(before), []);
-    assert.equal(later.said.textContent, "Factorial keeps no copy of itself on this device.");
+    assert.equal(later.said.textContent, "Needs internet. Factorial is not saved on this device.");
   });
 
   test("has none made at later visits, until they ask for one", async () => {
     const before = browser.network.asked.length;
     const later = await browser.visit();
     assert.deepEqual(browser.network.asked.slice(before), [], "nothing is read, and nothing copied");
-    assert.equal(later.said.textContent, "Factorial keeps no copy of itself on this device.");
+    assert.equal(later.said.textContent, "Needs internet. Factorial is not saved on this device.");
     await later.keep.onclick();
-    assert.match(later.said.textContent, /^Factorial opens on this device/);
-    assert.match((await browser.visit()).said.textContent, /^Factorial opens on this device/, "and it is kept from then on");
+    assert.match(later.said.textContent, /^Works offline, except charts and Excel files\. /);
+    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /, "and it is kept from then on");
   });
 });
 
@@ -484,7 +497,7 @@ describe("a later build", () => {
     const browser = new Browser();
     await browser.visit();
     const page = await browser.visit({ build: next }); // its wheel is not on the network
-    assert.match(page.said.textContent, /is not whole: Request failed/);
+    assert.match(page.said.textContent, /^Not fully saved: Request failed/);
     assert.ok(START.every((address) => browser.caches.held(KEPT).includes(address)), "what opened the page before still does");
   });
 
@@ -498,7 +511,7 @@ describe("a later build", () => {
     const off = new Browser();
     await (await off.visit()).remove.onclick();
     await off.visit({ build: { ...manifest, service_worker: false } });
-    assert.equal((await off.visit()).said.textContent, "Factorial keeps no copy of itself on this device.", "a reader who wanted none still has none");
+    assert.equal((await off.visit()).said.textContent, "Needs internet. Factorial is not saved on this device.", "a reader who wanted none still has none");
   });
 });
 

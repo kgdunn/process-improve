@@ -520,6 +520,9 @@ footer .link { padding: 0; font: inherit; text-decoration: underline; }
 .foot__device p { margin: 0 0 6px; }
 .foot__actions { display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .foot__actions button { padding: 4px 10px; font-size: inherit; }
+/* What removing the copy does, under the button that removes it: shown in the states that offer that button. */
+.foot__note { font-size: 0.85em; }
+#offline:not([data-state="opens"], [data-state="whole"], [data-state="failed"]) .foot__note { display: none; }
 
 /* New study and the worked example: buttons in the header, and a banner while the worked example is
    the copy computed when the page was built. */
@@ -622,7 +625,7 @@ section { scroll-margin-top: 120px; }
 @media (min-width: 1100px) {
   .workspace { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
   .brief {
-    position: sticky; top: calc(var(--bar-height, 72px) + 12px); max-height: calc(100vh - var(--bar-height, 72px) - 24px);
+    position: sticky; top: calc(var(--bar-room, 72px) + 12px); max-height: calc(100vh - var(--bar-room, 72px) - 24px);
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
   }
   .brief .card:last-child { margin-bottom: 0; }

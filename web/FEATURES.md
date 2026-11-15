@@ -507,7 +507,8 @@ Also:
 *On a phone or at a desk, at your level, in light or dark.*
 
 - **Three steps, one page.** A bar names the study and Design, Run and Learn, each marked with
-  how far it has got.
+  how far it has got. It says what the app is doing, and the page under it stays where it is
+  when that line comes and goes.
 - **Three ways in.** Start a new study, explore a worked example, or browse the design
   catalog. A fourth button analyses data you have.
 - **A reading level.** Beginner, Intermediate or Adventurous. Each level adds designs, charts
@@ -584,18 +585,23 @@ What a careful reader, or an organisation, asks before using a tool.
   - *Details:* One access-log line per request, with the address cut to its network before
     it is written, kept for 366 days to count visits. A usage report for the operator gives
     the visits to each page by day, week or month, from the access log, with nothing of a
-    reader's in it.
+    reader's in it. A link someone posted may name the place it was posted
+    (`?ref=newsletter`), so that its visits are counted apart: a word for the place, never
+    for a person. The app drops it from the address once open.
 - **Feedback is the one thing sent.** It goes only when you press Send, and holds only what the
   form lists.
   - *Details:* The relay emails it and keeps nothing.
 
 #### With no network, or on your own server
 
-- **Use it with no network.** After a first visit the app is kept on your device. The footer
-  says what is kept and how much room it takes, and removes it when you ask.
-  - *Details:* A copy of the app, Python and its packages is kept in the browser: from about
-    170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
-    workbooks (about 12 MB more). The copy holds this list and How Factorial works too. A
+- **Use it with no network.** After a first visit the app is saved on your device. The footer
+  says in plain words whether Factorial works without internet here and how much room it
+  takes, and each button says what it does.
+  - *Details:* A copy of the app, Python and its packages is saved in the browser: from about
+    170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. One button
+    adds the charts and Excel files (12 MB more). One removes Factorial from the device, and
+    a line under it says what follows: the space is freed, Factorial then needs internet to
+    open, and saved studies stay. The copy holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;
     until then it says that it needs one, with the way back to the app.
 - **Your organisation can run its own copy.** The app is a folder of plain files that any web
@@ -660,7 +666,9 @@ What a careful reader, or an organisation, asks before using a tool.
   the app's reading level.
   - *Details:* An address that names an idea opens at the map, on that idea. "Compare
     books" sets two other textbooks beside this one: the links go, and a ring on each topic
-    and each term says which of the three books has it.
+    and each term says which of the three books has it. The names of a selected idea's
+    neighbours take whichever place by their idea is clear, and a topic's name too wide for
+    its ring is beside the topic.
 - **[The multivariate page](mva/).** For data with many measurements of each row: PCA and
   PLS on an example or your own file.
   - *Details:* A data table with each variable's distribution in its heading, linked score,
