@@ -19,6 +19,7 @@ from tests.web._support import FACTORS, factors_named
 from tests.web.e2e._page import (
     calls,
     candidates_done,
+    choose,
     corners_done,
     generate,
     limits_done,
@@ -91,6 +92,19 @@ def test_a_limit_that_cannot_be_read_says_why_and_holds_the_brief_back(blank_pag
     reveal(page, "#generate")
     assert page.locator("#generate").is_disabled()
     assert page.text_content("#candidates") == message
+
+
+def test_with_limits_a_study_has_up_to_eight_factors_and_the_page_says_so(fresh_page):
+    """An optimal design takes nine factors, so it is the limits, not the design, that hold the brief back."""
+    page = fresh_page
+    set_factors(page, factors_named(*"ABCDEFGHI"))
+    candidates_done(page)
+    type_limit(page, "A + B <= 1")
+    message = "With limits on the settings, the page makes designs in up to 8 factors; you have 9."
+    page.wait_for_function("(said) => document.querySelector('#candidates').textContent === said", arg=message)
+    choose(page, design_type="d_optimal")
+    assert not page.locator("#design-type option:checked").is_disabled()
+    assert page.locator("#generate").is_disabled()
 
 
 @pytest.mark.slow
