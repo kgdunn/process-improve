@@ -4,13 +4,18 @@
 // - on a phone, when a finger rests on it (a press and hold), which does not also press the button
 //   or the choice the word is part of;
 // - with a mouse, when the pointer rests on it; the pointer can move onto the pop-up to read it;
-// - from the keyboard, when the control the word names is reached with Tab or an arrow key;
+// - from the keyboard, when the control the word names is reached with Tab or an arrow key: the
+//   pop-up then opens clear of the control too, so it never covers the box being typed in;
 // - for a word that stands alone, outside any control, with a tap, a click or Enter as well: it
 //   is a button whose one task is its definition.
 //
 // Escape, a tap or click elsewhere, and scrolling close it. A screen reader reads each definition
 // as the description of its control. The words and what they mean are in glossary.js; a
 // definition that depends on the study, such as a design's or a measure's, is given with the word.
+//
+// A word the concept map has a term for ends its definition in a link, "See it in context", which
+// opens the map at that term in a tab of its own. A finger taps it once lifted, a mouse moves onto
+// it, and Tab goes from the word's control into it and on from there.
 
 /** How long a finger rests on a word before its definition opens, and how far it may drift meanwhile. */
 const HOLD_MS = 450;
@@ -23,12 +28,19 @@ const SWALLOW_MS = 600;
 /** The keys a reader moves through a page with: a definition follows the focus only after one of these. */
 const MOVING = new Set(["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
+/** The concept map, and the tab it opens in: one tab, so a second word's term opens in the first's. */
+const MAP = new URL("map/", import.meta.url);
+const MAP_TAB = "factorial-map";
+
 let glossary = {};
+let context = {}; // each glossary word's term in the concept map
 let tip = null; // the one pop-up every definition opens in
 let shown = null; // the word whose definition is open
+let beside = null; // with the keyboard, the control the word names: the pop-up opens clear of it too
 let hold = null; // a finger resting on a word: { word, x, y, timer }
 let swallowUntil = 0;
 let keyboard = false; // whether the reader last moved with the keyboard rather than a pointer
+let from = null; // the control the keyboard left for the pop-up's link
 let hoverTimer = null;
 let leaveTimer = null;
 let holders = null; // the hidden definitions a control's aria-describedby names
@@ -37,14 +49,16 @@ const holderIds = new Map(); // a definition's text, to the id of the element th
 /**
  * A word or phrase with a definition: the glossary's, by ``key``, or ``definition`` as given. A word
  * that stands alone (``alone``), outside any control, is a button; one inside a control is a span.
+ * ``concept`` names the word's term in the concept map, when the glossary does not.
  */
-export function term(text, { key = null, definition = null, alone = false } = {}) {
+export function term(text, { key = null, definition = null, alone = false, concept = null } = {}) {
   const word = document.createElement(alone ? "button" : "span");
   if (alone) word.type = "button";
   word.className = "term";
   word.textContent = text;
   if (key) word.dataset.term = key;
   else word.dataset.definition = definition ?? "";
+  if (concept) word.dataset.concept = concept;
   return word;
 }
 
@@ -72,6 +86,18 @@ export function marked(text, words) {
 }
 
 const definitionOf = (word) => (word.dataset.term ? glossary[word.dataset.term] : word.dataset.definition) ?? "";
+const conceptOf = (word) => word.dataset.concept ?? context[word.dataset.term] ?? null;
+
+/** The link under ``word``'s definition to its term in the concept map, named in full for a screen reader. */
+function inContext(word, concept) {
+  const link = document.createElement("a");
+  link.className = "term-more";
+  link.href = new URL(`#${concept.replaceAll("_", "-")}`, MAP);
+  link.target = MAP_TAB;
+  link.textContent = "See it in context";
+  link.setAttribute("aria-label", `See it in context: ${word.textContent}`);
+  return link;
+}
 
 /** The word a control that has just been reached by keyboard names: itself, inside it, or in its label. */
 function wordFor(control) {
@@ -88,13 +114,14 @@ function wordFor(control) {
 /**
  * Put the pop-up beside its word, inside the window: above a word under a finger, which would
  * cover it otherwise, and below a word under the mouse or the keyboard; on the other side when
- * there is no room.
+ * there is no room. With the keyboard it is the word and its control together it opens beside.
  */
 function place(word, above) {
   const at = word.getBoundingClientRect();
+  const box = beside?.isConnected ? beside.getBoundingClientRect() : at;
   const { offsetWidth: w, offsetHeight: h } = tip;
-  const up = at.top - 8 - h;
-  const down = at.bottom + 8;
+  const up = Math.min(at.top, box.top) - 8 - h;
+  const down = Math.max(at.bottom, box.bottom) + 8;
   const fitsUp = up >= 8;
   const fitsDown = down + h <= innerHeight - 8;
   const top = above ? (fitsUp || !fitsDown ? Math.max(8, up) : down) : fitsDown || !fitsUp ? down : up;
@@ -102,12 +129,16 @@ function place(word, above) {
   tip.style.top = `${top}px`;
 }
 
-/** Open ``word``'s definition; ``how`` it was asked for decides where it opens and whether it can be hovered. */
-function show(word, how) {
+/**
+ * Open ``word``'s definition; ``how`` it was asked for decides where it opens and whether it can be hovered.
+ * ``control`` is the box the keyboard is on, when it is the keyboard that asked.
+ */
+function show(word, how, control = null) {
   const text = definitionOf(word);
   if (!text) return;
   shown?.classList.remove("shown");
   shown = word;
+  beside = control;
   word.classList.add("shown");
   // Inside an open dialog the rest of the page is inert, so the pop-up goes into the dialog.
   const home = word.closest("dialog[open]") ?? document.body;
@@ -115,7 +146,9 @@ function show(word, how) {
     if (tip.matches(":popover-open")) tip.hidePopover();
     home.append(tip);
   }
-  tip.textContent = text;
+  const concept = conceptOf(word);
+  tip.replaceChildren(text, ...(concept ? [inContext(word, concept)] : []));
+  tip.setAttribute("role", concept ? "group" : "tooltip"); // a tooltip holds nothing a reader can go into
   tip.dataset.how = how;
   if (!tip.matches(":popover-open")) tip.showPopover();
   place(word, how === "touch");
@@ -127,6 +160,11 @@ function hide() {
   if (!shown) return;
   shown.classList.remove("shown");
   shown = null;
+  // The keyboard was on the pop-up's link: back to the control it came from, its definition closed.
+  if (tip.contains(document.activeElement)) {
+    keyboard = false;
+    from?.focus();
+  }
   if (tip.matches(":popover-open")) tip.hidePopover();
 }
 
@@ -163,10 +201,12 @@ function describeAll(root) {
 
 /**
  * Open definitions on request across the page, from ``entries`` (glossary.js's GLOSSARY): one
- * pop-up for every word, and the listeners that open and close it. Call once.
+ * pop-up for every word, and the listeners that open and close it. ``terms`` (its CONTEXT) gives a
+ * word its term in the concept map. Call once.
  */
-export function installTerms(entries) {
+export function installTerms(entries, terms = {}) {
   glossary = entries;
+  context = terms;
   tip = document.createElement("div");
   tip.className = "term-tip";
   tip.setAttribute("role", "tooltip");
@@ -217,7 +257,8 @@ export function installTerms(entries) {
   document.addEventListener(
     "click",
     (e) => {
-      if (performance.now() < swallowUntil) {
+      // A tap on the pop-up's link, just after the finger that opened it lifted, is a tap all the same.
+      if (performance.now() < swallowUntil && !tip.contains(e.target)) {
         swallowUntil = 0;
         e.preventDefault();
         e.stopPropagation();
@@ -257,20 +298,32 @@ export function installTerms(entries) {
         hide();
         e.preventDefault(); // the first Escape closes the definition, the next the dialog it is in
         e.stopPropagation();
-      } else if (MOVING.has(e.key)) {
-        keyboard = true;
+        return;
+      }
+      if (MOVING.has(e.key)) keyboard = true;
+      if (e.key !== "Tab" || !shown) return;
+      const link = tip.querySelector("a");
+      if (tip.contains(document.activeElement)) {
+        // Out of the pop-up: back to its control, and, going forward, on from there as Tab does.
+        from?.focus();
+        if (e.shiftKey) e.preventDefault();
+      } else if (link && !e.shiftKey && wordFor(document.activeElement) === shown) {
+        from = document.activeElement;
+        e.preventDefault();
+        link.focus();
       }
     },
     true,
   );
   document.addEventListener("focusin", (e) => {
-    if (!keyboard) return;
+    if (!keyboard || tip.contains(e.target)) return;
     const word = wordFor(e.target);
-    if (word) show(word, "keyboard");
+    if (word) show(word, "keyboard", e.target);
     else if (tip.dataset.how === "keyboard") hide();
   });
-  document.addEventListener("focusout", () => {
-    if (shown && tip.dataset.how === "keyboard") hide();
+  document.addEventListener("focusout", (e) => {
+    if (!shown || tip.contains(e.relatedTarget)) return; // the keyboard went into the pop-up, to its link
+    if (tip.dataset.how === "keyboard" || tip.contains(e.target)) hide();
   });
 
   // A pop-up stays where it opened, so scrolling closes it; one that follows the keyboard follows its word.

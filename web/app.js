@@ -25,6 +25,9 @@ import {
   markBest,
   markedRun,
   onRunMarked,
+  FOUND,
+  IN_WINDOWS,
+  WHAT_IF_SETTINGS,
   overlayFigure,
   paretoFigure,
   pressRun,
@@ -33,8 +36,11 @@ import {
   restOnRun,
   sensitivityFigure,
   shareContourScale,
+  targetName,
+  windowName,
   ternaryFigure,
   ternaryRange,
+  tradeOffFigure,
 } from "./charts.js";
 import {
   BLEND_SENSITIVITY,
@@ -86,12 +92,24 @@ import {
   withoutConfirmationRuns,
   columnsAt,
   curveAt,
+  frontier,
+  meetsLimits,
+  shortfall,
   keptAs,
   predictAt,
   scenarioProblem,
   settingsFit,
   settingsWords,
   sliderStep,
+  solveSentences,
+  surestSentence,
+  targetCaption,
+  targetLead,
+  targetRows,
+  targetShare,
+  windowCaption,
+  windowChance,
+  windowLead,
   whatIfRows,
   whatIfSentences,
   whatIfStart,
@@ -249,9 +267,11 @@ import {
   CAMPAIGN_VERSION,
   AIMS,
   BOOK_PARAM,
+  BOOK_TAB,
   EXAMPLE_PARAM,
   LINK_KEY,
   SCENARIOS_HELD,
+  SHOW_PARAM,
   WORKED,
   bookName,
   campaignDone,
@@ -264,6 +284,7 @@ import {
   indexedName,
   mergeResults,
   packCampaign,
+  partName,
   progress,
   sameCampaign,
   shareable,
@@ -287,12 +308,12 @@ import {
 import { redrawRuns } from "./picture.js";
 import { drawFieldChart } from "./field-chart.js";
 import { RUN_ORDER_SEED, briefHtml, canonicalJson, chartsHtml, report, runSheetHtml, sha256, stampRows } from "./report.js";
-import { analyseCode, balanceCode, bestCode, compareCode, cumulative, designCode, figureCode, forResponse, notebook, ownFigureCode, resultsCode, whatIfCode } from "./python.js";
+import { analyseCode, balanceCode, bestCode, compareCode, comparisonFigureCode, correlationCode, cumulative, curveCode, designCode, figureCode, forResponse, notebook, overlayCode, ownFigureCode, resultsCode, sensitivityCode, targetCode, targetOverlayCode, tradeOffCode, whatIfCode, windowCode, windowOverlayCode } from "./python.js";
 import { forgetCampaign, saveCampaign, savedCampaigns } from "./store.js";
-import { GLOSSARY, MARKED } from "./glossary.js";
+import { CONTEXT, GLOSSARY, MARKED } from "./glossary.js";
 import { installTerms, marked, term } from "./terms.js";
 import { closeOnBackdrop } from "./dialogs.js";
-import { LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
+import { FEATURES, LEVELS, LEVEL_KEY, designListed, levelOf, moreWords, readLevel } from "./levels.js";
 import { installImport, openedWords } from "./import.js";
 import { pythonLine } from "./worker-rpc.js";
 import { installOffline } from "./offline.js";
@@ -488,6 +509,9 @@ function toast(text, state = "ok") {
 }
 
 // ---------------------------------------------------------------- state
+/** The trade-offs' view of a study just opened: nothing tried, picked, limited or chosen yet. */
+const newTrade = () => ({ tried: null, across: null, up: null, colour: "", limits: {}, chosen: null });
+
 const state = {
   phase: "plan", // the phase on show: "plan", "run" or "learn"
   design: null, // what api_make_design returned, or the runs of an uploaded workbook
@@ -508,6 +532,15 @@ const state = {
   chartRequest: null,
   best: null, // the best settings for the response's goal, on the fitted model: what api_best_settings returned
   balance: null, // the settings that balance the responses with a goal: what api_balance returned
+  // The trade-offs between them: what api_trade_offs returned (tried), the two responses on the chart's axes and the
+  // one it is coloured by, each response's two limits, and the candidate setting or the alternative the reader chose.
+  trade: newTrade(),
+  // The settings that give a target: each response's target as typed, what api_target_settings returned (found),
+  // and the two factors the reader chose to draw its chart over.
+  target: newTarget(),
+  // The settings that meet a specification: each response's window as typed, what api_specification returned
+  // (found), and the two factors the reader chose to draw its chart over.
+  window: newWindow(),
   whatIf: null, // the what-if panel: each response's fit from api_predictors, the settings, the limits they break
   curve: { fit: null, problem: null, target: null }, // the curves' fit from api_functional, why there is none, a target
   scenarios: [], // the settings the reader kept from the what-if panel, each {name, settings}: the study's what_if
@@ -1380,6 +1413,8 @@ function showRenamed({ spec, simulation, ...design }, names) {
   state.design = { ...state.design, ...design, spec: { ...state.design.spec, factors: spec.factors, ...terms, ...others, ...limits } };
   // The what-if fits and the balance, and any still on their way, name the old factors: the analysis below finds them again.
   clearWhatIf();
+  clearTarget();
+  clearWindow();
   clearBalance();
   if (simulation) state.simulation = simulation;
   if (titled) state.campaign.title = titleOf(state.design.spec);
@@ -1970,11 +2005,16 @@ function showDesign(design, warnings = [], { save = true } = {}) {
   state.shown = resultNames()[0];
   state.models = {};
   state.goals = {};
+  state.trade = newTrade();
+  state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = [];
   state.simulation = null;
   state.analysis = null;
   clearBalance();
   clearWhatIf();
+  clearTarget();
+  clearWindow();
   renderDesign(warnings);
   renderRuns();
   renderTruth(); // the process behind the old design's results goes with them
@@ -2065,7 +2105,8 @@ async function showCorrelation() {
   words.replaceChildren(...correlationWords(found, prettyTerm).map((sentence) => el("p", "", sentence)));
   renderPairs(found);
   if (state.plotlyJs) {
-    await draw($("#correlation-plot"), () => correlationFigure(found.terms, found.matrix, found.k), state.plotlyJs, 360);
+    const python = figureAfter("run", () => correlationCode(design.spec.factors.map((f) => f.name)));
+    await draw($("#correlation-plot"), () => correlationFigure(found.terms, found.matrix, found.k), state.plotlyJs, 360, { python });
   }
 }
 $("#correlation").addEventListener("toggle", () => {
@@ -2219,12 +2260,14 @@ function candidateList(c, current) {
     // What spare runs and power are depends on the brief: the model's size, and the change worth finding.
     const spare = term("Spare runs", {
       alone: true,
+      concept: "degrees_of_freedom",
       definition:
         `The runs left once the model's ${c.result.terms.length} coefficients are fitted: they estimate the ` +
         `run-to-run noise. Fewer than ${SPARE_FOR_NOISE} are marked.`,
     });
     const power = term(`Power to find ${changeWords(info)}`, {
       alone: true,
+      concept: "statistical_power",
       definition:
         `The chance that the analysis finds ${changeWords(info)} from a factor's low setting to its high one, at ` +
         `the ${Math.round(100 * c.result.significance_level)}% level.` +
@@ -2259,7 +2302,8 @@ function candidateList(c, current) {
       radio.name = "candidate";
       radio.value = r.design_type;
       radio.disabled = !current;
-      label.append(radio, term(r.label, { definition: designHint(r.design_type) }));
+      const concept = FEATURES[`design:${r.design_type}`]?.term; // the design's term in the concept map
+      label.append(radio, term(r.label, { definition: designHint(r.design_type), concept }));
       name.append(label);
       tr.append(name, el("td", "", String(r.runs)), el("td", r.spare < SPARE_FOR_NOISE ? "low" : "", String(r.spare)));
       for (const [kind] of kinds) tr.append(el("td", "", percent(r.power[kind])));
@@ -2298,6 +2342,7 @@ function levelPlan(c, current) {
   const change = changeWords(info);
   const power = term(`Power to find ${change}`, {
     alone: true,
+    concept: "statistical_power",
     definition:
       (k === 2
         ? `The chance that the t-test of the two levels finds ${change} between them, at the `
@@ -2623,7 +2668,9 @@ function showComparedCharts(result, hidden) {
   const box = $("#compare-charts");
   for (const card of box.querySelectorAll("figure[data-design]")) card.hidden = hidden.has(card.dataset.design);
   const fds = box.querySelector("figure.fds .plot");
-  if (fds && state.plotlyJs) draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380);
+  if (fds && state.plotlyJs) {
+    draw(fds, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), state.plotlyJs, 380, { python: fdsPython(result) });
+  }
 }
 
 /** Take a design from the detailed comparison into the plan, and close the comparison. */
@@ -2632,6 +2679,12 @@ function useDesign(item) {
   $("#compare-dialog").close();
   setStatus(`The ${item.label} design is chosen: make its run sheet when it is ready.`);
 }
+
+/** The code of the comparison's FDS plot, for its window: every design's curve, over the settings the limits leave. */
+const fdsPython = (result) =>
+  figureAfter("compare", () =>
+    comparisonFigureCode({ asked: result.fds_asked, limits: state.comparison?.made[0]?.design.spec.constraints ?? [] }),
+  );
 
 async function drawComparison(result, k, hidden) {
   const box = $("#compare-charts");
@@ -2653,7 +2706,7 @@ async function drawComparison(result, k, hidden) {
   fds.append(fdsTitle, fdsPlot, caption);
   box.append(fds);
   try {
-    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), version, 380);
+    await draw(fdsPlot, fdsFigure(result.fds, { region: Boolean(result.region), hidden }), version, 380, { python: fdsPython(result) });
     for (const label of result.designs) {
       const { terms, matrix } = result.correlations[label];
       const card = el("figure", "chart", "");
@@ -2664,7 +2717,8 @@ async function drawComparison(result, k, hidden) {
       title.append(term("Correlation map", { key: "correlation-map", alone: true }), `, ${label}`);
       card.append(title, plot);
       box.append(card);
-      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320);
+      const python = figureAfter("compare", () => comparisonFigureCode({ label }));
+      await draw(plot, () => correlationFigure(terms, matrix, k), version, 320, { python });
     }
     box.append(
       el(
@@ -3372,9 +3426,14 @@ async function readUpload(file) {
   setModel(r.spec.analysis_model ?? $("#model").value);
   state.models = { [names[0]]: modelChoice(), ...(r.spec.analysis_models ?? {}) };
   state.goals = {};
+  state.trade = newTrade();
+  state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = r.what_if ?? [];
   clearBalance();
   clearWhatIf();
+  clearTarget();
+  clearWindow();
   renderDesign(reply.warnings);
   renderRuns();
   renderTruth();
@@ -3468,6 +3527,8 @@ async function analyseRuns() {
     clearAnalysis();
     clearBalance();
     clearWhatIf();
+    clearTarget();
+    clearWindow();
     setStatus("No results to analyse yet.");
     return;
   }
@@ -3482,6 +3543,9 @@ async function analyseRuns() {
     await findBalance();
     await findCurve();
     await findWhatIf();
+    findTradeOffs();
+    showTarget();
+    showWindow();
     return;
   }
   const mine = ++ticket;
@@ -3506,6 +3570,9 @@ async function analyseRuns() {
   await findBalance();
   await findCurve();
   await findWhatIf(); // after the best settings and the balance, which it opens at, and the curves it draws
+  findTradeOffs(); // the settings it tries take a moment, and nothing above waits for them
+  showTarget(); // on the what-if panel's fits: its search takes a moment too
+  showWindow(); // last: the windows are judged through the what-if panel's settings
 }
 
 /** A button that opens Feedback on the topic of an algorithm or a model, beside a result that went wrong. */
@@ -4328,7 +4395,8 @@ function coefficientCard(analysis, simulated) {
   const show = async (asked, version) => {
     const view = mixture ? "estimates" : asked;
     for (const button of buttons) button.setAttribute("aria-pressed", String(button.dataset.view === view));
-    if (version) await draw(plot, figure(view), version, figure(view)().height, { python: figurePython("coefficients") });
+    const python = figurePython(view === "pareto" ? "pareto" : "coefficients");
+    if (version) await draw(plot, figure(view), version, figure(view)().height, { python });
   };
   for (const button of buttons) {
     button.onclick = () => {
@@ -4435,12 +4503,27 @@ function figurePython(key, plots = null) {
 /** The code that draws one figure, after the analysis's: the library's call, or Plotly's for a figure of the page's. */
 function figureAlone(key, plots = null) {
   const options = plots?.plot_options?.[key];
-  const { formula, model } = state.analysis;
+  const { formula, model, coefficients, lenth } = state.analysis;
   const spec = shownSpec();
-  if (options) return figureCode(CHARTS[key].title, options, formula ?? model, designComplete() && !asideRuns().length, spec);
+  const complete = designComplete() && !asideRuns().length;
+  if (options) return figureCode(CHARTS[key].title, options, formula ?? model, complete, spec);
+  if (key === "pareto") {
+    // Lenth's margins stand in for the intervals a fit that uses every run does not have.
+    const margins = Boolean(lenth) && !coefficients.some((c) => c.ci_high !== null && c.ci_high !== undefined);
+    return ownFigureCode(key, CHARTS.coefficients.title, spec, { lenth: margins, model: formula ?? model, complete });
+  }
   const about = { contour: plots?.plot_options?.contour, cox: plots?.cox, process: processOf(spec.response) };
   return ownFigureCode(key, CHARTS[key].title, spec, about);
 }
+
+/**
+ * The code of a figure drawn from a step other than the analysis, for its window: the step's code, after the steps
+ * it builds on, and then ``lines``, which draw the figure. Nothing while the step shows no code, or with no lines.
+ */
+const figureAfter = (step, lines) => () => {
+  const code = stepCode[step] && lines();
+  return code ? cumulative(...[...(BUILDS_ON[step] ?? []), step].map((s) => stepCode[s]).filter(Boolean), code) : null;
+};
 
 /** The figures drawn for the response on show, each with the code that draws it: the last cells of its notebook. */
 function figuresCharted() {
@@ -4704,8 +4787,14 @@ async function drawBestChart() {
   const caption = card.querySelector("figcaption");
   caption.textContent = blend ? BLEND_SENSITIVITY : sensitivityCaption(best);
   caption.hidden = !caption.textContent; // the legend, the axis and the heading's definition say the rest
+  // The code moves each numeric factor the model holds, as the bars drawn do.
+  const python = figureAfter("best", () => {
+    const { formula, model } = state.analysis;
+    const names = sensitivity.map((s) => s.name);
+    return sensitivityCode(names, shownSpec(), formula ?? model, designComplete() && !asideRuns().length);
+  });
   try {
-    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
     card.hidden = true; // the table and the sentences above hold what it shows
   }
@@ -4791,6 +4880,317 @@ function clearBalance() {
   state.balance = null;
   $("#balance").hidden = true;
   hidePython("balance");
+  clearTradeOffs();
+}
+
+// ---------------------------------------------------------------- the trade-offs between the responses
+let tradeTicket = 0;
+let tradeTimer = null;
+/** What the list of what colours the points calls the overall desirability: no response's column, which is a name. */
+const OVERALL_D = "(D)";
+
+/** Take the trade-offs away: there is no balance to draw them at, or the study is a mixture's. */
+function clearTradeOffs() {
+  tradeTicket += 1;
+  clearTimeout(tradeTimer);
+  // What was tried and the settings chosen are the balance's: with it gone they name factors and responses that may
+  // be renamed or removed by the time there is one again. The limits typed stay, for the same responses.
+  state.trade = { ...state.trade, tried: null, chosen: null };
+  $("#trade-offs").hidden = true;
+}
+
+/** Each factor's units, by its name, as the brief gives them. */
+const factorUnits = () => Object.fromEntries(state.design.spec.factors.map((f) => [f.name, f.units ?? ""]));
+
+/**
+ * Try settings on the models of the balance (bootstrap.trade_offs) and show what one response costs another. It is
+ * asked after the balance is on the page, and its reply is dropped when another balance has been found meanwhile.
+ */
+async function findTradeOffs() {
+  const b = state.balance;
+  if (!b || blendStudy() || !b.settings.some((s) => s.kind !== "categorical")) {
+    clearTradeOffs();
+    return;
+  }
+  const mine = ++tradeTicket;
+  const reply = await call("api_trade_offs", { ...balanceAsked(), at: b.coded });
+  if (mine !== tradeTicket || state.balance !== b) return;
+  if (!reply.ok) {
+    clearTradeOffs(); // the balance stands without them
+    return;
+  }
+  const names = b.responses.map((r) => r.name);
+  const kept = (name, otherwise) => (names.includes(name) ? name : otherwise);
+  const across = kept(state.trade.across, names[0]);
+  const up = kept(state.trade.up === across ? null : state.trade.up, names.find((name) => name !== across));
+  const colour = state.trade.colour === OVERALL_D || names.includes(state.trade.colour) ? state.trade.colour : "";
+  const limits = Object.fromEntries(names.map((name) => [name, state.trade.limits[name] ?? [null, null]]));
+  // The settings chosen stay chosen while the models say the same of the settings tried, as after confirmation runs.
+  const before = state.trade.tried?.candidates.d;
+  const same = before?.length === reply.result.candidates.d.length && before.every((d, i) => d === reply.result.candidates.d[i]);
+  state.trade = { tried: reply.result, across, up, colour, limits, chosen: same ? state.trade.chosen : null };
+  renderTradeOffs();
+}
+
+/** The study's factors with each one's kind, as the what-if panel has them, or else as the brief does. */
+const tradeFactors = () =>
+  state.whatIf?.factors ??
+  state.design.spec.factors.map((f) => ({ ...f, kind: f.type === "categorical" || typeof f.low === "string" ? "categorical" : "numeric" }));
+
+/** The balance's entry for a response, by its column: its label, units, goal and prediction at the balanced settings. */
+const balanced = (name) => state.balance.responses.find((r) => r.name === name);
+
+/** Show the trade-offs: what the chart shows, each response's limits, the chart, and the settings nearly as good. */
+function renderTradeOffs() {
+  const { tried, across, up, colour, limits } = state.trade;
+  const responses = state.balance.responses;
+  $("#trade-offs").hidden = false;
+  const drawn = tried.candidates.d.length;
+  const held = tried.held.map((h) => `${h.name} at ${h.value}`).join(", ");
+  $("#trade-about").textContent =
+    `Each point is one of ${drawn.toLocaleString("en")} settings tried on the models${held ? `, with ${held}` : ""}, drawn evenly ` +
+    "from the ranges the limits allow. The line is the best one response can be for each value of the other. A paler " +
+    "point is further from your runs than any run lies: there the models guess. Press a point to choose its settings.";
+  const options = (chosen, list) =>
+    list.map(([value, text]) => `<option value="${escape(value)}"${value === chosen ? " selected" : ""}>${escape(text)}</option>`).join("");
+  const named = responses.map((r) => [r.name, withUnits(r.label, r.units)]);
+  $("#trade-across").innerHTML = options(across, named);
+  $("#trade-up").innerHTML = options(up, named);
+  $("#trade-colour").innerHTML = options(colour, [["", "Nothing"], ...named, [OVERALL_D, "Overall desirability, D"]]);
+  const t = $("#trade-limits");
+  const key = JSON.stringify(named);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const label = escape(r.label);
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="At least"><input type="number" step="any" name="low" aria-label="${label}: keep only settings where it is at least"></td>` +
+        `<td data-label="At most"><input type="number" step="any" name="high" aria-label="${label}: keep only settings where it is at most"></td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Keep only settings where</th><th scope="col">is at least</th><th scope="col">and at most</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  // Each box shows the limit the chart keeps to, unless the reader is typing in it: a study made again starts with none.
+  for (const tr of t.tBodies[0].rows) {
+    for (const [i, end] of ["low", "high"].entries()) {
+      const box = tr.querySelector(`[name="${end}"]`);
+      if (box !== document.activeElement) box.value = limits[tr.dataset.response][i] ?? "";
+    }
+  }
+  renderTradeNearly();
+  renderTradeChosen();
+  drawTradeChart();
+}
+
+/** What the trade-off chart draws of the settings tried: those that meet the limits, with the best trade-off among them. */
+function tradeDrawn() {
+  const { tried, across, up, colour, limits, chosen } = state.trade;
+  const { settings, responses, d, far } = tried.candidates;
+  const units = factorUnits();
+  const meets = meetsLimits(responses, limits);
+  const at = meets.flatMap((met, i) => (met && responses[across][i] !== null && responses[up][i] !== null ? [i] : []));
+  const words = (i) => Object.keys(settings).map((name) => `${name} ${withUnit(settings[name][i], units[name])}`).join(", ");
+  const points = at.map((i) => ({ at: i, across: responses[across][i], up: responses[up][i], far: far[i], words: words(i) }));
+  const [goalAcross, goalUp] = [balanced(across), balanced(up)];
+  const front = frontier(
+    points.map((p) => shortfall(goalAcross, p.across)),
+    points.map((p) => shortfall(goalUp, p.up)),
+    points.map(() => true),
+  );
+  const values = colour === OVERALL_D ? d : colour ? responses[colour] : null;
+  const shown = values ? at.map((i) => values[i]).filter((v) => v !== null) : [];
+  const tint = values && {
+    ...(colour === OVERALL_D ? { label: "Overall desirability, D", units: "" } : wordsOf(colour)),
+    values,
+    least: Math.min(...shown),
+    most: Math.max(...shown),
+  };
+  // The runs made that have both results, each by its number in the order the runs were made.
+  const results = fitted();
+  const runs = state.design.rows.flatMap((_, place) => {
+    const [x, y] = [results[across]?.[place], results[up]?.[place]];
+    return Number.isFinite(x) && Number.isFinite(y) ? [{ run: runOrderOf(place), across: x, up: y }] : [];
+  });
+  const nearly = tried.alternatives.map((a) => ({ across: a.responses[across], up: a.responses[up] }));
+  const star = { across: goalAcross.predicted, up: goalUp.predicted };
+  return { across: goalAcross, up: goalUp, tried: points, front, colour: tint, runs, balanced: star, chosen: chosen && chosenPoint(chosen), nearly, met: at.length };
+}
+
+/** The settings the reader chose, on the chart's two axes: their predictions, and half of each prediction interval. */
+function chosenPoint(chosen) {
+  const { across, up } = state.trade;
+  const w = state.whatIf;
+  const half = (name) => {
+    if (!w) return null;
+    const at = predictedAt(w, columnsAt(w.factors, chosen.settings)).find((r) => r.name === name)?.at;
+    return at?.prediction ? (at.prediction[1] - at.prediction[0]) / 2 : null;
+  };
+  return { across: chosen.responses[across], up: chosen.responses[up], spread: { across: half(across), up: half(up) } };
+}
+
+/** Draw the chart of the trade-offs, and say how many of the settings tried meet the limits. */
+async function drawTradeChart() {
+  const card = $("#trade-chart");
+  if (!state.trade.tried || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const view = tradeDrawn();
+  const tried = state.trade.tried.candidates.d.length;
+  const limited = Object.values(state.trade.limits).some(([low, high]) => low !== null || high !== null);
+  $("#trade-count").textContent = !limited
+    ? ""
+    : view.met
+      ? `${view.met.toLocaleString("en")} of the ${tried.toLocaleString("en")} settings tried meet your limits.`
+      : "None of the settings tried meets every limit: loosen one.";
+  card.hidden = false;
+  card.querySelector("figcaption").textContent =
+    "The star is the balanced settings. Settings on the line cannot be bettered on one response without giving up some of the other.";
+  const plot = card.querySelector(".plot");
+  const python = figureAfter("balance", () => {
+    const { tried, across, up, colour, limits } = state.trade;
+    return tradeOffCode({ asked: tried.asked, across, up, colour, limits }, state.balance, state.design.spec);
+  });
+  try {
+    await draw(plot, () => tradeOffFigure(view), state.plotlyJs, 440, { python });
+  } catch {
+    card.hidden = true; // the tables above and below hold what it shows
+    return;
+  }
+  if (!plot.dataset.listens) {
+    plot.dataset.listens = "true";
+    plot.on("plotly_click", (event) => {
+      const point = event.points.find((p) => p.data.meta === "tried");
+      if (point) chooseCandidate(point.customdata);
+    });
+  }
+}
+
+/** The reader picked what the chart shows: another response on an axis, or what the points are coloured by. */
+function tradeViewChanged() {
+  if (!state.trade.tried) return;
+  let [across, up] = [$("#trade-across").value, $("#trade-up").value];
+  // The two axes show two responses: choosing one axis's response for the other swaps them.
+  if (across === up) [across, up] = across === state.trade.across ? [state.trade.up, up] : [across, state.trade.across];
+  state.trade = { ...state.trade, across, up, colour: $("#trade-colour").value };
+  renderTradeOffs();
+}
+
+/** The reader typed a limit on a response: the chart keeps the settings that meet it, a moment after the last key. */
+function tradeLimitTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr || !state.trade.tried) return;
+  const ends = ["low", "high"].map((end) => numberOrNull(tr.querySelector(`[name="${end}"]`).value));
+  state.trade = { ...state.trade, limits: { ...state.trade.limits, [tr.dataset.response]: ends } };
+  clearTimeout(tradeTimer);
+  tradeTimer = setTimeout(drawTradeChart, 300);
+}
+
+/** Choose one of the settings tried, by its place among them: its settings, and each response's prediction there. */
+function chooseCandidate(i) {
+  const { candidates, held } = state.trade.tried;
+  const settings = {
+    ...Object.fromEntries(Object.entries(candidates.settings).map(([name, values]) => [name, values[i]])),
+    ...Object.fromEntries(held.map((h) => [h.name, h.value])),
+  };
+  const responses = Object.fromEntries(Object.entries(candidates.responses).map(([name, values]) => [name, values[i]]));
+  chooseSettings({ settings, responses, d: candidates.d[i], far: Boolean(candidates.far[i]) });
+}
+
+/** Take some settings as the reader's choice: say them, mark them on the chart, and move the what-if panel there. */
+function chooseSettings(chosen) {
+  state.trade = { ...state.trade, chosen };
+  const w = state.whatIf;
+  if (chosen && w && settingsFit(w.factors, chosen.settings)) {
+    w.settings = { ...chosen.settings };
+    renderWhatIf();
+    checkWhatIfLimits();
+  }
+  renderTradeChosen();
+  drawTradeChart();
+}
+
+/** Say the settings chosen and each response there, with what to do with them; nothing when none is chosen. */
+function renderTradeChosen() {
+  const box = $("#trade-chosen");
+  const chosen = state.trade.chosen;
+  if (!chosen) {
+    box.replaceChildren();
+    return;
+  }
+  const factors = tradeFactors();
+  const rows = state.balance.responses.map((r) => [withUnits(r.label, r.units), num(chosen.responses[r.name]), num(r.predicted)]);
+  const actions = el("p", "actions", "");
+  for (const [act, text, cls] of [
+    ["confirm", `Add ${CONFIRMATION_RUNS} confirmation runs at these settings`, "button"],
+    ["what-if", "See them under What if", "link"],
+    ["back", "Back to the balanced settings", "link"],
+  ]) {
+    const button = el("button", cls, text);
+    button.type = "button";
+    button.dataset.act = act;
+    actions.append(button);
+  }
+  box.replaceChildren(
+    said("lead", `Settings chosen: ${settingsWords(factors, chosen.settings, factorUnits())}.`),
+    table(["Response", "Predicted at the settings chosen", "At the balanced settings"], rows),
+    ...noteList(chosen.far ? ["These settings are further from your runs than any run lies: the predictions there are a guess until a run confirms them."] : [], "warnings"),
+    actions,
+  );
+}
+
+/** A button under the settings chosen was pressed: confirm them with runs, go to What if, or let go of them. */
+function tradeChosenPressed(e) {
+  const act = e.target.closest("button[data-act]")?.dataset.act;
+  const chosen = state.trade.chosen;
+  if (!act || !chosen) return;
+  if (act === "confirm") addConfirmationRuns(chosen.settings, "the settings chosen");
+  if (act === "what-if") $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (act === "back") {
+    chooseSettings(null);
+    if (state.whatIf) {
+      state.whatIf.settings = { ...whatIfStart(state.whatIf.factors, state.balance, state.best).settings };
+      renderWhatIf();
+      checkWhatIfLimits();
+    }
+  }
+}
+
+/** List the settings nearly as good as the balanced ones, each with a button that chooses it; nothing without any. */
+function renderTradeNearly() {
+  const box = $("#trade-nearly");
+  const { alternatives, held } = state.trade.tried;
+  if (!alternatives.length) {
+    box.replaceChildren();
+    return;
+  }
+  const factors = tradeFactors();
+  const units = factorUnits();
+  const responses = state.balance.responses;
+  const rows = alternatives.map((a, i) => {
+    const use = el("button", "link", "Choose");
+    use.type = "button";
+    use.dataset.nearly = String(i);
+    use.setAttribute("aria-label", `Choose the settings of row ${i + 1}`);
+    const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
+    return [settingsWords(factors, settings, units), ...responses.map((r) => num(a.responses[r.name])), num(a.composite), use];
+  });
+  box.replaceChildren(
+    el("h4", "", "Other settings nearly as good"),
+    said("hint", `Each is another best of the search, far from the balanced settings, with an overall desirability within 5% of theirs (${num(state.balance.composite)}).`),
+    builtTable(["Settings", ...responses.map((r) => withUnits(r.label, r.units)), "D", "Choose"], rows),
+  );
+}
+
+/** "Choose" was pressed beside settings nearly as good: they become the reader's choice. */
+function tradeNearlyPressed(e) {
+  const i = e.target.closest("button[data-nearly]")?.dataset.nearly;
+  if (i === undefined) return;
+  const { alternatives, held } = state.trade.tried;
+  const a = alternatives[Number(i)];
+  const settings = { ...a.settings, ...Object.fromEntries(held.map((h) => [h.name, h.value])) };
+  chooseSettings({ settings, responses: a.responses, d: a.composite, far: false });
 }
 
 /** What the reader set of each response's goal, as Python takes it: only the responses with a goal, only what was set. */
@@ -4802,7 +5202,7 @@ function sentGoals() {
 /** Find the balance a moment after the reader last typed in its table, rather than on every key. */
 function scheduleBalance() {
   clearTimeout(balanceTimer);
-  balanceTimer = setTimeout(findBalance, 500);
+  balanceTimer = setTimeout(rebalance, 500);
 }
 
 /**
@@ -4816,10 +5216,19 @@ async function findBalance() {
     return;
   }
   const mine = ++balanceTicket;
-  const reply = await call("api_balance", { ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+  const reply = await call("api_balance", balanceAsked());
   if (mine !== balanceTicket) return;
   renderBalance(reply);
   if (state.whatIf) renderWhatIf(); // the balanced settings it comes back to have moved
+}
+
+/** What the balance is asked with: the study, its results, each response's model and what the reader set of its goal. */
+const balanceAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName(), goals: sentGoals() });
+
+/** Find the balance again after the reader changed a goal, and then the trade-offs, which are drawn at it. */
+async function rebalance() {
+  await findBalance();
+  findTradeOffs();
 }
 
 /**
@@ -4836,6 +5245,7 @@ function renderBalance(reply) {
   if (!reply.ok) {
     // The responses cannot be balanced yet, as when one has no results: say why, and keep the goals as they are.
     state.balance = null;
+    clearTradeOffs(); // drawn at a balance that is no more
     $("#balance-out").replaceChildren(said("hint", reply.error));
     for (const id of ["#balance-chart", "#balance-confirm"]) $(id).hidden = true;
     hidePython("balance");
@@ -4956,7 +5366,7 @@ function goalChanged(e) {
   $("#balance-problems").hidden = !problem;
   scheduleSave();
   if (problem) return;
-  if (e.target.tagName === "SELECT") findBalance();
+  if (e.target.tagName === "SELECT") rebalance();
   else scheduleBalance();
 }
 
@@ -5001,8 +5411,9 @@ async function drawBalanceChart() {
   card.querySelector("figcaption").textContent = triangle
     ? blendOverlayCaption(b.overlay, b.responses)
     : overlayCaption(b.overlay, state.design.spec.factors, b.responses);
+  const python = figureAfter("balance", () => overlayCode(b.overlay, state.design.spec));
   try {
-    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height);
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {
     card.hidden = true; // the tables and the sentences above hold what it shows
   }
@@ -5147,6 +5558,8 @@ function renderWhatIf() {
   if (fitted) showPython("what-if", whatIfCode(state.design.spec, formulas, at, w.settings, kept));
   else hidePython("what-if");
   renderCurve(at);
+  scheduleSolve(); // one factor is solved for from the others, which are where this panel has them
+  scheduleWindow(); // and the windows are judged through these settings
 }
 
 // ---------------------------------------------------------------- the curve at the what-if settings
@@ -5190,7 +5603,11 @@ function renderCurve(at) {
   const { label, units, argument } = state.design.spec.curve;
   const words = { label, units, along: argument.label, alongUnits: argument.units };
   const goal = target ? { points: argument.values, values: target } : null;
-  if (state.plotlyJs) draw($("#what-if-curve-plot"), () => curveFigure(fit.points, curveAt(fit, at), words, goal), state.plotlyJs);
+  // The code fits the curves again and predicts the one drawn: it builds on the run sheet, as the panel's own does.
+  const python = figureAfter("run", () => curveCode(state.design, state.curves, fit, at));
+  if (state.plotlyJs) {
+    draw($("#what-if-curve-plot"), () => curveFigure(fit.points, curveAt(fit, at), words, goal), state.plotlyJs, undefined, { python });
+  }
   $("#what-if-curve-said").textContent = curveSaid(fit);
 }
 
@@ -5364,6 +5781,463 @@ async function checkKeptLimits() {
     renderWhatIf();
     renderKept();
   }
+}
+
+// ---------------------------------------------------------------- the settings that give a target
+// The reader types what a response should be, or several; Python runs their models backwards
+// (bootstrap.target_settings) and answers with settings, which the page says, draws and offers to confirm. One factor
+// is then solved for from the others (bootstrap.solve_for), at the settings the what-if panel holds.
+let targetTicket = 0;
+let targetTimer = null;
+let solveTicket = 0;
+let solveTimer = null;
+
+/** What the section holds for a study with no target typed yet: the targets by column, and what Python answered. */
+function newTarget() {
+  return { targets: {}, found: null, pair: null };
+}
+
+/** What a call that fits each response is sent: the study, its results, and each response's model. */
+const fitsAsked = () => ({ ...held(), ...splitResults(resultNames(), fitted()), models: modelsByName() });
+
+/** The responses a target can be typed for: each one with a result, with the least and the greatest of its results. */
+function targetResponses() {
+  const results = fitted();
+  return studyResponses().flatMap((r) => {
+    const values = (results[r.name] ?? []).filter(Number.isFinite);
+    return values.length ? [{ name: r.name, ...wordsOf(r.name), least: Math.min(...values), most: Math.max(...values) }] : [];
+  });
+}
+
+/** The study's factors with a range, by their names. */
+const rangedFactors = () => tradeFactors().filter((f) => f.kind !== "categorical");
+
+/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+function clearTarget() {
+  targetTicket += 1;
+  solveTicket += 1;
+  clearTimeout(targetTimer);
+  clearTimeout(solveTimer);
+  // The settings found name the study's factors as they were: they are found again when the section comes back.
+  state.target = { ...state.target, found: null };
+  renderTargetFound();
+  $("#target").hidden = true;
+}
+
+/**
+ * Show the section, after each analysis: a box and a slider for each response's target, the runs to match, and then
+ * the settings for the targets typed so far, found again on the results as they are now.
+ */
+function showTarget() {
+  const responses = state.design && !blendStudy() ? targetResponses() : [];
+  if (!responses.length || !rangedFactors().length) {
+    clearTarget();
+    return;
+  }
+  const names = responses.map((r) => r.name);
+  const ranged = rangedFactors().map((f) => f.name);
+  const targets = Object.fromEntries(Object.entries(state.target.targets).filter(([name]) => names.includes(name)));
+  const pair = state.target.pair?.every((name) => ranged.includes(name)) ? state.target.pair : null;
+  state.target = { ...state.target, targets, pair };
+  $("#target").hidden = false;
+  const t = $("#target-goals");
+  const key = JSON.stringify(responses);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const span = `${num(r.least)} to ${withUnit(r.most, r.units)}`;
+      const step = r.most > r.least ? sliderStep({ low: r.least, high: r.most }) : "any";
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="Should be"><input type="number" step="any" name="target" aria-label="${escape(r.label)}: what it should be"></td>` +
+        `<td data-label="Or move it"><input type="range" name="slider" min="${r.least}" max="${r.most}" step="${step}" aria-label="${escape(r.label)}: what it should be, from ${escape(span)}"></td>` +
+        `<td data-label="Your results">${escape(span)}</td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Response</th><th scope="col">Should be</th><th scope="col">Or move it</th><th scope="col">Your results</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  showTargets();
+  const results = fitted();
+  const said = (place) => responses.flatMap((r) => (Number.isFinite(results[r.name][place]) ? [`${r.label} ${withUnit(results[r.name][place], r.units)}`] : []));
+  const runs = state.design.rows.flatMap((_, place) => (said(place).length ? [[String(place), `Run ${runOrderOf(place)}: ${said(place).join(", ")}`]] : []));
+  $("#target-match").replaceChildren(new Option("Choose a run", ""), ...runs.map(([place, text]) => new Option(text, place)));
+  findSettings();
+}
+
+/** Show the targets the section holds in their boxes and on their sliders; a box the reader is typing in keeps what is typed. */
+function showTargets() {
+  for (const tr of $("#target-goals").tBodies[0]?.rows ?? []) {
+    const target = state.target.targets[tr.dataset.response] ?? null;
+    const [box, slider] = [tr.querySelector('[name="target"]'), tr.querySelector('[name="slider"]')];
+    if (box !== document.activeElement) box.value = target === null ? "" : String(target);
+    if (target !== null) slider.value = String(target);
+  }
+  const typed = Object.keys(state.target.targets).length > 0;
+  $("#target-clear").hidden = !typed;
+  $("#target").classList.toggle("in-use", typed); // targets typed stay on the page at every reading level
+}
+
+/** The reader typed a target or moved its slider: the settings follow a moment after the last move. */
+function targetTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr) return;
+  const value = numberOrNull(e.target.value);
+  const { [tr.dataset.response]: _, ...others } = state.target.targets;
+  state.target = { ...state.target, targets: Number.isFinite(value) ? { ...others, [tr.dataset.response]: value } : others };
+  $("#target-match").value = "";
+  showTargets();
+  clearTimeout(targetTimer);
+  targetTimer = setTimeout(findSettings, 400);
+}
+
+/** The reader chose a run to match: every response with a result at it takes that result as its target. */
+function targetMatched() {
+  const place = $("#target-match").value;
+  if (place === "") return;
+  const results = fitted();
+  const at = targetResponses().flatMap((r) => (Number.isFinite(results[r.name][Number(place)]) ? [[r.name, results[r.name][Number(place)]]] : []));
+  state.target = { ...state.target, targets: Object.fromEntries(at) };
+  showTargets();
+  findSettings();
+}
+
+/** The reader cleared the targets: the boxes empty, and the settings found go. */
+function targetCleared() {
+  state.target = { ...state.target, targets: {} };
+  $("#target-match").value = "";
+  showTargets();
+  findSettings();
+}
+
+/** Find the settings that give the targets typed (bootstrap.target_settings), and show them; with none typed, nothing. */
+async function findSettings() {
+  clearTimeout(targetTimer);
+  const { targets, pair } = state.target;
+  const mine = ++targetTicket;
+  const reply = Object.keys(targets).length ? await call("api_target_settings", { ...fitsAsked(), targets, ...(pair ? { pair } : {}) }) : null;
+  if (mine !== targetTicket) return;
+  $("#target-problems").textContent = reply && !reply.ok ? reply.error : "";
+  $("#target-problems").hidden = !reply || reply.ok;
+  state.target = { ...state.target, found: reply?.ok ? reply.result : null };
+  renderTargetFound();
+  solveFactor();
+}
+
+/** Where a numeric factor's setting lies in its range: a bar from its low end, and the range in words. */
+function rangeMark(setting, factor, units) {
+  if (setting.kind === "categorical") return "";
+  const [low, high] = [Math.min(factor.low, factor.high), Math.max(factor.low, factor.high)];
+  const span = `${num(low)} to ${withUnit(high, units)}`;
+  const meter = el("meter", "range-mark", "");
+  Object.assign(meter, { min: low, max: high, value: setting.value });
+  meter.setAttribute("aria-label", `${setting.name} at ${withUnit(setting.value, units)}, in its range of ${span}`);
+  const cell = el("span", "range-cell", "");
+  cell.append(meter, ` ${span}`);
+  return cell;
+}
+
+/** Show the settings found: whether they give the targets, each factor's setting, each response there, and the chart. */
+function renderTargetFound() {
+  const found = state.target.found;
+  for (const id of ["#target-actions", "#target-solve"]) $(id).hidden = !found;
+  if (!found) {
+    $("#target-out").replaceChildren();
+    $("#target-chart").hidden = true;
+    hidePython("target");
+    return;
+  }
+  const units = factorUnits();
+  const factors = Object.fromEntries(tradeFactors().map((f) => [f.name, f]));
+  const settings = found.settings.map((s) => [
+    s.name,
+    s.kind === "categorical" ? s.value : withUnit(s.value, units[s.name]),
+    rangeMark(s, factors[s.name], units[s.name]),
+  ]);
+  $("#target-out").replaceChildren(
+    said("lead", targetLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
+    builtTable(["Factor", "Setting", "In its range"], settings),
+    table(["Response", "Target", "Predicted at these settings", "95% prediction interval"], targetRows(found), { "95% prediction interval": "prediction-interval" }),
+    ...[targetShare(found)].filter(Boolean).map((text) => said("hint", text)),
+    said("hint", balanceLeverage(found)),
+    ...noteList(balanceWhere(found)),
+    ...noteList([extrapolationSentence(found)].filter(Boolean), "warnings"),
+  );
+  $("#target-confirm").hidden = confirmedAt(state.design, found.confirm_at); // runs there already: their results are what is wanted
+  showPython("target", targetCode(found, state.design.spec));
+  drawTargetChart();
+}
+
+/** Draw each response's line of settings that give its target over two factors; nothing with one numeric factor. */
+async function drawTargetChart() {
+  const found = state.target.found;
+  const card = $("#target-chart");
+  if (!found?.overlay || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const { overlay } = found;
+  const units = factorUnits();
+  const ranged = rangedFactors().map((f) => f.name);
+  const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
+  $("#target-across").innerHTML = options(overlay.x);
+  $("#target-up").innerHTML = options(overlay.y);
+  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { star: FOUND, named: targetName });
+  card.hidden = false;
+  card.querySelector("figcaption").textContent = targetCaption(overlay, state.design.spec.factors, found.responses);
+  const python = figureAfter("target", () => targetOverlayCode(overlay, state.design.spec));
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
+  } catch {
+    card.hidden = true; // the tables above hold what it shows
+  }
+}
+
+/** The reader chose the two factors the chart is drawn over: choosing one axis's factor for the other swaps them. */
+function targetPairChanged() {
+  const overlay = state.target.found?.overlay;
+  if (!overlay) return;
+  let [across, up] = [$("#target-across").value, $("#target-up").value];
+  if (across === up) [across, up] = across === overlay.x ? [overlay.y, up] : [across, overlay.x];
+  state.target = { ...state.target, pair: [across, up] };
+  findSettings();
+}
+
+/** The settings found, by each factor's name, as the what-if panel holds settings. */
+const foundSettings = () => Object.fromEntries(state.target.found.settings.map((s) => [s.name, s.value]));
+
+/** Move the what-if panel to the settings found, and go to it. */
+function targetToWhatIf() {
+  const w = state.whatIf;
+  if (!state.target.found || !w || !settingsFit(w.factors, foundSettings())) return;
+  w.settings = foundSettings();
+  renderWhatIf();
+  checkWhatIfLimits();
+  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Solve for one factor a moment after the what-if panel's settings last moved. */
+function scheduleSolve() {
+  clearTimeout(solveTimer);
+  if (state.target.found) solveTimer = setTimeout(solveFactor, 400);
+}
+
+/**
+ * Say what one factor must be for a response to meet its target (bootstrap.solve_for), with every other factor where
+ * the what-if panel has it: after the settings are found, and when the reader picks the factor or the response.
+ */
+async function solveFactor() {
+  clearTimeout(solveTimer);
+  const { found, targets } = state.target;
+  const w = state.whatIf;
+  const box = $("#target-solve");
+  const mine = ++solveTicket;
+  box.hidden = !found || !w;
+  if (box.hidden) return;
+  const units = factorUnits();
+  const keep = (select, list) => {
+    const chosen = list.some(([value]) => value === select.value) ? select.value : list[0][0];
+    select.replaceChildren(...list.map(([value, text]) => new Option(text, value, false, value === chosen)));
+    return chosen;
+  };
+  const factor = keep($("#solve-factor"), rangedFactors().map((f) => [f.name, withUnits(f.name, units[f.name])]));
+  const response = keep($("#solve-response"), found.responses.map((r) => [r.name, withUnits(r.label, r.units)]));
+  const asked = { ...fitsAsked(), response, target: targets[response], factor, settings: w.settings };
+  const reply = await call("api_solve_for", asked);
+  if (mine !== solveTicket) return;
+  if (!reply.ok) {
+    $("#solve-out").replaceChildren(said("hint", reply.error));
+    return;
+  }
+  const others = Object.fromEntries(Object.entries(w.settings).filter(([name]) => name !== factor));
+  const { label, units: responseUnits } = wordsOf(response);
+  const words = { held: settingsWords(w.factors, others, units), units: units[factor], label, responseUnits };
+  $("#solve-out").replaceChildren(...solveSentences(reply.result, words).map((text) => said("", text)));
+}
+
+// ---------------------------------------------------------------- the settings that meet a specification
+// The reader types a window for a response, or for several; Python judges settings against them with the library's
+// feasible_region (bootstrap.specification) and answers with the share of the ranges that meets them, how surely a
+// new run does, and the picture over two factors, the others where the what-if panel has them.
+let windowTicket = 0;
+let windowTimer = null;
+
+/** What the section holds for a study with no window typed yet: each response's two ends, and what Python answered. */
+function newWindow() {
+  return { windows: {}, found: null, pair: null };
+}
+
+/** Take the section away: there is no result, no factor with a range, or the study is a mixture's. */
+function clearWindow() {
+  windowTicket += 1;
+  clearTimeout(windowTimer);
+  // What the windows gave names the study's factors as they were: it is found again when the section comes back.
+  state.window = { ...state.window, found: null };
+  renderWindow();
+  $("#window").hidden = true;
+}
+
+/** The windows the reader typed, as Python takes them: only the responses with an end typed. */
+const sentWindows = () => Object.fromEntries(Object.entries(state.window.windows).filter(([, ends]) => ends.some((end) => end !== null)));
+
+/**
+ * Show the section, after each analysis: two boxes for each response's window, and then what the windows typed so
+ * far give on the results as they are now.
+ */
+function showWindow() {
+  // The windows are judged through the what-if panel's settings, so the section comes with that panel.
+  const responses = state.design && state.whatIf && !blendStudy() ? targetResponses() : [];
+  if (!responses.length || !rangedFactors().length) {
+    clearWindow();
+    return;
+  }
+  const names = responses.map((r) => r.name);
+  const ranged = rangedFactors().map((f) => f.name);
+  const windows = Object.fromEntries(Object.entries(state.window.windows).filter(([name]) => names.includes(name)));
+  const pair = state.window.pair?.every((name) => ranged.includes(name)) ? state.window.pair : null;
+  state.window = { ...state.window, windows, pair };
+  $("#window").hidden = false;
+  const t = $("#window-limits");
+  const key = JSON.stringify(responses);
+  if (t.dataset.key !== key) {
+    t.dataset.key = key;
+    const rows = responses.map((r) => {
+      const label = escape(r.label);
+      return (
+        `<tr data-response="${escape(r.name)}"><th scope="row">${escape(withUnits(r.label, r.units))}</th>` +
+        `<td data-label="At least"><input type="number" step="any" name="low" aria-label="${label}: at least"></td>` +
+        `<td data-label="At most"><input type="number" step="any" name="high" aria-label="${label}: at most"></td>` +
+        `<td data-label="Your results">${escape(`${num(r.least)} to ${withUnit(r.most, r.units)}`)}</td></tr>`
+      );
+    });
+    t.innerHTML = `<thead><tr><th scope="col">Response</th><th scope="col">At least</th><th scope="col">At most</th><th scope="col">Your results</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+  }
+  showWindows();
+  findWindow();
+}
+
+/** Show the windows the section holds in their boxes; a box the reader is typing in keeps what is typed. */
+function showWindows() {
+  for (const tr of $("#window-limits").tBodies[0]?.rows ?? []) {
+    const ends = state.window.windows[tr.dataset.response] ?? [null, null];
+    for (const [i, end] of ["low", "high"].entries()) {
+      const box = tr.querySelector(`[name="${end}"]`);
+      if (box !== document.activeElement) box.value = ends[i] ?? "";
+    }
+  }
+}
+
+/** The reader typed an end of a window: what the windows give follows a moment after the last key. */
+function windowTyped(e) {
+  const tr = e.target.closest("tr[data-response]");
+  if (!tr) return;
+  const ends = ["low", "high"].map((end) => {
+    const value = numberOrNull(tr.querySelector(`[name="${end}"]`).value);
+    return Number.isFinite(value) ? value : null;
+  });
+  state.window = { ...state.window, windows: { ...state.window.windows, [tr.dataset.response]: ends } };
+  scheduleWindow();
+}
+
+/** Judge the windows again a moment from now: an end was typed, or the what-if panel's settings moved. */
+function scheduleWindow() {
+  clearTimeout(windowTimer);
+  if ($("#window").hidden) return;
+  // With no window typed nothing is asked of Python: what the last one gave, or why it was refused, goes at once.
+  if (Object.keys(sentWindows()).length) windowTimer = setTimeout(findWindow, 400);
+  else if (state.window.found || !$("#window-problems").hidden) findWindow();
+}
+
+/** The reader cleared the windows: the boxes empty, and what they gave goes. */
+function windowCleared() {
+  state.window = { ...state.window, windows: {} };
+  showWindows();
+  findWindow();
+}
+
+/** Judge the windows typed (bootstrap.specification), and show what they give; with none typed, nothing. */
+async function findWindow() {
+  clearTimeout(windowTimer);
+  const windows = sentWindows();
+  const { pair } = state.window;
+  const mine = ++windowTicket;
+  $("#window-clear").hidden = !Object.keys(windows).length;
+  $("#window").classList.toggle("in-use", Object.keys(windows).length > 0); // windows typed stay at every reading level
+  // The chart holds its other factors, and every categorical factor, where the what-if panel has them.
+  const asked = { ...fitsAsked(), windows, at: state.whatIf?.settings, ...(pair ? { pair } : {}) };
+  const reply = Object.keys(windows).length && state.whatIf ? await call("api_specification", asked) : null;
+  if (mine !== windowTicket) return;
+  $("#window-problems").textContent = reply && !reply.ok ? reply.error : "";
+  $("#window-problems").hidden = !reply || reply.ok;
+  state.window = { ...state.window, found: reply?.ok ? reply.result : null };
+  renderWindow();
+}
+
+/** Show what the windows give: the share of the settings, how surely a new run meets them, where it is surest, the chart. */
+function renderWindow() {
+  const found = state.window.found;
+  $("#window-actions").hidden = !found?.surest;
+  if (!found) {
+    $("#window-out").replaceChildren();
+    $("#window-chart").hidden = true;
+    hidePython("window");
+    return;
+  }
+  const more = [windowChance(found), surestSentence(found, tradeFactors(), factorUnits())].filter(Boolean);
+  $("#window-out").replaceChildren(
+    said("lead", windowLead(found, { limits: Boolean(state.design.spec.constraints?.length) })),
+    ...more.map((text) => said("", text)),
+  );
+  if (found.surest) $("#window-confirm").hidden = confirmedAt(state.design, found.surest.confirm_at);
+  showPython("window", windowCode(found, state.design.spec));
+  drawWindowChart();
+}
+
+/** Draw where every response is inside its window over two factors, with the lines of equal chance. */
+async function drawWindowChart() {
+  const found = state.window.found;
+  const card = $("#window-chart");
+  if (!found?.overlay || !state.plotlyJs) {
+    card.hidden = true;
+    return;
+  }
+  const { overlay } = found;
+  const units = factorUnits();
+  const ranged = rangedFactors().map((f) => f.name);
+  const options = (chosen) => ranged.map((name) => `<option value="${escape(name)}"${name === chosen ? " selected" : ""}>${escape(withUnits(name, units[name]))}</option>`).join("");
+  $("#window-across").innerHTML = options(overlay.x);
+  $("#window-up").innerHTML = options(overlay.y);
+  const axes = Object.fromEntries([overlay.x, overlay.y].map((name) => [name, withUnits(name, units[name])]));
+  const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
+  card.hidden = false;
+  card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec));
+  try {
+    await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
+  } catch {
+    card.hidden = true; // the sentences above hold what it shows
+  }
+}
+
+/** The reader chose the two factors the chart is drawn over: choosing one axis's factor for the other swaps them. */
+function windowPairChanged() {
+  const overlay = state.window.found?.overlay;
+  if (!overlay) return;
+  let [across, up] = [$("#window-across").value, $("#window-up").value];
+  if (across === up) [across, up] = across === overlay.x ? [overlay.y, up] : [across, overlay.x];
+  state.window = { ...state.window, pair: [across, up] };
+  findWindow();
+}
+
+/** Move the what-if panel to the settings at which a new run is surest to meet the windows, and go to it. */
+function windowToWhatIf() {
+  const w = state.whatIf;
+  const surest = state.window.found?.surest;
+  if (!surest || !w || !settingsFit(w.factors, surest.settings)) return;
+  w.settings = { ...surest.settings };
+  renderWhatIf();
+  checkWhatIfLimits();
+  $("#what-if").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ---------------------------------------------------------------- the next step
@@ -5641,6 +6515,8 @@ async function showBuiltExample() {
     renderBest({ ok: true, result: example.best });
   }
   showWhatIf(example.predictors ?? null); // the build's fit, so the panel follows each move before Python starts
+  showTarget(); // the boxes for a target: nothing is asked of Python until one is typed
+  showWindow(); // and those for a specification's windows
   if (example.next) state.next = { design: state.design, key: null, ...nextOf(example.next) }; // asked again on a change
   renderNext(); // what its results call for; its Box-Behnken design takes no runs added
   $("#demo-version").textContent = `process-improve ${example.version}`;
@@ -5742,6 +6618,8 @@ function newStudy() {
   clearAnalysis();
   clearBalance();
   clearWhatIf();
+  clearTarget();
+  clearWindow();
   renderPicker();
   setModel("");
   for (const key of ["design", "run", "analyse", "best", "compare"]) hidePython(key);
@@ -6150,9 +7028,14 @@ async function openCampaign(c, record, message) {
   state.shown = names[0];
   state.models = { [names[0]]: c.model, ...(c.more_models ?? {}) };
   state.goals = structuredClone(c.goals ?? {});
+  state.trade = newTrade();
+  state.target = newTarget();
+  state.window = newWindow();
   state.scenarios = structuredClone(c.what_if ?? []);
   clearBalance();
   clearWhatIf();
+  clearTarget();
+  clearWindow();
   state.simulation = c.simulation;
   state.analysis = null;
   state.example = false;
@@ -6357,6 +7240,8 @@ const BUILDS_ON = {
   best: ["design", "run", "analyse"],
   balance: ["design", "run"],
   "what-if": ["design", "run"],
+  target: ["design", "run"],
+  window: ["design", "run"],
 };
 const stepCode = {};
 
@@ -6438,14 +7323,14 @@ function el(tag, cls, text) {
 }
 
 /**
- * A link to the book, or to another source, opening in a tab of its own so the page keeps its
- * state: the same tab each time, rather than a new one per link.
+ * A link to the book, or to another source, opening in a tab of its own so the page keeps its state. The book's
+ * is one tab, the same each time (campaign.tabOf says how); a link to another source opens a new one.
  */
-function link(href, text, target = "pid-book") {
+function link(href, text, target = BOOK_TAB) {
   const a = el("a", "", text);
   a.href = href;
   a.target = target;
-  a.rel = "noopener";
+  a.rel = target === BOOK_TAB ? "opener" : "noopener";
   return a;
 }
 
@@ -6459,6 +7344,28 @@ function table(columns, rows, terms = {}, { sortedBy = null, looks = {}, run = n
   t._looks = columns.map((c) => looks[c] ?? "");
   t._run = run; // for a table with a row a run: the run of a row, which marks it on every chart (fillBody)
   renderTable(t, columns, rows, sortedBy, [], terms);
+  wrap.append(t);
+  return wrap;
+}
+
+/**
+ * A table whose cells may hold an element, as a row's button is: its rows stay as given, where table()'s are text
+ * a reader can sort.
+ */
+function builtTable(columns, rows) {
+  const wrap = el("div", "scroll", "");
+  const t = el("table", "data", "");
+  const head = t.createTHead().insertRow();
+  for (const text of columns) {
+    const th = el("th", "", text);
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const row of rows) {
+    const tr = body.insertRow();
+    for (const cell of row) tr.insertCell().append(cell instanceof Node ? cell : String(cell ?? ""));
+  }
   wrap.append(t);
   return wrap;
 }
@@ -6706,7 +7613,7 @@ applyMode(MODES.includes(document.documentElement.dataset.mode) ? document.docum
 setLevel(pageLevel(), false);
 
 // ---------------------------------------------------------------- wiring
-installTerms(GLOSSARY);
+installTerms(GLOSSARY, CONTEXT);
 // A press and hold is not something a page shows, so a touch screen is told of it once, on a first visit.
 const TERMS_HINTED = "factorial-terms-hinted";
 try {
@@ -6861,8 +7768,24 @@ $("#what-if-kept-list").addEventListener("click", keptPressed);
 $("#balance-reset").onclick = () => {
   state.goals = {};
   scheduleSave();
-  findBalance();
+  rebalance();
 };
+for (const id of ["#trade-across", "#trade-up", "#trade-colour"]) $(id).addEventListener("change", tradeViewChanged);
+$("#trade-limits").addEventListener("input", tradeLimitTyped);
+$("#trade-chosen").addEventListener("click", tradeChosenPressed);
+$("#trade-nearly").addEventListener("click", tradeNearlyPressed);
+$("#target-goals").addEventListener("input", targetTyped);
+$("#target-match").addEventListener("change", targetMatched);
+$("#target-clear").addEventListener("click", targetCleared);
+for (const id of ["#target-across", "#target-up"]) $(id).addEventListener("change", targetPairChanged);
+$("#target-confirm").addEventListener("click", () => addConfirmationRuns(state.target.found?.confirm_at, "the settings found"));
+$("#target-what-if").addEventListener("click", targetToWhatIf);
+for (const id of ["#solve-factor", "#solve-response"]) $(id).addEventListener("change", solveFactor);
+$("#window-limits").addEventListener("input", windowTyped);
+$("#window-clear").addEventListener("click", windowCleared);
+for (const id of ["#window-across", "#window-up"]) $(id).addEventListener("change", windowPairChanged);
+$("#window-confirm").addEventListener("click", () => addConfirmationRuns(state.window.found?.surest?.confirm_at, "the surest settings"));
+$("#window-what-if").addEventListener("click", windowToWhatIf);
 $("#remove-confirmation").onclick = removeConfirmationRuns;
 $("#download").onclick = downloadWorkbook;
 $("#csv").onclick = downloadCsv;
@@ -6977,7 +7900,59 @@ renderStudyBar();
 const whenLoaded = Promise.all([whenReady, whenWarm]);
 whenLoaded.catch(() => {}); // Python did not start: the status line says so
 readManifest().then((manifest) => installOffline({ manifest, started: whenLoaded, box: $("#offline") }));
-start();
+/**
+ * Bring a part of the page into view, as a link asks with ?show=: its step is shown, the folds it is in are opened,
+ * and it is outlined for a moment. The part may not be there yet, as an analysis Python has still to make, so it is
+ * waited for. A reader who has begun to scroll, press or type by then is left where they are.
+ */
+const SHOW_WAIT = 60_000; // ms: as long as Python takes to start and to fit, on a first visit over a slow line
+function showPart(id) {
+  const part = id && document.getElementById(id);
+  if (!part) return;
+  let left = false;
+  const leave = () => {
+    left = true;
+  };
+  const acts = ["pointerdown", "keydown", "wheel", "touchstart"];
+  for (const act of acts) window.addEventListener(act, leave, { once: true, capture: true, passive: true });
+  const started = Date.now();
+  // Shown once nothing between it and its step is hidden: the step itself is shown here.
+  const there = () => {
+    for (let at = part; at && !at.dataset.pane; at = at.parentElement) if (at.hidden) return false;
+    return true;
+  };
+  const look = () => {
+    if (left || Date.now() - started > SHOW_WAIT) return;
+    if (!there()) {
+      setTimeout(look, 200);
+      return;
+    }
+    const pane = part.closest("[data-pane]")?.dataset.pane;
+    if (pane && state.phase !== pane) showPhase(pane);
+    for (let fold = part.closest("details"); fold; fold = fold.parentElement.closest("details")) fold.open = true;
+    // Under the study's bar, and once more when the step's charts have taken their room.
+    const under = () => {
+      if (!left) window.scrollBy({ top: part.getBoundingClientRect().top - $("#studybar").offsetHeight - 12, behavior: "instant" });
+    };
+    under();
+    setTimeout(under, 300);
+    if (!part.hasAttribute("tabindex")) part.tabIndex = -1;
+    part.focus({ preventScroll: true }); // a screen reader goes on from here
+    part.classList.add("shown-part");
+    setTimeout(() => part.classList.remove("shown-part"), 4000);
+  };
+  look();
+}
+
+// The part a link asks for is read before the study opens, which clears the address of some links. The address
+// then loses the word: a reload, or a link copied from here, opens the study without the jump.
+const partAsked = partName(new URLSearchParams(location.search).get(SHOW_PARAM));
+if (new URLSearchParams(location.search).has(SHOW_PARAM)) {
+  const address = new URL(location.href);
+  address.searchParams.delete(SHOW_PARAM);
+  history.replaceState(null, "", address);
+}
+start().then(() => showPart(partAsked));
 loadFields();
 
 call("api_catalogue").then((reply) => {

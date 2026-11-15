@@ -2,6 +2,7 @@
 // or three of its factors, the timeline of the published designs, the comparison of designs side by side
 // and the errata. catalog.js decides when each is shown, and catalog-logic.js holds the rules they draw.
 
+import { tabOf } from "./campaign.js";
 import {
   FAMILY_COLOURS,
   OTHER_COLOUR,
@@ -246,7 +247,7 @@ export function errataTable(errata, catalog) {
   const rows = errata.map((e) => {
     const source = catalog.sources[e.source];
     const entry = known.has(e.id) ? element("button", { type: "button", class: "link", "data-id": e.id, text: e.id }) : e.id;
-    const where = e.url ? element("a", { href: e.url, target: "_blank", rel: "noopener", text: e.where || "web page" }) : e.where;
+    const where = e.url ? element("a", { href: e.url, ...tabOf(e.url), text: e.where || "web page" }) : e.where;
     const quantity = [String(e.what ?? "").replace(/_/g, " "), e.term].filter(Boolean).join(", ");
     return [source ? `${source.short} (${source.year})` : e.source, entry, quantity, String(e.printed ?? ""), where, e.reason];
   });

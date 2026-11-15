@@ -802,14 +802,16 @@ def _exchange_rows(
 
 def _engine_region(ctx: _AugmentContext) -> _Region:
     """Return the constrained engine's region: the box of coded factors, cut by the limits of *ctx*'s region."""
+    from process_improve.experiments._count_rules import without_count_rules  # noqa: PLC0415
     from process_improve.experiments.designs_constrained import _Region, parse_constraint  # noqa: PLC0415
     from process_improve.experiments.factor import Factor  # noqa: PLC0415
 
     if ctx.region is None:
         return _Region([Factor(name=n, low=-1, high=1) for n in ctx.factor_names], [], [])
     names = set(ctx.region.names)
-    limits = [g for c in ctx.region.constraints for g in parse_constraint(c.expression, names)]
-    return _Region(list(ctx.region.factors), [], limits)
+    ordinary = without_count_rules(ctx.region.constraints)
+    limits = [g for c in ordinary for g in parse_constraint(c.expression, names)]
+    return _Region(list(ctx.region.factors), [], limits, counts=ctx.region.counts)
 
 
 def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
@@ -1373,7 +1375,8 @@ def augment_design(  # noqa: PLR0913
         msg = (
             f"augmentation_type={augmentation_type!r} is for factors in coded units, and the runs are mixture "
             "blends (the proportions of each run sum to 1). A mixture design takes 'add_axial_points' (its axial "
-            "check blends), 'add_center_points' (its centroid) or 'replicate'."
+            "check blends), 'add_center_points' (its centroid) or 'replicate'. For more blends chosen for a model "
+            "beside these, pass them to generate_design(..., design_type='d_optimal', fixed_runs=...)."
         )
         raise ValueError(msg)
     unknown = sorted(set(hard_limits or []) - set(factor_names))

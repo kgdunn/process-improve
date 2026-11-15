@@ -14,7 +14,7 @@ import re
 
 from process_improve import experiments
 from process_improve.tool_spec import get_tool_specs
-from tests.web._support import APP_SOURCES, javascript, page, source
+from tests.web._support import APP_SOURCES, WEB, javascript, page, source
 
 FEATURES = source("FEATURES.md")
 
@@ -72,8 +72,15 @@ def table(heading: str) -> dict[str, str]:
     return {row[0]: row[1] for row in rows[2:]}  # after the head and the rule under it
 
 
+#: A point's picture, on a line of its own under it, as ``web/features.js`` reads it.
+PICTURE = re.compile(r"^\s+!\[\]\(chart-pictures/([a-z0-9_]+)\.webp\)$")
+
+#: Where the pictures are, and the size ``web/features.js`` gives each on the page.
+PICTURES = WEB / "chart-pictures"
+
+
 def points(heading: str) -> list[str]:
-    """Return the points of the first list under a heading, each on one line and without its line of details."""
+    """Return the points of the first list under a heading, each on one line, without its details or its picture."""
     section = under(heading)
     first = section[section.index("\n- ") :].lstrip("\n").split("\n\n", 1)[0]
     found: list[str] = []
@@ -84,6 +91,8 @@ def points(heading: str) -> list[str]:
             details = False
         elif line.lstrip().startswith("- *Details:*"):
             details = True
+        elif PICTURE.match(line):
+            continue
         elif not details:
             found[-1] += f" {line.strip()}"
     return found
@@ -117,6 +126,43 @@ def test_every_chart_is_listed_by_its_title(bootstrap, node):
     assert first in TEXT
     assert f"**{len(charts)} charts.**" in TEXT, "the count in the summary"
     assert f"### See it: {len(charts)} charts" in TEXT, "and on the fold"
+
+
+def webp_size(picture: bytes) -> tuple[int, int]:
+    """Return the width and height a WebP file states in its head, whichever of the format's three kinds it is."""
+    assert picture[:4] == b"RIFF", "a WebP file"
+    assert picture[8:12] == b"WEBP", "a WebP file"
+    kind, data = picture[12:16], picture[20:]
+    if kind == b"VP8X":  # the extended kind: each size less one, in three bytes
+        return int.from_bytes(data[4:7], "little") + 1, int.from_bytes(data[7:10], "little") + 1
+    if kind == b"VP8L":  # without loss: both sizes less one, fourteen bits each, after a byte that marks the kind
+        bits = int.from_bytes(data[1:5], "little")
+        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    assert kind == b"VP8 ", "one of the three kinds"
+    return int.from_bytes(data[6:8], "little") & 0x3FFF, int.from_bytes(data[8:10], "little") & 0x3FFF
+
+
+def test_every_chart_has_its_picture_under_its_point_and_in_the_build(node, build_script):
+    (charts,) = javascript(node, source("logic.js"), [("CHARTS", [])])
+    (size,) = javascript(node, source("features.js"), [("PICTURE_SIZE", [])])
+    section = under(f"#### The {len(charts)} charts")
+    pictured: dict[str, str] = {}
+    for line in section.splitlines():
+        title = re.match(r"- \*\*(.+?)\.\*\*", line)
+        if title:
+            last = title.group(1)
+        elif PICTURE.match(line):
+            assert last not in pictured, "one picture to a chart"
+            pictured[last] = PICTURE.match(line).group(1)
+    assert pictured == {chart["title"]: key for key, chart in charts.items()}, "each chart's own picture, by its key"
+    assert sorted(file.name for file in PICTURES.iterdir()) == sorted(f"{key}.webp" for key in charts), "and no other"
+    for key in charts:
+        assert f"chart-pictures/{key}.webp" in build_script.APP_FILES, "the build ships it"
+        file = PICTURES / f"{key}.webp"
+        assert webp_size(file.read_bytes()) == tuple(size), "the size the page keeps room for"
+        assert file.stat().st_size < 80_000, "a picture to glance at, not the chart itself"
+    shown = FEATURES.split("<!-- features.html shows what follows -->", 1)[1]
+    assert shown.count("![](") == len(charts), "no picture the page would show as it is typed"
 
 
 def test_every_process_to_practise_on_and_every_reading_level_is_named(bootstrap, node):
@@ -180,7 +226,7 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
     """A number said twice is checked twice: each of these is in a sentence, apart from the table of limits."""
     app = bootstrap
     graph = json.loads(source("map/graph.json"))
-    (glossary,) = javascript(node, source("glossary.js"), [("GLOSSARY", [])])
+    glossary, context = javascript(node, source("glossary.js"), [("GLOSSARY", []), ("CONTEXT", [])])
     book, published = (
         json.loads(source(name))["examples"] for name in ("book-examples.json", "published-examples.json")
     )
@@ -200,7 +246,13 @@ def test_the_numbers_the_document_repeats_in_its_sentences_are_the_app_s(bootstr
         f"One button adds {['', 'one', 'two', 'three'][app.CONFIRMATION_RUNS]} confirmation runs at the settings found",
         f"a note when one is above {app.VIF_HIGH:g}",
         f"{['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][len(app.SCENARIOS)]} processes with a known true model",
+        f"*Details:* {app.TRADE_OFF_DRAWN:,} settings drawn evenly from the ranges the limits allow",
+        f"*Details:* {app.TARGET_DRAWN:,} settings tried on the models",
+        f"predicted within {app.TARGET_NEAR:.0%} of the range of its results",
+        f"*Details:* {app.SPECIFICATION_DRAWN:,} settings judged inside the limits",
+        f"that chance is {app.CHANCES[0]:.0%} or more and {app.CHANCES[1]:.0%} or more",
         f"The glossary holds {len(glossary)} terms",
+        f"{len(context)} of the {len(glossary)} terms have the link",
         f"The book's {len(book)} examples and {len(published)} published examples each open from a link",
         f"For the book's {len(book)} examples the app gives the numbers the book prints",
         f"{len(graph['nodes'])} ideas of designed experiments and {len(graph['edges'])} links between them",
@@ -265,6 +317,26 @@ def test_a_point_says_in_plain_words_what_it_means_and_keeps_such_words_for_its_
     for word in FOR_THE_DETAILS:  # as each is written: a link's address holds "https" too
         assert word not in first, word
         assert word in rest, f"{word}: said in a line of details, for a reader who asks"
+
+
+def test_each_show_me_names_an_example_the_app_opens_and_a_part_of_its_page():
+    """A point's "Show me" opens the app on an example, at a part of the page: both are there to be opened."""
+    shown = " ".join(FEATURES.split("<!-- features.html shows what follows -->", 1)[1].split())
+    links = re.findall(r"\[Show me\]\(([^)]+)\)", shown)
+    assert len(links) >= 15
+    assert len(set(links)) == len(links), "no two points show the same part of the same example"
+    book, published = (
+        {example["name"] for example in json.loads(source(name))["examples"]}
+        for name in ("book-examples.json", "published-examples.json")
+    )
+    opens = {"book": book, "example": published | {"worked"}}
+    parts = set(re.findall(r'\bid="([\w-]+)"', source("index.html")))
+    for link in links:
+        asked = re.fullmatch(r"https://factori\.al/\?(book|example)=([a-z0-9-]+)&show=([a-z0-9-]+)", link)
+        assert asked, link
+        kind, name, part = asked.groups()
+        assert name in opens[kind], link
+        assert part in parts, f"{link}: no part of the page has this id"
 
 
 # --------------------------------------------------------------------------- the page that shows the document

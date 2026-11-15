@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-import { MOVED, SHOWN_FROM, addressOf, markdown, page, shownPart, slug } from "../../../web/features.js";
+import { MOVED, PICTURE_SIZE, SHOWN_FROM, addressOf, markdown, page, shownPart, slug } from "../../../web/features.js";
 
 const DOCUMENT = readFileSync(new URL("../../../web/FEATURES.md", import.meta.url), "utf8");
 
@@ -34,6 +34,36 @@ describe("the Markdown of the features document, as HTML", () => {
     assert.doesNotMatch(markdown("- A point.\n  It goes on."), /<details/, "a point with no such line has no fold");
   });
 
+  test("a point's picture goes above it, keeps its room before it loads, and says nothing of its own", () => {
+    const [width, height] = PICTURE_SIZE;
+    const picture = `<img src="./chart-pictures/contour.webp" alt="" width="${width}" height="${height}" loading="lazy" decoding="async">`;
+    assert.equal(
+      markdown("- **A surface.** A map.\n  ![](chart-pictures/contour.webp)\n  - *Details:* More.\n- **No picture.** Words."),
+      `<ul class="feat-pictures"><li>${picture}<strong>A surface.</strong> A map.<details class="more"><summary>Details</summary>` +
+        "<p>More.</p></details></li><li><strong>No picture.</strong> Words.</li></ul>",
+    );
+    assert.doesNotMatch(markdown("- A point.\n  It goes on."), /feat-pictures|<img/, "a list with no picture is a list");
+  });
+
+  test("a picture is one of the app's own: any other address is shown as it is typed", () => {
+    for (const address of ["https://example.com/x.webp", "chart-pictures/../x.webp", "chart-pictures/x.png", "javascript:alert(1)"]) {
+      const html = markdown(`- **A point.** Words.\n  ![](${address})`);
+      assert.doesNotMatch(html, /<img/, address);
+      assert.match(html, /!\[\]\(/, "as typed");
+    }
+    assert.doesNotMatch(markdown("- **A point.** ![](chart-pictures/contour.webp) in its line."), /<img/, "nor one inside a line");
+  });
+
+  test("every chart of the document has a picture, and no other point has", () => {
+    const html = page(shownPart(DOCUMENT));
+    const lists = html.match(/<ul class="feat-pictures">.*?<\/ul>/gs);
+    assert.equal(lists.length, 1, "the charts, and no other list");
+    const items = lists[0].match(/<li>/g).length;
+    assert.equal(lists[0].match(/<img /g).length, items, "each of its points");
+    assert.equal(html.match(/<img /g).length, items, "and none elsewhere");
+    assert.match(DOCUMENT, new RegExp(`#### The ${items} charts`));
+  });
+
   test("a table has its head, and scrolls sideways where it is too wide", () => {
     const html = markdown("| Design | Factors |\n|---|---|\n| Box-Behnken | 3 to 7 |\n| D-optimal | 2 to 8 |");
     assert.equal(
@@ -53,9 +83,24 @@ describe("the Markdown of the features document, as HTML", () => {
   test("a link to another site opens in a tab of its own, and one within the app in this one", () => {
     const outside = ' target="_blank" rel="noopener"';
     assert.equal(markdown("[#1225](https://github.com/x/y/issues/1225)"), `<p><a href="https://github.com/x/y/issues/1225"${outside}>#1225</a></p>`);
-    assert.equal(markdown("at <https://factori.al/>."), `<p>at <a href="https://factori.al/"${outside}>https://factori.al/</a>.</p>`);
+    assert.equal(markdown("at <https://kgdunn.github.io/process-improve/>."), `<p>at <a href="https://kgdunn.github.io/process-improve/"${outside}>https://kgdunn.github.io/process-improve/</a>.</p>`);
+    const book = ' target="pid-book" rel="opener"';
+    assert.equal(markdown("in <https://learnche.org/pid>."), `<p>in <a href="https://learnche.org/pid"${book}>https://learnche.org/pid</a>.</p>`, "the book's one tab");
+    assert.equal(markdown("[a page](https://learnche.org/pid/design-analysis-experiments#x)"), `<p><a href="https://learnche.org/pid/design-analysis-experiments#x"${book}>a page</a></p>`);
+    assert.match(markdown("[no book](https://learnche.org.example/pid)"), /target="_blank" rel="noopener"/, "an address that only begins as the book's");
     assert.equal(markdown("[the catalog](catalog/)"), '<p><a href="catalog/">the catalog</a></p>');
     assert.equal(markdown("[Limits](#12-limits)"), '<p><a href="#12-limits">Limits</a></p>');
+  });
+
+  test("a link to the app is one within this copy of it, and Show me says which point it shows", () => {
+    assert.equal(markdown("[the app](https://factori.al/)"), '<p><a href="./">the app</a></p>', "in this tab, at this address");
+    assert.equal(
+      markdown("- **The best settings.** For your goal. [Show me](https://factori.al/?example=worked&show=best)\n  - *Details:* More."),
+      '<ul><li><strong>The best settings.</strong> For your goal. <a class="show-me" aria-label="Show me: The best settings" ' +
+        'href="./?example=worked&amp;show=best">Show me</a><details class="more"><summary>Details</summary><p>More.</p></details></li></ul>',
+    );
+    assert.match(markdown("- **[A page](map/).** It. [Show me](https://factori.al/?book=x&show=y)"), /aria-label="Show me: A page" href="\.\/\?book=x&amp;show=y"/);
+    assert.doesNotMatch(markdown("- A point with no opening words. [Show me](https://factori.al/?example=worked)"), /aria-label/);
   });
 
   test("the document can hold no element of its own, and no address but a page's", () => {
@@ -145,7 +190,10 @@ describe("the features document itself, as the page shows it", () => {
   test("every link is to another site, to a part of the page or to a page of the app: none leads into the repository", () => {
     const links = [...html.matchAll(/href="([^"]+)"/g)].map(([, href]) => href);
     assert.ok(links.length > 8);
-    for (const href of links) assert.match(href, /^(https:\/\/|#|about\.html$|catalog\/|map\/$|mva\/$)/, href);
+    for (const href of links) assert.match(href, /^(https:\/\/|#|about\.html$|catalog\/|map\/$|mva\/$|\.\/\?(example|book)=[a-z0-9-]+&amp;show=[a-z0-9-]+$)/, href);
+    assert.ok(links.filter((to) => to.startsWith("./?")).length >= 15, "the points that end with Show me");
+    const sites = links.filter((to) => to.startsWith("https://")).map((to) => new URL(to.replaceAll("&amp;", "&")).hostname);
+    assert.ok(!sites.includes("factori.al"), "a link to the app stays within this copy of it");
     assert.ok(["about.html", "catalog/", "catalog/reproduced/", "map/", "mva/"].every((to) => links.includes(to)));
     for (const href of links.filter((to) => to.startsWith("#"))) assert.ok(ids.includes(href.slice(1)), href);
   });

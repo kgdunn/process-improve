@@ -437,7 +437,7 @@ _RULES_SAMPLE = 4000
 
 
 def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: DesignInfo) -> np.ndarray | None:
-    """Return the model columns the region's rules leave estimable, or None when every column is.
+    """Return the model columns the region leaves estimable, or None when every column is.
 
     A combination of levels the rules do not allow is a missing cell, which costs an
     interaction of the factors it names some of its columns over the whole region, not
@@ -447,21 +447,34 @@ def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: Desi
     reported rank-deficient. The support points hold every allowed combination of levels,
     which the sample draws by volume, so a combination whose limits leave little or no
     volume still counts, as it does among the engine's candidates.
+
+    A region without such rules can leave columns inestimable too: a limit on how many
+    factors a run uses keeps two factors from ever being used together, which costs
+    their interaction, and limits that hold a group of mixture components to a fixed
+    total cost one column of the group. That is looked for only when this design cannot
+    estimate the model, so a design that can is judged on all of it, as before. A
+    mixture-process region is left as it is: no design is generated for one whose limits
+    cost the model a column.
     """
     from process_improve.experiments.designs_constrained import independent_columns  # noqa: PLC0415
 
     region = req.region
-    if not isinstance(region, DesignRegion) or region.rules is None:
+    if not isinstance(region, DesignRegion):
         return None
     if any(name not in req.design_df.columns for name in [f.name for f in region.factors]):
         return None
     rng = np.random.default_rng(0)
-    frames = [region.sample_frame(_RULES_SAMPLE, rng)[region.names + region.rules.factors]]
-    with contextlib.suppress(ValueError):  # too many support points: the sample only
-        frames.append(region.support_frame())
-    sample = pd.concat(frames, ignore_index=True)
+    if region.rules is not None:
+        frames = [region.sample_frame(_RULES_SAMPLE, rng)[region.names + region.rules.factors]]
+        with contextlib.suppress(ValueError):  # too many support points: the sample only
+            frames.append(region.support_frame())
+        sample = pd.concat(frames, ignore_index=True)
+    elif region.kind != "mixture_process" and np.linalg.matrix_rank(_unit_length_columns(X)[0]) < X.shape[1]:
+        sample = _settings_over(region, rng)
+    else:
+        return None
     for name in req.factor_names:
-        if name not in sample.columns:  # a factor the rules do not name: at the design's own values
+        if name not in sample.columns:  # a factor the region does not hold: at the design's own values
             sample[name] = rng.choice(req.design_df[name].unique(), size=len(sample))
     seen = np.ones(len(sample), dtype=bool)
     for f in region.factors:
@@ -472,6 +485,28 @@ def _columns_the_rules_leave(req: _EvalRequest, X: np.ndarray, design_info: Desi
     (rows,) = build_design_matrices([design_info], sample[seen][req.factor_names], return_type="matrix")
     kept = independent_columns(np.asarray(rows, dtype=float))
     return None if len(kept) == X.shape[1] else kept
+
+
+def _settings_over(region: DesignRegion, rng: np.random.Generator) -> pd.DataFrame:
+    """Return settings spread over a region without rules on levels: a sample of it, and its candidate settings.
+
+    The candidates are the ones the design engines choose from (the blends of a mixture
+    region, the support points of a box), so a column is judged here as
+    :func:`generate_design` judged it. A mixture region whose components can be left out
+    is not sampled, and a box with too many support points gives none: the other source
+    is then used alone.
+    """
+    from process_improve.experiments.designs_mixture_constrained import candidate_blends  # noqa: PLC0415
+
+    points = [np.empty((0, len(region.names)))]
+    with contextlib.suppress(ValueError):
+        points.append(region.sample(_RULES_SAMPLE, rng))
+    with contextlib.suppress(ValueError):
+        if region.kind == "mixture":
+            points.append(candidate_blends(region.factors, region.constraints))
+        else:
+            points.append(region.support_points())
+    return pd.DataFrame(np.vstack(points), columns=region.names)
 
 
 # ---------------------------------------------------------------------------
@@ -2414,7 +2449,13 @@ def evaluate_design(  # noqa: PLR0913
         Results keyed by metric name.  The structure of each value depends
         on the metric - see individual metric documentation.  A metric that
         needs to explain its result (for example a rank-deficient model) adds
-        its note to ``result["notes"][metric_name]``.
+        its note to ``result["notes"][metric_name]``.  When the region's
+        constraints leave model columns that no design over it can estimate
+        (a combination of levels the rules do not allow, two factors that a
+        ``count_nonzero`` rule keeps from being used together, a group of
+        mixture components held to a fixed total), the metrics are for the
+        model without those columns, and
+        ``result["notes"]["inestimable_columns"]`` names them.
 
     Raises
     ------
@@ -2509,9 +2550,12 @@ def evaluate_design(  # noqa: PLR0913
     if groups_note:
         notes["random_effects"] = groups_note
     if ctx.lost_columns:
+        on_levels = isinstance(ctx.region, DesignRegion) and ctx.region.rules is not None
         notes["inestimable_columns"] = (
-            f"The region's constraints on categorical factors leave the column(s) {ctx.lost_columns} inestimable "
-            "over every allowed combination of levels; the metrics are for the model without them."
+            f"The region's constraints {'on categorical factors ' if on_levels else ''}leave the column(s) "
+            f"{ctx.lost_columns} inestimable over every "
+            f"{'allowed combination of levels' if on_levels else 'setting they allow'}; the metrics are for the "
+            "model without them."
         )
     if notes:
         results["notes"] = notes

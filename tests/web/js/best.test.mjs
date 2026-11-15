@@ -871,3 +871,138 @@ describe("what if", () => {
     ]);
   });
 });
+
+describe("the trade-offs between the responses", async () => {
+  const { frontier, meetsLimits, shortfall } = await import("../../../web/best.js");
+
+  test("a value's shortfall is smaller where its goal is better met", () => {
+    assert.ok(shortfall({ goal: "maximize" }, 70) < shortfall({ goal: "maximize" }, 60));
+    assert.ok(shortfall({ goal: "minimize" }, 60) < shortfall({ goal: "minimize" }, 70));
+    assert.ok(shortfall({ goal: "target", target: 63 }, 62) < shortfall({ goal: "target", target: 63 }, 65));
+    assert.equal(shortfall({ goal: "target", target: 63 }, 63), 0);
+  });
+
+  test("a candidate meets the limits when each limited response is between its two ends", () => {
+    const responses = { Yield: [60, 65, 70, null], Cost: [50, 55, 60, 52] };
+    assert.deepEqual(meetsLimits(responses, {}), [true, true, true, true]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [62, null] }), [false, true, true, false]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [62, null], Cost: [null, 58] }), [false, true, false, false]);
+    assert.deepEqual(meetsLimits(responses, { Yield: [null, null], Other: [1, 2] }), [true, true, true, true]);
+  });
+
+  test("the best trade-off holds the candidates no other beats on both responses, in order", () => {
+    // Shortfalls: smaller is better on both. Candidate 3 is beaten by 1 on both; 4 ties 0 across and is worse up.
+    const across = [1, 2, 3, 2.5, 1];
+    const up = [9, 5, 2, 6, 10];
+    assert.deepEqual(frontier(across, up, [true, true, true, true, true]), [0, 1, 2]);
+    assert.deepEqual(frontier(across, up, [false, true, true, true, true]), [4, 1, 2], "without the first");
+    assert.deepEqual(frontier(across, up, [false, false, false, false, false]), []);
+    assert.deepEqual(frontier([1, null, 3], [3, 1, null], [true, true, true]), [0], "one with no prediction is left out");
+  });
+});
+
+describe("the settings that give a target", async () => {
+  const { solveSentences, targetCaption, targetLead, targetRows, targetShare } = await import("../../../web/best.js");
+  const yieldAt = { name: "Yield", label: "Yield", units: "%", target: 62, predicted: 62, prediction: [59.5, 64.5] };
+  const found = { reached: true, share: 0.0698, tried: 20000, near: 0.02, responses: [yieldAt] };
+
+  test("the lead says whether the models give the targets inside the ranges", () => {
+    assert.equal(targetLead(found), "These settings give the target, by the models.");
+    const two = { ...found, reached: false, responses: [yieldAt, { ...yieldAt, name: "Cost" }] };
+    assert.equal(targetLead(two), "No settings inside your ranges give every target, by the models. These come closest.");
+    assert.match(targetLead(two, { limits: true }), /^No settings inside your ranges and limits give every target/);
+  });
+
+  test("the share of the settings tried that give the targets is said when some do", () => {
+    assert.equal(
+      targetShare(found),
+      "About 7% of the 20,000 settings tried give the target to within 2% of the range of the response's results: " +
+        "more than one setting does. These are the ones nearest the center of your ranges, where your runs are gathered.",
+    );
+    assert.match(targetShare({ ...found, share: 0.0004 }), /^Fewer than 1 in 1,000 of the 20,000 settings tried/);
+    assert.equal(targetShare({ ...found, reached: false, share: 0 }), "");
+  });
+
+  test("each response is listed with its target, its prediction and its interval", () => {
+    assert.deepEqual(targetRows(found), [["Yield", "62%", "62%", "59.5 to 64.5%"]]);
+    assert.deepEqual(targetRows({ responses: [{ ...yieldAt, prediction: null }] }), [["Yield", "62%", "62%", ""]]);
+  });
+
+  test("the chart's caption says what a line means, where the others are held, and which response has no line", () => {
+    const surface = (name, z, target) => ({ name, z, levels: [target] });
+    const factors = [{ name: "T", units: "degC" }, { name: "P", units: "bar" }, { name: "F", units: "L/min" }];
+    const one = { x: "T", y: "P", held: [{ name: "F", value: 15 }], responses: [surface("Yield", [[55, 60], [62, 70]], 62)], runnable: null };
+    assert.equal(
+      targetCaption(one, factors, [yieldAt]),
+      "Drawn over T and P, with F at 15 L/min, as at the settings found. The line is where the response is predicted " +
+        "at its target: every setting on it gives the target. The star marks the settings found, and the dots your runs.",
+    );
+    const two = { ...one, held: [], runnable: [[1]], responses: [...one.responses, surface("Cost", [[10, 12], [14, 16]], 40)] };
+    const said = targetCaption(two, factors, [yieldAt, { name: "Cost", label: "Cost per kg" }]);
+    assert.match(said, /^Drawn over T and P\. Each line is where a response is predicted at its target: /);
+    assert.match(said, /where the lines cross, the settings give every target\. The star marks/);
+    assert.match(said, / Grey: settings outside your limits\. No line for Cost per kg: no setting drawn brings it to its target\.$/);
+  });
+
+  test("one factor solved from the others is said with the settings that still hold the target", () => {
+    const solved = { response: "Yield", factor: "T", target: 62, solutions: [{ value: 175.3, interval: [167.6, 182.9] }], nearest: {} };
+    const words = { held: "P = 2 bar, F = 15 L/min", units: "degC", label: "Yield", responseUnits: "%" };
+    assert.deepEqual(solveSentences(solved, words), [
+      "With P = 2 bar, F = 15 L/min held, T = 175.3 degC gives Yield 62%, by the model. From 167.6 degC to 182.9 degC, " +
+        "the 95% confidence interval of the prediction still holds the target.",
+    ]);
+    const open = { ...solved, solutions: [{ value: 175.3, interval: [null, 182.9] }, { value: 190, interval: null }] };
+    const [first, second] = solveSentences(open, words);
+    assert.match(first, /From the low end of its range to 182.9 degC/);
+    assert.match(second, /T = 190 degC gives Yield 62%, by the model. The fit uses every run, so it has no interval.$/);
+    const none = { ...solved, target: 90, solutions: [], nearest: { value: 200, predicted: 65.9 } };
+    assert.deepEqual(solveSentences(none, words), [
+      "With P = 2 bar, F = 15 L/min held, no setting of T in its range gives Yield 90%, by the model. " +
+        "The prediction comes closest at 65.9%, at T = 200 degC.",
+    ]);
+  });
+});
+
+describe("the settings that meet a specification", async () => {
+  const { shareWords, surestSentence, windowCaption, windowChance, windowLead } = await import("../../../web/best.js");
+  const one = { responses: [{ name: "Yield" }], held: [], share: 0.17325, likely: { 0.5: 0.1702, 0.9: 0.08655 } };
+  const two = { ...one, responses: [{ name: "Yield" }, { name: "Cost" }], held: [{ name: "S", value: "B" }] };
+
+  test("a share is written to a whole percent, to a tenth below ten, and as less than a tenth", () => {
+    assert.deepEqual([0.17325, 0.0344, 0.0004, 0, 1].map(shareWords), ["17%", "3.4%", "less than 0.1%", "0%", "100%"]);
+  });
+
+  test("the lead says over what share of the settings the predictions are inside the windows", () => {
+    assert.equal(windowLead(one), "By the models, 17% of the settings inside your ranges give the response inside its window.");
+    assert.equal(
+      windowLead(two, { limits: true }),
+      "By the models, 17% of the settings inside your ranges and limits give every response inside every window, with S at B.",
+    );
+    assert.equal(windowLead({ ...one, share: 0 }), "By the models, no setting inside your ranges gives the response inside its window.");
+  });
+
+  test("the chance is said for each line drawn, or why none can be given", () => {
+    assert.match(windowChance(one), /^One new run meets its window with a chance of 90% or more at 8\.7% of the settings, and of 50% or more at 17%\./);
+    assert.match(windowChance({ ...two, likely: { 0.5: 0.03, 0.9: 0 } }), /^At no setting does one new run meet every window with a chance of 90% or more; it does with 50% or more at 3% of them\./);
+    assert.match(windowChance({ ...one, likely: { 0.5: 0, 0.9: 0 } }), /with a chance of 90% or more, nor of 50%\. The noise is wide/);
+    assert.equal(windowChance({ ...one, likely: null }), "No runs are left to estimate the noise, so the chance that a new run meets its window cannot be given.");
+    assert.equal(windowChance({ ...one, share: 0 }), "");
+  });
+
+  test("the surest settings are said with their chance", () => {
+    const factors = [{ name: "T", kind: "numeric" }, { name: "S", kind: "categorical" }];
+    const surest = { settings: { T: 180.7, S: "B" }, probability: 0.9925 };
+    assert.equal(surestSentence({ ...two, surest }, factors, { T: "degC" }), "A new run is surest to meet every window at T = 180.7 degC, S at B: a chance of 99%.");
+    assert.match(surestSentence({ ...one, surest: { ...surest, probability: 0.9996 } }, factors), /: a chance of more than 99%\.$/);
+    assert.equal(surestSentence({ ...one, surest: null }, factors), "");
+  });
+
+  test("the chart's caption says what is drawn, and the line of the surest chance when there is one", () => {
+    const overlay = { x: "T", y: "P", held: [{ name: "F", value: 15 }], probability: [[0.2]], chances: [0.5, 0.9], runnable: [[1]] };
+    const said = windowCaption(overlay, [{ name: "F", units: "L/min" }]);
+    assert.match(said, /^Drawn over T and P, with F at 15 L\/min, as What if has it\. Shaded where every response is predicted inside its window; /);
+    assert.match(said, /Inside the line of 90%, a new run meets every window at least that often/);
+    assert.match(said, /The star marks the settings What if holds, and the dots your runs\. Grey: settings outside your limits\.$/);
+    assert.doesNotMatch(windowCaption({ ...overlay, probability: null, runnable: null, held: [] }), /Inside the line|Grey|as What if has/);
+  });
+});

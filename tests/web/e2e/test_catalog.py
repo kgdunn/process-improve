@@ -153,7 +153,9 @@ def test_a_book_design_s_detail_links_to_its_section_and_names_its_figures(book_
     assert place.get_attribute("href") == (
         "https://learnche.org/pid/design-analysis-experiments/omars-worked-study#doe-omars-worked-study"
     )
-    assert (place.get_attribute("target"), place.get_attribute("rel")) == ("_blank", "noopener")
+    assert (place.get_attribute("target"), place.get_attribute("rel")) == ("pid-book", "opener"), (
+        "the book's one tab, which the app's other links into the book go to as well"
+    )
     assert place.text_content() == "section A worked OMARS study: four factors on a fed-batch bioreactor"
     assert page.get_attribute("#detail-body .detail__cite a", "href") == "https://learnche.org/pid", (
         "the citation still links to the book"

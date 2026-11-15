@@ -644,6 +644,35 @@ export const EXAMPLE_PARAM = "example";
 /** The name ``?example=`` gives the worked example the page was built with; the build lets no other example take it. */
 export const WORKED = "worked";
 
+/**
+ * The tab the app's links into the book open in: one tab, which a later link finds again by this name and goes to,
+ * so that reading the book beside a study does not leave a row of tabs.
+ */
+export const BOOK_TAB = "pid-book";
+
+/** Whether an address is one of the book's, Process Improvement using Data at learnche.org/pid. */
+export const inBook = (href) => /^https:\/\/learnche\.org\/pid(?:[/?#]|$)/.test(String(href));
+
+/**
+ * How a link out of the app opens, as the attributes of its <a>. A link into the book opens in the book's tab. A
+ * browser finds a tab by its name only from the tab that opened it, so the link does not cut that tie
+ * (rel="opener"): with it cut (rel="noopener") every link opened a tab of its own. The book is this app's own
+ * site. A link to any other site opens a new tab each time, which cannot reach back into the app's.
+ */
+export const tabOf = (href) => (inBook(href) ? { target: BOOK_TAB, rel: "opener" } : { target: "_blank", rel: "noopener" });
+
+/**
+ * The query parameter a link names a part of the page by, beside the example it opens:
+ * https://factori.al/?example=worked&show=best. The page then opens at that part. The list of what Factorial does
+ * (features.html) asks so with "Show me". The name is the part's id in index.html.
+ */
+export const SHOW_PARAM = "show";
+
+/** The part of the page a link asks to be shown: its name if it is one a part could have, else null. */
+export function partName(text) {
+  return typeof text === "string" && text.length <= 40 && BOOK_NAME.test(text) ? text : null;
+}
+
 /** A book example's name: lowercase words and numbers joined by hyphens, such as two-level-pollutant. */
 const BOOK_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

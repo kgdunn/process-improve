@@ -16,7 +16,11 @@ import {
   MANY_FACTORS_FORMAT,
   ONE_FACTOR_FORMAT,
   SCENARIOS_HELD,
+  SHOW_PARAM,
   WHAT_IF_FORMAT,
+  BOOK_TAB,
+  inBook,
+  tabOf,
   bookName,
   campaignDone,
   campaignTitle,
@@ -27,6 +31,7 @@ import {
   indexedName,
   mergeResults,
   packCampaign,
+  partName,
   progress,
   sameCampaign,
   shareable,
@@ -412,6 +417,26 @@ describe("one of the book's examples, named in a link", () => {
   test("a name that is not one the book could print is refused before anything is fetched", () => {
     for (const text of ["", "Pollutant", "../demo", "a--b", "-a", "a b", "a/b", "a%2Fb", "x".repeat(65)]) {
       refusedBy(() => bookName(text), /not the name of an example in the book/);
+    }
+  });
+
+  test("a link names a part of the page to open at, ?show=, by the part's own name, and no other name is taken", () => {
+    assert.equal(SHOW_PARAM, "show");
+    assert.equal(partName("best"), "best");
+    assert.equal(partName("what-if"), "what-if");
+    assert.equal(partName("py-analyse"), "py-analyse");
+    for (const text of [null, undefined, "", "Best", "a b", "#best", "best>", "a--b", "x".repeat(41), 7]) assert.equal(partName(text), null);
+  });
+
+  test("a link into the book opens in the book's one tab and keeps the tie that finds it again; any other opens a new tab", () => {
+    assert.equal(BOOK_TAB, "pid-book");
+    for (const href of ["https://learnche.org/pid", "https://learnche.org/pid/", "https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars", "https://learnche.org/pid?x=1"]) {
+      assert.ok(inBook(href), href);
+      assert.deepEqual(tabOf(href), { target: "pid-book", rel: "opener" });
+    }
+    for (const href of ["https://learnche.org/", "https://learnche.org/pidgin", "https://learnche.org.example/pid", "http://learnche.org/pid", "https://example.org/?to=https://learnche.org/pid", "", null, undefined]) {
+      assert.ok(!inBook(href), String(href));
+      assert.deepEqual(tabOf(href), { target: "_blank", rel: "noopener" });
     }
   });
 

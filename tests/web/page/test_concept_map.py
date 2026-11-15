@@ -13,10 +13,19 @@ import re
 import struct
 
 from process_improve.experiments.design_catalog import FAMILIES
-from tests.web._support import APP_SOURCES, WEB, source
+from tests.web._support import APP_SOURCES, WEB, javascript, source
 
 GRAPH = json.loads((WEB / "map" / "graph.json").read_text(encoding="utf-8"))
 APART = 0.15  # in OKLab: closer than this, two colours start to read as one
+
+#: The page's words the map has no term for, and none near: their definitions end without "See it in context".
+NO_CONTEXT = {
+    *("typical", "true-process", "true-value", "model-terms"),  # the page's own
+    *("tukey", "dunnett", "bartlett", "kruskal-wallis", "rank-sum", "signed-rank"),  # tests of a study of one factor
+    *("r2", "r2-adjusted", "r2-predicted"),
+    *("signal-to-noise", "response-table", "adjustment-factor"),  # Taguchi's
+    "cox-direction",
+}
 
 
 def test_the_map_s_cytoscape_is_the_published_release_with_its_licence():
@@ -183,3 +192,22 @@ def test_another_textbook_s_colour_is_no_other_colour_of_the_links():
         for book, others in ((second, [third, *rest]), (third, rest)):
             for other in others:
                 assert math.dist(_oklab(book), _oklab(other)) >= APART, f"{book} is too close to {other}"
+
+
+def test_each_word_s_context_is_a_term_of_the_map_and_the_words_with_none_are_named(node):
+    """``glossary.CONTEXT`` gives a word the term "See it in context" opens: the map must have it.
+
+    A word new to the glossary is given its term there, or named in ``NO_CONTEXT``: either way, on purpose.
+    """
+    glossary, context = javascript(node, source("glossary.js"), [("GLOSSARY", []), ("CONTEXT", [])])
+    terms = {term["id"] for term in GRAPH["nodes"]}
+    assert not [word for word in context if word not in glossary], "each word is the glossary's"
+    assert not {word: term for word, term in context.items() if term not in terms}, "each term is the map's"
+    assert set(glossary) - set(context) == NO_CONTEXT
+
+
+def test_a_word_defined_where_the_page_draws_it_names_a_term_of_the_map():
+    """``term(..., { concept })`` in ``app.js`` gives such a word its term, as ``CONTEXT`` does a glossary word."""
+    named = set(re.findall(r'concept: "([a-z_]+)"', source("app.js")))
+    assert named == {"degrees_of_freedom", "statistical_power"}, "Spare runs, and the power of a design"
+    assert named <= {term["id"] for term in GRAPH["nodes"]}

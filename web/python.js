@@ -439,6 +439,10 @@ export function figureCode(title, options, model, complete = true, spec = null) 
   ].join("\n");
 }
 
+/** The runs and results a model is fitted to, as Python writes them: those with a result, on the model's scale. */
+const fittedTo = (spec, complete) =>
+  complete ? `X, ${onScale("y", transformOf(spec))}` : `X[done], ${onScale("y[done]", transformOf(spec))}`;
+
 /** A response as an axis names it: the reader's words for it, with its units. */
 function axisWords(spec) {
   const info = spec?.response_info ?? {};
@@ -491,6 +495,39 @@ const OWN_FIGURES = {
     ")",
     'figure.update_yaxes(autorange="reversed")  # the first term at the top, as the page lists them',
     ...shown(`Coefficient: ${axisWords(spec)}${transformOf(spec) ? ", on the scale the model is fitted on" : ""}`, "Term"),
+  ],
+  // The coefficients' other view. With ``about.lenth`` the fit uses every run, which leaves no interval: Lenth's
+  // margins judge the sizes then, from the model (``about.model``) fitted to the runs that have their result
+  // (``about.complete``: all of them).
+  pareto: (title, spec, { lenth = false, model = "", complete = true } = {}) => [
+    "import plotly.graph_objects as go",
+    ...(lenth ? ["from process_improve.experiments import analyze_experiment"] : []),
+    "",
+    `# The figure "${title}", as a Pareto plot: each term's size as a bar, the largest at the top, orange for a`,
+    "# positive coefficient and blue for a negative one.",
+    'terms = sorted((c for c in analysis["coefficients"] if c["term"] != "Intercept"), key=lambda c: -abs(c["coefficient"]))',
+    "figure = go.Figure(",
+    "    go.Bar(",
+    '        x=[abs(c["coefficient"]) for c in terms],',
+    '        y=[c["term"] for c in terms],',
+    '        orientation="h",',
+    '        marker_color=["#E69F00" if c["coefficient"] > 0 else "#0072B2" for c in terms],',
+    ...(lenth
+      ? []
+      : ['        error_x={"type": "data", "array": [0 if c.get("ci_high") is None else c["ci_high"] - c["coefficient"] for c in terms]},']),
+    "    )",
+    ")",
+    ...(lenth
+      ? [
+          "# The fit uses every run, so no coefficient has an interval: Lenth's margins of error judge their sizes.",
+          "# They are on the effects' scale, and an effect is twice its coefficient.",
+          `lenth = analyze_experiment(${fittedTo(spec, complete)}, model=${repr(model)}, analysis_type="lenth_method")["lenth_method"]`,
+          'figure.add_vline(x=lenth["ME"] / 2, line_dash="dash", annotation_text="ME")',
+          'figure.add_vline(x=lenth["SME"] / 2, line_dash="dot", annotation_text="SME")',
+        ]
+      : []),
+    'figure.update_yaxes(autorange="reversed")  # the largest at the top',
+    ...shown("|coefficient|, coded units", "Term"),
   ],
   levels: (title, spec) => {
     const factor = spec.factors[0];
@@ -623,6 +660,501 @@ const OWN_FIGURES = {
  */
 export function ownFigureCode(key, title, spec, about = {}) {
   return OWN_FIGURES[key]?.(title, spec, about)?.join("\n") ?? null;
+}
+
+/** A map of how far each pair of terms moves together, drawn from the frame ``correlations``: the page's colours. */
+const correlationMap = [
+  "figure = go.Figure(",
+  "    go.Heatmap(",
+  "        z=correlations.to_numpy(), x=list(correlations.columns), y=list(correlations.index),",
+  '        zmin=0, zmax=1, colorscale="Blues",',
+  "    )",
+  ")",
+  'figure.update_yaxes(autorange="reversed")  # the first term at the top',
+  "figure.show()",
+];
+
+/**
+ * The design's own correlation map, after step 2's ``X``: the absolute correlation between each pair of terms over
+ * the runs, as the comparison reckons it. ``factors`` names the columns of ``X`` that are factors.
+ */
+export function correlationCode(factors) {
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import compare_designs",
+    "",
+    '# The figure "Correlation map": how far each pair of terms moves together over the runs. 0: the runs tell the',
+    "# two apart in full. 1: they cannot tell them apart at all.",
+    `compared = compare_designs({"runs": X[${repr(factors)}]})`,
+    "correlations = list(compared.correlations.values())[0]  # of the one design compared: these runs",
+    ...correlationMap,
+  ].join("\n");
+}
+
+/**
+ * A figure of the comparison, after its ``designs`` and ``comparison`` (compareCode): the FDS plot of every design,
+ * from what the page asked each curve with (``asked``: bootstrap.compare's ``fds_asked``), over the settings the
+ * limits leave when there are some; or, with ``label``, that design's correlation map.
+ */
+export function comparisonFigureCode({ asked = null, limits = [], label = null }) {
+  if (label !== null) {
+    return [
+      "import plotly.graph_objects as go",
+      "",
+      `# The figure "Correlation map, ${label}": how far each pair of terms moves together over the design's runs.`,
+      `correlations = comparison.correlations[${repr(label)}]`,
+      ...correlationMap,
+    ].join("\n");
+  }
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import evaluate_design",
+    "",
+    '# The figure "Fraction of design space (FDS)": each design\'s prediction variance, in units of the noise',
+    "# variance, sorted over settings drawn evenly from the region. A design that cannot fit the model has no curve.",
+    "figure = go.Figure()",
+    "for label, design in zip(comparison.designs, designs.values()):",
+    '    if not comparison.values[label]["fits"]:',
+    "        continue",
+    "    curve = evaluate_design(",
+    `        design, model=${repr(asked.model)}, metric="fds", n_samples=${asked.n_samples},`,
+    `        fds_resolution=${asked.fds_resolution}, random_state=${asked.random_state},${limits.length ? " region=DesignRegion(factors, constraints)," : ""}`,
+    '    )["fds"]["curve"]',
+    '    figure.add_scatter(x=curve["fraction"], y=curve["prediction_variance"], name=label)',
+    ...shown("Fraction of the design space", "Prediction variance, in units of the noise variance"),
+  ].join("\n");
+}
+
+/**
+ * "How tightly to hold each factor", after the best settings' code (bestCode), which leaves the settings as ``at``
+ * and the prediction there as ``prediction``: each of ``names``, the numeric factors the model holds, moved alone
+ * by 5% of its range, 0.1 in coded units, and the change in the prediction. Null for a mixture, whose components
+ * do not move alone.
+ */
+export function sensitivityCode(names, spec, model, complete = true) {
+  if (isMixture(spec) || !names.length) return null;
+  const transform = transformOf(spec);
+  const fitted = fittedTo(spec, complete);
+  const back = (value) => (transform ? `(${SCALES[transform].back})(${value})` : value);
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    '# The figure "How tightly to hold each factor": how much the prediction changes when one factor alone moves',
+    "# 5% of its range from the best settings, which is 0.1 in coded units.",
+    `names = ${repr(names)}`,
+    "moved = pd.concat([at.assign(**{name: at[name] + step}) for name in names for step in (-0.1, 0.1)], ignore_index=True)",
+    `there = analyze_experiment(${fitted}, model=${repr(model)}, analysis_type="prediction", new_points=moved)["predictions"]`,
+    `here = ${back('prediction["predictions"][0]["predicted"]')}`,
+    `change = [${back('p["predicted"]')} - here for p in there]  # lowered, then raised, for each factor in turn`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Bar(name="Lowered 5% of its range", y=names, x=change[0::2], orientation="h"),',
+    '        go.Bar(name="Raised 5% of its range", y=names, x=change[1::2], orientation="h"),',
+    "    ]",
+    ")",
+    ...shown(`Change in the prediction: ${axisWords(spec)}`, "Factor"),
+  ].join("\n");
+}
+
+/**
+ * The overlay of the responses' acceptable ranges, after the balance's code (balanceCode), which leaves each
+ * response's ``models`` entry, its ``goals`` entry and the ``balanced`` settings: the library's overlay plot over
+ * the two factors the page draws (``overlay.x`` and ``overlay.y``), the others held at the balanced settings. A
+ * response is bounded where the page draws its boundary: below to maximise, above to minimise, both for a target.
+ * Null for a mixture, whose overlay is over its triangle.
+ */
+export function overlayCode(overlay, spec) {
+  if (isMixture(spec) || overlay?.kind === "ternary" || !overlay) return null;
+  return [
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import visualize_doe",
+    "",
+    `# The figure of the acceptable ranges over ${overlay.x} and ${overlay.y}, in coded units, the other factors at the`,
+    "# balanced settings: each response's boundary, and the shaded region where every response is acceptable.",
+    "# A response to maximise is bounded below, one to minimise above, and one with a target on both sides.",
+    'bounds = {"maximize": ["low"], "minimize": ["high"], "target": ["low", "high"]}',
+    "responses = [",
+    '    {**model, "name": model["response_name"], **{end: goal[end] for end in bounds[goal["goal"]]}}',
+    "    for model, goal in zip(models, goals)",
+    "]",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    "chart = visualize_doe(",
+    '    plot_type="overlay",',
+    '    analysis_results={"optimization": {"responses": responses}},',
+    "    factors_to_plot=pair,",
+    '    hold_values={name: at for name, at in balanced["optimal_coded"].items() if name not in pair},',
+    '    backend="plotly",',
+    ")",
+    'figure = go.Figure(chart["plotly"])',
+    "figure.show()",
+  ].join("\n");
+}
+
+/**
+ * The chart of the trade-offs between the responses, after the balance's code (balanceCode), which leaves each
+ * response's ``models`` entry and the ``balanced`` settings: the settings the page tried (``view.asked``, what
+ * bootstrap.trade_offs drew them with), each response's prediction at each, those that meet the limits the reader
+ * typed (``view.limits``, each response's two ends, null for one left open), and the best trade-off among them between
+ * the responses on the two axes (``view.across`` and ``view.up``), each compared by its goal (``balance.responses``).
+ * The points are coloured by ``view.colour`` when it is a response's column. Null for a mixture.
+ */
+export function tradeOffCode(view, balance, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f)).map((f) => f.name);
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(balance.search.formulas));
+  const goalOf = (name) => balance.responses.find((r) => r.name === name);
+  const short = (name) => {
+    const { goal, target } = goalOf(name);
+    const column = `kept[${repr(name)}]`;
+    return goal === "maximize" ? `-${column}` : goal === "minimize" ? column : `(${column} - ${target}).abs()`;
+  };
+  const ends = Object.entries(view.limits ?? {}).flatMap(([name, [low, high]]) => [
+    ...(low === null ? [] : [`(cloud[${repr(name)}] >= ${low})`]),
+    ...(high === null ? [] : [`(cloud[${repr(name)}] <= ${high})`]),
+  ]);
+  const tint = view.colour in balance.search.formulas ? `, "color": kept[${repr(view.colour)}], "showscale": True` : "";
+  const [across, up] = [repr(view.across), repr(view.up)];
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "What one response costs another": ${view.asked.drawn} settings drawn evenly from the factors' ranges, in`,
+    "# coded units, and each response's prediction at each, on the models of the balance.",
+    `names = ${repr(numeric)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${view.asked.seed}).uniform(-1, 1, size=(${view.asked.drawn}, ${numeric.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "",
+    "",
+    "def predicted(coefficients, at):",
+    "    # A model's prediction at each row of at: each coefficient times its term; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: 1.0 if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
+    "",
+    "",
+    "cloud, star = pd.DataFrame(index=tried.index), {}",
+    "for model in models:",
+    '    name = model["response_name"]',
+    `    cloud[name] = ${scale.back('predicted(model["coefficients"], tried)')}`,
+    `    star[name] = ${scale.back('balanced["predicted_responses"][name]')}  # at the balanced settings`,
+    ends.length ? `kept = cloud[${ends.join(" & ")}]  # the settings that meet your limits` : "kept = cloud",
+    `# The best trade-off between ${view.across} and ${view.up}: the settings tried that no other betters on both.`,
+    "# Each response is compared by how far it falls short of its goal: the smaller, the better.",
+    `shortfall = pd.DataFrame({"across": ${short(view.across)}, "up": ${short(view.up)}}).sort_values(["across", "up"])`,
+    'front = shortfall[shortfall["up"] < shortfall["up"].cummin().shift(fill_value=np.inf)].index',
+    `line = kept.loc[front].sort_values(${across})  # joined from left to right, as the page draws it`,
+    "figure = go.Figure(",
+    "    [",
+    `        go.Scatter(x=kept[${across}], y=kept[${up}], mode="markers", name="Settings tried", marker={"size": 5, "opacity": 0.5${tint}}),`,
+    `        go.Scatter(x=line[${across}], y=line[${up}], mode="lines", name="Best trade-off"),`,
+    `        go.Scatter(x=[star[${across}]], y=[star[${up}]], mode="markers", name="Balanced settings", marker={"symbol": "star", "size": 16}),`,
+    "    ]",
+    ")",
+    ...shown(axisOf(goalOf(view.across)), axisOf(goalOf(view.up))),
+  ].join("\n");
+}
+
+/** A response of the balance as an axis names it: its label, with its units. */
+const axisOf = (r) => (r.units ? `${r.label} (${r.units})` : r.label);
+
+/**
+ * The settings that give each response its target, after step 2's ``runs`` and ``X``: each response with a target
+ * fitted with its own model, the settings the page tried, those at which every response is predicted within reach of
+ * its target, the one of them nearest the center of the ranges, and the least-squares step from it that meets the
+ * targets where the models can. ``found`` is what bootstrap.target_settings answered: its ``search`` holds each
+ * response's fitted formula, its target and its reach on its model's scale, what the page held each categorical
+ * factor and block at, and how the settings tried were drawn. Null for a mixture.
+ */
+export function targetCode(found, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const names = numeric.map((f) => f.name);
+  const { held, formulas, targets, reach, drawn, seed } = found.search;
+  const holds = Object.keys(held).length > 0;
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const levels = spec.factors.filter((f) => labelled(f) && columnsOf(f).every((name) => name in held)).map((f) => `${f.name} at ${heldLevel(f, held)}`);
+  return [
+    ...(holds ? ["import math"] : []),
+    "import numpy as np",
+    "import pandas as pd",
+    "from scipy.optimize import least_squares",
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment`,
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
+    ...(holds
+      ? [
+          `# ${levels.length ? `The page tried each level: these settings are with ${levels.join(" and ")}. ` : ""}The blocks, if any, are held at the average block.`,
+          ...HELD_AT,
+        ]
+      : []),
+    "# What each response should be, and how near counts as giving it: 2% of the range of its results.",
+    ...(scale.lines.length ? ["# A transformed response's target and reach are on its scale, as the page searches."] : []),
+    `targets = ${repr(targets)}`,
+    `reach = ${repr(reach)}`,
+    "# Each response with a target, fitted with its own model to the runs that have its result.",
+    "models = {}",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    `    models[name] = ${holds ? `held_at(fit["coefficients"], ${repr(held)})` : 'fit["coefficients"]'}`,
+    "",
+    "",
+    "def predicted(coefficients, at):",
+    "    # A model's prediction at the settings at: each coefficient times its term; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: 1.0 if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    '    return sum(c["coefficient"] * product(c["term"]) for c in coefficients)',
+    "",
+    "",
+    "def missed(at):",
+    "    # How far each response is predicted from its target at the settings at, in units of its reach.",
+    "    return pd.DataFrame({name: (predicted(models[name], at) - targets[name]) / reach[name] for name in targets})",
+    "",
+    "",
+    `# ${drawn} settings drawn evenly from the factors' ranges, in coded units: -1 is a factor's low end, +1 its high end.`,
+    `names = ${repr(names)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${seed}).uniform(-1, 1, size=(${drawn}, ${names.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "miss = missed(tried)",
+    "giving = miss.abs().max(axis=1) <= 1  # the settings that give every target",
+    "print(giving.mean())  # the share of the settings tried that do",
+    "# Of those, the settings nearest the center of the ranges; with none, the settings that miss by least.",
+    "start = tried.loc[(tried[giving] ** 2).sum(axis=1).idxmin() if giving.any() else (miss**2).sum(axis=1).idxmin()]",
+    "# From there, a least-squares step meets the targets where the models can; a small pull keeps it by that setting.",
+    "one = lambda x: pd.DataFrame([x], columns=names)",
+    "step = least_squares(lambda x: np.concatenate([missed(one(x)).iloc[0], 0.01 * (x - start)]), start.to_numpy(), bounds=(-1, 1))",
+    limits.length
+      ? "found = one(step.x) if region.feasible(one(step.x)[list(region.names)].to_numpy())[0] else one(start.to_numpy())  # inside the limits"
+      : "found = one(step.x)",
+    `ranges = ${repr(Object.fromEntries(numeric.map((f) => [f.name, [f.low, f.high]])))}`,
+    "settings = {name: low + (found[name][0] + 1) / 2 * (high - low) for name, (low, high) in ranges.items()}",
+    "print(settings)  # the settings that give the targets, in the factors' own units",
+    `reached = {name: ${scale.back("predicted(models[name], found)[0]")} for name in targets}`,
+    "print(reached)  # what each model predicts there",
+  ].join("\n");
+}
+
+/**
+ * The chart of where the settings give the targets, after the code of the settings found (targetCode), which leaves
+ * each response's ``models`` entry, its target, ``predicted`` and the settings ``found``: each response's prediction
+ * over the two factors the page draws (``overlay.x`` and ``overlay.y``), on the page's grid, the others at the
+ * settings found, with one line where it is predicted at its target. Null without an overlay, and for a mixture.
+ */
+export function targetOverlayCode(overlay, spec) {
+  if (isMixture(spec) || !overlay) return null;
+  const scale = scaleLines(spec, overlay.responses.map((r) => r.name));
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "Where the settings give the targets" over ${overlay.x} and ${overlay.y}, in coded units, the other factors at`,
+    "# the settings found: each response's line is where its model predicts its target, so every setting on it gives",
+    "# that target, and where the lines cross, the settings give every target.",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    `axis = np.linspace(-1, 1, ${overlay.grid.length})`,
+    "across, up = np.meshgrid(axis, axis)",
+    "over = pd.concat([found] * across.size, ignore_index=True)",
+    "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
+    "surfaces, figure = {}, go.Figure()",
+    "for name in targets:",
+    `    surfaces[name] = np.reshape(${scale.back("np.zeros(across.size) + predicted(models[name], over)")}, across.shape)`,
+    `    line = {"coloring": "none", "start": ${scale.back("targets[name]")}, "end": ${scale.back("targets[name]")}, "size": 1}`,
+    "    figure.add_trace(go.Contour(x=axis, y=axis, z=surfaces[name], name=name, contours=line, showscale=False, showlegend=True))",
+    'star = {"symbol": "star", "size": 16}',
+    'figure.add_trace(go.Scatter(x=found[pair[0]], y=found[pair[1]], mode="markers", name="Settings found", marker=star))',
+    ...shown(`${overlay.x} (coded)`, `${overlay.y} (coded)`),
+  ].join("\n");
+}
+
+/** A Python value for an end of a window: a number, or None for an end left open. */
+const endOf = (end) => (end === null ? "None" : String(end));
+
+/**
+ * The settings that meet a specification, after step 2's ``runs`` and ``X``: each response with a window fitted with
+ * its own model, with what the scatter of a new run about its prediction is worked from; the settings the page tried,
+ * every other column where the what-if panel has it; and the library's ``feasible_region`` over them, for the share
+ * at which every prediction is inside its window, how surely a new run is, and where it is surest. ``found`` is what
+ * bootstrap.specification answered: its ``search`` holds each response's fitted formula, its window on its model's
+ * scale, the settings held as the models' columns, and how the settings tried were drawn. Null for a mixture.
+ */
+export function windowCode(found, spec) {
+  if (isMixture(spec)) return null;
+  const numeric = spec.factors.filter((f) => !labelled(f));
+  const names = numeric.map((f) => f.name);
+  const { formulas, windows, at, drawn, seed } = found.search;
+  const limits = spec.constraints ?? [];
+  const scale = scaleLines(spec, Object.keys(formulas));
+  const blocked = Object.keys(at).some((name) => /^Block\d+_*$/.test(name));
+  const windowed = Object.entries(windows).map(([name, [low, high]]) => `${repr(name)}: (${endOf(low)}, ${endOf(high)})`);
+  return [
+    "import numpy as np",
+    "import pandas as pd",
+    `from process_improve.experiments import ${limits.length ? "DesignRegion, " : ""}analyze_experiment, feasible_region`,
+    "",
+    ...scale.lines.filter((line) => line !== "import numpy as np"),
+    ...indicatorLines(spec, Object.values(formulas).join(" + ")),
+    "# The window each response must fall in, (low, high), an end of None left open.",
+    ...(scale.lines.length ? ["# A transformed response's window is on its scale, as the page judges it."] : []),
+    `windows = {${windowed.join(", ")}}`,
+    ...(blocked
+      ? [
+          "# The columns the models are fitted on: X, with the library's block contrasts in place of the blocks, a column",
+          "# for each block but the last, which is -1 in every one.",
+          'blocks = sorted(runs["Block"].unique(), key=str)',
+          "contrasts = {",
+          '    f"Block{i + 1}": np.where(runs["Block"] == block, 1.0, np.where(runs["Block"] == blocks[-1], -1.0, 0.0))',
+          "    for i, block in enumerate(blocks[:-1])",
+          "}",
+          'columns = X.drop(columns="Block").assign(**contrasts)',
+        ]
+      : ["columns = X  # the columns the models are fitted on"]),
+    "",
+    "",
+    "def term_columns(terms, at):",
+    "    # Each term's column over the settings at: the product of its parts; a square is written I(name ** 2).",
+    '    part = lambda name: at[name[2:-6]] ** 2 if name.startswith("I(") else at[name]',
+    '    product = lambda term: np.ones(len(at)) if term == "Intercept" else np.prod([part(name) for name in term.split(":")], axis=0)',
+    "    return np.column_stack([product(term) for term in terms])",
+    "",
+    "",
+    "# Each response with a window, fitted with its own model to the runs that have its result, with what the scatter",
+    "# of a new run about its prediction is worked from: the fit's error, and the inverse of X'X of its model matrix.",
+    "models = []",
+    `for name, model in ${repr(formulas)}.items():`,
+    "    done = runs[name].notna()",
+    `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
+    '    matrix = term_columns([c["term"] for c in fit["coefficients"]], columns[done])',
+    "    models.append(",
+    "        {",
+    '            "response_name": name,',
+    '            "coefficients": fit["coefficients"],',
+    '            "factor_names": list(columns.columns),',
+    '            "mse_residual": fit["model_summary"]["mse_residual"],',
+    '            "df_residual": fit["model_summary"]["df_residual"],',
+    '            "unscaled_covariance": np.linalg.pinv(matrix.T @ matrix),',
+    "        }",
+    "    )",
+    "",
+    `# ${drawn} settings of the factors with a range, drawn evenly from their ranges in coded units (-1 is a factor's low`,
+    "# end, +1 its high end); every other column is where What if has it.",
+    `names = ${repr(names)}`,
+    `at = ${repr(at)}`,
+    `tried = pd.DataFrame(np.random.default_rng(${seed}).uniform(-1, 1, size=(${drawn}, ${names.length})), columns=names)`,
+    ...(limits.length
+      ? [
+          "region = DesignRegion(factors, constraints)",
+          "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
+        ]
+      : []),
+    "judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names}))",
+    'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
+    ...(found.likely
+      ? [
+          `likely = {chance: (judged["probability"] >= chance).mean() for chance in ${repr(Object.keys(found.likely).map(Number))}}`,
+          "print(likely)  # the share at which one new run meets every window with each chance or more",
+          'surest = judged["probability"].idxmax()',
+          `ranges = ${repr(Object.fromEntries(numeric.map((f) => [f.name, [f.low, f.high]])))}`,
+          "settings = {name: low + (tried[name][surest] + 1) / 2 * (high - low) for name, (low, high) in ranges.items()}",
+          'print(settings, judged["probability"][surest])  # where a new run is surest to meet them, and how sure',
+        ]
+      : []),
+  ].join("\n");
+}
+
+/**
+ * The chart of a specification, after its code (windowCode), which leaves the ``models``, the ``windows`` and the
+ * settings ``at``: the library's ``feasible_region`` over the page's grid of the two factors drawn (``overlay.x`` and
+ * ``overlay.y``), the other columns where the what-if panel has them, shaded where every prediction is inside its
+ * window, with a line for each chance the page draws when the chance can be given. Null without an overlay.
+ */
+export function windowOverlayCode(overlay, spec) {
+  if (isMixture(spec) || !overlay) return null;
+  const [low, high] = [Math.min(...overlay.chances), Math.max(...overlay.chances)];
+  const lines = `{"coloring": "none", "start": ${low}, "end": ${high}, "size": ${high - low}, "showlabels": True}`;
+  return [
+    "import plotly.graph_objects as go",
+    "",
+    `# The figure "Where every response is inside its window" over ${overlay.x} and ${overlay.y}, in coded units, every other`,
+    "# column where What if has it: shaded where every prediction is inside its window, with a line of equal chance",
+    "# that one new run meets every window.",
+    `pair = ${repr([overlay.x, overlay.y])}`,
+    `axis = np.linspace(-1, 1, ${overlay.grid.length})`,
+    "across, up = np.meshgrid(axis, axis)",
+    "over = pd.DataFrame({name: np.full(across.size, value) for name, value in at.items()})",
+    "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
+    "drawn = feasible_region(models, windows, over)",
+    "grid = lambda column: drawn[column].to_numpy(dtype=float).reshape(across.shape)",
+    "figure = go.Figure(",
+    "    [",
+    '        go.Heatmap(x=axis, y=axis, z=grid("feasible"), name="Every response inside its window", opacity=0.3, showscale=False),',
+    ...(overlay.probability
+      ? [`        go.Contour(x=axis, y=axis, z=grid("probability"), name="Chance a new run meets every window", contours=${lines}, showscale=False),`]
+      : []),
+    '        go.Scatter(x=[at[pair[0]]], y=[at[pair[1]]], mode="markers", name="What-if settings", marker={"symbol": "star", "size": 16}),',
+    "    ]",
+    ")",
+    ...shown(`${overlay.x} (coded)`, `${overlay.y} (coded)`),
+  ].join("\n");
+}
+
+/**
+ * The curve the what-if panel draws, after step 2's ``X``: each run's curve (``curves``, a list per run of the
+ * design of one value per point, null where it was not read, or null for a run not measured), reduced and modelled as the
+ * page models it (``fit``: bootstrap.functional's reply, for its formula and its number of replicates), and the
+ * curve predicted at the panel's settings (``at``, the columns of ``X``) with its 95% bands.
+ */
+export function curveCode(design, curves, fit, at) {
+  const { spec } = design;
+  const kept = fittedRuns(design);
+  const { label, units, argument } = spec.curve;
+  const used = new Set([...spec.factors.flatMap(columnsOf), ...spec.factors.flatMap((f) => indicatorsIn(fit.formula, f).map(({ name }) => name))]);
+  const only = Object.fromEntries(Object.entries(at).filter(([name]) => used.has(name)));
+  const along = argument.units ? `${argument.label} (${argument.units})` : argument.label;
+  return [
+    "import pandas as pd",
+    "import plotly.graph_objects as go",
+    "from process_improve.experiments import analyze_functional_experiment",
+    "",
+    ...indicatorLines(spec, fit.formula),
+    "# Each run's curve, a row per run in the order of the runs above and a column per point along the curve.",
+    `points = ${repr(argument.values)}`,
+    "curves = pd.DataFrame(",
+    "    [",
+    ...curves.filter((_, i) => kept[i]).map((curve) => `        ${repr(curve ?? argument.values.map(() => null))},`),
+    "    ],",
+    "    columns=points,",
+    "    dtype=float,",
+    ")",
+    "measured = curves.notna().any(axis=1)  # a run with no point read has no curve yet",
+    "# The curves are reduced to a few scores, and each score is modelled against the factors, as a response is.",
+    "fit = analyze_functional_experiment(",
+    `    X[measured].reset_index(drop=True), curves[measured].reset_index(drop=True), model=${repr(fit.formula)},`,
+    ")",
+    "# The curve at the what-if settings, in coded units as the columns of X, with its 95% band for the whole curve.",
+    `at = pd.DataFrame([${repr(only)}])`,
+    `predicted = fit.predict(at, n_bootstrap=${fit.replicates.length}, random_state=0)`,
+    "figure = go.Figure(",
+    "    [",
+    '        go.Scatter(x=points, y=predicted["simultaneous_high"].iloc[0], line_width=0, showlegend=False),',
+    '        go.Scatter(x=points, y=predicted["simultaneous_low"].iloc[0], line_width=0, fill="tonexty", name="95% band"),',
+    '        go.Scatter(x=points, y=predicted["curve"].iloc[0], name="Predicted"),',
+    "    ]",
+    ")",
+    ...shown(along, units ? `${label} (${units})` : label),
+  ].join("\n");
 }
 
 /** The signal-to-noise ratio each goal reads a setting's readings by, of Taguchi's three: bootstrap.SN_KINDS. */

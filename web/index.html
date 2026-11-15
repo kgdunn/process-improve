@@ -692,6 +692,26 @@
             <div class="plot"></div>
             <figcaption class="hint"></figcaption>
           </figure>
+          <!-- The trade-offs between the responses (app.js, with best.js; bootstrap.trade_offs): settings tried on
+               the models, each a point; the best one response can be for each value of another; limits that keep
+               only the settings that meet them; and other settings nearly as good as the balanced ones. -->
+          <div id="trade-offs" class="trade-offs" hidden>
+            <p class="hint" id="trade-about"></p>
+            <div class="trade-view" role="group" aria-label="What the chart of the trade-offs shows">
+              <label>Across <select id="trade-across"></select></label>
+              <label>Up <select id="trade-up"></select></label>
+              <label>Colour by <select id="trade-colour"></select></label>
+            </div>
+            <div class="scroll"><table id="trade-limits" class="data trade-limits" aria-label="Keep only the settings where each response lies between two limits"></table></div>
+            <p id="trade-count" class="hint" role="status"></p>
+            <figure id="trade-chart" class="chart">
+              <h4>What one response costs another</h4>
+              <div class="plot"></div>
+              <figcaption class="hint"></figcaption>
+            </figure>
+            <div id="trade-chosen" aria-live="polite"></div>
+            <div id="trade-nearly"></div>
+          </div>
           <div id="balance-confirm" class="confirm" hidden>
             <h4>Test them with <button type="button" class="term" data-term="confirmation-run">confirmation runs</button></h4>
             <div id="balance-confirm-out" aria-live="polite"></div>
@@ -742,6 +762,80 @@
           <details class="python" id="py-what-if" hidden>
             <summary>Show the Python code of these predictions</summary>
             <p class="hint">The design, its results and each response's prediction at these settings together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
+             types what each response should be, and its model is run backwards to the settings it predicts that at. -->
+        <section id="target" class="best target" data-feature="panel:target" data-level="2" aria-labelledby="h-target" hidden>
+          <h3 id="h-target">Settings that give a target</h3>
+          <p class="hint">Type what a response should be, to find the settings that give it.</p>
+          <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
+          <p class="actions">
+            <label>Or match a run <select id="target-match"></select></label>
+            <button type="button" id="target-clear" class="link" hidden>Clear the targets</button>
+          </p>
+          <p id="target-problems" class="hint error" role="status" hidden></p>
+          <div id="target-out" aria-live="polite"></div>
+          <figure id="target-chart" class="chart" hidden>
+            <h4>Where the settings give the targets</h4>
+            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+              <label>Across <select id="target-across"></select></label>
+              <label>Up <select id="target-up"></select></label>
+            </div>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <p id="target-actions" class="actions" hidden>
+            <button type="button" id="target-confirm" class="button">Add 3 confirmation runs at these settings</button>
+            <button type="button" id="target-what-if" class="link">See them under What if</button>
+          </p>
+          <!-- One factor from the others (bootstrap.solve_for): what it must be for a response to meet its target,
+               with every other factor where the What if panel has it. -->
+          <div id="target-solve" class="target-solve" hidden>
+            <h4>One factor from the others</h4>
+            <p class="hint">What one factor must be for a response to meet its target, with the other factors where
+              What if has them.</p>
+            <div class="trade-view" role="group" aria-label="The factor to solve for, and the response whose target it should give">
+              <label>Solve for <select id="solve-factor"></select></label>
+              <label>to give the target of <select id="solve-response"></select></label>
+            </div>
+            <div id="solve-out" aria-live="polite"></div>
+          </div>
+          <details class="python" id="py-target" hidden>
+            <summary>Show the Python code of these settings</summary>
+            <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
+        <!-- The settings that meet a specification (app.js, with best.js; bootstrap.specification, on the library's
+             feasible_region): the reader types a window for each response, and the page says which settings the models
+             predict inside every window, and how surely one new run there meets them all. -->
+        <section id="window" class="best window" data-feature="panel:specification" data-level="2" aria-labelledby="h-window" hidden>
+          <h3 id="h-window">Settings that meet a specification</h3>
+          <p class="hint">Type the window a response must fall in, to find the settings that meet it.</p>
+          <div class="scroll"><table id="window-limits" class="data trade-limits" aria-label="The window each response must fall in"></table></div>
+          <p class="actions"><button type="button" id="window-clear" class="link" hidden>Clear the windows</button></p>
+          <p id="window-problems" class="hint error" role="status" hidden></p>
+          <div id="window-out" aria-live="polite"></div>
+          <figure id="window-chart" class="chart" hidden>
+            <h4>Where every response is inside its window</h4>
+            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+              <label>Across <select id="window-across"></select></label>
+              <label>Up <select id="window-up"></select></label>
+            </div>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <p id="window-actions" class="actions" hidden>
+            <button type="button" id="window-confirm" class="button">Add 3 confirmation runs at the surest settings</button>
+            <button type="button" id="window-what-if" class="link">See the surest settings under What if</button>
+          </p>
+          <details class="python" id="py-window" hidden>
+            <summary>Show the Python code of this specification</summary>
+            <p class="hint">The design, its results and the settings judged against the windows together, so it runs as it is.</p>
             <pre><code></code></pre>
             <button type="button" class="link copy">Copy the code</button>
           </details>
@@ -800,7 +894,7 @@
       <button type="button" id="compare-close" class="link" aria-label="Close the comparison">✕</button>
     </div>
     <p>Each design scored on
-      <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice" target="pid-book" rel="noopener">the book's
+      <a href="https://learnche.org/pid/design-analysis-experiments/omars-designs#doe-omars-metric-choice" target="pid-book" rel="opener">the book's
       nine measures</a>.</p>
     <div id="comparison" hidden></div>
     <details id="compare-reading">
@@ -809,7 +903,7 @@
         precise coefficients, I or G for prediction over the region, max |r| for keeping second-order effects apart,
         and power for detecting an effect of a stated size. Each measure's name links to its definition, and the
         book's
-        <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison" target="pid-book" rel="noopener">comparison
+        <a href="https://learnche.org/pid/design-analysis-experiments/comparing-design-families#doe-omnibus-comparison" target="pid-book" rel="opener">comparison
         of design families</a> reads such a table row by row.</p>
       <p>Each row is shaded to guide the eye: the greener a value, the nearer it is to that row's best, which is in bold.
         Only the designs shown that fit the model are shaded. Each row prints as many digits as tell its designs apart;
@@ -849,7 +943,7 @@
           <p class="foot__head" id="foot-behind">Behind it</p>
           <ul aria-labelledby="foot-behind">
             <li><a href="https://github.com/kgdunn/process-improve" target="_blank" rel="noopener">process-improve, the Python package</a></li>
-            <li><a href="https://learnche.org/pid" target="pid-book" rel="noopener">Process Improvement using Data, the book</a></li>
+            <li><a href="https://learnche.org/pid" target="pid-book" rel="opener">Process Improvement using Data, the book</a></li>
           </ul>
         </div>
         <div>

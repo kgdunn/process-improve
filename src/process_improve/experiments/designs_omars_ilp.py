@@ -703,8 +703,17 @@ def _no_good_row(n_candidates: int, excluded: list[int]) -> np.ndarray:
     return row
 
 
-def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: dict[str, Any]) -> OptimizeResult:
-    """Solve the binary selection problem with HiGHS on a single thread.
+def _run_milp(
+    cost: np.ndarray,
+    constraints: list[LinearConstraint],
+    options: dict[str, Any],
+    integrality: np.ndarray | None = None,
+    bounds: Bounds | None = None,
+) -> OptimizeResult:
+    """Solve a mixed-integer linear programme with HiGHS on a single thread: the binary selection problem by default.
+
+    Every variable is binary unless ``integrality`` and ``bounds`` say otherwise, as
+    :func:`scipy.optimize.milp` takes them.
 
     HiGHS keeps one thread pool per calling thread, sized at that thread's
     first solve, and a process forked after a multi-threaded HiGHS solve hangs
@@ -731,8 +740,8 @@ def _run_milp(cost: np.ndarray, constraints: list[LinearConstraint], options: di
             warnings.filterwarnings("ignore", message="Unrecognized options detected", category=Warning)
             return milp(
                 cost,
-                integrality=np.ones(n_candidates),
-                bounds=Bounds(0, 1),
+                integrality=np.ones(n_candidates) if integrality is None else integrality,
+                bounds=Bounds(0, 1) if bounds is None else bounds,
                 constraints=constraints,
                 options={**options, **extra},
             )

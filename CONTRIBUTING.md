@@ -247,6 +247,9 @@ When you change the app, the tests move with it:
   Python, and can hold a reply back or give one, for races and error paths. The page shows
   one phase at a time (Design, Run or Learn): a test shows the phase that holds what it types
   into or clicks first, with `reveal` in `tests/web/e2e/_page.py`, as a reader presses its tab.
+- A new word in `web/glossary.js`: its term of the concept map in `CONTEXT` there, which its
+  definition's "See it in context" opens, or its name in `NO_CONTEXT` in
+  `tests/web/page/test_concept_map.py` when the map has no term for it and none near.
 - A new package the page loads into Pyodide: in `web/runtime.json` only, which
   `web/python-boot.js`, the wasm tier and CI read. One from PyPI is pinned (`name==version`)
   to the version the wasm tier installs; `tests/web/page/test_runtime.py` checks both.
@@ -278,6 +281,19 @@ reads against the change. The app shows the document as a page, `web/features.ht
 line `<!-- features.html shows what follows -->` on, so below that line it is written for a
 reader of the app: no path into the repository, and only the Markdown `web/features.js`
 reads (headings, paragraphs, lists, tables, bold, italic, code and links).
+
+That page shows a picture of each chart, from `web/chart-pictures/`, named by the chart's key
+in `CHARTS` (`web/logic.js`). `tests/web/e2e/test_chart_pictures.py` draws them from the app
+itself. Draw them again after a change to how a chart looks, and commit the files:
+
+```bash
+PI_WRITE_CHART_PICTURES=1 uv run --with playwright==1.64.1 pytest tests/web/e2e/test_chart_pictures.py --e2e --no-cov
+```
+
+A new chart adds its key to one of the studies in that file, the line of its picture under
+its point in the document, and its file to `APP_FILES` (`scripts/build_web_app.py`) and
+`APP_SOURCES` (`tests/web/_support.py`). `tests/web/page/test_features.py` fails until each
+is there.
 
 The page starts Python in a worker (`web/python-boot.js`), and four choices keep that
 start short. Pyodide's packages come from the release's `pyc` folder, compiled to bytecode

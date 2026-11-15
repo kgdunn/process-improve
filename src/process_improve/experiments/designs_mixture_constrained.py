@@ -42,6 +42,7 @@ from scipy.optimize import linprog
 from scipy.stats import qmc
 
 from process_improve._random import check_random_state
+from process_improve.experiments._count_rules import UsedSets, count_rules, used_sets, without_count_rules
 from process_improve.experiments._uniform_sampling import UniformSampler, _linear_row
 from process_improve.experiments.designs_constrained import (
     ConstrainedOptions,
@@ -52,6 +53,8 @@ from process_improve.experiments.designs_constrained import (
     independent_columns,
     make_criterion,
     parse_constraint,
+    piece_vertices,
+    refuse_budget_short_of_fixed_runs,
     search_directions,
     selection_counts,
 )
@@ -538,6 +541,46 @@ def _candidates_from_a_sample(vertices: np.ndarray) -> dict[str, np.ndarray]:
     )
 
 
+def mixture_sets(factors: list[Factor], constraints: list[Constraint] | None) -> UsedSets | None:
+    """Return which components a blend may use together, or None when no constraint limits how many are used."""
+    names = [f.name for f in factors]
+    return used_sets(names, factors, count_rules(constraints, factors), dict.fromkeys(names, False))
+
+
+def candidate_blends(factors: list[Factor], constraints: list[Constraint] | None) -> np.ndarray:
+    """Return every candidate blend of a mixture region that a run may use, each once.
+
+    They are the blends of :func:`mixture_candidates` for the region without its limits
+    on how many components are used; with such limits, the vertices of each of their
+    pieces and the points between them
+    (:func:`~process_improve.experiments.designs_constrained.piece_vertices`); less every
+    blend with a component between 0 and its ``min_when_used``, or with a number of
+    components in use that a limit does not allow.
+
+    Raises
+    ------
+    ValueError
+        If no blend meets the linear constraints.
+    """
+    a_mat, b_vec = mixture_inequalities(factors, without_count_rules(constraints))
+    return _usable_blends(factors, mixture_candidates(a_mat, b_vec), (a_mat, b_vec), mixture_sets(factors, constraints))
+
+
+def _usable_blends(
+    factors: list[Factor], candidates: dict[str, np.ndarray], limits: tuple, sets: UsedSets | None
+) -> np.ndarray:
+    """See :func:`candidate_blends`: the blends of ``candidates``, the pieces' blends, less those no run may use."""
+    kinds = list(candidates.values())
+    if sets is not None:
+        bounds = [(float(f.low), float(f.high)) for f in factors]  # type: ignore[arg-type]
+        kinds.append(piece_vertices(sets, limits[0], limits[1], bounds, sum_to_one=True))
+    pool = _unique_rows(np.vstack(kinds))
+    usable = ~_traces(factors, pool)
+    if sets is not None:
+        usable &= sets.allows(pool)
+    return pool[usable]
+
+
 def _traces(factors: list[Factor], blends: np.ndarray) -> np.ndarray:
     """Return, per blend, whether a component lies between 0 and its ``min_when_used``."""
     out = np.zeros(len(blends), dtype=bool)
@@ -619,35 +662,41 @@ class _Blends:
 
 
 def _blends(
-    factors: list[Factor], candidates: dict[str, np.ndarray], opts: ConstrainedOptions, limits: tuple
+    factors: list[Factor],
+    candidates: dict[str, np.ndarray],
+    opts: ConstrainedOptions,
+    limits: tuple,
+    sets: UsedSets | None,
 ) -> _Blends:
-    """Return the blends a design may use: the caller's or the region's, without those that hold a trace.
+    """Return the blends a design may use: the caller's or the region's, without those no run may use.
 
-    A blend with a component between 0 and its ``min_when_used`` is left out. The
+    A blend with a component between 0 and its ``min_when_used`` is left out, and so is
+    one that uses more components, or fewer, than a limit on their number allows. The
     region's own candidates then say which columns of the model can be estimated (see
     :func:`_estimable_columns`); the caller's candidates must support the whole model.
 
     Raises
     ------
     ValueError
-        If every candidate blend holds a trace.
+        If no candidate blend is left.
     """
     model = scheffe_model(opts.model_type)
     n_parameters = scheffe_matrix(np.ones((1, len(factors))), model).shape[1]
     labels: list | None = None
     if opts.candidates is not None:
         pool, labels = _user_blends(factors, opts.candidates, *limits)
+        usable = ~_traces(factors, pool) & (True if sets is None else sets.allows(pool))
+        pool, labels = pool[usable], [label for label, keep in zip(labels, usable, strict=True) if keep]
     else:
-        pool = _unique_rows(np.vstack(list(candidates.values())))
-    usable = ~_traces(factors, pool)
-    if not usable.any():
-        raise ValueError("Every candidate blend has a component between 0 and its min_when_used.")
-    pool = pool[usable]
+        pool = _usable_blends(factors, candidates, limits, sets)
+    if len(pool) == 0:
+        raise ValueError(
+            "Every candidate blend has a component between 0 and its min_when_used, or uses a number of components "
+            "that a count_nonzero limit does not allow."
+        )
     columns = np.arange(n_parameters)
     lost: list[str] = []
-    if labels is not None:
-        labels = [label for label, keep in zip(labels, usable, strict=True) if keep]
-    elif np.linalg.matrix_rank(scheffe_matrix(pool, model)) < n_parameters:
+    if labels is None and np.linalg.matrix_rank(scheffe_matrix(pool, model)) < n_parameters:
         columns, lost = _estimable_columns(factors, pool, model)
     return _Blends(pool, labels, columns, lost, n_parameters, isinstance(candidates, _SampledCandidates))
 
@@ -674,6 +723,58 @@ def _user_blends(
     if not keep.any():
         raise ValueError("No candidate blend satisfies the component bounds and constraints.")
     return blends[keep], list(candidates.index[keep])
+
+
+def _fixed_blends(factors: list[Factor], fixed_runs: pd.DataFrame | None) -> np.ndarray:
+    """Return the blends of the runs already made, ``(n_fixed, q)``: none without ``fixed_runs``.
+
+    Raises
+    ------
+    ValueError
+        If a component has no column, a proportion is missing or not a number, or a blend
+        does not sum to 1.
+    """
+    names = [f.name for f in factors]
+    if fixed_runs is None:
+        return np.empty((0, len(names)))
+    missing = [n for n in names if n not in fixed_runs.columns]
+    if missing:
+        raise ValueError(f"fixed_runs is missing columns for mixture components: {missing}.")
+    if len(fixed_runs) == 0:
+        raise ValueError("fixed_runs is empty; omit it instead of passing an empty frame.")
+    blends = fixed_runs[names].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    if np.isnan(blends).any():
+        raise ValueError("fixed_runs has missing or non-numeric proportions.")
+    if not np.allclose(blends.sum(axis=1), 1.0, atol=1e-6):
+        raise ValueError("Every fixed run must sum to 1 (proportions, not amounts).")
+    return blends
+
+
+def _refuse_budget_short_of_fixed_blends(f_fixed: np.ndarray, budget: int) -> None:
+    """Raise when the budget leaves no run to choose beside the fixed ones, or too few for the rank they lack."""
+    if len(f_fixed) >= budget:
+        raise ValueError(
+            f"fixed_runs has {len(f_fixed)} runs but budget is {budget}; budget must exceed the number "
+            "of fixed runs so at least one run is optimized."
+        )
+    refuse_budget_short_of_fixed_runs(f_fixed, f_fixed.shape[1], budget)
+
+
+def _fixed_run_metadata(fixed: np.ndarray, factors: list[Factor], limits: tuple, sets: UsedSets | None) -> dict:
+    """Return how many runs were kept as given, and how many of them lie outside the region, with a warning."""
+    if not len(fixed):
+        return {}
+    a_mat, b_vec = limits
+    inside = np.all(fixed @ a_mat.T <= b_vec + 1e-9, axis=1) & ~_traces(factors, fixed)
+    if sets is not None:
+        inside &= sets.allows(fixed)
+    meta = {"n_fixed_runs": len(fixed)}
+    if not inside.all():
+        meta["n_fixed_runs_outside_region"] = int((~inside).sum())
+        logger.warning(
+            "%d fixed run(s) lie outside the constrained region; they are kept as given.", int((~inside).sum())
+        )
+    return meta
 
 
 #: Without a budget, a design of more than this many runs per model term is replaced by a
@@ -732,7 +833,7 @@ def constrained_mixture_design(
         ``options.candidates``, ``None`` means a D-optimal design of ``n_terms + 3``
         runs. With a budget, a D-optimal subset of all candidate blends is chosen;
         blends may be replicated. A budget below the number of model terms raises a
-        ``ValueError``.
+        ``ValueError``. With ``options.fixed_runs`` the budget counts those runs too.
     constraints : list[Constraint] or None
         Linear inequalities in the proportions, e.g. ``"x1 + x2 <= 0.7"``.
     options : ConstrainedOptions or None
@@ -741,7 +842,10 @@ def constrained_mixture_design(
         ``"interactions"`` and ``"quadratic"``, which map to linear, quadratic and
         quadratic. ``criterion``: ``"d_optimal"`` (default), ``"i_optimal"`` (average
         prediction variance over the constrained simplex), ``"a_optimal"`` or
-        ``"e_optimal"``.
+        ``"e_optimal"``. ``fixed_runs``: blends already made, a column per component
+        and a row per run, as proportions. They are the first rows of the design, kept
+        as given (one outside the region too, with a warning), and the exchange chooses
+        the other ``budget - len(fixed_runs)`` runs beside them.
     random_state : int, numpy.random.Generator or None
         Seed for the exchange's random starts.
 
@@ -756,25 +860,28 @@ def constrained_mixture_design(
     Raises
     ------
     ValueError
-        If the region is empty, a constraint is not linear, or the region cannot
-        support the model (for example a region that is a single blend).
+        If the region is empty, a constraint is not linear, the region cannot
+        support the model (for example a region that is a single blend), a fixed run
+        is not a blend, or the budget leaves too few runs beside the fixed ones.
     """
     opts = options if options is not None else ConstrainedOptions(model_type="scheffe_quadratic")
     model = scheffe_model(opts.model_type)
     rng = check_random_state(random_state)
-    a_mat, b_vec = mixture_inequalities(factors, constraints)
+    a_mat, b_vec = mixture_inequalities(factors, without_count_rules(constraints))
+    sets = mixture_sets(factors, constraints)
     candidates = mixture_candidates(a_mat, b_vec)
-    blends = _blends(factors, candidates, opts, (a_mat, b_vec))
+    blends = _blends(factors, candidates, opts, (a_mat, b_vec), sets)
     pool, columns = blends.pool, blends.columns
-    left_out = any(f.min_when_used is not None for f in factors)
+    left_out = sets is not None or any(f.min_when_used is not None for f in factors)
+    fixed = _fixed_blends(factors, opts.fixed_runs)
 
     def model_rows(points: np.ndarray) -> np.ndarray:
         return scheffe_matrix(points, model)[:, columns]
 
     def region_rows() -> np.ndarray:
         if blends.labels is not None or left_out:
-            # The supplied blends stand for the region. shortcut: so do the candidates when a component has a
-            # min_when_used, whose region is made of pieces that no sampler here draws from, upgrade with one.
+            # The supplied blends stand for the region. shortcut: so do the candidates when a component can be
+            # left out, whose region is made of pieces that no sampler here draws from, upgrade with one.
             return model_rows(pool)
         low = np.array([f.low or 0.0 for f in factors], dtype=float)
         return model_rows(_uniform_blends(a_mat, b_vec, low, candidates["vertex"], rng))
@@ -783,19 +890,21 @@ def constrained_mixture_design(
         budget = blends.n_parameters + 3
     requested_budget = budget
     budget, n_classical = _budget_for_a_large_region(budget, candidates, model, len(columns))
-    if budget is None and (blends.sampled or left_out or blends.lost):
+    if budget is None and (blends.sampled or left_out or blends.lost or len(fixed)):
         # The design used without a budget is every vertex, which a sample of them is not, and its centroid
-        # blends every component, traces included; nor is it built for a model with columns left out.
+        # blends every component, traces included; nor is it built for a model with columns left out, or
+        # beside runs already made.
         budget = len(columns) + _EXTRA_RUNS
     if budget is None:
         design = _unique_rows(np.vstack([candidates[kind] for kind in _EV_DESIGN[model]]))
         method, chosen = "extreme_vertices", None
     else:
         refuse_budget_below_model(budget, len(columns), model)
-        f_pool = model_rows(pool)
+        f_pool, f_fixed = model_rows(pool), model_rows(fixed)
+        _refuse_budget_short_of_fixed_blends(f_fixed, budget)
         criterion = make_criterion(opts.criterion, len(columns), region_rows, f_pool)
-        rows, logdet = fedorov_exchange(f_pool, budget, np.empty((0, len(columns))), rng, criterion)
-        design = pool[rows]
+        rows, logdet = fedorov_exchange(f_pool, budget - len(fixed), f_fixed, rng, criterion)
+        design = np.vstack([fixed, pool[rows]])
         method = f"{opts.criterion}_{'user_candidates' if blends.labels is not None else 'extreme_vertices'}"
         chosen = (rows, {"optimality_criterion": opts.criterion, **criterion_metadata(criterion, logdet)})
 
@@ -817,6 +926,7 @@ def constrained_mixture_design(
         key = "budget_requested" if requested_budget is not None else "n_runs_vertices_edges_centroid"
         meta[key] = requested_budget if requested_budget is not None else n_classical
     meta.update(blends.metadata(None if chosen is None else chosen[0], opts.candidates))
+    meta.update(_fixed_run_metadata(fixed, factors, (a_mat, b_vec), sets))
     if chosen is not None:
         meta.update(chosen[1])
     return design, meta

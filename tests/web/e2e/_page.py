@@ -252,12 +252,15 @@ def last_reply(page: Any, fn: str) -> dict:  # noqa: ANN401
 
 
 def definition(page: Any, word: str) -> str:  # noqa: ANN401 - a Playwright Page
-    """Rest the mouse on a dotted word and return the definition that opens beside it, then close it."""
+    """Rest the mouse on a dotted word and return the definition that opens beside it, then close it.
+
+    The definition is the pop-up's own words: a link to the word's term in the concept map may follow them.
+    """
     reveal(page, word)
     page.hover(word)
     tip = page.locator(".term-tip")
     tip.wait_for(state="visible")
-    text = tip.text_content()
+    text = tip.evaluate("(tip) => tip.firstChild.textContent")
     page.keyboard.press("Escape")
     return text
 

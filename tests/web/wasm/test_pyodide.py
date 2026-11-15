@@ -213,6 +213,43 @@ def test_what_the_results_call_for_under_pyodide_is_native_python_s(pyodide, api
     assert pyodide.error("api_add_runs", added) == api.error("api_add_runs", added)
 
 
+def test_the_settings_for_a_target_under_pyodide_are_native_python_s(pyodide, api, held, simulated):
+    """The settings tried, the least-squares step from them and one factor solved for run as they do natively."""
+    name = held["spec"]["response"]
+    target = float(np.median(simulated["responses"]))
+    request = {**held, "responses": simulated["responses"]}
+    under, native = (
+        python.ok("api_target_settings", {**request, "targets": {name: target}}) for python in (pyodide, api)
+    )
+    assert (under["reached"], native["reached"]) == (True, True)
+    assert under["share"] == native["share"], "the same settings are drawn, and the same of them give the target"
+    assert [s["value"] for s in under["settings"]] == pytest.approx([s["value"] for s in native["settings"]], rel=1e-6)
+    assert under["responses"][0]["predicted"] == pytest.approx(native["responses"][0]["predicted"], rel=1e-9)
+    solve = {**request, "response": name, "target": target, "factor": "T", "settings": {"P": 2, "F": 15}}
+    under, native = (python.ok("api_solve_for", solve) for python in (pyodide, api))
+    assert [s["value"] for s in under["solutions"]] == pytest.approx([s["value"] for s in native["solutions"]])
+    assert under["nearest"] == pytest.approx(native["nearest"])
+
+
+def test_a_specification_judged_under_pyodide_is_native_python_s(pyodide, api, held, simulated):
+    """The settings judged against a window, and the chance that a new run meets it, come out as they do natively."""
+    name = held["spec"]["response"]
+    window = [float(np.median(simulated["responses"])), None]
+    request = {
+        **held,
+        "responses": simulated["responses"],
+        "windows": {name: window},
+        "at": {"T": 175, "P": 2, "F": 15},
+    }
+    under, native = (python.ok("api_specification", request) for python in (pyodide, api))
+    assert under["share"] == native["share"], "the same settings are drawn, and the same of them meet the window"
+    assert under["likely"] == pytest.approx(
+        native["likely"], abs=1e-3
+    )  # a setting on a chance's edge may fall either way
+    assert under["surest"]["probability"] == pytest.approx(native["surest"]["probability"], abs=1e-9)
+    np.testing.assert_allclose(under["overlay"]["probability"], native["overlay"]["probability"], atol=2e-6)
+
+
 def test_the_runs_the_results_call_for_under_pyodide_are_native_python_s(pyodide, api):
     cube = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3})
     settings = coded(run_sheet(cube), FACTORS).to_numpy(dtype=float)
