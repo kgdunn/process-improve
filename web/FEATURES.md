@@ -557,6 +557,8 @@ Also:
   its idea in the concept map. The book opens in one tab beside the app, and a later link goes
   to that tab.
 - **The worked example.** It opens at once, and can be run again in the tab.
+  - *Details:* A reactor's yield, studied over Temperature, Pressure and Flow in the 15 runs
+    of a Box-Behnken design.
 - **Practice on a known process.** It shows the true model beside the fitted one.
 - **What Factorial does.** This list, as a page of the app. A point that ends with Show me
   opens the app on an example of it, at the part of the page that has it. Each of the 17
