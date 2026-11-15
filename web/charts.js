@@ -521,9 +521,13 @@ async function react(div, shown) {
   const { data, layout } = dressed(shown, shown.height ?? div.clientHeight, palette(), div.clientWidth);
   layout.uirevision = shown.revision;
   // Under a finger, a drag on a card scrolls the page, as a drag anywhere else on it does, and does not zoom the
-  // chart: the figure's own window is where it is zoomed. A chart in three dimensions is still turned by a drag.
-  if (!shown.toolbar && window.matchMedia("(pointer: coarse)").matches) layout.dragmode = false;
+  // chart: the figure's own window is where it is zoomed. A chart in three dimensions is still turned by a drag:
+  // Plotly gives a scene its figure's drag mode, so a scene's figure keeps its own.
+  if (!shown.toolbar && !layout.scene && window.matchMedia("(pointer: coarse)").matches) layout.dragmode = false;
   if (shown.toolbar) {
+    // In the window a drag zooms, or turns a scene, whatever it does on the card: a box dragged there to choose
+    // points (the catalog's map) chooses nothing here, and Plotly leaves it drawn until a double click.
+    delete layout.dragmode;
     // The toolbar has a row of its own above the plot, in the page's colours.
     const { muted, accent } = palette();
     layout.margin = { ...layout.margin, t: Math.max(layout.margin.t, 36) };
