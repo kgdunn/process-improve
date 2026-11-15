@@ -20,6 +20,7 @@ from process_improve.experiments.optimization import (
     _slsqp_inequality,
     _straight_form,
     _tangent,
+    _with_exact,
 )
 
 NAMES = list("abcdef")
@@ -256,6 +257,16 @@ class TestCurvedModels:
         slopes, intercept = _tangent(coefficients, NAMES, x)
         np.testing.assert_allclose(slopes, optimize.approx_fprime(x, model, 1e-7), atol=1e-6)
         assert slopes @ x + intercept == pytest.approx(model(x))
+
+    def test_which_setting_is_reported_beside_an_exact_one(self) -> None:
+        exact = optimize.OptimizeResult(x=np.array([1.0]), fun=-0.8)
+        as_good = optimize.OptimizeResult(x=np.array([0.5]), fun=-0.8)
+        worse = optimize.OptimizeResult(x=np.array([0.2]), fun=-0.7)
+        assert _with_exact([worse], None, left_out=True) == [worse]  # no exact search: the search's results
+        assert _with_exact([worse], exact, left_out=False) == [worse]  # one piece: the search's setting, as before
+        assert _with_exact([as_good, worse], exact, left_out=True) == [as_good, worse]  # the search did as well
+        assert _with_exact([worse], exact, left_out=True) == [exact, worse]  # the search ended at a poorer set
+        assert _with_exact([], exact, left_out=False) == [exact]  # no search came back: the exact setting
 
     def test_the_results_searched_from_use_different_sets(self) -> None:
         space = _SearchSpace([(0.0, 1.0)] * 2, [], [], gaps=[(0, 0.0, 0.2), (1, 0.0, 0.2)])
