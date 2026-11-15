@@ -344,7 +344,10 @@ Also:
   - *Details:* 20,000 settings judged inside the limits, with the library's
     `feasible_region`. The chance that one new run meets a window is the share of its
     predictive distribution inside it, Student's t about the prediction by the standard
-    error of a new observation, multiplied over the responses. The app gives the share of
+    error of a new observation. With several windows the chances are joined with the
+    correlation of the fits' residuals, since responses measured on one run often miss
+    together, when the runs leave five or more past the largest model's terms; with fewer
+    they are multiplied, as for independent errors. The app gives the share of
     the settings at which that chance is 50% or more and 90% or more, and the settings at
     which it is highest, which go to the what-if panel or get confirmation runs. A chart
     shades the settings that meet the windows over two factors of your choice, the others

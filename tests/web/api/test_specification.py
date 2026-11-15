@@ -70,6 +70,7 @@ def test_the_share_and_the_region_are_those_of_the_known_surface(api):
         "formulas": {"Cost": "quadratic"},
         "windows": {"Cost": [19.31, 21.69]},
         "at": {"T": 0.0, "P": 0.0},
+        "correlation": None,
         "drawn": 20_000,
         "seed": 1,
     }
@@ -126,6 +127,44 @@ def test_more_runs_widen_the_settings_that_meet_the_window_nine_times_in_ten(api
     many = judged(api, twice, {"Yield": [58.5, 61.5]}, doubled)
     assert few["share"] == pytest.approx(many["share"]), "the same coefficients, so the same region"
     assert few["likely"]["0.9"] < many["likely"]["0.9"] < many["share"]
+
+
+def together(held: dict) -> dict:
+    """Return the known surfaces' results with a noise the yield and the cost share on each run."""
+    clean = results_of(held)
+    shared = np.random.default_rng(11).normal(0.0, 0.4, len(held["rows"]))
+    own = np.random.default_rng(12).normal(0.0, 0.1, len(held["rows"]))
+    cost = np.asarray(clean["more_responses"]["Cost"]) + shared + own
+    return {"responses": (np.asarray(clean["responses"]) + shared).tolist(), "more_responses": {"Cost": cost.tolist()}}
+
+
+def test_two_responses_errors_are_taken_as_correlated_as_their_fits_residuals_are(api, bootstrap, monkeypatch):
+    """The yield and the cost miss their surfaces together: a high yield with a low cost is then less likely."""
+    held = design_of(api, TWO, n_center_points=6)  # 14 runs, and 6 terms in each quadratic model: 8 runs to spare
+    results, windows = together(held), {"Yield": [59.0, None], "Cost": [None, 21.0]}
+    found = judged(api, held, windows, results)
+    x = coded(run_sheet(held), FACTORS[:2])
+    matrix = np.column_stack([np.ones(len(x)), x["T"], x["P"], x["T"] * x["P"], x["T"] ** 2, x["P"] ** 2])
+    residuals = [
+        np.asarray(y) - matrix @ np.linalg.lstsq(matrix, np.asarray(y), rcond=None)[0]
+        for y in (results["responses"], results["more_responses"]["Cost"])
+    ]
+    expected = np.corrcoef(residuals)
+    assert expected[0, 1] > 0.8
+    np.testing.assert_allclose(found["search"]["correlation"], expected, atol=1e-9)
+    monkeypatch.setattr(bootstrap, "CORRELATED_FROM", 100)  # the same study, its errors taken as independent
+    apart = judged(api, held, windows, results)
+    assert apart["search"]["correlation"] is None
+    assert apart["share"] == found["share"], "where the predictions lie is the same"
+    assert found["surest"]["probability"] < apart["surest"]["probability"]
+    assert found["likely"]["0.5"] < apart["likely"]["0.5"]
+
+
+def test_too_few_runs_to_spare_leave_the_responses_errors_independent(api):
+    held = design_of(api, TWO, n_center_points=2)  # 10 runs and 6 terms: 4 to spare, one too few
+    found = judged(api, held, {"Yield": [59.0, None], "Cost": [None, 21.0]}, together(held))
+    assert found["search"]["correlation"] is None
+    assert found["likely"] is not None, "the chance is still given, as the product of each response's"
 
 
 def test_a_fit_with_no_run_left_for_the_noise_gives_the_region_and_no_chance(api):

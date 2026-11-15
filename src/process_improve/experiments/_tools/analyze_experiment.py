@@ -213,6 +213,9 @@ def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
             information=spec.information,
             df_method=spec.df_method,
         )
+        # The inverse of X'X is for feasible_region, which no tool calls: a term's worth of numbers squared that
+        # an agent would only have to read past.
+        result.pop("unscaled_covariance", None)
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool analyze_experiment failed")

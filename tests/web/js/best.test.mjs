@@ -989,6 +989,15 @@ describe("the settings that meet a specification", async () => {
     assert.equal(windowChance({ ...one, share: 0 }), "");
   });
 
+  test("the chance says when the responses' errors were taken as correlated, and only then", () => {
+    const together = "The responses' errors are taken as correlated as the residuals of their fits are.";
+    const correlated = { ...two, search: { correlation: [[1, 0.6], [0.6, 1]] } };
+    assert.ok(windowChance(correlated).endsWith(` count too. ${together}`));
+    assert.ok(windowChance({ ...correlated, likely: { 0.5: 0.03, 0.9: 0 } }).endsWith(` the runs are few. ${together}`));
+    for (const apart of [two, { ...two, search: { correlation: null } }]) assert.ok(!windowChance(apart).includes("correlated"));
+    assert.ok(!windowChance({ ...correlated, likely: null }).includes("correlated"), "no chance is given, so nothing is joined");
+  });
+
   test("each combination of levels has a row: its share, its highest chance, and whether What if has it", () => {
     const at = (supplier, lot) => [{ name: "S", value: supplier }, { name: "Lot", value: lot }];
     const levels = [

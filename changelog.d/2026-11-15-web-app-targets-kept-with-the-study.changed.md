@@ -9,4 +9,6 @@
   shows that part for the visit, where it used to open the page with the part left out. With
   categorical factors, a target is now sought at every combination of their levels (it was the first
   12), and a specification has a table of what its windows give at each level, beside the level
-  What if holds.
+  What if holds. With windows on several responses, the chance that one new run meets them all now
+  allows for errors that move together: the responses are joined with the correlation of their fits'
+  residuals when the runs leave five or more past the largest model's terms, and the page says so.

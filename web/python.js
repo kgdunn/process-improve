@@ -995,6 +995,7 @@ export function windowCode(found, spec) {
   const numeric = spec.factors.filter((f) => !labelled(f));
   const names = numeric.map((f) => f.name);
   const { formulas, windows, at, drawn, seed } = found.search;
+  const correlated = Boolean(found.search.correlation);
   const limits = spec.constraints ?? [];
   const scale = scaleLines(spec, Object.keys(formulas));
   const blocked = Object.keys(at).some((name) => /^Block\d+_*$/.test(name));
@@ -1033,10 +1034,12 @@ export function windowCode(found, spec) {
     "# Each response with a window, fitted with its own model to the runs that have its result, with what the scatter",
     "# of a new run about its prediction is worked from: the fit's error, and the inverse of X'X of its model matrix.",
     "models = []",
+    ...(correlated ? ["residuals = {}  # each fit's, by its response, for how the responses' errors move together"] : []),
     `for name, model in ${repr(formulas)}.items():`,
     "    done = runs[name].notna()",
     `    fit = analyze_experiment(X[done], ${scale.on("runs[name][done]")}, model=model, analysis_type="coefficients", coding="actual")`,
     '    matrix = term_columns([c["term"] for c in fit["coefficients"]], columns[done])',
+    ...(correlated ? [`    residuals[name] = ${scale.on("runs[name][done]")} - matrix @ [c["coefficient"] for c in fit["coefficients"]]`] : []),
     "    models.append(",
     "        {",
     '            "response_name": name,',
@@ -1059,7 +1062,14 @@ export function windowCode(found, spec) {
           "tried = tried[region.feasible(tried[list(region.names)].to_numpy())].reset_index(drop=True)  # inside the limits",
         ]
       : []),
-    "judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names}))",
+    ...(correlated
+      ? [
+          "# The responses' errors on one run are taken as correlated as the residuals of their fits are, over the runs",
+          "# every fit used: two windows are then likelier to be met together, or missed together.",
+          "correlation = pd.DataFrame(residuals).dropna().corr().to_numpy()",
+        ]
+      : []),
+    `judged = feasible_region(models, windows, tried.assign(**{name: value for name, value in at.items() if name not in names})${correlated ? ", residual_correlation=correlation" : ""})`,
     'print(judged["feasible"].mean())  # the share of the settings at which every prediction is inside its window',
     ...(found.likely
       ? [
@@ -1078,9 +1088,10 @@ export function windowCode(found, spec) {
  * The chart of a specification, after its code (windowCode), which leaves the ``models``, the ``windows`` and the
  * settings ``at``: the library's ``feasible_region`` over the page's grid of the two factors drawn (``overlay.x`` and
  * ``overlay.y``), the other columns where the what-if panel has them, shaded where every prediction is inside its
- * window, with a line for each chance the page draws when the chance can be given. Null without an overlay.
+ * window, with a line for each chance the page draws when the chance can be given. ``correlated`` says the code
+ * before left the ``correlation`` of the responses' errors, which the chance is then drawn with. Null without an overlay.
  */
-export function windowOverlayCode(overlay, spec) {
+export function windowOverlayCode(overlay, spec, correlated = false) {
   if (isMixture(spec) || !overlay) return null;
   const [low, high] = [Math.min(...overlay.chances), Math.max(...overlay.chances)];
   const lines = `{"coloring": "none", "start": ${low}, "end": ${high}, "size": ${high - low}, "showlabels": True}`;
@@ -1095,7 +1106,7 @@ export function windowOverlayCode(overlay, spec) {
     "across, up = np.meshgrid(axis, axis)",
     "over = pd.DataFrame({name: np.full(across.size, value) for name, value in at.items()})",
     "over[pair[0]], over[pair[1]] = across.ravel(), up.ravel()",
-    "drawn = feasible_region(models, windows, over)",
+    `drawn = feasible_region(models, windows, over${correlated ? ", residual_correlation=correlation" : ""})`,
     "grid = lambda column: drawn[column].to_numpy(dtype=float).reshape(across.shape)",
     "figure = go.Figure(",
     "    [",

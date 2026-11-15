@@ -422,6 +422,7 @@ READS: dict[str, list[str]] = {
         "search.formulas{}: str",
         "search.windows{}.[]: number?",
         "search.at{}: number",
+        "search.correlation: list?",
         "search.drawn: int",
         "search.seed: int",
     ],

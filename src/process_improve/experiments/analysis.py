@@ -1012,6 +1012,9 @@ def _coefficients(fit: _Fit, analysis: str) -> dict[str, Any]:
         result["factor_coding"] = coding
     if analysis == "coefficients":
         result |= _joint_inference(shown, fit.alpha, _readable)
+        # The covariance of the estimates over the error variance, in their order: with the residual mean square
+        # it gives the scatter of a new run about its prediction, which feasible_region reads from here.
+        result["unscaled_covariance"] = np.asarray(ols.normalized_cov_params, dtype=float).tolist()
         if ols is not fit.ols:
             # The equation in the factors' own units, for whoever needs to evaluate it there.
             actual = with_prior_sigma(fit.ols, fit.sigma)
@@ -1300,7 +1303,10 @@ def analyze_experiment(  # noqa: PLR0913
         coefficients together at ``1 - significance_level``, :math:`S_R (1 + p F / (n - p))`
         with :math:`S_R` the ``residual_sum_of_squares`` (Box, Hunter and Hunter, eq. 14.45);
         with a ``sigma``, :math:`S_R` plus sigma squared times the upper chi-square point on
-        :math:`p` degrees of freedom.
+        :math:`p` degrees of freedom. It gives ``unscaled_covariance`` too, :math:`(X'X)^{-1}` itself
+        as rows of numbers in the order of the coefficients: with ``model_summary`` it is what
+        :func:`~process_improve.experiments.feasible_region` works the scatter of a new run from,
+        so that function takes the result as it is.
 
         ``"residual_diagnostics"`` tests the residuals for normality (Shapiro-Wilk),
         independence (Durbin-Watson) and constant variance (Breusch-Pagan), and gives each

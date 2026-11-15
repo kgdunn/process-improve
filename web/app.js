@@ -6288,7 +6288,7 @@ async function drawWindowChart() {
   const figure = () => overlayFigure(overlay, found.responses, axes, undefined, { shaded: IN_WINDOWS, star: WHAT_IF_SETTINGS, named: windowName });
   card.hidden = false;
   card.querySelector("figcaption").textContent = windowCaption(overlay, state.design.spec.factors);
-  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec));
+  const python = figureAfter("window", () => windowOverlayCode(overlay, state.design.spec, Boolean(found.search.correlation)));
   try {
     await draw(card.querySelector(".plot"), figure, state.plotlyJs, figure().height, { python });
   } catch {

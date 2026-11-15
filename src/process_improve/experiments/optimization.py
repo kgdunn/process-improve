@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 from patsy import PatsyError
-from scipy import optimize, stats
+from scipy import optimize, special, stats
 
 from process_improve._random import check_random_state
 from process_improve._warnings import user_stacklevel
@@ -2764,17 +2764,78 @@ def optimize_responses(  # noqa: PLR0913
 # ---------------------------------------------------------------------------
 
 
-def _inside_probability(
+def _shares_below(
     predicted: np.ndarray, standard_error: np.ndarray, df: float, low: float | None, high: float | None
-) -> np.ndarray:
-    """Return the chance that one new run falls between ``low`` and ``high``; an end of None is open.
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the chance that one new run falls below ``low``, and below ``high``; an end of None is open.
 
     The new run is distributed about its prediction as Student's t with the model's residual
-    degrees of freedom, scaled by the standard error of a new observation.
+    degrees of freedom, scaled by the standard error of a new observation. The chance that it
+    falls inside the window is the second less the first.
     """
-    below_high = 1.0 if high is None else stats.t.cdf((high - predicted) / standard_error, df)
-    below_low = 0.0 if low is None else stats.t.cdf((low - predicted) / standard_error, df)
-    return np.asarray(below_high - below_low, dtype=float)
+    share = lambda end, open_end: (  # noqa: E731
+        np.full(len(predicted), open_end) if end is None else stats.t.cdf((end - predicted) / standard_error, df)
+    )
+    return share(low, 0.0), share(high, 1.0)
+
+
+#: How many settings of the earlier responses' errors each later response is averaged over, when the responses'
+#: errors are correlated: 2 to this power. With 128 the chance of two windows is right to four decimals.
+_JOINT_NODES_LOG2 = 7
+
+
+def _joint_probability(below_low: np.ndarray, below_high: np.ndarray, correlation: np.ndarray) -> np.ndarray:
+    """Return the chance that every response's new run is inside its window, their errors correlated.
+
+    ``below_low`` and ``below_high`` hold a row for each setting and a column for each response: the chance
+    that its new run falls below its window's low end, and below its high end (:func:`_shares_below`).
+    Each response keeps that distribution of its own, and the responses are joined as normal variables
+    with this ``correlation`` are: a Gaussian copula. The chance is worked by Genz's method (1992): the
+    first response's error is drawn inside its window, the second's window is then judged given the first,
+    and so on, and the product is averaged over a set of evenly spread draws.
+    """
+    k = below_low.shape[1]
+    # Perfectly correlated responses are allowed: a hair off them keeps the factor below defined.
+    factor = np.linalg.cholesky((1 - 1e-9) * correlation + 1e-9 * np.eye(k))
+    steps = 2**_JOINT_NODES_LOG2
+    # Evenly spread over the unit cube, a point for each draw; off its faces by half a step.
+    nodes = (
+        np.zeros((1, 0))
+        if k == 1
+        else stats.qmc.Sobol(k - 1, scramble=False).random_base2(_JOINT_NODES_LOG2) + 0.5 / steps
+    )
+    low, high = special.ndtri(below_low), special.ndtri(below_high)  # each end on the normal scale
+    total = np.zeros(len(below_low))
+    for node in nodes:
+        d, e = below_low[:, 0], below_high[:, 0]
+        inside = e - d
+        drawn: list[np.ndarray] = []
+        for i in range(1, k):
+            # The response before, drawn inside its window; off the very ends, where the normal scale is infinite.
+            drawn.append(special.ndtri(np.clip(d + node[i - 1] * (e - d), 1e-12, 1 - 1e-12)))
+            shift = factor[i, :i] @ np.array(drawn)
+            d = special.ndtr((low[:, i] - shift) / factor[i, i])
+            e = special.ndtr((high[:, i] - shift) / factor[i, i])
+            inside = inside * (e - d)
+        total += inside
+    return total / len(nodes)
+
+
+def _checked_correlation(raw: object, k: int) -> np.ndarray:
+    """Return the responses' error correlation as a ``k`` by ``k`` array, or say why it is not one."""
+    matrix = np.asarray(raw, dtype=float)
+    if (
+        matrix.shape != (k, k)
+        or not np.allclose(matrix, matrix.T)
+        or not np.allclose(np.diag(matrix), 1.0)
+        or float(np.linalg.eigvalsh(matrix).min()) < -1e-9
+    ):
+        msg = (
+            f"residual_correlation must be the {k} by {k} correlation matrix of the responses' errors, in the "
+            "order of the models: symmetric, with 1 on its diagonal, and with no negative eigenvalue."
+        )
+        raise ValueError(msg)
+    return matrix
 
 
 def _matrix_over(model: dict[str, Any], points: pd.DataFrame, name: str) -> tuple[np.ndarray, np.ndarray]:
@@ -2795,7 +2856,10 @@ def _new_run_scatter(model: dict[str, Any], matrix: np.ndarray) -> tuple[np.ndar
     None when the model does not hold its residual mean square, its residual degrees of freedom and its
     unscaled covariance, or has no degrees of freedom left to estimate the error from.
     """
-    mse, df, covariance = (model.get(key) for key in ("mse_residual", "df_residual", "unscaled_covariance"))
+    # A result of analyze_experiment holds the first two in its model summary.
+    summary = model.get("model_summary") or {}
+    mse, df = (model.get(key, summary.get(key)) for key in ("mse_residual", "df_residual"))
+    covariance = model.get("unscaled_covariance")
     if mse is None or df is None or covariance is None or float(df) <= 0:
         return None
     leverage = np.einsum("ij,jk,ik->i", matrix, np.asarray(covariance, dtype=float), matrix)
@@ -2806,6 +2870,7 @@ def feasible_region(
     fitted_models: list[dict[str, Any]],
     windows: Mapping[str, Sequence[float | None]],
     points: pd.DataFrame,
+    residual_correlation: Sequence[Sequence[float]] | np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Say, at each of some settings, whether every response is predicted inside its window, and how surely.
 
@@ -2829,6 +2894,9 @@ def feasible_region(
           over the residual variance, the inverse of ``X'X``, its rows and columns in
           the order of ``"coefficients"``. A statsmodels fit holds it as
           ``normalized_cov_params``.
+
+        A result of ``analyze_experiment(..., analysis_type="coefficients")`` holds all
+        three, the first two in its ``"model_summary"``, so it is taken as it is.
     windows : Mapping[str, Sequence[float | None]]
         Each response's window by its name, ``(low, high)``, on the scale its model was
         fitted on. An end of ``None`` is open: ``(None, 0.5)`` is "0.5 at most".
@@ -2838,6 +2906,11 @@ def feasible_region(
         ``analyze_experiment(..., coding="coded")``). A grid over two factors gives a
         picture of the region; settings drawn evenly from the ranges give its share of
         them, as the mean of ``feasible``.
+    residual_correlation : array-like of shape (n_responses, n_responses), optional
+        The correlation of the responses' errors on one run, in the order of
+        *fitted_models*: the correlation of the models' residuals estimates it. None
+        (the default) takes the errors as independent. It changes ``"probability"``
+        alone.
 
     Returns
     -------
@@ -2854,7 +2927,8 @@ def feasible_region(
     ------
     ValueError
         If the windows and the models do not name the same responses, if a window's
-        low end is above its high end, or if *points* lacks a factor's column.
+        low end is above its high end, if *points* lacks a factor's column, or if
+        *residual_correlation* is not a correlation matrix of the responses.
 
     Notes
     -----
@@ -2862,10 +2936,17 @@ def feasible_region(
     residual degrees of freedom of its model, scaled by the standard error of a new
     observation, ``sqrt(mse_residual * (1 + x' C x))``, where ``x`` is the settings'
     row of the model matrix and ``C`` the unscaled covariance. The probability for
-    one response is the share of that distribution inside its window. The responses'
-    errors are taken as independent, so the probability of meeting every window is the
-    product over the responses; responses measured on the same run are often
-    correlated, and the product is then a guide, not an exact figure. More runs shrink
+    one response is the share of that distribution inside its window. Without a
+    *residual_correlation* the responses' errors are taken as independent, so the
+    probability of meeting every window is the product over the responses. Responses
+    measured on the same run are often correlated, and the product is then a guide:
+    errors that move together make it likelier that both windows are met, or both
+    missed. With a *residual_correlation* each response keeps its own distribution,
+    and the responses are joined as normal variables with that correlation are (a
+    Gaussian copula), which Genz's method (1992) integrates. A correlation estimated
+    from few residual degrees of freedom is itself uncertain, and with one degree of
+    freedom two models' residuals are always perfectly correlated: estimate it from
+    fits that leave several. More runs shrink
     ``C`` and add degrees of freedom, so the region of a given probability grows
     towards the region where the predictions are inside their windows, and never
     beyond the window's own scatter: a window narrower than the noise is met with a
@@ -2881,6 +2962,11 @@ def feasible_region(
     ... }
     >>> feasible_region([model], {"y": (45, 55)}, pd.DataFrame({"A": [-1.0, 0.0, 0.5, 1.0]}))["feasible"].tolist()
     [False, True, True, False]
+
+    References
+    ----------
+    Genz, A. (1992). Numerical computation of multivariate normal probabilities.
+    *Journal of Computational and Graphical Statistics*, 1(2), 141-149.
     """
     names = [model.get("response_name", f"Response {i + 1}") for i, model in enumerate(fitted_models)]
     if sorted(names) != sorted(windows) or len(set(names)) != len(names):
@@ -2889,9 +2975,10 @@ def feasible_region(
             "give one window for each model."
         )
         raise ValueError(msg)
+    correlation = None if residual_correlation is None else _checked_correlation(residual_correlation, len(names))
     out = pd.DataFrame(index=points.index)
     feasible = np.ones(len(points), dtype=bool)
-    probability = np.ones(len(points), dtype=float)
+    shares: list[tuple[np.ndarray, np.ndarray]] | None = []  # each response's, or None once one has no scatter
     for name, model in zip(names, fitted_models, strict=True):
         low, high = windows[name]
         if low is not None and high is not None and low > high:
@@ -2902,10 +2989,16 @@ def feasible_region(
         out[name] = predicted
         feasible &= (low is None or predicted >= low) & (high is None or predicted <= high)
         scatter = _new_run_scatter(model, matrix)
-        if scatter is None:
-            probability[:] = np.nan
+        if scatter is None or shares is None:
+            shares = None
         else:
-            probability *= _inside_probability(predicted, *scatter, low, high)
+            shares.append(_shares_below(predicted, *scatter, low, high))
     out["feasible"] = feasible
-    out["probability"] = probability
+    if shares is None:
+        out["probability"] = np.nan
+    elif correlation is None:
+        out["probability"] = np.prod([high - low for low, high in shares], axis=0)
+    else:
+        below_low, below_high = (np.column_stack(ends) for ends in zip(*shares, strict=True))
+        out["probability"] = _joint_probability(below_low, below_high, correlation)
     return out
