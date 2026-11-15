@@ -5134,7 +5134,7 @@ function renderTradeNearly() {
   box.replaceChildren(
     el("h4", "", "Other settings nearly as good"),
     said("hint", `Each is another best of the search, far from the balanced settings, with an overall desirability within 5% of theirs (${num(state.balance.composite)}).`),
-    table(["Settings", ...responses.map((r) => withUnits(r.label, r.units)), "D", ""], rows),
+    builtTable(["Settings", ...responses.map((r) => withUnits(r.label, r.units)), "D", "Choose"], rows),
   );
 }
 
@@ -6829,6 +6829,28 @@ function table(columns, rows, terms = {}, { sortedBy = null, looks = {}, run = n
   t._looks = columns.map((c) => looks[c] ?? "");
   t._run = run; // for a table with a row a run: the run of a row, which marks it on every chart (fillBody)
   renderTable(t, columns, rows, sortedBy, [], terms);
+  wrap.append(t);
+  return wrap;
+}
+
+/**
+ * A table whose cells may hold an element, as a row's button is: its rows stay as given, where table()'s are text
+ * a reader can sort.
+ */
+function builtTable(columns, rows) {
+  const wrap = el("div", "scroll", "");
+  const t = el("table", "data", "");
+  const head = t.createTHead().insertRow();
+  for (const text of columns) {
+    const th = el("th", "", text);
+    th.scope = "col";
+    head.append(th);
+  }
+  const body = t.createTBody();
+  for (const row of rows) {
+    const tr = body.insertRow();
+    for (const cell of row) tr.insertCell().append(cell instanceof Node ? cell : String(cell ?? ""));
+  }
   wrap.append(t);
   return wrap;
 }
