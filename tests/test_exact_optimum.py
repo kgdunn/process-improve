@@ -148,8 +148,8 @@ class TestTheBound:
     def test_a_programme_that_is_not_solved_to_the_end_is_not_proven(self, monkeypatch: pytest.MonkeyPatch) -> None:
         solve = exact._Programme.solve
 
-        def stopped_early(self: exact._Programme, used: np.ndarray | None = None, margin: float = exact._INSIDE):
-            solved = solve(self, used, margin)
+        def stopped_early(self: exact._Programme, *args: object, **kwargs: object) -> tuple | None:
+            solved = solve(self, *args, **kwargs)  # type: ignore[arg-type]
             return None if solved is None else (*solved[:3], False)
 
         monkeypatch.setattr(exact._Programme, "solve", stopped_early)
@@ -159,6 +159,46 @@ class TestTheBound:
 
     def test_rounds_that_run_out_leave_the_best_setting_unproven(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(exact, "_ROUNDS", 1)
+        monkeypatch.setattr(exact, "_AGREEMENT", 0.0)
+        found = _found(UNIT, [UP, DOWN], [_maximize("up"), _maximize("down", weight=3.0)])
+        assert not found.proven
+        assert 0.0 < found.x[0] < 1.0
+
+    def test_a_programme_the_solver_fails_on_is_solved_again_without_presolve(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from process_improve.experiments import designs_omars_ilp
+
+        run, presolved = designs_omars_ilp._run_milp, []
+
+        def failing_with_presolve(cost: np.ndarray, constraints: list, options: dict, **more: object):
+            presolved.append(options.get("presolve", True))
+            if options.get("presolve", True):
+                return optimize.OptimizeResult(x=None, status=4, fun=None)
+            return run(cost, constraints, options, **more)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(designs_omars_ilp, "_run_milp", failing_with_presolve)
+        found = _found(UNIT, [UP], [_maximize()])
+        assert found.proven
+        assert found.x[0] == pytest.approx(1.0)
+        assert presolved[:2] == [True, False]
+
+    def test_a_programme_without_a_solution_is_not_solved_again(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_omars_ilp
+
+        run, calls = designs_omars_ilp._run_milp, []
+
+        def counted(cost: np.ndarray, constraints: list, options: dict, **more: object):
+            calls.append(options)
+            return run(cost, constraints, options, **more)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(designs_omars_ilp, "_run_milp", counted)
+        out_of_reach = {"response": "y", "goal": "maximize", "low": 2.0, "high": 3.0}
+        assert exact_optimum(UNIT, [UP], [out_of_reach], None, _judge([UP], [out_of_reach])) is None
+        assert len(calls) == 1
+
+    def test_time_that_runs_out_leaves_the_best_setting_unproven(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(exact, "_SECONDS", 0.0)
         monkeypatch.setattr(exact, "_AGREEMENT", 0.0)
         found = _found(UNIT, [UP, DOWN], [_maximize("up"), _maximize("down", weight=3.0)])
         assert not found.proven
@@ -263,6 +303,19 @@ class TestOptimizeResponses:
         best = optimize_responses([model], goals=[{"response": "y", "goal": "maximize", "low": 0.0, "high": 20.0}])
         assert best["desirability"]["proven_optimal"]
         assert best["desirability"]["optimal_coded"] == pytest.approx({"A": 1.0, "B": -1.0})
+
+    def test_a_factor_without_an_effect_stays_where_the_search_began(self) -> None:
+        # Every B scores alike. The exact search would put B at an end of its range; the search leaves it in the
+        # middle, where it began, and that is the setting reported, with the proof that nothing scores higher.
+        model = {
+            "response_name": "y",
+            "factor_names": ["A", "B"],
+            "coefficients": [{"term": t, "coefficient": c} for t, c in {"Intercept": 10.0, "A": 2.0, "B": 0.0}.items()],
+        }
+        best = optimize_responses([model], goals=[{"response": "y", "goal": "maximize", "low": 0.0, "high": 20.0}])
+        assert best["desirability"]["proven_optimal"]
+        assert best["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0)
+        assert -1.0 < best["desirability"]["optimal_coded"]["B"] < 1.0
 
     def test_a_model_with_an_interaction_is_searched_for_and_not_proven(self) -> None:
         amounts = [Factor(name=n, low=0, high=10, min_when_used=2) for n in "AB"]

@@ -1512,26 +1512,21 @@ def _optimize_desirability(  # noqa: PLR0913
     # takes no starting points, which cost the most to find in a region whose factors can be left out.
     space = _search_space(factor_names, search_bounds, region, rng, n_starts=0)
     exact = _exact_result(fitted_models, factor_names, goals, importances, space, neg_composite, accept)
-    proven = exact is not None and exact.proven
-    results = [] if exact is None else [exact]
-    if not proven or n_alternatives:
+    if exact is not None and exact.found.proven and space.gaps and not n_alternatives:
+        results = [exact]
+    else:
         # Start from the centre of the searched region, then sample across it, so
         # that widening the bounds actually widens where the search looks.
         # Where factors can be left out a search keeps its start's set of them, so more sets are started from.
         n_starts = (_STARTS_OVER_SETS if space.gaps else 10) + 10 * n_alternatives
         space = _search_space(factor_names, search_bounds, region, rng, n_starts, score=neg_composite)
         space.constraints.extend(limits)
-        # Start first from the exact setting, or else from the setting closest to meeting every limit: from
-        # there the search can climb even when every other start sits where some d is 0, and on a tie at
-        # D = 0 it is the setting reported.
-        first = exact.x if exact is not None else _closest_to_specification(evaluators, goals, space, accept)
-        if first is not None:
+        if (first := _first_start(exact, evaluators, goals, space, accept)) is not None:
             space.starts.insert(0, first)
-        searched = _multistart_results(neg_composite, space, accept)
-        results = sorted([*results, *searched], key=lambda res: res.fun)  # the exact setting first on a tie
+        results = _with_exact(_multistart_results(neg_composite, space, accept), exact)
     if not results:
         raise _no_optimum(region, limits)
-    proven = proven or -results[0].fun >= 1.0 - _FULL_DESIRABILITY  # no setting scores above 1
+    proven = _is_proven(-results[0].fun, exact)
     if space.gaps and not proven:
         search = _SetSearch(fitted_models, factor_names, goals, importances)
         leaders = _of_different_sets(results, space, _SET_SEARCHES)
@@ -1552,10 +1547,58 @@ def _optimize_desirability(  # noqa: PLR0913
 
     names = [m.get("response_name", "response") for m in fitted_models]
     scored = _Scored(factor_names, names, evaluators, goals, importances, factor_ranges, region)
+    proven = proven or _is_proven(composite_d, exact)  # the search over the sets may have reached the bound
     result = scored.at(best_result.x) | {"optimizer_success": bool(best_result.success), "proven_optimal": proven}
     if n_alternatives:
         result["alternatives"] = [scored.at(x) for x in _alternatives(results, n_alternatives)]
     return result
+
+
+def _is_proven(desirability: float, exact: optimize.OptimizeResult | None) -> bool:
+    """Whether no setting of the search region scores above ``desirability``.
+
+    None does when it is 1, or when it reaches the bound of the exact search, whichever
+    search found the setting that scores it.
+    """
+    return desirability >= 1.0 - _FULL_DESIRABILITY or (exact is not None and exact.found.proves(desirability))
+
+
+def _first_start(
+    exact: optimize.OptimizeResult | None,
+    evaluators: list[Callable[[np.ndarray], float]],
+    goals: list[dict[str, Any]],
+    space: _SearchSpace,
+    accept: Callable[[np.ndarray], bool],
+) -> np.ndarray | None:
+    """Return the setting to search from first, or None when there is none.
+
+    Where factors can be left out it is the exact setting, when there is one. Otherwise it
+    is the setting closest to meeting every limit: from there the search can climb even
+    when every other start sits where some d is 0, and on a tie at D = 0 it is the
+    setting reported.
+    """
+    if exact is not None and space.gaps:
+        return exact.x
+    return _closest_to_specification(evaluators, goals, space, accept)
+
+
+#: A searched setting whose composite desirability is within this share of the exact one's is as good.
+_AS_GOOD = 1e-6
+
+
+def _with_exact(
+    searched: list[optimize.OptimizeResult], exact: optimize.OptimizeResult | None
+) -> list[optimize.OptimizeResult]:
+    """Return the search's results, best first, with the exact one ahead of them unless the search did as well.
+
+    Where many settings score alike (a factor without an effect), the search leaves such a
+    factor where it began, in the middle of its range, and the exact search puts it at an
+    end of it. The searched setting is the one reported then, as it was before there was
+    an exact search, and the exact one says that nothing scores higher.
+    """
+    if exact is None or (searched and searched[0].fun <= exact.fun * (1.0 - _AS_GOOD)):
+        return searched
+    return [exact, *searched]
 
 
 def _exact_result(
@@ -1567,7 +1610,7 @@ def _exact_result(
     neg_composite: Callable[[np.ndarray], float],
     accept: Callable[[np.ndarray], bool],
 ) -> optimize.OptimizeResult | None:
-    """Return the exact optimum as a search result, with ``proven`` set, or None when it does not apply.
+    """Return the exact optimum as a search result that holds what was ``found``, or None when it does not apply.
 
     It applies when every model is a straight line in the factors and every constraint of
     the space is one (see :mod:`~process_improve.experiments._exact_optimum`), and some
@@ -1579,7 +1622,7 @@ def _exact_result(
     found = exact_optimum(space.straight, models, goals, importances, lambda x: -neg_composite(x))
     if found is None or not accept(found.x):
         return None
-    return optimize.OptimizeResult(x=found.x, fun=neg_composite(found.x), success=True, proven=found.proven)
+    return optimize.OptimizeResult(x=found.x, fun=neg_composite(found.x), success=True, found=found)
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ which a search from starting points cannot say.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -44,9 +45,11 @@ _AGREEMENT_IN_SET = 1e-7
 #: Two tangents whose points differ by less than this share are taken as the same tangent: the second would
 #: lower the bound by less than 1e-8 of it, and HiGHS can hardly tell their two rows apart.
 _SAME_TANGENT = 1e-4
-#: The most rounds of tangents, and the seconds one programme may take.
+#: The most rounds of tangents, and the seconds the search may take; one programme is given what is left of them.
 _ROUNDS = 30
 _SECONDS = 20.0
+#: The status :func:`scipy.optimize.milp` gives a programme that HiGHS could not solve ("Solve error").
+_SOLVE_ERROR = 4
 #: How far inside the limits of an ``"in_range"`` goal the setting is kept, as a share of their width. A setting
 #: on a limit is beyond it by rounding as often as not, and the goal then scores 0. HiGHS meets a row to about
 #: 1e-7, so this leaves the setting inside by as much again. The bound is taken without it.
@@ -83,13 +86,24 @@ class StraightRegion:
 
 @dataclass
 class ExactOptimum:
-    """The setting found, and whether no other setting of the region can score higher."""
+    """The setting found, and the composite desirability that no setting of the region exceeds."""
 
     x: np.ndarray
-    #: The composite desirability no setting of the region exceeds.
+    #: The setting's own composite desirability.
+    score: float
+    #: The composite desirability no setting of the region exceeds, when ``holds``.
     bound: float
-    #: Whether the setting's own composite desirability reaches that bound.
-    proven: bool
+    #: Whether HiGHS solved the programme the bound is from to the end. A bound it did not is no bound.
+    holds: bool
+
+    def proves(self, score: float) -> bool:
+        """Whether a setting that scores ``score`` is proven the best: it reaches the bound, which holds."""
+        return self.holds and self.bound - score <= _AGREEMENT * self.bound
+
+    @property
+    def proven(self) -> bool:
+        """Whether the setting found is proven the best of the region."""
+        return self.proves(self.score)
 
 
 def _ramps(
@@ -220,14 +234,15 @@ class _Programme:
         return added
 
     def solve(
-        self, used: np.ndarray | None = None, margin: float = _INSIDE
+        self, used: np.ndarray | None = None, margin: float = _INSIDE, seconds: float = _SECONDS
     ) -> tuple[np.ndarray, np.ndarray, float, bool] | None:
         """Return the programme's setting, the factors it uses, its bound on the desirability, and whether it is solved.
 
         With ``used``, which says for each factor that can be left out whether it is in
         use, the programme is the linear one over that set of factors. ``margin`` is how
         far inside the limits of the in-range goals the setting is kept; with 0 the bound
-        is the one over the whole region.
+        is the one over the whole region. ``seconds`` is the time HiGHS may take: a
+        programme it does not finish in them is not solved, and its bound proves nothing.
         """
         from process_improve.experiments.designs_omars_ilp import _run_milp  # noqa: PLC0415
 
@@ -238,13 +253,12 @@ class _Programme:
             bounds, integrality = Bounds(lower, upper), np.zeros(self.n)
         high = np.array(self.high)
         high[list(self.kept_inside)] += _INSIDE - margin
-        solved = _run_milp(
-            self.cost,
-            [LinearConstraint(np.array(self.rows), self.low, high)],
-            {"time_limit": _SECONDS, "mip_rel_gap": 0.0},
-            integrality=integrality,
-            bounds=bounds,
-        )
+        rows = [LinearConstraint(np.array(self.rows), self.low, high)]
+        options = {"time_limit": seconds, "mip_rel_gap": 0.0}
+        solved = _run_milp(self.cost, rows, options, integrality=integrality, bounds=bounds)
+        if solved.x is None and solved.status == _SOLVE_ERROR:
+            # HiGHS's presolve fails on a programme now and then that HiGHS solves without it.
+            solved = _run_milp(self.cost, rows, {**options, "presolve": False}, integrality=integrality, bounds=bounds)
         if solved.x is None:
             return None
         # HiGHS may stop within 1e-6 of the best objective: its own bound on that objective is the one that holds.
@@ -307,27 +321,32 @@ def exact_optimum(
     Returns
     -------
     ExactOptimum or None
-        The best setting found, the composite desirability that no setting exceeds, and
-        whether the two agree, which proves the setting. None when the programme has
-        no solution: the region is empty, or every setting leaves a desirability at 0.
+        The best setting found, its composite desirability, and the composite desirability
+        that no setting of the region exceeds; the setting is proven when the two agree.
+        None when the programme has no solution: the region is empty, or every setting
+        leaves a desirability at 0.
     """
     programme = _Programme(region, models, goals, importances)
-    best_x, best_score, bound = None, 0.0, 1.0
+    best_x, best_score, bound, holds = None, 0.0, 1.0, False
+    began = time.monotonic()
     for _ in range(_ROUNDS):
-        solved = programme.solve()
+        left = _SECONDS - (time.monotonic() - began)
+        solved = programme.solve(seconds=max(left, 1.0))
         if solved is None:
             break
-        start, used, bound, finished = solved
+        start, used, bound, holds = solved
         x = programme.best_with(used, start, desirability)
         score = desirability(x)
         if best_x is None or score > best_score:
             best_x, best_score = x, score
         agree = bound - best_score <= _AGREEMENT * bound
-        if agree or not finished or not programme.add_tangents(x):
-            if agree and finished and len(programme.kept_inside):
-                # The setting was kept inside the limits of the in-range goals: the proof is of the region up to them.
-                whole = programme.solve(margin=0.0)
-                agree = whole is not None and whole[3] and whole[2] - best_score <= _AGREEMENT * whole[2]
-                bound = bound if whole is None else whole[2]
-            return ExactOptimum(best_x, bound, proven=agree and finished)
-    return None if best_x is None else ExactOptimum(best_x, bound, proven=False)
+        if agree or not holds or left <= 0 or not programme.add_tangents(x):
+            break
+    if best_x is None:
+        return None
+    if holds and len(programme.kept_inside):
+        # The setting was kept inside the limits of the in-range goals: the bound is taken of the region up to them.
+        whole = programme.solve(margin=0.0)
+        holds = whole is not None and whole[3]
+        bound = bound if whole is None else whole[2]
+    return ExactOptimum(best_x, best_score, bound, holds)
