@@ -766,6 +766,51 @@
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
+        <!-- The settings that give a target (app.js, with best.js; bootstrap.target_settings and solve_for): the reader
+             types what each response should be, and its model is run backwards to the settings it predicts that at. -->
+        <section id="target" class="best target" data-feature="panel:target" data-level="2" aria-labelledby="h-target" hidden>
+          <h3 id="h-target">Settings that give a target</h3>
+          <p class="hint">Type what a response should be, or what several should be, and the models are run backwards:
+            the settings at which they predict it.</p>
+          <div class="scroll"><table id="target-goals" class="data target-goals" aria-label="What each response should be"></table></div>
+          <p class="actions">
+            <label>Or match a run <select id="target-match"></select></label>
+            <button type="button" id="target-clear" class="link" hidden>Clear the targets</button>
+          </p>
+          <p id="target-problems" class="hint error" role="status" hidden></p>
+          <div id="target-out" aria-live="polite"></div>
+          <figure id="target-chart" class="chart" hidden>
+            <h4>Where the settings give the targets</h4>
+            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+              <label>Across <select id="target-across"></select></label>
+              <label>Up <select id="target-up"></select></label>
+            </div>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <p id="target-actions" class="actions" hidden>
+            <button type="button" id="target-confirm" class="button">Add 3 confirmation runs at these settings</button>
+            <button type="button" id="target-what-if" class="link">See them under What if</button>
+          </p>
+          <!-- One factor from the others (bootstrap.solve_for): what it must be for a response to meet its target,
+               with every other factor where the What if panel has it. -->
+          <div id="target-solve" class="target-solve" hidden>
+            <h4>One factor from the others</h4>
+            <p class="hint">What one factor must be for a response to meet its target, with the other factors where
+              What if has them.</p>
+            <div class="trade-view" role="group" aria-label="The factor to solve for, and the response whose target it should give">
+              <label>Solve for <select id="solve-factor"></select></label>
+              <label>to give the target of <select id="solve-response"></select></label>
+            </div>
+            <div id="solve-out" aria-live="polite"></div>
+          </div>
+          <details class="python" id="py-target" hidden>
+            <summary>Show the Python code of these settings</summary>
+            <p class="hint">The design, its results and the search for the settings that give the targets together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
         <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
              with its ranges moved the way the best settings point, and runs to add to this study, each for what its
              design cannot say yet. -->

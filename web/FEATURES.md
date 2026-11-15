@@ -308,6 +308,20 @@ Also:
   [Show me](https://factori.al/?example=worked&show=what-if)
   - *Details:* Its intervals and its leverage follow too.
 - **A target curve.** For a curve response, the settings whose predicted curve comes closest.
+- **Settings that give a target.** Type what a response should be, or what several should
+  be, or pick a run to match. The app runs the models backwards and gives the settings, with
+  each response's target beside what the models predict there.
+  [Show me](https://factori.al/?example=worked&show=target)
+  - *Details:* 20,000 settings tried on the models, inside the limits and at each level of a
+    categorical factor. Settings give a target when the response is predicted within 2% of
+    the range of its results from it. Of those, the answer is the one nearest the center of
+    the ranges, moved by least squares to meet the targets exactly where the models can. The
+    app says when no setting gives the targets, and when the settings lie beyond the runs. A
+    chart draws each response's line of settings over two factors of your choice, with the
+    runs. The settings go to the what-if panel, or are tested with confirmation runs. One
+    factor can be solved for from the others, with the settings around it at which the 95%
+    confidence interval of the prediction still holds the target. The section and its chart
+    show their Python.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
