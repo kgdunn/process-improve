@@ -86,17 +86,17 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Factorial opens on this device without a network")
+        said(page, "Works offline, except charts and Excel files.")
         assert page.evaluate(REGISTERED)
         page.click("#offline-keep")
-        said(page, "Factorial opens and works on this device", timeout=300_000)
+        said(page, "Works fully offline.", timeout=300_000)
         assert page.is_hidden("#offline-keep"), "nothing more to keep"
         assert page.is_visible("#offline-remove")
 
         context.set_offline(True)
         page.reload()
         started(page)  # Python, its packages and the wheel come from the copy
-        said(page, "Factorial opens and works on this device")  # read from the copy, with no network to ask
+        said(page, "Works fully offline.")  # read from the copy, with no network to ask
         a_study_with_its_charts_and_its_workbook(page)  # plotly and openpyxl come from the copy: no index is asked
         reveal(page, "#charts")
         page.locator("#charts figure.chart .expand").first.click()  # the window a figure opens in, from the copy too
@@ -117,7 +117,7 @@ def test_the_page_opens_and_works_without_a_network_once_its_copy_is_kept(chromi
 
         context.set_offline(False)
         page.click("#offline-remove")
-        said(page, "Factorial keeps no copy of itself on this device.")
+        said(page, "Needs internet. Factorial is not saved on this device.")
         assert until(page, REGISTERED, wanted=False) is False
         assert page.evaluate(COPIES) == []
         # The worker serves this page until it is closed, and looks in the copy for each file asked of it. In
@@ -138,16 +138,16 @@ def test_the_whole_copy_is_whole_whatever_the_visit_had_installed_before_it_was_
     try:
         page.goto(app_url)
         started(page)
-        said(page, "Factorial opens on this device without a network")
+        said(page, "Works offline, except charts and Excel files.")
         page.click("#offline-remove")
-        said(page, "Factorial keeps no copy of itself on this device.")
+        said(page, "Needs internet. Factorial is not saved on this device.")
         a_study_with_its_charts_and_its_workbook(page)  # installed with no copy to keep them in
         assert page.evaluate(COPIES) == [], "nothing is kept that the reader removed"
 
-        page.click("#offline-keep")  # "Keep a copy, to open it without a network"
-        said(page, "Factorial opens on this device without a network")
-        page.click("#offline-keep")  # "Keep its charts and workbooks too"
-        said(page, "Factorial opens and works on this device", timeout=300_000)
+        page.click("#offline-keep")  # "Save Factorial for offline use"
+        said(page, "Works offline, except charts and Excel files.")
+        page.click("#offline-keep")  # "Add charts and Excel files"
+        said(page, "Works fully offline.", timeout=300_000)
 
         context.set_offline(True)
         page.reload()
@@ -174,7 +174,7 @@ def test_a_build_made_without_the_worker_retires_it_in_a_browser_that_has_it(chr
 
     def a_copy_is_kept(page: Any) -> None:  # noqa: ANN401 - a Playwright Page
         started(page)
-        said(page, "Factorial opens on this device")
+        said(page, "Works offline, except charts and Excel files.")
         assert page.evaluate(REGISTERED)
         assert sorted(page.evaluate(COPIES)) == ["factorial-app-1", "factorial-kept-1", "factorial-made-1"]
 

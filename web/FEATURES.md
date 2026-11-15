@@ -580,11 +580,14 @@ What a careful reader, or an organisation, asks before using a tool.
 
 #### With no network, or on your own server
 
-- **Use it with no network.** After a first visit the app is kept on your device. The footer
-  says what is kept and how much room it takes, and removes it when you ask.
-  - *Details:* A copy of the app, Python and its packages is kept in the browser: from about
-    170 MB to about 240 MB, as the browser counts it. One button adds the charts and the
-    workbooks (about 12 MB more). The copy holds this list and How Factorial works too. A
+- **Use it with no network.** After a first visit the app is saved on your device. The footer
+  says in plain words whether Factorial works without internet here and how much room it
+  takes, and each button says what it does.
+  - *Details:* A copy of the app, Python and its packages is saved in the browser: from about
+    170 MB to about 240 MB as most browsers count it, and about 510 MB as one does. One button
+    adds the charts and Excel files (12 MB more). One removes Factorial from the device, and
+    a line under it says what follows: the space is freed, Factorial then needs internet to
+    open, and saved studies stay. The copy holds this list and How Factorial works too. A
     larger page, such as the design catalog, is kept once it has been opened with a network;
     until then it says that it needs one, with the way back to the app.
 - **Your organisation can run its own copy.** The app is a folder of plain files that any web

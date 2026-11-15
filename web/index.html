@@ -955,12 +955,14 @@
       </nav>
       <!-- What is kept on this device for use without a network (offline.js), once there is a copy to speak of. -->
       <div id="offline" class="foot__device" hidden tabindex="-1">
-        <p class="foot__head">On this device</p>
+        <p class="foot__head">Use without internet</p>
         <p><span role="status"></span></p>
         <p class="foot__actions">
           <button type="button" id="offline-keep" hidden></button>
-          <button type="button" id="offline-remove" hidden>Remove the copy</button>
+          <button type="button" id="offline-remove" hidden>Remove Factorial from this device</button>
         </p>
+        <!-- What removing does, shown while the button that removes is (style.css, by the box's state). -->
+        <p class="foot__note">Removing frees the space. Factorial then needs internet to open. Your saved studies stay.</p>
       </div>
     </div>
   </footer>
