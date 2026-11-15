@@ -314,6 +314,19 @@ them:
    )
    print(one_of_three.metadata["inestimable_columns"])  # {'A:B': 1, 'A:C': 1, 'B:C': 1}
 
+``evaluate_design`` leaves the same columns out, so the design is judged on the model
+it was built for, and says so in a note. The default model of ``analyze_experiment``
+leaves those interactions out too, with a warning that no run has the two factors
+both above their lowest values.
+
+.. code-block:: python
+
+   from process_improve.experiments import evaluate_design
+
+   judged = evaluate_design(one_of_three, model="interactions", metric="vif")
+   print(list(judged["vif"]))  # ['A', 'B', 'C', 'D', 'A:D', 'B:D', 'C:D']
+   print("inestimable_columns" in judged["notes"])  # True
+
 ``DesignRegion`` knows the rule. A run that uses too many factors, or too few, is
 outside the region, and ``sample`` draws only sets that the rule allows: before the
 rule acts each of the four factors is left out half the time, so the 11 sets of at most
@@ -818,7 +831,8 @@ them:
    print(fifths.design_actual[pairs[0]].sum(axis=1).round(9).unique())  # [0.2]
 
 Whichever column of a bucket is left out, the columns kept span the same model over
-the region, so the design does not depend on the choice.
+the region, so the design does not depend on the choice. ``evaluate_design`` leaves
+the same columns out and says so in ``result["notes"]["inestimable_columns"]``.
 
 *A component left out, or used at no less than a minimum.* ``min_when_used`` works on a
 mixture component as on an amount (:ref:`constrained-min-when-used`): the component is
