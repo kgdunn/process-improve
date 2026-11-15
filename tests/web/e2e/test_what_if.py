@@ -82,8 +82,8 @@ def test_the_worked_example_opens_at_its_best_settings_and_follows_each_move(pag
     assert page.is_hidden("#what-if-back"), "at the best settings there is nowhere to come back to"
 
     before = predictions(page)
-    set_number(page, "T", 160)
-    moved = {s["name"]: s["value"] for s in best["settings"]} | {"T": 160}
+    set_number(page, "Temperature", 160)
+    moved = {s["name"]: s["value"] for s in best["settings"]} | {"Temperature": 160}
     [fit] = first_paint["predictors"]["responses"]
     expected = predicted_by_hand(fit, first_paint["predictors"]["factors"], moved)
     assert rows(page)[0][1] == f"{num(expected)}%"
@@ -99,8 +99,8 @@ def test_the_worked_example_opens_at_its_best_settings_and_follows_each_move(pag
 def test_a_number_past_its_range_is_held_at_the_end_of_it(page, first_paint):
     reveal(page, "#what-if")
     page.wait_for_selector("#what-if:not([hidden])")
-    set_number(page, "T", 260)
-    box = page.locator('#what-if-settings [data-factor="T"] input[name="number"]')
+    set_number(page, "Temperature", 260)
+    box = page.locator('#what-if-settings [data-factor="Temperature"] input[name="number"]')
     assert box.input_value() == "200", "the models hold inside the range they were fitted over"
 
 
@@ -323,14 +323,14 @@ def test_kept_settings_outside_the_ranges_of_a_study_edited_since_say_so(open_co
 
 def test_kept_settings_follow_a_factor_renamed(page):
     in_learn(page)
-    set_number(page, "T", 160)
+    set_number(page, "Temperature", 160)
     keep(page, "Cooler")
     page.wait_for_selector("#what-if-kept:not([hidden])")
     [before] = kept(page)
-    rename(page, 0, "Temperature")
+    rename(page, 0, "Heat")
     in_learn(page)
     page.wait_for_function(
-        "document.querySelector('#what-if-kept-list p')?.textContent.startsWith('Cooler: Temperature = 160 degC')"
+        "document.querySelector('#what-if-kept-list p')?.textContent.startsWith('Cooler: Heat = 160 degC')"
     )
     [after] = kept(page)
     assert after["rows"] == before["rows"], "the same settings, under the factor's new name"

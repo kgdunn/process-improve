@@ -126,15 +126,18 @@ export async function readStudyFile(text, now = Date.now()) {
   return { studies, refused };
 }
 
-/** A file name from a study's title: "Yield (%), maximise: CCD in T, P and F" becomes "yield-maximise-ccd-in-t-p-and-f". */
+/**
+ * A file name from a study's title: "Yield (%), maximise: CCD in T, P and F" becomes "yield-maximise-ccd-in-t-p-and-f".
+ * A long title is cut after the last whole word that fits in 60 characters, so that no word is left half written.
+ */
 export function fileStem(title) {
-  const stem = String(title)
+  const whole = String(title)
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/, "");
+    .replace(/^-+|-+$/g, "");
+  // One character past the limit shows whether the last word ends there; a single word too long is cut where it must be.
+  const stem = whole.length <= 60 ? whole : whole.slice(0, 61).replace(/-[^-]*$/, "").slice(0, 60);
   return stem || "study";
 }

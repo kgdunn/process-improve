@@ -32,8 +32,9 @@ from tests.web.e2e._page import (
 )
 from tests.web.e2e.test_responses import three_responses
 
-#: The worked example's run sheet: a Box-Behnken design in T, P and F, whose results are its Yield column.
-EXAMPLE = ["Std order", "Run order", "T", "P", "F", "Yield"]
+#: The worked example's run sheet: a Box-Behnken design in Temperature, Pressure and Flow, whose results are its
+#: Yield column. The tests rename the first to Heat and the second to Force.
+EXAMPLE = ["Std order", "Run order", "Temperature", "Pressure", "Flow", "Yield"]
 
 
 def factor_box(page: Any, row: int, key: str = "name") -> Any:  # noqa: ANN401 - a Playwright Page and Locator
@@ -62,19 +63,19 @@ def chart(page: Any, n: int, read: str) -> Any:  # noqa: ANN401
 
 def test_a_name_is_taken_when_the_reader_leaves_its_box(page):
     box = factor_box(page, 0)
-    box.fill("Temperature")
+    box.fill("Heat")
     assert calls(page, "api_relabel") == [], "a name half typed reaches nothing"
     assert headers(page) == EXAMPLE
     box.press("Tab")
     settled(page)
-    assert headers(page) == ["Std order", "Run order", "Temperature", "P", "F", "Yield"]
-    rename(page, 1, "Pressure", leave="Enter")
-    assert headers(page) == ["Std order", "Run order", "Temperature", "Pressure", "F", "Yield"]
+    assert headers(page) == ["Std order", "Run order", "Heat", "Pressure", "Flow", "Yield"]
+    rename(page, 1, "Force", leave="Enter")
+    assert headers(page) == ["Std order", "Run order", "Heat", "Force", "Flow", "Yield"]
 
 
 def test_a_renamed_factor_is_renamed_everywhere_and_its_runs_and_results_stay(page):
     sheet = run_sheet(page)
-    rename(page, 0, "Temperature")
+    rename(page, 0, "Heat")
 
     assert run_sheet(page) == sheet, "the same runs, in the same order, with the same results"
     assert calls(page, "api_make_design") == []
@@ -88,14 +89,14 @@ def test_a_renamed_factor_is_renamed_everywhere_and_its_runs_and_results_stay(pa
         " ".join(page.locator("#analysis table").first.locator("tbody td:first-child").all_text_contents()),
         " ".join(chart(page, 0, "d => d.layout.yaxis.categoryarray")),
     ):
-        assert "Temperature" in words(shown), shown
-        assert "T" not in words(shown), shown
-    assert chart(page, 1, "d => d.layout.xaxis.title.text") == "Temperature (degC)"
-    assert "over Temperature and P" in page.locator("#charts figcaption").first.text_content()
+        assert "Heat" in words(shown), shown
+        assert "Temperature" not in words(shown), shown
+    assert chart(page, 1, "d => d.layout.xaxis.title.text") == "Heat (degC)"
+    assert "over Heat and Pressure" in page.locator("#charts figcaption").first.text_content()
     for panel in ("#py-design", "#py-run", "#py-analyse"):
         code = page.text_content(f"{panel} code")
-        assert "Temperature" in code, panel
-        assert not re.search(r'"T"|\bT\b', code), panel
+        assert "Heat" in code, panel
+        assert "Temperature" not in code, panel
 
 
 def test_the_design_s_notes_name_the_factor_anew(blank_page, api):
@@ -117,7 +118,7 @@ def test_units_are_taken_as_names_are(page):
     rename(page, 0, "K", key="units")
     assert page.locator("#design-table thead th").nth(2).locator(".col-unit").text_content() == "K"
     assert 'units="K"' in page.text_content("#py-design code")
-    assert chart(page, 1, "d => d.layout.xaxis.title.text") == "T (K)"
+    assert chart(page, 1, "d => d.layout.xaxis.title.text") == "Temperature (K)"
     assert page.is_hidden("#design-stale")
 
 
@@ -128,11 +129,11 @@ def test_units_changed_alone_reach_the_what_if_panel(page):
     page.wait_for_function(f"window.__pi.count('api_predictors') > {asked}")
     settled(page)
     reveal(page, "#what-if")
-    row = page.locator('#what-if-settings [data-factor="T"]')
-    assert row.locator(".what-if-name").text_content() == "T (K)"
+    row = page.locator('#what-if-settings [data-factor="Temperature"]')
+    assert row.locator(".what-if-name").text_content() == "Temperature (K)"
     assert row.locator(".what-if-range").text_content() == "150 to 200 K"
-    assert row.locator("[name=slider]").get_attribute("aria-label") == "T, from 150 to 200 K"
-    assert row.locator("[name=number]").get_attribute("aria-label") == "T (K)"
+    assert row.locator("[name=slider]").get_attribute("aria-label") == "Temperature, from 150 to 200 K"
+    assert row.locator("[name=number]").get_attribute("aria-label") == "Temperature (K)"
 
 
 #: The corner marked in the test below, once F's units are L/h.
@@ -164,7 +165,7 @@ def test_units_changed_alone_reach_the_factors_held_and_the_questions_of_a_propo
 
 def test_a_name_python_would_refuse_is_not_taken(page):
     refused = {
-        "P": "P: two factors cannot share a name.",
+        "Pressure": "Pressure: two factors cannot share a name.",
         "Yield": "Yield: the run sheet has a Yield column already.",
         "2T": "2T: a name is letters, digits and _",
     }
@@ -176,9 +177,9 @@ def test_a_name_python_would_refuse_is_not_taken(page):
         assert headers(page) == EXAMPLE, "the old name stays everywhere"
     assert calls(page, "api_relabel") == []
 
-    rename(page, 0, "Temperature")
+    rename(page, 0, "Heat")
     assert page.is_hidden("#factor-problems")
-    assert headers(page)[2] == "Temperature"
+    assert headers(page)[2] == "Heat"
 
 
 def test_a_blocked_run_sheet_s_block_column_is_no_factor_s_name(blank_page):
@@ -194,12 +195,12 @@ def test_the_terms_chosen_for_the_model_follow_a_rename(page):
     page.select_option("#model", "terms")
     settled(page)
     ticked = page.locator("#term-list input:checked").count()
-    rename(page, 0, "Temperature")
+    rename(page, 0, "Heat")
     reveal(page, "#term-list")
     labels = page.locator("#term-list label:has(input:checked)").all_text_contents()
     assert len(labels) == ticked, "the same terms, still ticked"
-    assert "Temperature" in words(" ".join(labels))
-    assert "T" not in words(" ".join(page.locator("#term-list label").all_text_contents()))
+    assert "Heat" in words(" ".join(labels))
+    assert "Temperature" not in words(" ".join(page.locator("#term-list label").all_text_contents()))
 
 
 def test_the_design_picked_in_design_is_renamed_not_made_again(blank_page):
@@ -247,22 +248,23 @@ def test_the_what_if_fits_asked_for_before_a_rename_are_dropped(page):
     analysed = len(calls(page, "api_analyze_runs"))
     page.evaluate("window.__pi.hold('api_analyze_runs')")
     box = factor_box(page, 0)
-    box.fill("Temperature")
+    box.fill("Heat")
     box.press("Tab")
     page.wait_for_function(f"window.__pi.count('api_analyze_runs') > {analysed}")  # the rename is taken
     replied = "window.__pi.replies.filter((r) => r.fn === 'api_predictors').length"
     before = page.evaluate(replied)
     page.evaluate("window.__pi.release('api_predictors')")
     page.wait_for_function(f"{replied} > {before}")
-    assert page.locator('#what-if:not([hidden]) [data-factor="T"]').count() == 0, "no factor by its old name"
+    old = page.locator('#what-if:not([hidden]) [data-factor="Temperature"]')
+    assert old.count() == 0, "no factor by its old name"
 
     page.evaluate("window.__pi.release('api_analyze_runs')")
     settled(page)
     reveal(page, "#what-if")
     named = page.locator("#what-if-settings [data-factor]").evaluate_all("rows => rows.map((r) => r.dataset.factor)")
-    assert named == ["Temperature", "P", "F"]
-    assert "Temperature" in words(page.text_content("#py-what-if code"))
-    assert "T" not in words(page.text_content("#py-what-if code"))
+    assert named == ["Heat", "Pressure", "Flow"]
+    assert "Heat" in words(page.text_content("#py-what-if code"))
+    assert "Temperature" not in words(page.text_content("#py-what-if code"))
 
 
 def test_the_balance_asked_for_before_a_rename_is_dropped(fresh_page):
@@ -309,7 +311,7 @@ def test_a_changed_level_is_a_new_design_and_waits_for_its_run_sheet(page):
     """Only the labels are taken from a run sheet: a level changed with them leaves it as it was, out of date."""
     choose(page, n_center_points=3)
     factor_box(page, 0, "high").fill("210")
-    rename(page, 0, "Temperature")
+    rename(page, 0, "Heat")
     assert calls(page, "api_relabel") == []
     assert headers(page) == EXAMPLE
     assert page.text_content("#badge-plan") == "changed"

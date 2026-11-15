@@ -20,7 +20,7 @@ TIMES = [0, 2, 4, 6, 8, 10]
 
 
 def curve_at(t: float, p: float, wobble: int = 0) -> list[float]:
-    """Return the curve at settings in the factors' units: T sets how high it rises, P how it drifts late."""
+    """Return the curve at settings in the factors' units: Temperature sets its height, Pressure how it drifts late."""
     level, drift = 2 + 0.8 * (t - 175) / 25, 0.3 * (p - 2)
     return [
         round(level * (1 - math.exp(-x / 3)) + drift * x / 10 + 0.01 * ((wobble + i) % 3 - 1), 4)
@@ -42,7 +42,7 @@ def paste_curves(page: Any) -> str:  # noqa: ANN401 - a Playwright Page
         page.click("#curves summary")
     columns = headers(page)
     runs = [dict(zip(columns, row, strict=True)) for row in run_sheet(page)]
-    curves = [curve_at(float(r["T"]), float(r["P"]), i) for i, r in enumerate(runs)]
+    curves = [curve_at(float(r["Temperature"]), float(r["Pressure"]), i) for i, r in enumerate(runs)]
     page.fill("#curve-label", "Colour")
     page.fill("#curve-along", "Time")
     page.fill("#curve-along-units", "min")
@@ -76,7 +76,7 @@ def test_the_curves_pasted_in_run_are_drawn_in_learn_and_follow_each_setting_wit
     ends = []
     for t in (150, 200):
         before = curve_drawn(page)
-        set_number(page, "T", t)
+        set_number(page, "Temperature", t)
         page.wait_for_function(f"(y) => {CURVE_END} !== y", arg=before[-1])
         ends.append(curve_drawn(page)[-1])
     assert ends[1] > ends[0] + 1, "a hotter run rises higher"
@@ -122,7 +122,7 @@ def test_a_target_curve_moves_the_panel_to_the_settings_that_come_closest(page):
         "document.querySelector('#curve-target-said').textContent.startsWith('The curve comes closest')"
     )
     settled(page)
-    found = float(page.input_value('#what-if-settings [data-factor="T"] input[name="number"]'))
+    found = float(page.input_value('#what-if-settings [data-factor="Temperature"] input[name="number"]'))
     assert abs(found - 190) < 4
     names = page.evaluate("document.querySelector('#what-if-curve-plot').data.map((t) => t.name)")
     assert "Target" in names
