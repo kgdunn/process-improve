@@ -43,6 +43,7 @@ export const FEATURES = {
   "panel:correlation": { level: 2, term: "confounding" },
   "panel:curves": { level: 2, because: "a response that is a whole curve at each run, past one number a run" },
   "panel:target": { level: 2, because: "a model run backwards to the settings that give a result, past its best settings" },
+  "panel:specification": { level: 2, because: "the settings that meet a window, and the chance a new run does, past one best setting" },
 };
 
 /** The level that first shows a part of the page: 1 for a part every level has. */

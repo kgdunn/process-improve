@@ -43,6 +43,15 @@ def _aimed_at(target: object, **change: object) -> Callable[[Example], dict]:
     return lambda ex: {**_runs(**change)(ex), "targets": {ex["held"]["spec"]["response"]: target}}
 
 
+#: The settings the worked example's what-if panel opens at: the center of its ranges.
+CENTER = {"T": 175, "P": 2, "F": 15}
+
+
+def _windowed(window: object, **change: object) -> Callable[[Example], dict]:
+    """Build a request for the settings that meet a window on the worked example's response, changed."""
+    return lambda ex: {**_runs()(ex), "at": CENTER, **change, "windows": {ex["held"]["spec"]["response"]: window}}
+
+
 def _zipped(size: int) -> str:
     """Return a zip file of one part of ``size`` zero bytes, in base64: small as sent, whatever it unpacks to."""
     held = io.BytesIO()
@@ -513,6 +522,68 @@ REFUSALS: dict[str, tuple[str, Callable[[Example], dict], str]] = {
         "api_solve_for",
         lambda _: {**SUPPLIED, "response": "y", "target": 12, "factor": "T", "settings": ["A"]},
         "The page sent settings this page did not write.",
+    ),
+    # The settings that meet a specification: a window for a response, or for several.
+    "no window typed": (
+        "api_specification",
+        _runs(windows={}, at=CENTER),
+        "Type a window for a response, or for more than one.",
+    ),
+    "a window that is not two ends": (
+        "api_specification",
+        _windowed([60]),
+        "The page sent windows this page did not write.",
+    ),
+    "a window whose end is no number": (
+        "api_specification",
+        _windowed([60, "more"]),
+        "The ends of the window of Yield must be numbers.",
+    ),
+    "a window with neither end": (
+        "api_specification",
+        _windowed([None, None]),
+        "Type an end of the window of Yield.",
+    ),
+    "a window upside down": (
+        "api_specification",
+        _windowed([70, 60]),
+        "The window of Yield must run from a lower value to a higher one.",
+    ),
+    "a window the log cannot take": (
+        "api_specification",
+        lambda ex: {
+            **_windowed([0, 60])(ex),
+            "spec": {**ex["held"]["spec"], "analysis_transforms": {ex["held"]["spec"]["response"]: "log"}},
+        },
+        "The log of Yield needs a window above 0.",
+    ),
+    "a window for a response with no result yet": (
+        "api_specification",
+        _balanced(costs=[None] * 15, windows={"Cost": [None, 20]}, at=CENTER),
+        "Enter results for Cost first: its window is judged on its model.",
+    ),
+    "a window judged at settings that are not settings": (
+        "api_specification",
+        _windowed([60, 70], at=[175, 2, 15]),
+        "The page sent settings this page did not write.",
+    ),
+    "a window inside limits that leave no setting": (
+        "api_specification",
+        lambda ex: {
+            **_windowed([60, 70])(ex),
+            "spec": {**ex["held"]["spec"], "constraints": [{"expression": "T + P + F <= 0"}]},
+        },
+        "The limits on the settings leave no setting to try.",
+    ),
+    "a window in a study of levels alone": (
+        "api_specification",
+        lambda _: {**LEVELS_ALONE, "windows": {"y": [11, 13]}, "at": {"S": "A", "Shift": "day"}},
+        "A specification is met by moving a factor with a range, and this study has none.",
+    ),
+    "a blend for a specification": (
+        "api_specification",
+        _mixed(windows={"y": [1, 2]}, at={}),
+        "The blends that meet a specification are not found on this page yet.",
     ),
     # The settings that balance the responses, and the goals the reader sets for them.
     "goals that are not goals": (

@@ -811,6 +811,37 @@
             <button type="button" class="link copy">Copy the code</button>
           </details>
         </section>
+        <!-- The settings that meet a specification (app.js, with best.js; bootstrap.specification, on the library's
+             feasible_region): the reader types a window for each response, and the page says which settings the models
+             predict inside every window, and how surely one new run there meets them all. -->
+        <section id="window" class="best window" data-feature="panel:specification" data-level="2" aria-labelledby="h-window" hidden>
+          <h3 id="h-window">Settings that meet a specification</h3>
+          <p class="hint">Type the window a response must fall in, either end or both, for one response or several. The
+            page finds the settings the models predict inside every window, and how surely one new run there meets them.</p>
+          <div class="scroll"><table id="window-limits" class="data trade-limits" aria-label="The window each response must fall in"></table></div>
+          <p class="actions"><button type="button" id="window-clear" class="link" hidden>Clear the windows</button></p>
+          <p id="window-problems" class="hint error" role="status" hidden></p>
+          <div id="window-out" aria-live="polite"></div>
+          <figure id="window-chart" class="chart" hidden>
+            <h4>Where every response is inside its window</h4>
+            <div class="trade-view" role="group" aria-label="The two factors the chart is drawn over">
+              <label>Across <select id="window-across"></select></label>
+              <label>Up <select id="window-up"></select></label>
+            </div>
+            <div class="plot"></div>
+            <figcaption class="hint"></figcaption>
+          </figure>
+          <p id="window-actions" class="actions" hidden>
+            <button type="button" id="window-confirm" class="button">Add 3 confirmation runs at the surest settings</button>
+            <button type="button" id="window-what-if" class="link">See the surest settings under What if</button>
+          </p>
+          <details class="python" id="py-window" hidden>
+            <summary>Show the Python code of this specification</summary>
+            <p class="hint">The design, its results and the settings judged against the windows together, so it runs as it is.</p>
+            <pre><code></code></pre>
+            <button type="button" class="link copy">Copy the code</button>
+          </details>
+        </section>
         <!-- What the analysis points to next (app.js, with best.js; bootstrap.next_runs and add_runs): a new study
              with its ranges moved the way the best settings point, and runs to add to this study, each for what its
              design cannot say yet. -->

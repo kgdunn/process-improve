@@ -231,6 +231,25 @@ def test_the_settings_for_a_target_under_pyodide_are_native_python_s(pyodide, ap
     assert under["nearest"] == pytest.approx(native["nearest"])
 
 
+def test_a_specification_judged_under_pyodide_is_native_python_s(pyodide, api, held, simulated):
+    """The settings judged against a window, and the chance that a new run meets it, come out as they do natively."""
+    name = held["spec"]["response"]
+    window = [float(np.median(simulated["responses"])), None]
+    request = {
+        **held,
+        "responses": simulated["responses"],
+        "windows": {name: window},
+        "at": {"T": 175, "P": 2, "F": 15},
+    }
+    under, native = (python.ok("api_specification", request) for python in (pyodide, api))
+    assert under["share"] == native["share"], "the same settings are drawn, and the same of them meet the window"
+    assert under["likely"] == pytest.approx(
+        native["likely"], abs=1e-3
+    )  # a setting on a chance's edge may fall either way
+    assert under["surest"]["probability"] == pytest.approx(native["surest"]["probability"], abs=1e-9)
+    np.testing.assert_allclose(under["overlay"]["probability"], native["overlay"]["probability"], atol=2e-6)
+
+
 def test_the_runs_the_results_call_for_under_pyodide_are_native_python_s(pyodide, api):
     cube = api.ok("api_make_design", {"design_type": "full_factorial", "factors": FACTORS, "n_center_points": 3})
     settings = coded(run_sheet(cube), FACTORS).to_numpy(dtype=float)

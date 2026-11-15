@@ -8542,6 +8542,14 @@ SOLVE_POINTS = 401
 #: target and the range of the predictions: what rounding leaves.
 SOLVE_ON = 1e-9
 
+#: How many settings are judged against a specification, for the share of the ranges that meets it, and the seed
+#: they are drawn with.
+SPECIFICATION_DRAWN = 20_000
+SPECIFICATION_SEED = 1
+
+#: The chances that one new run meets a specification, each drawn as a line and counted: 0.9 is the design space.
+CHANCES = (0.5, 0.9)
+
 
 def target_settings(request: dict) -> dict:
     """Find the settings at which each response named is predicted at its target: the models run backwards.
@@ -8668,13 +8676,7 @@ def _target_overlay(
         "responses": [{**surface, "levels": [targets[surface["name"]]]} for surface in overlay["responses"]],
         "acceptable": None,
     }
-    factors = {f["name"]: f for f in spec["factors"]}
-    coded = [
-        (design[n].to_numpy(dtype=float) - (factors[n]["low"] + factors[n]["high"]) / 2)
-        / ((factors[n]["high"] - factors[n]["low"]) / 2)
-        for n in (overlay["x"], overlay["y"])
-    ]
-    return {**overlay, "runs": np.unique(np.column_stack(coded).round(6), axis=0).tolist()}
+    return {**overlay, "runs": _runs_over(design, spec, overlay)}
 
 
 def _start_of_those_tried(
@@ -8724,9 +8726,12 @@ def _targets_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[s
 
 
 def _target_fits(
-    request: dict, spec: dict, design: pd.DataFrame, names: list[str]
+    request: dict, spec: dict, design: pd.DataFrame, names: list[str], asked: str = "its target is met"
 ) -> tuple[dict[str, _FittedModel], dict[str, float]]:
-    """Return each named response's fit, and how near its target counts as given: a share of its results' range."""
+    """Return each named response's fit, and how near its target counts as given: a share of its results' range.
+
+    ``asked`` says what a response's model is wanted for, for the refusal of a response with no result.
+    """
     factors = [f["name"] for f in spec["factors"]]
     categorical = _categorical_names(spec)
     raw_models = request.get("models") or {}
@@ -8738,7 +8743,7 @@ def _target_fits(
         one = _for_response(spec, name)
         results = pd.to_numeric(design[name], errors="coerce").dropna()
         if results.empty:
-            raise ValueError(f"Enter results for {_words(known[name])} first: its target is met on its model.")
+            raise ValueError(f"Enter results for {_words(known[name])} first: {asked} on its model.")
         fits[name] = _fitted(design, one, _checked_model(raw_models.get(name) or one["model"], factors, categorical))
         spread = float(results.max() - results.min())
         near[name] = TARGET_NEAR * (spread if spread > 0 else max(abs(float(results.max())), 1.0))
@@ -8911,6 +8916,229 @@ def _point_of(raw: object, spec: dict, but: str) -> dict[str, float]:
         else:
             point[f["name"]] = _coded_value(_factor_of(f), _setting_of(f, raw))
     return point
+
+
+def specification(request: dict) -> dict:
+    """Find the settings at which every response is predicted inside its window, and how surely a new run is.
+
+    ``windows`` holds a window for each response to judge, by its column: ``[low, high]`` in the response's
+    units, an end of None left open. Each is fitted with its own model (``models``, by its column; the
+    design's without one) to the runs that have its result. ``at`` holds every factor's setting, as the
+    what-if panel has them: a categorical factor is at its level there throughout, and the chart holds the
+    numeric factors it is not drawn over there. ``search["at"]`` holds them as the columns the models are fitted on.
+
+    :data:`SPECIFICATION_DRAWN` settings of the numeric factors are drawn evenly from their ranges, without
+    those the limits on the settings rule out, and judged with the library's ``feasible_region``: ``share`` is
+    the part of them at which every prediction is inside its window, and ``likely`` the part at which one new
+    run meets every window with each of :data:`CHANCES` or more. ``surest`` is the setting tried at which that
+    chance is highest. Both are None when a model has no runs left to estimate the noise from. ``overlay`` is
+    the picture over two factors (``pair``, when the reader chose them; see :func:`_window_overlay`), and
+    ``search`` what the code the page shows needs.
+    """
+    from process_improve.experiments import feasible_region  # noqa: PLC0415 - loaded when a window is typed
+
+    whole = _checked_spec(request.get("spec") or {})
+    if _mixture(whole):
+        raise ValueError("The blends that meet a specification are not found on this page yet.")
+    transforms = whole.get("analysis_transforms") or {}
+    every_run, whole = _on_model_scale(_runs_frame(request, whole), whole)
+    design = _design_runs(every_run)
+    names = [f["name"] for f in whole["factors"] if not _categorical(f)]
+    if not names:
+        raise ValueError("A specification is met by moving a factor with a range, and this study has none.")
+    windows = _windows_sent(request.get("windows"), whole, transforms)
+    fits, spread = _target_fits(request, whole, design, list(windows), asked="its window is judged")
+    region = _spec_region(whole)
+    point = _point_of(request.get("at"), whole, "")
+    drawn = np.random.default_rng(SPECIFICATION_SEED).uniform(-1.0, 1.0, size=(SPECIFICATION_DRAWN, len(names)))
+    if region is not None:
+        drawn = drawn[region.feasible(drawn[:, [names.index(n) for n in region.names]])]
+    if not len(drawn):
+        raise ValueError("The limits on the settings leave no setting to try.")
+    models = _region_models(fits)
+    judge = lambda settings: feasible_region(models, windows, _region_frame(fits, point, names, settings))  # noqa: E731
+    tried = judge(drawn)
+    chance = tried["probability"].to_numpy()
+    known = not bool(np.isnan(chance).any())
+    levels = {f["name"]: point[f["name"]] for f in whole["factors"] if _categorical(f)}
+    surest = None
+    if known:
+        best = int(np.argmax(chance))
+        at_best = _full_point(whole, drawn[best], levels)
+        surest = {
+            "probability": float(chance[best]),
+            "coded": at_best,
+            "settings": {f["name"]: _in_units(f, at_best[f["name"]]) for f in whole["factors"]},
+            "confirm_at": _practical(whole, at_best, region),
+            "responses": {n: _put_back(float(tried[n].iloc[best]), transforms.get(n)) for n in windows},
+        }
+    known_responses = {r["name"]: r for r in _responses(whole)}
+    reply = {
+        "responses": [
+            {
+                "name": n,
+                "label": _words(known_responses[n]),
+                "units": known_responses[n].get("units", ""),
+                "low": _put_back(low, transforms.get(n)),
+                "high": _put_back(high, transforms.get(n)),
+            }
+            for n, (low, high) in windows.items()
+        ],
+        "share": float(tried["feasible"].mean()),
+        "likely": {f"{c:g}": float((chance >= c).mean()) for c in CHANCES} if known else None,
+        "surest": surest,
+        "tried": len(drawn),
+        "held": [
+            {"name": f["name"], "value": _in_units(f, point[f["name"]])} for f in whole["factors"] if _categorical(f)
+        ],
+        "overlay": _window_overlay(
+            whole,
+            fits,
+            {"windows": windows, "spread": spread, "point": point, "judge": judge if known else None},
+            region,
+            _pair_sent(request.get("pair"), names),
+            design,
+        ),
+        "search": {
+            "formulas": {n: fit.formula for n, fit in fits.items()},
+            "windows": {n: list(ends) for n, ends in windows.items()},
+            "at": _region_frame(fits, point, names, np.array([[point[n] for n in names]])).iloc[0].to_dict(),
+            "drawn": SPECIFICATION_DRAWN,
+            "seed": SPECIFICATION_SEED,
+        },
+    }
+    if reply["overlay"] and transforms:
+        surfaces = reply["overlay"]["responses"]
+        reply["overlay"] = {**reply["overlay"], "responses": [_surface_put_back(s, transforms) for s in surfaces]}
+    return reply
+
+
+def _windows_sent(raw: object, spec: dict, transforms: dict[str, str]) -> dict[str, tuple[float | None, float | None]]:
+    """Return the window the reader typed for each response, by its column, on the scale its model is fitted on."""
+    known = {r["name"]: r for r in _responses(spec)}
+    if not isinstance(raw, dict) or not raw or not set(raw) <= set(known):
+        raise ValueError("Type a window for a response, or for more than one.")
+    windows: dict[str, tuple[float | None, float | None]] = {}
+    for name, ends in raw.items():
+        words = _words(known[name])
+        if not isinstance(ends, list) or len(ends) != 2:  # a window has two ends
+            raise ValueError("The page sent windows this page did not write.")
+        low, high = (None if end is None else _number(end) for end in ends)
+        if any(end is not None and _number(end) is None for end in ends):
+            raise ValueError(f"The ends of the window of {words} must be numbers.")
+        if low is None and high is None:
+            raise ValueError(f"Type an end of the window of {words}.")
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"The window of {words} must run from a lower value to a higher one.")
+        transform = transforms.get(name)
+        typed = pd.Series([end for end in (low, high) if end is not None])
+        if transform is not None and not _in_domain(typed, transform).all():
+            raise ValueError(f"The {TRANSFORMS[transform]['words']} of {words} needs a window {_least(transform)}.")
+        scaled = lambda end, t=transform: end if end is None or t is None else float(_to_model_scale(end, t))  # noqa: E731
+        windows[name] = (scaled(low), scaled(high))
+    return windows
+
+
+def _region_models(fits: dict[str, _FittedModel]) -> list[dict[str, Any]]:
+    """Return each fit as the library's ``feasible_region`` takes a model, with what a new run's scatter is worked from.
+
+    Its coefficients are over the columns the model is fitted on, a block contrast a column too, and its
+    unscaled covariance is the inverse of its ``X'X``, in the order of its terms.
+    """
+    return [
+        {
+            "response_name": name,
+            "coefficients": [{"term": t, "coefficient": float(b)} for t, b in zip(fit.terms, fit.beta, strict=True)],
+            "factor_names": [*fit.names, *(t for t in fit.terms if _block_contrast(t, fit.names))],
+            "mse_residual": fit.mse,
+            "df_residual": fit.df,
+            "unscaled_covariance": fit.inverse,
+        }
+        for name, fit in fits.items()
+    ]
+
+
+def _region_frame(
+    fits: dict[str, _FittedModel], point: dict[str, float], names: list[str], settings: np.ndarray
+) -> pd.DataFrame:
+    """Return settings of the numeric factors as the frame the models are judged over.
+
+    Every other column a model is fitted on is as at ``point``, a categorical factor's level as its contrasts,
+    and each block contrast is 0: the average block, as the equation is written.
+    """
+    columns: dict[str, np.ndarray] = {}
+    for fit in fits.values():
+        held = {**point, **_held_columns(point, fit.spec)} if fit.spec is not None else point
+        for name in fit.names:
+            columns.setdefault(name, np.full(len(settings), float(held[name])))
+        for term in fit.terms:
+            if _block_contrast(term, fit.names):
+                columns.setdefault(term, np.zeros(len(settings)))
+    frame = pd.DataFrame(columns)
+    frame[names] = settings
+    return frame
+
+
+def _window_overlay(
+    spec: dict,
+    fits: dict[str, _FittedModel],
+    judged: dict[str, Any],
+    region: DesignRegion | None,
+    pair: list[str] | None,
+    design: pd.DataFrame,
+) -> dict[str, Any] | None:
+    """Return the picture of a specification over two factors: where it is met, and how surely by a new run.
+
+    It is :func:`_overlay`'s, the other factors at the what-if panel's settings (``judged["point"]``): each
+    response's surface with the ends of its window as the levels drawn, and ``acceptable``, 1 where every
+    prediction is inside its window. ``probability`` adds the chance that one new run meets every window, over
+    the same grid, or None when it cannot be said, with :data:`CHANCES` as the ``chances`` to draw; ``runs``
+    adds where the design's runs lie over the two factors.
+    """
+    windows, point = judged["windows"], judged["point"]
+    names = [f["name"] for f in spec["factors"] if not _categorical(f)]
+    levels = {f["name"]: point[f["name"]] for f in spec["factors"] if _categorical(f)}
+    coefficients, blocks = _searched_models(fits, spec)
+    held = {**blocks, **_held_columns(levels, spec)}
+    x = np.array([point[n] for n in names])
+    found = {"models": {n: _held_at(c, held) for n, c in coefficients.items()}, "x": x, "levels": levels}
+    goals = [_window_goal(n, low, high, judged["spread"][n] / TARGET_NEAR) for n, (low, high) in windows.items()]
+    overlay = _overlay(spec, found, goals, region, pair)
+    if overlay is None:
+        return None
+    chance = None
+    if judged["judge"] is not None:
+        axis = np.asarray(overlay["grid"])
+        u, v = np.meshgrid(axis, axis)
+        over = np.tile(x, (u.size, 1))
+        over[:, names.index(overlay["x"])] = u.ravel()
+        over[:, names.index(overlay["y"])] = v.ravel()
+        chance = _grid(judged["judge"](over)["probability"].to_numpy(), u.shape)
+    return {**overlay, "probability": chance, "chances": list(CHANCES), "runs": _runs_over(design, spec, overlay)}
+
+
+def _window_goal(name: str, low: float | None, high: float | None, spread: float) -> dict[str, Any]:
+    """Return a window as the overlay takes a goal: bounded below, above, or on both sides.
+
+    A window open at one end is a goal to maximise or to minimise, whose boundary is its one end; the other
+    end, which only ranks the factors to draw over, is the spread of the response's results away.
+    """
+    if high is None:
+        return {"response": name, "goal": "maximize", "low": low, "high": low + spread}  # type: ignore[operator]
+    if low is None:
+        return {"response": name, "goal": "minimize", "low": high - spread, "high": high}
+    return {"response": name, "goal": "target", "low": low, "high": max(high, low + 1e-9 * max(abs(low), 1.0))}
+
+
+def _runs_over(design: pd.DataFrame, spec: dict, overlay: dict[str, Any]) -> list[list[float]]:
+    """Return where the design's runs lie over an overlay's two factors, coded: each place once."""
+    factors = {f["name"]: f for f in spec["factors"]}
+    coded = [
+        (design[n].to_numpy(dtype=float) - (factors[n]["low"] + factors[n]["high"]) / 2)
+        / ((factors[n]["high"] - factors[n]["low"]) / 2)
+        for n in (overlay["x"], overlay["y"])
+    ]
+    return np.unique(np.column_stack(coded).round(6), axis=0).tolist()
 
 
 def _scaled_range(raw: object, response: dict, transform: str | None) -> object:
@@ -10299,6 +10527,11 @@ def api_target_settings(payload: str) -> str:
 def api_solve_for(payload: str) -> str:
     """JSON wrapper around :func:`solve_for`."""
     return _reply(solve_for, payload)
+
+
+def api_specification(payload: str) -> str:
+    """JSON wrapper around :func:`specification`."""
+    return _reply(specification, payload)
 
 
 def api_next_runs(payload: str) -> str:

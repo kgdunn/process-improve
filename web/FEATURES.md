@@ -322,6 +322,20 @@ Also:
     factor can be solved for from the others, with the settings around it at which the 95%
     confidence interval of the prediction still holds the target. The section and its chart
     show their Python.
+- **Settings that meet a specification.** Type the window a response must fall in, or the
+  windows of several, either end or both. The app says what share of the settings the models
+  put inside every window, and how surely one new run there meets them.
+  [Show me](https://factori.al/?example=worked&show=window)
+  - *Details:* 20,000 settings judged inside the limits, with the library's
+    `feasible_region`. The chance that one new run meets a window is the share of its
+    predictive distribution inside it, Student's t about the prediction by the standard
+    error of a new observation, multiplied over the responses. The app gives the share of
+    the settings at which that chance is 50% or more and 90% or more, and the settings at
+    which it is highest, which go to the what-if panel or get confirmation runs. A chart
+    shades the settings that meet the windows over two factors of your choice, the others
+    where What if has them, with a line for each chance and the runs. No chance is given
+    when the fit leaves no run to estimate the noise. The section and its chart show their
+    Python.
 - **Check the answer.** One button adds three confirmation runs at the settings found, and the
   app judges them when their results are in.
   [Show me](https://factori.al/?example=worked&show=confirm)
