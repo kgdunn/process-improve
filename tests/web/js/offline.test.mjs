@@ -217,7 +217,7 @@ class Browser {
   }
 
   /** Open the page and run installOffline to its end; return the footer as the visit leaves it. */
-  async visit({ build = manifest, started = Promise.resolve(), serviceWorkers = true, usage = null } = {}) {
+  async visit({ build = manifest, started = Promise.resolve(), serviceWorkers = true, usage = null, saveData = false } = {}) {
     const browser = this;
     const page = footer();
     const set = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
@@ -233,6 +233,7 @@ class Browser {
     };
     set("navigator", {
       ...(usage === null ? {} : { storage: { estimate: async () => ({ usage }) } }), // a browser may not say
+      ...(saveData ? { connection: { saveData: true } } : {}), // the reader asked the browser to use less data
       serviceWorker: serviceWorkers && {
         register,
         getRegistration: async () => browser.worker && { unregister: async () => void (browser.worker = null) },
@@ -259,12 +260,11 @@ describe("a first visit", () => {
     page = await browser.visit();
   });
 
-  test("copies what Python started from and the page's own files, and says the page opens without a network", () => {
-    assert.deepEqual(browser.caches.held(KEPT).sort(), [...START].sort());
+  test("copies what Python started from, the charts and Excel files and the page's own files, and says it works fully offline", () => {
+    assert.deepEqual(browser.caches.held(KEPT).sort(), [...START, ...LATER].sort());
     assert.deepEqual(browser.caches.held(APP).sort(), [...SHELL].sort(), "not the wheel's folder, a reader's report, or a file the server refused");
-    assert.deepEqual(page.seen, ["Works offline, except charts and Excel files. Factorial is saved on this device."]);
-    assert.deepEqual([page.box.hidden, page.keep.hidden, page.remove.hidden], [false, false, false]);
-    assert.equal(page.keep.textContent, "Add charts and Excel files (12 MB more)");
+    assert.deepEqual(page.seen, ["Works fully offline. Factorial is saved on this device."], "one thing said, and nothing while it was made");
+    assert.deepEqual([page.box.hidden, page.keep.hidden, page.remove.hidden], [false, true, false], "one button: to remove it");
   });
 
   test("registers the worker before it copies anything, so no copy is made that no worker could serve", () => {
@@ -277,13 +277,22 @@ describe("a first visit", () => {
     assert.deepEqual(browser.caches.held(MADE), [], "a mark holds nothing");
   });
 
-  test("downloads nothing of the charts and workbooks", () => {
-    assert.ok(!LATER.some((address) => browser.network.asked.includes(address)));
+  test("downloads the charts and Excel files unasked, each once", () => {
+    assert.deepEqual(browser.downloaded().filter((address) => LATER.includes(address)).sort(), [...LATER].sort());
+  });
+
+  test("in a browser that asks sites to save data downloads none of them, and offers them", async () => {
+    const sparing = new Browser();
+    const offered = await sparing.visit({ saveData: true });
+    assert.ok(!LATER.some((address) => sparing.network.asked.includes(address)));
+    assert.deepEqual(sparing.caches.held(KEPT).sort(), [...START].sort());
+    assert.deepEqual(offered.seen, ["Works offline, except charts and Excel files. Factorial is saved on this device."]);
+    assert.deepEqual([offered.keep.textContent, offered.keep.hidden, offered.remove.hidden], ["Add charts and Excel files (12 MB more)", false, false]);
   });
 
   test("says what the copy takes of the device's storage, to the nearest ten MB, in a browser that says", async () => {
     const page = await new Browser().visit({ usage: 169_400_000 });
-    assert.equal(page.said.textContent, "Works offline, except charts and Excel files. Factorial is saved on this device (about 170 MB).");
+    assert.equal(page.said.textContent, "Works fully offline. Factorial is saved on this device (about 170 MB).");
   });
 
   test("is followed by visits that copy nothing again", async () => {
@@ -295,14 +304,9 @@ describe("a first visit", () => {
 });
 
 describe("the whole copy", () => {
-  let browser;
-  let page;
-  beforeEach(async () => {
-    browser = new Browser();
-    page = await browser.visit();
-  });
-
-  test("is made when the reader asks: each file of the charts and workbooks, and nothing twice", async () => {
+  test("is made when a reader whose browser saves data asks: each file of the charts and workbooks, and nothing twice", async () => {
+    const browser = new Browser();
+    const page = await browser.visit({ saveData: true });
     const before = browser.network.asked.length;
     await page.keep.onclick();
     assert.deepEqual(browser.downloaded(before).sort(), [...LATER].sort());
@@ -311,19 +315,37 @@ describe("the whole copy", () => {
       "Works fully offline. Factorial is saved on this device.",
     ]);
     assert.deepEqual([page.keep.hidden, page.remove.hidden], [true, false]);
+    assert.match((await browser.visit({ saveData: true })).said.textContent, /^Works fully offline\. /, "and it stays whole, unasked");
   });
 
   test("is what the footer says only while the copy holds every file of it: nothing is taken from a note", async () => {
-    await page.keep.onclick();
+    const browser = new Browser();
     assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /);
-    await (await browser.caches.open(KEPT)).delete(PLOTLY);
-    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /, "a browser may drop what it kept");
+    await (await browser.caches.open(KEPT)).delete(PLOTLY); // a browser may drop what it kept
+    browser.network.files.delete(PLOTLY); // and this visit cannot have it again
+    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /);
   });
 
-  test("is what the footer says once the files have all passed through the worker, unasked", async () => {
+  test("that could not be finished unasked is not called a failure: the copy is said as it stands, and offers the rest", async () => {
+    const browser = new Browser();
+    browser.network.files.delete(PLOTLY);
+    const page = await browser.visit();
+    assert.deepEqual(page.seen, ["Works offline, except charts and Excel files. Factorial is saved on this device."]);
+    assert.deepEqual([page.keep.textContent, page.keep.hidden], ["Add charts and Excel files (12 MB more)", false]);
+    assert.ok(START.every((address) => browser.caches.held(KEPT).includes(address)), "what opens the page is all there");
+    browser.network.files.set(PLOTLY, "plotly");
+    const [had, before] = [browser.caches.held(KEPT), browser.network.asked.length];
+    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /, "the next visit tries again");
+    const again = browser.downloaded(before);
+    assert.ok(again.includes(PLOTLY) && again.every((address) => LATER.includes(address) && !had.includes(address)), "for what it lacked alone");
+  });
+
+  test("is what the footer says once the files have all passed through the worker, in a browser that saves data", async () => {
+    const browser = new Browser();
+    await browser.visit({ saveData: true });
     const kept = await browser.caches.open(KEPT);
     for (const address of LATER) await kept.put(address, { body: "kept as it passed" });
-    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /);
+    assert.match((await browser.visit({ saveData: true })).said.textContent, /^Works fully offline\. /);
   });
 
   test("is not offered by a build that could not name its files", async () => {
@@ -341,7 +363,7 @@ describe("a copy the browser has lost part of", () => {
     const before = browser.network.asked.length;
     const page = await browser.visit();
     assert.deepEqual(browser.downloaded(before), [`${RELEASE}pyodide.asm.wasm`]);
-    assert.match(page.said.textContent, /^Works offline, except charts and Excel files\. /);
+    assert.match(page.said.textContent, /^Works fully offline\. /);
   });
 
   test("is made again when the browser dropped it all, though the worker's empty copies are there", async () => {
@@ -349,7 +371,7 @@ describe("a copy the browser has lost part of", () => {
     await browser.visit();
     for (const name of [KEPT, APP]) (await browser.caches.delete(name), await browser.caches.open(name));
     await browser.visit();
-    assert.deepEqual(browser.caches.held(KEPT).sort(), [...START].sort());
+    assert.deepEqual(browser.caches.held(KEPT).sort(), [...START, ...LATER].sort());
   });
 });
 
@@ -362,7 +384,7 @@ describe("a copy that cannot be finished", () => {
     assert.deepEqual([page.keep.textContent, page.keep.hidden, page.remove.hidden], ["Try again", false, false]);
     browser.network.files.set(`${RELEASE}numpy.whl`, "numpy");
     await page.keep.onclick();
-    assert.deepEqual(page.seen.slice(1), ["Saving Factorial for offline use...", "Works offline, except charts and Excel files. Factorial is saved on this device."]);
+    assert.deepEqual(page.seen.slice(1), ["Saving Factorial for offline use...", "Works fully offline. Factorial is saved on this device."]);
   });
 
   test("can be removed, with the worker that was to serve it", async () => {
@@ -377,19 +399,20 @@ describe("a copy that cannot be finished", () => {
   test("for want of a file the page opens with says so, where one it merely loaded is left out", async () => {
     const browser = new Browser();
     browser.network.files.delete(`${SCOPE}style.css`); // gone since the visit loaded it
-    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /);
+    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /);
     assert.ok(!browser.caches.held(APP).includes(`${SCOPE}style.css`));
     const without = new Browser();
     without.network.files.delete(`${SCOPE}worker.js`);
     assert.equal((await without.visit()).said.textContent, `Not fully saved: Request failed: ${SCOPE}worker.js`);
   });
 
-  test("of the charts and workbooks keeps the page's copy, and Try again tries the whole of it", async () => {
+  test("of the charts and workbooks, once the reader asked for them, says why, and Try again tries the whole of it", async () => {
     const browser = new Browser();
-    const page = await browser.visit();
     browser.network.files.delete(PLOTLY);
+    const page = await browser.visit(); // unasked, nothing is said of it
     await page.keep.onclick();
     assert.equal(page.said.textContent, `Not fully saved: Request failed: ${PLOTLY}`);
+    assert.ok(START.every((address) => browser.caches.held(KEPT).includes(address)), "the page's copy is kept");
     browser.network.files.set(PLOTLY, "plotly");
     await page.keep.onclick();
     assert.match(page.said.textContent, /^Works fully offline\. /);
@@ -454,15 +477,15 @@ describe("a reader who removes the copy", () => {
     assert.deepEqual(browser.network.asked.slice(before), [], "nothing is read, and nothing copied");
     assert.equal(later.said.textContent, "Needs internet. Factorial is not saved on this device.");
     await later.keep.onclick();
-    assert.match(later.said.textContent, /^Works offline, except charts and Excel files\. /);
-    assert.match((await browser.visit()).said.textContent, /^Works offline, except charts and Excel files\. /, "and it is kept from then on");
+    assert.deepEqual(later.seen.slice(-2), ["Saving Factorial for offline use...", "Works fully offline. Factorial is saved on this device."]);
+    assert.match((await browser.visit()).said.textContent, /^Works fully offline\. /, "and it is kept from then on");
   });
 });
 
 describe("the keyboard", () => {
   test("stays in the footer when the button pressed goes: on the next button, or on the words", async () => {
     const browser = new Browser();
-    const page = await browser.visit();
+    const page = await browser.visit({ saveData: true }); // the one visit that ends with both buttons
     globalThis.document.activeElement = page.keep;
     await page.keep.onclick();
     assert.equal(globalThis.document.activeElement, page.remove, "the whole copy offers only its removal");
@@ -473,7 +496,7 @@ describe("the keyboard", () => {
   test("is left where it is when the reader is elsewhere on the page", async () => {
     const page = await new Browser().visit();
     assert.equal(globalThis.document.activeElement, null);
-    assert.equal(page.box.dataset.state, "opens");
+    assert.equal(page.box.dataset.state, "whole");
   });
 });
 

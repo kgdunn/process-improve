@@ -10,9 +10,11 @@
 //    never one that is open: a first visit starts Python and makes its copy with no worker in its way, and from
 //    the next visit on the worker keeps the copy up with each build as its files pass. A browser that registers
 //    no worker is asked to keep nothing.
-// 2. Charts and workbooks need plotly, openpyxl and Plotly.js, which start-up leaves out. A reader who wants the
-//    whole page without a network asks for them with the button; a reader who never asks downloads none of it
-//    until a chart or a workbook is first made.
+// 2. Charts and workbooks need plotly, openpyxl and Plotly.js, which start-up leaves out: about 12 MB, and a
+//    download of its own unless the visit has made a chart and a workbook. They are copied too, unasked, so that
+//    the whole page works without a network and the footer has one thing to say. A browser that asks sites to
+//    save data (navigator.connection.saveData) is not sent them unasked: its reader adds them with the button.
+//    So does a reader whose copy of them could not be finished, which the next visit tries again in any case.
 // 3. What the footer says is read from the copy itself, never from a note of what was once copied: the page "opens
 //    without a network" while the copy holds every file Python starts from, and "works" there while it holds every
 //    file of the charts and workbooks too. A browser may drop a copy, and a note would go on claiming it.
@@ -118,6 +120,8 @@ const TRY_AGAIN = "Try again";
  * be removed. `exact` says whether the build names the files of the charts and Excel files: only then can they be
  * saved for certain, and the button offered. `size` is what the copy takes of the device's storage, in MB, where the
  * browser says: the copy is made unasked, so a reader is told what it costs beside the button that removes it.
+ * The whole copy is made unasked, so `opens` is said only where the charts and Excel files are not there: a
+ * build that names none, a browser that asks to save data, or a download of them that did not finish.
  */
 export function copyWords(state, { reason = "", exact = true, size = null } = {}) {
   const saved = size ? `Factorial is saved on this device (about ${size} MB).` : "Factorial is saved on this device.";
@@ -255,7 +259,9 @@ export async function installOffline({ manifest, started, box }) {
   const scope = new URL(".", location.href).href;
   const [said, keep, remove] = ["span", "#offline-keep", "#offline-remove"].map((part) => box.querySelector(part));
   let exact = true; // whether the build names the files of the charts and workbooks
-  let wanted = "page"; // what was last asked for, which "Try again" tries: the page's copy, or the whole of it
+  // What a copy is made of unasked: the whole of it, or the page's copy alone in a browser that asks to save data.
+  const most = globalThis.navigator.connection?.saveData === true ? "page" : "whole";
+  let wanted = most; // what was last asked for, which "Try again" tries: the page's copy, or the whole of it
   let busy = false; // one thing at a time is done to the copy
 
   const show = (state, { reason, size } = {}) => {
@@ -292,7 +298,8 @@ export async function installOffline({ manifest, started, box }) {
    * worker is registered first, so a browser that refuses one is asked to keep nothing: a copy with no worker to
    * serve it is of no use. Then the page's copy: what it lacks is added, and what earlier builds left is dropped.
    * `meanwhile` is the state shown while it is done; without one the reader asked for nothing, and a browser that
-   * registers no worker is told nothing.
+   * registers no worker is told nothing. Nor is a reader told that the charts and workbooks could not be added
+   * unasked: the copy is said as it stands, with the button that adds them, and the next visit tries again.
    */
   async function run(what, meanwhile) {
     if (busy) return;
@@ -310,7 +317,10 @@ export async function installOffline({ manifest, started, box }) {
       await copyInto(APP, opening(scope));
       await copyInto(APP, [...alsoLoaded(scope), ...onDemand(scope), ...linked(scope)], { needed: false });
       await prune(scope, files.now);
-      if (what === "whole" && files.later) await copyInto(KEPT, files.later);
+      if (what === "whole" && files.later) {
+        const added = copyInto(KEPT, files.later);
+        await (meanwhile ? added : added.catch(() => {}));
+      }
       await say(files);
     } catch (err) {
       // No worker though the reader asked for a copy, a full disk, no network for a file, or Python did not start.
@@ -326,8 +336,8 @@ export async function installOffline({ manifest, started, box }) {
   keep.onclick = () => {
     const state = box.dataset.state;
     if (state === "none") wish(false); // the reader wants a copy again
-    const what = state === "none" ? "page" : state === "failed" ? wanted : "whole";
-    return run(what, what === "whole" ? "keeping" : "copying");
+    const what = state === "none" ? most : state === "failed" ? wanted : "whole";
+    return run(what, state === "opens" ? "keeping" : "copying");
   };
   remove.onclick = async () => {
     if (busy) return;
@@ -339,5 +349,5 @@ export async function installOffline({ manifest, started, box }) {
     // A write the worker was in the middle of as the copy went can bring a cache back: it goes at the next visit.
     await removeCopy().catch(() => {});
     show("none");
-  } else await run("page"); // quietly: on a visit after the first, the copy lacks nothing
+  } else await run(most); // quietly: on a visit after the first, the copy lacks nothing
 }
